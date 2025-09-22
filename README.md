@@ -1,8 +1,8 @@
 # Pets+ (Pets Plus)
-A Minecraft mod that adds customizable pets with unique roles and abilities to enhance your gameplay experience.
+A Minecraft mod that adds expands pets with unique roles and abilities to enhance your gameplay experience.
 
 ## Pet Roles and Levelling
-Each pet role has a unique set of abilities that enhance your gameplay in different ways. Choose the one that best fits your playstyle!
+Each role has a unique set of abilities, and can be applied to *any* tamable/trustable entity. *So MaNY wAcKy CoMbInAtiOnS*!
 
 1. **Guardian** — a loyal shield that steps between you and the world. It absorbs punishment for you and steadies you against knockbacks and volleys.
 
@@ -22,13 +22,13 @@ Each pet role has a unique set of abilities that enhance your gameplay in differ
 
 9. **Eclipsed** — void-kissed mischief that paints targets for ruin. It brands enemies, gives sudden speed bursts, and sends out pings that reveal nearby lurkers.
 
-Your pet gains experience as you do, unlocking stronger perks. At certain milestones, offer a tribute to break the cap (the item is consumed):
+Your pet gains experience as you do (1:1), unlocking stronger perks. At certain milestones, offer a tribute to break the cap (the item is consumed!):
 - **Level 10 →** Gold Ingot  
 - **Level 20 →** Diamond  
 - **Level 30 →** Netherite Ingot
 
 ## Pet Death and Loss
-If your pet dies, it will drop all its items and be gone for good. Your tribute items are lost and all pet experience is lost. You will need to tame a new pet.
+If your pet dies, it will drop all its items and be gone for good. Your tribute items are lost and all pet experience is lost. You will need to invest in a new pet.
 
 ## Configuration
 Pets+ includes a configuration file (`config/petsplus.json`) where you can customize various settings. Explore it yourself.
