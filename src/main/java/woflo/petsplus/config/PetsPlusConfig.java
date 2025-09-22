@@ -179,11 +179,48 @@ public class PetsPlusConfig {
         DEFAULT_TRIBUTE_ITEMS.forEach((level, id) -> tributeItems.addProperty(String.valueOf(level), id));
         config.add("tribute_items", tributeItems);
 
-    // Pets config (misc/global)
-    JsonObject pets = new JsonObject();
-    // Trusted/leash behavior is now defaulted in code; no toggles required
-    config.add("pets", pets);
-        
+        // Pets config (misc/global)
+        JsonObject pets = new JsonObject();
+        // Trusted/leash behavior is now defaulted in code; no toggles required
+        config.add("pets", pets);
+
+        // Visual config (particle/afterimage styling)
+        JsonObject visuals = new JsonObject();
+        JsonObject afterimageStyles = new JsonObject();
+
+        JsonObject defaultAfterimage = new JsonObject();
+        defaultAfterimage.addProperty("block_id", "minecraft:black_stained_glass");
+        defaultAfterimage.addProperty("encase_ticks", 25);
+        defaultAfterimage.addProperty("column_count", 6);
+        defaultAfterimage.addProperty("vertical_slices", 5);
+        defaultAfterimage.addProperty("initial_shard_count", 16);
+        defaultAfterimage.addProperty("shimmer_count", 8);
+        defaultAfterimage.addProperty("shimmer_interval", 5);
+        defaultAfterimage.addProperty("burst_particle_count", 28);
+        defaultAfterimage.addProperty("burst_speed", 0.32);
+        defaultAfterimage.addProperty("shell_offset", 0.35);
+        defaultAfterimage.addProperty("shimmer_speed", 0.02);
+        defaultAfterimage.addProperty("encase_shard_speed", 0.05);
+        afterimageStyles.add("default", defaultAfterimage);
+
+        JsonObject cursedReanimation = new JsonObject();
+        cursedReanimation.addProperty("block_id", "minecraft:black_stained_glass");
+        cursedReanimation.addProperty("encase_ticks", 28);
+        cursedReanimation.addProperty("column_count", 7);
+        cursedReanimation.addProperty("vertical_slices", 6);
+        cursedReanimation.addProperty("initial_shard_count", 20);
+        cursedReanimation.addProperty("shimmer_count", 10);
+        cursedReanimation.addProperty("shimmer_interval", 4);
+        cursedReanimation.addProperty("burst_particle_count", 36);
+        cursedReanimation.addProperty("burst_speed", 0.36);
+        cursedReanimation.addProperty("shell_offset", 0.4);
+        cursedReanimation.addProperty("shimmer_speed", 0.025);
+        cursedReanimation.addProperty("encase_shard_speed", 0.06);
+        afterimageStyles.add("cursed_reanimation", cursedReanimation);
+
+        visuals.add("afterimage_styles", afterimageStyles);
+        config.add("visuals", visuals);
+
         return config;
     }
     
