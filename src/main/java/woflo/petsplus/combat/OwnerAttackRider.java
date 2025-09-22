@@ -61,10 +61,19 @@ public class OwnerAttackRider {
             
             if (riderData != null && riderData.onHitEffect != null) {
                 if (riderData.appliesToTarget(target)) {
-                    target.addStatusEffect(riderData.onHitEffect);
+                    // Create effect context for the on-hit effect
+                    woflo.petsplus.api.EffectContext effectContext = new woflo.petsplus.api.EffectContext(
+                        (net.minecraft.server.world.ServerWorld) owner.getWorld(), 
+                        null, // Pet may be null for owner-triggered effects
+                        owner,
+                        null // TriggerContext may be null for on-hit effects
+                    ).withData("target", target);
+                    
+                    // Execute the on-hit effect
+                    riderData.onHitEffect.execute(effectContext);
                     
                     Petsplus.LOGGER.debug("Applied on-hit effect {} to {}", 
-                        riderData.onHitEffect.getEffectType().toString(), target.getType().toString());
+                        riderData.onHitEffect.getId(), target.getType().toString());
                 }
             }
         }

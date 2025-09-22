@@ -30,6 +30,9 @@ public class ServerEventHandler {
 
         // Update pet inspection boss bars
         woflo.petsplus.ui.PetInspectionManager.tick(server);
+        
+        // Tick boss bars for cleanup and updates
+        woflo.petsplus.ui.BossBarManager.tickBossBars();
     }
     
     private static void onServerStarting(MinecraftServer server) {

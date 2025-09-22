@@ -350,6 +350,27 @@ public class EepyEeperCore {
 
             player.getHungerManager().setSaturationLevel(20.0f);
 
+            // Special Eepy Eeper sleep bonus: configurable chance to gain 1 level (balances slower learning rate)
+            // Only applies if not at tribute gate and not max level
+            float sleepLevelUpChance = (float) PetsPlusConfig.getInstance().getDouble("eepy_eeper", "sleepLevelUpChance", 0.5);
+            if (petComp.getLevel() < 30 && !petComp.isWaitingForTribute() && world.random.nextFloat() < sleepLevelUpChance) {
+                boolean leveled = handleSleepLevelUp(petComp, player, pet, world);
+                if (leveled) {
+                    String petName = pet.hasCustomName() ? pet.getCustomName().getString() : pet.getType().getName().getString();
+                    player.sendMessage(Text.of("§6✨ " + petName + " §egained a level while dreaming! Sweet dreams grant wisdom. §6✨"), false);
+                    
+                    // Play special sleep level-up sound
+                    world.playSound(null, pet.getX(), pet.getY(), pet.getZ(), 
+                        net.minecraft.sound.SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 
+                        net.minecraft.sound.SoundCategory.NEUTRAL, 0.8f, 1.5f);
+                    
+                    // Simple particle effect for sleep level-up
+                    world.spawnParticles(net.minecraft.particle.ParticleTypes.HAPPY_VILLAGER,
+                        pet.getX(), pet.getY() + pet.getHeight() * 0.8, pet.getZ(),
+                        8, 0.5, 0.3, 0.5, 0.05);
+                }
+            }
+
             boolean empowered = petComp.getLevel() >= 20;
 
             // L20+ Restful Dreams bonuses
@@ -748,6 +769,38 @@ public class EepyEeperCore {
 
         onPlayerSleep(player);
 
+    }
+    
+    /**
+     * Handle sleep-based level up for Eepy Eeper pets.
+     * This gives them a chance to gain a level while their owner sleeps, 
+     * helping to balance their slower XP learning rate.
+     */
+    private static boolean handleSleepLevelUp(PetComponent petComp, ServerPlayerEntity player, MobEntity pet, ServerWorld world) {
+        int currentLevel = petComp.getLevel();
+        int targetLevel = currentLevel + 1;
+        
+        // Set XP to exactly what's needed for the next level
+        int requiredXp = PetComponent.getTotalXpForLevel(targetLevel);
+        petComp.setExperience(requiredXp);
+        
+        // Force level calculation update
+        boolean actuallyLeveled = petComp.addExperience(0); // This will trigger level up logic
+        
+        if (actuallyLeveled) {
+            // Apply attribute modifiers for new level
+            woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(pet, petComp);
+            
+            // Check if this is a feature level and trigger appropriate handlers
+            if (petComp.isFeatureLevel()) {
+                // Play extra celebratory sound for feature levels
+                world.playSound(null, pet.getX(), pet.getY(), pet.getZ(),
+                    net.minecraft.sound.SoundEvents.ENTITY_VILLAGER_CELEBRATE,
+                    net.minecraft.sound.SoundCategory.NEUTRAL, 0.8f, 1.0f);
+            }
+        }
+        
+        return actuallyLeveled;
     }
 
 }

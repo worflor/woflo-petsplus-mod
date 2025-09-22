@@ -103,9 +103,7 @@ public class PetsCommand {
                         .executes(context -> toggleDebug(context, false))))
                 .then(CommandManager.literal("setlevel")
                     .then(CommandManager.argument("level", StringArgumentType.string())
-                        .then(CommandManager.argument("pet_name", StringArgumentType.string())
-                            .suggests(PET_SUGGESTIONS)
-                            .executes(PetsCommand::adminSetPetLevel)))))
+                        .executes(PetsCommand::adminSetPetLevel))))
             
             // Help system
             .then(CommandManager.literal("help")
@@ -322,8 +320,51 @@ public class PetsCommand {
     }
     
     private static int adminSetPetLevel(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        // TODO: Implement admin pet level setting
-        return 0;
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        String levelStr = StringArgumentType.getString(context, "level");
+        
+        // Parse level
+        int level;
+        try {
+            level = Integer.parseInt(levelStr);
+            if (level < 1 || level > 30) {
+                player.sendMessage(Text.literal("Level must be between 1 and 30!").formatted(Formatting.RED), false);
+                return 0;
+            }
+        } catch (NumberFormatException e) {
+            player.sendMessage(Text.literal("Invalid level: " + levelStr).formatted(Formatting.RED), false);
+            return 0;
+        }
+        
+        // Find the nearest pet owned by the player
+        MobEntity targetPet = findNearestPet(player);
+        if (targetPet == null) {
+            player.sendMessage(Text.literal("No pet found nearby! Stand near your pet and try again.").formatted(Formatting.RED), false);
+            return 0;
+        }
+        
+        PetComponent petComp = PetComponent.get(targetPet);
+        if (petComp == null) {
+            player.sendMessage(Text.literal("Target entity is not a pet!").formatted(Formatting.RED), false);
+            return 0;
+        }
+        
+        // Set the level
+        petComp.setLevel(level);
+        player.sendMessage(Text.literal("Pet level set to " + level + "!").formatted(Formatting.GREEN), false);
+        return 1;
+    }
+    
+    /**
+     * Find the nearest pet owned by the player within 10 blocks.
+     */
+    private static MobEntity findNearestPet(ServerPlayerEntity player) {
+        return player.getWorld().getEntitiesByClass(MobEntity.class, 
+            player.getBoundingBox().expand(10.0), 
+            entity -> {
+                PetComponent petComp = PetComponent.get(entity);
+                return petComp != null && petComp.isOwnedBy(player);
+            }).stream().findFirst().orElse(null);
     }
     
     private static int showHelp(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {

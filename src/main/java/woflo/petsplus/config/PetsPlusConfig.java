@@ -149,12 +149,17 @@ public class PetsPlusConfig {
         // Eepy Eeper config
         JsonObject eepyEeper = new JsonObject();
         eepyEeper.addProperty("perchNapExtraRadius", 1.0);
+        eepyEeper.addProperty("sleepLevelUpChance", 0.5); // 50% chance to level up when sleeping
         config.add("eepy_eeper", eepyEeper);
         
         // Pet leveling config
         JsonObject petLeveling = new JsonObject();
-        petLeveling.addProperty("xp_modifier", 0.5); // Pets get 50% of owner's XP
+        petLeveling.addProperty("xp_modifier", 1.0); // Pets get 1:1 XP sharing (was 0.5)
         petLeveling.addProperty("max_xp_distance", 32); // Max distance to share XP
+        petLeveling.addProperty("participation_bonus", 0.5); // +50% XP for combat participation
+        petLeveling.addProperty("kill_bonus", 0.25); // +25% XP for getting killing blow
+        petLeveling.addProperty("adventure_bonus", 0.15); // +15% XP from mining/smelting
+        petLeveling.addProperty("afk_penalty", 0.25); // 75% XP reduction when AFK
         config.add("pet_leveling", petLeveling);
 
         // Tribute item config

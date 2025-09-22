@@ -117,6 +117,27 @@ public class PetCharacteristics {
     }
     
     /**
+     * Get the XP learning modifier - how well this pet learns from experience.
+     * Combines agility (quick learner) and vitality (focus/retention) with slight randomness.
+     * Range: 0.85 to 1.15 (±15% XP gain variation)
+     */
+    public float getXpLearningModifier(PetRole role) {
+        // Base learning rate influenced by agility (quick thinking) and vitality (focus)
+        float agility = getAgilityModifier(role);
+        float vitality = getVitalityModifier(role);
+        
+        // Combine agility and vitality for learning potential
+        // Agility = quick to pick up concepts, Vitality = retention and focus
+        float learningBase = (agility * 0.6f + vitality * 0.4f);
+        
+        // Add role-specific learning bonuses
+        float roleBonus = getRoleAffinity(role, StatType.LEARNING);
+        
+        // Convert to multiplier: -15% to +15% becomes 0.85 to 1.15
+        return 1.0f + (learningBase + roleBonus);
+    }
+    
+    /**
      * Get role-based stat affinity bonus.
      * Each role gets small bonuses to stats that align with their theme.
      */
@@ -129,46 +150,55 @@ public class PetCharacteristics {
             case GUARDIAN:
                 if (statType == StatType.HEALTH) bonus = 0.05f;      // +5% health
                 if (statType == StatType.DEFENSE) bonus = 0.05f;     // +5% defense
+                if (statType == StatType.LEARNING) bonus = 0.02f;    // +2% learning (protective wisdom)
                 break;
                 
             case STRIKER:
                 if (statType == StatType.ATTACK) bonus = 0.05f;      // +5% attack
                 if (statType == StatType.SPEED) bonus = 0.03f;       // +3% speed
+                if (statType == StatType.LEARNING) bonus = 0.03f;    // +3% learning (combat adaptation)
                 break;
                 
             case SUPPORT:
                 if (statType == StatType.VITALITY) bonus = 0.05f;    // +5% vitality
                 if (statType == StatType.HEALTH) bonus = 0.03f;      // +3% health
+                if (statType == StatType.LEARNING) bonus = 0.04f;    // +4% learning (empathic understanding)
                 break;
                 
             case SCOUT:
                 if (statType == StatType.SPEED) bonus = 0.05f;       // +5% speed
                 if (statType == StatType.AGILITY) bonus = 0.05f;     // +5% agility
+                if (statType == StatType.LEARNING) bonus = 0.05f;    // +5% learning (quick observation skills)
                 break;
                 
             case SKYRIDER:
                 if (statType == StatType.AGILITY) bonus = 0.05f;     // +5% agility
                 if (statType == StatType.SPEED) bonus = 0.03f;       // +3% speed
+                if (statType == StatType.LEARNING) bonus = 0.03f;    // +3% learning (aerial intelligence)
                 break;
                 
             case ENCHANTMENT_BOUND:
                 if (statType == StatType.VITALITY) bonus = 0.03f;    // +3% vitality
                 if (statType == StatType.AGILITY) bonus = 0.03f;     // +3% agility
+                if (statType == StatType.LEARNING) bonus = 0.06f;    // +6% learning (magical aptitude)
                 break;
                 
             case CURSED_ONE:
                 if (statType == StatType.ATTACK) bonus = 0.03f;      // +3% attack
                 if (statType == StatType.VITALITY) bonus = 0.03f;    // +3% vitality
+                if (statType == StatType.LEARNING) bonus = 0.04f;    // +4% learning (dark knowledge)
                 break;
                 
             case ECLIPSED:
                 if (statType == StatType.SPEED) bonus = 0.03f;       // +3% speed
                 if (statType == StatType.ATTACK) bonus = 0.03f;      // +3% attack
+                if (statType == StatType.LEARNING) bonus = 0.05f;    // +5% learning (shadow wisdom)
                 break;
                 
             case EEPY_EEPER:
                 if (statType == StatType.HEALTH) bonus = 0.03f;      // +3% health
                 if (statType == StatType.VITALITY) bonus = 0.05f;    // +5% vitality
+                if (statType == StatType.LEARNING) bonus = 0.01f;    // +1% learning (sleepy but steady)
                 break;
         }
         
@@ -267,6 +297,6 @@ public class PetCharacteristics {
      * Enum for different stat types.
      */
     private enum StatType {
-        HEALTH, SPEED, ATTACK, DEFENSE, AGILITY, VITALITY
+        HEALTH, SPEED, ATTACK, DEFENSE, AGILITY, VITALITY, LEARNING
     }
 }

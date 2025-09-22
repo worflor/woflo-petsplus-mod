@@ -24,6 +24,13 @@ public class SleepEventHandler {
     public static void initialize() {
         ServerTickEvents.END_WORLD_TICK.register(SleepEventHandler::onWorldTick);
         ServerPlayerEvents.AFTER_RESPAWN.register(SleepEventHandler::onPlayerRespawn);
+        
+        // Clean up disconnected players periodically 
+        ServerTickEvents.END_SERVER_TICK.register(server -> {
+            if (server.getTicks() % 1200 == 0) { // Every minute
+                cleanupDisconnectedPlayers(server);
+            }
+        });
     }
 
     /**
@@ -132,5 +139,21 @@ public class SleepEventHandler {
      */
     public static void forceSleepCompletion(ServerPlayerEntity player) {
         onSuccessfulSleep(player);
+    }
+    
+    /**
+     * Clean up data for players who are no longer online
+     */
+    private static void cleanupDisconnectedPlayers(net.minecraft.server.MinecraftServer server) {
+        java.util.Set<UUID> onlinePlayerIds = new java.util.HashSet<>();
+        for (net.minecraft.server.world.ServerWorld world : server.getWorlds()) {
+            for (net.minecraft.server.network.ServerPlayerEntity player : world.getPlayers()) {
+                onlinePlayerIds.add(player.getUuid());
+            }
+        }
+        
+        // Remove data for offline players
+        playerSleepStatus.entrySet().removeIf(entry -> !onlinePlayerIds.contains(entry.getKey()));
+        sleepStartTime.entrySet().removeIf(entry -> !onlinePlayerIds.contains(entry.getKey()));
     }
 }

@@ -127,6 +127,9 @@ public class StateManager {
         // Clean up expired tags and effects
         woflo.petsplus.effects.TagTargetEffect.cleanupExpiredTags(world.getTime());
         woflo.petsplus.effects.ProjectileDrForOwnerEffect.cleanupExpired(world.getTime());
+        
+        // Clean up expired particle effect tracking
+        woflo.petsplus.ui.CooldownParticleManager.cleanup(world.getTime());
 
         // Pet-local periodic triggers and lightweight support mechanics
         if (!petComponents.isEmpty()) {
@@ -136,6 +139,9 @@ public class StateManager {
                 if (pet == null || !pet.isAlive()) continue;
                 PlayerEntity owner = comp.getOwner();
                 if (owner == null || owner.isRemoved()) continue;
+
+                // Update cooldowns and trigger particle effects on refresh
+                comp.updateCooldowns();
 
                 // Emit interval trigger every 20 ticks (approx 1s) and also faster at 40 if needed
                 long time = world.getTime();

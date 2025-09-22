@@ -9,6 +9,7 @@ import woflo.petsplus.api.PetRole;
 import woflo.petsplus.stats.PetCharacteristics;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -109,7 +110,36 @@ public class PetComponent {
     public void setCooldown(String key, int ticks) {
         cooldowns.put(key, pet.getWorld().getTime() + ticks);
     }
-    
+
+    /**
+     * Updates cooldowns and triggers particle effects when they expire
+     * Should be called periodically to check for cooldown refreshes
+     */
+    public void updateCooldowns() {
+        if (!(pet.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld)) {
+            return;
+        }
+        
+        long currentTime = pet.getWorld().getTime();
+        boolean anyExpired = false;
+        
+        // Check for expired cooldowns
+        Iterator<Map.Entry<String, Long>> iterator = cooldowns.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, Long> entry = iterator.next();
+            if (currentTime >= entry.getValue()) {
+                // Cooldown has expired
+                anyExpired = true;
+                iterator.remove(); // Remove expired cooldown
+            }
+        }
+        
+        // Trigger particle effect if any cooldown expired
+        if (anyExpired) {
+            woflo.petsplus.ui.CooldownParticleManager.triggerCooldownRefresh(serverWorld, pet);
+        }
+    }
+
     public long getRemainingCooldown(String key) {
         Long cooldownEnd = cooldowns.get(key);
         if (cooldownEnd == null) return 0;
@@ -205,21 +235,22 @@ public class PetComponent {
     /**
      * Calculate XP required for a specific level.
      * Feature levels are: 3, 7, 12, 17, 23, 27
-     * Uses exponential scaling similar to Minecraft player XP.
+     * Uses exponential scaling similar to Minecraft player XP but much more gentle.
      */
     public static int getXpRequiredForLevel(int level) {
         if (level <= 1) return 0;
         
-        // Base XP progression - exponential scaling
-        // Lower levels: 50, 150, 300, 500, 750, 1050, 1400, 1800, 2250, 2750...
-        // Feature levels get extra emphasis
-        int baseXp = (level - 1) * 50 + (level - 1) * (level - 1) * 25;
+        // Base XP progression - gentler exponential scaling (~60% reduction from original)
+        // Lower levels: 20, 60, 120, 200, 300, 420, 560, 720, 900, 1100...
+        // Much more approachable while maintaining meaningful progression
+        int baseXp = (level - 1) * 20 + (level - 1) * (level - 1) * 8;
         
-        // Feature level milestones (3, 7, 12, 17, 23, 27) get 50% extra XP requirement
+        // Feature level milestones (3, 7, 12, 17, 23, 27) get 25% XP BONUS (not penalty!)
+        // These should feel rewarding and exciting to reach, not punishing
         boolean isFeatureLevel = level == 3 || level == 7 || level == 12 || 
                                 level == 17 || level == 23 || level == 27;
         
-        return isFeatureLevel ? (int)(baseXp * 1.5) : baseXp;
+        return isFeatureLevel ? (int)(baseXp * 0.75) : baseXp;
     }
     
     /**

@@ -1,7 +1,6 @@
 package woflo.petsplus.effects;
 
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.api.Effect;
@@ -16,10 +15,10 @@ public class OwnerNextAttackBonusEffect implements Effect {
     
     private final double bonusDamagePct;
     private final String vsTag;
-    private final StatusEffectInstance onHitEffect;
+    private final Effect onHitEffect;
     private final int expireTicks;
     
-    public OwnerNextAttackBonusEffect(double bonusDamagePct, String vsTag, StatusEffectInstance onHitEffect, int expireTicks) {
+    public OwnerNextAttackBonusEffect(double bonusDamagePct, String vsTag, Effect onHitEffect, int expireTicks) {
         this.bonusDamagePct = bonusDamagePct;
         this.vsTag = vsTag;
         this.onHitEffect = onHitEffect;
@@ -63,10 +62,10 @@ public class OwnerNextAttackBonusEffect implements Effect {
     public static class AttackRiderData {
         public final double bonusDamagePct;
         public final String vsTag;
-        public final StatusEffectInstance onHitEffect;
+        public final Effect onHitEffect;
         public final long expiryTick;
         
-        public AttackRiderData(double bonusDamagePct, String vsTag, StatusEffectInstance onHitEffect, long expiryTick) {
+        public AttackRiderData(double bonusDamagePct, String vsTag, Effect onHitEffect, long expiryTick) {
             this.bonusDamagePct = bonusDamagePct;
             this.vsTag = vsTag;
             this.onHitEffect = onHitEffect;

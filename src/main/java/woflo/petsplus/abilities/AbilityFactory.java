@@ -192,9 +192,10 @@ public class AbilityFactory {
                 String vsTag = getStringOrDefault(effectJson, "vs_tag", null);
                 int expireTicks = getIntOrDefault(effectJson, "expire_ticks", 100);
                 
-                StatusEffectInstance onHitEffect = null;
+                Effect onHitEffect = null;
                 if (effectJson.has("on_hit_effect")) {
-                    onHitEffect = parseStatusEffect(effectJson.getAsJsonObject("on_hit_effect"));
+                    JsonObject onHitJson = effectJson.getAsJsonObject("on_hit_effect");
+                    onHitEffect = createEffect(onHitJson);
                 }
                 
                 return new OwnerNextAttackBonusEffect(bonusPct, vsTag, onHitEffect, expireTicks);
@@ -238,6 +239,15 @@ public class AbilityFactory {
                 BuffEffect.Target effectTarget = parseBuffTarget(getStringOrDefault(effectJson, "target", "owner"));
                 StatusEffectInstance statusEffect = parseStatusEffect(effectJson);
                 return new BuffEffect(effectTarget, statusEffect, false, false);
+                
+            case "heal_owner_flat_pct":
+                double healValue = getDoubleOrDefault(effectJson, "value", 0.15);
+                return new HealOwnerFlatPctEffect(healValue);
+                
+            case "knockup":
+                double strength = getDoubleOrDefault(effectJson, "strength", 0.35);
+                String knockupTarget = getStringOrDefault(effectJson, "target", "victim");
+                return new KnockupEffect(strength, knockupTarget);
 
             default:
                 Petsplus.LOGGER.warn("Unknown effect type: {}", type);
@@ -247,16 +257,25 @@ public class AbilityFactory {
     
     private static StatusEffectInstance parseStatusEffect(JsonObject effectJson) {
         try {
-            String effectId = effectJson.get("id").getAsString();
+            // Check if the id field exists and is not null
+            JsonElement idElement = effectJson.get("id");
+            if (idElement == null || idElement.isJsonNull()) {
+                Petsplus.LOGGER.warn("Status effect missing 'id' field in JSON: {}", effectJson);
+                return null;
+            }
+            
+            String effectId = idElement.getAsString();
             int duration = getIntOrDefault(effectJson, "duration", 60);
             int amplifier = getIntOrDefault(effectJson, "amplifier", 0);
             
             StatusEffect statusEffect = Registries.STATUS_EFFECT.get(Identifier.of(effectId));
             if (statusEffect != null) {
                 return new StatusEffectInstance(Registries.STATUS_EFFECT.getEntry(statusEffect), duration, amplifier);
+            } else {
+                Petsplus.LOGGER.warn("Unknown status effect: {}", effectId);
             }
         } catch (Exception e) {
-            Petsplus.LOGGER.error("Failed to parse status effect", e);
+            Petsplus.LOGGER.error("Failed to parse status effect from JSON: {}", effectJson, e);
         }
         return null;
     }

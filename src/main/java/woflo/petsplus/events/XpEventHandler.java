@@ -24,10 +24,18 @@ import java.util.Map;
  */
 public class XpEventHandler {
     private static final Map<PlayerEntity, Integer> PREVIOUS_XP = new WeakHashMap<>();
+    private static final Map<PlayerEntity, Long> LAST_PLAYER_ACTION = new WeakHashMap<>();
+    private static final Map<PlayerEntity, Long> LAST_COMBAT_TIME = new WeakHashMap<>();
+    private static final Map<MobEntity, Long> LAST_PET_COMBAT = new WeakHashMap<>();
     
     public static void initialize() {
         ServerTickEvents.END_WORLD_TICK.register(XpEventHandler::onWorldTick);
-        ServerLifecycleEvents.SERVER_STOPPING.register(server -> PREVIOUS_XP.clear());
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            PREVIOUS_XP.clear();
+            LAST_PLAYER_ACTION.clear();
+            LAST_COMBAT_TIME.clear();
+            LAST_PET_COMBAT.clear();
+        });
     }
     
     private static void onWorldTick(ServerWorld world) {
@@ -62,15 +70,29 @@ public class XpEventHandler {
         
         if (nearbyPets.isEmpty()) return;
         
-        // Calculate pet XP gain with modifier from config
+        // Base 1:1 XP sharing - much more generous than the old 50%
         PetsPlusConfig config = PetsPlusConfig.getInstance();
-        double xpModifier = config.getDouble("pet_leveling", "xp_modifier", 0.5); // Default 50% of player XP
-        int petXpGain = Math.max(1, (int)(xpGained * xpModifier));
+        double baseXpModifier = config.getDouble("pet_leveling", "xp_modifier", 1.0); // Now defaults to 1:1
         
-        // Give XP to all nearby pets
+        // Give XP to all nearby pets with individual scaling
         for (MobEntity pet : nearbyPets) {
             PetComponent petComp = PetComponent.get(pet);
             if (petComp != null) {
+                // Calculate level-scaled XP modifier - more generous early game
+                float levelScaleModifier = getLevelScaleModifier(petComp.getLevel());
+                
+                // Apply pet's unique learning characteristic (±15% variation)
+                float learningModifier = 1.0f;
+                if (petComp.getCharacteristics() != null) {
+                    learningModifier = petComp.getCharacteristics().getXpLearningModifier(petComp.getRole());
+                }
+                
+                // Apply participation bonuses/penalties
+                float participationModifier = getParticipationModifier(player, pet);
+                
+                // Calculate final XP: base * level_scaling * individual_learning * participation
+                int petXpGain = Math.max(1, (int)(xpGained * baseXpModifier * levelScaleModifier * learningModifier * participationModifier));
+                
                 // Check if this is the first time gaining pet XP (first bond)
                 boolean wasFirstBond = petComp.getLevel() == 1 && petComp.getExperience() == 0;
 
@@ -86,6 +108,82 @@ public class XpEventHandler {
                 }
             }
         }
+    }
+    
+    /**
+     * Get level-scaled XP modifier for more engaging progression.
+     * Early game gets bonus XP for fast bonding, late game is more challenging.
+     */
+    private static float getLevelScaleModifier(int petLevel) {
+        if (petLevel <= 5) {
+            return 1.6f;    // 160% XP for levels 1-5 (fast early bonding)
+        } else if (petLevel <= 10) {
+            return 1.3f;    // 130% XP for levels 6-10 (still generous)
+        } else if (petLevel <= 15) {
+            return 1.1f;    // 110% XP for levels 11-15 (slight bonus)
+        } else if (petLevel <= 20) {
+            return 1.0f;    // 100% XP for levels 16-20 (1:1 ratio)
+        } else if (petLevel <= 25) {
+            return 0.8f;    // 80% XP for levels 21-25 (more challenging)
+        } else {
+            return 0.7f;    // 70% XP for levels 26-30 (prestigious end-game)
+        }
+    }
+    
+    /**
+     * Get participation modifier based on recent player and pet activity.
+     * Rewards active gameplay and discourages AFK farming.
+     */
+    private static float getParticipationModifier(ServerPlayerEntity player, MobEntity pet) {
+        long currentTime = player.getWorld().getTime();
+        PetsPlusConfig config = PetsPlusConfig.getInstance();
+        
+        // Check for recent combat activity (within last 30 seconds = 600 ticks)
+        boolean playerRecentCombat = LAST_COMBAT_TIME.getOrDefault(player, 0L) > (currentTime - 600);
+        boolean petRecentCombat = LAST_PET_COMBAT.getOrDefault(pet, 0L) > (currentTime - 600);
+        
+        // Check for AFK status (no input for 5 minutes = 6000 ticks)
+        boolean playerAFK = LAST_PLAYER_ACTION.getOrDefault(player, currentTime) < (currentTime - 6000);
+        
+        float modifier = 1.0f;
+        
+        // Combat participation bonuses
+        if (playerRecentCombat || petRecentCombat) {
+            float participationBonus = (float) config.getDouble("pet_leveling", "participation_bonus", 0.5);
+            modifier += participationBonus; // +50% default for combat participation
+        }
+        
+        // AFK penalty
+        if (playerAFK) {
+            float afkPenalty = (float) config.getDouble("pet_leveling", "afk_penalty", 0.25);
+            modifier = afkPenalty; // 25% of normal XP when AFK
+        }
+        
+        return Math.max(0.1f, modifier); // Minimum 10% XP even when AFK
+    }
+    
+    /**
+     * Call this when a player deals damage to track combat activity.
+     */
+    public static void trackPlayerCombat(ServerPlayerEntity player) {
+        long currentTime = player.getWorld().getTime();
+        LAST_COMBAT_TIME.put(player, currentTime);
+        LAST_PLAYER_ACTION.put(player, currentTime);
+    }
+    
+    /**
+     * Call this when a pet deals damage to track combat activity.
+     */
+    public static void trackPetCombat(MobEntity pet) {
+        long currentTime = pet.getWorld().getTime();
+        LAST_PET_COMBAT.put(pet, currentTime);
+    }
+    
+    /**
+     * Call this for any player action to track AFK status.
+     */
+    public static void trackPlayerActivity(ServerPlayerEntity player) {
+        LAST_PLAYER_ACTION.put(player, player.getWorld().getTime());
     }
     
     private static void handlePetLevelUp(ServerPlayerEntity owner, MobEntity pet, PetComponent petComp) {
