@@ -15,6 +15,7 @@ import java.util.Optional;
 public final class PetPerchUtil {
     private static final String PETSPLUS_DATA_KEY = "PetsPlusData";
     private static final String ROLE_KEY = "role";
+    private static final String PET_UUID_KEY = "petUuid";
 
     private PetPerchUtil() {
     }
@@ -80,11 +81,13 @@ public final class PetPerchUtil {
             return false;
         }
 
-        return data.getCompound(PETSPLUS_DATA_KEY)
-            .map(petsPlusData -> petsPlusData.getString(ROLE_KEY)
-                .map(roleKey -> roleKey.equals(role.getKey()))
-                .orElse(false))
-            .orElse(false);
+        Optional<NbtCompound> petsPlusData = data.getCompound(PETSPLUS_DATA_KEY);
+        if (petsPlusData.isEmpty()) {
+            return false;
+        }
+
+        Optional<String> roleKey = petsPlusData.get().getString(ROLE_KEY);
+        return roleKey.isPresent() && roleKey.get().equals(role.getKey());
     }
 
     private static Optional<Boolean> matchesComponent(@Nullable NbtCompound data, PetComponent component, String petUuid) {
@@ -92,19 +95,27 @@ public final class PetPerchUtil {
             return Optional.empty();
         }
 
-        return data.getCompound(PETSPLUS_DATA_KEY).flatMap(petsPlusData -> {
-            Optional<Boolean> roleMatch = petsPlusData.getString(ROLE_KEY)
-                .map(roleKey -> roleKey.equals(component.getRole().getKey()));
-            if (roleMatch.isPresent() && !roleMatch.get()) {
+        Optional<NbtCompound> petsPlusData = data.getCompound(PETSPLUS_DATA_KEY);
+        if (petsPlusData.isEmpty()) {
+            return Optional.empty();
+        }
+
+        NbtCompound compound = petsPlusData.get();
+
+        Optional<String> storedRole = compound.getString(ROLE_KEY);
+        if (storedRole.isPresent()) {
+            String roleKey = storedRole.get();
+            if (!roleKey.isEmpty() && !roleKey.equals(component.getRole().getKey())) {
                 return Optional.of(false);
             }
+        }
 
-            if (!petsPlusData.contains("petUuid")) {
-                return Optional.empty();
-            }
+        Optional<String> storedUuid = compound.getString(PET_UUID_KEY);
+        if (storedUuid.isEmpty()) {
+            return Optional.empty();
+        }
 
-            return petsPlusData.getString("petUuid").map(petUuid::equals);
-        });
+        return Optional.of(storedUuid.get().equals(petUuid));
     }
 }
 
