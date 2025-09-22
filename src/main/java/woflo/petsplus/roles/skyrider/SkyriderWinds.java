@@ -17,6 +17,7 @@ import woflo.petsplus.state.OwnerCombatState;
 public class SkyriderWinds {
 
     private static final String PROJ_LEVITATION_LAST_TRIGGER_KEY = "skyrider_proj_levitation_last_trigger";
+    private static final String WINDLASH_LAST_TRIGGER_KEY = "skyrider_windlash_last_trigger";
 
     /**
      * Check if projectile crit levitation should trigger.
@@ -108,6 +109,53 @@ public class SkyriderWinds {
      */
     public static int getWindlashCooldownTicks() {
         return 120; // 6 seconds
+    }
+
+    /**
+     * Check if Windlash Rider can trigger based on cooldown state.
+     */
+    public static boolean isWindlashOffCooldown(ServerPlayerEntity owner) {
+        int cooldownTicks = getWindlashCooldownTicks();
+        if (cooldownTicks <= 0) {
+            return true;
+        }
+
+        OwnerCombatState ownerState = OwnerCombatState.getOrCreate(owner);
+        if (!ownerState.hasTempState(WINDLASH_LAST_TRIGGER_KEY)) {
+            return true;
+        }
+
+        long lastTriggerTick = ownerState.getTempState(WINDLASH_LAST_TRIGGER_KEY);
+        long ticksSinceTrigger = owner.getWorld().getTime() - lastTriggerTick;
+        return ticksSinceTrigger >= cooldownTicks;
+    }
+
+    /**
+     * Track that Windlash Rider has triggered so the cooldown is enforced.
+     */
+    public static void markWindlashTriggered(ServerPlayerEntity owner) {
+        OwnerCombatState ownerState = OwnerCombatState.getOrCreate(owner);
+        ownerState.setTempState(WINDLASH_LAST_TRIGGER_KEY, owner.getWorld().getTime());
+    }
+
+    /**
+     * Get the remaining cooldown in ticks for Windlash Rider.
+     */
+    public static long getWindlashCooldownRemaining(ServerPlayerEntity owner) {
+        int cooldownTicks = getWindlashCooldownTicks();
+        if (cooldownTicks <= 0) {
+            return 0;
+        }
+
+        OwnerCombatState ownerState = OwnerCombatState.getOrCreate(owner);
+        if (!ownerState.hasTempState(WINDLASH_LAST_TRIGGER_KEY)) {
+            return 0;
+        }
+
+        long lastTriggerTick = ownerState.getTempState(WINDLASH_LAST_TRIGGER_KEY);
+        long ticksSinceTrigger = owner.getWorld().getTime() - lastTriggerTick;
+        long remaining = cooldownTicks - ticksSinceTrigger;
+        return Math.max(remaining, 0);
     }
     
     /**
