@@ -189,7 +189,11 @@ public class OwnerCombatState {
     public long getTempState(String key) {
         return tempState.getOrDefault(key, 0L);
     }
-    
+
+    public void clearTempState(String key) {
+        tempState.remove(key);
+    }
+
     public boolean hasTempState(String key) {
         return tempState.containsKey(key);
     }

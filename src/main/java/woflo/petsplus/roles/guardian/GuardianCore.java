@@ -49,14 +49,15 @@ public class GuardianCore {
     private static final int ATTACK_PRIMING_DURATION_TICKS = 100; // 5 seconds
     private static final float BASE_DAMAGE_REDIRECT_RATIO = 0.3f; // 30% base redirect
     private static final double GUARDIAN_PROXIMITY_RANGE = 16.0; // Range to find Guardian pets
-    
+    private static final String GUARDIAN_PRIMED_STATE_KEY = "guardian_bulwark_active_end";
+
     public static void initialize() {
         // Register damage event handler for Bulwark damage redirection
         ServerLivingEntityEvents.ALLOW_DAMAGE.register(GuardianCore::onEntityDamage);
-        
-        // We'll track attack priming through the damage system instead
-        // since AFTER_DAMAGE has a different signature
-        
+
+        // Register post-damage handler to consume primed attacks
+        ServerLivingEntityEvents.AFTER_DAMAGE.register(GuardianCore::onEntityAfterDamage);
+
         // Register world tick for cooldown cleanup and attack processing
         ServerTickEvents.END_WORLD_TICK.register(GuardianCore::onWorldTick);
     }
@@ -205,12 +206,41 @@ public class GuardianCore {
         playBulwarkFeedback(player, guardian, redirectedDamage, redirectRatio);
         
         // Update owner combat state
-        OwnerCombatState ownerState = OwnerCombatState.get(player);
-        if (ownerState != null) {
-            ownerState.setTempState("guardian_bulwark_active", currentTime + ATTACK_PRIMING_DURATION_TICKS);
-        }
-        
+        OwnerCombatState ownerState = OwnerCombatState.getOrCreate(player);
+        ownerState.setTempState(GUARDIAN_PRIMED_STATE_KEY, currentTime + ATTACK_PRIMING_DURATION_TICKS);
+
         return true;
+    }
+
+    /**
+     * Consume primed Guardian attacks once the owner damages a target.
+     */
+    private static void onEntityAfterDamage(LivingEntity entity, DamageSource damageSource, float baseDamageAmount, float damageTaken, boolean blocked) {
+        if (!(damageSource.getAttacker() instanceof ServerPlayerEntity attacker)) {
+            return;
+        }
+
+        UUID attackerId = attacker.getUuid();
+        Long expiryTick = attackPrimingExpiries.get(attackerId);
+        if (expiryTick == null) {
+            return;
+        }
+
+        long currentTime = attacker.getWorld().getTime();
+        OwnerCombatState ownerState = OwnerCombatState.get(attacker);
+        if (ownerState == null) {
+            attackPrimingExpiries.remove(attackerId);
+            return;
+        }
+
+        long stateExpiry = ownerState.getTempState(GUARDIAN_PRIMED_STATE_KEY);
+        if (stateExpiry <= currentTime || currentTime > expiryTick) {
+            consumePrimedAttack(attacker, ownerState);
+            return;
+        }
+
+        applyPrimedAttackEffects(attacker, entity, damageSource, baseDamageAmount);
+        consumePrimedAttack(attacker, ownerState);
     }
     
     /**
@@ -297,10 +327,34 @@ public class GuardianCore {
      */
     private static void onWorldTick(ServerWorld world) {
         long currentTime = world.getTime();
-        
+
         // Clean up expired cooldowns
         bulwarkCooldowns.entrySet().removeIf(entry -> currentTime > entry.getValue());
-        attackPrimingExpiries.entrySet().removeIf(entry -> currentTime > entry.getValue());
+        attackPrimingExpiries.entrySet().removeIf(entry -> {
+            ServerPlayerEntity player = world.getServer().getPlayerManager().getPlayer(entry.getKey());
+            if (player == null) {
+                return true; // Player logged out; clear entry
+            }
+
+            if (player.getWorld() != world) {
+                return false; // Let the correct world handle expiry timing
+            }
+
+            if (player.getWorld().getTime() > entry.getValue()) {
+                OwnerCombatState ownerState = OwnerCombatState.get(player);
+                if (ownerState != null) {
+                    ownerState.clearTempState(GUARDIAN_PRIMED_STATE_KEY);
+                }
+                return true;
+            }
+
+            return false;
+        });
+    }
+
+    private static void consumePrimedAttack(ServerPlayerEntity attacker, OwnerCombatState ownerState) {
+        attackPrimingExpiries.remove(attacker.getUuid());
+        ownerState.clearTempState(GUARDIAN_PRIMED_STATE_KEY);
     }
     
     /**
