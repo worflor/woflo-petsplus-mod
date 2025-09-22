@@ -96,7 +96,7 @@
 * **Baseline**: Reduced fall damage for pet; small chance to “gust dodge” on hit (minor knockback escape with a short internal cooldown).
 * **Current Kit**
 
-  * **L7 – Windlash Rider**: When the owner begins a fall, grant a brief jump boost and empower the owner's next attack with a small knock‑up on hit (short window).
+  * **L7 – Windlash Rider**: When the owner crosses a ~3 block drop (6s cooldown), the Skyrider surges a brief jump boost and primes the owner's next strike with a light knock‑up—whether they're on foot or in the saddle.
 
 ### 3.6 Enchantment‑Bound (Arcana / Enchants)
 

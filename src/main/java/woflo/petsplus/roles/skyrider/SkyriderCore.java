@@ -9,6 +9,7 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.PetRole;
 import woflo.petsplus.state.PetComponent;
 
@@ -160,27 +161,60 @@ public class SkyriderCore {
         }
         
         // Find nearby Skyrider pets with Windlash Rider (L7+)
-        world.getEntitiesByClass(
+        double minFallBlocks = SkyriderWinds.getWindlashMinFallBlocks();
+        if (!SkyriderWinds.isOwnerFallingMinDistance(player, minFallBlocks)) {
+            return;
+        }
+
+        if (!SkyriderWinds.isWindlashOffCooldown(player)) {
+            long remaining = SkyriderWinds.getWindlashCooldownRemaining(player);
+            Petsplus.LOGGER.debug(
+                "Windlash Rider on cooldown for {} ({} ticks remaining)",
+                player.getName().getString(),
+                remaining
+            );
+            return;
+        }
+
+        var skyriderPets = world.getEntitiesByClass(
             MobEntity.class,
             player.getBoundingBox().expand(16.0),
             entity -> {
                 PetComponent component = PetComponent.get(entity);
-                return component != null && 
+                return component != null &&
                        component.getRole() == PetRole.SKYRIDER &&
-                       component.getLevel() >= 7 && // L7+ for Windlash Rider
+                       component.getLevel() >= 7 &&
                        entity.isAlive() &&
                        component.isOwnedBy(player) &&
                        entity instanceof TameableEntity;
             }
-        ).forEach(skyriderPet -> {
-            if (skyriderPet instanceof TameableEntity tameable) {
-                // Use existing wind mechanics for Windlash Rider effects
-                if (SkyriderWinds.shouldTriggerProjLevitation(tameable, player) &&
-                    SkyriderWinds.isOwnerFallingMinDistance(player, SkyriderWinds.getWindlashMinFallBlocks())) {
-                    // Windlash Rider effects activated
-                    SkyriderWinds.onServerTick(tameable, player);
-                }
+        );
+
+        boolean triggered = false;
+
+        for (MobEntity skyriderPet : skyriderPets) {
+            if (!(skyriderPet instanceof TameableEntity tameable)) {
+                continue;
             }
-        });
+
+            if (!SkyriderWinds.isOwnerFallingMinDistance(player, minFallBlocks)) {
+                continue;
+            }
+
+            boolean applyToMount = SkyriderWinds.shouldApplyFallReductionToMount(tameable, player);
+            SkyriderWinds.onServerTick(tameable, player);
+            triggered = true;
+
+            Petsplus.LOGGER.debug(
+                "Skyrider Windlash primed by pet {} for {} ({})",
+                skyriderPet.getDisplayName().getString(),
+                player.getName().getString(),
+                applyToMount ? "mounted" : "on foot"
+            );
+        }
+
+        if (triggered) {
+            SkyriderWinds.markWindlashTriggered(player);
+        }
     }
 }
