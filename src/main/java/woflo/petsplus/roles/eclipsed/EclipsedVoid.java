@@ -3,7 +3,10 @@ package woflo.petsplus.roles.eclipsed;
 import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
+import woflo.petsplus.api.PetRole;
 import woflo.petsplus.config.PetsPlusConfig;
+import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.util.PetPerchUtil;
 
 /**
  * Eclipsed role implementation for owner/perch loop integration.
@@ -122,14 +125,16 @@ public class EclipsedVoid {
         if (pet == null || owner == null) {
             return false;
         }
-        
-        // For parrots, check if they're on the shoulder
-        if (pet instanceof net.minecraft.entity.passive.ParrotEntity) {
-            return pet.getPos().distanceTo(owner.getPos()) < 2.0 && !pet.isOnGround();
+
+        PetComponent component = PetComponent.get(pet);
+        if (component != null &&
+            component.getRole() == PetRole.ECLIPSED &&
+            component.isOwnedBy(owner) &&
+            PetPerchUtil.isPetPerched(component)) {
+            return true;
         }
-        
-        // For other pets, check if they're very close and not on ground (simulating perch)
-        return pet.getPos().distanceTo(owner.getPos()) < 1.5 && !pet.isOnGround();
+
+        return PetPerchUtil.ownerHasPerchedRole(owner, PetRole.ECLIPSED);
     }
     
     /**

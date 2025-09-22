@@ -15,6 +15,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import woflo.petsplus.api.PetRole;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.util.PetPerchUtil;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.ui.FeedbackManager;
 
@@ -114,7 +115,7 @@ public class GuardianCore {
                        petComp.getRole() == PetRole.GUARDIAN &&
                        petComp.isOwnedBy(player) &&
                        pet.isAlive() &&
-                       !petComp.isPerched(); // Use PetComponent's perched state instead
+                       !PetPerchUtil.isPetPerched(petComp);
             }
         );
     }

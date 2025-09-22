@@ -6,6 +6,7 @@ import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.api.PetRole;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.util.PetPerchUtil;
 
 /**
  * Eepy Eeper cozy behaviors.
@@ -39,7 +40,7 @@ public class EepyEeperNapBehaviors {
                     isSitting = tameable.isSitting();
                 }
                 
-                return isSitting || component.isPerched();
+                return isSitting || PetPerchUtil.isPetPerched(component);
             }
         ).isEmpty();
         

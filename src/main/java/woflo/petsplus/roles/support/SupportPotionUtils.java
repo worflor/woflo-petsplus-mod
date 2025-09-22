@@ -7,9 +7,11 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
 import net.minecraft.util.Identifier;
 
+import woflo.petsplus.api.PetRole;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.stats.PetAttributeManager;
+import woflo.petsplus.util.PetPerchUtil;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -302,7 +304,9 @@ public final class SupportPotionUtils {
      */
     public static double getConsumptionPerPulse(PetComponent component) {
         double consumption = 1.0;
-        if (component != null && component.isPerched()) {
+        if (component != null &&
+            component.getRole() == PetRole.SUPPORT &&
+            PetPerchUtil.isPetPerched(component)) {
             double discount = PetsPlusConfig.getInstance().getDouble("support", "perchSipDiscount", 0.20);
             double multiplier = 1.0 - discount;
             if (multiplier < 0.0) multiplier = 0.0;
