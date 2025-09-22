@@ -8,6 +8,7 @@ import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.api.PetRole;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.util.PetPerchUtil;
 
 /**
  * Enchantment-bound owner-centric echo behaviors.
@@ -31,7 +32,7 @@ public class EnchantmentBoundEchoes {
                 return component != null && 
                        component.getRole().equals(PetRole.ENCHANTMENT_BOUND) &&
                        component.isOwnedBy(owner) &&
-                       component.isPerched() &&
+                       PetPerchUtil.isPetPerched(component) &&
                        entity.isAlive();
             }
         ).isEmpty();

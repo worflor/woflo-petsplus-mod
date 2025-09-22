@@ -73,12 +73,12 @@
   * Cleanse with a **milk bucket** to purge the stored brew (consumes it and frees the slot).
   * Emits **aura pulses** to **owner + pet** (optionally teammates via config) at **reduced potency**, short durations, **every \~7s** while near (no constant ticking).
 * **Consumption**: the stored potion is broken into **8 baseline charges for a standard 3m brew (1 charge consumed per pulse)**, scaling linearly with the potion's actual duration and the pet's accumulated **aura efficiency** bonuses.
-  * **Perched sip math**: the L5 perk applies a **20% sip discount** (configurable), so each pulse only spends **0.8 charge** while perched (≈10 pulses per bottle at defaults).
+  * **Perched sip math**: the L5 perk applies a **20% sip discount** (configurable), so each pulse only spends **0.8 charge** while the support pet is **actually perched on your shoulder** (vanilla parrot perch, ≈10 pulses per bottle at defaults).
   * **Why use this vs drinking?** Hands-free, persistent coverage, shared with pet, minimal micromanagement; weaker than drinking but **longer-lived**.
 * **Current Kit**
 
-  * **L5 – Perch Potion Efficiency**: While perched, the pet “sips” less per pulse, extending potion lifespan.
-  * **L15 – Mounted Cone Aura**: From the owner's mount, projects a short cone aura that shares the stored potion briefly.
+  * **L5 – Perch Potion Efficiency**: While perched on your shoulder (parrots or any vanilla shoulder-perch state), the pet “sips” less per pulse, extending potion lifespan.
+  * **L15 – Mounted Cone Aura**: From the owner's **saddled mount**, projects a short cone aura that shares the stored potion briefly.
 
 > No periodic heal-on-kill loop. No duration refresh gimmicks. Numbers configurable.
 
@@ -136,8 +136,8 @@
 * **Current Kit**
 
   * **L17 – Voidbrand**: When combat begins, mark a foe and prime the owner's next attack with a strong bonus vs marked plus a brief slow on hit.
-  * **L23 – Phase Partner (perched)**: While perched, periodically grants the owner a short speed boon and a powerful next‑attack rider.
-  * **L27 – Perch Ping (perched, in combat)**: Periodically pings the nearest hostile, applying a brief Darkness and re‑marking for the voidbrand synergy (boss‑safe tuning).
+  * **L23 – Phase Partner (perched)**: While perched on the owner's shoulder, periodically grants a short speed boon and a powerful next‑attack rider.
+  * **L27 – Perch Ping (perched, in combat)**: While shoulder-perched and in combat, periodically pings the nearest hostile, applying a brief Darkness and re‑marking for the voidbrand synergy (boss‑safe tuning).
 
 ---
 

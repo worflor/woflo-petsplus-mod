@@ -425,6 +425,7 @@ public class PetComponent {
     
     public void writeToNbt(NbtCompound nbt) {
         nbt.putString("role", role.getKey());
+        nbt.putString("petUuid", pet.getUuidAsString());
         nbt.putLong("lastAttackTick", lastAttackTick);
         nbt.putBoolean("isPerched", isPerched);
         nbt.putInt("level", level);

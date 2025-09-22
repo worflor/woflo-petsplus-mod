@@ -6,6 +6,8 @@ import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.api.PetRole;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.util.PetPerchUtil;
+import woflo.petsplus.util.TriggerConditions;
 
 /**
  * Support role behaviors for pet-agnostic utility enhancement.
@@ -20,22 +22,27 @@ public class SupportBehaviors {
         if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
             return 0.0;
         }
-        
-        // Find nearby Support pets that are perched
+
+        double discount = PetsPlusConfig.getInstance().getDouble("support", "perchSipDiscount", 0.20);
+
+        if (PetPerchUtil.ownerHasPerchedRole(owner, PetRole.SUPPORT)) {
+            return discount;
+        }
+
         return serverWorld.getEntitiesByClass(
             MobEntity.class,
             owner.getBoundingBox().expand(16),
             entity -> {
                 PetComponent component = PetComponent.get(entity);
-                return component != null && 
+                return component != null &&
                        component.getRole().equals(PetRole.SUPPORT) &&
                        component.isOwnedBy(owner) &&
-                       component.isPerched() &&
-                       entity.isAlive();
+                       entity.isAlive() &&
+                       PetPerchUtil.isPetPerched(component);
             }
         ).stream()
         .findFirst()
-        .map(pet -> PetsPlusConfig.getInstance().getDouble("support", "perchSipDiscount", 0.20))
+        .map(pet -> discount)
         .orElse(0.0);
     }
     
@@ -49,10 +56,10 @@ public class SupportBehaviors {
         }
         
         // Check if owner is mounted
-        if (owner.getVehicle() == null) {
+        if (!TriggerConditions.isMounted(owner)) {
             return 0.0;
         }
-        
+
         // Find nearby Support pets
         boolean hasNearbySupport = !serverWorld.getEntitiesByClass(
             MobEntity.class,
@@ -66,7 +73,9 @@ public class SupportBehaviors {
             }
         ).isEmpty();
         
-        return hasNearbySupport ? 
+        boolean eligibleMount = TriggerConditions.isMountedOnSaddled(owner);
+
+        return hasNearbySupport && eligibleMount ?
             PetsPlusConfig.getInstance().getDouble("support", "mountedConeExtraRadius", 2.0) : 0.0;
     }
     
@@ -74,6 +83,6 @@ public class SupportBehaviors {
      * Check if aura should use forward cone bias when owner is mounted.
      */
     public static boolean shouldUseForwardConeBias(PlayerEntity owner) {
-        return owner.getVehicle() != null && getMountedAuraExtraRadius(owner) > 0;
+        return TriggerConditions.isMounted(owner) && getMountedAuraExtraRadius(owner) > 0;
     }
 }

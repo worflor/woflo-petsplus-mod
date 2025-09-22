@@ -3,7 +3,10 @@ package woflo.petsplus.roles.support;
 import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
+import woflo.petsplus.api.PetRole;
 import woflo.petsplus.config.PetsPlusConfig;
+import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.util.PetPerchUtil;
 
 /**
  * Support role implementation for perched potion sip reduction and mounted cone bias aura.
@@ -22,13 +25,16 @@ public class SupportLifeSupport {
         if (!(owner instanceof ServerPlayerEntity serverOwner)) {
             return false;
         }
-        
-        // Check if pet is perched on owner's shoulder
-        if (!isPetPerched(pet, serverOwner)) {
-            return false;
+
+        if (PetPerchUtil.ownerHasPerchedRole(serverOwner, PetRole.SUPPORT)) {
+            return true;
         }
-        
-        return true;
+
+        PetComponent component = PetComponent.get(pet);
+        return component != null &&
+               component.getRole() == PetRole.SUPPORT &&
+               component.isOwnedBy(serverOwner) &&
+               PetPerchUtil.isPetPerched(component);
     }
     
     /**
@@ -52,22 +58,6 @@ public class SupportLifeSupport {
      */
     public static int getMountedConeExtraRadius() {
         return PetsPlusConfig.getInstance().getInt("support", "mountedConeExtraRadius", 2);
-    }
-    
-    /**
-     * Check if pet is perched on owner's shoulder.
-     * This is a simplified check - in a full implementation you'd check actual shoulder mounting.
-     */
-    private static boolean isPetPerched(TameableEntity pet, ServerPlayerEntity owner) {
-        // For parrots, check if they're on the shoulder
-        if (pet instanceof net.minecraft.entity.passive.ParrotEntity) {
-            // Check if parrot is sitting on owner's shoulder
-            // This would need to check the actual shoulder mounting state
-            return pet.getPos().distanceTo(owner.getPos()) < 2.0 && !pet.isOnGround();
-        }
-        
-        // For other pets, check if they're very close and not on ground (simulating perch)
-        return pet.getPos().distanceTo(owner.getPos()) < 1.5 && !pet.isOnGround();
     }
     
     /**

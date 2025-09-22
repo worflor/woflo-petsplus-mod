@@ -6,6 +6,8 @@ import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
+import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.util.PetPerchUtil;
 
 /**
  * Effect that applies a status effect buff to a target entity.
@@ -41,13 +43,16 @@ public class BuffEffect implements Effect {
     @Override
     public boolean execute(EffectContext context) {
         // Check guards
-        if (onlyIfMounted && context.getOwner().getVehicle() == null) {
-            return false;
+        if (onlyIfMounted) {
+            LivingEntity owner = context.getOwner();
+            if (owner == null || owner.getVehicle() == null) {
+                return false;
+            }
         }
         
         if (onlyIfPerched) {
-            woflo.petsplus.state.PetComponent petComponent = woflo.petsplus.state.PetComponent.get(context.getPet());
-            if (petComponent == null || !petComponent.isPerched()) {
+            PetComponent petComponent = PetComponent.get(context.getPet());
+            if (!PetPerchUtil.isPetPerched(petComponent)) {
                 return false;
             }
         }
