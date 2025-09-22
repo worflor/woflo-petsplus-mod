@@ -53,8 +53,8 @@
 * **Baseline**: +Knockback Resistance scalar, modest Max HP scalar.
 * **Current Kit**
 
-  * **Bulwark (passive, cooldown)**: The pet redirects a portion of incoming damage from the owner to itself, then primes the owner's next attack with **Guardian's Blessing**—a reliable counterattack rider that inflicts Weakness on the foe and surges the owner with a heartbeat of Strength. The blessing fires whether you're on foot or mounted, but steadies a mount with a brief resistance pulse when you're in the saddle, alongside the usual projectile DR hooks.
-  * **Feature unlock**: On successful redirect, the owner's next attack gains a small damage bonus and rider effect (short expiry); Guardian's Blessing now tracks through the owner's combat state so the empowered swing sticks until it's actually thrown.
+  * **Bulwark (passive, cooldown)**: When the owner is struck, nearby Guardians are evaluated in priority order (off cooldown, largest health buffer above reserve, higher level, healthier) and the chosen pet soaks the hit through a single redirect path. The life-share respects a bonded reserve floor—beginning near 14% of the pet's max HP and flattening to a strict 10% minimum by mid-levels—so redirects taper off before the Guardian bleeds out. The redirect ratio now flexes with the pet's remaining health: fresh Guardians shoulder close to their full share, while bruised pets lean on lighter intercepts as they approach that reserve. A successful soak applies **Guardian's Blessing**—a slightly longer Strength pulse to the owner, steadied mounts via an extended Resistance nudge, and a stored but shorter Weakness rider for the next victim—while firing the pet's `after_pet_redirect` trigger exactly once before any follow-up hit can resolve.
+  * **Feature unlock**: Because the primed state now lives entirely inside GuardianCore, the blessing persists through the owner's combat state, expires cleanly if unused after a tighter four-second window, and guarantees the next swing consumes the stored Weakness/feedback without double taps or phantom procs.
 
 ### 3.2 Striker (Burst / Execution)
 

@@ -11,11 +11,15 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
+import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.math.MathHelper;
+import woflo.petsplus.abilities.AbilityManager;
 import woflo.petsplus.api.PetRole;
-import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.state.OwnerCombatState;
+import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.ui.FeedbackManager;
 
 import java.util.List;
@@ -25,86 +29,69 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Implements Guardian role mechanics: damage interception, protective buffs, and Bulwark ability.
- * 
+ *
  * Core Features:
  * - Baseline: +Knockback Resistance scalar, modest Max HP scalar (handled in PetAttributeManager)
  * - Bulwark (passive, cooldown): Redirects portion of damage from owner to pet, primes owner's next attack
  * - Feature levels unlock protective abilities and enhance damage reduction
- * 
+ *
  * Design Philosophy:
  * - Tank/Protection archetype focused on keeping the owner alive
  * - Reactive abilities that trigger on owner taking damage
  * - Damage redirection with strategic buffs and debuffs
  */
 public class GuardianCore {
-    
+
     // Bulwark cooldown tracking per pet
     private static final Map<UUID, Long> bulwarkCooldowns = new ConcurrentHashMap<>();
-    
+
     // Owner attack priming tracking (from successful Bulwark redirects)
-    private static final Map<UUID, Long> attackPrimingExpiries = new ConcurrentHashMap<>();
-    
+    private static final Map<UUID, PrimedBulwarkData> primedAttacks = new ConcurrentHashMap<>();
+
     // Configuration constants (could be moved to config later)
     private static final int BULWARK_COOLDOWN_TICKS = 200; // 10 seconds
-    private static final int ATTACK_PRIMING_DURATION_TICKS = 100; // 5 seconds
-    private static final float BASE_DAMAGE_REDIRECT_RATIO = 0.3f; // 30% base redirect
+    private static final int ATTACK_PRIMING_DURATION_TICKS = 80; // 4 seconds
+    private static final float BASE_DAMAGE_REDIRECT_RATIO = 0.28f; // 28% base redirect
+    private static final float DAMAGE_REDIRECT_PER_LEVEL = 0.018f; // +1.8% per level after 1
+    private static final float DAMAGE_REDIRECT_RATIO_CAP = 0.58f; // Soft cap before health scaling
+    private static final float DAMAGE_REDIRECT_HEALTH_FLOOR = 0.65f; // Minimum redirect share when barely healthy
+    private static final float DAMAGE_REDIRECT_HEALTH_BONUS = 0.35f; // Additional share unlocked at full health
     private static final double GUARDIAN_PROXIMITY_RANGE = 16.0; // Range to find Guardian pets
     private static final String GUARDIAN_PRIMED_STATE_KEY = "guardian_bulwark_active_end";
+    private static final float BULWARK_RESERVE_FRACTION_MAX = 0.14f; // Rookie guardians hold extra buffer
+    private static final float BULWARK_RESERVE_FRACTION_MIN = 0.10f; // Never drop below 10% health floor
+    private static final float BULWARK_RESERVE_FRACTION_PER_LEVEL = 0.01f; // 1% shaved per level beyond 1
+
+    private record GuardianCandidate(MobEntity guardian, PetComponent component) {}
+
+    private static final class PrimedBulwarkData {
+        private final long expiryTick;
+
+        private PrimedBulwarkData(long expiryTick) {
+            this.expiryTick = expiryTick;
+        }
+
+        private boolean isExpired(long currentTick) {
+            return currentTick > expiryTick;
+        }
+    }
 
     public static void initialize() {
-        // Register damage event handler for Bulwark damage redirection
-        ServerLivingEntityEvents.ALLOW_DAMAGE.register(GuardianCore::onEntityDamage);
-
         // Register post-damage handler to consume primed attacks
         ServerLivingEntityEvents.AFTER_DAMAGE.register(GuardianCore::onEntityAfterDamage);
 
         // Register world tick for cooldown cleanup and attack processing
         ServerTickEvents.END_WORLD_TICK.register(GuardianCore::onWorldTick);
     }
-    
-    /**
-     * Handle damage events for Bulwark damage redirection.
-     */
-    private static boolean onEntityDamage(LivingEntity entity, DamageSource damageSource, float damageAmount) {
-        // Only process damage to players
-        if (!(entity instanceof ServerPlayerEntity player)) {
-            return true; // Allow damage
-        }
-        
-        // Don't process damage from pets (avoid redirect loops)
-        if (damageSource.getAttacker() instanceof MobEntity attacker) {
-            PetComponent attackerComp = PetComponent.get(attacker);
-            if (attackerComp != null) {
-                return true; // Allow damage from pets
-            }
-        }
-        
-        // Find nearby Guardian pets
-        List<MobEntity> guardianPets = findNearbyGuardianPets(player);
-        if (guardianPets.isEmpty()) {
-            return true; // No guardians available
-        }
-        
-        // Find the best guardian to intercept damage
-        MobEntity bestGuardian = findBestGuardianForIntercept(guardianPets);
-        if (bestGuardian == null) {
-            return true; // No suitable guardian
-        }
-        
-        // Attempt damage redirection
-        attemptBulwarkRedirect(player, bestGuardian, damageSource, damageAmount);
-        
-        return true; // Always allow original damage (we handle redirection manually)
-    }
-    
+
     /**
      * Find nearby Guardian pets that can intercept damage.
      */
-    private static List<MobEntity> findNearbyGuardianPets(ServerPlayerEntity player) {
+    public static List<MobEntity> findNearbyGuardianPets(ServerPlayerEntity player) {
         if (!(player.getWorld() instanceof ServerWorld world)) {
             return List.of();
         }
-        
+
         return world.getEntitiesByClass(
             MobEntity.class,
             player.getBoundingBox().expand(GUARDIAN_PROXIMITY_RANGE),
@@ -114,193 +101,240 @@ public class GuardianCore {
                        petComp.getRole() == PetRole.GUARDIAN &&
                        petComp.isOwnedBy(player) &&
                        pet.isAlive() &&
-                       !petComp.isPerched(); // Use PetComponent's perched state instead
+                       !petComp.isPerched();
             }
         );
     }
-    
+
+    /**
+     * Compute the minimum health a Guardian must keep in reserve when life-sharing.
+     */
+    public static float getBulwarkReserveHealth(MobEntity guardian, PetComponent component) {
+        int level = component != null ? component.getLevel() : 1;
+        float reserveFraction = computeBulwarkReserveFraction(level);
+        return guardian.getMaxHealth() * reserveFraction;
+    }
+
+    /**
+     * Convenience overload when a component lookup is required internally.
+     */
+    public static float getBulwarkReserveHealth(MobEntity guardian) {
+        return getBulwarkReserveHealth(guardian, PetComponent.get(guardian));
+    }
+
+    /**
+     * Determine whether a Guardian has enough health above its reserve to intercept.
+     */
+    public static boolean canGuardianSafelyRedirect(MobEntity guardian, PetComponent component) {
+        if (guardian == null || component == null) {
+            return false;
+        }
+
+        return guardian.getHealth() > getBulwarkReserveHealth(guardian, component);
+    }
+
+    public static boolean canGuardianSafelyRedirect(MobEntity guardian) {
+        return canGuardianSafelyRedirect(guardian, PetComponent.get(guardian));
+    }
+
+    private static float computeBulwarkReserveFraction(int level) {
+        float fraction = BULWARK_RESERVE_FRACTION_MAX - Math.max(0, level - 1) * BULWARK_RESERVE_FRACTION_PER_LEVEL;
+        return MathHelper.clamp(fraction, BULWARK_RESERVE_FRACTION_MIN, BULWARK_RESERVE_FRACTION_MAX);
+    }
+
     /**
      * Find the best Guardian pet for damage interception.
-     * Prioritizes: not on cooldown > higher level > closer distance > higher health
+     * Prioritizes: not on cooldown > higher level > higher health percentage
      */
-    private static MobEntity findBestGuardianForIntercept(List<MobEntity> guardianPets) {
+    public static MobEntity findBestGuardianForIntercept(List<MobEntity> guardianPets) {
+        if (guardianPets.isEmpty()) {
+            return null;
+        }
+
         long currentTime = guardianPets.get(0).getWorld().getTime();
-        
+
         return guardianPets.stream()
-            .filter(pet -> {
-                // Must have health to absorb damage
-                return pet.getHealth() > 2.0f;
-            })
-            .sorted((pet1, pet2) -> {
-                // Priority 1: Not on cooldown
+            .map(pet -> new GuardianCandidate(pet, PetComponent.get(pet)))
+            .filter(candidate -> candidate.component() != null &&
+                                 canGuardianSafelyRedirect(candidate.guardian(), candidate.component()))
+            .sorted((candidate1, candidate2) -> {
+                MobEntity pet1 = candidate1.guardian();
+                MobEntity pet2 = candidate2.guardian();
+
                 boolean pet1OnCooldown = isOnBulwarkCooldown(pet1, currentTime);
                 boolean pet2OnCooldown = isOnBulwarkCooldown(pet2, currentTime);
-                
+
                 if (pet1OnCooldown != pet2OnCooldown) {
                     return Boolean.compare(pet1OnCooldown, pet2OnCooldown);
                 }
-                
-                // Priority 2: Higher level
-                PetComponent comp1 = PetComponent.get(pet1);
-                PetComponent comp2 = PetComponent.get(pet2);
-                int levelDiff = Integer.compare(comp2.getLevel(), comp1.getLevel());
-                if (levelDiff != 0) return levelDiff;
-                
-                // Priority 3: Higher health percentage
+
+                float pet1Reserve = getBulwarkReserveHealth(pet1, candidate1.component());
+                float pet2Reserve = getBulwarkReserveHealth(pet2, candidate2.component());
+                float pet1Spare = pet1.getHealth() - pet1Reserve;
+                float pet2Spare = pet2.getHealth() - pet2Reserve;
+
+                int spareDiff = Float.compare(pet2Spare, pet1Spare);
+                if (spareDiff != 0) {
+                    return spareDiff;
+                }
+
+                int levelDiff = Integer.compare(
+                    candidate2.component().getLevel(),
+                    candidate1.component().getLevel()
+                );
+                if (levelDiff != 0) {
+                    return levelDiff;
+                }
+
                 float health1Pct = pet1.getHealth() / pet1.getMaxHealth();
                 float health2Pct = pet2.getHealth() / pet2.getMaxHealth();
                 return Float.compare(health2Pct, health1Pct);
             })
+            .map(GuardianCandidate::guardian)
             .findFirst()
             .orElse(null);
     }
-    
-    /**
-     * Attempt to redirect damage using Bulwark ability.
-     */
-    private static boolean attemptBulwarkRedirect(ServerPlayerEntity player, MobEntity guardian, DamageSource damageSource, float damageAmount) {
-        PetComponent petComp = PetComponent.get(guardian);
-        if (petComp == null) return false;
-        
-        long currentTime = player.getWorld().getTime();
-        
-        // Check cooldown
-        if (isOnBulwarkCooldown(guardian, currentTime)) {
-            return false;
-        }
-        
-        // Calculate redirect ratio based on level
-        float redirectRatio = calculateRedirectRatio(petComp.getLevel());
-        float redirectedDamage = damageAmount * redirectRatio;
-        
-        // Don't redirect if it would kill the guardian
-        if (guardian.getHealth() <= redirectedDamage) {
-            redirectedDamage = Math.max(0, guardian.getHealth() - 1.0f);
-            redirectRatio = redirectedDamage / damageAmount;
-        }
-        
-        if (redirectedDamage <= 0) {
-            return false; // Can't redirect any damage
-        }
-        
-        // Apply redirected damage to guardian
-        if (player.getWorld() instanceof ServerWorld world) {
-            guardian.damage(world, world.getDamageSources().magic(), redirectedDamage);
-        }
-        
-        // Reduce player damage
-        float reducedPlayerDamage = damageAmount - redirectedDamage;
-        if (reducedPlayerDamage > 0) {
-            // We can't easily modify the original damage, so apply healing
-            // This is a limitation of the current system
-            player.heal(redirectedDamage);
-        }
-        
-        // Set cooldown
-        bulwarkCooldowns.put(guardian.getUuid(), currentTime + BULWARK_COOLDOWN_TICKS);
-        
-        // Prime owner's next attack
-        attackPrimingExpiries.put(player.getUuid(), currentTime + ATTACK_PRIMING_DURATION_TICKS);
-        
-        // Visual and audio feedback
-        playBulwarkFeedback(player, guardian, redirectedDamage, redirectRatio);
-        
-        // Update owner combat state
-        OwnerCombatState ownerState = OwnerCombatState.getOrCreate(player);
-        ownerState.setTempState(GUARDIAN_PRIMED_STATE_KEY, currentTime + ATTACK_PRIMING_DURATION_TICKS);
 
-        return true;
+    /**
+     * Check if a Guardian pet is on Bulwark cooldown.
+     */
+    public static boolean isOnBulwarkCooldown(MobEntity guardian, long currentTime) {
+        Long cooldownExpiry = bulwarkCooldowns.get(guardian.getUuid());
+        return cooldownExpiry != null && currentTime < cooldownExpiry;
     }
 
     /**
-     * Consume primed Guardian attacks once the owner damages a target.
+     * Calculate damage redirect ratio based on Guardian level.
      */
-    private static void onEntityAfterDamage(LivingEntity entity, DamageSource damageSource, float baseDamageAmount, float damageTaken, boolean blocked) {
-        if (!(damageSource.getAttacker() instanceof ServerPlayerEntity attacker)) {
+    public static float calculateRedirectRatio(int level) {
+        return calculateRedirectRatio(level, 1.0f);
+    }
+
+    public static float calculateRedirectRatio(int level, float guardianHealthFraction) {
+        float ratio = BASE_DAMAGE_REDIRECT_RATIO;
+        if (level > 1) {
+            ratio += (level - 1) * DAMAGE_REDIRECT_PER_LEVEL;
+        }
+
+        ratio = MathHelper.clamp(ratio, BASE_DAMAGE_REDIRECT_RATIO, DAMAGE_REDIRECT_RATIO_CAP);
+
+        float healthScale = MathHelper.clamp(
+            DAMAGE_REDIRECT_HEALTH_FLOOR + guardianHealthFraction * DAMAGE_REDIRECT_HEALTH_BONUS,
+            DAMAGE_REDIRECT_HEALTH_FLOOR,
+            1.0f
+        );
+
+        return ratio * healthScale;
+    }
+
+    /**
+     * Record a successful Bulwark redirect, priming the owner for their next strike and firing triggers.
+     */
+    public static void recordSuccessfulRedirect(ServerPlayerEntity owner, MobEntity guardian,
+                                                DamageSource damageSource, float originalDamage,
+                                                float redirectedDamage, float reserveHealth,
+                                                boolean hitReserveLimit) {
+        if (!(owner.getWorld() instanceof ServerWorld world)) {
             return;
         }
 
-        UUID attackerId = attacker.getUuid();
-        Long expiryTick = attackPrimingExpiries.get(attackerId);
-        if (expiryTick == null) {
+        long currentTime = world.getTime();
+        bulwarkCooldowns.put(guardian.getUuid(), currentTime + BULWARK_COOLDOWN_TICKS);
+
+        long primedExpiry = currentTime + ATTACK_PRIMING_DURATION_TICKS;
+        primedAttacks.put(owner.getUuid(), new PrimedBulwarkData(primedExpiry));
+
+        OwnerCombatState ownerState = OwnerCombatState.getOrCreate(owner);
+        ownerState.setTempState(GUARDIAN_PRIMED_STATE_KEY, primedExpiry);
+
+        owner.addStatusEffect(new StatusEffectInstance(StatusEffects.STRENGTH, 60, 0));
+        if (owner.getVehicle() instanceof LivingEntity mount) {
+            applyMountStabilityBonus(mount);
+        }
+
+        playBulwarkFeedback(owner, guardian, redirectedDamage, originalDamage, reserveHealth, hitReserveLimit);
+
+        owner.sendMessage(
+            Text.literal("§6⚔ §eGuardian's Blessing: ").append(
+                Text.literal("Your next strikes are empowered!").formatted(Formatting.YELLOW)
+            ),
+            true
+        );
+
+        TriggerContext context = new TriggerContext(world, guardian, owner, "after_pet_redirect")
+            .withData("original_damage", (double) redirectedDamage)
+            .withData("damage_source", damageSource)
+            .withData("guardian_reserve_health", (double) reserveHealth)
+            .withData("guardian_reserve_limit_hit", hitReserveLimit);
+        AbilityManager.triggerAbilities(guardian, context);
+    }
+
+    /**
+     * Apply primed Guardian attack effects when the owner begins a melee strike.
+     */
+    public static void handlePrimedPreAttack(ServerPlayerEntity attacker, LivingEntity target) {
+        PrimedBulwarkData data = primedAttacks.get(attacker.getUuid());
+        if (data == null) {
             return;
         }
 
         long currentTime = attacker.getWorld().getTime();
-        OwnerCombatState ownerState = OwnerCombatState.get(attacker);
-        if (ownerState == null) {
-            attackPrimingExpiries.remove(attackerId);
+        if (data.isExpired(currentTime)) {
+            clearPrimedState(attacker);
             return;
         }
 
-        long stateExpiry = ownerState.getTempState(GUARDIAN_PRIMED_STATE_KEY);
-        if (stateExpiry <= currentTime || currentTime > expiryTick) {
-            consumePrimedAttack(attacker, ownerState);
+        applyWeaknessEffect(target);
+        emitPrimedAttackFeedback(attacker);
+        clearPrimedState(attacker);
+    }
+
+    /**
+     * Consume primed Guardian attacks once the owner damages a target (projectile fallback).
+     */
+    private static void onEntityAfterDamage(LivingEntity entity, DamageSource damageSource, float baseDamageAmount,
+                                            float damageTaken, boolean blocked) {
+        if (!(damageSource.getAttacker() instanceof ServerPlayerEntity attacker)) {
             return;
         }
 
-        applyPrimedAttackEffects(attacker, entity, damageSource, baseDamageAmount);
-        consumePrimedAttack(attacker, ownerState);
-    }
-    
-    /**
-     * Calculate damage redirect ratio based on Guardian level.
-     */
-    private static float calculateRedirectRatio(int level) {
-        // Base 30% redirect, +2% per level after 3, max 70%
-        float ratio = BASE_DAMAGE_REDIRECT_RATIO;
-        if (level > 3) {
-            ratio += (level - 3) * 0.02f;
+        PrimedBulwarkData data = primedAttacks.get(attacker.getUuid());
+        if (data == null) {
+            return;
         }
-        return Math.min(0.7f, ratio);
-    }
-    
-    /**
-     * Check if a Guardian pet is on Bulwark cooldown.
-     */
-    private static boolean isOnBulwarkCooldown(MobEntity guardian, long currentTime) {
-        Long cooldownExpiry = bulwarkCooldowns.get(guardian.getUuid());
-        return cooldownExpiry != null && currentTime < cooldownExpiry;
-    }
-    
-    /**
-     * Apply effects for primed attacks from successful Bulwark redirects.
-     */
-    private static void applyPrimedAttackEffects(ServerPlayerEntity attacker, LivingEntity target, DamageSource damageSource, float originalDamage) {
-        // Apply Weakness to target (Guardian's protective curse)
-        if (target instanceof LivingEntity livingTarget) {
-            livingTarget.addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS, 60, 0)); // 3 seconds
+
+        long currentTime = attacker.getWorld().getTime();
+        if (data.isExpired(currentTime)) {
+            clearPrimedState(attacker);
+            return;
         }
-        
-        // Apply brief Strength to attacker (Guardian's blessing)
-        attacker.addStatusEffect(new StatusEffectInstance(StatusEffects.STRENGTH, 40, 0)); // 2 seconds
-        
-        // Visual feedback
+
+        applyWeaknessEffect(entity);
+        emitPrimedAttackFeedback(attacker);
+        clearPrimedState(attacker);
+    }
+
+    private static void emitPrimedAttackFeedback(ServerPlayerEntity attacker) {
         if (attacker.getWorld() instanceof ServerWorld world) {
             FeedbackManager.emitFeedback("guardian_primed_attack", attacker, world);
         }
-
-        // If the owner is mounted, steady their mount as part of the blessing
-        if (attacker.getVehicle() instanceof LivingEntity mount) {
-            applyMountStabilityBonus(mount);
-        }
-
-        // Notify player
-        attacker.sendMessage(
-            Text.literal("§6⚔ §eGuardian's Blessing: ").append(
-                Text.literal("Your next strikes are empowered!").formatted(Formatting.YELLOW)
-            ),
-            true // Action bar
-        );
     }
-    
+
+    private static void applyWeaknessEffect(LivingEntity target) {
+        if (target != null && target.isAlive()) {
+            target.addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS, 50, 0));
+        }
+    }
+
     /**
      * Play visual and audio feedback for Bulwark damage redirection.
      */
-    private static void playBulwarkFeedback(ServerPlayerEntity player, MobEntity guardian, float redirectedDamage, float redirectRatio) {
+    private static void playBulwarkFeedback(ServerPlayerEntity player, MobEntity guardian, float redirectedDamage,
+                                            float originalDamage, float reserveHealth, boolean hitReserveLimit) {
         if (!(player.getWorld() instanceof ServerWorld world)) return;
-        
-        // Sound effect
+
+        float redirectRatio = originalDamage <= 0 ? 0.0f : redirectedDamage / originalDamage;
+
         world.playSound(
             null,
             guardian.getX(), guardian.getY(), guardian.getZ(),
@@ -309,43 +343,52 @@ public class GuardianCore {
             0.8f,
             1.2f
         );
-        
-        // Visual feedback
+
         FeedbackManager.emitFeedback("guardian_bulwark", guardian, world);
-        
-        // Notify player
+
         int redirectPercent = Math.round(redirectRatio * 100);
-        String guardianName = guardian.hasCustomName() ? 
-            guardian.getCustomName().getString() : 
+        String guardianName = guardian.hasCustomName() ?
+            guardian.getCustomName().getString() :
             guardian.getType().getName().getString();
-            
-        player.sendMessage(
-            Text.literal("§9🛡 §b").append(Text.literal(guardianName)).append(
-                Text.literal(" absorbed " + redirectPercent + "% damage!").formatted(Formatting.AQUA)
-            ), 
-            true // Action bar
+
+        MutableText baseMessage = Text.literal("§9🛡 §b").append(Text.literal(guardianName)).append(
+            Text.literal(" absorbed " + redirectPercent + "% damage!").formatted(Formatting.AQUA)
         );
+
+        if (hitReserveLimit) {
+            int reservePercent = Math.round((reserveHealth / guardian.getMaxHealth()) * 100);
+            baseMessage = baseMessage.append(
+                Text.literal(" (reserve at " + reservePercent + "%)").formatted(Formatting.RED)
+            );
+        }
+
+        player.sendMessage(baseMessage, true);
     }
-    
+
     /**
      * World tick handler for cooldown cleanup and passive effects.
      */
     private static void onWorldTick(ServerWorld world) {
         long currentTime = world.getTime();
 
-        // Clean up expired cooldowns
         bulwarkCooldowns.entrySet().removeIf(entry -> currentTime > entry.getValue());
-        attackPrimingExpiries.entrySet().removeIf(entry -> {
+
+        primedAttacks.entrySet().removeIf(entry -> {
             ServerPlayerEntity player = world.getServer().getPlayerManager().getPlayer(entry.getKey());
             if (player == null) {
-                return true; // Player logged out; clear entry
+                return true;
             }
 
             if (player.getWorld() != world) {
-                return false; // Let the correct world handle expiry timing
+                return false;
             }
 
-            if (player.getWorld().getTime() > entry.getValue()) {
+            PrimedBulwarkData data = entry.getValue();
+            if (data == null) {
+                return true;
+            }
+
+            if (data.isExpired(player.getWorld().getTime())) {
                 OwnerCombatState ownerState = OwnerCombatState.get(player);
                 if (ownerState != null) {
                     ownerState.clearTempState(GUARDIAN_PRIMED_STATE_KEY);
@@ -357,38 +400,49 @@ public class GuardianCore {
         });
     }
 
-    private static void consumePrimedAttack(ServerPlayerEntity attacker, OwnerCombatState ownerState) {
-        attackPrimingExpiries.remove(attacker.getUuid());
-        ownerState.clearTempState(GUARDIAN_PRIMED_STATE_KEY);
+    private static void clearPrimedState(ServerPlayerEntity attacker) {
+        primedAttacks.remove(attacker.getUuid());
+        OwnerCombatState ownerState = OwnerCombatState.get(attacker);
+        if (ownerState != null) {
+            ownerState.clearTempState(GUARDIAN_PRIMED_STATE_KEY);
+        }
     }
 
     private static void applyMountStabilityBonus(LivingEntity mount) {
-        mount.addStatusEffect(new StatusEffectInstance(StatusEffects.RESISTANCE, 40, 0));
+        mount.addStatusEffect(new StatusEffectInstance(StatusEffects.RESISTANCE, 60, 0));
     }
-    
+
     /**
      * Check if a player has an active Guardian providing protection.
      */
     public static boolean hasActiveGuardianProtection(ServerPlayerEntity player) {
         List<MobEntity> guardians = findNearbyGuardianPets(player);
-        return !guardians.isEmpty() && guardians.stream().anyMatch(guardian -> 
-            !isOnBulwarkCooldown(guardian, player.getWorld().getTime()) && guardian.getHealth() > 2.0f
+        long currentTime = player.getWorld().getTime();
+        return guardians.stream().anyMatch(guardian ->
+            !isOnBulwarkCooldown(guardian, currentTime) && canGuardianSafelyRedirect(guardian)
         );
     }
-    
+
     /**
      * Get the damage reduction factor from active Guardian pets.
      */
     public static float getGuardianDamageReduction(ServerPlayerEntity player) {
         List<MobEntity> guardians = findNearbyGuardianPets(player);
         if (guardians.isEmpty()) return 0.0f;
-        
+
         MobEntity bestGuardian = findBestGuardianForIntercept(guardians);
         if (bestGuardian == null) return 0.0f;
-        
+
         PetComponent petComp = PetComponent.get(bestGuardian);
         if (petComp == null) return 0.0f;
-        
-        return calculateRedirectRatio(petComp.getLevel());
+
+        if (!canGuardianSafelyRedirect(bestGuardian, petComp)) {
+            return 0.0f;
+        }
+
+        float healthFraction = bestGuardian.getMaxHealth() <= 0.0f
+            ? 0.0f
+            : bestGuardian.getHealth() / bestGuardian.getMaxHealth();
+        return calculateRedirectRatio(petComp.getLevel(), healthFraction);
     }
 }

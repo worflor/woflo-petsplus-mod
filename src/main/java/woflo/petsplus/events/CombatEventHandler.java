@@ -8,6 +8,7 @@ import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.projectile.PersistentProjectileEntity;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
@@ -17,6 +18,7 @@ import woflo.petsplus.abilities.AbilityManager;
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.roles.guardian.GuardianCore;
 
 /**
  * Handles combat-related events and triggers pet abilities accordingly.
@@ -90,7 +92,11 @@ public class CombatEventHandler {
     private static void handleOwnerDealtDamage(PlayerEntity owner, LivingEntity victim, float damage) {
         OwnerCombatState combatState = OwnerCombatState.getOrCreate(owner);
         combatState.enterCombat();
-        
+
+        if (owner instanceof ServerPlayerEntity serverOwner) {
+            GuardianCore.handlePrimedPreAttack(serverOwner, victim);
+        }
+
         // Apply Striker execution fallback
         float modifiedDamage = woflo.petsplus.roles.striker.StrikerExecutionFallback.applyOwnerExecuteBonus(owner, victim, damage);
         
@@ -132,9 +138,12 @@ public class CombatEventHandler {
     }
     
     private static void applyAttackRiders(PlayerEntity owner, LivingEntity victim, OwnerCombatState combatState) {
+        if (owner instanceof ServerPlayerEntity serverOwner) {
+            GuardianCore.handlePrimedPreAttack(serverOwner, victim);
+        }
         // Apply on-hit effects using the new attack rider system
         woflo.petsplus.combat.OwnerAttackRider.applyOnHitEffects(owner, victim, 0, null);
-        
+
         // Clear expired riders
         woflo.petsplus.combat.OwnerAttackRider.clearExpiredRiders(owner);
     }
