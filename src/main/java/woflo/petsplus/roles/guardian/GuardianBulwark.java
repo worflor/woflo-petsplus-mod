@@ -121,16 +121,29 @@ public class GuardianBulwark {
             return false;
         }
 
-        if (guardian.damage(guardianWorld, originalSource, damageAmount)) {
+        float baseline = guardian.getHealth() + guardian.getAbsorptionAmount();
+        if (guardian.damage(guardianWorld, originalSource, damageAmount) &&
+            guardianPaidHealthCost(guardian, baseline)) {
             return true;
         }
 
-        DamageSource neutralSource = guardianWorld.getDamageSources().generic();
-        if (neutralSource == originalSource) {
+        baseline = guardian.getHealth() + guardian.getAbsorptionAmount();
+        if (originalSource.isOf(DamageTypes.GENERIC)) {
             return false;
         }
 
-        return guardian.damage(guardianWorld, neutralSource, damageAmount);
+        DamageSource neutralSource = guardianWorld.getDamageSources().generic();
+        if (guardian.damage(guardianWorld, neutralSource, damageAmount) &&
+            guardianPaidHealthCost(guardian, baseline)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static boolean guardianPaidHealthCost(MobEntity guardian, float previousEffectiveHealth) {
+        float currentEffectiveHealth = guardian.getHealth() + guardian.getAbsorptionAmount();
+        return currentEffectiveHealth < previousEffectiveHealth - 1.0E-3f;
     }
 
 }
