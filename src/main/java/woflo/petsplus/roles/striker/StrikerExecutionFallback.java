@@ -12,6 +12,11 @@ public class StrikerExecutionFallback {
      * Apply owner execution bonus vs targets under 35% HP if target has recent damage.
      */
     public static float applyOwnerExecuteBonus(PlayerEntity owner, LivingEntity target, float baseDamage) {
+        StrikerExecution.ExecutionResult cached = StrikerExecution.consumeCachedExecutionResult(owner, target);
+        if (cached != null) {
+            return cached.totalDamage(baseDamage);
+        }
+
         StrikerExecution.ExecutionResult result = StrikerExecution.evaluateExecution(owner, target, baseDamage);
         return result.totalDamage(baseDamage);
     }

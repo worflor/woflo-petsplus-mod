@@ -30,6 +30,7 @@ public class PlayerAttackMixin {
         
         if (target instanceof LivingEntity livingTarget) {
             StrikerExecution.ExecutionResult execution = StrikerExecution.evaluateExecution(player, livingTarget, damage);
+            StrikerExecution.cacheExecutionResult(player, livingTarget, execution);
             if (execution.triggered() && player.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
                 // Emit feedback for successful execution
                 woflo.petsplus.ui.FeedbackManager.emitStrikerExecution(player, livingTarget, serverWorld,

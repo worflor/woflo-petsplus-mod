@@ -61,6 +61,63 @@ public class StrikerExecution {
             return baseDamage + bonusDamage;
         }
     }
+
+    private record CachedExecution(UUID ownerId, UUID targetId, ExecutionResult result) {}
+
+    private static final ThreadLocal<CachedExecution> LAST_EXECUTION = new ThreadLocal<>();
+
+    /**
+     * Cache the most recent execution result for reuse by fallback systems.
+     */
+    public static void cacheExecutionResult(PlayerEntity owner, LivingEntity target, ExecutionResult result) {
+        if (owner == null || target == null || result == null) {
+            LAST_EXECUTION.remove();
+            return;
+        }
+
+        cacheExecutionResult(owner.getUuid(), target.getUuid(), result);
+    }
+
+    /**
+     * Consume the cached execution result if it matches the supplied owner/target pair.
+     */
+    public static ExecutionResult consumeCachedExecutionResult(PlayerEntity owner, LivingEntity target) {
+        if (owner == null || target == null) {
+            return null;
+        }
+
+        return consumeCachedExecutionResult(owner.getUuid(), target.getUuid());
+    }
+
+    public static void cacheExecutionResult(UUID ownerId, UUID targetId, ExecutionResult result) {
+        if (ownerId == null || targetId == null || result == null) {
+            LAST_EXECUTION.remove();
+            return;
+        }
+
+        LAST_EXECUTION.set(new CachedExecution(ownerId, targetId, result));
+    }
+
+    public static ExecutionResult consumeCachedExecutionResult(UUID ownerId, UUID targetId) {
+        CachedExecution cached = LAST_EXECUTION.get();
+        if (cached == null || ownerId == null || targetId == null) {
+            return null;
+        }
+
+        if (!cached.ownerId().equals(ownerId) || !cached.targetId().equals(targetId)) {
+            return null;
+        }
+
+        LAST_EXECUTION.remove();
+        return cached.result();
+    }
+
+    /**
+     * Clear any cached execution result. Primarily intended for testing hooks.
+     */
+    public static void clearCachedExecutionResult() {
+        LAST_EXECUTION.remove();
+    }
     
     /**
      * Calculate execution bonus damage for owner attacks.
