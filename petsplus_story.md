@@ -53,8 +53,8 @@
 * **Baseline**: +Knockback Resistance scalar, modest Max HP scalar.
 * **Current Kit**
 
-  * **Bulwark (passive, cooldown)**: The pet redirects a portion of incoming damage from the owner to itself, then primes the owner's next attack with a brief bonus (Weakness on hit). Projectile DR and mount stability hooks are applied contextually.
-  * **Feature unlock**: On successful redirect, the owner's next attack gains a small damage bonus and rider effect (short expiry).
+  * **Bulwark (passive, cooldown)**: The pet redirects a portion of incoming damage from the owner to itself, then primes the owner's next attack with **Guardian's Blessing**—a reliable counterattack rider that inflicts Weakness on the foe and surges the owner with a heartbeat of Strength. The blessing fires whether you're on foot or mounted, but steadies a mount with a brief resistance pulse when you're in the saddle, alongside the usual projectile DR hooks.
+  * **Feature unlock**: On successful redirect, the owner's next attack gains a small damage bonus and rider effect (short expiry); Guardian's Blessing now tracks through the owner's combat state so the empowered swing sticks until it's actually thrown.
 
 ### 3.2 Striker (Burst / Execution)
 
