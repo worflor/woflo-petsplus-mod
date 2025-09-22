@@ -279,12 +279,17 @@ public class GuardianCore {
         if (attacker.getWorld() instanceof ServerWorld world) {
             FeedbackManager.emitFeedback("guardian_primed_attack", attacker, world);
         }
-        
+
+        // If the owner is mounted, steady their mount as part of the blessing
+        if (attacker.getVehicle() instanceof LivingEntity mount) {
+            applyMountStabilityBonus(mount);
+        }
+
         // Notify player
         attacker.sendMessage(
             Text.literal("§6⚔ §eGuardian's Blessing: ").append(
                 Text.literal("Your next strikes are empowered!").formatted(Formatting.YELLOW)
-            ), 
+            ),
             true // Action bar
         );
     }
@@ -355,6 +360,10 @@ public class GuardianCore {
     private static void consumePrimedAttack(ServerPlayerEntity attacker, OwnerCombatState ownerState) {
         attackPrimingExpiries.remove(attacker.getUuid());
         ownerState.clearTempState(GUARDIAN_PRIMED_STATE_KEY);
+    }
+
+    private static void applyMountStabilityBonus(LivingEntity mount) {
+        mount.addStatusEffect(new StatusEffectInstance(StatusEffects.RESISTANCE, 40, 0));
     }
     
     /**
