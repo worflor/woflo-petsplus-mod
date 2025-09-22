@@ -29,14 +29,15 @@ public class PlayerAttackMixin {
         PlayerEntity player = (PlayerEntity) (Object) this;
         
         if (target instanceof LivingEntity livingTarget) {
-            float executionBonus = StrikerExecution.calculateExecutionBonus(player, livingTarget, damage);
-            if (executionBonus > 0 && player.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+            StrikerExecution.ExecutionResult execution = StrikerExecution.evaluateExecution(player, livingTarget, damage);
+            if (execution.triggered() && player.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
                 // Emit feedback for successful execution
-                woflo.petsplus.ui.FeedbackManager.emitStrikerExecution(player, serverWorld);
+                woflo.petsplus.ui.FeedbackManager.emitStrikerExecution(player, livingTarget, serverWorld,
+                        execution.momentumStacks(), execution.momentumFill());
             }
-            return damage + executionBonus;
+            return execution.totalDamage(damage);
         }
-        
+
         return damage;
     }
     

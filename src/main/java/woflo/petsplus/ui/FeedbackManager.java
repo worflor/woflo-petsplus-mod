@@ -1,12 +1,16 @@
 package woflo.petsplus.ui;
 
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.particle.ParticleEffect;
+import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.api.PetRole;
 import woflo.petsplus.state.PetComponent;
 
@@ -265,8 +269,37 @@ public class FeedbackManager {
         emitFeedback("guardian_damage_absorbed", pet, world);
     }
 
-    public static void emitStrikerExecution(PlayerEntity owner, ServerWorld world) {
-        emitFeedback("striker_execution", owner, world);
+    public static void emitStrikerExecution(PlayerEntity owner, LivingEntity target, ServerWorld world,
+                                            int stacks, float momentumFill) {
+        if (target == null || world == null) {
+            return;
+        }
+
+        Vec3d targetPos = target.getPos();
+        double centerY = targetPos.y + target.getHeight() * 0.5;
+        double spread = 0.12 + 0.04 * Math.min(stacks, 5);
+        double verticalSpread = Math.max(0.1, target.getHeight() * 0.35);
+
+        int critCount = 4 + Math.max(0, stacks) * 2;
+        world.spawnParticles(ParticleTypes.CRIT, targetPos.x, centerY, targetPos.z,
+                critCount, spread, verticalSpread * 0.6, spread, 0.18);
+        world.spawnParticles(ParticleTypes.SWEEP_ATTACK, target.getX(), target.getBodyY(0.25), target.getZ(),
+                1, 0.0, 0.0, 0.0, 0.0);
+
+        if (stacks > 0) {
+            int emberCount = MathHelper.clamp(2 + stacks * 2, 3, 12);
+            world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, targetPos.x, centerY, targetPos.z,
+                    emberCount, spread * 0.6, verticalSpread * 0.5, spread * 0.6, 0.01);
+        }
+
+        float normalizedFill = MathHelper.clamp(momentumFill, 0.0f, 1.0f);
+        float scaledStacks = Math.min(stacks, 6);
+        float volumeBase = 0.18f + 0.03f * scaledStacks;
+        float volume = Math.min(0.55f, volumeBase * (0.55f + 0.45f * normalizedFill));
+        float pitch = 0.95f + 0.08f * scaledStacks + 0.05f * normalizedFill;
+
+        world.playSound(null, targetPos.x, centerY, targetPos.z,
+                SoundEvents.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, volume, pitch);
     }
 
     public static void emitSupportRegenArea(MobEntity pet, ServerWorld world) {
