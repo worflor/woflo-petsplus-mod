@@ -22,7 +22,6 @@ import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.ui.FeedbackManager;
 import woflo.petsplus.ui.UIFeedbackManager;
-import woflo.petsplus.util.PetPerchUtil;
 
 import java.util.Comparator;
 import java.util.List;
@@ -81,7 +80,7 @@ public final class GuardianCore {
                 if (!pet.isAlive()) {
                     return false;
                 }
-                return !PetPerchUtil.isPetPerched(component);
+                return true;
             }
         );
     }
