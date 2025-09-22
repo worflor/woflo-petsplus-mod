@@ -87,7 +87,10 @@ public class PetsPlusConfig {
         
         // Striker config
         JsonObject striker = new JsonObject();
-        striker.addProperty("ownerExecuteBonusPct", 0.10);
+        striker.addProperty("executeThresholdPct", 0.35);
+        striker.addProperty("executeChainBonusPerStackPct", 0.02);
+        striker.addProperty("executeChainMaxStacks", 5);
+        striker.addProperty("executeChainDurationTicks", 60);
         striker.addProperty("finisherMarkBonusPct", 0.20);
         striker.addProperty("finisherMarkDurationTicks", 80);
         config.add("striker", striker);

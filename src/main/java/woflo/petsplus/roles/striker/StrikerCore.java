@@ -95,6 +95,6 @@ public class StrikerCore {
             return 0.0f;
         }
         
-        return StrikerExecution.calculateExecutionBonus(player, target, 1.0f);
+        return StrikerExecution.evaluateExecution(player, target, 1.0f, false).bonusDamage();
     }
 }

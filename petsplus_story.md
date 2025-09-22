@@ -62,7 +62,7 @@
 * **Baseline**: +Attack Damage/Speed scalars (tunable caps).
 * **Current Kit**
 
-  * **Execution (owner-based, pet-agnostic)**: When a Striker pet is nearby, the owner gains a modest bonus vs low‑health targets that have been recently damaged in the skirmish.
+  * **Execution (owner-based, pet-agnostic)**: With a Striker nearby, once a foe you've recently tagged dips under the execute threshold (default 35% HP), your follow-up strike becomes a true finisher and slays them outright (boss-safe). Chaining executions within ~3s now ramps an "execution momentum" buff — every finisher adds roughly +2% (slightly stronger as your Striker levels) to the threshold, refreshing the window, yet hard-capped at 45%. Let it lapse and the buff bleeds off a stack at a time instead of dropping to zero, giving you a short grace period. Successful streaks spark a faint soul-flame flourish and a soft sweep hit that climbs in pitch with your momentum for immersive but unobtrusive feedback.
   * **L7 – Finisher Mark**: Hitting a target under a threshold can tag it, empowering the owner's next attack greatly vs that target and applying a short slow on hit. Brief mount pep when mounted.
 
 ### 3.3 Support (Potion Aura / Safeguard)
