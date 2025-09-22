@@ -1,0 +1,24 @@
+{
+  "display": {
+    "icon": {
+      "item": "minecraft:splash_potion",
+      "nbt": "{Potion:\"minecraft:healing\"}"
+    },
+    "title": {
+      "translate": "petsplus.adv.mmm_healing_magic.title"
+    },
+    "description": {
+      "translate": "petsplus.adv.mmm_healing_magic.desc"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "parent": "petsplus:trial_ready",
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:tick"
+    }
+  }
+}

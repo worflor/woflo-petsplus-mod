@@ -1,0 +1,101 @@
+package woflo.petsplus.effects;
+
+import net.minecraft.entity.Entity;
+import net.minecraft.util.Identifier;
+import woflo.petsplus.api.Effect;
+import woflo.petsplus.api.EffectContext;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Effect that tags a target entity with a specific key for duration.
+ */
+public class TagTargetEffect implements Effect {
+    private static final Identifier ID = Identifier.of("petsplus", "tag_target");
+    private static final Map<Entity, Map<String, Long>> ENTITY_TAGS = new HashMap<>();
+    
+    private final String key;
+    private final int durationTicks;
+    
+    public TagTargetEffect(String key, int durationTicks) {
+        this.key = key;
+        this.durationTicks = durationTicks;
+    }
+    
+    @Override
+    public Identifier getId() {
+        return ID;
+    }
+    
+    @Override
+    public boolean execute(EffectContext context) {
+        Entity target = getTarget(context);
+        if (target == null) return false;
+        
+        long expiryTime = context.getWorld().getTime() + durationTicks;
+        
+        ENTITY_TAGS.computeIfAbsent(target, k -> new HashMap<>()).put(key, expiryTime);
+        return true;
+    }
+    
+    @Override
+    public int getDurationTicks() {
+        return durationTicks;
+    }
+    
+    private Entity getTarget(EffectContext context) {
+        // Try to get explicit target first
+        Entity target = context.getTarget();
+        if (target != null) return target;
+        
+        // Fall back to victim from trigger context
+        return context.getTriggerContext().getVictim();
+    }
+    
+    /**
+     * Check if an entity has a specific tag.
+     */
+    public static boolean hasTag(Entity entity, String key) {
+        Map<String, Long> tags = ENTITY_TAGS.get(entity);
+        if (tags == null) return false;
+        
+        Long expiryTime = tags.get(key);
+        if (expiryTime == null) return false;
+        
+        // Check if tag has expired
+        if (entity.getWorld().getTime() >= expiryTime) {
+            tags.remove(key);
+            if (tags.isEmpty()) {
+                ENTITY_TAGS.remove(entity);
+            }
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Remove a tag from an entity.
+     */
+    public static void removeTag(Entity entity, String key) {
+        Map<String, Long> tags = ENTITY_TAGS.get(entity);
+        if (tags != null) {
+            tags.remove(key);
+            if (tags.isEmpty()) {
+                ENTITY_TAGS.remove(entity);
+            }
+        }
+    }
+    
+    /**
+     * Clean up expired tags for all entities.
+     */
+    public static void cleanupExpiredTags(long currentTime) {
+        ENTITY_TAGS.entrySet().removeIf(entry -> {
+            Map<String, Long> tags = entry.getValue();
+            tags.entrySet().removeIf(tagEntry -> currentTime >= tagEntry.getValue());
+            return tags.isEmpty();
+        });
+    }
+}

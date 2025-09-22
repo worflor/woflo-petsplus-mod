@@ -1,0 +1,85 @@
+{
+  "petsplus.guardian.bulwark": "%s holds the line. (+Proj DR)",
+  "petsplus.guardian.projectile_dr": "Protected by guardian shield",
+  
+  "petsplus.striker.finisher_mark": "%s marked a finisher.",
+  "petsplus.striker.execution": "Execution bonus active",
+  
+  "petsplus.support.potion_sip": "Perched potion efficiency active",
+  "petsplus.support.cone_aura": "Mounted cone aura active",
+  
+  "petsplus.scout.spotter": "%s guides the spoils.",
+  "petsplus.scout.loot_wisp": "%s conjures a loot wisp",
+  "petsplus.scout.gale_pace": "Wind at your back.",
+  
+  "petsplus.skyrider.windlash": "Wind at your back.",
+  "petsplus.skyrider.levitation": "Lifted by the winds",
+  
+  "petsplus.enchanted.haste": "Enchanted efficiency active",
+  "petsplus.enchanted.extra_roll": "Enchanted luck smiles upon you",
+  
+  "petsplus.cursed.doom_echo": "A bad feeling spills from %s…",
+  "petsplus.cursed.heal": "Darkness mends your wounds",
+  
+  "petsplus.eepy.nap_time": "%s's cozy presence expands",
+  
+  "petsplus.eclipsed.voidbrand": "%s tears a seam in sight.",
+  "petsplus.eclipsed.phase_partner": "Space folds politely around you.",
+  "petsplus.eclipsed.event_horizon": "Reality bends around you",
+  "petsplus.eclipsed.edge_step": "Void cushions your fall",
+  
+  "petsplus.cooldown": "%s cooldown: %d seconds",
+  "petsplus.ready": "%s is ready!",
+  
+  "petsplus.ability.activated": "%s activated!",
+  "petsplus.ability.cooldown": "%s cooldown",
+  "petsplus.ability.ready": "%s ready!",
+  "petsplus.ability.test_triggered": "Test triggered ability: %s",
+  
+  "petsplus.mount.speed": "Your mount gains speed",
+  "petsplus.mount.resistance": "Your mount gains resistance",
+  "petsplus.mount.knockback_resistance": "Your mount stands firm",
+  
+  "petsplus.role.assigned": "Assigned role %s to %s",
+  "petsplus.test.ui": "UI Test: %s",
+  "petsplus.test.mount_detected": "Mount detected: %s",
+
+  "petsplus.adv.first_pet.title": "Best Friends Forever++",
+  "petsplus.adv.first_pet.desc": "A quiet glance... It's official—you belong to each other.",
+
+  "petsplus.adv.trial_ready.title": "Trial-Ready",
+  "petsplus.adv.trial_ready.desc": "Gold clinks. Fate unpauses.",
+
+  "petsplus.adv.melody_wind.title": "The Melody of the Wind",
+  "petsplus.adv.melody_wind.desc": "Where space's symphony frays the mind, the wind hums relief for the weary traveler.",
+
+  "petsplus.adv.edgewalker.title": "Edgewalker",
+  "petsplus.adv.edgewalker.desc": "You danced on the edge; the void hit the renegade in playful retalliation.",
+
+  "petsplus.adv.even_bester.title": "Even Bester Friends Foreverer",
+  "petsplus.adv.even_bester.desc": "You grew togetherer, you survived togetherer—now you're together foreverer.",
+
+  "petsplus.adv.or_not.title": "Or not.",
+  "petsplus.adv.or_not.desc": "Forever is long. Goodbye was instant.",
+
+  "petsplus.adv.sacrilege.title": "The Truest Form of Sacrilege",
+  "petsplus.adv.sacrilege.desc": "Luckily you chose a frontline. Or at least appointed one.",
+
+  "petsplus.adv.mmm_healing_magic.title": "Mmmm Healing Magic!",
+  "petsplus.adv.mmm_healing_magic.desc": "Never bring a gun to a wavy-hands fight.",
+
+  "petsplus.adv.is_this_designer.title": "Is This Designer?",
+  "petsplus.adv.is_this_designer.desc": "We got a couple of upgrades if you like 'em bizzare, we could give you an upgrade that can play guitar, like.",
+
+  "petsplus.adv.i_love_you_and_me.title": "I love you and me",
+  "petsplus.adv.i_love_you_and_me.desc": "You know I got ya.",
+
+  "petsplus.adv.noo_luna.title": "Noo, Luna!",
+  "petsplus.adv.noo_luna.desc": "A heartfelt, dramatic sacrifice; your companion took the hit so you didn't.",
+
+  "petsplus.adv.at_what_cost.title": "At what cost…",
+  "petsplus.adv.at_what_cost.desc": "Twice now, you monster.",
+
+  "petsplus.adv.heartless_but_alive.title": "Heartless, but Alive.",
+  "petsplus.adv.heartless_but_alive.desc": "Three times, huh. The world feels heavier than it did yesterday..."
+}

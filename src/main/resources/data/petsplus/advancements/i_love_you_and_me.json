@@ -1,0 +1,23 @@
+{
+  "display": {
+    "icon": {
+      "item": "minecraft:pink_dye"
+    },
+    "title": {
+      "translate": "petsplus.adv.i_love_you_and_me.title"
+    },
+    "description": {
+      "translate": "petsplus.adv.i_love_you_and_me.desc"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": true
+  },
+  "parent": "petsplus:trial_ready",
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:tick"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "display": {
+    "icon": {
+      "item": "minecraft:black_bed"
+    },
+    "title": {
+      "translate": "petsplus.adv.heartless_but_alive.title"
+    },
+    "description": {
+      "translate": "petsplus.adv.heartless_but_alive.desc"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "parent": "petsplus:at_what_cost",
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:tick"
+    }
+  }
+}

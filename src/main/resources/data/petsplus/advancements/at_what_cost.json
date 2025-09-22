@@ -1,0 +1,23 @@
+{
+  "display": {
+    "icon": {
+      "item": "minecraft:gray_bed"
+    },
+    "title": {
+      "translate": "petsplus.adv.at_what_cost.title"
+    },
+    "description": {
+      "translate": "petsplus.adv.at_what_cost.desc"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "parent": "petsplus:noo_luna",
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:tick"
+    }
+  }
+}
