@@ -74,6 +74,14 @@ public class AdvancementManager {
         // triggered by their own criteria based on dream escape count
     }
 
+    public static void triggerPettingMilestone(ServerPlayerEntity player, int petCount) {
+        if (petCount == 1) {
+            triggerAdvancement(player, "petsplus:gentle_touch");
+        } else if (petCount >= 100) {
+            triggerAdvancement(player, "petsplus:devoted_companion");
+        }
+    }
+
     /**
      * Triggers an advancement for a player.
      * In 1.21.8, this works with data-driven advancement JSON files.

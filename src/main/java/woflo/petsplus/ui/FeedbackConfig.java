@@ -1,16 +1,10 @@
 package woflo.petsplus.ui;
 
-import com.google.gson.JsonObject;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import net.minecraft.particle.ParticleEffect;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.sound.SoundEvent;
 import net.minecraft.sound.SoundEvents;
-import net.minecraft.util.Identifier;
-import net.minecraft.registry.Registries;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -90,6 +84,9 @@ public class FeedbackConfig {
 
         // Utility/QoL feedback
         registerUtilityFeedback();
+        
+        // Petting feedback effects
+        registerPettingFeedback();
     }
 
     private static void registerRoleParticles() {
@@ -285,6 +282,70 @@ public class FeedbackConfig {
         register("config_changed", List.of(
             new ParticleConfig(ParticleTypes.ENCHANT, 2, 0.1, 0.2, 0.1, 0.01, "circle", 0.3, false)
         ), new AudioConfig(SoundEvents.UI_BUTTON_CLICK.value(), 0.2f, 1.0f, 4.0), 0, true);
+    }
+
+    private static void registerPettingFeedback() {
+        // Base petting effects
+        register("pet_hearts", List.of(
+            new ParticleConfig(ParticleTypes.HEART, 5, 0.4, 0.3, 0.4, 0.02, "burst", 0.8, true)
+        ), null, 0, true);
+
+        // Pet sounds (these will be overridden by specific pet types)
+        register("pet_wolf_happy", List.of(), 
+            new AudioConfig(SoundEvents.ENTITY_WOLF_STEP, 0.3f, 1.3f, 8.0), 0, true);
+        register("pet_cat_purr", List.of(), 
+            new AudioConfig(SoundEvents.ENTITY_CAT_PURR, 0.4f, 1.1f, 8.0), 0, true);
+        register("pet_parrot_chirp", List.of(), 
+            new AudioConfig(SoundEvents.ENTITY_PARROT_IMITATE_BLAZE, 0.3f, 1.4f, 8.0), 0, true);
+        register("pet_horse_snort", List.of(), 
+            new AudioConfig(SoundEvents.ENTITY_HORSE_ANGRY, 0.4f, 1.2f, 8.0), 0, true);
+        register("pet_llama_spit", List.of(), 
+            new AudioConfig(SoundEvents.ENTITY_LLAMA_CHEST, 0.3f, 1.5f, 8.0), 0, true);
+        register("pet_camel_grumble", List.of(), 
+            new AudioConfig(SoundEvents.ENTITY_CAMEL_STEP, 0.4f, 1.1f, 8.0), 0, true);
+        register("pet_generic_happy", List.of(), 
+            new AudioConfig(SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 0.3f, 1.6f, 8.0), 0, true);
+
+        // Role-specific petting effects
+        register("guardian_protection_stance", List.of(
+            new ParticleConfig(ParticleTypes.ENCHANTED_HIT, 3, 0.2, 0.1, 0.2, 0.01, "circle", 1.0, true)
+        ), new AudioConfig(SoundEvents.ITEM_SHIELD_BLOCK.value(), 0.2f, 1.3f, 6.0), 0, true);
+
+        register("striker_eagerness", List.of(
+            new ParticleConfig(ParticleTypes.CRIT, 4, 0.3, 0.2, 0.3, 0.03, "burst", 0.6, true)
+        ), new AudioConfig(SoundEvents.ENTITY_PLAYER_ATTACK_SWEEP, 0.25f, 1.4f, 6.0), 0, true);
+
+        register("support_gentle_aura", List.of(
+            new ParticleConfig(ParticleTypes.COMPOSTER, 6, 0.4, 0.3, 0.4, 0.01, "aura_radius_edge", 1.2, true)
+        ), new AudioConfig(SoundEvents.BLOCK_ENCHANTMENT_TABLE_USE, 0.2f, 1.6f, 6.0), 0, true);
+
+        register("scout_alertness", List.of(
+            new ParticleConfig(ParticleTypes.END_ROD, 2, 0.1, 0.4, 0.1, 0.02, "upward", 0.8, true)
+        ), new AudioConfig(SoundEvents.ENTITY_ALLAY_ITEM_GIVEN, 0.3f, 1.2f, 6.0), 0, true);
+
+        register("skyrider_wind_dance", List.of(
+            new ParticleConfig(ParticleTypes.CLOUD, 8, 0.5, 0.2, 0.5, 0.05, "spiral", 1.5, true)
+        ), new AudioConfig(SoundEvents.ITEM_ELYTRA_FLYING, 0.15f, 1.8f, 6.0), 0, true);
+
+        register("enchantment_sparkle", List.of(
+            new ParticleConfig(ParticleTypes.ENCHANT, 8, 0.4, 0.4, 0.4, 0.02, "circle", 1.0, true),
+            new ParticleConfig(ParticleTypes.PORTAL, 3, 0.2, 0.3, 0.2, 0.01, "burst", 0.5, true)
+        ), new AudioConfig(SoundEvents.BLOCK_ENCHANTMENT_TABLE_USE, 0.3f, 1.4f, 6.0), 0, true);
+
+        register("cursed_dark_affection", List.of(
+            new ParticleConfig(ParticleTypes.SOUL, 5, 0.3, 0.2, 0.3, 0.02, "circle", 0.8, true),
+            new ParticleConfig(ParticleTypes.SMOKE, 2, 0.1, 0.1, 0.1, 0.01, "burst", 0.3, true)
+        ), new AudioConfig(SoundEvents.BLOCK_SOUL_SAND_STEP, 0.25f, 1.1f, 6.0), 0, true);
+
+        register("eclipsed_void_pulse", List.of(
+            new ParticleConfig(ParticleTypes.REVERSE_PORTAL, 6, 0.3, 0.3, 0.3, 0.01, "spiral", 1.0, true),
+            new ParticleConfig(ParticleTypes.ASH, 4, 0.2, 0.2, 0.2, 0.02, "burst", 0.5, true)
+        ), new AudioConfig(SoundEvents.BLOCK_PORTAL_AMBIENT, 0.2f, 1.5f, 6.0), 0, true);
+
+        register("eepy_sleepy_contentment", List.of(
+            new ParticleConfig(ParticleTypes.NOTE, 3, 0.2, 0.3, 0.2, 0.01, "gentle_float", 0.8, true),
+            new ParticleConfig(ParticleTypes.HAPPY_VILLAGER, 2, 0.1, 0.2, 0.1, 0.01, "burst", 0.4, true)
+        ), new AudioConfig(SoundEvents.ENTITY_CAT_PURR, 0.3f, 0.8f, 6.0), 0, true);
     }
 
     private static void register(String eventName, List<ParticleConfig> particles, AudioConfig audio, int delayTicks, boolean serverSide) {

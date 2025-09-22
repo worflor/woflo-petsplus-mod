@@ -57,6 +57,7 @@ public class InitializationManager {
         woflo.petsplus.events.SupportInteractionHandler.register();
         woflo.petsplus.events.TributeHandler.register();
         woflo.petsplus.events.PetsplusItemHandler.register();
+        woflo.petsplus.events.PettingHandler.register();
         
         // System event handlers
         woflo.petsplus.events.PetsplusEffectEventHandler.initialize();

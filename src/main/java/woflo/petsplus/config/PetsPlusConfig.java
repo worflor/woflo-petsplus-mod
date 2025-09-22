@@ -76,6 +76,15 @@ public class PetsPlusConfig {
         guardian.addProperty("shieldBashIcdTicks", 120);
         config.add("guardian", guardian);
         
+        // Petting config
+        JsonObject petting = new JsonObject();
+        petting.addProperty("cooldownTicks", 200); // 10 seconds
+        petting.addProperty("xpBonusEnabled", true);
+        petting.addProperty("roleBoostEnabled", false); // Disabled for cosmetic-only
+        petting.addProperty("healingEnabled", false); // Disabled for cosmetic-only
+        petting.addProperty("boostMultiplier", 1.0); // No boost for cosmetic-only
+        config.add("petting", petting);
+        
         // Striker config
         JsonObject striker = new JsonObject();
         striker.addProperty("ownerExecuteBonusPct", 0.10);
@@ -244,6 +253,31 @@ public class PetsPlusConfig {
         JsonObject tributeItems = getRoleConfig("tribute_items");
         String levelKey = String.valueOf(level);
         return tributeItems.has(levelKey) || DEFAULT_TRIBUTE_ITEMS.containsKey(level);
+    }
+    
+    // Petting configuration methods
+    public int getPettingCooldownTicks() {
+        return getInt("petting", "cooldownTicks", 200);
+    }
+    
+    public boolean isPettingXpBonusEnabled() {
+        return getBoolean("petting", "xpBonusEnabled", true);
+    }
+    
+    public boolean isPettingRoleBoostEnabled() {
+        return getBoolean("petting", "roleBoostEnabled", true);
+    }
+    
+    public boolean isPettingHealingEnabled() {
+        return getBoolean("petting", "healingEnabled", true);
+    }
+    
+    public double getPettingBoostMultiplier() {
+        JsonObject pettingConfig = getRoleConfig("petting");
+        if (pettingConfig.has("boostMultiplier") && pettingConfig.get("boostMultiplier").isJsonPrimitive()) {
+            return pettingConfig.get("boostMultiplier").getAsDouble();
+        }
+        return 1.1; // Default 10% boost
     }
     
     /**
