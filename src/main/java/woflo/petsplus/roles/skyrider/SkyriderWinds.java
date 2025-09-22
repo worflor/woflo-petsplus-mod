@@ -126,7 +126,14 @@ public class SkyriderWinds {
         }
 
         long lastTriggerTick = ownerState.getTempState(WINDLASH_LAST_TRIGGER_KEY);
-        long ticksSinceTrigger = owner.getWorld().getTime() - lastTriggerTick;
+        long ticksSinceTrigger = getServerTick(owner) - lastTriggerTick;
+
+        if (ticksSinceTrigger < 0) {
+            // World changes can rewind per-dimension time, so treat negative
+            // deltas as an expired cooldown and allow the trigger.
+            return true;
+        }
+
         return ticksSinceTrigger >= cooldownTicks;
     }
 
@@ -135,7 +142,7 @@ public class SkyriderWinds {
      */
     public static void markWindlashTriggered(ServerPlayerEntity owner) {
         OwnerCombatState ownerState = OwnerCombatState.getOrCreate(owner);
-        ownerState.setTempState(WINDLASH_LAST_TRIGGER_KEY, owner.getWorld().getTime());
+        ownerState.setTempState(WINDLASH_LAST_TRIGGER_KEY, getServerTick(owner));
     }
 
     /**
@@ -153,9 +160,22 @@ public class SkyriderWinds {
         }
 
         long lastTriggerTick = ownerState.getTempState(WINDLASH_LAST_TRIGGER_KEY);
-        long ticksSinceTrigger = owner.getWorld().getTime() - lastTriggerTick;
+        long ticksSinceTrigger = getServerTick(owner) - lastTriggerTick;
+
+        if (ticksSinceTrigger < 0) {
+            return 0;
+        }
+
         long remaining = cooldownTicks - ticksSinceTrigger;
         return Math.max(remaining, 0);
+    }
+
+    private static long getServerTick(ServerPlayerEntity owner) {
+        var server = owner.getServer();
+        if (server != null) {
+            return server.getTicks();
+        }
+        return owner.getWorld().getTime();
     }
     
     /**
