@@ -88,7 +88,7 @@
 * **Baseline**: +Move Speed scalar; occasional **Glowing** ping on nearby hostiles at combat start.
 * **Current Kit**
 
-  * **L3 – Loot Wisp**: After combat ends, nearby drops and XP within a short radius gently drift toward the owner for a moment.
+  * **L3 – Loot Wisp**: After combat ends, a short-lived wisp (≈4s, configurable) tugs nearby drops and XP within ~12 blocks toward the owner every tick, fading early if the owner leaves the bubble.
 
 ### 3.5 Skyrider (Air Control / Fall Safety)
 
