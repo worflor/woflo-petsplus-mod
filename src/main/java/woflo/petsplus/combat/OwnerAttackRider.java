@@ -5,6 +5,7 @@ import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.player.PlayerEntity;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.effects.OwnerNextAttackBonusEffect;
+import woflo.petsplus.roles.guardian.GuardianCore;
 import woflo.petsplus.state.OwnerCombatState;
 
 /**
@@ -16,6 +17,10 @@ public class OwnerAttackRider {
      * Calculate the final damage amount for an owner's attack, applying any active riders.
      */
     public static float calculateDamage(PlayerEntity owner, LivingEntity target, float baseDamage, DamageSource damageSource) {
+        if (target != null) {
+            GuardianCore.handlePrimedPreAttack(owner, target);
+        }
+
         OwnerCombatState combatState = OwnerCombatState.get(owner);
         if (combatState == null) {
             return baseDamage;
