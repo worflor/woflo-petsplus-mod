@@ -77,7 +77,10 @@ public class GuardianBulwark {
             return damage;
         }
 
-        guardian.damage(guardianWorld, source, redirectedDamage);
+        boolean guardianTookDamage = applyGuardianRedirectDamage(guardian, guardianWorld, source, redirectedDamage);
+        if (!guardianTookDamage) {
+            return damage;
+        }
 
         float remainingDamage = Math.max(0.0f, damage - redirectedDamage);
 
@@ -110,6 +113,24 @@ public class GuardianBulwark {
         }
 
         return true;
+    }
+
+    private static boolean applyGuardianRedirectDamage(MobEntity guardian, ServerWorld guardianWorld,
+                                                       DamageSource originalSource, float damageAmount) {
+        if (damageAmount <= 0.0f) {
+            return false;
+        }
+
+        if (guardian.damage(guardianWorld, originalSource, damageAmount)) {
+            return true;
+        }
+
+        DamageSource neutralSource = guardianWorld.getDamageSources().generic();
+        if (neutralSource == originalSource) {
+            return false;
+        }
+
+        return guardian.damage(guardianWorld, neutralSource, damageAmount);
     }
 
 }
