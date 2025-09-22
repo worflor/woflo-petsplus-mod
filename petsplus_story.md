@@ -70,8 +70,10 @@
 * **Baseline – Potion Carrier (diluted)**:
 
   * Load **one** vanilla potion into the pet (right-click).
+  * Cleanse with a **milk bucket** to purge the stored brew (consumes it and frees the slot).
   * Emits **aura pulses** to **owner + pet** (optionally teammates via config) at **reduced potency**, short durations, **every \~7s** while near (no constant ticking).
-  * **Consumption**: pet “sips” the potion **per pulse** (e.g., 12.5%/pulse → \~8 pulses per bottle when active).
+* **Consumption**: the stored potion is broken into **8 baseline charges for a standard 3m brew (1 charge consumed per pulse)**, scaling linearly with the potion's actual duration and the pet's accumulated **aura efficiency** bonuses.
+  * **Perched sip math**: the L5 perk applies a **20% sip discount** (configurable), so each pulse only spends **0.8 charge** while perched (≈10 pulses per bottle at defaults).
   * **Why use this vs drinking?** Hands-free, persistent coverage, shared with pet, minimal micromanagement; weaker than drinking but **longer-lived**.
 * **Current Kit**
 

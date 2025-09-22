@@ -6,6 +6,7 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.item.ItemUsage;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
@@ -34,39 +35,50 @@ public class SupportInteractionHandler {
         // Must be owner
         if (!comp.isOwnedBy(player)) return ActionResult.PASS;
 
-        // Must be holding a potion (regular, splash, or lingering)
         ItemStack stack = player.getStackInHand(hand);
+        if (stack.isOf(Items.MILK_BUCKET)) {
+            boolean hadStoredPotion = woflo.petsplus.roles.support.SupportPotionUtils.hasStoredPotion(comp);
+            if (!hadStoredPotion) {
+                return ActionResult.PASS;
+            }
+
+            woflo.petsplus.roles.support.SupportPotionUtils.clearStoredPotion(comp);
+
+            ItemStack emptied = ItemUsage.exchangeStack(stack, player, new ItemStack(Items.BUCKET));
+            player.setStackInHand(hand, emptied);
+            if (player.getAbilities().creativeMode) {
+                player.setStackInHand(hand, new ItemStack(Items.BUCKET));
+            }
+
+            ServerWorld serverWorld = (ServerWorld) world;
+            serverWorld.spawnParticles(net.minecraft.particle.ParticleTypes.END_ROD,
+                mob.getX(), mob.getY() + mob.getHeight() * 0.6, mob.getZ(),
+                12, 0.2, 0.3, 0.2, 0.01);
+            serverWorld.playSound(null, mob.getBlockPos(),
+                net.minecraft.sound.SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME,
+                net.minecraft.sound.SoundCategory.NEUTRAL,
+                0.8f, 1.3f);
+            player.sendMessage(net.minecraft.text.Text.literal("Your companion is cleansed and ready for a new potion"), true);
+
+            return ActionResult.SUCCESS;
+        }
+
+        // Must be holding a potion (regular, splash, or lingering)
         if (!(stack.isOf(Items.POTION) || stack.isOf(Items.SPLASH_POTION) || stack.isOf(Items.LINGERING_POTION))) {
             return ActionResult.PASS;
         }
 
         // Enforce single-slot: if already has a stored potion, reject
-        if (Boolean.TRUE.equals(comp.getStateData("support_potion_present", Boolean.class))) {
+        if (woflo.petsplus.roles.support.SupportPotionUtils.hasStoredPotion(comp)) {
             player.sendMessage(net.minecraft.text.Text.literal("Your companion is already holding a potion"), true);
             return ActionResult.SUCCESS; // handled
         }
 
-        // Extract effects and store lightweight representation using pet level for duration calculation
-        var effects = woflo.petsplus.roles.support.SupportPotionUtils.getAuraEffects(stack, comp.getLevel());
-        if (effects.isEmpty()) {
+        var storedState = woflo.petsplus.roles.support.SupportPotionUtils.createStateFromStack(stack, comp);
+        if (!storedState.isValid()) {
             return ActionResult.PASS; // Not a potion with effects (e.g., water)
         }
-
-        // Calculate appropriate aura pulse duration based on original potion and pet level
-        int basePotionDuration = effects.isEmpty() ? 3600 : effects.get(0).getDuration(); // Use first effect or default
-        int auraPulseDuration = woflo.petsplus.roles.support.SupportPotionUtils.getAuraPulseDuration(basePotionDuration, comp.getLevel());
-
-        // Serialize to simple strings: "namespace:path|amp"
-        java.util.List<String> serialized = new java.util.ArrayList<>();
-        for (var e : effects) {
-            var id = net.minecraft.registry.Registries.STATUS_EFFECT.getId(e.getEffectType().value());
-            if (id != null) {
-                serialized.add(id.toString() + "|" + Math.max(0, e.getAmplifier()));
-            }
-        }
-        comp.setStateData("support_potion_effects", serialized);
-        comp.setStateData("support_potion_present", true);
-        comp.setStateData("support_potion_aura_duration", auraPulseDuration);
+        woflo.petsplus.roles.support.SupportPotionUtils.writeStoredState(comp, storedState);
 
         // Consume exactly one from the player stack
         stack.decrement(1);

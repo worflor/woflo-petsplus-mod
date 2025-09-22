@@ -540,7 +540,9 @@ public class PetComponent {
             nbt.getCompound("stateData").ifPresent(stateDataNbt -> {
                 stateData.clear();
                 for (String key : stateDataNbt.getKeys()) {
-                    stateDataNbt.getCompound(key).ifPresent(listNbt -> {
+                    var listOpt = stateDataNbt.getCompound(key);
+                    if (listOpt.isPresent()) {
+                        var listNbt = listOpt.get();
                         listNbt.getInt("size").ifPresent(size -> {
                             java.util.List<String> list = new java.util.ArrayList<>();
                             for (int i = 0; i < size; i++) {
@@ -548,7 +550,15 @@ public class PetComponent {
                             }
                             stateData.put(key, list);
                         });
-                    });
+                        continue;
+                    }
+
+                    stateDataNbt.getString(key).ifPresent(value -> stateData.put(key, value));
+                    stateDataNbt.getInt(key).ifPresent(value -> stateData.put(key, value));
+                    stateDataNbt.getLong(key).ifPresent(value -> stateData.put(key, value));
+                    stateDataNbt.getDouble(key).ifPresent(value -> stateData.put(key, value));
+                    stateDataNbt.getFloat(key).ifPresent(value -> stateData.put(key, value));
+                    stateDataNbt.getBoolean(key).ifPresent(value -> stateData.put(key, value));
                 }
             });
         }

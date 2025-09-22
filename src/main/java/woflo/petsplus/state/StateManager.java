@@ -244,23 +244,9 @@ public class StateManager {
         // Remove one from the world stack
         net.minecraft.entity.ItemEntity picked = items.get(0);
         var stack = picked.getStack();
-        // Get effects using pet level for duration calculation
-        var effects = woflo.petsplus.roles.support.SupportPotionUtils.getAuraEffects(stack, comp.getLevel());
-        if (effects.isEmpty()) return;
-
-        // Calculate appropriate aura pulse duration based on original potion and pet level
-        int basePotionDuration = effects.isEmpty() ? 3600 : effects.get(0).getDuration(); // Use first effect or default
-        int auraPulseDuration = woflo.petsplus.roles.support.SupportPotionUtils.getAuraPulseDuration(basePotionDuration, comp.getLevel());
-
-        // Serialize to strings
-        java.util.List<String> serialized = new java.util.ArrayList<>();
-        for (var e : effects) {
-            var id = net.minecraft.registry.Registries.STATUS_EFFECT.getId(e.getEffectType().value());
-            if (id != null) serialized.add(id.toString() + "|" + Math.max(0, e.getAmplifier()));
-        }
-        comp.setStateData("support_potion_effects", serialized);
-        comp.setStateData("support_potion_present", true);
-        comp.setStateData("support_potion_aura_duration", auraPulseDuration);
+        var storedState = woflo.petsplus.roles.support.SupportPotionUtils.createStateFromStack(stack, comp);
+        if (!storedState.isValid()) return;
+        woflo.petsplus.roles.support.SupportPotionUtils.writeStoredState(comp, storedState);
 
         stack.decrement(1);
         if (stack.isEmpty()) picked.discard();
@@ -273,27 +259,24 @@ public class StateManager {
 
     private void applyStoredPotionAura(MobEntity pet, PlayerEntity owner, PetComponent comp) {
         if (!(world instanceof net.minecraft.server.world.ServerWorld serverWorld)) return;
-        if (!Boolean.TRUE.equals(comp.getStateData("support_potion_present", Boolean.class))) return;
-        @SuppressWarnings("unchecked")
-        java.util.List<String> serialized = comp.getStateData("support_potion_effects", java.util.List.class);
-        if (serialized == null || serialized.isEmpty()) return;
-        int auraDuration = 80;
-        Integer storedDur = comp.getStateData("support_potion_aura_duration", Integer.class);
-        if (storedDur != null) auraDuration = Math.max(20, storedDur);
-
-        // Build effects
-        java.util.List<net.minecraft.entity.effect.StatusEffectInstance> effects = new java.util.ArrayList<>();
-        for (String s : serialized) {
-            String[] parts = s.split("\\|");
-            if (parts.length != 2) continue;
-            var effectId = net.minecraft.util.Identifier.tryParse(parts[0]);
-            int amp;
-            try { amp = Integer.parseInt(parts[1]); } catch (Exception e) { continue; }
-            var entry = net.minecraft.registry.Registries.STATUS_EFFECT.getEntry(effectId);
-            if (entry.isEmpty()) continue;
-            effects.add(new net.minecraft.entity.effect.StatusEffectInstance(entry.get(), auraDuration, amp, false, true, true));
+        if (!woflo.petsplus.roles.support.SupportPotionUtils.hasStoredPotion(comp)) {
+            return;
         }
-        if (effects.isEmpty()) return;
+
+        var potionState = woflo.petsplus.roles.support.SupportPotionUtils.getStoredState(comp);
+        if (!potionState.isValid()) {
+            return;
+        }
+
+        java.util.List<net.minecraft.entity.effect.StatusEffectInstance> effects =
+            woflo.petsplus.roles.support.SupportPotionUtils.deserializeEffects(
+                potionState.serializedEffects(),
+                potionState.auraDurationTicks()
+            );
+        if (effects.isEmpty()) {
+            woflo.petsplus.roles.support.SupportPotionUtils.clearStoredPotion(comp);
+            return;
+        }
 
         // Apply to allies around pet (owner + friendly players within small radius)
         double radius = 6.0;
@@ -322,5 +305,8 @@ public class StateManager {
         if (world.getTime() % 100 == 0) { // Every 5 seconds
             woflo.petsplus.ui.FeedbackManager.emitFeedback("support_potion_pulse", pet, serverWorld);
         }
+
+        double consumption = woflo.petsplus.roles.support.SupportPotionUtils.getConsumptionPerPulse(comp);
+        woflo.petsplus.roles.support.SupportPotionUtils.consumeCharges(comp, potionState, consumption);
     }
 }
