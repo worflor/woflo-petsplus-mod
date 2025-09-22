@@ -11,7 +11,7 @@ import net.minecraft.util.Formatting;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.advancement.AdvancementManager;
 import woflo.petsplus.items.ProofOfExistence;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 
 /**
  * Handles permanent pet death - pets that die are gone forever with no recovery.
@@ -55,7 +55,7 @@ public class PetDeathHandler {
             if (distance <= 64) { // Within 64 blocks
                 
                 // Special message for Cursed One pets
-                if (petComp.getRole() == PetRole.CURSED_ONE) {
+                if (petComp.hasRole(PetRoleType.CURSED_ONE)) {
                     serverOwner.sendMessage(
                         Text.literal("§4" + petName + " §7has been consumed by the curse. ")
                             .append(Text.literal("The dark bond is severed forever. ").formatted(Formatting.DARK_RED))

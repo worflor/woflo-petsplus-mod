@@ -4,7 +4,7 @@ import net.minecraft.entity.attribute.EntityAttributeModifier;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.util.Identifier;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
 /**
@@ -21,6 +21,19 @@ public class PetAttributeManager {
     private static final Identifier CHAR_HEALTH_ID = Identifier.of("petsplus", "char_health");
     private static final Identifier CHAR_SPEED_ID = Identifier.of("petsplus", "char_speed");
     private static final Identifier CHAR_ATTACK_ID = Identifier.of("petsplus", "char_attack");
+
+    private static final float BASE_HEALTH_PER_LEVEL = 0.05f;
+    private static final float BASE_HEALTH_POST_SOFTCAP_PER_LEVEL = 0.02f;
+    private static final int BASE_HEALTH_SOFTCAP_LEVEL = 20;
+    private static final float BASE_HEALTH_MAX_BONUS = 2.0f;
+
+    private static final float BASE_SPEED_PER_LEVEL = 0.02f;
+    private static final float BASE_SPEED_MAX = 0.6f;
+
+    private static final float BASE_ATTACK_PER_LEVEL = 0.03f;
+    private static final float BASE_ATTACK_POST_SOFTCAP_PER_LEVEL = 0.015f;
+    private static final int BASE_ATTACK_SOFTCAP_LEVEL = 15;
+    private static final float BASE_ATTACK_MAX_BONUS = 1.5f;
     
     /**
      * Apply all attribute modifiers to a pet based on level and characteristics.
@@ -30,15 +43,15 @@ public class PetAttributeManager {
         removeAttributeModifiers(pet); // Clean slate
         
         int level = petComponent.getLevel();
-        PetRole role = petComponent.getRole();
+        PetRoleType roleType = petComponent.getRoleType(false);
         PetCharacteristics characteristics = petComponent.getCharacteristics();
-        
+
         // Apply level-based modifiers (core progression)
-        applyLevelModifiers(pet, level, role);
-        
+        applyLevelModifiers(pet, level, roleType);
+
         // Apply characteristic-based modifiers (uniqueness)
         if (characteristics != null) {
-            applyCharacteristicModifiers(pet, characteristics, role);
+            applyCharacteristicModifiers(pet, characteristics, roleType);
         }
         
         // Ensure pet is at full health after modifiers
@@ -76,12 +89,12 @@ public class PetAttributeManager {
      * Apply level-based modifiers - the core progression system.
      * Uses a balanced algorithm that provides meaningful but not overpowered growth.
      */
-    private static void applyLevelModifiers(MobEntity pet, int level, PetRole role) {
+    private static void applyLevelModifiers(MobEntity pet, int level, PetRoleType roleType) {
         // Health scaling: +5% per level, with role bonus
-        float healthMultiplier = calculateHealthMultiplier(level, role);
+        float healthMultiplier = calculateHealthMultiplier(level, roleType);
         if (healthMultiplier > 0 && pet.getAttributeInstance(EntityAttributes.MAX_HEALTH) != null) {
             EntityAttributeModifier healthMod = new EntityAttributeModifier(
-                LEVEL_HEALTH_ID, 
+                LEVEL_HEALTH_ID,
                 healthMultiplier, 
                 EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
             );
@@ -89,10 +102,10 @@ public class PetAttributeManager {
         }
         
         // Speed scaling: +2% per level, capped at +60%
-        float speedMultiplier = calculateSpeedMultiplier(level, role);
+        float speedMultiplier = calculateSpeedMultiplier(level, roleType);
         if (speedMultiplier > 0 && pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED) != null) {
             EntityAttributeModifier speedMod = new EntityAttributeModifier(
-                LEVEL_SPEED_ID, 
+                LEVEL_SPEED_ID,
                 speedMultiplier, 
                 EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
             );
@@ -101,10 +114,10 @@ public class PetAttributeManager {
         
         // Attack scaling: +3% per level for entities that can attack
         if (pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE) != null) {
-            float attackMultiplier = calculateAttackMultiplier(level, role);
+            float attackMultiplier = calculateAttackMultiplier(level, roleType);
             if (attackMultiplier > 0) {
                 EntityAttributeModifier attackMod = new EntityAttributeModifier(
-                    LEVEL_ATTACK_ID, 
+                    LEVEL_ATTACK_ID,
                     attackMultiplier, 
                     EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
                 );
@@ -117,9 +130,9 @@ public class PetAttributeManager {
      * Apply characteristic-based modifiers - the uniqueness system.
      * Provides individual variance that makes each pet special.
      */
-    private static void applyCharacteristicModifiers(MobEntity pet, PetCharacteristics characteristics, PetRole role) {
+    private static void applyCharacteristicModifiers(MobEntity pet, PetCharacteristics characteristics, PetRoleType roleType) {
         // Health characteristic modifier
-        float healthCharMod = characteristics.getVitalityModifier(role) * 0.15f; // ±15% max
+        float healthCharMod = characteristics.getVitalityModifier(roleType) * 0.15f; // ±15% max
         if (Math.abs(healthCharMod) > 0.01f && pet.getAttributeInstance(EntityAttributes.MAX_HEALTH) != null) {
             EntityAttributeModifier modifier = new EntityAttributeModifier(
                 CHAR_HEALTH_ID, 
@@ -130,7 +143,7 @@ public class PetAttributeManager {
         }
         
         // Speed characteristic modifier
-        float speedCharMod = characteristics.getAgilityModifier(role) * 0.12f; // ±12% max
+        float speedCharMod = characteristics.getAgilityModifier(roleType) * 0.12f; // ±12% max
         if (Math.abs(speedCharMod) > 0.01f && pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED) != null) {
             EntityAttributeModifier modifier = new EntityAttributeModifier(
                 CHAR_SPEED_ID, 
@@ -142,7 +155,7 @@ public class PetAttributeManager {
         
         // Attack characteristic modifier (only for entities that can attack)
         if (pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE) != null) {
-            float attackCharMod = characteristics.getAttackModifier(role) * 0.10f; // ±10% max
+            float attackCharMod = characteristics.getAttackModifier(roleType) * 0.10f; // ±10% max
             if (Math.abs(attackCharMod) > 0.01f) {
                 EntityAttributeModifier modifier = new EntityAttributeModifier(
                     CHAR_ATTACK_ID, 
@@ -158,80 +171,93 @@ public class PetAttributeManager {
      * Calculate health multiplier based on level and role.
      * Guardian pets get extra health scaling to emphasize their tanky nature.
      */
-    private static float calculateHealthMultiplier(int level, PetRole role) {
-        // Base: +5% per level
-        float baseMultiplier = level * 0.05f;
-        
-        // Role bonus for Guardian (extra +2% per level)
-        if (role == PetRole.GUARDIAN) {
-            baseMultiplier += level * 0.02f;
+    private static float calculateHealthMultiplier(int level, PetRoleType roleType) {
+        float baseMultiplier = level * BASE_HEALTH_PER_LEVEL;
+        if (level > BASE_HEALTH_SOFTCAP_LEVEL) {
+            float excessLevels = level - BASE_HEALTH_SOFTCAP_LEVEL;
+            baseMultiplier = (BASE_HEALTH_SOFTCAP_LEVEL * BASE_HEALTH_PER_LEVEL)
+                + (excessLevels * BASE_HEALTH_POST_SOFTCAP_PER_LEVEL);
         }
-        
-        // Soft cap at level 20 to prevent exponential growth
-        if (level > 20) {
-            float excessLevels = level - 20;
-            baseMultiplier = (20 * 0.05f) + (excessLevels * 0.02f); // Reduced gains after 20
-            if (role == PetRole.GUARDIAN) {
-                baseMultiplier += (20 * 0.02f) + (excessLevels * 0.01f);
-            }
+
+        PetRoleType.AttributeScaling scaling = roleType != null
+            ? roleType.attributeScaling()
+            : PetRoleType.AttributeScaling.DEFAULT;
+
+        int roleSoftcap = Math.max(0, scaling.healthSoftcapLevel());
+        float bonusMultiplier;
+        if (level > roleSoftcap) {
+            float cappedLevels = roleSoftcap;
+            float excessLevels = level - roleSoftcap;
+            bonusMultiplier = (cappedLevels * scaling.healthBonusPerLevel())
+                + (excessLevels * scaling.healthPostSoftcapBonusPerLevel());
+        } else {
+            bonusMultiplier = level * scaling.healthBonusPerLevel();
         }
-        
-        return Math.min(baseMultiplier, 2.0f); // Cap at +200% health
+
+        float total = baseMultiplier + bonusMultiplier;
+        float cap = scaling.healthMaxBonus() > 0 ? scaling.healthMaxBonus() : BASE_HEALTH_MAX_BONUS;
+        return Math.min(total, cap);
     }
-    
+
     /**
      * Calculate speed multiplier based on level and role.
      * Scout and Skyrider pets get extra speed scaling.
      */
-    private static float calculateSpeedMultiplier(int level, PetRole role) {
-        // Base: +2% per level
-        float baseMultiplier = level * 0.02f;
-        
-        // Role bonus for Scout and Skyrider (+1% per level)
-        if (role == PetRole.SCOUT || role == PetRole.SKYRIDER) {
-            baseMultiplier += level * 0.01f;
-        }
-        
-        return Math.min(baseMultiplier, 0.6f); // Cap at +60% speed
+    private static float calculateSpeedMultiplier(int level, PetRoleType roleType) {
+        float baseMultiplier = level * BASE_SPEED_PER_LEVEL;
+        PetRoleType.AttributeScaling scaling = roleType != null
+            ? roleType.attributeScaling()
+            : PetRoleType.AttributeScaling.DEFAULT;
+
+        float bonusMultiplier = level * scaling.speedBonusPerLevel();
+        float cap = scaling.speedMaxBonus() > 0 ? scaling.speedMaxBonus() : BASE_SPEED_MAX;
+        return Math.min(baseMultiplier + bonusMultiplier, cap);
     }
-    
+
     /**
      * Calculate attack multiplier based on level and role.
      * Striker pets get extra attack scaling.
      */
-    private static float calculateAttackMultiplier(int level, PetRole role) {
-        // Base: +3% per level
-        float baseMultiplier = level * 0.03f;
-        
-        // Role bonus for Striker (+2% per level)
-        if (role == PetRole.STRIKER) {
-            baseMultiplier += level * 0.02f;
+    private static float calculateAttackMultiplier(int level, PetRoleType roleType) {
+        float baseMultiplier;
+        if (level > BASE_ATTACK_SOFTCAP_LEVEL) {
+            float excessLevels = level - BASE_ATTACK_SOFTCAP_LEVEL;
+            baseMultiplier = (BASE_ATTACK_SOFTCAP_LEVEL * BASE_ATTACK_PER_LEVEL)
+                + (excessLevels * BASE_ATTACK_POST_SOFTCAP_PER_LEVEL);
+        } else {
+            baseMultiplier = level * BASE_ATTACK_PER_LEVEL;
         }
-        
-        // Soft cap at level 15 to prevent overpowered damage
-        if (level > 15) {
-            float excessLevels = level - 15;
-            baseMultiplier = (15 * 0.03f) + (excessLevels * 0.015f); // Half gains after 15
-            if (role == PetRole.STRIKER) {
-                baseMultiplier += (15 * 0.02f) + (excessLevels * 0.01f);
-            }
+
+        PetRoleType.AttributeScaling scaling = roleType != null
+            ? roleType.attributeScaling()
+            : PetRoleType.AttributeScaling.DEFAULT;
+        int roleSoftcap = Math.max(0, scaling.attackSoftcapLevel());
+        float bonusMultiplier;
+        if (level > roleSoftcap) {
+            float baseLevels = roleSoftcap;
+            float excessLevels = level - roleSoftcap;
+            bonusMultiplier = (baseLevels * scaling.attackBonusPerLevel())
+                + (excessLevels * scaling.attackPostSoftcapBonusPerLevel());
+        } else {
+            bonusMultiplier = level * scaling.attackBonusPerLevel();
         }
-        
-        return Math.min(baseMultiplier, 1.5f); // Cap at +150% attack
+
+        float cap = scaling.attackMaxBonus() > 0 ? scaling.attackMaxBonus() : BASE_ATTACK_MAX_BONUS;
+        return Math.min(baseMultiplier + bonusMultiplier, cap);
     }
     
     /**
      * Get the effective scalar value for a role, modified by characteristics.
      * This drives the ability system and role-specific bonuses.
      */
-    public static float getEffectiveScalar(String scalarType, PetRole role, PetCharacteristics characteristics, int level) {
+    public static float getEffectiveScalar(String scalarType, PetRoleType roleType, PetCharacteristics characteristics, int level) {
+        float baseScalar = getBaseScalar(scalarType, roleType, level);
         if (characteristics == null) {
-            return getBaseScalar(scalarType, role, level);
+            return baseScalar;
         }
-        
-        float baseScalar = getBaseScalar(scalarType, role, level);
-        float characteristicBonus = getCharacteristicScalarBonus(scalarType, characteristics, role);
-        
+
+        float characteristicBonus = getCharacteristicScalarBonus(scalarType, characteristics, roleType);
+
         return baseScalar + characteristicBonus;
     }
     
@@ -239,18 +265,18 @@ public class PetAttributeManager {
      * Get base scalar value without characteristic modifiers.
      * Uses a balanced progression that rewards grinding without being overpowered.
      */
-    private static float getBaseScalar(String scalarType, PetRole role, int level) {
+    private static float getBaseScalar(String scalarType, PetRoleType roleType, int level) {
         // Base scalar increases by 1% per odd level (levels 1, 3, 5, 7, etc.)
         // This provides steady progression while keeping early game balanced
         int oddLevels = (level + 1) / 2; // Number of odd levels reached
         float baseIncrease = (oddLevels - 1) * 0.01f; // -1 because level 1 is the starting point
-        
+
         // Role-specific base bonuses (2% bonus for primary scalar)
-        float roleBonus = getRoleScalarBonus(scalarType, role);
-        
+        float roleBonus = getRoleScalarBonus(scalarType, roleType);
+
         // Milestone bonuses every 10 levels
         float milestoneBonus = getMilestoneScalarBonus(level);
-        
+
         return baseIncrease + roleBonus + milestoneBonus;
     }
     
@@ -258,39 +284,39 @@ public class PetAttributeManager {
      * Get characteristic-based scalar bonus.
      * Provides uniqueness while maintaining balance.
      */
-    private static float getCharacteristicScalarBonus(String scalarType, PetCharacteristics characteristics, PetRole role) {
+    private static float getCharacteristicScalarBonus(String scalarType, PetCharacteristics characteristics, PetRoleType roleType) {
         float characteristicBonus = 0.0f;
-        
+
         // Apply characteristic bonuses to role scalars (scaled down for balance)
         switch (scalarType) {
             case "offense":
-                characteristicBonus = characteristics.getAttackModifier(role) * 0.05f; // Max ±5%
+                characteristicBonus = characteristics.getAttackModifier(roleType) * 0.05f; // Max ±5%
                 break;
             case "defense":
-                characteristicBonus = characteristics.getDefenseModifier(role) * 0.05f;
+                characteristicBonus = characteristics.getDefenseModifier(roleType) * 0.05f;
                 break;
             case "aura":
-                characteristicBonus = characteristics.getVitalityModifier(role) * 0.05f;
+                characteristicBonus = characteristics.getVitalityModifier(roleType) * 0.05f;
                 break;
             case "mobility":
-                characteristicBonus = characteristics.getAgilityModifier(role) * 0.05f;
+                characteristicBonus = characteristics.getAgilityModifier(roleType) * 0.05f;
                 break;
             case "disruption":
                 // Combination stat for Eclipsed role
-                characteristicBonus = (characteristics.getAgilityModifier(role) + characteristics.getAttackModifier(role)) * 0.025f;
+                characteristicBonus = (characteristics.getAgilityModifier(roleType) + characteristics.getAttackModifier(roleType)) * 0.025f;
                 break;
             case "echo":
-                characteristicBonus = characteristics.getVitalityModifier(role) * 0.05f;
+                characteristicBonus = characteristics.getVitalityModifier(roleType) * 0.05f;
                 break;
             case "curse":
                 // Combination stat for Cursed One role
-                characteristicBonus = (characteristics.getAttackModifier(role) + characteristics.getDefenseModifier(role)) * 0.025f;
+                characteristicBonus = (characteristics.getAttackModifier(roleType) + characteristics.getDefenseModifier(roleType)) * 0.025f;
                 break;
             case "slumber":
-                characteristicBonus = characteristics.getVitalityModifier(role) * 0.05f;
+                characteristicBonus = characteristics.getVitalityModifier(roleType) * 0.05f;
                 break;
         }
-        
+
         return characteristicBonus;
     }
     
@@ -298,20 +324,10 @@ public class PetAttributeManager {
      * Get role-specific scalar bonuses.
      * Each role excels in their primary scalar.
      */
-    private static float getRoleScalarBonus(String scalarType, PetRole role) {
-        if (role == null) return 0.0f;
-        
-        return switch (role) {
-            case GUARDIAN -> "defense".equals(scalarType) ? 0.02f : 0.0f;
-            case STRIKER -> "offense".equals(scalarType) ? 0.02f : 0.0f;
-            case SUPPORT -> "aura".equals(scalarType) ? 0.02f : 0.0f;
-            case SCOUT -> "mobility".equals(scalarType) ? 0.02f : 0.0f;
-            case SKYRIDER -> "mobility".equals(scalarType) ? 0.02f : 0.0f;
-            case ENCHANTMENT_BOUND -> "echo".equals(scalarType) ? 0.02f : 0.0f;
-            case CURSED_ONE -> "curse".equals(scalarType) ? 0.02f : 0.0f;
-            case ECLIPSED -> "disruption".equals(scalarType) ? 0.02f : 0.0f;
-            case EEPY_EEPER -> "slumber".equals(scalarType) ? 0.02f : 0.0f;
-        };
+    private static float getRoleScalarBonus(String scalarType, PetRoleType roleType) {
+        if (roleType == null) return 0.0f;
+
+        return roleType.baseStatScalars().getOrDefault(scalarType, 0.0f);
     }
     
     /**

@@ -14,8 +14,9 @@ import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 
@@ -48,19 +49,27 @@ public class PetsplusEffectManager {
     public static void applyRoleAuraEffects(ServerWorld world, MobEntity pet, PetComponent petComp, PlayerEntity owner) {
         if (owner == null || !owner.isAlive() || !(owner instanceof ServerPlayerEntity serverPlayer)) return;
         
-        PetRole role = petComp.getRole();
+        Identifier roleId = petComp.getRoleId();
         String petKey = pet.getUuidAsString();
         long currentTime = world.getTime();
-        switch (role) {
-            case GUARDIAN -> applyGuardianAura(world, pet, petComp, serverPlayer, currentTime, petKey);
-            case SUPPORT -> applySupportAura(world, pet, petComp, serverPlayer, currentTime, petKey);
-            case STRIKER -> applyStrikerEffects(world, pet, petComp, serverPlayer, currentTime, petKey);
-            case SCOUT -> applyScoutEffects(world, pet, petComp, serverPlayer, currentTime, petKey);
-            case SKYRIDER -> applySkyriderEffects(world, pet, petComp, serverPlayer, currentTime, petKey);
-            case ENCHANTMENT_BOUND -> applyEnchantmentBoundEffects(world, pet, petComp, serverPlayer, currentTime, petKey);
-            case CURSED_ONE -> applyCursedOneEffects(world, pet, petComp, serverPlayer, currentTime, petKey);
-            case EEPY_EEPER -> applyEepyEeperAura(world, pet, petComp, serverPlayer, currentTime, petKey);
-            case ECLIPSED -> applyEclipsedEffects(world, pet, petComp, serverPlayer, currentTime, petKey);
+        if (roleId.equals(PetRoleType.GUARDIAN.id())) {
+            applyGuardianAura(world, pet, petComp, serverPlayer, currentTime, petKey);
+        } else if (roleId.equals(PetRoleType.SUPPORT.id())) {
+            applySupportAura(world, pet, petComp, serverPlayer, currentTime, petKey);
+        } else if (roleId.equals(PetRoleType.STRIKER.id())) {
+            applyStrikerEffects(world, pet, petComp, serverPlayer, currentTime, petKey);
+        } else if (roleId.equals(PetRoleType.SCOUT.id())) {
+            applyScoutEffects(world, pet, petComp, serverPlayer, currentTime, petKey);
+        } else if (roleId.equals(PetRoleType.SKYRIDER.id())) {
+            applySkyriderEffects(world, pet, petComp, serverPlayer, currentTime, petKey);
+        } else if (roleId.equals(PetRoleType.ENCHANTMENT_BOUND.id())) {
+            applyEnchantmentBoundEffects(world, pet, petComp, serverPlayer, currentTime, petKey);
+        } else if (roleId.equals(PetRoleType.CURSED_ONE.id())) {
+            applyCursedOneEffects(world, pet, petComp, serverPlayer, currentTime, petKey);
+        } else if (roleId.equals(PetRoleType.EEPY_EEPER.id())) {
+            applyEepyEeperAura(world, pet, petComp, serverPlayer, currentTime, petKey);
+        } else if (roleId.equals(PetRoleType.ECLIPSED.id())) {
+            applyEclipsedEffects(world, pet, petComp, serverPlayer, currentTime, petKey);
         }
     }
     
@@ -116,8 +125,8 @@ public class PetsplusEffectManager {
         if (shouldTriggerAura(auraKey, currentTime, SUPPORT_AURA_INTERVAL)) {
             int level = petComp.getLevel();
             double distance = owner.distanceTo(pet);
-            double auraRadius = PetsPlusConfig.getInstance().getDouble("support", "auraRadius", 6.0);
-            int minLevel = PetsPlusConfig.getInstance().getInt("support", "minLevel", 5);
+            double auraRadius = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.SUPPORT.id(), "auraRadius", 6.0);
+            int minLevel = PetsPlusConfig.getInstance().getRoleInt(PetRoleType.SUPPORT.id(), "minLevel", 5);
             
             // Support AoE healing requires sitting pet
             if (distance <= auraRadius && level >= minLevel && isPetSitting(pet)) {
@@ -181,7 +190,7 @@ public class PetsplusEffectManager {
             
             // Nap Time aura at level 10+
             if (level >= 10 && isPetSitting(pet)) {
-                double radius = PetsPlusConfig.getInstance().getDouble("eepy_eeper", "napRegenRadius", 4.0);
+                double radius = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.EEPY_EEPER.id(), "napRegenRadius", 4.0);
                 
                 // Find nearby living entities
                 List<LivingEntity> nearbyEntities = world.getEntitiesByClass(
@@ -354,13 +363,13 @@ public class PetsplusEffectManager {
     
     private static void emitSupportAoEParticles(ServerWorld world, Vec3d petPos, double radius, List<LivingEntity> nearbyEntities) {
         // Configuration-driven particle parameters
-        double particleDensity = PetsPlusConfig.getInstance().getDouble("support", "particleDensity", 0.4);
-        double particleHeight = PetsPlusConfig.getInstance().getDouble("support", "particleHeight", 2.5);
-        double particleSpeed = PetsPlusConfig.getInstance().getDouble("support", "particleSpeed", 0.025);
-        int minParticles = PetsPlusConfig.getInstance().getInt("support", "minParticles", 4);
-        int maxParticles = PetsPlusConfig.getInstance().getInt("support", "maxParticles", 16);
-        double swirlfactor = PetsPlusConfig.getInstance().getDouble("support", "swirlFactor", 0.8);
-        double companionChance = PetsPlusConfig.getInstance().getDouble("support", "companionChance", 0.3);
+        double particleDensity = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.SUPPORT.id(), "particleDensity", 0.4);
+        double particleHeight = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.SUPPORT.id(), "particleHeight", 2.5);
+        double particleSpeed = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.SUPPORT.id(), "particleSpeed", 0.025);
+        int minParticles = PetsPlusConfig.getInstance().getRoleInt(PetRoleType.SUPPORT.id(), "minParticles", 4);
+        int maxParticles = PetsPlusConfig.getInstance().getRoleInt(PetRoleType.SUPPORT.id(), "maxParticles", 16);
+        double swirlfactor = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.SUPPORT.id(), "swirlFactor", 0.8);
+        double companionChance = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.SUPPORT.id(), "companionChance", 0.3);
         
         // === SOPHISTICATED DETERMINISTIC SEEDING ===
         // Create seeds based on world time, position, and pet identity for natural variation
@@ -455,8 +464,8 @@ public class PetsplusEffectManager {
                              entity.getUuid().getLeastSignificantBits() ^ 
                              (worldTime / 10); // Change every half second
             
-            int playerParticles = PetsPlusConfig.getInstance().getInt("support", "particlesPerEntity", 3);
-            double subtleIntensity = PetsPlusConfig.getInstance().getDouble("support", "subtleIntensity", 0.7);
+            int playerParticles = PetsPlusConfig.getInstance().getRoleInt(PetRoleType.SUPPORT.id(), "particlesPerEntity", 3);
+            double subtleIntensity = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.SUPPORT.id(), "subtleIntensity", 0.7);
             
             for (int i = 0; i < playerParticles; i++) {
                 // Deterministic particle type selection

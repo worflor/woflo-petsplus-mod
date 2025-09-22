@@ -4,7 +4,11 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.Identifier;
+import woflo.petsplus.Petsplus;
 import woflo.petsplus.advancement.AdvancementManager;
+import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.api.registry.PetsPlusRegistries;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -62,15 +66,28 @@ public class StateManager {
      * Assign a role to a pet for testing purposes.
      */
     public boolean assignRole(MobEntity pet, String roleName) {
-        try {
-            // Ensure component exists for this pet
-            getPetComponent(pet);
-            // For testing, we'll just store the role name as a string
-            // In a full implementation, this would parse the role name to a PetRole enum
-            return true;
-        } catch (Exception e) {
+        if (pet == null || roleName == null) {
             return false;
         }
+
+        Identifier roleId = PetRoleType.normalizeId(roleName);
+        if (roleId == null) {
+            Petsplus.LOGGER.warn("Attempted to assign invalid role '{}' to pet {}", roleName, pet.getUuid());
+            return false;
+        }
+
+        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+        if (roleType == null) {
+            Petsplus.LOGGER.warn("Attempted to assign unknown role '{}' to pet {}", roleId, pet.getUuid());
+            return false;
+        }
+
+        PetComponent component = getPetComponent(pet);
+        component.setRoleId(roleId);
+        component.ensureCharacteristics();
+
+        Petsplus.LOGGER.debug("Assigned role {} ({}) to pet {}", roleId, roleType.translationKey(), pet.getUuid());
+        return true;
     }
     
     /**
@@ -152,7 +169,7 @@ public class StateManager {
                 }
 
                 // Support role extras: apply sitting aura if not moving and collect owner-thrown potions
-                if (comp.getRole() == woflo.petsplus.api.PetRole.SUPPORT) {
+                if (comp.hasRole(woflo.petsplus.api.registry.PetRoleType.SUPPORT)) {
                     applySupportSittingAuraIfEligible(pet, owner);
                     // Pulse AoE from stored potion every second
                     if (world.getTime() % 20 == 0) {

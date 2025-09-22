@@ -4,7 +4,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.List;
@@ -52,8 +52,8 @@ public class SupportCore {
             player.getBoundingBox().expand(auraRadius),
             entity -> {
                 PetComponent component = PetComponent.get(entity);
-                return component != null && 
-                       component.getRole() == PetRole.SUPPORT &&
+                return component != null &&
+                       component.hasRole(PetRoleType.SUPPORT) &&
                        entity.isAlive() &&
                        component.isOwnedBy(player) &&
                        entity.squaredDistanceTo(player) <= auraRadius * auraRadius;

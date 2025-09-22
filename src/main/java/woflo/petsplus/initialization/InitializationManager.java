@@ -4,6 +4,7 @@ import woflo.petsplus.abilities.AbilityManager;
 import woflo.petsplus.commands.arguments.PetRoleArgumentType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.events.ServerEventHandler;
+import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.roles.guardian.GuardianCore;
 import woflo.petsplus.roles.striker.StrikerCore;
 import woflo.petsplus.roles.support.SupportCore;
@@ -35,6 +36,9 @@ public class InitializationManager {
      * Initialize core components and configuration.
      */
     public static void initializeCore() {
+        // Bootstrap registry content before consumers run
+        PetsPlusRegistries.bootstrap();
+
         // Register component types
         woflo.petsplus.component.PetsplusComponents.register();
         

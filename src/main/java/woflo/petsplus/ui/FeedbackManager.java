@@ -11,7 +11,9 @@ import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.MathHelper;
-import woflo.petsplus.api.PetRole;
+import net.minecraft.util.Identifier;
+import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.concurrent.CompletableFuture;
@@ -67,10 +69,17 @@ public class FeedbackManager {
         // Don't emit during combat for cleaner visuals
         if (world.getTime() - component.getLastAttackTick() < 60) return;
 
-        PetRole role = component.getRole();
-        if (role == null) return;
+        Identifier roleId = component.getRoleId();
+        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+        if (roleType == null) {
+            return;
+        }
 
-        String eventName = role.name().toLowerCase() + "_ambient";
+        PetRoleType.Visual visual = roleType.visual();
+        String eventName = visual.ambientEvent();
+        if (eventName == null || eventName.isEmpty()) {
+            eventName = roleId.getPath() + "_ambient";
+        }
         emitFeedback(eventName, pet, world);
     }
 
@@ -315,8 +324,13 @@ public class FeedbackManager {
     }
 
     // Role-specific ability feedback
-    public static void emitRoleAbility(PetRole role, String abilityName, Entity source, ServerWorld world) {
-        String eventName = role.name().toLowerCase() + "_" + abilityName.toLowerCase();
+    public static void emitRoleAbility(Identifier roleId, String abilityName, Entity source, ServerWorld world) {
+        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+        String prefix = roleType != null ? roleType.visual().abilityEventPrefix() : "";
+        if (prefix == null || prefix.isEmpty()) {
+            prefix = roleId.getPath();
+        }
+        String eventName = prefix + "_" + abilityName.toLowerCase();
         emitFeedback(eventName, source, world);
     }
 }

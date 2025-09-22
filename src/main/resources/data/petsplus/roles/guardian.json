@@ -1,0 +1,40 @@
+{
+  "id": "petsplus:guardian",
+  "translation_key": "petsplus.role.guardian",
+  "base_stat_scalars": {
+    "defense": 0.02
+  },
+  "stat_affinities": {
+    "health": 0.05,
+    "defense": 0.05,
+    "learning": 0.02
+  },
+  "attribute_scaling": {
+    "health_bonus_per_level": 0.02,
+    "health_post_softcap_bonus_per_level": 0.01,
+    "health_softcap_level": 20,
+    "health_max_bonus": 2.0
+  },
+  "default_abilities": [
+    "petsplus:shield_bash_rider"
+  ],
+  "tribute_defaults": {
+    "10": "minecraft:gold_ingot",
+    "20": "minecraft:diamond",
+    "30": "minecraft:netherite_ingot"
+  },
+  "xp_curve": {
+    "max_level": 30,
+    "feature_levels": [3, 7, 12, 17, 23, 27],
+    "tribute_milestones": [10, 20, 30],
+    "base_linear_per_level": 20,
+    "quadratic_factor": 8,
+    "feature_level_bonus_multiplier": 0.75
+  },
+  "visual": {
+    "primary_color": "#4aa3f0",
+    "secondary_color": "#1f6db5",
+    "ambient_event": "guardian_ambient",
+    "ability_event_prefix": "guardian"
+  }
+}

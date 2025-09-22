@@ -1,0 +1,35 @@
+{
+  "id": "petsplus:support",
+  "translation_key": "petsplus.role.support",
+  "base_stat_scalars": {
+    "aura": 0.02
+  },
+  "stat_affinities": {
+    "vitality": 0.05,
+    "health": 0.03,
+    "learning": 0.04
+  },
+  "default_abilities": [
+    "petsplus:perch_potion_efficiency",
+    "petsplus:mounted_cone_aura"
+  ],
+  "tribute_defaults": {
+    "10": "minecraft:gold_ingot",
+    "20": "minecraft:diamond",
+    "30": "minecraft:netherite_ingot"
+  },
+  "xp_curve": {
+    "max_level": 30,
+    "feature_levels": [3, 7, 12, 17, 23, 27],
+    "tribute_milestones": [10, 20, 30],
+    "base_linear_per_level": 20,
+    "quadratic_factor": 8,
+    "feature_level_bonus_multiplier": 0.75
+  },
+  "visual": {
+    "primary_color": "#64f5a4",
+    "secondary_color": "#2e9b66",
+    "ambient_event": "support_ambient",
+    "ability_event_prefix": "support"
+  }
+}

@@ -6,6 +6,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.Petsplus;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.effects.TagTargetEffect;
 import woflo.petsplus.state.OwnerCombatState;
@@ -167,14 +168,14 @@ public class StrikerExecution {
         }
 
         PetsPlusConfig config = PetsPlusConfig.getInstance();
-        double baseThreshold = clamp01(config.getDouble("striker", "executeThresholdPct", 0.35));
+        double baseThreshold = clamp01(config.getRoleDouble(PetRoleType.STRIKER.id(), "executeThresholdPct", 0.35));
         baseThreshold = Math.min(baseThreshold, MAX_EXECUTE_THRESHOLD);
 
-        double chainBonusPerStack = clamp01(config.getDouble("striker", "executeChainBonusPerStackPct", DEFAULT_CHAIN_STACK_BONUS));
+        double chainBonusPerStack = clamp01(config.getRoleDouble(PetRoleType.STRIKER.id(), "executeChainBonusPerStackPct", DEFAULT_CHAIN_STACK_BONUS));
         double leveledBonusPerStack = Math.min(MAX_EXECUTE_THRESHOLD,
                 chainBonusPerStack * (1.0 + 0.25 * levelProgress));
-        int chainMaxStacks = Math.max(0, config.getInt("striker", "executeChainMaxStacks", DEFAULT_CHAIN_MAX_STACKS));
-        int baseChainDurationTicks = Math.max(1, config.getInt("striker", "executeChainDurationTicks", DEFAULT_CHAIN_DURATION_TICKS));
+        int chainMaxStacks = Math.max(0, config.getRoleInt(PetRoleType.STRIKER.id(), "executeChainMaxStacks", DEFAULT_CHAIN_MAX_STACKS));
+        int baseChainDurationTicks = Math.max(1, config.getRoleInt(PetRoleType.STRIKER.id(), "executeChainDurationTicks", DEFAULT_CHAIN_DURATION_TICKS));
         int leveledChainDurationTicks = Math.max(baseChainDurationTicks,
                 (int) Math.round(baseChainDurationTicks * (1.0 + 0.25 * levelProgress)));
 
@@ -253,7 +254,7 @@ public class StrikerExecution {
         TagTargetEffect.removeTag(target, "petsplus:finisher");
         
         // Apply bonus damage and effects (handled by OwnerNextAttackBonusEffect)
-        double bonusPercent = PetsPlusConfig.getInstance().getDouble("striker", "finisherMarkBonusPct", 0.20);
+        double bonusPercent = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.STRIKER.id(), "finisherMarkBonusPct", 0.20);
         
         Petsplus.LOGGER.debug("Finisher mark triggered: {}% bonus damage against {}", 
                              bonusPercent * 100, target.getName().getString());
@@ -272,8 +273,7 @@ public class StrikerExecution {
                 entity -> {
                     PetComponent component = PetComponent.get(entity);
                     return component != null &&
-                           component.getRole() != null &&
-                           component.getRole().equals(woflo.petsplus.api.PetRole.STRIKER) &&
+                           component.hasRole(PetRoleType.STRIKER) &&
                            entity.isAlive() &&
                            component.isOwnedBy(owner);
                 }
@@ -292,7 +292,7 @@ public class StrikerExecution {
         if (stamp == null) return false;
         if (owner == null || owner.getWorld() == null) return false;
         long now = owner.getWorld().getTime();
-        long window = Math.max(1, (long) PetsPlusConfig.getInstance().getInt("striker", "recentDamageWindowTicks", 100));
+        long window = Math.max(1, (long) PetsPlusConfig.getInstance().getRoleInt(PetRoleType.STRIKER.id(), "recentDamageWindowTicks", 100));
         return owner.getUuid().equals(stamp.ownerId()) && (now - stamp.tick()) <= window;
     }
 

@@ -1,0 +1,32 @@
+{
+  "id": "petsplus:eepy_eeper",
+  "translation_key": "petsplus.role.eepy_eeper",
+  "base_stat_scalars": {
+    "slumber": 0.02
+  },
+  "stat_affinities": {
+    "health": 0.03,
+    "vitality": 0.05,
+    "learning": 0.01
+  },
+  "default_abilities": [],
+  "tribute_defaults": {
+    "10": "minecraft:gold_ingot",
+    "20": "minecraft:diamond",
+    "30": "minecraft:netherite_ingot"
+  },
+  "xp_curve": {
+    "max_level": 30,
+    "feature_levels": [3, 7, 12, 17, 23, 27],
+    "tribute_milestones": [10, 20, 30],
+    "base_linear_per_level": 20,
+    "quadratic_factor": 8,
+    "feature_level_bonus_multiplier": 0.75
+  },
+  "visual": {
+    "primary_color": "#d18afd",
+    "secondary_color": "#6f3bae",
+    "ambient_event": "eepy_eeper_ambient",
+    "ability_event_prefix": "eepy_eeper"
+  }
+}

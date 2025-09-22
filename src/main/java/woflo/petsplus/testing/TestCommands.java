@@ -14,8 +14,11 @@ import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.Identifier;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.abilities.AbilityManager;
+import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.ui.BossBarManager;
@@ -89,10 +92,9 @@ public class TestCommands {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
         
         // Try to parse the role name
-        woflo.petsplus.api.PetRole role = null;
+        Identifier roleId;
         try {
-            // Convert role name to enum (handle both display names and keys)
-            role = parseRoleName(roleName);
+            roleId = parseRoleId(roleName);
         } catch (IllegalArgumentException e) {
             player.sendMessage(Text.literal("Invalid role: " + roleName)
                 .formatted(Formatting.RED), false);
@@ -131,7 +133,7 @@ public class TestCommands {
         
         // Assign role to the first pending pet
         net.minecraft.entity.mob.MobEntity pet = pendingPets.get(0);
-        boolean success = woflo.petsplus.events.PetDetectionHandler.assignPendingRole(player, pet, role);
+        boolean success = woflo.petsplus.events.PetDetectionHandler.assignPendingRole(player, pet, roleId);
         
         if (success) {
             // If there are more pending pets, let the player know
@@ -149,20 +151,15 @@ public class TestCommands {
         }
     }
     
-    private static woflo.petsplus.api.PetRole parseRoleName(String name) {
-        // First try direct enum match
-        try {
-            return woflo.petsplus.api.PetRole.valueOf(name.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            // Try matching display names
-            for (woflo.petsplus.api.PetRole role : woflo.petsplus.api.PetRole.values()) {
-                if (role.getDisplayName().equalsIgnoreCase(name) || 
-                    role.getKey().equalsIgnoreCase(name)) {
-                    return role;
-                }
-            }
+    private static Identifier parseRoleId(String name) {
+        Identifier id = PetRoleType.normalizeId(name);
+        if (id == null) {
             throw new IllegalArgumentException("Unknown role: " + name);
         }
+        if (PetsPlusRegistries.petRoleTypeRegistry().get(id) == null) {
+            throw new IllegalArgumentException("Unknown role: " + name);
+        }
+        return id;
     }
     
     private static int testRoleAssignment(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
@@ -370,7 +367,7 @@ public class TestCommands {
             
             // Test config access performance
             for (int i = 0; i < 1000; i++) {
-                PetsPlusConfig.getInstance().getRoleConfig("guardian");
+                PetsPlusConfig.getInstance().getRoleOverrides(PetRoleType.GUARDIAN_ID);
             }
             
             long endTime = System.nanoTime();
@@ -542,8 +539,8 @@ public class TestCommands {
                     player.sendMessage(Text.literal(String.format("§e%s§r: Level §6%d§r (XP: §b%d§r, Progress: §a%.1f%%§r)%s", 
                         petName, level, xp, progress * 100, isFeatureLevel ? " §6[FEATURE]§r" : "")), false);
                     
-                    if (level < 30) {
-                        int nextLevelXp = woflo.petsplus.state.PetComponent.getTotalXpForLevel(level + 1);
+                    if (level < petComp.getRoleType().xpCurve().maxLevel()) {
+                        int nextLevelXp = petComp.getTotalXpForLevel(level + 1);
                         int needed = nextLevelXp - xp;
                         player.sendMessage(Text.literal(String.format("  §7Next level: %d XP needed§r", needed)), false);
                     }
@@ -660,7 +657,7 @@ public class TestCommands {
                 if (petComp != null) {
                     // Set level and appropriate XP
                     petComp.setLevel(targetLevel);
-                    petComp.setExperience(woflo.petsplus.state.PetComponent.getTotalXpForLevel(targetLevel));
+                    petComp.setExperience(petComp.getTotalXpForLevel(targetLevel));
                     
                     String petName = pet.hasCustomName() ? pet.getCustomName().getString() : pet.getType().getName().getString();
                     player.sendMessage(Text.literal(String.format("§e%s§r set to §6Level %d§r!", 

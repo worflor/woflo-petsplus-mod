@@ -1,0 +1,38 @@
+{
+  "id": "petsplus:scout",
+  "translation_key": "petsplus.role.scout",
+  "base_stat_scalars": {
+    "mobility": 0.02
+  },
+  "stat_affinities": {
+    "speed": 0.05,
+    "agility": 0.05,
+    "learning": 0.05
+  },
+  "attribute_scaling": {
+    "speed_bonus_per_level": 0.01,
+    "speed_max_bonus": 0.6
+  },
+  "default_abilities": [
+    "petsplus:loot_wisp"
+  ],
+  "tribute_defaults": {
+    "10": "minecraft:gold_ingot",
+    "20": "minecraft:diamond",
+    "30": "minecraft:netherite_ingot"
+  },
+  "xp_curve": {
+    "max_level": 30,
+    "feature_levels": [3, 7, 12, 17, 23, 27],
+    "tribute_milestones": [10, 20, 30],
+    "base_linear_per_level": 20,
+    "quadratic_factor": 8,
+    "feature_level_bonus_multiplier": 0.75
+  },
+  "visual": {
+    "primary_color": "#f7c64c",
+    "secondary_color": "#a37516",
+    "ambient_event": "scout_ambient",
+    "ability_event_prefix": "scout"
+  }
+}

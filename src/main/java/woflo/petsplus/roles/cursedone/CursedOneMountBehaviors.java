@@ -5,7 +5,7 @@ import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
 /**
@@ -32,8 +32,8 @@ public class CursedOneMountBehaviors {
             owner.getBoundingBox().expand(16),
             entity -> {
                 PetComponent component = PetComponent.get(entity);
-                return component != null && 
-                       component.getRole().equals(PetRole.CURSED_ONE) &&
+                return component != null &&
+                       component.hasRole(PetRoleType.CURSED_ONE) &&
                        component.isOwnedBy(owner) &&
                        entity.isAlive();
             }

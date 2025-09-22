@@ -8,8 +8,11 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.Identifier;
+import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.component.PetsplusComponents;
 
 import java.time.LocalDateTime;
@@ -117,13 +120,19 @@ public class ProofOfExistence {
      * Generate a role-based epithet for the pet.
      */
     private static String generateRoleEpithet(PetComponent petComp, MobEntity pet) {
-        // Use pet UUID and role for deterministic selection
-        long seed = pet.getUuid().getLeastSignificantBits() ^ petComp.getRole().ordinal();
-        
-        // Get role-specific epithets (4 per role)
-        int roleOffset = petComp.getRole().ordinal() * 4;
+        Identifier roleId = petComp.getRoleId();
+        int index = PetRoleType.builtinIndex(roleId);
+        if (index < 0) {
+            index = 0;
+        }
+
+        long seed = pet.getUuid().getLeastSignificantBits() ^ index;
+
+        int maxIndex = Math.max(0, (ROLE_EPITHETS.length / 4) - 1);
+        int clampedIndex = Math.max(0, Math.min(index, maxIndex));
+        int roleOffset = clampedIndex * 4;
         int epithetIndex = Math.abs((int) (seed % 4));
-        
+
         return ROLE_EPITHETS[roleOffset + epithetIndex];
     }
     
@@ -153,30 +162,41 @@ public class ProofOfExistence {
     /**
      * Get achievement name for milestone levels with role-specific flavor.
      */
-    private static String getMilestoneAchievementName(int milestone, PetRole role) {
+    private static String getMilestoneAchievementName(int milestone, Identifier roleId) {
         String baseName = switch (milestone) {
             case 10 -> "First Tribute";
-            case 20 -> "Proven Companion"; 
+            case 20 -> "Proven Companion";
             case 30 -> "Legendary Bond";
             default -> "Level " + milestone;
         };
-        
+
         // Add role-specific suffix for higher milestones
         if (milestone >= 20) {
-            String roleSuffix = switch (role) {
-                case GUARDIAN -> "Defender";
-                case STRIKER -> "Hunter";
-                case SUPPORT -> "Healer";
-                case SCOUT -> "Explorer";
-                case SKYRIDER -> "Sky Walker";
-                case ENCHANTMENT_BOUND -> "Spell Weaver";
-                case CURSED_ONE -> "Dark Champion";
-                case EEPY_EEPER -> "Dream Walker";
-                case ECLIPSED -> "Void Touched";
-            };
+            String roleSuffix;
+            if (roleId.equals(PetRoleType.GUARDIAN_ID)) {
+                roleSuffix = "Defender";
+            } else if (roleId.equals(PetRoleType.STRIKER_ID)) {
+                roleSuffix = "Hunter";
+            } else if (roleId.equals(PetRoleType.SUPPORT_ID)) {
+                roleSuffix = "Healer";
+            } else if (roleId.equals(PetRoleType.SCOUT_ID)) {
+                roleSuffix = "Explorer";
+            } else if (roleId.equals(PetRoleType.SKYRIDER_ID)) {
+                roleSuffix = "Sky Walker";
+            } else if (roleId.equals(PetRoleType.ENCHANTMENT_BOUND_ID)) {
+                roleSuffix = "Spell Weaver";
+            } else if (roleId.equals(PetRoleType.CURSED_ONE_ID)) {
+                roleSuffix = "Dark Champion";
+            } else if (roleId.equals(PetRoleType.EEPY_EEPER_ID)) {
+                roleSuffix = "Dream Walker";
+            } else if (roleId.equals(PetRoleType.ECLIPSED_ID)) {
+                roleSuffix = "Void Touched";
+            } else {
+                roleSuffix = "Champion";
+            }
             return baseName + " " + roleSuffix;
         }
-        
+
         return baseName;
     }
     
@@ -185,37 +205,40 @@ public class ProofOfExistence {
      */
     public static ItemStack createMemorial(MobEntity pet, PetComponent petComp) {
         ItemStack memorial = new ItemStack(Items.PAPER);
-        
+
         // Set the display name with role epithet
         String petName = pet.hasCustomName() ? pet.getCustomName().getString() : pet.getType().getName().getString();
         String roleEpithet = generateRoleEpithet(petComp, pet);
-        memorial.set(net.minecraft.component.DataComponentTypes.CUSTOM_NAME, 
+        memorial.set(net.minecraft.component.DataComponentTypes.CUSTOM_NAME,
             Text.literal("§7Proof of Existence: §f" + petName + " §8" + roleEpithet).formatted(Formatting.ITALIC));
-        
+
+        Identifier roleId = petComp.getRoleId();
+        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+
         // Create the lore with pet details
         List<Text> lore = new ArrayList<>();
-        
+
         // Varied memorial quote
         lore.add(Text.literal(generateMemorialQuote(petName, petComp, pet)));
         lore.add(Text.empty());
-        
+
         // Pet details with descriptive text
         String levelDescriptor = generateLevelDescriptor(petComp.getLevel());
-        lore.add(Text.literal("§7Role: §f" + getRoleDisplayName(petComp.getRole())));
+        lore.add(Text.literal("§7Role: §f" + getRoleDisplayName(roleId, roleType)));
         lore.add(Text.literal("§7Rank: §f" + levelDescriptor + " §7(Level " + petComp.getLevel() + ")"));
         lore.add(Text.literal("§7Experience: §f" + formatExperience(petComp.getExperience())));
-        
+
         // Characteristics if they exist (with more descriptive text)
         if (petComp.getCharacteristics() != null) {
             var chars = petComp.getCharacteristics();
             lore.add(Text.empty());
             lore.add(Text.literal("§7Traits:"));
-            
+
             // More descriptive characteristic names
-            float vitality = chars.getVitalityModifier(petComp.getRole());
-            float attack = chars.getAttackModifier(petComp.getRole());
-            float defense = chars.getDefenseModifier(petComp.getRole());
-            
+            float vitality = chars.getVitalityModifier(roleType);
+            float attack = chars.getAttackModifier(roleType);
+            float defense = chars.getDefenseModifier(roleType);
+
             if (Math.abs(vitality) > 0.01f) {
                 String vitalityDesc = vitality > 0 ? "Vigorous" : "Delicate";
                 lore.add(Text.literal("§8  " + vitalityDesc + ": " + formatModifier(vitality)));
@@ -236,11 +259,11 @@ public class ProofOfExistence {
             lore.add(Text.empty());
             lore.add(Text.literal("§7Achievements:"));
             for (int milestone : unlockedMilestones) {
-                String achievementName = getMilestoneAchievementName(milestone, petComp.getRole());
+                String achievementName = getMilestoneAchievementName(milestone, roleId);
                 lore.add(Text.literal("§8  ✓ " + achievementName));
             }
         }
-        
+
         // Time of death and closing epitaph
         lore.add(Text.empty());
         lore.add(Text.literal("§8Lost on " + getCurrentTimestamp()));
@@ -251,11 +274,11 @@ public class ProofOfExistence {
             new net.minecraft.component.type.LoreComponent(lore));
         
         // Add custom data component to identify this as a PoE item
-        memorial.set(PetsplusComponents.POE_MEMORIAL, 
+        memorial.set(PetsplusComponents.POE_MEMORIAL,
             new PetsplusComponents.PoeData(
                 petName,
                 pet.getType().toString(),
-                petComp.getRole().toString(),
+                roleId.toString(),
                 petComp.getLevel(),
                 petComp.getExperience(),
                 getCurrentTimestamp()
@@ -298,18 +321,14 @@ public class ProofOfExistence {
         return poeData != null ? poeData.petName() : null;
     }
     
-    private static String getRoleDisplayName(PetRole role) {
-        return switch (role) {
-            case GUARDIAN -> "Guardian";
-            case STRIKER -> "Striker";
-            case SUPPORT -> "Support";
-            case SCOUT -> "Scout";
-            case SKYRIDER -> "Skyrider";
-            case ENCHANTMENT_BOUND -> "Enchantment-Bound";
-            case CURSED_ONE -> "Cursed One";
-            case EEPY_EEPER -> "Eepy Eeper";
-            case ECLIPSED -> "Eclipsed";
-        };
+    private static String getRoleDisplayName(Identifier roleId, @Nullable PetRoleType roleType) {
+        if (roleType != null) {
+            String translated = Text.translatable(roleType.translationKey()).getString();
+            if (!translated.equals(roleType.translationKey())) {
+                return translated;
+            }
+        }
+        return PetRoleType.fallbackName(roleId);
     }
     
     private static String formatExperience(int exp) {
