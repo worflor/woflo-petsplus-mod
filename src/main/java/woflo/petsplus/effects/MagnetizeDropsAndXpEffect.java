@@ -1,6 +1,7 @@
 package woflo.petsplus.effects;
 
 import com.google.gson.JsonObject;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.ExperienceOrbEntity;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -12,14 +13,25 @@ import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
 import woflo.petsplus.config.PetsPlusConfig;
 
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.WeakHashMap;
 
 /**
  * Effect that magnetizes item drops and experience orbs toward the owner.
  */
 public class MagnetizeDropsAndXpEffect implements Effect {
     private static final Identifier ID = Identifier.of("petsplus", "magnetize_drops_and_xp");
-    
+
+    private static final Map<ServerWorld, Map<UUID, MagnetizationState>> ACTIVE_MAGNETIZATIONS = new WeakHashMap<>();
+
+    static {
+        ServerTickEvents.END_WORLD_TICK.register(MagnetizeDropsAndXpEffect::tickWorld);
+    }
+
     private final double radius;
     private final int durationTicks;
     
@@ -58,47 +70,131 @@ public class MagnetizeDropsAndXpEffect implements Effect {
     }
     
     private void scheduleMagnetization(ServerWorld world, PlayerEntity owner, double radius, int duration) {
-        // In a real implementation, this would schedule periodic magnetization
-        // For now, we'll do immediate magnetization
+        Map<UUID, MagnetizationState> worldStates = ACTIVE_MAGNETIZATIONS.computeIfAbsent(world, w -> new HashMap<>());
+        UUID ownerId = owner.getUuid();
+        long expiryTick = world.getTime() + duration;
+        Vec3d anchor = owner.getPos();
+
+        worldStates.compute(ownerId, (uuid, existing) -> {
+            if (existing == null) {
+                return new MagnetizationState(anchor, radius, expiryTick);
+            }
+            existing.refresh(anchor, radius, expiryTick);
+            return existing;
+        });
+
         magnetizeNearbyItems(world, owner, radius);
     }
-    
-    private void magnetizeNearbyItems(ServerWorld world, PlayerEntity owner, double radius) {
+
+    private static void tickWorld(ServerWorld world) {
+        Map<UUID, MagnetizationState> worldStates = ACTIVE_MAGNETIZATIONS.get(world);
+        if (worldStates == null || worldStates.isEmpty()) {
+            return;
+        }
+
+        long currentTick = world.getTime();
+        Iterator<Map.Entry<UUID, MagnetizationState>> iterator = worldStates.entrySet().iterator();
+
+        while (iterator.hasNext()) {
+            Map.Entry<UUID, MagnetizationState> entry = iterator.next();
+            MagnetizationState state = entry.getValue();
+
+            if (currentTick >= state.getExpirationTick()) {
+                iterator.remove();
+                continue;
+            }
+
+            PlayerEntity owner = world.getPlayerByUuid(entry.getKey());
+            if (owner == null || !owner.isAlive()) {
+                iterator.remove();
+                continue;
+            }
+
+            if (owner.getPos().squaredDistanceTo(state.getAnchor()) > state.getRadius() * state.getRadius()) {
+                iterator.remove();
+                continue;
+            }
+
+            magnetizeNearbyItems(world, owner, state.getRadius());
+        }
+
+        if (worldStates.isEmpty()) {
+            ACTIVE_MAGNETIZATIONS.remove(world);
+        }
+    }
+
+    private static void magnetizeNearbyItems(ServerWorld world, PlayerEntity owner, double radius) {
         Vec3d ownerPos = owner.getPos();
         Box searchBox = Box.of(ownerPos, radius * 2, radius * 2, radius * 2);
-        
+
         // Magnetize item entities
         List<ItemEntity> items = world.getEntitiesByClass(
             ItemEntity.class,
             searchBox,
             item -> item.squaredDistanceTo(owner) <= radius * radius && !item.cannotPickup()
         );
-        
+
         for (ItemEntity item : items) {
             magnetizeToPlayer(item, owner);
         }
-        
+
         // Magnetize experience orbs
         List<ExperienceOrbEntity> orbs = world.getEntitiesByClass(
             ExperienceOrbEntity.class,
             searchBox,
             orb -> orb.squaredDistanceTo(owner) <= radius * radius
         );
-        
+
         for (ExperienceOrbEntity orb : orbs) {
             magnetizeToPlayer(orb, owner);
         }
     }
-    
-    private void magnetizeToPlayer(ItemEntity item, PlayerEntity player) {
-        Vec3d direction = player.getPos().subtract(item.getPos()).normalize();
-        Vec3d velocity = direction.multiply(0.1); // Gentle pull
+
+    private static void magnetizeToPlayer(ItemEntity item, PlayerEntity player) {
+        Vec3d toPlayer = player.getPos().subtract(item.getPos());
+        if (toPlayer.lengthSquared() == 0) {
+            return;
+        }
+        Vec3d velocity = toPlayer.normalize().multiply(0.1); // Gentle pull
         item.setVelocity(velocity);
     }
-    
-    private void magnetizeToPlayer(ExperienceOrbEntity orb, PlayerEntity player) {
-        Vec3d direction = player.getPos().subtract(orb.getPos()).normalize();
-        Vec3d velocity = direction.multiply(0.15); // Slightly faster pull for XP
+
+    private static void magnetizeToPlayer(ExperienceOrbEntity orb, PlayerEntity player) {
+        Vec3d toPlayer = player.getPos().subtract(orb.getPos());
+        if (toPlayer.lengthSquared() == 0) {
+            return;
+        }
+        Vec3d velocity = toPlayer.normalize().multiply(0.15); // Slightly faster pull for XP
         orb.setVelocity(velocity);
+    }
+
+    private static class MagnetizationState {
+        private Vec3d anchor;
+        private double radius;
+        private long expirationTick;
+
+        private MagnetizationState(Vec3d anchor, double radius, long expirationTick) {
+            this.anchor = anchor;
+            this.radius = radius;
+            this.expirationTick = expirationTick;
+        }
+
+        private Vec3d getAnchor() {
+            return anchor;
+        }
+
+        private double getRadius() {
+            return radius;
+        }
+
+        private long getExpirationTick() {
+            return expirationTick;
+        }
+
+        private void refresh(Vec3d newAnchor, double newRadius, long newExpiryTick) {
+            this.anchor = newAnchor;
+            this.radius = Math.max(this.radius, newRadius);
+            this.expirationTick = Math.max(this.expirationTick, newExpiryTick);
+        }
     }
 }
