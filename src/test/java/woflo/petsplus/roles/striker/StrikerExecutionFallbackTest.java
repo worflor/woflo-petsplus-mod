@@ -45,7 +45,7 @@ class StrikerExecutionFallbackTest {
     }
 
     @Test
-    void applyOwnerExecuteBonusEvaluatesWithoutMomentumWhenNoCache() {
+    void applyOwnerExecuteBonusEvaluatesWithMomentumWhenNoCache() {
         float baseDamage = 3.0f;
         StrikerExecution.ExecutionResult evaluated = new StrikerExecution.ExecutionResult(
                 1.5f,
@@ -59,14 +59,14 @@ class StrikerExecutionFallbackTest {
         try (MockedStatic<StrikerExecution> mocked = Mockito.mockStatic(StrikerExecution.class)) {
             mocked.when(() -> StrikerExecution.consumeCachedExecutionResult((PlayerEntity) null, (LivingEntity) null))
                     .thenReturn(null);
-            mocked.when(() -> StrikerExecution.evaluateExecution(null, null, baseDamage, false)).thenReturn(evaluated);
+            mocked.when(() -> StrikerExecution.evaluateExecution(null, null, baseDamage, true)).thenReturn(evaluated);
 
             float modified = StrikerExecutionFallback.applyOwnerExecuteBonus(null, null, baseDamage);
 
             assertEquals(evaluated.totalDamage(baseDamage), modified);
 
             mocked.verify(() -> StrikerExecution.consumeCachedExecutionResult((PlayerEntity) null, (LivingEntity) null));
-            mocked.verify(() -> StrikerExecution.evaluateExecution(null, null, baseDamage, false));
+            mocked.verify(() -> StrikerExecution.evaluateExecution(null, null, baseDamage, true));
             mocked.verifyNoMoreInteractions();
         }
     }

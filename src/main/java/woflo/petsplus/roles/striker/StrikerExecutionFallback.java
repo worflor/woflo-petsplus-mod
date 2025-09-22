@@ -17,7 +17,7 @@ public class StrikerExecutionFallback {
             return cached.totalDamage(baseDamage);
         }
 
-        StrikerExecution.ExecutionResult result = StrikerExecution.evaluateExecution(owner, target, baseDamage, false);
+        StrikerExecution.ExecutionResult result = StrikerExecution.evaluateExecution(owner, target, baseDamage, true);
         return result.totalDamage(baseDamage);
     }
     
