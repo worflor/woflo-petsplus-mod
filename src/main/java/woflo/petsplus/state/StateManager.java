@@ -263,6 +263,11 @@ public class StateManager {
             return;
         }
 
+        long currentTime = world.getTime();
+        if (currentTime % woflo.petsplus.roles.support.SupportPotionUtils.SUPPORT_POTION_PULSE_INTERVAL_TICKS != 0) {
+            return;
+        }
+
         var potionState = woflo.petsplus.roles.support.SupportPotionUtils.getStoredState(comp);
         if (!potionState.isValid()) {
             return;
@@ -301,10 +306,8 @@ public class StateManager {
             }
         }
 
-        // Emit feedback for potion pulse (less frequent)
-        if (world.getTime() % 100 == 0) { // Every 5 seconds
-            woflo.petsplus.ui.FeedbackManager.emitFeedback("support_potion_pulse", pet, serverWorld);
-        }
+        // Emit feedback for potion pulse (aligned with actual cadence)
+        woflo.petsplus.ui.FeedbackManager.emitFeedback("support_potion_pulse", pet, serverWorld);
 
         double consumption = woflo.petsplus.roles.support.SupportPotionUtils.getConsumptionPerPulse(comp);
         woflo.petsplus.roles.support.SupportPotionUtils.consumeCharges(comp, potionState, consumption);

@@ -24,6 +24,10 @@ public final class SupportPotionUtils {
      * Each pulse consumes one charge before perch discounts are applied.
      */
     public static final double BASE_PULSES_PER_POTION = 8.0;
+    /**
+     * Interval between stored potion aura pulses (7 seconds at 20 ticks per second).
+     */
+    public static final int SUPPORT_POTION_PULSE_INTERVAL_TICKS = 140;
 
     private static final int DEFAULT_BASE_POTION_DURATION_TICKS = 3600;
     private static final double MIN_INITIAL_CHARGES = 1.0;
