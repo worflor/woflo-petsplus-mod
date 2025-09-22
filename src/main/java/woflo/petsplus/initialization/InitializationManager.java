@@ -98,7 +98,6 @@ public class InitializationManager {
      */
     public static void initializeMechanics() {
         // Role-specific mechanics
-        woflo.petsplus.mechanics.GuardianBulwark.initialize();
         woflo.petsplus.mechanics.CursedOneResurrection.initialize();
         woflo.petsplus.mechanics.EclipsedVoidSave.initialize();
         

@@ -9,6 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import woflo.petsplus.roles.guardian.GuardianCore;
 import woflo.petsplus.roles.striker.StrikerExecution;
 
 /**
@@ -41,7 +42,19 @@ public class PlayerAttackMixin {
 
         return damage;
     }
-    
+
+    @Inject(
+        method = "attack",
+        at = @At("HEAD")
+    )
+    private void petsplus_primeGuardianBlessing(Entity target, CallbackInfo ci) {
+        PlayerEntity player = (PlayerEntity) (Object) this;
+
+        if (target instanceof LivingEntity livingTarget) {
+            GuardianCore.handlePrimedPreAttack(player, livingTarget);
+        }
+    }
+
     /**
      * Track when owner deals damage for Striker abilities.
      */

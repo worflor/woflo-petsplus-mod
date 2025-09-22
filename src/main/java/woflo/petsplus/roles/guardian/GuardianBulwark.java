@@ -1,183 +1,120 @@
 package woflo.petsplus.roles.guardian;
 
-import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.damage.DamageTypes;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.projectile.ProjectileEntity;
+import net.minecraft.registry.tag.DamageTypeTags;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import woflo.petsplus.Petsplus;
-import woflo.petsplus.api.TriggerContext;
-import woflo.petsplus.abilities.AbilityManager;
-import woflo.petsplus.config.PetsPlusConfig;
+import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.state.PetComponent;
 
+import java.util.List;
+
 /**
- * Guardian Bulwark system - redirects damage from owner to pet and provides defensive benefits.
+ * Entry point for Guardian Bulwark redirection invoked from the player damage mixin.
  */
-public class GuardianBulwark {
-    
+public final class GuardianBulwark {
+    private static final float MINIMUM_REDIRECT = 0.001f;
+    private static final float RESERVE_TOLERANCE = 0.0001f;
+
+    private GuardianBulwark() {
+    }
+
     /**
-     * Attempt to redirect damage from owner to their Guardian pet.
-     * @param owner The player taking damage
-     * @param damage The incoming damage amount
-     * @param source The damage source
-     * @return The amount of damage that should be taken by the owner (0 if fully redirected)
+     * Attempt to redirect a portion of incoming damage away from the owner to their Guardian pet.
+     *
+     * @param victim         The player being damaged.
+     * @param incomingDamage The damage amount before redirection.
+     * @param source         The original damage source.
+     * @return The amount of damage the owner should still take after redirection.
      */
-    public static float tryRedirectDamage(PlayerEntity owner, float damage, DamageSource source) {
-        // Find Guardian pet near owner
-        MobEntity guardianPet = findNearbyGuardianPet(owner);
-        if (guardianPet == null) {
-            return damage; // No redirect possible
+    public static float tryRedirectDamage(PlayerEntity victim, float incomingDamage, DamageSource source) {
+        if (!(victim instanceof ServerPlayerEntity owner)) {
+            return incomingDamage;
         }
-        
-        PetComponent petComponent = PetComponent.get(guardianPet);
-        if (petComponent == null) {
-            return damage;
+        if (incomingDamage <= 0.0f || source == null) {
+            return incomingDamage;
         }
-        
-        // Check if Bulwark is on cooldown
-        if (petComponent.isOnCooldown("guardian_bulwark")) {
-            return damage;
-        }
-        
-        // Don't redirect certain damage types
-        if (!canRedirectDamageType(source)) {
-            return damage;
-        }
-        
-        // Calculate redirection amount (can be partial based on pet health)
-        float redirectAmount = calculateRedirectionAmount(guardianPet, damage);
-        if (redirectAmount <= 0) {
-            return damage; // Pet can't take any damage
-        }
-        
-        // Apply damage to pet instead
-        if (owner.getWorld() instanceof ServerWorld serverWorld) {
-            DamageSource petDamageSource = createRedirectedDamageSource(source, serverWorld);
-            guardianPet.damage(serverWorld, petDamageSource, redirectAmount);
-        }
-        
-        // Set cooldown on Bulwark
-        int cooldown = PetsPlusConfig.getInstance().getInt("guardian", "shieldBashIcdTicks", 120);
-        petComponent.setCooldown("guardian_bulwark", cooldown);
-        
-        // Trigger Guardian abilities
-        triggerGuardianAbilities(guardianPet, owner, source, redirectAmount);
-
-        // Emit feedback for damage absorption
-        if (owner.getWorld() instanceof ServerWorld serverWorld) {
-            woflo.petsplus.ui.FeedbackManager.emitGuardianDamageAbsorbed(guardianPet, serverWorld);
+        if (isDisallowedSource(source)) {
+            return incomingDamage;
         }
 
-        Petsplus.LOGGER.debug("Guardian {} redirected {} damage from {}",
-                             guardianPet.getName().getString(), redirectAmount, owner.getName().getString());
-        
-        return damage - redirectAmount;
-    }
-    
-    private static MobEntity findNearbyGuardianPet(PlayerEntity owner) {
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
-            return null;
+        List<GuardianCore.GuardianCandidate> candidates = GuardianCore.collectGuardiansForIntercept(owner);
+        if (candidates.isEmpty()) {
+            return incomingDamage;
         }
-        
-        // Search for Guardian pets within 16 blocks
-        double searchRadius = 16.0;
-        return serverWorld.getEntitiesByClass(
-            MobEntity.class,
-            owner.getBoundingBox().expand(searchRadius),
-            entity -> {
-                PetComponent component = PetComponent.get(entity);
-                return component != null && 
-                       component.getRole().equals(woflo.petsplus.api.PetRole.GUARDIAN) &&
-                       entity.isAlive() &&
-                       component.isOwnedBy(owner) &&
-                       entity.squaredDistanceTo(owner) <= searchRadius * searchRadius;
+
+        float ownerDamage = incomingDamage;
+
+        for (GuardianCore.GuardianCandidate candidate : candidates) {
+            if (ownerDamage <= MINIMUM_REDIRECT) {
+                break;
             }
-        ).stream().findFirst().orElse(null);
+
+            MobEntity guardian = candidate.pet();
+            PetComponent component = candidate.component();
+            float reserveFraction = candidate.reserveFraction();
+
+            if (!GuardianCore.canGuardianSafelyRedirect(guardian, reserveFraction)) {
+                continue;
+            }
+
+            float healthFraction = MathHelper.clamp(guardian.getHealth() / guardian.getMaxHealth(), 0.0f, 1.0f);
+            float redirectRatio = GuardianCore.computeRedirectRatio(component.getLevel());
+            float scaledRatio = redirectRatio * healthFraction;
+            if (scaledRatio <= 0.0f) {
+                continue;
+            }
+
+            float desiredRedirect = incomingDamage * scaledRatio;
+            float reserveHealth = guardian.getMaxHealth() * reserveFraction;
+            float available = Math.max(0.0f, guardian.getHealth() - reserveHealth);
+            float redirectedAmount = Math.min(Math.min(desiredRedirect, available), ownerDamage);
+            if (redirectedAmount <= MINIMUM_REDIRECT) {
+                continue;
+            }
+
+            boolean hitReserveLimit = available > 0.0f && redirectedAmount >= available - RESERVE_TOLERANCE;
+            if (!applyDamageToGuardian(guardian, source, redirectedAmount)) {
+                continue;
+            }
+
+            GuardianCore.recordSuccessfulRedirect(owner, guardian, component, incomingDamage, redirectedAmount,
+                reserveFraction, hitReserveLimit);
+            ownerDamage = Math.max(0.0f, ownerDamage - redirectedAmount);
+        }
+
+        return ownerDamage;
     }
-    
-    private static boolean canRedirectDamageType(DamageSource source) {
-        // Don't redirect void damage, creative kill, or other special damage
-        if (source.isOf(DamageTypes.OUT_OF_WORLD) || 
-            source.isOf(DamageTypes.GENERIC_KILL)) {
+
+    private static boolean isDisallowedSource(DamageSource source) {
+        if (source.isOf(DamageTypes.OUT_OF_WORLD) || source.isOf(DamageTypes.GENERIC_KILL)) {
+            return true;
+        }
+        if (source.isIn(DamageTypeTags.BYPASSES_INVULNERABILITY) || source.isIn(DamageTypeTags.BYPASSES_EFFECTS)) {
+            return true;
+        }
+        if (source.isIn(DamageTypeTags.IS_DROWNING) || source.isIn(DamageTypeTags.IS_FALL)) {
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean applyDamageToGuardian(MobEntity guardian, DamageSource source, float amount) {
+        if (!(guardian.getWorld() instanceof ServerWorld world)) {
             return false;
         }
-        
-        // Don't redirect fall damage if it's too high (would kill pet)
-        if (source.isOf(DamageTypes.FALL)) {
-            return false; // Guardian doesn't protect from fall damage
+        if (amount <= 0.0f) {
+            return false;
         }
-        
-        return true;
-    }
-    
-    private static float calculateRedirectionAmount(MobEntity pet, float incomingDamage) {
-        float petHealth = pet.getHealth();
-        float maxHealth = pet.getMaxHealth();
-        
-        // Don't redirect damage if pet is very low on health
-        if (petHealth <= maxHealth * 0.2f) {
-            return 0;
+
+        if (guardian.damage(world, source, amount)) {
+            return true;
         }
-        
-        // Don't redirect more damage than would kill the pet
-        float maxRedirect = Math.max(0, petHealth - 1.0f);
-        
-        // Redirect full damage if possible, otherwise partial
-        return Math.min(incomingDamage, maxRedirect);
-    }
-    
-    private static DamageSource createRedirectedDamageSource(DamageSource original, ServerWorld world) {
-        // Create a new damage source that indicates this was redirected
-        return world.getDamageSources().generic(); // Simplified for now
-    }
-    
-    private static void triggerGuardianAbilities(MobEntity pet, PlayerEntity owner, DamageSource source, float redirectedAmount) {
-        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
-            return;
-        }
-        
-        // Create trigger context for after_pet_redirect event
-        TriggerContext context = new TriggerContext(serverWorld, pet, owner, "after_pet_redirect");
-        context.withData("original_damage", redirectedAmount);
-        context.withData("damage_source", source);
-        
-        // Check if this was projectile damage for projectile DR effect
-        if (source.getSource() instanceof ProjectileEntity) {
-            applyProjectileDR(owner);
-        }
-        
-        // Apply mount buff if owner is mounted
-        if (owner.getVehicle() instanceof LivingEntity mount) {
-            applyMountKnockbackResistance(mount);
-        }
-        
-        // Trigger abilities through the ability manager
-        AbilityManager.triggerAbilities(pet, context);
-    }
-    
-    private static void applyProjectileDR(PlayerEntity owner) {
-        double drPercent = PetsPlusConfig.getInstance().getDouble("guardian", "projectileDrOnRedirectPct", 0.10);
-        
-        // Apply 40 tick (2 second) projectile damage reduction
-        // This would be handled by the ProjectileDrForOwnerEffect in practice
-        
-        Petsplus.LOGGER.debug("Applied {}% projectile DR to {} for 40 ticks", drPercent * 100, owner.getName().getString());
-    }
-    
-    private static void applyMountKnockbackResistance(LivingEntity mount) {
-        // Apply Knockback Resistance +0.5 for 40 ticks
-        StatusEffectInstance knockbackResistance = new StatusEffectInstance(
-            StatusEffects.RESISTANCE, 
-            40, 
-            0
-        );
-        mount.addStatusEffect(knockbackResistance);
-        
-        Petsplus.LOGGER.debug("Applied knockback resistance to mount {}", mount.getName().getString());
+
+        DamageSource fallback = world.getDamageSources().generic();
+        return guardian.damage(world, fallback, amount);
     }
 }
