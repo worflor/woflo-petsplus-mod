@@ -30,11 +30,15 @@ public class SkyriderWinds {
         long currentTick = serverOwner.getWorld().getTime();
 
         OwnerCombatState ownerState = OwnerCombatState.getOrCreate(serverOwner);
+        boolean hasLastTrigger = ownerState.hasTempState(PROJ_LEVITATION_LAST_TRIGGER_KEY);
         long lastTriggerTick = ownerState.getTempState(PROJ_LEVITATION_LAST_TRIGGER_KEY);
         int cooldownTicks = getProjLevitateIcdTicks();
 
-        if (cooldownTicks > 0 && currentTick - lastTriggerTick < cooldownTicks) {
-            return false;
+        if (cooldownTicks > 0 && hasLastTrigger && lastTriggerTick > 0) {
+            long ticksSinceTrigger = currentTick - lastTriggerTick;
+            if (ticksSinceTrigger >= 0 && ticksSinceTrigger < cooldownTicks) {
+                return false;
+            }
         }
 
         // Check chance for levitation trigger
