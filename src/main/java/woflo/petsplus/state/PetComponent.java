@@ -311,15 +311,6 @@ public class PetComponent {
     public boolean hasLevel(int requiredLevel) {
         return level >= requiredLevel;
     }
-    
-    /**
-     * Reset pet to level 1 with 0 XP (called on death).
-     */
-    public void resetLevel() {
-        this.level = 1;
-        this.experience = 0;
-        this.unlockedMilestones.clear();
-    }
 
     /**
      * Check if a milestone level has been unlocked with tribute.

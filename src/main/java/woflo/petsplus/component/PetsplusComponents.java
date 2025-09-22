@@ -65,6 +65,15 @@ public class PetsplusComponents {
             .build()
     );
     
+    // Proof of Existence memorial component
+    public static final ComponentType<PoeData> POE_MEMORIAL = register(
+        "poe_memorial",
+        ComponentType.<PoeData>builder()
+            .codec(PoeData.CODEC)
+            .packetCodec(PoeData.PACKET_CODEC)
+            .build()
+    );
+    
     /**
      * Pet component persistent data.
      */
@@ -284,6 +293,39 @@ public class PetsplusComponents {
         public PetMetadata withSpecial(boolean special) {
             return new PetMetadata(customDisplayName, bondStrength, customTags, special);
         }
+    }
+    
+    /**
+     * Proof of Existence memorial data for deceased pets.
+     */
+    public record PoeData(
+        String petName,
+        String petType,
+        String role,
+        int level,
+        int experience,
+        String timestamp
+    ) {
+        public static final Codec<PoeData> CODEC = RecordCodecBuilder.create(instance ->
+            instance.group(
+                Codec.STRING.fieldOf("petName").forGetter(PoeData::petName),
+                Codec.STRING.fieldOf("petType").forGetter(PoeData::petType),
+                Codec.STRING.fieldOf("role").forGetter(PoeData::role),
+                Codec.INT.fieldOf("level").forGetter(PoeData::level),
+                Codec.INT.fieldOf("experience").forGetter(PoeData::experience),
+                Codec.STRING.fieldOf("timestamp").forGetter(PoeData::timestamp)
+            ).apply(instance, PoeData::new)
+        );
+        
+        public static final PacketCodec<RegistryByteBuf, PoeData> PACKET_CODEC = PacketCodec.tuple(
+            PacketCodecs.STRING, PoeData::petName,
+            PacketCodecs.STRING, PoeData::petType,
+            PacketCodecs.STRING, PoeData::role,
+            PacketCodecs.VAR_INT, PoeData::level,
+            PacketCodecs.VAR_INT, PoeData::experience,
+            PacketCodecs.STRING, PoeData::timestamp,
+            PoeData::new
+        );
     }
     
     private static <T> ComponentType<T> register(String id, ComponentType<T> componentType) {

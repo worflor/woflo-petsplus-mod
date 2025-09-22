@@ -3,17 +3,17 @@
 	"id": "petsplus",
 	"version": "${version}",
 	"name": "petsplus",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"description": "Pets gain perks and grow with you. Don't let them die :P",
 	"authors": [
-		"Me!"
+		"Woflo"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"homepage": "https://github.com/worflor/woflo-petsplus-mod",
+		"sources": "https://github.com/worflor/woflo-petsplus-mod"
 	},
 	"license": "CC0-1.0",
 	"icon": "assets/petsplus/icon.png",
-	"environment": "*",
+	"environment": "server",
 	"entrypoints": {
 		"main": [
 			"woflo.petsplus.Petsplus"

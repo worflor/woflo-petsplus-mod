@@ -4,15 +4,20 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.ItemEntity;
-import net.minecraft.item.ItemStack;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.advancement.AdvancementManager;
+import woflo.petsplus.items.ProofOfExistence;
+import woflo.petsplus.api.PetRole;
 
 /**
- * Handles pet death events, including level/XP reset and item dropping.
+ * Handles permanent pet death - pets that die are gone forever with no recovery.
+ * Drops a "Proof of Existence" memorial item as a sentimental memento.
+ * NOTE: Cursed One pets have special resurrection mechanics handled by CursedOneResurrection.java
+ * This handler only processes pets that actually reach the death event (after all prevention mechanics).
  */
 public class PetDeathHandler {
     
@@ -27,76 +32,58 @@ public class PetDeathHandler {
         PetComponent petComp = PetComponent.get(mobEntity);
         if (petComp == null) return; // Not a pet
         
-        // Handle pet death
-        handlePetDeath(mobEntity, petComp, serverWorld);
+        // All pets that reach this point die permanently
+        // (Cursed One resurrection prevention is handled in CursedOneResurrection.java)
+        handlePermanentPetDeath(mobEntity, petComp, serverWorld);
     }
     
-    private static void handlePetDeath(MobEntity pet, PetComponent petComp, ServerWorld world) {
-        // Store info before reset
-        int lostLevel = petComp.getLevel();
-        int lostXp = petComp.getExperience();
+    /**
+     * Handle permanent pet death - the pet is gone forever.
+     */
+    private static void handlePermanentPetDeath(MobEntity pet, PetComponent petComp, ServerWorld world) {
+        // Store info before removal
+        String petName = pet.hasCustomName() ? pet.getCustomName().getString() : pet.getType().getName().getString();
+        var owner = petComp.getOwner();
+        ServerPlayerEntity serverOwner = owner instanceof ServerPlayerEntity ? (ServerPlayerEntity) owner : null;
         
-        // Reset pet's level and XP
-        petComp.resetLevel();
+        // Drop the Proof of Existence memorial item
+        ProofOfExistence.dropMemorial(pet, petComp, world);
         
-        // Drop any held items (this would need to be implemented based on your pet inventory system)
-        dropPetItems(pet, world);
-        
-        // Notify owner if nearby
-        if (petComp.getOwner() != null && petComp.getOwner().getWorld() == world) {
-            double distance = petComp.getOwner().distanceTo(pet);
+        // Notify owner if nearby and alive
+        if (serverOwner != null && !serverOwner.isDead() && serverOwner.getWorld() == world) {
+            double distance = serverOwner.distanceTo(pet);
             if (distance <= 64) { // Within 64 blocks
-                String petName = pet.hasCustomName() ? pet.getCustomName().getString() : pet.getType().getName().getString();
-                petComp.getOwner().sendMessage(
-                    net.minecraft.text.Text.of("§c" + petName + " §7died and lost §c" + (lostLevel - 1) + " levels §7and §c" + lostXp + " XP§7!"),
-                    false // Chat message
-                );
+                
+                // Special message for Cursed One pets
+                if (petComp.getRole() == PetRole.CURSED_ONE) {
+                    serverOwner.sendMessage(
+                        Text.literal("§4" + petName + " §7has been consumed by the curse. ")
+                            .append(Text.literal("The dark bond is severed forever. ").formatted(Formatting.DARK_RED))
+                            .append(Text.literal("They dropped a ").formatted(Formatting.GRAY))
+                            .append(Text.literal("Proof of Existence").formatted(Formatting.YELLOW))
+                            .append(Text.literal(" as their final essence.").formatted(Formatting.GRAY)),
+                        false
+                    );
+                } else {
+                    serverOwner.sendMessage(
+                        Text.literal("§c" + petName + " §7has died permanently. ")
+                            .append(Text.literal("All progress lost. ").formatted(Formatting.RED))
+                            .append(Text.literal("They dropped a ").formatted(Formatting.GRAY))
+                            .append(Text.literal("Proof of Existence").formatted(Formatting.YELLOW))
+                            .append(Text.literal(" as a memorial.").formatted(Formatting.GRAY)),
+                        false
+                    );
+                }
 
                 // Trigger advancement for permanent pet death
-                if (petComp.getOwner() instanceof net.minecraft.server.network.ServerPlayerEntity serverPlayer) {
-                    AdvancementManager.triggerPetPermanentDeath(serverPlayer, pet);
-                }
+                AdvancementManager.triggerPetPermanentDeath(serverOwner, pet);
             }
         }
         
-        // Remove the pet component since the pet is dead
+        // Remove the pet component (marks for cleanup)
         PetComponent.remove(pet);
-    }
-    
-    /**
-     * Drop any items the pet was carrying.
-     * This is a placeholder - the actual implementation would depend on your pet inventory system.
-     */
-    private static void dropPetItems(MobEntity pet, ServerWorld world) {
-        // TODO: Implement pet inventory system and drop items here
-        // For now, this is a placeholder that could drop items from a theoretical pet inventory
         
-        // Example of what this might look like:
-        // PetInventory inventory = PetInventory.get(pet);
-        // if (inventory != null) {
-        //     for (ItemStack stack : inventory.getStacks()) {
-        //         if (!stack.isEmpty()) {
-        //             dropItemStack(world, pet.getPos(), stack);
-        //         }
-        //     }
-        //     inventory.clear();
-        // }
-    }
-    
-    /**
-     * Helper method to drop an item stack at a location.
-     */
-    @SuppressWarnings("unused") // Will be used when pet inventory system is implemented
-    private static void dropItemStack(ServerWorld world, Vec3d pos, ItemStack stack) {
-        if (stack.isEmpty()) return;
-        
-        ItemEntity itemEntity = new ItemEntity(world, pos.x, pos.y, pos.z, stack);
-        itemEntity.setPickupDelay(40); // Standard pickup delay
-        itemEntity.setVelocity(
-            world.random.nextGaussian() * 0.05,
-            world.random.nextGaussian() * 0.05 + 0.2,
-            world.random.nextGaussian() * 0.05
-        );
-        world.spawnEntity(itemEntity);
+        // Remove the pet entity from the world permanently
+        pet.discard(); // This removes the entity completely
     }
 }
