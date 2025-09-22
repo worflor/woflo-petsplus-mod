@@ -59,14 +59,14 @@ class StrikerExecutionFallbackTest {
         try (MockedStatic<StrikerExecution> mocked = Mockito.mockStatic(StrikerExecution.class)) {
             mocked.when(() -> StrikerExecution.consumeCachedExecutionResult((PlayerEntity) null, (LivingEntity) null))
                     .thenReturn(null);
-            mocked.when(() -> StrikerExecution.evaluateExecution(null, null, baseDamage, true)).thenReturn(evaluated);
+            mocked.when(() -> StrikerExecution.evaluateExecution(null, null, baseDamage)).thenReturn(evaluated);
 
             float modified = StrikerExecutionFallback.applyOwnerExecuteBonus(null, null, baseDamage);
 
             assertEquals(evaluated.totalDamage(baseDamage), modified);
 
             mocked.verify(() -> StrikerExecution.consumeCachedExecutionResult((PlayerEntity) null, (LivingEntity) null));
-            mocked.verify(() -> StrikerExecution.evaluateExecution(null, null, baseDamage, true));
+            mocked.verify(() -> StrikerExecution.evaluateExecution(null, null, baseDamage));
             mocked.verifyNoMoreInteractions();
         }
     }
