@@ -75,6 +75,8 @@ public final class PetUIHelper {
         List<String> effects = comp.getStateData("support_potion_effects", List.class);
         Integer auraDuration = comp.getStateData("support_potion_aura_duration", Integer.class);
         Boolean hasPotion = comp.getStateData("support_potion_present", Boolean.class);
+        Double chargesRemaining = comp.getStateData("support_potion_charges_remaining", Double.class);
+        Double totalCharges = comp.getStateData("support_potion_total_charges", Double.class);
         Text line3 = null;
 
         if (cdShown > 0) {
@@ -99,6 +101,17 @@ public final class PetUIHelper {
             Text auraText = UIStyle.secondary(line3 == null ? "Aura: " : " • Aura: ")
                 .append(UIStyle.value(effSb.toString(), Formatting.LIGHT_PURPLE))
                 .append(dur.isEmpty() ? Text.empty() : UIStyle.secondary(" (" + dur + ")"));
+            if (chargesRemaining != null) {
+                int pulsesLeft = Math.max(0, (int) Math.ceil(chargesRemaining));
+                String chargeText;
+                if (totalCharges != null && totalCharges > 0) {
+                    int pulsesTotal = Math.max(0, (int) Math.round(totalCharges));
+                    chargeText = pulsesLeft + "/" + pulsesTotal;
+                } else {
+                    chargeText = String.valueOf(pulsesLeft);
+                }
+                auraText = auraText.copy().append(UIStyle.secondary(" [" + chargeText + "]"));
+            }
             line3 = (line3 == null) ? auraText : line3.copy().append(auraText);
         }
 

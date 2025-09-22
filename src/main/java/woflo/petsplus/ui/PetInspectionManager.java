@@ -341,11 +341,13 @@ public final class PetInspectionManager {
     private static String getActiveAuraSummary(PetComponent comp) {
         @SuppressWarnings("unchecked")
         List<String> effects = comp.getStateData("support_potion_effects", List.class);
-        
+        Double chargesRemaining = comp.getStateData("support_potion_charges_remaining", Double.class);
+        Double totalCharges = comp.getStateData("support_potion_total_charges", Double.class);
+
         if (effects != null && !effects.isEmpty()) {
             StringBuilder summary = new StringBuilder();
             int shown = 0;
-            
+
             for (String effect : effects) {
                 if (shown > 0) summary.append(", ");
                 String[] parts = effect.split("\\|");
@@ -353,10 +355,22 @@ public final class PetInspectionManager {
                 summary.append(shortenId(name));
                 if (++shown >= 2) break; // Limit to 2 effects
             }
-            
+
+            if (chargesRemaining != null) {
+                int pulsesLeft = Math.max(0, (int) Math.ceil(chargesRemaining));
+                summary.append(" [");
+                if (totalCharges != null && totalCharges > 0) {
+                    int pulsesTotal = Math.max(0, (int) Math.round(totalCharges));
+                    summary.append(pulsesLeft).append('/').append(pulsesTotal);
+                } else {
+                    summary.append(pulsesLeft);
+                }
+                summary.append(']');
+            }
+
             return summary.toString();
         }
-        
+
         return "Active";
     }
     
