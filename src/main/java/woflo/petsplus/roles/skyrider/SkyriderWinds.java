@@ -4,6 +4,7 @@ import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import woflo.petsplus.config.PetsPlusConfig;
+import woflo.petsplus.state.OwnerCombatState;
 
 /**
  * Skyrider role implementation for air control features.
@@ -14,19 +15,37 @@ import woflo.petsplus.config.PetsPlusConfig;
  * - Skybond aura update: fall_reduction_near_owner gains apply_to_mount: true
  */
 public class SkyriderWinds {
-    
+
+    private static final String PROJ_LEVITATION_LAST_TRIGGER_KEY = "skyrider_proj_levitation_last_trigger";
+
     /**
      * Check if projectile crit levitation should trigger.
      * Called when owner scores a projectile critical hit.
      */
     public static boolean shouldTriggerProjLevitation(TameableEntity pet, PlayerEntity owner) {
-        if (!(owner instanceof ServerPlayerEntity)) {
+        if (!(owner instanceof ServerPlayerEntity serverOwner)) {
             return false;
         }
-        
+
+        long currentTick = serverOwner.getWorld().getTime();
+
+        OwnerCombatState ownerState = OwnerCombatState.getOrCreate(serverOwner);
+        long lastTriggerTick = ownerState.getTempState(PROJ_LEVITATION_LAST_TRIGGER_KEY);
+        int cooldownTicks = getProjLevitateIcdTicks();
+
+        if (cooldownTicks > 0 && currentTick - lastTriggerTick < cooldownTicks) {
+            return false;
+        }
+
         // Check chance for levitation trigger
         double chance = getProjLevitateChance();
-        return Math.random() < chance;
+        boolean shouldTrigger = Math.random() < chance;
+
+        if (shouldTrigger) {
+            ownerState.setTempState(PROJ_LEVITATION_LAST_TRIGGER_KEY, currentTick);
+        }
+
+        return shouldTrigger;
     }
     
     /**

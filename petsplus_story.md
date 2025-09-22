@@ -91,7 +91,7 @@
 ### 3.5 Skyrider (Air Control / Fall Safety)
 
 * **Theme**: Updrafts, levitation disruption, fall mastery.
-* **Baseline**: Reduced fall damage for pet; small chance to “gust dodge” on hit (minor knockback escape).
+* **Baseline**: Reduced fall damage for pet; small chance to “gust dodge” on hit (minor knockback escape with a short internal cooldown).
 * **Current Kit**
 
   * **L7 – Windlash Rider**: When the owner begins a fall, grant a brief jump boost and empower the owner's next attack with a small knock‑up on hit (short window).
