@@ -1,5 +1,5 @@
 # Pets+ (Pets Plus)
-A Minecraft mod that expands pets with unique roles and abilities to enhance your gameplay experience.
+A Minecraft mod that expands pets with unique roles and abilities to add new twists on vanilla mechanics.
 
 ## Pet Roles and Levelling
 Each role has a unique set of abilities, and can be applied to *any* tamable/trustable entity. *So MaNY wAcKy CoMbInAtiOnS*!
