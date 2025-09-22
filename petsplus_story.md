@@ -96,9 +96,21 @@
 
   * **L7 – Windlash Rider**: When the owner begins a fall, grant a brief jump boost and empower the owner's next attack with a small knock‑up on hit (short window).
 
-<!-- Enchantment‑Bound: not present in current build; section intentionally omitted to match shipped code. -->
+### 3.6 Enchantment‑Bound (Arcana / Enchants)
 
-### 3.6 Cursed One (Deathbound / Risk–Reward)
+* Theme: Your gear hums with the pet’s bond, echoing enchantments and surging briefly when the runes align.
+* Baseline: Owner‑centric, pet‑agnostic. Triggers from your actions; no pet attacks required.
+* Current Kit
+
+  * Mining Echo (Haste pulse): Breaking blocks near your Enchantment‑Bound pet grants a brief Haste burst. Duration scales with config; synergizes heavily while Arcane Focus is active.
+  * Extra Drop Echo (blocks): On block breaks, there’s a tiny chance to duplicate the drops once; Fortune slightly improves the odds. Tuned for subtle value over time.
+  * Unbreaking Echo (durability): Small chance to prevent 1 point of durability loss on your current tool when mining; this chance doubles during a Mining Focus surge.
+  * Swim Echo (flow): While swimming with Aqua Affinity or Depth Strider equipped, you periodically gain a short Dolphin’s Grace. During Swim Focus, the grace re‑arms more reliably.
+  * Arcane Focus (L20+, surges; +1 charge at L30): Contextual “focus buckets” (Combat, Mining, Swim) can briefly surge, doubling that bucket’s echo potency/rate for a short window. Focus uses shared charges with a cooldown. Unlocks at L20 with 1 charge; at L30, you can hold 2 charges. Charges replenish after cooldown.
+
+> Notes: Focus is automatic and non‑intrusive; you’ll hear a soft enchantment table chime when it surges. All numbers are configurable.
+
+### 3.7 Cursed One (Deathbound / Risk–Reward)
 
 * **Theme**: Life‑bound pet that thrives on dying and returning. Powerful but unstable — your death destroys it permanently.
 * **Baseline**
@@ -115,7 +127,7 @@
 
 <!-- Eepy Eeper: not present in current build; section intentionally omitted to match shipped code. -->
 
-### 3.7 Eclipsed (Void/End / Disruption)
+### 3.8 Eclipsed (Void/End / Disruption)
 
 * **Theme**: Darkness, teleport flickers, void rescue.
 * **Baseline**: Small chance to **short-teleport** when damaged; on first aggro, nearby hostiles get **Darkness** micro-pulse (boss-safe).
@@ -402,20 +414,11 @@
     "stargazeRange": 3.0
   },
   "enchantment_bound": {
-    "dropWhitelist": ["#minecraft:ores", "#minecraft:crops", "#minecraft:mob_drops"],
-    "extraRollBase": 1,
-    "drAuraPctBase": 0.04,
-    "drAuraPctCapL30": 0.08,
-    "unbreakingPreventChanceBase": 0.02,
-    "unbreakingPreventChanceL30": 0.04,
-    "hastePulseDurationTicks": 60,
-    "miningStreakCount": 4,
-    "miningStreakWindowTicks": 60,
-    "swimGraceDurationTicks": 60,
-    "assistBonusDamagePct": 0.05,
-    "assistKnockbackScalar": 0.10,
-    "arcaneFocusCooldownTicks": 1200,
-    "arcaneFocusDurationTicks": 200
+    "extraDuplicationChanceBase": 0.05,
+    "durabilityNoLossChance": 0.025,
+    "miningHasteBaseTicks": 40,
+    "focusCooldownTicks": 1200,
+    "focusSurgeDurationTicks": 200
   },
   "cursed_one": {
     "resurrectionDelayTicks": 300,
