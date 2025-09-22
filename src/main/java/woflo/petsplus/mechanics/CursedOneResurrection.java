@@ -16,6 +16,7 @@ import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import woflo.petsplus.api.PetRole;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.ui.AfterimageManager;
 
 import java.util.List;
 import java.util.Map;
@@ -119,6 +120,9 @@ public class CursedOneResurrection {
             return; // Pet component missing
         }
         
+        // Release the glass afterimage with a final burst
+        AfterimageManager.finishEncasement(pet, true);
+
         // Resurrect with 50% health
         float maxHealth = pet.getMaxHealth();
         float resurrectionHealth = maxHealth * 0.5f;
@@ -802,11 +806,15 @@ public class CursedOneResurrection {
             cursedPet.addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS, 300, 255)); // Max weakness for 15s
             
             // Add the pet to reanimation tracking (15 seconds = 300 ticks)
-            long reanimationEndTime = world.getTime() + 300;
+            int reanimationDuration = 300;
+            long reanimationEndTime = world.getTime() + reanimationDuration;
             reanimatingPets.put(cursedPet.getUuid(), reanimationEndTime);
-            
+
             // Visual and audio feedback for entering reanimation
             playReanimationStartFeedback(cursedPet, world);
+
+            // Encased afterimage effect during resurrection buildup
+            AfterimageManager.startEncasement(cursedPet, "cursed_reanimation", reanimationDuration);
             
             // Notify owner if nearby
             if (petComp.getOwner() != null && petComp.getOwner().getWorld() == world) {

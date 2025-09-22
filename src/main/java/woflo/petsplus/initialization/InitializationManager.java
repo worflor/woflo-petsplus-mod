@@ -40,6 +40,9 @@ public class InitializationManager {
         
         // Initialize configuration
         PetsPlusConfig.getInstance();
+
+        // Load reusable visual systems
+        woflo.petsplus.ui.AfterimageManager.initialize();
         
         // Register custom argument types
         PetRoleArgumentType.register();
