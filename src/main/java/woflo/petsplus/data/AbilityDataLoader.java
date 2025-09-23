@@ -48,13 +48,18 @@ public class AbilityDataLoader implements SimpleSynchronousResourceReloadListene
         Map<Identifier, Resource> resources = manager.findResources(ROOT_PATH, id -> id.getPath().endsWith(".json"));
         for (Identifier resourceId : resources.keySet()) {
             List<Resource> stack = manager.getAllResources(resourceId);
+            JsonElement resolved = null;
             for (Resource resource : stack) {
                 try (Reader reader = resource.getReader()) {
-                    JsonElement json = JsonParser.parseReader(reader);
-                    prepared.put(toAbilityId(resourceId), json);
+                    resolved = JsonParser.parseReader(reader);
+                    break;
                 } catch (IOException | JsonParseException e) {
                     Petsplus.LOGGER.error("Failed to parse ability data from {}", resourceId, e);
                 }
+            }
+
+            if (resolved != null) {
+                prepared.put(toAbilityId(resourceId), resolved);
             }
         }
 
