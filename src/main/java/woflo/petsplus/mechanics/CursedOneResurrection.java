@@ -14,6 +14,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.random.Random;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.ui.AfterimageManager;
@@ -192,26 +193,26 @@ public class CursedOneResurrection {
         
         // Generate a unique seed for this reanimation based on pet UUID and start time
         long reanimationSeed = petUuid.getMostSignificantBits() ^ (timeInReanimation / 300);
-        world.random.setSeed(reanimationSeed);
-        
+        Random random = Random.create(reanimationSeed);
+
         // Choose a reanimation pattern based on the seed (algorithmic variation)
-        int pattern = Math.abs((int)(reanimationSeed % 4)); // 4 different patterns
+        int pattern = random.nextInt(4); // 4 different patterns
         
         // Stage 1: Gathering phase (0-40% progress) - particles gather outward
         if (progress < 0.4f) {
-            createGatheringPhase(world, x, y, z, progress, pattern);
+            createGatheringPhase(world, random, x, y, z, progress, pattern);
         }
         // Stage 2: Building tension (40-80% progress) - particles swirl and intensify
         else if (progress < 0.8f) {
-            createBuildingPhase(world, x, y, z, progress, pattern);
+            createBuildingPhase(world, random, x, y, z, progress, pattern);
         }
         // Stage 3: Pre-explosion (80-95% progress) - particles collapse inward
         else if (progress < 0.95f) {
-            createCollapsePhase(world, x, y, z, progress, pattern);
+            createCollapsePhase(world, random, x, y, z, progress, pattern);
         }
         // Stage 4: Near completion (95-100% progress) - dramatic buildup to explosion
         else {
-            createPreExplosionPhase(world, x, y, z, progress, pattern);
+            createPreExplosionPhase(world, random, x, y, z, progress, pattern);
         }
         
         // Add random audio cues at specific progress points
@@ -221,7 +222,7 @@ public class CursedOneResurrection {
     /**
      * Stage 1: Gathering phase - particles appear and move outward
      */
-    private static void createGatheringPhase(ServerWorld world, double x, double y, double z, float progress, int pattern) {
+    private static void createGatheringPhase(ServerWorld world, Random random, double x, double y, double z, float progress, int pattern) {
         // Only create effects every few ticks for performance
         if (world.getTime() % 3 != 0) return;
         
@@ -235,7 +236,7 @@ public class CursedOneResurrection {
                     double radius = 0.5 + progress * 1.5;
                     double offsetX = Math.cos(angle) * radius;
                     double offsetZ = Math.sin(angle) * radius;
-                    double offsetY = (world.random.nextDouble() - 0.5) * 0.8;
+                    double offsetY = (random.nextDouble() - 0.5) * 0.8;
                     
                     world.spawnParticles(ParticleTypes.SMOKE, 
                         x + offsetX, y + offsetY, z + offsetZ,
@@ -260,9 +261,9 @@ public class CursedOneResurrection {
                 
             case 2: // Chaotic swarm
                 for (int i = 0; i < particleCount; i++) {
-                    double offsetX = (world.random.nextDouble() - 0.5) * (2.0 + progress * 2.0);
-                    double offsetY = world.random.nextDouble() * (1.0 + progress * 1.0);
-                    double offsetZ = (world.random.nextDouble() - 0.5) * (2.0 + progress * 2.0);
+                    double offsetX = (random.nextDouble() - 0.5) * (2.0 + progress * 2.0);
+                    double offsetY = random.nextDouble() * (1.0 + progress * 1.0);
+                    double offsetZ = (random.nextDouble() - 0.5) * (2.0 + progress * 2.0);
                     
                     world.spawnParticles(ParticleTypes.LARGE_SMOKE, 
                         x + offsetX, y + offsetY, z + offsetZ,
@@ -288,7 +289,7 @@ public class CursedOneResurrection {
     /**
      * Stage 2: Building phase - particles intensify and swirl faster
      */
-    private static void createBuildingPhase(ServerWorld world, double x, double y, double z, float progress, int pattern) {
+    private static void createBuildingPhase(ServerWorld world, Random random, double x, double y, double z, float progress, int pattern) {
         if (world.getTime() % 2 != 0) return;
         
         float localProgress = (progress - 0.4f) / 0.4f; // 0-1 within this phase
@@ -336,14 +337,14 @@ public class CursedOneResurrection {
                 
             case 2: // Chaotic vortex
                 for (int i = 0; i < (int)(8 * intensity); i++) {
-                    double angle = world.random.nextDouble() * Math.PI * 2;
-                    double radius = world.random.nextDouble() * (2.5 - localProgress * 0.8);
+                    double angle = random.nextDouble() * Math.PI * 2;
+                    double radius = random.nextDouble() * (2.5 - localProgress * 0.8);
                     double offsetX = Math.cos(angle) * radius;
                     double offsetZ = Math.sin(angle) * radius;
-                    double offsetY = (world.random.nextDouble() - 0.5) * 1.5;
-                    
+                    double offsetY = (random.nextDouble() - 0.5) * 1.5;
+
                     // Mix different particle types for chaos
-                    if (world.random.nextFloat() < 0.3f) {
+                    if (random.nextFloat() < 0.3f) {
                         world.spawnParticles(ParticleTypes.LARGE_SMOKE, 
                             x + offsetX, y + offsetY, z + offsetZ,
                             1, 0.0, 0.0, 0.0, 0.02);
@@ -381,7 +382,7 @@ public class CursedOneResurrection {
     /**
      * Stage 3: Collapse phase - particles begin moving inward
      */
-    private static void createCollapsePhase(ServerWorld world, double x, double y, double z, float progress, int pattern) {
+    private static void createCollapsePhase(ServerWorld world, Random random, double x, double y, double z, float progress, int pattern) {
         float localProgress = (progress - 0.8f) / 0.15f; // 0-1 within this phase
         
         switch (pattern) {
@@ -424,12 +425,12 @@ public class CursedOneResurrection {
                 
             case 2: // Chaotic implosion
                 for (int i = 0; i < 12; i++) {
-                    double angle = world.random.nextDouble() * Math.PI * 2;
-                    double radius = world.random.nextDouble() * (2.0 - localProgress * 1.8);
+                    double angle = random.nextDouble() * Math.PI * 2;
+                    double radius = random.nextDouble() * (2.0 - localProgress * 1.8);
                     double offsetX = Math.cos(angle) * radius;
                     double offsetZ = Math.sin(angle) * radius;
-                    double offsetY = world.random.nextDouble() * (1.2 - localProgress * 0.8);
-                    
+                    double offsetY = random.nextDouble() * (1.2 - localProgress * 0.8);
+
                     // Strong inward pull
                     double velX = -offsetX * (0.06 + localProgress * 0.04);
                     double velZ = -offsetZ * (0.06 + localProgress * 0.04);
@@ -465,7 +466,7 @@ public class CursedOneResurrection {
     /**
      * Stage 4: Pre-explosion phase - final dramatic buildup
      */
-    private static void createPreExplosionPhase(ServerWorld world, double x, double y, double z, float progress, int pattern) {
+    private static void createPreExplosionPhase(ServerWorld world, Random random, double x, double y, double z, float progress, int pattern) {
         float localProgress = (progress - 0.95f) / 0.05f; // 0-1 within this phase
         float intensity = 1.0f + localProgress * 4.0f; // Rapidly increasing intensity
         
@@ -473,9 +474,9 @@ public class CursedOneResurrection {
         if (world.getTime() % 1 == 0) { // Every tick for maximum drama
             // Dense particle core
             for (int i = 0; i < (int)(15 * intensity); i++) {
-                double offsetX = (world.random.nextDouble() - 0.5) * (0.3 - localProgress * 0.2);
-                double offsetY = (world.random.nextDouble() - 0.5) * (0.3 - localProgress * 0.2);
-                double offsetZ = (world.random.nextDouble() - 0.5) * (0.3 - localProgress * 0.2);
+                double offsetX = (random.nextDouble() - 0.5) * (0.3 - localProgress * 0.2);
+                double offsetY = (random.nextDouble() - 0.5) * (0.3 - localProgress * 0.2);
+                double offsetZ = (random.nextDouble() - 0.5) * (0.3 - localProgress * 0.2);
                 
                 world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, 
                     x + offsetX, y + offsetY, z + offsetZ,
