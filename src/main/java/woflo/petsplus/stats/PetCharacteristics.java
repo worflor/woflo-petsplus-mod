@@ -2,7 +2,8 @@ package woflo.petsplus.stats;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.nbt.NbtCompound;
-import woflo.petsplus.api.PetRole;
+import org.jetbrains.annotations.Nullable;
+import woflo.petsplus.api.registry.PetRoleType;
 
 import java.util.Random;
 import java.util.UUID;
@@ -71,68 +72,68 @@ public class PetCharacteristics {
     /**
      * Get the health modifier with role affinity applied.
      */
-    public float getHealthModifier(PetRole role) {
+    public float getHealthModifier(@Nullable PetRoleType roleType) {
         float base = healthModifier;
-        return base + getRoleAffinity(role, StatType.HEALTH);
+        return base + getRoleAffinity(roleType, StatType.HEALTH);
     }
-    
+
     /**
      * Get the speed modifier with role affinity applied.
      */
-    public float getSpeedModifier(PetRole role) {
+    public float getSpeedModifier(@Nullable PetRoleType roleType) {
         float base = speedModifier;
-        return base + getRoleAffinity(role, StatType.SPEED);
+        return base + getRoleAffinity(roleType, StatType.SPEED);
     }
-    
+
     /**
      * Get the attack modifier with role affinity applied.
      */
-    public float getAttackModifier(PetRole role) {
+    public float getAttackModifier(@Nullable PetRoleType roleType) {
         float base = attackModifier;
-        return base + getRoleAffinity(role, StatType.ATTACK);
+        return base + getRoleAffinity(roleType, StatType.ATTACK);
     }
-    
+
     /**
      * Get the defense modifier with role affinity applied.
      */
-    public float getDefenseModifier(PetRole role) {
+    public float getDefenseModifier(@Nullable PetRoleType roleType) {
         float base = defenseModifier;
-        return base + getRoleAffinity(role, StatType.DEFENSE);
+        return base + getRoleAffinity(roleType, StatType.DEFENSE);
     }
-    
+
     /**
      * Get the agility modifier with role affinity applied.
      */
-    public float getAgilityModifier(PetRole role) {
+    public float getAgilityModifier(@Nullable PetRoleType roleType) {
         float base = agilityModifier;
-        return base + getRoleAffinity(role, StatType.AGILITY);
+        return base + getRoleAffinity(roleType, StatType.AGILITY);
     }
-    
+
     /**
      * Get the vitality modifier with role affinity applied.
      */
-    public float getVitalityModifier(PetRole role) {
+    public float getVitalityModifier(@Nullable PetRoleType roleType) {
         float base = vitalityModifier;
-        return base + getRoleAffinity(role, StatType.VITALITY);
+        return base + getRoleAffinity(roleType, StatType.VITALITY);
     }
-    
+
     /**
      * Get the XP learning modifier - how well this pet learns from experience.
      * Combines agility (quick learner) and vitality (focus/retention) with slight randomness.
      * Range: 0.85 to 1.15 (±15% XP gain variation)
      */
-    public float getXpLearningModifier(PetRole role) {
+    public float getXpLearningModifier(@Nullable PetRoleType roleType) {
         // Base learning rate influenced by agility (quick thinking) and vitality (focus)
-        float agility = getAgilityModifier(role);
-        float vitality = getVitalityModifier(role);
-        
+        float agility = getAgilityModifier(roleType);
+        float vitality = getVitalityModifier(roleType);
+
         // Combine agility and vitality for learning potential
         // Agility = quick to pick up concepts, Vitality = retention and focus
         float learningBase = (agility * 0.6f + vitality * 0.4f);
-        
+
         // Add role-specific learning bonuses
-        float roleBonus = getRoleAffinity(role, StatType.LEARNING);
-        
+        float roleBonus = getRoleAffinity(roleType, StatType.LEARNING);
+
         // Convert to multiplier: -15% to +15% becomes 0.85 to 1.15
         return 1.0f + (learningBase + roleBonus);
     }
@@ -141,82 +142,26 @@ public class PetCharacteristics {
      * Get role-based stat affinity bonus.
      * Each role gets small bonuses to stats that align with their theme.
      */
-    private float getRoleAffinity(PetRole role, StatType statType) {
-        if (role == null) return 0.0f;
-        
-        float bonus = 0.0f;
-        
-        switch (role) {
-            case GUARDIAN:
-                if (statType == StatType.HEALTH) bonus = 0.05f;      // +5% health
-                if (statType == StatType.DEFENSE) bonus = 0.05f;     // +5% defense
-                if (statType == StatType.LEARNING) bonus = 0.02f;    // +2% learning (protective wisdom)
-                break;
-                
-            case STRIKER:
-                if (statType == StatType.ATTACK) bonus = 0.05f;      // +5% attack
-                if (statType == StatType.SPEED) bonus = 0.03f;       // +3% speed
-                if (statType == StatType.LEARNING) bonus = 0.03f;    // +3% learning (combat adaptation)
-                break;
-                
-            case SUPPORT:
-                if (statType == StatType.VITALITY) bonus = 0.05f;    // +5% vitality
-                if (statType == StatType.HEALTH) bonus = 0.03f;      // +3% health
-                if (statType == StatType.LEARNING) bonus = 0.04f;    // +4% learning (empathic understanding)
-                break;
-                
-            case SCOUT:
-                if (statType == StatType.SPEED) bonus = 0.05f;       // +5% speed
-                if (statType == StatType.AGILITY) bonus = 0.05f;     // +5% agility
-                if (statType == StatType.LEARNING) bonus = 0.05f;    // +5% learning (quick observation skills)
-                break;
-                
-            case SKYRIDER:
-                if (statType == StatType.AGILITY) bonus = 0.05f;     // +5% agility
-                if (statType == StatType.SPEED) bonus = 0.03f;       // +3% speed
-                if (statType == StatType.LEARNING) bonus = 0.03f;    // +3% learning (aerial intelligence)
-                break;
-                
-            case ENCHANTMENT_BOUND:
-                if (statType == StatType.VITALITY) bonus = 0.03f;    // +3% vitality
-                if (statType == StatType.AGILITY) bonus = 0.03f;     // +3% agility
-                if (statType == StatType.LEARNING) bonus = 0.06f;    // +6% learning (magical aptitude)
-                break;
-                
-            case CURSED_ONE:
-                if (statType == StatType.ATTACK) bonus = 0.03f;      // +3% attack
-                if (statType == StatType.VITALITY) bonus = 0.03f;    // +3% vitality
-                if (statType == StatType.LEARNING) bonus = 0.04f;    // +4% learning (dark knowledge)
-                break;
-                
-            case ECLIPSED:
-                if (statType == StatType.SPEED) bonus = 0.03f;       // +3% speed
-                if (statType == StatType.ATTACK) bonus = 0.03f;      // +3% attack
-                if (statType == StatType.LEARNING) bonus = 0.05f;    // +5% learning (shadow wisdom)
-                break;
-                
-            case EEPY_EEPER:
-                if (statType == StatType.HEALTH) bonus = 0.03f;      // +3% health
-                if (statType == StatType.VITALITY) bonus = 0.05f;    // +5% vitality
-                if (statType == StatType.LEARNING) bonus = 0.01f;    // +1% learning (sleepy but steady)
-                break;
+    private float getRoleAffinity(@Nullable PetRoleType roleType, StatType statType) {
+        if (roleType == null) {
+            return 0.0f;
         }
-        
-        return bonus;
+
+        return roleType.statAffinities().getOrDefault(statType.key(), 0.0f);
     }
-    
+
     /**
      * Get a description of this pet's notable characteristics.
      */
-    public String getCharacteristicDescription(PetRole role) {
+    public String getCharacteristicDescription(@Nullable PetRoleType roleType) {
         StringBuilder desc = new StringBuilder();
-        
-        float health = getHealthModifier(role);
-        float speed = getSpeedModifier(role);
-        float attack = getAttackModifier(role);
-        float defense = getDefenseModifier(role);
-        float agility = getAgilityModifier(role);
-        float vitality = getVitalityModifier(role);
+
+        float health = getHealthModifier(roleType);
+        float speed = getSpeedModifier(roleType);
+        float attack = getAttackModifier(roleType);
+        float defense = getDefenseModifier(roleType);
+        float agility = getAgilityModifier(roleType);
+        float vitality = getVitalityModifier(roleType);
         
         // Find the strongest and weakest traits
         float maxValue = Math.max(Math.max(Math.max(health, speed), Math.max(attack, defense)), Math.max(agility, vitality));
@@ -297,6 +242,22 @@ public class PetCharacteristics {
      * Enum for different stat types.
      */
     private enum StatType {
-        HEALTH, SPEED, ATTACK, DEFENSE, AGILITY, VITALITY, LEARNING
+        HEALTH("health"),
+        SPEED("speed"),
+        ATTACK("attack"),
+        DEFENSE("defense"),
+        AGILITY("agility"),
+        VITALITY("vitality"),
+        LEARNING("learning");
+
+        private final String key;
+
+        StatType(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
     }
 }

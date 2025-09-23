@@ -3,6 +3,7 @@ package woflo.petsplus.roles.skyrider;
 import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.OwnerCombatState;
 
@@ -87,14 +88,14 @@ public class SkyriderWinds {
      * Get the projectile levitation chance from config.
      */
     public static double getProjLevitateChance() {
-        return PetsPlusConfig.getInstance().getDouble("skyrider", "ownerProjLevitateChance", 0.10);
+        return PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.SKYRIDER.id(), "ownerProjLevitateChance", 0.10);
     }
     
     /**
      * Get the projectile levitation internal cooldown ticks.
      */
     public static int getProjLevitateIcdTicks() {
-        return PetsPlusConfig.getInstance().getInt("skyrider", "ownerProjLevitateIcdTicks", 200);
+        return PetsPlusConfig.getInstance().getRoleInt(PetRoleType.SKYRIDER.id(), "ownerProjLevitateIcdTicks", 200);
     }
     
     /**

@@ -5,7 +5,7 @@ import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.util.PetPerchUtil;
@@ -29,16 +29,16 @@ public class EnchantmentBoundEchoes {
             owner.getBoundingBox().expand(16),
             entity -> {
                 PetComponent component = PetComponent.get(entity);
-                return component != null && 
-                       component.getRole().equals(PetRole.ENCHANTMENT_BOUND) &&
+                return component != null &&
+                       component.hasRole(PetRoleType.ENCHANTMENT_BOUND) &&
                        component.isOwnedBy(owner) &&
                        PetPerchUtil.isPetPerched(component) &&
                        entity.isAlive();
             }
         ).isEmpty();
-        
-        return hasPerchedEnchantmentBound ? 
-            PetsPlusConfig.getInstance().getInt("enchantment_bound", "perchedHasteBonusTicks", 10) : 0;
+
+        return hasPerchedEnchantmentBound ?
+            PetsPlusConfig.getInstance().getRoleInt(PetRoleType.ENCHANTMENT_BOUND.id(), "perchedHasteBonusTicks", 10) : 0;
     }
     
     /**
@@ -64,7 +64,7 @@ public class EnchantmentBoundEchoes {
         }
         
         // Check config setting
-        if (!PetsPlusConfig.getInstance().getBoolean("enchantment_bound", "mountedExtraRollsEnabled", true)) {
+        if (!PetsPlusConfig.getInstance().getRoleBoolean(PetRoleType.ENCHANTMENT_BOUND.id(), "mountedExtraRollsEnabled", true)) {
             return false;
         }
         
@@ -74,8 +74,8 @@ public class EnchantmentBoundEchoes {
             owner.getBoundingBox().expand(16),
             entity -> {
                 PetComponent component = PetComponent.get(entity);
-                return component != null && 
-                       component.getRole().equals(PetRole.ENCHANTMENT_BOUND) &&
+                return component != null &&
+                       component.hasRole(PetRoleType.ENCHANTMENT_BOUND) &&
                        component.isOwnedBy(owner) &&
                        entity.isAlive();
             }

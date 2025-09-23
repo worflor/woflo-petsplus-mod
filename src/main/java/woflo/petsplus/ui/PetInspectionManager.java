@@ -9,6 +9,7 @@ import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.state.PetComponent;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.util.Formatting;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Item;
@@ -149,7 +150,7 @@ public final class PetInspectionManager {
             Text text = UIStyle.statusIndicator("happy")
                 .append(UIStyle.dynamicPetName(name, status.healthPercent))
                 .append(UIStyle.sepDot())
-                .append(UIStyle.tributeNeeded(getTributeItemName(comp.getLevel())));
+                .append(UIStyle.tributeNeeded(getTributeItemName(comp, comp.getLevel())));
             frames.add(new DisplayFrame(text, 1.0f, BossBar.Color.YELLOW, FramePriority.HIGH));
         }
         
@@ -280,21 +281,25 @@ public final class PetInspectionManager {
         return key.replace('_', ' ');
     }
 
-    private static String getTributeItemName(int level) {
-        // Get the actual tribute item from config
+    private static String getTributeItemName(PetComponent component, int level) {
+        if (component == null) {
+            return "Special Item";
+        }
+
+        PetRoleType roleType = component.getRoleType();
+        if (roleType == null) {
+            return "Special Item";
+        }
+
         PetsPlusConfig config = PetsPlusConfig.getInstance();
-        String itemId = config.getTributeItemId(level);
-        
-        if (itemId != null) {
-            Identifier identifier = Identifier.tryParse(itemId);
-            if (identifier != null) {
-                Item item = Registries.ITEM.get(identifier);
-                if (item != null) {
-                    return new ItemStack(item).getName().getString();
-                }
+        Identifier tributeId = config.resolveTributeItem(roleType, level);
+        if (tributeId != null) {
+            Item item = Registries.ITEM.get(tributeId);
+            if (item != null) {
+                return new ItemStack(item).getName().getString();
             }
         }
-        
+
         return "Special Item";
     }
 

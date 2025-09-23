@@ -57,7 +57,7 @@ public final class AfterimageManager {
         fallbackStyle = EncasementStyle.createFallback();
         STYLES.put("default", fallbackStyle);
 
-        JsonObject visualsConfig = PetsPlusConfig.getInstance().getRoleConfig("visuals");
+        JsonObject visualsConfig = PetsPlusConfig.getInstance().getSection("visuals");
         if (!visualsConfig.has("afterimage_styles")) {
             return;
         }

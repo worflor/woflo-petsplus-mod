@@ -4,7 +4,6 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.Vec3d;
-import woflo.petsplus.api.PetRole;
 
 /**
  * Manages subtle particle effects for different pet roles.

@@ -3,7 +3,7 @@ package woflo.petsplus.roles.eepyeeper;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.util.PetPerchUtil;
@@ -27,8 +27,8 @@ public class EepyEeperNapBehaviors {
             owner.getBoundingBox().expand(16),
             entity -> {
                 PetComponent component = PetComponent.get(entity);
-                if (component == null || 
-                    !component.getRole().equals(PetRole.EEPY_EEPER) ||
+                if (component == null ||
+                    !component.hasRole(PetRoleType.EEPY_EEPER) ||
                     !component.isOwnedBy(owner) ||
                     !entity.isAlive()) {
                     return false;
@@ -44,8 +44,8 @@ public class EepyEeperNapBehaviors {
             }
         ).isEmpty();
         
-        return hasNappingEepyEeper ? 
-            PetsPlusConfig.getInstance().getDouble("eepy_eeper", "perchNapExtraRadius", 1.0) : 0.0;
+        return hasNappingEepyEeper ?
+            PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.EEPY_EEPER.id(), "perchNapExtraRadius", 1.0) : 0.0;
     }
     
     /**

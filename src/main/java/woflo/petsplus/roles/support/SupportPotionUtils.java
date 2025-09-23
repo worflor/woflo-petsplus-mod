@@ -7,7 +7,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
 import net.minecraft.util.Identifier;
 
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.stats.PetAttributeManager;
@@ -122,7 +122,7 @@ public final class SupportPotionUtils {
         }
         float scalar = PetAttributeManager.getEffectiveScalar(
             "aura",
-            component.getRole(),
+            component.getRoleType(false),
             component.getCharacteristics(),
             component.getLevel()
         );
@@ -305,9 +305,9 @@ public final class SupportPotionUtils {
     public static double getConsumptionPerPulse(PetComponent component) {
         double consumption = 1.0;
         if (component != null &&
-            component.getRole() == PetRole.SUPPORT &&
+            component.hasRole(PetRoleType.SUPPORT) &&
             PetPerchUtil.isPetPerched(component)) {
-            double discount = PetsPlusConfig.getInstance().getDouble("support", "perchSipDiscount", 0.20);
+            double discount = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.SUPPORT.id(), "perchSipDiscount", 0.20);
             double multiplier = 1.0 - discount;
             if (multiplier < 0.0) multiplier = 0.0;
             if (multiplier > 1.0) multiplier = 1.0;

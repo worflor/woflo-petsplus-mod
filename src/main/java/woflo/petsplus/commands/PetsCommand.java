@@ -10,17 +10,22 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.command.CommandSource;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.registry.Registry;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
-import woflo.petsplus.api.PetRole;
+import net.minecraft.util.Identifier;
+import org.jetbrains.annotations.Nullable;
+import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.api.registry.PetsPlusRegistries;
+import woflo.petsplus.commands.arguments.PetRoleArgumentType;
 import woflo.petsplus.commands.suggestions.PetsSuggestionProviders;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.ui.ChatLinks;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -32,12 +37,10 @@ public class PetsCommand {
     
     // Custom suggestion providers following Fabric documentation
     public static final SuggestionProvider<ServerCommandSource> ROLE_SUGGESTIONS = (context, builder) -> {
-        return CommandSource.suggestMatching(
-            Arrays.stream(PetRole.values())
-                .map(role -> role.getKey().toLowerCase())
-                .collect(Collectors.toList()),
-            builder
-        );
+        List<String> keys = PetsPlusRegistries.petRoleTypeRegistry().stream()
+            .map(type -> type.id().getPath().toLowerCase())
+            .collect(Collectors.toList());
+        return CommandSource.suggestMatching(keys, builder);
     };
     
     public static final SuggestionProvider<ServerCommandSource> PET_SUGGESTIONS = (context, builder) -> {
@@ -70,7 +73,7 @@ public class PetsCommand {
             // Role assignment with interactive suggestions
             .then(CommandManager.literal("role")
                 .executes(PetsCommand::showRoleSelectionMenu)
-                .then(CommandManager.argument("role_name", StringArgumentType.string())
+                .then(CommandManager.argument("role", PetRoleArgumentType.petRole())
                     .suggests(PetsSuggestionProviders.SMART_ROLE_SUGGESTIONS)
                     .executes(PetsCommand::assignRoleToFirstPendingPet)
                     .then(CommandManager.argument("pet_name", StringArgumentType.string())
@@ -153,11 +156,14 @@ public class PetsCommand {
                     String petName = pet.hasCustomName() ? pet.getCustomName().getString() : 
                         pet.getType().getName().getString();
                     
-                    PetRole role = petComp.getRole();
+                    Identifier roleId = petComp.getRoleId();
+                    PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+                    Text roleLabel = resolveRoleLabel(roleId, roleType);
                     int level = petComp.getLevel();
-                    
-                    player.sendMessage(Text.literal("  • " + petName + " (" + 
-                        (role != null ? role.getDisplayName() : "No Role") + ", Level " + level + ")")
+
+                    player.sendMessage(Text.literal("  • " + petName + " (")
+                        .append(roleLabel.copy())
+                        .append(Text.literal(", Level " + level + ")"))
                         .formatted(Formatting.WHITE), false);
                 }
             }
@@ -183,18 +189,10 @@ public class PetsCommand {
     }
     
     private static int assignRoleToFirstPendingPet(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        String roleName = StringArgumentType.getString(context, "role_name");
+        Identifier roleId = PetRoleArgumentType.getRoleId(context, "role");
+        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-        
-        // Parse role
-        PetRole role = parseRoleName(roleName);
-        if (role == null) {
-            player.sendMessage(Text.literal("Invalid role: " + roleName)
-                .formatted(Formatting.RED), false);
-            showRoleButtons(player);
-            return 0;
-        }
-        
+
         // Get pending pets
         List<MobEntity> pendingPets = woflo.petsplus.events.PetDetectionHandler.getPendingPets(player);
         
@@ -206,15 +204,15 @@ public class PetsCommand {
         
         // Assign to first pending pet
         MobEntity pet = pendingPets.get(0);
-        boolean success = woflo.petsplus.events.PetDetectionHandler.assignPendingRole(player, pet, role);
-        
+        boolean success = woflo.petsplus.events.PetDetectionHandler.assignPendingRole(player, pet, roleId);
+
         if (success) {
-            String petName = pet.hasCustomName() ? pet.getCustomName().getString() : 
+            String petName = pet.hasCustomName() ? pet.getCustomName().getString() :
                 pet.getType().getName().getString();
-            
+
             player.sendMessage(Text.literal("✓ Assigned ")
                 .formatted(Formatting.GREEN)
-                .append(Text.literal(role.getDisplayName()).formatted(Formatting.AQUA))
+                .append(resolveRoleLabel(roleId, roleType).copy().formatted(Formatting.AQUA))
                 .append(Text.literal(" role to ").formatted(Formatting.GREEN))
                 .append(Text.literal(petName).formatted(Formatting.YELLOW))
                 .append(Text.literal("!").formatted(Formatting.GREEN)), false);
@@ -389,12 +387,16 @@ public class PetsCommand {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
         
         player.sendMessage(Text.literal("=== Pet Roles Guide ===").formatted(Formatting.GOLD), false);
-        
-        for (PetRole role : PetRole.values()) {
-            player.sendMessage(Text.literal("• " + role.getDisplayName())
-                .formatted(Formatting.AQUA)
-                .append(Text.literal(" - " + getRoleDescription(role))
-                    .formatted(Formatting.WHITE)), false);
+
+        Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
+        for (PetRoleType type : registry) {
+            Identifier id = type.id();
+            Text label = resolveRoleLabel(id, type);
+            String description = getRoleDescription(id, type);
+            player.sendMessage(Text.literal("• ")
+                .formatted(Formatting.DARK_GRAY)
+                .append(label.copy().formatted(Formatting.AQUA))
+                .append(Text.literal(" - " + description).formatted(Formatting.WHITE)), false);
         }
         
         return 1;
@@ -408,68 +410,51 @@ public class PetsCommand {
     private static List<MobEntity> findNearbyOwnedPets(ServerPlayerEntity player) {
         return player.getWorld().getEntitiesByClass(
             MobEntity.class,
-            player.getBoundingBox().expand(10), 
+            player.getBoundingBox().expand(10),
             entity -> {
                 PetComponent petComp = PetComponent.get(entity);
                 return petComp != null && petComp.isOwnedBy(player);
             }
         );
     }
-    
-    private static PetRole parseRoleName(String name) {
-        // Try direct key match first
-        for (PetRole role : PetRole.values()) {
-            if (role.getKey().equalsIgnoreCase(name)) {
-                return role;
+
+    private static Text resolveRoleLabel(Identifier roleId, @Nullable PetRoleType roleType) {
+        if (roleType != null) {
+            Text translated = Text.translatable(roleType.translationKey());
+            if (!translated.getString().equals(roleType.translationKey())) {
+                return translated;
             }
         }
-        
-        // Try display name match
-        for (PetRole role : PetRole.values()) {
-            if (role.getDisplayName().equalsIgnoreCase(name)) {
-                return role;
-            }
-        }
-        
-        return null;
+
+        return Text.literal(PetRoleType.fallbackName(roleId));
     }
-    
-    private static String getRoleDescription(PetRole role) {
-        return switch (role) {
-            case GUARDIAN -> "Protective tank that redirects damage and provides stability";
-            case STRIKER -> "Aggressive fighter that marks weakened enemies for execution";
-            case SUPPORT -> "Healing companion that stores and shares beneficial effects";
-            case SCOUT -> "Fast explorer that reveals threats and attracts loot";
-            case SKYRIDER -> "Aerial specialist that controls air movement and prevents falls";
-            case ENCHANTMENT_BOUND -> "Magic-focused pet that enhances gear enchantments";
-            case CURSED_ONE -> "Dark magic wielder with high risk and reward mechanics";
-            case EEPY_EEPER -> "Sleep specialist that provides rest-based healing and protection";
-            case ECLIPSED -> "Shadow manipulator that brands enemies and provides stealth";
-        };
+
+    private static String getRoleDescription(Identifier roleId, @Nullable PetRoleType roleType) {
+        return PetRoleType.defaultDescription(roleId);
     }
     
     private static void showRoleButtons(ServerPlayerEntity player) {
-        ChatLinks.Suggest[] roleButtons = new ChatLinks.Suggest[] {
-            new ChatLinks.Suggest("[Guardian]", "/pets role guardian", "Protective tank role", "aqua", true),
-            new ChatLinks.Suggest("[Striker]", "/pets role striker", "Aggressive damage dealer", "red", true),
-            new ChatLinks.Suggest("[Support]", "/pets role support", "Healing and buffs", "green", true),
-            new ChatLinks.Suggest("[Scout]", "/pets role scout", "Fast explorer", "yellow", true)
-        };
-        
-        ChatLinks.Suggest[] roleButtons2 = new ChatLinks.Suggest[] {
-            new ChatLinks.Suggest("[Skyrider]", "/pets role skyrider", "Aerial support", "light_purple", true),
-            new ChatLinks.Suggest("[Enchantment-Bound]", "/pets role enchantment_bound", "Magic abilities", "blue", true),
-            new ChatLinks.Suggest("[Cursed One]", "/pets role cursed_one", "Dark magic", "dark_red", true),
-            new ChatLinks.Suggest("[Eepy Eeper]", "/pets role eepy_eeper", "Sleep-based abilities", "dark_green", true)
-        };
-        
-        ChatLinks.Suggest[] roleButtons3 = new ChatLinks.Suggest[] {
-            new ChatLinks.Suggest("[Eclipsed]", "/pets role eclipsed", "Shadow magic", "dark_purple", true)
-        };
-        
-        ChatLinks.sendSuggestRow(player, roleButtons, 4);
-        ChatLinks.sendSuggestRow(player, roleButtons2, 4);
-        ChatLinks.sendSuggestRow(player, roleButtons3, 4);
+        Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
+        List<ChatLinks.Suggest> suggestions = new ArrayList<>();
+
+        for (PetRoleType type : registry) {
+            Identifier id = type.id();
+            Text label = resolveRoleLabel(id, type);
+            String hover = getRoleDescription(id, type);
+            suggestions.add(new ChatLinks.Suggest(
+                "[" + label.getString() + "]",
+                "/pets role " + id.toString(),
+                hover,
+                "aqua",
+                true
+            ));
+        }
+
+        if (suggestions.isEmpty()) {
+            return;
+        }
+
+        ChatLinks.sendSuggestRow(player, suggestions.toArray(new ChatLinks.Suggest[0]), 4);
     }
     
     private static void showQuickActions(ServerPlayerEntity player) {
@@ -489,22 +474,26 @@ public class PetsCommand {
         String petName = pet.hasCustomName() ? pet.getCustomName().getString() : 
             pet.getType().getName().getString();
         
-        PetRole role = petComp.getRole();
+        Identifier roleId = petComp.getRoleId();
+        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
         int level = petComp.getLevel();
         int xp = petComp.getExperience();
         float progress = petComp.getXpProgress();
-        
+
+        Text roleText = Text.literal(" (")
+            .append(resolveRoleLabel(roleId, roleType).copy().formatted(Formatting.AQUA))
+            .append(Text.literal(")"));
+
         player.sendMessage(Text.literal("• " + petName)
             .formatted(Formatting.YELLOW)
-            .append(Text.literal(" (" + (role != null ? role.getDisplayName() : "No Role") + ")")
-                .formatted(Formatting.AQUA)), false);
+            .append(roleText), false);
         
         player.sendMessage(Text.literal("  Level " + level + " (XP: " + xp + ", Progress: " + 
             String.format("%.1f", progress * 100) + "%)")
             .formatted(Formatting.WHITE), false);
         
-        if (level < 30) {
-            int nextLevelXp = PetComponent.getTotalXpForLevel(level + 1);
+        if (level < petComp.getRoleType().xpCurve().maxLevel()) {
+            int nextLevelXp = petComp.getTotalXpForLevel(level + 1);
             int needed = nextLevelXp - xp;
             player.sendMessage(Text.literal("  Next level: " + needed + " XP needed")
                 .formatted(Formatting.GRAY), false);

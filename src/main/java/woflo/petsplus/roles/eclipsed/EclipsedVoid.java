@@ -3,7 +3,7 @@ package woflo.petsplus.roles.eclipsed;
 import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.util.PetPerchUtil;
@@ -24,98 +24,98 @@ public class EclipsedVoid {
      * Get the voidbrand mark duration ticks.
      */
     public static int getMarkDurationTicks() {
-        return PetsPlusConfig.getInstance().getInt("eclipsed", "markDurationTicks", 80);
+        return PetsPlusConfig.getInstance().getRoleInt(PetRoleType.ECLIPSED.id(), "markDurationTicks", 80);
     }
     
     /**
      * Get the owner bonus damage vs marked targets.
      */
     public static double getOwnerBonusVsMarkedPct() {
-        return PetsPlusConfig.getInstance().getDouble("eclipsed", "ownerBonusVsMarkedPct", 0.10);
+        return PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.ECLIPSED.id(), "ownerBonusVsMarkedPct", 0.10);
     }
     
     /**
      * Get the next hit effect for marked targets.
      */
     public static String getOwnerNextHitEffect() {
-        return PetsPlusConfig.getInstance().getString("eclipsed", "ownerNextHitEffect", "minecraft:wither");
+        return PetsPlusConfig.getInstance().getRoleString(PetRoleType.ECLIPSED.id(), "ownerNextHitEffect", "minecraft:wither");
     }
     
     /**
      * Get the next hit effect duration ticks.
      */
     public static int getOwnerNextHitEffectDurationTicks() {
-        return PetsPlusConfig.getInstance().getInt("eclipsed", "ownerNextHitEffectDurationTicks", 40);
+        return PetsPlusConfig.getInstance().getRoleInt(PetRoleType.ECLIPSED.id(), "ownerNextHitEffectDurationTicks", 40);
     }
     
     /**
      * Get the phase charge internal cooldown ticks.
      */
     public static int getPhaseChargeInternalCdTicks() {
-        return PetsPlusConfig.getInstance().getInt("eclipsed", "phaseChargeInternalCdTicks", 400);
+        return PetsPlusConfig.getInstance().getRoleInt(PetRoleType.ECLIPSED.id(), "phaseChargeInternalCdTicks", 400);
     }
     
     /**
      * Get the phase charge bonus damage percentage.
      */
     public static double getPhaseChargeBonusDamagePct() {
-        return PetsPlusConfig.getInstance().getDouble("eclipsed", "phaseChargeBonusDamagePct", 0.25);
+        return PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.ECLIPSED.id(), "phaseChargeBonusDamagePct", 0.25);
     }
     
     /**
      * Get the phase charge window ticks.
      */
     public static int getPhaseChargeWindowTicks() {
-        return PetsPlusConfig.getInstance().getInt("eclipsed", "phaseChargeWindowTicks", 100);
+        return PetsPlusConfig.getInstance().getRoleInt(PetRoleType.ECLIPSED.id(), "phaseChargeWindowTicks", 100);
     }
     
     /**
      * Get the perch ping interval ticks.
      */
     public static int getPerchPingIntervalTicks() {
-        return PetsPlusConfig.getInstance().getInt("eclipsed", "perchPingIntervalTicks", 140);
+        return PetsPlusConfig.getInstance().getRoleInt(PetRoleType.ECLIPSED.id(), "perchPingIntervalTicks", 140);
     }
     
     /**
      * Get the perch ping radius.
      */
     public static int getPerchPingRadius() {
-        return PetsPlusConfig.getInstance().getInt("eclipsed", "perchPingRadius", 8);
+        return PetsPlusConfig.getInstance().getRoleInt(PetRoleType.ECLIPSED.id(), "perchPingRadius", 8);
     }
     
     /**
      * Get the event horizon duration ticks.
      */
     public static int getEventHorizonDurationTicks() {
-        return PetsPlusConfig.getInstance().getInt("eclipsed", "eventHorizonDurationTicks", 100);
+        return PetsPlusConfig.getInstance().getRoleInt(PetRoleType.ECLIPSED.id(), "eventHorizonDurationTicks", 100);
     }
     
     /**
      * Get the event horizon radius.
      */
     public static double getEventHorizonRadius() {
-        return PetsPlusConfig.getInstance().getDouble("eclipsed", "eventHorizonRadius", 6.0);
+        return PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.ECLIPSED.id(), "eventHorizonRadius", 6.0);
     }
     
     /**
      * Get the event horizon projectile DR percentage.
      */
     public static double getEventHorizonProjectileDrPct() {
-        return PetsPlusConfig.getInstance().getDouble("eclipsed", "eventHorizonProjectileDrPct", 0.25);
+        return PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.ECLIPSED.id(), "eventHorizonProjectileDrPct", 0.25);
     }
     
     /**
      * Get the edge step fall reduction percentage.
      */
     public static double getEdgeStepFallReductionPct() {
-        return PetsPlusConfig.getInstance().getDouble("eclipsed", "edgeStepFallReductionPct", 0.25);
+        return PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.ECLIPSED.id(), "edgeStepFallReductionPct", 0.25);
     }
     
     /**
      * Get the edge step cooldown ticks.
      */
     public static int getEdgeStepCooldownTicks() {
-        return PetsPlusConfig.getInstance().getInt("eclipsed", "edgeStepCooldownTicks", 240);
+        return PetsPlusConfig.getInstance().getRoleInt(PetRoleType.ECLIPSED.id(), "edgeStepCooldownTicks", 240);
     }
     
     /**
@@ -128,13 +128,13 @@ public class EclipsedVoid {
 
         PetComponent component = PetComponent.get(pet);
         if (component != null &&
-            component.getRole() == PetRole.ECLIPSED &&
+            component.hasRole(PetRoleType.ECLIPSED) &&
             component.isOwnedBy(owner) &&
             PetPerchUtil.isPetPerched(component)) {
             return true;
         }
 
-        return PetPerchUtil.ownerHasPerchedRole(owner, PetRole.ECLIPSED);
+        return PetPerchUtil.ownerHasPerchedRole(owner, PetRoleType.ECLIPSED);
     }
     
     /**

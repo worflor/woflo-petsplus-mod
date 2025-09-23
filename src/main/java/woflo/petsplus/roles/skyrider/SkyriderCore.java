@@ -10,7 +10,7 @@ import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.Petsplus;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
 /**
@@ -43,7 +43,7 @@ public class SkyriderCore {
         // Handle Skyrider pet fall damage reduction
         if (entity instanceof MobEntity mobEntity) {
             PetComponent petComp = PetComponent.get(mobEntity);
-            if (petComp != null && petComp.getRole() == PetRole.SKYRIDER) {
+            if (petComp != null && petComp.hasRole(PetRoleType.SKYRIDER)) {
                 // Reduce fall damage for Skyrider pets
                 if (damageSource.isOf(DamageTypes.FALL)) {
                     return damageAmount <= 2.0f; // Absorb small fall damage completely
@@ -96,7 +96,7 @@ public class SkyriderCore {
                     entity -> {
                         PetComponent component = PetComponent.get(entity);
                         return component != null && 
-                               component.getRole() == PetRole.SKYRIDER &&
+                               component.hasRole(PetRoleType.SKYRIDER) &&
                                entity.isAlive() &&
                                component.isOwnedBy(player) &&
                                entity instanceof TameableEntity;
@@ -125,7 +125,7 @@ public class SkyriderCore {
             entity -> {
                 PetComponent component = PetComponent.get(entity);
                 return component != null && 
-                       component.getRole() == PetRole.SKYRIDER &&
+                       component.hasRole(PetRoleType.SKYRIDER) &&
                        entity.isAlive() &&
                        component.isOwnedBy(player) &&
                        entity.squaredDistanceTo(player) <= searchRadius * searchRadius;
@@ -182,7 +182,7 @@ public class SkyriderCore {
             entity -> {
                 PetComponent component = PetComponent.get(entity);
                 return component != null &&
-                       component.getRole() == PetRole.SKYRIDER &&
+                       component.hasRole(PetRoleType.SKYRIDER) &&
                        component.getLevel() >= 7 &&
                        entity.isAlive() &&
                        component.isOwnedBy(player) &&

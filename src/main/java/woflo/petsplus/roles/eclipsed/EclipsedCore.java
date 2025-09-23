@@ -7,7 +7,7 @@ import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
 /**
@@ -40,7 +40,7 @@ public class EclipsedCore {
         // Handle Eclipsed pet shadow protection
         if (entity instanceof MobEntity mobEntity) {
             PetComponent petComp = PetComponent.get(mobEntity);
-            if (petComp != null && petComp.getRole() == PetRole.ECLIPSED) {
+            if (petComp != null && petComp.hasRole(PetRoleType.ECLIPSED)) {
                 // Shadow protection in darkness
                 if (isInDarkness(mobEntity)) {
                     return damageAmount <= 2.0f; // Absorb small damage in darkness
@@ -86,7 +86,7 @@ public class EclipsedCore {
                     entity -> {
                         PetComponent component = PetComponent.get(entity);
                         return component != null && 
-                               component.getRole() == PetRole.ECLIPSED &&
+                               component.hasRole(PetRoleType.ECLIPSED) &&
                                entity.isAlive() &&
                                component.isOwnedBy(player);
                     }
@@ -121,7 +121,7 @@ public class EclipsedCore {
             entity -> {
                 PetComponent component = PetComponent.get(entity);
                 return component != null && 
-                       component.getRole() == PetRole.ECLIPSED &&
+                       component.hasRole(PetRoleType.ECLIPSED) &&
                        entity.isAlive() &&
                        component.isOwnedBy(player) &&
                        entity.squaredDistanceTo(player) <= searchRadius * searchRadius;
@@ -158,7 +158,7 @@ public class EclipsedCore {
             entity -> {
                 PetComponent component = PetComponent.get(entity);
                 return component != null && 
-                       component.getRole() == PetRole.ECLIPSED &&
+                       component.hasRole(PetRoleType.ECLIPSED) &&
                        component.getLevel() >= 7 && // L7+ for Eclipse Field
                        entity.isAlive() &&
                        component.isOwnedBy(player);
@@ -228,7 +228,7 @@ public class EclipsedCore {
             entity -> {
                 PetComponent component = PetComponent.get(entity);
                 return component != null && 
-                       component.getRole() == PetRole.ECLIPSED &&
+                       component.hasRole(PetRoleType.ECLIPSED) &&
                        entity.isAlive() &&
                        component.isOwnedBy(player);
             }
@@ -272,7 +272,7 @@ public class EclipsedCore {
             entity -> {
                 PetComponent component = PetComponent.get(entity);
                 return component != null && 
-                       component.getRole() == PetRole.ECLIPSED &&
+                       component.hasRole(PetRoleType.ECLIPSED) &&
                        entity.isAlive() &&
                        component.isOwnedBy(player);
             }

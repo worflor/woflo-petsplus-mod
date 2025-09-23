@@ -4,7 +4,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
 /**
@@ -32,8 +32,8 @@ public class SkyriderMountBehaviors {
             owner.getBoundingBox().expand(16),
             entity -> {
                 PetComponent component = PetComponent.get(entity);
-                return component != null && 
-                       component.getRole().equals(PetRole.SKYRIDER) &&
+                return component != null &&
+                       component.hasRole(PetRoleType.SKYRIDER) &&
                        component.isOwnedBy(owner) &&
                        entity.isAlive();
             }
@@ -60,8 +60,8 @@ public class SkyriderMountBehaviors {
             owner.getBoundingBox().expand(16),
             entity -> {
                 PetComponent component = PetComponent.get(entity);
-                return component != null && 
-                       component.getRole().equals(PetRole.SKYRIDER) &&
+                return component != null &&
+                       component.hasRole(PetRoleType.SKYRIDER) &&
                        component.isOwnedBy(owner) &&
                        entity.isAlive();
             }

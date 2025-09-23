@@ -1,0 +1,89 @@
+{
+  "id": "petsplus:support",
+  "translation_key": "petsplus.role.support",
+  "base_stat_scalars": {
+    "aura": 0.02
+  },
+  "stat_affinities": {
+    "vitality": 0.05,
+    "health": 0.03,
+    "learning": 0.04
+  },
+  "default_abilities": [
+    "petsplus:perch_potion_efficiency",
+    "petsplus:mounted_cone_aura"
+  ],
+  "tribute_defaults": {
+    "10": "minecraft:gold_ingot",
+    "20": "minecraft:diamond",
+    "30": "minecraft:netherite_ingot"
+  },
+  "xp_curve": {
+    "max_level": 30,
+    "feature_levels": [3, 7, 12, 17, 23, 27],
+    "tribute_milestones": [10, 20, 30],
+    "base_linear_per_level": 20,
+    "quadratic_factor": 8,
+    "feature_level_bonus_multiplier": 0.75
+  },
+  "visual": {
+    "primary_color": "#64f5a4",
+    "secondary_color": "#2e9b66",
+    "ambient_event": "support_ambient",
+    "ability_event_prefix": "support"
+  },
+  "passive_auras": [
+    {
+      "id": "support_companion_rest",
+      "interval": 60,
+      "radius": 6.0,
+      "min_level": 1,
+      "require_sitting": true,
+      "effects": [
+        {
+          "effect": "minecraft:regeneration",
+          "target": "owner",
+          "duration": 40,
+          "amplifier": 0
+        }
+      ],
+      "particle_event": "support"
+    }
+  ],
+  "support_potion": {
+    "interval": 140,
+    "radius": 6.0,
+    "min_level": 5,
+    "require_sitting": true,
+    "effect_duration": 120,
+    "apply_to_pet": true,
+    "fallback_effect": "minecraft:regeneration",
+    "message": {
+      "translation_key": "petsplus.role.support.potion",
+      "fallback": "%s shares stored potion energy"
+    },
+    "sound": {
+      "id": "minecraft:entity.experience_orb.pickup",
+      "volume": 0.4,
+      "pitch": 1.5
+    },
+    "particle_event": "support"
+  },
+  "presentation": {
+    "petting": {
+      "feedback_event": "support_gentle_aura",
+      "message": {
+        "fallback": "Your support radiates warmth and comfort"
+      }
+    },
+    "memorial_epithets": [
+      { "fallback": "The Healing Heart" },
+      { "fallback": "The Caring Soul" },
+      { "fallback": "The Gentle Mender" },
+      { "fallback": "The Life Giver" }
+    ],
+    "admin_summary": {
+      "fallback": "Healing companion that stores and shares beneficial effects"
+    }
+  }
+}

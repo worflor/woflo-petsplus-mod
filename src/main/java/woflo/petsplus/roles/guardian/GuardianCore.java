@@ -16,7 +16,7 @@ import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.abilities.AbilityManager;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
@@ -71,7 +71,7 @@ public final class GuardianCore {
                 if (component == null) {
                     return false;
                 }
-                if (component.getRole() != PetRole.GUARDIAN) {
+                if (!component.hasRole(PetRoleType.GUARDIAN)) {
                     return false;
                 }
                 if (!component.isOwnedBy(owner)) {

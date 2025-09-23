@@ -31,6 +31,13 @@ public class AdvancementManager {
         }
     }
 
+    public static void triggerConfiguredAdvancement(ServerPlayerEntity player, Identifier advancementId) {
+        if (player == null || advancementId == null) {
+            return;
+        }
+        triggerAdvancement(player, advancementId.toString());
+    }
+
     public static void triggerPetLevel30(ServerPlayerEntity player, MobEntity pet) {
         // In 1.21.8, this should be handled by custom criteria in advancement JSON
         // For now, just trigger the advancement directly

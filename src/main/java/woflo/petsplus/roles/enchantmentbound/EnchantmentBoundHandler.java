@@ -21,7 +21,8 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
-import woflo.petsplus.api.PetRole;
+import net.minecraft.util.Identifier;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 
@@ -37,10 +38,10 @@ public final class EnchantmentBoundHandler {
         PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, entity) -> {
             if (!(world instanceof ServerWorld serverWorld)) return;
             if (!(player instanceof ServerPlayerEntity)) return;
-            if (!hasRoleNearby(player, PetRole.ENCHANTMENT_BOUND, 16)) return;
+            if (!hasRoleNearby(player, PetRoleType.ENCHANTMENT_BOUND.id(), 16)) return;
 
             // Apply Haste pulse (owner-only)
-            int base = PetsPlusConfig.getInstance().getInt("enchantment_bound", "miningHasteBaseTicks", 40);
+            int base = PetsPlusConfig.getInstance().getRoleInt(PetRoleType.ENCHANTMENT_BOUND.id(), "miningHasteBaseTicks", 40);
             EnchantmentBoundEchoes.applyEnhancedHaste(player, base);
 
             // Arcane Focus: if focus bucket is mining and available, surge doubles effect durations
@@ -56,7 +57,7 @@ public final class EnchantmentBoundHandler {
 
             // Extra roll for blocks (ores/crops/etc.) using loot logic
             int fortune = getEnchantLevel(player, Enchantments.FORTUNE);
-            double baseChanceB = PetsPlusConfig.getInstance().getDouble("enchantment_bound", "extraDuplicationChanceBase", 0.05);
+            double baseChanceB = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.ENCHANTMENT_BOUND.id(), "extraDuplicationChanceBase", 0.05);
             double chanceB = baseChanceB + fortune * 0.02;
             if (serverWorld.getRandom().nextDouble() < chanceB) {
                 java.util.List<net.minecraft.item.ItemStack> drops = Block.getDroppedStacks(state, serverWorld, pos, world.getBlockEntity(pos), player, tool);
@@ -70,7 +71,7 @@ public final class EnchantmentBoundHandler {
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> {
             if (!(entity.getWorld() instanceof ServerWorld serverWorld)) return;
             if (!(source.getAttacker() instanceof PlayerEntity owner)) return;
-            if (!hasRoleNearby(owner, PetRole.ENCHANTMENT_BOUND, 16)) return;
+            if (!hasRoleNearby(owner, PetRoleType.ENCHANTMENT_BOUND.id(), 16)) return;
 
             // Basic whitelist guard: only for hostile mobs (no players/tamed)
             if (!(entity instanceof net.minecraft.entity.mob.Monster)) return;
@@ -91,7 +92,7 @@ public final class EnchantmentBoundHandler {
             if (!(attacker instanceof PlayerEntity owner)) return;
             
             // Must have Enchantment-Bound pet nearby
-            if (!hasRoleNearby(owner, PetRole.ENCHANTMENT_BOUND, 16)) return;
+            if (!hasRoleNearby(owner, PetRoleType.ENCHANTMENT_BOUND.id(), 16)) return;
             
             // Must have killed entity parameter
             if (!context.hasParameter(LootContextParameters.THIS_ENTITY)) return;
@@ -100,7 +101,7 @@ public final class EnchantmentBoundHandler {
             
             // Calculate extra drop chance based on Looting level
             int looting = getEnchantLevel(owner, Enchantments.LOOTING);
-            double baseChance = PetsPlusConfig.getInstance().getDouble("enchantment_bound", "extraDuplicationChanceBase", 0.05);
+            double baseChance = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.ENCHANTMENT_BOUND.id(), "extraDuplicationChanceBase", 0.05);
             double chance = baseChance + looting * 0.02;
             
             // Focus doubles the chance
@@ -131,7 +132,7 @@ public final class EnchantmentBoundHandler {
     public static void onOwnerSwimTick(PlayerEntity owner) {
         try {
             if (!(owner.getWorld() instanceof ServerWorld)) return;
-            if (!hasRoleNearby(owner, PetRole.ENCHANTMENT_BOUND, 16)) return;
+            if (!hasRoleNearby(owner, PetRoleType.ENCHANTMENT_BOUND.id(), 16)) return;
             if (!owner.isTouchingWater()) return;
 
             int aqua = getEnchantLevel(owner, Enchantments.AQUA_AFFINITY);
@@ -152,10 +153,10 @@ public final class EnchantmentBoundHandler {
     public static boolean preventDurabilityLoss(PlayerEntity owner, ItemStack tool) {
         try {
             if (!(owner.getWorld() instanceof ServerWorld serverWorld)) return false;
-            if (!hasRoleNearby(owner, PetRole.ENCHANTMENT_BOUND, 16)) return false;
+            if (!hasRoleNearby(owner, PetRoleType.ENCHANTMENT_BOUND.id(), 16)) return false;
             if (tool == null || tool.isEmpty() || !tool.isDamageable()) return false;
 
-            double chance = PetsPlusConfig.getInstance().getDouble("enchantment_bound", "durabilityNoLossChance", 0.025);
+            double chance = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.ENCHANTMENT_BOUND.id(), "durabilityNoLossChance", 0.025);
             // Arcane Focus doubles the chance briefly when mining bucket is surging
             if (isFocusActive(owner, FocusBucket.MINING)) chance *= 2.0;
             return serverWorld.getRandom().nextDouble() < chance;
@@ -172,13 +173,13 @@ public final class EnchantmentBoundHandler {
     private static void maybeApplyArcaneFocus(PlayerEntity owner, FocusBucket bucket) {
         try {
             if (!(owner instanceof ServerPlayerEntity)) return;
-            int level = nearestRoleLevel(owner, PetRole.ENCHANTMENT_BOUND, 16);
+            int level = nearestRoleLevel(owner, PetRoleType.ENCHANTMENT_BOUND.id(), 16);
             if (level < 20) return; // focus unlock at ~L20
 
             if (isFocusActive(owner, bucket)) return; // already active
             if (!consumeFocusCharge(owner)) return;   // no charges available
 
-            int duration = PetsPlusConfig.getInstance().getInt("enchantment_bound", "focusSurgeDurationTicks", 200);
+            int duration = PetsPlusConfig.getInstance().getRoleInt(PetRoleType.ENCHANTMENT_BOUND.id(), "focusSurgeDurationTicks", 200);
             long now = owner.getWorld().getTime();
             storeFocusState(owner, bucket, now + duration);
 
@@ -210,9 +211,9 @@ public final class EnchantmentBoundHandler {
 
     private static boolean consumeFocusCharge(PlayerEntity owner) {
         try {
-            int level = nearestRoleLevel(owner, PetRole.ENCHANTMENT_BOUND, 16);
+            int level = nearestRoleLevel(owner, PetRoleType.ENCHANTMENT_BOUND.id(), 16);
             int maxCharges = level >= 30 ? 2 : 1;
-            int cd = PetsPlusConfig.getInstance().getInt("enchantment_bound", "focusCooldownTicks", 1200); // 60s
+            int cd = PetsPlusConfig.getInstance().getRoleInt(PetRoleType.ENCHANTMENT_BOUND.id(), "focusCooldownTicks", 1200); // 60s
             long now = owner.getWorld().getTime();
             Long last = getOwnerTempLong(owner, "eb_focus_last");
             Integer used = getOwnerTempInt(owner, "eb_focus_used");
@@ -239,13 +240,13 @@ public final class EnchantmentBoundHandler {
 
     // ---- Helpers ------------------------------------------------------------------
 
-    private static boolean hasRoleNearby(PlayerEntity owner, PetRole role, double radius) {
+    private static boolean hasRoleNearby(PlayerEntity owner, Identifier roleId, double radius) {
         try {
             if (!(owner.getWorld() instanceof ServerWorld serverWorld)) return false;
             return serverWorld.getEntitiesByClass(MobEntity.class, owner.getBoundingBox().expand(radius), e -> {
                 try {
                     PetComponent c = PetComponent.get(e);
-                    return c != null && c.getRole() == role && c.isOwnedBy(owner) && e.isAlive();
+                    return c != null && c.hasRole(roleId) && c.isOwnedBy(owner) && e.isAlive();
                 } catch (Exception ex) {
                     return false; // Skip entities that can't be checked safely
                 }
@@ -256,14 +257,14 @@ public final class EnchantmentBoundHandler {
         }
     }
 
-    private static int nearestRoleLevel(PlayerEntity owner, PetRole role, double radius) {
+    private static int nearestRoleLevel(PlayerEntity owner, Identifier roleId, double radius) {
         try {
             if (!(owner.getWorld() instanceof ServerWorld serverWorld)) return 0;
             int best = 0;
             for (MobEntity e : serverWorld.getEntitiesByClass(MobEntity.class, owner.getBoundingBox().expand(radius), ent -> true)) {
                 try {
                     PetComponent c = PetComponent.get(e);
-                    if (c != null && c.getRole() == role && c.isOwnedBy(owner) && e.isAlive()) {
+                    if (c != null && c.hasRole(roleId) && c.isOwnedBy(owner) && e.isAlive()) {
                         best = Math.max(best, c.getLevel());
                     }
                 } catch (Exception ex) {

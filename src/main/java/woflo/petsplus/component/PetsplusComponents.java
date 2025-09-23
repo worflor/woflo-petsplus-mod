@@ -78,34 +78,35 @@ public class PetsplusComponents {
      * Pet component persistent data.
      */
     public record PetData(
-        Optional<String> role,
+        Optional<Identifier> role,
         Map<String, Long> cooldowns,
         long lastAttackTick,
         boolean isPerched
     ) {
         public static final Codec<PetData> CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
-                Codec.STRING.optionalFieldOf("role").forGetter(PetData::role),
+                Identifier.CODEC.optionalFieldOf("role").forGetter(PetData::role),
                 Codec.unboundedMap(Codec.STRING, Codec.LONG).fieldOf("cooldowns").forGetter(PetData::cooldowns),
                 Codec.LONG.fieldOf("lastAttackTick").forGetter(PetData::lastAttackTick),
                 Codec.BOOL.fieldOf("isPerched").forGetter(PetData::isPerched)
             ).apply(instance, PetData::new)
         );
-        
+
         public static final PacketCodec<RegistryByteBuf, PetData> PACKET_CODEC = PacketCodec.tuple(
-            PacketCodecs.optional(PacketCodecs.STRING), PetData::role,
+            PacketCodecs.optional(PacketCodecs.STRING), data -> data.role().map(Identifier::toString),
             PacketCodecs.map(HashMap::new, PacketCodecs.STRING, PacketCodecs.VAR_LONG), PetData::cooldowns,
             PacketCodecs.VAR_LONG, PetData::lastAttackTick,
             PacketCodecs.BOOLEAN, PetData::isPerched,
-            PetData::new
+            (role, cooldowns, lastAttackTick, isPerched) ->
+                new PetData(role.map(Identifier::of), cooldowns, lastAttackTick, isPerched)
         );
-        
+
         public static PetData empty() {
             return new PetData(Optional.empty(), Map.of(), 0, false);
         }
-        
-        public PetData withRole(String roleKey) {
-            return new PetData(Optional.of(roleKey), cooldowns, lastAttackTick, isPerched);
+
+        public PetData withRole(Identifier roleId) {
+            return new PetData(Optional.of(roleId), cooldowns, lastAttackTick, isPerched);
         }
         
         public PetData withCooldown(String key, long value) {
