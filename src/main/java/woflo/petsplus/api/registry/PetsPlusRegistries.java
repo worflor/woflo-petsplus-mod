@@ -18,6 +18,7 @@ import woflo.petsplus.api.Trigger;
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.data.AbilityDataLoader;
 import woflo.petsplus.data.PetRoleDataLoader;
+import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.effects.AreaEffectEffect;
 import woflo.petsplus.effects.BuffEffect;
 import woflo.petsplus.effects.HealOwnerFlatPctEffect;
@@ -159,7 +160,11 @@ public final class PetsPlusRegistries {
             Petsplus.LOGGER.warn("Attempted to re-register {} with id {}. Keeping existing entry.", value, id);
             return existing;
         }
-        return Registry.register(registry, id, value);
+        T registered = Registry.register(registry, id, value);
+        if (registry == PET_ROLE_TYPES) {
+            PetsPlusConfig.onRoleRegistered(id);
+        }
+        return registered;
     }
 
     private static void registerPetRoles() {

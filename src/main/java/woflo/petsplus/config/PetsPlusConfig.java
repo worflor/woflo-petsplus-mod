@@ -4,6 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonPrimitive;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.registry.Registry;
 import net.minecraft.util.Identifier;
@@ -11,12 +13,17 @@ import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 
+import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Configuration manager for PetsPlus mod settings. The config now mirrors the
@@ -25,7 +32,10 @@ import java.util.Set;
  */
 public class PetsPlusConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Path CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("petsplus.json");
+    private static final Path LEGACY_CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("petsplus.json");
+    private static final Path CONFIG_DIR = FabricLoader.getInstance().getConfigDir().resolve("petsplus");
+    private static final Path CORE_CONFIG_PATH = CONFIG_DIR.resolve("core.json");
+    private static final Path ROLES_DIR = CONFIG_DIR.resolve("roles");
 
     private static final String ROLES_KEY = "roles";
     private static final String ABILITIES_KEY = "abilities";
@@ -53,7 +63,6 @@ public class PetsPlusConfig {
     private static PetsPlusConfig instance;
 
     private JsonObject config;
-    private boolean dirty;
     private final Set<String> legacyScopeWarnings = new HashSet<>();
 
     private PetsPlusConfig() {
@@ -68,68 +77,110 @@ public class PetsPlusConfig {
     }
 
     private void loadConfig() {
-        dirty = false;
-        if (Files.exists(CONFIG_PATH)) {
-            try {
-                String content = Files.readString(CONFIG_PATH);
-                config = GSON.fromJson(content, JsonObject.class);
-                if (config == null) {
-                    config = createDefaultConfig();
-                    dirty = true;
-                }
-                Petsplus.LOGGER.info("Loaded PetsPlus config from {}", CONFIG_PATH);
-            } catch (IOException e) {
-                Petsplus.LOGGER.error("Failed to load config file", e);
-                config = createDefaultConfig();
-                dirty = true;
-            }
-        } else {
-            config = createDefaultConfig();
-            dirty = true;
+        ensureConfigDirectories();
+        migrateLegacyConfigIfNeeded();
+
+        JsonObject core = loadCoreConfig();
+        boolean coreDirty = false;
+
+        Map<Identifier, JsonObject> roleConfigs = loadRoleConfigs();
+        Map<Identifier, JsonObject> extracted = extractRolesFromCore(core);
+        if (!extracted.isEmpty()) {
+            coreDirty = true;
+            extracted.forEach((id, legacy) -> {
+                JsonObject merged = roleConfigs.computeIfAbsent(id, key -> new JsonObject());
+                mergeInto(merged, legacy);
+                writeRoleConfig(id, merged);
+            });
         }
 
-        ensureCoreSections();
-        if (migrateLegacySections(config)) {
-            dirty = true;
+        if (ensureCoreSections(core)) {
+            coreDirty = true;
         }
 
-        if (dirty) {
-            saveConfig();
-            dirty = false;
+        if (coreDirty) {
+            writeJsonFile(CORE_CONFIG_PATH, core, "core");
         }
+
+        ensureRoleFilesForRegistry(roleConfigs);
+
+        config = core.deepCopy();
+        JsonObject rolesObject = new JsonObject();
+        roleConfigs.forEach((id, json) -> rolesObject.add(id.toString(), json));
+        config.add(ROLES_KEY, rolesObject);
 
         validateOverrides();
     }
 
-    private void ensureCoreSections() {
-        if (!config.has(ROLES_KEY) || !config.get(ROLES_KEY).isJsonObject()) {
-            config.add(ROLES_KEY, new JsonObject());
-            dirty = true;
+    private LoadResult readJsonObject(Path path, String description) {
+        if (!Files.exists(path)) {
+            return new LoadResult(null, LoadFailure.MISSING);
         }
-        if (!config.has(ABILITIES_KEY) || !config.get(ABILITIES_KEY).isJsonObject()) {
-            config.add(ABILITIES_KEY, new JsonObject());
-            dirty = true;
+
+        try (BufferedReader reader = Files.newBufferedReader(path)) {
+            JsonElement element = GSON.fromJson(reader, JsonElement.class);
+            if (element == null || element.isJsonNull()) {
+                Petsplus.LOGGER.warn("PetsPlus {} {} was empty; regenerating defaults.", description, path);
+                return new LoadResult(null, LoadFailure.EMPTY);
+            }
+            if (!element.isJsonObject()) {
+                Petsplus.LOGGER.warn("PetsPlus {} {} must be a JSON object. Leaving it untouched and using built-in defaults until it is corrected.", description, path);
+                return new LoadResult(null, LoadFailure.NOT_OBJECT);
+            }
+
+            Petsplus.LOGGER.info("Loaded PetsPlus {} from {}", description, path);
+            return new LoadResult(element.getAsJsonObject(), LoadFailure.NONE);
+        } catch (JsonParseException e) {
+            Petsplus.LOGGER.error("PetsPlus {} {} is malformed JSON. Leaving it untouched and using built-in defaults until it is corrected.", description, path, e);
+            return new LoadResult(null, LoadFailure.MALFORMED);
+        } catch (IOException e) {
+            Petsplus.LOGGER.error("Failed to read PetsPlus {} {}; using built-in defaults in memory and leaving the file untouched.", description, path, e);
+            return new LoadResult(null, LoadFailure.IO_ERROR);
         }
     }
 
-    private boolean migrateLegacySections(JsonObject root) {
-        boolean migrated = false;
-        JsonObject rolesObject = root.getAsJsonObject(ROLES_KEY);
-        for (Map.Entry<String, Identifier> entry : LEGACY_ROLE_KEYS.entrySet()) {
-            String legacyKey = entry.getKey();
-            if (root.has(legacyKey) && root.get(legacyKey).isJsonObject()) {
-                JsonObject legacy = root.remove(legacyKey).getAsJsonObject();
-                String identifierKey = entry.getValue().toString();
-                JsonObject target = rolesObject.has(identifierKey) && rolesObject.get(identifierKey).isJsonObject()
-                    ? rolesObject.getAsJsonObject(identifierKey)
-                    : new JsonObject();
-                mergeInto(target, legacy);
-                rolesObject.add(identifierKey, target);
-                Petsplus.LOGGER.warn("Migrated petsplus config section '{}' to identifier '{}'. Update custom overrides to the new schema.", legacyKey, identifierKey);
-                migrated = true;
-            }
+    private record LoadResult(JsonObject config, LoadFailure failure) {
+        boolean shouldWriteDefaults() {
+            return failure == LoadFailure.MISSING || failure == LoadFailure.EMPTY;
         }
-        return migrated;
+    }
+
+    private enum LoadFailure {
+        NONE,
+        MISSING,
+        EMPTY,
+        NOT_OBJECT,
+        MALFORMED,
+        IO_ERROR
+    }
+
+    private boolean ensureCoreSections(JsonObject core) {
+        boolean changed = false;
+        if (!core.has(ABILITIES_KEY) || !core.get(ABILITIES_KEY).isJsonObject()) {
+            core.add(ABILITIES_KEY, new JsonObject());
+            changed = true;
+        }
+        if (!core.has("petting") || !core.get("petting").isJsonObject()) {
+            core.add("petting", createPettingDefaults());
+            changed = true;
+        }
+        if (!core.has("pet_leveling") || !core.get("pet_leveling").isJsonObject()) {
+            core.add("pet_leveling", createPetLevelingDefaults());
+            changed = true;
+        }
+        if (!core.has("tribute_items") || !core.get("tribute_items").isJsonObject()) {
+            core.add("tribute_items", createDefaultTributeJson());
+            changed = true;
+        }
+        if (!core.has("pets") || !core.get("pets").isJsonObject()) {
+            core.add("pets", new JsonObject());
+            changed = true;
+        }
+        if (!core.has("visuals") || !core.get("visuals").isJsonObject()) {
+            core.add("visuals", createVisualDefaults());
+            changed = true;
+        }
+        return changed;
     }
 
     private void validateOverrides() {
@@ -153,160 +204,298 @@ public class PetsPlusConfig {
         }
     }
 
-    private void saveConfig() {
-        try {
-            Files.createDirectories(CONFIG_PATH.getParent());
-            Files.writeString(CONFIG_PATH, GSON.toJson(config));
-            Petsplus.LOGGER.info("Saved PetsPlus config to {}", CONFIG_PATH);
-        } catch (IOException e) {
-            Petsplus.LOGGER.error("Failed to save config file", e);
-        }
-    }
-
-    private JsonObject createDefaultConfig() {
+    private JsonObject createDefaultCoreConfig() {
         JsonObject root = new JsonObject();
-
-        JsonObject roles = new JsonObject();
-        roles.add(PetRoleType.GUARDIAN_ID.toString(), createGuardianDefaults());
-        roles.add(PetRoleType.STRIKER_ID.toString(), createStrikerDefaults());
-        roles.add(PetRoleType.SUPPORT_ID.toString(), createSupportDefaults());
-        roles.add(PetRoleType.SCOUT_ID.toString(), createScoutDefaults());
-        roles.add(PetRoleType.SKYRIDER_ID.toString(), createSkyriderDefaults());
-        roles.add(PetRoleType.ENCHANTMENT_BOUND_ID.toString(), createEnchantmentDefaults());
-        roles.add(PetRoleType.CURSED_ONE_ID.toString(), createCursedDefaults());
-        roles.add(PetRoleType.EEPY_EEPER_ID.toString(), createEepyDefaults());
-        roles.add(PetRoleType.ECLIPSED_ID.toString(), createEclipsedDefaults());
-        root.add(ROLES_KEY, roles);
-
         root.add(ABILITIES_KEY, new JsonObject());
-
         root.add("petting", createPettingDefaults());
         root.add("pet_leveling", createPetLevelingDefaults());
         root.add("tribute_items", createDefaultTributeJson());
         root.add("pets", new JsonObject());
         root.add("visuals", createVisualDefaults());
-
         return root;
     }
 
-    private static JsonObject createGuardianDefaults() {
-        JsonObject guardian = new JsonObject();
-        guardian.addProperty("projectileDrOnRedirectPct", 0.10);
-        guardian.addProperty("shieldBashIcdTicks", 120);
-        guardian.add("tribute_items", createDefaultTributeJson());
-        return guardian;
+    private void ensureConfigDirectories() {
+        try {
+            Files.createDirectories(CONFIG_DIR);
+            Files.createDirectories(ROLES_DIR);
+        } catch (IOException e) {
+            Petsplus.LOGGER.error("Failed to prepare PetsPlus config directories under {}", CONFIG_DIR, e);
+        }
     }
 
-    private static JsonObject createStrikerDefaults() {
-        JsonObject striker = new JsonObject();
-        striker.addProperty("executeThresholdPct", 0.35);
-        striker.addProperty("executeChainBonusPerStackPct", 0.02);
-        striker.addProperty("executeChainMaxStacks", 5);
-        striker.addProperty("executeChainDurationTicks", 60);
-        striker.addProperty("finisherMarkBonusPct", 0.20);
-        striker.addProperty("finisherMarkDurationTicks", 80);
-        striker.add("tribute_items", createDefaultTributeJson());
-        return striker;
+    private void migrateLegacyConfigIfNeeded() {
+        if (!Files.exists(LEGACY_CONFIG_PATH)) {
+            return;
+        }
+        if (Files.exists(CORE_CONFIG_PATH) || hasAnyRoleFiles()) {
+            return;
+        }
+
+        LoadResult result = readJsonObject(LEGACY_CONFIG_PATH, "config");
+        if (result.config() == null) {
+            return;
+        }
+
+        JsonObject legacyRoot = result.config();
+        Map<Identifier, JsonObject> roles = extractRolesFromCore(legacyRoot);
+        JsonObject core = legacyRoot;
+
+        writeJsonFile(CORE_CONFIG_PATH, core, "core");
+        roles.forEach(this::writeRoleConfig);
+
+        Path backup = LEGACY_CONFIG_PATH.resolveSibling("petsplus.json.legacy");
+        try {
+            Files.move(LEGACY_CONFIG_PATH, backup, StandardCopyOption.REPLACE_EXISTING);
+            Petsplus.LOGGER.info("Migrated PetsPlus config to {} (legacy file backed up to {}).", CONFIG_DIR, backup);
+        } catch (IOException e) {
+            Petsplus.LOGGER.warn("Migrated PetsPlus config to multi-file layout but failed to back up legacy file {}.", LEGACY_CONFIG_PATH, e);
+        }
     }
 
-    private static JsonObject createSupportDefaults() {
-        JsonObject support = new JsonObject();
-        support.addProperty("perchSipDiscount", 0.20);
-        support.addProperty("mountedConeExtraRadius", 2);
-        support.addProperty("auraRadius", 6.0);
-        support.addProperty("minLevel", 5);
-        support.addProperty("particleDensity", 0.4);
-        support.addProperty("particleHeight", 2.5);
-        support.addProperty("particleSpeed", 0.025);
-        support.addProperty("minParticles", 4);
-        support.addProperty("maxParticles", 16);
-        support.addProperty("particlesPerEntity", 3);
-        support.addProperty("swirlFactor", 0.8);
-        support.addProperty("companionChance", 0.3);
-        support.addProperty("subtleIntensity", 0.7);
-        JsonObject passiveAuras = new JsonObject();
-        JsonObject sittingAura = new JsonObject();
-        sittingAura.addProperty("interval", 60);
-        sittingAura.addProperty("radius", 6.0);
-        sittingAura.addProperty("min_level", 1);
-        sittingAura.addProperty("require_sitting", true);
-        passiveAuras.add("support_sit_regen", sittingAura);
-        support.add("passive_auras", passiveAuras);
-
-        JsonObject supportPotion = new JsonObject();
-        supportPotion.addProperty("interval", 140);
-        supportPotion.addProperty("radius", 6.0);
-        supportPotion.addProperty("min_level", 5);
-        supportPotion.addProperty("require_sitting", true);
-        supportPotion.addProperty("effect_duration", 120);
-        supportPotion.addProperty("apply_to_pet", true);
-        support.add("support_potion", supportPotion);
-        support.add("tribute_items", createDefaultTributeJson());
-        return support;
+    private boolean hasAnyRoleFiles() {
+        if (!Files.exists(ROLES_DIR)) {
+            return false;
+        }
+        try (Stream<Path> stream = Files.walk(ROLES_DIR)) {
+            return stream.anyMatch(path -> Files.isRegularFile(path) && path.toString().endsWith(".json"));
+        } catch (IOException e) {
+            Petsplus.LOGGER.error("Failed to inspect PetsPlus role overrides under {}", ROLES_DIR, e);
+            return false;
+        }
     }
 
-    private static JsonObject createScoutDefaults() {
-        JsonObject scout = new JsonObject();
-        scout.addProperty("lootWispDurationTicks", 80);
-        scout.add("tribute_items", createDefaultTributeJson());
-        return scout;
+    private JsonObject loadCoreConfig() {
+        LoadResult result = readJsonObject(CORE_CONFIG_PATH, "core config");
+        if (result.config() != null) {
+            return result.config();
+        }
+
+        JsonObject defaults = createDefaultCoreConfig();
+        if (result.shouldWriteDefaults()) {
+            writeJsonFile(CORE_CONFIG_PATH, defaults, "core");
+        } else {
+            Petsplus.LOGGER.warn("Using in-memory PetsPlus core defaults; fix or delete {} to restore saved overrides.", CORE_CONFIG_PATH);
+        }
+        return defaults;
     }
 
-    private static JsonObject createSkyriderDefaults() {
-        JsonObject skyrider = new JsonObject();
-        skyrider.addProperty("ownerProjLevitateChance", 0.10);
-        skyrider.addProperty("ownerProjLevitateIcdTicks", 200);
-        skyrider.add("tribute_items", createDefaultTributeJson());
-        return skyrider;
+    private Map<Identifier, JsonObject> loadRoleConfigs() {
+        Map<Identifier, JsonObject> roles = new LinkedHashMap<>();
+        if (!Files.exists(ROLES_DIR)) {
+            return roles;
+        }
+
+        try (Stream<Path> stream = Files.walk(ROLES_DIR)) {
+            stream.filter(Files::isRegularFile)
+                .filter(path -> path.getFileName().toString().endsWith(".json"))
+                .forEach(path -> {
+                    Identifier id = identifierFromRolePath(path);
+                    if (id == null) {
+                        Petsplus.LOGGER.warn("Ignoring PetsPlus role override with unparseable identifier at {}", path);
+                        return;
+                    }
+                    LoadResult result = readJsonObject(path, "role config for " + id);
+                    JsonObject json = result.config();
+                    if (json != null) {
+                        roles.put(id, json);
+                    } else {
+                        JsonObject defaults = createDefaultRoleConfig(id);
+                        roles.put(id, defaults);
+                        if (result.shouldWriteDefaults()) {
+                            writeRoleConfig(id, defaults);
+                        } else {
+                            Petsplus.LOGGER.warn("Using in-memory defaults for role {} while {} remains unreadable.", id, path);
+                        }
+                    }
+                });
+        } catch (IOException e) {
+            Petsplus.LOGGER.error("Failed to read PetsPlus role overrides from {}", ROLES_DIR, e);
+        }
+        return roles;
     }
 
-    private static JsonObject createEnchantmentDefaults() {
-        JsonObject enchantment = new JsonObject();
-        enchantment.addProperty("perchedHasteBonusTicks", 10);
-        enchantment.addProperty("mountedExtraRollsEnabled", true);
-        enchantment.addProperty("miningHasteBaseTicks", 40);
-        enchantment.addProperty("durabilityNoLossChance", 0.025);
-        enchantment.addProperty("extraDuplicationChanceBase", 0.05);
-        enchantment.addProperty("focusSurgeDurationTicks", 200);
-        enchantment.addProperty("focusCooldownTicks", 1200);
-        enchantment.add("tribute_items", createDefaultTributeJson());
-        return enchantment;
+    private Map<Identifier, JsonObject> extractRolesFromCore(JsonObject source) {
+        Map<Identifier, JsonObject> extracted = new LinkedHashMap<>();
+        if (source == null) {
+            return extracted;
+        }
+
+        JsonElement rolesElement = source.remove(ROLES_KEY);
+        if (rolesElement != null && rolesElement.isJsonObject()) {
+            JsonObject rolesObj = rolesElement.getAsJsonObject();
+            for (Map.Entry<String, JsonElement> entry : rolesObj.entrySet()) {
+                if (!entry.getValue().isJsonObject()) {
+                    continue;
+                }
+                Identifier id = parseRoleIdentifier(entry.getKey());
+                if (id == null) {
+                    continue;
+                }
+                JsonObject role = entry.getValue().getAsJsonObject();
+                extracted.merge(id, role, (existing, addition) -> {
+                    mergeInto(existing, addition);
+                    return existing;
+                });
+            }
+        }
+
+        for (Map.Entry<String, Identifier> entry : LEGACY_ROLE_KEYS.entrySet()) {
+            String legacyKey = entry.getKey();
+            if (!source.has(legacyKey)) {
+                continue;
+            }
+            JsonElement element = source.remove(legacyKey);
+            if (element == null || !element.isJsonObject()) {
+                continue;
+            }
+            Identifier id = entry.getValue();
+            warnLegacyScope(legacyKey, id);
+            JsonObject legacy = element.getAsJsonObject();
+            extracted.merge(id, legacy, (existing, addition) -> {
+                mergeInto(existing, addition);
+                return existing;
+            });
+        }
+
+        return extracted;
     }
 
-    private static JsonObject createCursedDefaults() {
-        JsonObject cursed = new JsonObject();
-        cursed.addProperty("doomEchoHealOnNextHitPct", 0.15);
-        cursed.addProperty("doomEchoWeaknessDurationTicks", 60);
-        cursed.add("tribute_items", createDefaultTributeJson());
-        return cursed;
+    private Identifier parseRoleIdentifier(String key) {
+        Identifier id = Identifier.tryParse(key);
+        if (id != null) {
+            return id;
+        }
+        Identifier legacy = LEGACY_ROLE_KEYS.get(key);
+        if (legacy != null) {
+            warnLegacyScope(key, legacy);
+        } else {
+            Petsplus.LOGGER.warn("Ignoring PetsPlus config entry '{}' because it is not a valid identifier.", key);
+        }
+        return legacy;
     }
 
-    private static JsonObject createEepyDefaults() {
-        JsonObject eepy = new JsonObject();
-        eepy.addProperty("perchNapExtraRadius", 1.0);
-        eepy.addProperty("sleepLevelUpChance", 0.5);
-        eepy.add("tribute_items", createDefaultTributeJson());
-        return eepy;
+    private void ensureRoleFilesForRegistry(Map<Identifier, JsonObject> roles) {
+        Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
+        for (Identifier id : registry.getIds()) {
+            JsonObject overrides = roles.get(id);
+            Path path = resolveRolePath(id);
+            if (overrides == null) {
+                JsonObject defaults = createDefaultRoleConfig(id);
+                roles.put(id, defaults);
+                writeRoleConfig(id, defaults);
+            } else if (!Files.exists(path)) {
+                writeRoleConfig(id, overrides);
+            }
+        }
     }
 
-    private static JsonObject createEclipsedDefaults() {
-        JsonObject eclipsed = new JsonObject();
-        eclipsed.addProperty("markDurationTicks", 80);
-        eclipsed.addProperty("ownerBonusVsMarkedPct", 0.10);
-        eclipsed.addProperty("ownerNextHitEffect", "minecraft:wither");
-        eclipsed.addProperty("ownerNextHitEffectDurationTicks", 40);
-        eclipsed.addProperty("phaseChargeInternalCdTicks", 400);
-        eclipsed.addProperty("phaseChargeBonusDamagePct", 0.25);
-        eclipsed.addProperty("phaseChargeWindowTicks", 100);
-        eclipsed.addProperty("perchPingIntervalTicks", 140);
-        eclipsed.addProperty("perchPingRadius", 8);
-        eclipsed.addProperty("eventHorizonDurationTicks", 100);
-        eclipsed.addProperty("eventHorizonRadius", 6.0);
-        eclipsed.addProperty("eventHorizonProjectileDrPct", 0.25);
-        eclipsed.addProperty("edgeStepFallReductionPct", 0.25);
-        eclipsed.addProperty("edgeStepCooldownTicks", 240);
-        eclipsed.add("tribute_items", createDefaultTributeJson());
-        return eclipsed;
+    public static void onRoleRegistered(Identifier roleId) {
+        PetsPlusConfig current = instance;
+        if (current != null) {
+            current.ensureRoleConfigFile(roleId);
+        }
+    }
+
+    private synchronized void ensureRoleConfigFile(Identifier roleId) {
+        Path path = resolveRolePath(roleId);
+        if (!Files.exists(path)) {
+            JsonObject defaults = createDefaultRoleConfig(roleId);
+            writeRoleConfig(roleId, defaults);
+            updateInMemoryRoleOverrides(roleId, defaults);
+            return;
+        }
+
+        // Ensure the in-memory snapshot knows about the newly registered role.
+        if (config != null) {
+            LoadResult result = readJsonObject(path, "role config for " + roleId);
+            JsonObject json = result.config();
+            updateInMemoryRoleOverrides(roleId, json != null ? json : new JsonObject());
+        }
+    }
+
+    public synchronized void regenerateRoleConfig(Identifier roleId) {
+        Path path = resolveRolePath(roleId);
+        if (Files.exists(path)) {
+            backupRoleConfig(path);
+        }
+
+        JsonObject defaults = createDefaultRoleConfig(roleId);
+        writeRoleConfig(roleId, defaults);
+        updateInMemoryRoleOverrides(roleId, defaults);
+        Petsplus.LOGGER.info("Regenerated PetsPlus role config template for {}", roleId);
+    }
+
+    private void updateInMemoryRoleOverrides(Identifier roleId, JsonObject overrides) {
+        if (config == null) {
+            return;
+        }
+        JsonObject rolesObject = getRolesObject();
+        if (rolesObject == null) {
+            rolesObject = new JsonObject();
+            config.add(ROLES_KEY, rolesObject);
+        }
+        rolesObject.add(roleId.toString(), overrides != null ? overrides.deepCopy() : new JsonObject());
+    }
+
+    private JsonObject createDefaultRoleConfig(Identifier roleId) {
+        Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
+        PetRoleType roleType = registry.get(roleId);
+        return RoleConfigTemplate.fromRole(roleId, roleType);
+    }
+
+    private void writeRoleConfig(Identifier roleId, JsonObject json) {
+        Path path = resolveRolePath(roleId);
+        writeJsonFile(path, json, "role " + roleId);
+    }
+
+    private Path resolveRolePath(Identifier roleId) {
+        return ROLES_DIR.resolve(roleId.getNamespace()).resolve(roleId.getPath() + ".json");
+    }
+
+
+    private Identifier identifierFromRolePath(Path path) {
+        Path relative = ROLES_DIR.relativize(path);
+        int count = relative.getNameCount();
+        if (count < 2) {
+            return null;
+        }
+        String namespace = relative.getName(0).toString();
+        Path remainder = relative.subpath(1, count);
+        String filename = remainder.getFileName().toString();
+        if (!filename.endsWith(".json")) {
+            return null;
+        }
+        String withoutExtension = remainder.toString().substring(0, remainder.toString().length() - 5);
+        String identifierPath = withoutExtension.replace(File.separatorChar, '/');
+        return Identifier.tryParse(namespace + ":" + identifierPath);
+    }
+
+    private void backupRoleConfig(Path path) {
+        try {
+            Path parent = path.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Path backup = path.resolveSibling(path.getFileName().toString() + ".bak");
+            Files.copy(path, backup, StandardCopyOption.REPLACE_EXISTING);
+            Petsplus.LOGGER.info("Backed up PetsPlus role config {} to {}", path, backup);
+        } catch (IOException e) {
+            Petsplus.LOGGER.warn("Failed to back up PetsPlus role config at {}", path, e);
+        }
+    }
+
+    private void writeJsonFile(Path path, JsonObject json, String description) {
+        try {
+            Path parent = path.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.writeString(path, GSON.toJson(json));
+            Petsplus.LOGGER.info("Saved PetsPlus {} to {}", description, path);
+        } catch (IOException e) {
+            Petsplus.LOGGER.error("Failed to save PetsPlus {} at {}", description, path, e);
+        }
     }
 
     private static JsonObject createPettingDefaults() {
@@ -453,6 +642,10 @@ public class PetsPlusConfig {
         return readDouble(lookupAbilityOverrides(abilityId), key, defaultValue);
     }
 
+    public int getAbilityInt(Identifier abilityId, String key, int defaultValue) {
+        return readInt(lookupAbilityOverrides(abilityId), key, defaultValue);
+    }
+
     public double getSectionDouble(String section, String key, double defaultValue) {
         return readDouble(getSection(section), key, defaultValue);
     }
@@ -492,13 +685,19 @@ public class PetsPlusConfig {
     public double resolveScopedDouble(String scope, String key, double defaultValue) {
         Identifier id = Identifier.tryParse(scope);
         if (id != null) {
+            if (PetsPlusRegistries.petRoleTypeRegistry().containsId(id)) {
+                return getRoleDouble(id, key, defaultValue);
+            }
+            if (PetsPlusRegistries.abilityTypeRegistry().containsId(id)) {
+                return getAbilityDouble(id, key, defaultValue);
+            }
             return readDouble(getIdentifierOverrides(id), key, defaultValue);
         }
 
         Identifier legacy = LEGACY_ROLE_KEYS.get(scope);
         if (legacy != null) {
             warnLegacyScope(scope, legacy);
-            return readDouble(lookupRoleOverrides(legacy), key, defaultValue);
+            return getRoleDouble(legacy, key, defaultValue);
         }
 
         return getSectionDouble(scope, key, defaultValue);
@@ -507,13 +706,19 @@ public class PetsPlusConfig {
     public int resolveScopedInt(String scope, String key, int defaultValue) {
         Identifier id = Identifier.tryParse(scope);
         if (id != null) {
+            if (PetsPlusRegistries.petRoleTypeRegistry().containsId(id)) {
+                return getRoleInt(id, key, defaultValue);
+            }
+            if (PetsPlusRegistries.abilityTypeRegistry().containsId(id)) {
+                return getAbilityInt(id, key, defaultValue);
+            }
             return readInt(getIdentifierOverrides(id), key, defaultValue);
         }
 
         Identifier legacy = LEGACY_ROLE_KEYS.get(scope);
         if (legacy != null) {
             warnLegacyScope(scope, legacy);
-            return readInt(lookupRoleOverrides(legacy), key, defaultValue);
+            return getRoleInt(legacy, key, defaultValue);
         }
 
         return getSectionInt(scope, key, defaultValue);
