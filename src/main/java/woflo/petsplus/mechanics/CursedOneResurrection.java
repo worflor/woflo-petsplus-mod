@@ -14,7 +14,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.ui.AfterimageManager;
 
@@ -746,7 +746,7 @@ public class CursedOneResurrection {
         }
 
         PetComponent petComp = PetComponent.get(mobEntity);
-        if (petComp == null || petComp.getRole() != PetRole.CURSED_ONE) {
+        if (petComp == null || !petComp.hasRole(PetRoleType.CURSED_ONE)) {
             return true; // Not a Cursed One pet, allow death
         }
 
@@ -990,7 +990,7 @@ public class CursedOneResurrection {
             entity -> {
                 PetComponent petComp = PetComponent.get(entity);
                 return petComp != null && 
-                       petComp.getRole() == PetRole.CURSED_ONE &&
+                       petComp.hasRole(PetRoleType.CURSED_ONE) &&
                        petComp.isOwnedBy(owner) &&
                        entity.isAlive() &&
                        petComp.getLevel() >= 15; // Must be at least level 15 to resurrect (doom echo unlock level)
@@ -1148,7 +1148,7 @@ public class CursedOneResurrection {
      */
     public static boolean canPetResurrectOwner(MobEntity cursedPet) {
         PetComponent petComp = PetComponent.get(cursedPet);
-        if (petComp == null || petComp.getRole() != PetRole.CURSED_ONE) {
+        if (petComp == null || !petComp.hasRole(PetRoleType.CURSED_ONE)) {
             return false;
         }
         
@@ -1196,7 +1196,7 @@ public class CursedOneResurrection {
             petEntity -> {
                 PetComponent petComp = PetComponent.get(petEntity);
                 return petComp != null &&
-                       petComp.getRole() == PetRole.CURSED_ONE &&
+                       petComp.hasRole(PetRoleType.CURSED_ONE) &&
                        petComp.isOwnedBy(owner) &&
                        petEntity.isAlive();
             }

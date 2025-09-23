@@ -3,7 +3,9 @@ package woflo.petsplus.ui;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
-import woflo.petsplus.api.PetRole;
+import net.minecraft.util.Identifier;
+import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.ArrayList;
@@ -20,12 +22,22 @@ public final class PetUIHelper {
 
         // Line 1: Name • Role • Level
         String name = pet.getDisplayName().getString();
-        PetRole role = comp.getRole();
+        Identifier roleId = comp.getRoleId();
+        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
         int level = comp.getLevel();
+        String roleName;
+        if (roleType != null) {
+            String translated = Text.translatable(roleType.translationKey()).getString();
+            roleName = translated.equals(roleType.translationKey())
+                ? PetRoleType.fallbackName(roleId)
+                : translated;
+        } else {
+            roleName = PetRoleType.fallbackName(roleId);
+        }
 
         Text line1 = UIStyle.bold(Text.literal(name).formatted(Formatting.AQUA))
             .append(UIStyle.sepDot())
-            .append(UIStyle.italic(Text.literal(role != null ? role.getDisplayName() : "Unknown").formatted(Formatting.GOLD)))
+            .append(UIStyle.italic(Text.literal(roleName).formatted(Formatting.GOLD)))
             .append(UIStyle.sepDot())
             .append(UIStyle.secondary("Lv "))
             .append(UIStyle.value(String.valueOf(level), Formatting.GREEN));

@@ -15,7 +15,11 @@ import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
-import woflo.petsplus.api.PetRole;
+import net.minecraft.util.Identifier;
+import org.jetbrains.annotations.Nullable;
+import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.api.registry.PetsPlusRegistries;
+import woflo.petsplus.commands.arguments.PetRoleArgumentType;
 import woflo.petsplus.component.PetsplusComponents;
 import woflo.petsplus.items.PetsplusItemUtils;
 import woflo.petsplus.datagen.PetsplusLootHandler;
@@ -66,13 +70,7 @@ public class PetsplusAdminCommands {
                     .then(CommandManager.argument("xp", IntegerArgumentType.integer(0))
                         .executes(PetsplusAdminCommands::setPetXp)))
                 .then(CommandManager.literal("setrole")
-                    .then(CommandManager.argument("role", StringArgumentType.string())
-                        .suggests((context, builder) -> {
-                            for (PetRole role : PetRole.values()) {
-                                builder.suggest(role.getKey());
-                            }
-                            return builder.buildFuture();
-                        })
+                    .then(CommandManager.argument("role", PetRoleArgumentType.petRole())
                         .executes(PetsplusAdminCommands::setPetRole)))
                 .then(CommandManager.literal("addbond")
                     .then(CommandManager.argument("amount", IntegerArgumentType.integer(1, 10000))
@@ -218,8 +216,6 @@ public class PetsplusAdminCommands {
     
     private static int setPetRole(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-        String roleKey = StringArgumentType.getString(context, "role");
-        
         MobEntity targetPet = findNearestPet(player);
         if (targetPet == null) {
             player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
@@ -232,14 +228,15 @@ public class PetsplusAdminCommands {
             return 0;
         }
         
-        PetRole role = PetRole.fromKey(roleKey);
-        if (role == null) {
-            player.sendMessage(Text.literal("Invalid role: " + roleKey).formatted(Formatting.RED), false);
-            return 0;
-        }
-        
-        petComp.setRole(role);
-        player.sendMessage(Text.literal("Pet role set to " + role.getDisplayName()).formatted(Formatting.GREEN), false);
+        Identifier roleId = PetRoleArgumentType.getRoleId(context, "role");
+        petComp.setRoleId(roleId);
+
+        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+        Text label = resolveRoleLabel(roleId, roleType);
+
+        player.sendMessage(Text.literal("Pet role set to ")
+            .formatted(Formatting.GREEN)
+            .append(label.copy().formatted(Formatting.AQUA)), false);
         return 1;
     }
     
@@ -303,7 +300,19 @@ public class PetsplusAdminCommands {
         // Display comprehensive pet information
         player.sendMessage(Text.literal("=== Pet Information ===").formatted(Formatting.GOLD), false);
         player.sendMessage(Text.literal("Type: " + targetPet.getType().getName().getString()), false);
-        player.sendMessage(Text.literal("Role: " + petComp.getRole().getDisplayName()), false);
+        Identifier roleId = petComp.getRoleId();
+        PetRoleType roleType = petComp.getRoleType(false);
+        String roleLabel;
+        if (roleType != null) {
+            Text translated = Text.translatable(roleType.translationKey());
+            String translatedString = translated.getString();
+            roleLabel = translatedString.equals(roleType.translationKey())
+                ? PetRoleType.fallbackName(roleId)
+                : translatedString;
+        } else {
+            roleLabel = roleId.toString();
+        }
+        player.sendMessage(Text.literal("Role: " + roleLabel), false);
         player.sendMessage(Text.literal("Level: " + petComp.getLevel() + " (" + petComp.getExperience() + " XP)"), false);
         player.sendMessage(Text.literal("Bond Strength: " + petComp.getBondStrength()), false);
         player.sendMessage(Text.literal("Owner: " + (petComp.getOwner() != null ? petComp.getOwner().getName().getString() : "None")), false);
@@ -396,11 +405,22 @@ public class PetsplusAdminCommands {
     // ============ UTILITY METHODS ============
     
     private static MobEntity findNearestPet(PlayerEntity player) {
-        return player.getWorld().getEntitiesByClass(MobEntity.class, 
-            player.getBoundingBox().expand(10.0), 
+        return player.getWorld().getEntitiesByClass(MobEntity.class,
+            player.getBoundingBox().expand(10.0),
             entity -> {
                 PetComponent petComp = PetComponent.get(entity);
                 return petComp != null && petComp.isOwnedBy(player);
             }).stream().findFirst().orElse(null);
+    }
+
+    private static Text resolveRoleLabel(Identifier roleId, @Nullable PetRoleType roleType) {
+        if (roleType != null) {
+            Text translated = Text.translatable(roleType.translationKey());
+            if (!translated.getString().equals(roleType.translationKey())) {
+                return translated;
+            }
+        }
+
+        return Text.literal(PetRoleType.fallbackName(roleId));
     }
 }

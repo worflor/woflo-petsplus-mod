@@ -15,7 +15,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.Heightmap;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.List;
@@ -93,7 +93,7 @@ public class EclipsedVoidSave {
             entity -> {
                 PetComponent petComp = PetComponent.get(entity);
                 return petComp != null && 
-                       petComp.getRole() == PetRole.ECLIPSED &&
+                       petComp.hasRole(PetRoleType.ECLIPSED) &&
                        petComp.isOwnedBy(owner) &&
                        entity.isAlive() &&
                        petComp.getLevel() >= 4; // Must be at least level 4 to void save
@@ -292,7 +292,7 @@ public class EclipsedVoidSave {
      */
     public static boolean canPetVoidSave(MobEntity eclipsedPet) {
         PetComponent petComp = PetComponent.get(eclipsedPet);
-        if (petComp == null || petComp.getRole() != PetRole.ECLIPSED) {
+        if (petComp == null || !petComp.hasRole(PetRoleType.ECLIPSED)) {
             return false;
         }
         

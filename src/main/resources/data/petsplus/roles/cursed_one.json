@@ -1,0 +1,51 @@
+{
+  "id": "petsplus:cursed_one",
+  "translation_key": "petsplus.role.cursed_one",
+  "base_stat_scalars": {
+    "curse": 0.02
+  },
+  "stat_affinities": {
+    "attack": 0.03,
+    "vitality": 0.03,
+    "learning": 0.04
+  },
+  "default_abilities": [
+    "petsplus:doom_echo"
+  ],
+  "tribute_defaults": {
+    "10": "minecraft:gold_ingot",
+    "20": "minecraft:diamond",
+    "30": "minecraft:netherite_ingot"
+  },
+  "xp_curve": {
+    "max_level": 30,
+    "feature_levels": [3, 7, 12, 17, 23, 27],
+    "tribute_milestones": [10, 20, 30],
+    "base_linear_per_level": 20,
+    "quadratic_factor": 8,
+    "feature_level_bonus_multiplier": 0.75
+  },
+  "visual": {
+    "primary_color": "#4b1f1f",
+    "secondary_color": "#a01919",
+    "ambient_event": "cursed_one_ambient",
+    "ability_event_prefix": "cursed_one"
+  },
+  "presentation": {
+    "petting": {
+      "feedback_event": "cursed_dark_affection",
+      "message": {
+        "fallback": "Your cursed companion's eyes glow with twisted loyalty"
+      }
+    },
+    "memorial_epithets": [
+      { "fallback": "The Beautiful Curse" },
+      { "fallback": "The Dark Blessing" },
+      { "fallback": "The Shadowed Light" },
+      { "fallback": "The Grim Fortune" }
+    ],
+    "admin_summary": {
+      "fallback": "Dark magic wielder with high risk and reward mechanics"
+    }
+  }
+}

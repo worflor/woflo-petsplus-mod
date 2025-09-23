@@ -6,7 +6,7 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
 /**
@@ -42,7 +42,7 @@ public class EnchantmentBoundCore {
         // Handle Enchantment-Bound pet magical resistances
         if (entity instanceof MobEntity mobEntity) {
             PetComponent petComp = PetComponent.get(mobEntity);
-            if (petComp != null && petComp.getRole() == PetRole.ENCHANTMENT_BOUND) {
+            if (petComp != null && petComp.hasRole(PetRoleType.ENCHANTMENT_BOUND)) {
                 // Apply magical damage resistance
                 if (isMagicalDamage(damageSource)) {
                     return damageAmount <= 1.0f; // High magical resistance
@@ -73,8 +73,8 @@ public class EnchantmentBoundCore {
                     player.getBoundingBox().expand(16.0),
                     entity -> {
                         PetComponent component = PetComponent.get(entity);
-                        return component != null && 
-                               component.getRole() == PetRole.ENCHANTMENT_BOUND &&
+                        return component != null &&
+                               component.hasRole(PetRoleType.ENCHANTMENT_BOUND) &&
                                entity.isAlive() &&
                                component.isOwnedBy(player);
                     }
@@ -104,7 +104,7 @@ public class EnchantmentBoundCore {
             entity -> {
                 PetComponent component = PetComponent.get(entity);
                 return component != null && 
-                       component.getRole() == PetRole.ENCHANTMENT_BOUND &&
+                       component.hasRole(PetRoleType.ENCHANTMENT_BOUND) &&
                        entity.isAlive() &&
                        component.isOwnedBy(player) &&
                        entity.squaredDistanceTo(player) <= searchRadius * searchRadius;
@@ -142,7 +142,7 @@ public class EnchantmentBoundCore {
             entity -> {
                 PetComponent component = PetComponent.get(entity);
                 return component != null && 
-                       component.getRole() == PetRole.ENCHANTMENT_BOUND &&
+                       component.hasRole(PetRoleType.ENCHANTMENT_BOUND) &&
                        entity.isAlive() &&
                        component.isOwnedBy(player);
             }
@@ -172,7 +172,7 @@ public class EnchantmentBoundCore {
             entity -> {
                 PetComponent component = PetComponent.get(entity);
                 return component != null && 
-                       component.getRole() == PetRole.ENCHANTMENT_BOUND &&
+                       component.hasRole(PetRoleType.ENCHANTMENT_BOUND) &&
                        component.getLevel() >= 7 && // L7+ for Mystic Bond
                        entity.isAlive() &&
                        component.isOwnedBy(player);
@@ -199,7 +199,7 @@ public class EnchantmentBoundCore {
             entity -> {
                 PetComponent component = PetComponent.get(entity);
                 return component != null && 
-                       component.getRole() == PetRole.ENCHANTMENT_BOUND &&
+                       component.hasRole(PetRoleType.ENCHANTMENT_BOUND) &&
                        entity.isAlive() &&
                        component.isOwnedBy(player);
             }

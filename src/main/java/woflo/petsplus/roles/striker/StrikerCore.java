@@ -7,7 +7,7 @@ import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
 /**
@@ -70,8 +70,8 @@ public class StrikerCore {
             player.getBoundingBox().expand(searchRadius),
             entity -> {
                 PetComponent component = PetComponent.get(entity);
-                return component != null && 
-                       component.getRole() == PetRole.STRIKER &&
+                return component != null &&
+                       component.hasRole(PetRoleType.STRIKER) &&
                        entity.isAlive() &&
                        component.isOwnedBy(player) &&
                        entity.squaredDistanceTo(player) <= searchRadius * searchRadius;

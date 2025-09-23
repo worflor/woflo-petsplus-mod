@@ -2,9 +2,12 @@ package woflo.petsplus.state;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import woflo.petsplus.advancement.AdvancementManager;
+import net.minecraft.util.Identifier;
+import woflo.petsplus.Petsplus;
+import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.api.registry.PetsPlusRegistries;
+import woflo.petsplus.effects.PetsplusEffectManager;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -19,6 +22,7 @@ public class StateManager {
     private final ServerWorld world;
     private final Map<MobEntity, PetComponent> petComponents = new WeakHashMap<>();
     private final Map<PlayerEntity, OwnerCombatState> ownerStates = new WeakHashMap<>();
+    private long lastAuraCleanupTick;
     
     private StateManager(ServerWorld world) {
         this.world = world;
@@ -62,15 +66,28 @@ public class StateManager {
      * Assign a role to a pet for testing purposes.
      */
     public boolean assignRole(MobEntity pet, String roleName) {
-        try {
-            // Ensure component exists for this pet
-            getPetComponent(pet);
-            // For testing, we'll just store the role name as a string
-            // In a full implementation, this would parse the role name to a PetRole enum
-            return true;
-        } catch (Exception e) {
+        if (pet == null || roleName == null) {
             return false;
         }
+
+        Identifier roleId = PetRoleType.normalizeId(roleName);
+        if (roleId == null) {
+            Petsplus.LOGGER.warn("Attempted to assign invalid role '{}' to pet {}", roleName, pet.getUuid());
+            return false;
+        }
+
+        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+        if (roleType == null) {
+            Petsplus.LOGGER.warn("Attempted to assign unknown role '{}' to pet {}", roleId, pet.getUuid());
+            return false;
+        }
+
+        PetComponent component = getPetComponent(pet);
+        component.setRoleId(roleId);
+        component.ensureCharacteristics();
+
+        Petsplus.LOGGER.debug("Assigned role {} ({}) to pet {}", roleId, roleType.translationKey(), pet.getUuid());
+        return true;
     }
     
     /**
@@ -131,6 +148,8 @@ public class StateManager {
         // Clean up expired particle effect tracking
         woflo.petsplus.ui.CooldownParticleManager.cleanup(world.getTime());
 
+        long time = world.getTime();
+
         // Pet-local periodic triggers and lightweight support mechanics
         if (!petComponents.isEmpty()) {
             for (Map.Entry<MobEntity, PetComponent> entry : petComponents.entrySet()) {
@@ -144,20 +163,20 @@ public class StateManager {
                 comp.updateCooldowns();
 
                 // Emit interval trigger every 20 ticks (approx 1s) and also faster at 40 if needed
-                long time = world.getTime();
                 if (time % 20 == 0) {
                     woflo.petsplus.api.TriggerContext ctx = new woflo.petsplus.api.TriggerContext(
                         world, pet, owner, "interval_tick");
                     woflo.petsplus.abilities.AbilityManager.triggerAbilities(pet, ctx);
                 }
 
-                // Support role extras: apply sitting aura if not moving and collect owner-thrown potions
-                if (comp.getRole() == woflo.petsplus.api.PetRole.SUPPORT) {
-                    applySupportSittingAuraIfEligible(pet, owner);
-                    // Pulse AoE from stored potion every second
-                    if (world.getTime() % 20 == 0) {
-                        applyStoredPotionAura(pet, owner, comp);
-                    }
+                try {
+                    PetsplusEffectManager.applyRoleAuraEffects(world, pet, comp, owner);
+                } catch (Exception e) {
+                    Petsplus.LOGGER.warn("Failed to apply aura effects for pet {}", pet.getUuid(), e);
+                }
+
+                PetRoleType roleType = comp.getRoleType(false);
+                if (roleType != null && roleType.supportPotionBehavior() != null) {
                     pickupNearbyPotionsForSupport(pet, owner);
                 }
 
@@ -166,6 +185,11 @@ public class StateManager {
                     woflo.petsplus.ui.ParticleEffectManager.emitRoleParticles(pet, world, time);
                 }
             }
+        }
+
+        if (time - lastAuraCleanupTick >= 6000) {
+            PetsplusEffectManager.cleanup();
+            lastAuraCleanupTick = time;
         }
     }
     
@@ -200,32 +224,6 @@ public class StateManager {
         return new HashMap<>(ownerStates);
     }
 
-    // --- Support role helpers (lightweight, pet-local) ---
-    private void applySupportSittingAuraIfEligible(MobEntity pet, PlayerEntity owner) {
-        // If pet is tame and is sitting or effectively stationary, pulse a small regen to owner
-        boolean sitting = (pet instanceof net.minecraft.entity.passive.TameableEntity t) && t.isSitting();
-        boolean stationary = pet.getVelocity().lengthSquared() < 1.0E-4;
-        if (!(sitting || stationary)) return;
-
-        // Small radius around pet to affect owner (owner must be close)
-        if (pet.squaredDistanceTo(owner) > 6.0 * 6.0) return;
-
-        // Apply a short regeneration tick; rely on StatusEffect merge to keep light
-        owner.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(
-            net.minecraft.entity.effect.StatusEffects.REGENERATION,
-            40, // 2s, refreshed by pulses
-            0,
-            false,
-            false,
-            true
-        ));
-
-        // Emit feedback for sitting regen (only occasionally to avoid spam)
-        if (world.getTime() % 60 == 0) { // Every 3 seconds
-            woflo.petsplus.ui.FeedbackManager.emitSupportRegenArea(pet, (net.minecraft.server.world.ServerWorld) world);
-        }
-    }
-
     private void pickupNearbyPotionsForSupport(MobEntity pet, PlayerEntity owner) {
         // Allow giving potions: if player Q-drops or throws a potion item near the pet, "store" it by tagging comp state
         // This is a simple pickup: find ItemEntity with potion item in small radius and consume one
@@ -257,59 +255,4 @@ public class StateManager {
             5, 0.2, 0.2, 0.2, 0.01);
     }
 
-    private void applyStoredPotionAura(MobEntity pet, PlayerEntity owner, PetComponent comp) {
-        if (!(world instanceof net.minecraft.server.world.ServerWorld serverWorld)) return;
-        if (!woflo.petsplus.roles.support.SupportPotionUtils.hasStoredPotion(comp)) {
-            return;
-        }
-
-        long currentTime = world.getTime();
-        if (currentTime % woflo.petsplus.roles.support.SupportPotionUtils.SUPPORT_POTION_PULSE_INTERVAL_TICKS != 0) {
-            return;
-        }
-
-        var potionState = woflo.petsplus.roles.support.SupportPotionUtils.getStoredState(comp);
-        if (!potionState.isValid()) {
-            return;
-        }
-
-        java.util.List<net.minecraft.entity.effect.StatusEffectInstance> effects =
-            woflo.petsplus.roles.support.SupportPotionUtils.deserializeEffects(
-                potionState.serializedEffects(),
-                potionState.auraDurationTicks()
-            );
-        if (effects.isEmpty()) {
-            woflo.petsplus.roles.support.SupportPotionUtils.clearStoredPotion(comp);
-            return;
-        }
-
-        // Apply to allies around pet (owner + friendly players within small radius)
-        double radius = 6.0;
-        var box = pet.getBoundingBox().expand(radius);
-        java.util.List<net.minecraft.entity.player.PlayerEntity> allies = new java.util.ArrayList<>();
-        allies.add(owner);
-        allies.addAll(serverWorld.getEntitiesByClass(net.minecraft.entity.player.PlayerEntity.class, box,
-            p -> p != owner && p.isAlive() && p.squaredDistanceTo(pet) <= radius * radius));
-
-        for (var p : allies) {
-            boolean appliedEffect = false;
-            for (var e : effects) {
-                // Refresh only if nearly expired to avoid heavy packets
-                var existing = p.getStatusEffect(e.getEffectType());
-                if (existing != null && existing.getDuration() > 20) continue;
-                p.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(e));
-                appliedEffect = true;
-            }
-
-            if (appliedEffect && owner instanceof ServerPlayerEntity serverOwner && p instanceof ServerPlayerEntity serverAlly) {
-                AdvancementManager.triggerSupportHealAllies(serverOwner, serverAlly);
-            }
-        }
-
-        // Emit feedback for potion pulse (aligned with actual cadence)
-        woflo.petsplus.ui.FeedbackManager.emitFeedback("support_potion_pulse", pet, serverWorld);
-
-        double consumption = woflo.petsplus.roles.support.SupportPotionUtils.getConsumptionPerPulse(comp);
-        woflo.petsplus.roles.support.SupportPotionUtils.consumeCharges(comp, potionState, consumption);
-    }
 }
