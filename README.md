@@ -18,7 +18,7 @@ Each role has a unique set of abilities, and can be applied to *any* tamable/tru
 
 7. **Cursed One** — a beautiful bad omen that turns fear into leverage. When you’re hurting, it rattles nearby foes and lets a payback swing restore you.
 
-8. **Eepy Eeper** — cozy magic that rewards slowing down. Let it rest and a quiet healing bubble blooms around you.
+8. **Eepy Eeper** — a cozy buddy that rewards slowing down. Let it rest and a quiet healing bubble blooms around you.
 
 9. **Eclipsed** — void-kissed mischief that paints targets for ruin. It brands enemies, gives sudden speed bursts, and sends out pings that reveal nearby lurkers.
 
@@ -30,12 +30,25 @@ Your pet shares your experience and grows alongside you. Feature levels (3, 7, 1
 ## Pet Death and Loss
 If your pet dies, it will drop all its items and be gone for good. Your tribute items are lost and all pet experience is lost. You will need to invest in a new pet.
 
-## Configuration
+## Configuration and Expandability
 Pets+ includes a configuration file (`config/petsplus.json`) where you can customize various settings. Explore it yourself.
-- Tribute Level + Items
-- 
+- Roles, Abilities, and Tributes have configurations availible.
+- The backend API is open for extending via Datapacks and Add-On Mods. The base roles, abilities, and progression rewards can be tinkered and altered to your liking. Adjust or add at will.
 
-
+## Advancements
+- "Best Friends Forever++"
+- "Trial-Ready"
+- "The Melody of the Wind"
+- "Edgewalker"
+- "Even Bester Friends Foreverer!"
+- "Or not."
+- "The Truest Form of Sacrilege"
+- "Mmmm, Healing Magic!"
+- "Is This Designer?"
+- "I love you and me"
+- "Noo, Luna!"
+- "At what cost..."
+- "Heartless, but Alive."
 
 ## Credits
 - woflo - (me)
