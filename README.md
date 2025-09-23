@@ -22,7 +22,7 @@ Each role has a unique set of abilities, and can be applied to *any* tamable/tru
 
 9. **Eclipsed** — void-kissed mischief that paints targets for ruin. It brands enemies, gives sudden speed bursts, and sends out pings that reveal nearby lurkers.
 
-Your pet shares your experience and grows alongside you. Feature levels (3, 7, 12, 17, 23, 27) unlock new abilities and grant XP bonuses. At tribute gates, offer a token to continue growing:
+Your pet shares your experience and grows alongside you. Feature levels (3, 7, 12, 17, 23, 27) unlock new abilities and bonuses. At tribute gates, offer a token to continue growing:
 - **Level 10 →** Gold Ingot  
 - **Level 20 →** Diamond  
 - **Level 30 →** Netherite Ingot
