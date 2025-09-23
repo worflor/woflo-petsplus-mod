@@ -6,6 +6,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
+import woflo.petsplus.api.TriggerContext;
 
 /**
  * Effect that applies a knockup/knockback to a target entity.
@@ -48,20 +49,50 @@ public class KnockupEffect implements Effect {
     }
     
     private Entity getTargetEntity(EffectContext context) {
+        TriggerContext triggerContext = context.getTriggerContext();
+
         switch (targetType.toLowerCase()) {
             case "victim":
-                return context.getTriggerContext().getVictim();
+                Entity storedVictim = getStoredTarget(context);
+                if (storedVictim != null) {
+                    return storedVictim;
+                }
+
+                return triggerContext != null ? triggerContext.getVictim() : null;
             case "owner":
                 return context.getOwner();
             case "pet":
                 return context.getPet();
             default:
-                // Try to get explicit target first
-                Entity target = context.getTarget();
-                if (target != null) return target;
-                
-                // Fall back to victim from trigger context
-                return context.getTriggerContext().getVictim();
+                Entity target = getStoredTarget(context);
+                if (target != null) {
+                    return target;
+                }
+
+                if (triggerContext != null) {
+                    Entity triggerTarget = triggerContext.getData("target", Entity.class);
+                    if (triggerTarget != null) {
+                        return triggerTarget;
+                    }
+
+                    return triggerContext.getVictim();
+                }
+
+                return null;
         }
+    }
+
+    private Entity getStoredTarget(EffectContext context) {
+        Entity target = context.getTarget();
+        if (target != null) {
+            return target;
+        }
+
+        target = context.getData("target", Entity.class);
+        if (target != null) {
+            return target;
+        }
+
+        return context.getData("victim", Entity.class);
     }
 }
