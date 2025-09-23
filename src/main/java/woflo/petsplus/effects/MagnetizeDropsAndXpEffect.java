@@ -11,6 +11,7 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 
 import java.util.HashMap;
@@ -44,7 +45,7 @@ public class MagnetizeDropsAndXpEffect implements Effect {
         this.radius = config.has("radius") ? config.get("radius").getAsDouble() : 12.0;
         this.durationTicks = config.has("duration_ticks") ? 
             config.get("duration_ticks").getAsInt() : 
-            PetsPlusConfig.getInstance().getInt("scout", "lootWispDurationTicks", 80);
+            PetsPlusConfig.getInstance().getRoleInt(PetRoleType.SCOUT.id(), "lootWispDurationTicks", 80);
     }
     
     @Override

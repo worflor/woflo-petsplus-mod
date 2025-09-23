@@ -47,7 +47,7 @@ public class StargazeMechanic {
             if (duration > 600) return false;
 
             // Check position hasn't moved too much (3 blocks)
-            double range = PetsPlusConfig.getInstance().getDouble("bond", "stargazeRange", 3.0);
+            double range = PetsPlusConfig.getInstance().getSectionDouble("bond", "stargazeRange", 3.0);
             if (player.getPos().distanceTo(startPosition) > range) return false;
 
             // Check pet is still sitting and nearby
@@ -69,7 +69,7 @@ public class StargazeMechanic {
      * Start a stargaze window after tribute payment
      */
     public static void startStargazeWindow(ServerPlayerEntity player) {
-        long windowDuration = PetsPlusConfig.getInstance().getInt("bond", "stargazeWindowTicks", 2400); // 2 minutes
+        long windowDuration = PetsPlusConfig.getInstance().getSectionInt("bond", "stargazeWindowTicks", 2400); // 2 minutes
         stargazeWindows.put(player.getUuid(), player.getWorld().getTime() + windowDuration);
 
         player.sendMessage(Text.of("§5✦ §dThe night sky seems to shimmer with possibility... §5✦"), false);
@@ -152,7 +152,7 @@ public class StargazeMechanic {
 
         // Check if session completed (30 seconds)
         long sessionDuration = currentTime - session.startTime;
-        long requiredDuration = PetsPlusConfig.getInstance().getInt("bond", "stargazeHoldTicks", 600); // 30s
+        long requiredDuration = PetsPlusConfig.getInstance().getSectionInt("bond", "stargazeHoldTicks", 600); // 30s
 
         if (sessionDuration >= requiredDuration && !session.completed) {
             // Complete stargaze!
@@ -206,7 +206,7 @@ public class StargazeMechanic {
      * Find a sitting pet near the player
      */
     private static MobEntity findNearbySittingPet(ServerPlayerEntity player) {
-        double range = PetsPlusConfig.getInstance().getDouble("bond", "stargazeRange", 3.0);
+        double range = PetsPlusConfig.getInstance().getSectionDouble("bond", "stargazeRange", 3.0);
 
         return ((ServerWorld) player.getWorld()).getEntitiesByClass(
             MobEntity.class,

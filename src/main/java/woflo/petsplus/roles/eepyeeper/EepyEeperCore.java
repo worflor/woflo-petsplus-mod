@@ -19,7 +19,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.particle.ParticleTypes;
 import woflo.petsplus.advancement.AdvancementManager;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 import java.util.List;
@@ -352,7 +352,7 @@ public class EepyEeperCore {
 
             // Special Eepy Eeper sleep bonus: configurable chance to gain 1 level (balances slower learning rate)
             // Only applies if not at tribute gate and not max level
-            float sleepLevelUpChance = (float) PetsPlusConfig.getInstance().getDouble("eepy_eeper", "sleepLevelUpChance", 0.5);
+            float sleepLevelUpChance = (float) PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.EEPY_EEPER.id(), "sleepLevelUpChance", 0.5);
             if (petComp.getLevel() < 30 && !petComp.isWaitingForTribute() && world.random.nextFloat() < sleepLevelUpChance) {
                 boolean leveled = handleSleepLevelUp(petComp, player, pet, world);
                 if (leveled) {
@@ -389,7 +389,7 @@ public class EepyEeperCore {
 
                 // Grant bonus Pet XP
 
-                int bonusXP = PetsPlusConfig.getInstance().getInt("eepy_eeper", "bonusPetXpPerSleep", 25);
+                int bonusXP = PetsPlusConfig.getInstance().getRoleInt(PetRoleType.EEPY_EEPER.id(), "bonusPetXpPerSleep", 25);
 
                 petComp.addExperience(bonusXP);
 
@@ -503,7 +503,7 @@ public class EepyEeperCore {
 
                     // Apply Regeneration I to allies and pets within 4 blocks
 
-                    double radius = PetsPlusConfig.getInstance().getDouble("eepy_eeper", "napRegenRadius", 4.0);
+                    double radius = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.EEPY_EEPER.id(), "napRegenRadius", 4.0);
 
                     List<LivingEntity> nearbyEntities = world.getEntitiesByClass(
 
@@ -649,7 +649,7 @@ public class EepyEeperCore {
 
     public static void applyBaselineEffects(MobEntity pet, PetComponent petComp) {
 
-        if (petComp.getRole() != PetRole.EEPY_EEPER) return;
+        if (!petComp.hasRole(PetRoleType.EEPY_EEPER)) return;
 
         // Apply 10% speed reduction
 
@@ -685,7 +685,7 @@ public class EepyEeperCore {
 
                 return petComp != null &&
 
-                       petComp.getRole() == PetRole.EEPY_EEPER &&
+                       petComp.hasRole(PetRoleType.EEPY_EEPER) &&
 
                        petComp.isOwnedBy(owner) &&
 
@@ -781,7 +781,7 @@ public class EepyEeperCore {
         int targetLevel = currentLevel + 1;
         
         // Set XP to exactly what's needed for the next level
-        int requiredXp = PetComponent.getTotalXpForLevel(targetLevel);
+        int requiredXp = petComp.getTotalXpForLevel(targetLevel);
         petComp.setExperience(requiredXp);
         
         // Force level calculation update

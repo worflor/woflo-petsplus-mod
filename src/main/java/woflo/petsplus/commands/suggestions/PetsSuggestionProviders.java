@@ -11,8 +11,10 @@ import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Box;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 
@@ -130,11 +132,17 @@ public class PetsSuggestionProviders {
     // Helper methods
     
     private static CompletableFuture<Suggestions> suggestAllRolesWithDescriptions(SuggestionsBuilder builder) {
-        // Add roles with hover descriptions
-        for (PetRole role : PetRole.values()) {
-            String roleKey = role.getKey().toLowerCase();
-            String description = role.getDisplayName();
-            builder.suggest(roleKey, Text.literal(description));
+        boolean namespaced = builder.getRemaining().contains(":");
+        for (PetRoleType type : PetsPlusRegistries.petRoleTypeRegistry()) {
+            String displayName = Text.translatable(type.translationKey()).getString();
+            if (displayName.equals(type.translationKey())) {
+                displayName = PetRoleType.fallbackName(type.id());
+            }
+            Text tooltip = Text.literal(displayName);
+            if (!namespaced) {
+                builder.suggest(type.id().getPath(), tooltip);
+            }
+            builder.suggest(type.id().toString(), tooltip);
         }
         return builder.buildFuture();
     }
@@ -155,8 +163,12 @@ public class PetsSuggestionProviders {
         return findNearbyOwnedPets(player, 16.0).stream()
             .filter(pet -> {
                 PetComponent petComp = PetComponent.get(pet);
-                return petComp != null && petComp.getRole() != null && 
-                       petComp.getLevel() < 100; // Assume max level 100 for now
+                if (petComp == null) {
+                    return false;
+                }
+                Identifier roleId = petComp.getRoleId();
+                return PetsPlusRegistries.petRoleTypeRegistry().get(roleId) != null
+                    && petComp.getLevel() < 100;
             })
             .map(PetsSuggestionProviders::getPetDisplayName)
             .collect(Collectors.toList());
@@ -179,48 +191,43 @@ public class PetsSuggestionProviders {
         
         int nextLevel = petComp.getLevel() + 1;
         PetsPlusConfig config = PetsPlusConfig.getInstance();
-        
-        // Suggest items needed for the next tribute level
-        if (config.hasTributeLevel(nextLevel)) {
-            String tributeItem = config.getTributeItemId(nextLevel);
-            if (tributeItem != null) {
-                builder.suggest(tributeItem);
-            }
+        PetRoleType roleType = petComp.getRoleType();
+        if (roleType == null) {
+            return builder.buildFuture();
         }
-        
+
+        if (!roleType.xpCurve().tributeMilestones().contains(nextLevel)) {
+            return builder.buildFuture();
+        }
+
+        Identifier tributeId = config.resolveTributeItem(roleType, nextLevel);
+        if (tributeId != null) {
+            builder.suggest(tributeId.toString());
+        }
+
         return builder.buildFuture();
     }
     
     private static CompletableFuture<Suggestions> suggestAbilitiesForPet(MobEntity pet, SuggestionsBuilder builder) {
         PetComponent petComp = PetComponent.get(pet);
-        if (petComp == null || petComp.getRole() == null) {
+        if (petComp == null) {
             return suggestCommonAbilities(builder);
         }
-        
-        // Suggest abilities based on pet's role
-        PetRole role = petComp.getRole();
-        String roleBasedSuggestion = switch (role) {
-            case GUARDIAN -> "shield_bash";
-            case STRIKER -> "finisher_mark";
-            case SUPPORT -> "healing_aura";
-            case SCOUT -> "pathfinding";
-            case SKYRIDER -> "wind_boost";
-            case ENCHANTMENT_BOUND -> "arcane_focus";
-            case CURSED_ONE -> "soul_bind";
-            case EEPY_EEPER -> "dream_share";
-            case ECLIPSED -> "void_step";
-        };
-        
-        builder.suggest(roleBasedSuggestion);
+
+        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(petComp.getRoleId());
+        if (roleType == null) {
+            return suggestCommonAbilities(builder);
+        }
+
+        for (Identifier abilityId : roleType.defaultAbilities()) {
+            builder.suggest(abilityId.toString());
+        }
         return builder.buildFuture();
     }
-    
+
     private static CompletableFuture<Suggestions> suggestCommonAbilities(SuggestionsBuilder builder) {
-        // Suggest common abilities
-        builder.suggest("healing");
-        builder.suggest("speed_boost");
-        builder.suggest("damage_boost");
-        builder.suggest("protection");
+        PetsPlusRegistries.abilityTypeRegistry().getIds()
+            .forEach(id -> builder.suggest(id.toString()));
         return builder.buildFuture();
     }
     

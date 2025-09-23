@@ -1,0 +1,18 @@
+{
+  "id": "petsplus:mounted_cone_aura",
+  "description": "Mounted support aura",
+  "required_level": 15,
+  "trigger": {
+    "event": "interval_while_active",
+    "ticks": 40
+  },
+  "effects": [
+    {
+      "type": "mounted_cone_aura",
+      "base_radius": 8.0,
+      "extra_radius": "${support.mountedConeExtraRadius}",
+      "effect_duration": 60,
+      "effect_amplifier": 0
+    }
+  ]
+}

@@ -8,12 +8,17 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Formatting;
+import net.minecraft.registry.Registry;
 import net.minecraft.util.Hand;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.world.World;
+import org.jetbrains.annotations.Nullable;
+import woflo.petsplus.Petsplus;
+import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.items.PetsplusItemUtils;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.api.PetRole;
 
 /**
  * Handles interactions with special Pets+ items that have data components.
@@ -64,7 +69,9 @@ public class PetsplusItemHandler {
         }
         
         // Check if pet has a role to respec
-        if (petComp.getRole() == null) {
+        Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
+        Identifier currentRoleId = petComp.getRoleId();
+        if (registry.get(currentRoleId) == null) {
             player.sendMessage(Text.literal("This pet doesn't have a role to respec!")
                 .formatted(Formatting.RED), false);
             return ActionResult.SUCCESS;
@@ -73,22 +80,25 @@ public class PetsplusItemHandler {
         // Reset pet abilities if targeting specific role
         if (respecData.targetRole().isPresent()) {
             String targetRoleKey = respecData.targetRole().get();
-            
-            try {
-                PetRole targetRole = PetRole.valueOf(targetRoleKey.toUpperCase());
-                petComp.setRole(targetRole);
-                
-                player.sendMessage(Text.literal("Pet role changed to " + targetRole.getDisplayName() + "!")
-                    .formatted(Formatting.GREEN), false);
-            } catch (IllegalArgumentException e) {
+
+            Identifier roleId = resolveRoleIdentifier(targetRoleKey);
+            if (roleId == null) {
                 player.sendMessage(Text.literal("Invalid role: " + targetRoleKey)
                     .formatted(Formatting.RED), false);
                 return ActionResult.SUCCESS;
             }
+
+            petComp.setRoleId(roleId);
+            PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+            Text label = describeRole(roleId, roleType);
+            player.sendMessage(Text.literal("Pet role changed to ")
+                .formatted(Formatting.GREEN)
+                .append(label.copy().formatted(Formatting.AQUA))
+                .append(Text.literal("!").formatted(Formatting.GREEN)), false);
         } else {
             // General respec - clear abilities data but keep role
             petComp.resetAbilities();
-            
+
             player.sendMessage(Text.literal("Pet abilities have been reset!")
                 .formatted(Formatting.GREEN), false);
             player.sendMessage(Text.literal("Your pet can now learn new abilities.")
@@ -193,7 +203,7 @@ public class PetsplusItemHandler {
      */
     public static void givePetMetadataTag(ServerPlayerEntity player, String displayName, boolean isSpecial) {
         ItemStack tag = PetsplusItemUtils.createPetMetadataTag(displayName, isSpecial);
-        
+
         if (player.getInventory().insertStack(tag)) {
             player.sendMessage(Text.literal("Pet metadata tag added to inventory!")
                 .formatted(Formatting.GREEN), false);
@@ -202,5 +212,28 @@ public class PetsplusItemHandler {
             player.sendMessage(Text.literal("Pet metadata tag dropped at your feet!")
                 .formatted(Formatting.YELLOW), false);
         }
+    }
+
+    @Nullable
+    private static Identifier resolveRoleIdentifier(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+
+        Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
+        Identifier parsed = PetRoleType.normalizeId(raw);
+        if (parsed == null) {
+            return null;
+        }
+
+        return registry.get(parsed) != null ? parsed : null;
+    }
+
+    private static Text describeRole(Identifier roleId, @Nullable PetRoleType roleType) {
+        if (roleType != null) {
+            return Text.translatable(roleType.translationKey());
+        }
+
+        return Text.literal(PetRoleType.fallbackName(roleId));
     }
 }

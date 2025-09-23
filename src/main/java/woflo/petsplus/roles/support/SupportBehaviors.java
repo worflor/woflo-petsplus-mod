@@ -3,7 +3,7 @@ package woflo.petsplus.roles.support;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.util.PetPerchUtil;
@@ -23,9 +23,9 @@ public class SupportBehaviors {
             return 0.0;
         }
 
-        double discount = PetsPlusConfig.getInstance().getDouble("support", "perchSipDiscount", 0.20);
+        double discount = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.SUPPORT.id(), "perchSipDiscount", 0.20);
 
-        if (PetPerchUtil.ownerHasPerchedRole(owner, PetRole.SUPPORT)) {
+        if (PetPerchUtil.ownerHasPerchedRole(owner, PetRoleType.SUPPORT)) {
             return discount;
         }
 
@@ -35,7 +35,7 @@ public class SupportBehaviors {
             entity -> {
                 PetComponent component = PetComponent.get(entity);
                 return component != null &&
-                       component.getRole().equals(PetRole.SUPPORT) &&
+                       component.hasRole(PetRoleType.SUPPORT) &&
                        component.isOwnedBy(owner) &&
                        entity.isAlive() &&
                        PetPerchUtil.isPetPerched(component);
@@ -66,17 +66,17 @@ public class SupportBehaviors {
             owner.getBoundingBox().expand(16),
             entity -> {
                 PetComponent component = PetComponent.get(entity);
-                return component != null && 
-                       component.getRole().equals(PetRole.SUPPORT) &&
+                return component != null &&
+                       component.hasRole(PetRoleType.SUPPORT) &&
                        component.isOwnedBy(owner) &&
                        entity.isAlive();
             }
         ).isEmpty();
-        
+
         boolean eligibleMount = TriggerConditions.isMountedOnSaddled(owner);
 
         return hasNearbySupport && eligibleMount ?
-            PetsPlusConfig.getInstance().getDouble("support", "mountedConeExtraRadius", 2.0) : 0.0;
+            PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.SUPPORT.id(), "mountedConeExtraRadius", 2.0) : 0.0;
     }
     
     /**

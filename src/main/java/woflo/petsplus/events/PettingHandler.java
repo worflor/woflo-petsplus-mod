@@ -11,7 +11,11 @@ import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
 import woflo.petsplus.Petsplus;
-import woflo.petsplus.api.PetRole;
+import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
+import net.minecraft.util.Language;
+import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.ui.FeedbackManager;
@@ -54,7 +58,7 @@ public class PettingHandler {
         Long lastPetTime = petComp.getStateData(LAST_PET_TIME_KEY, Long.class);
         if (lastPetTime != null && (currentTime - lastPetTime) < cooldownTicks) {
             // Still on cooldown, but provide subtle feedback
-            player.sendMessage(net.minecraft.text.Text.literal("Your companion is still enjoying the last pets"), true);
+            player.sendMessage(Text.literal("Your companion is still enjoying the last pets"), true);
             return ActionResult.SUCCESS;
         }
 
@@ -66,8 +70,8 @@ public class PettingHandler {
 
     private static void performPetting(ServerPlayerEntity player, MobEntity pet, PetComponent petComp, long currentTime) {
         ServerWorld world = (ServerWorld) pet.getWorld();
-        PetRole role = petComp.getRole();
-        
+        Identifier roleId = petComp.getRoleId();
+
         // Update petting state
         petComp.setStateData(LAST_PET_TIME_KEY, currentTime);
         Integer currentCount = petComp.getStateData(PET_COUNT_KEY, Integer.class);
@@ -78,7 +82,7 @@ public class PettingHandler {
         emitBasePettingEffects(player, pet, world, newCount);
         
         // Role-specific effects
-        emitRoleSpecificEffects(player, pet, petComp, world, role);
+        emitRoleSpecificEffects(player, pet, world, roleId);
         
         // Bonding benefits (small XP bonus, temporary buffs)
         applyBondingBenefits(player, pet, petComp);
@@ -102,56 +106,23 @@ public class PettingHandler {
         
         // Action bar message with personality
         String message = generatePettingMessage(pet, petCount);
-        player.sendMessage(net.minecraft.text.Text.literal(message), true);
+        player.sendMessage(Text.literal(message), true);
     }
 
-    private static void emitRoleSpecificEffects(ServerPlayerEntity player, MobEntity pet, PetComponent petComp, ServerWorld world, PetRole role) {
-        switch (role) {
-            case GUARDIAN -> {
-                // Guardian: Protective stance, brief resistance
-                FeedbackManager.emitFeedback("guardian_protection_stance", pet, world);
-                player.sendMessage(net.minecraft.text.Text.literal("Your guardian stands proudly, ready to protect"), true);
-            }
-            case STRIKER -> {
-                // Striker: Agile movement, brief speed
-                FeedbackManager.emitFeedback("striker_eagerness", pet, world);
-                player.sendMessage(net.minecraft.text.Text.literal("Your striker's eyes gleam with hunting intent"), true);
-            }
-            case SUPPORT -> {
-                // Support: Healing aura, gentle particles
-                FeedbackManager.emitFeedback("support_gentle_aura", pet, world);
-                player.sendMessage(net.minecraft.text.Text.literal("Your support radiates warmth and comfort"), true);
-            }
-            case SCOUT -> {
-                // Scout: Alert posture, detection boost
-                FeedbackManager.emitFeedback("scout_alertness", pet, world);
-                player.sendMessage(net.minecraft.text.Text.literal("Your scout's senses sharpen, ears perked"), true);
-            }
-            case SKYRIDER -> {
-                // Skyrider: Wind effects, updraft particles
-                FeedbackManager.emitFeedback("skyrider_wind_dance", pet, world);
-                player.sendMessage(net.minecraft.text.Text.literal("The air stirs around your skyrider"), true);
-            }
-            case ENCHANTMENT_BOUND -> {
-                // Enchantment-Bound: Magical sparkles, brief enchant glow
-                FeedbackManager.emitFeedback("enchantment_sparkle", pet, world);
-                player.sendMessage(net.minecraft.text.Text.literal("Arcane energies swirl gently around your companion"), true);
-            }
-            case CURSED_ONE -> {
-                // Cursed One: Dark particles, ominous but affectionate
-                FeedbackManager.emitFeedback("cursed_dark_affection", pet, world);
-                player.sendMessage(net.minecraft.text.Text.literal("Your cursed companion's eyes glow with twisted loyalty"), true);
-            }
-            case ECLIPSED -> {
-                // Eclipsed: Void particles, brief phase effect
-                FeedbackManager.emitFeedback("eclipsed_void_pulse", pet, world);
-                player.sendMessage(net.minecraft.text.Text.literal("Reality flickers around your eclipsed companion"), true);
-            }
-            case EEPY_EEPER -> {
-                // Eepy Eeper: Sleepy particles, yawn sound
-                FeedbackManager.emitFeedback("eepy_sleepy_contentment", pet, world);
-                player.sendMessage(net.minecraft.text.Text.literal("Your sleepy companion purrs drowsily"), true);
-            }
+    private static void emitRoleSpecificEffects(ServerPlayerEntity player, MobEntity pet, ServerWorld world, Identifier roleId) {
+        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+        PetRoleType.Presentation presentation = roleType != null
+            ? roleType.presentation()
+            : PetRoleType.Presentation.DEFAULT;
+        PetRoleType.Petting petting = presentation.petting();
+
+        if (petting.hasFeedbackEvent()) {
+            FeedbackManager.emitFeedback(petting.feedbackEvent(), pet, world);
+        }
+
+        Text message = resolveMessage(petting.message(), "Your companion seems content.");
+        if (!message.getString().isBlank()) {
+            player.sendMessage(message, true);
         }
     }
 
@@ -203,6 +174,26 @@ public class PettingHandler {
         } else {
             return baseMessages[petCount % baseMessages.length];
         }
+    }
+
+    private static Text resolveMessage(PetRoleType.Message message, String fallback) {
+        if (message != null) {
+            String key = message.translationKey();
+            String fallbackText = message.fallback();
+            if (key != null && !key.isBlank()) {
+                if (Language.getInstance().hasTranslation(key)) {
+                    return Text.translatable(key);
+                }
+                if (fallbackText != null && !fallbackText.isBlank()) {
+                    return Text.literal(fallbackText);
+                }
+                return Text.translatable(key);
+            }
+            if (fallbackText != null && !fallbackText.isBlank()) {
+                return Text.literal(fallbackText);
+            }
+        }
+        return (fallback == null || fallback.isBlank()) ? Text.empty() : Text.literal(fallback);
     }
 
     /**

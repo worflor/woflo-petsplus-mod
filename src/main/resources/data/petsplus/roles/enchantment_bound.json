@@ -1,0 +1,49 @@
+{
+  "id": "petsplus:enchantment_bound",
+  "translation_key": "petsplus.role.enchantment_bound",
+  "base_stat_scalars": {
+    "echo": 0.02
+  },
+  "stat_affinities": {
+    "vitality": 0.03,
+    "agility": 0.03,
+    "learning": 0.06
+  },
+  "default_abilities": [],
+  "tribute_defaults": {
+    "10": "minecraft:gold_ingot",
+    "20": "minecraft:diamond",
+    "30": "minecraft:netherite_ingot"
+  },
+  "xp_curve": {
+    "max_level": 30,
+    "feature_levels": [3, 7, 12, 17, 23, 27],
+    "tribute_milestones": [10, 20, 30],
+    "base_linear_per_level": 20,
+    "quadratic_factor": 8,
+    "feature_level_bonus_multiplier": 0.75
+  },
+  "visual": {
+    "primary_color": "#bc73ff",
+    "secondary_color": "#6a1fbf",
+    "ambient_event": "enchantment_bound_ambient",
+    "ability_event_prefix": "enchantment_bound"
+  },
+  "presentation": {
+    "petting": {
+      "feedback_event": "enchantment_sparkle",
+      "message": {
+        "fallback": "Arcane energies swirl gently around your companion"
+      }
+    },
+    "memorial_epithets": [
+      { "fallback": "The Mystic Echo" },
+      { "fallback": "The Arcane Bond" },
+      { "fallback": "The Magic Weaver" },
+      { "fallback": "The Spell Keeper" }
+    ],
+    "admin_summary": {
+      "fallback": "Magic-focused pet that enhances gear enchantments"
+    }
+  }
+}

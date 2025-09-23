@@ -1,0 +1,23 @@
+{
+  "id": "petsplus:perch_ping",
+  "description": "Perch reconnaissance ping",
+  "required_level": 27,
+  "trigger": {
+    "event": "interval_while_active",
+    "ticks": 40,
+    "require_perched": true
+  },
+  "effects": [
+    {
+      "type": "retarget_nearest_hostile",
+      "radius": 12,
+      "store_as": "pp_target"
+    },
+    {
+      "type": "tag_target",
+      "target": "pp_target",
+      "key": "petsplus:voidbrand",
+      "duration_ticks": 60
+    }
+  ]
+}

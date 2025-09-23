@@ -1,0 +1,23 @@
+{
+  "id": "petsplus:doom_echo",
+  "description": "Low-health retaliation pulse",
+  "required_level": 12,
+  "trigger": {
+    "event": "owner_low_health",
+    "owner_hp_pct_below": 0.35,
+    "internal_cd_ticks": 400
+  },
+  "effects": [
+    {
+      "type": "area_effect",
+      "radius": 5,
+      "effects": [
+        {
+          "id": "minecraft:weakness",
+          "duration": 60,
+          "amplifier": 0
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "id": "petsplus:eclipsed",
+  "translation_key": "petsplus.role.eclipsed",
+  "base_stat_scalars": {
+    "disruption": 0.02
+  },
+  "stat_affinities": {
+    "speed": 0.03,
+    "attack": 0.03,
+    "learning": 0.05
+  },
+  "default_abilities": [
+    "petsplus:voidbrand",
+    "petsplus:phase_partner",
+    "petsplus:perch_ping"
+  ],
+  "tribute_defaults": {
+    "10": "minecraft:gold_ingot",
+    "20": "minecraft:diamond",
+    "30": "minecraft:netherite_ingot"
+  },
+  "xp_curve": {
+    "max_level": 30,
+    "feature_levels": [3, 7, 12, 17, 23, 27],
+    "tribute_milestones": [10, 20, 30],
+    "base_linear_per_level": 20,
+    "quadratic_factor": 8,
+    "feature_level_bonus_multiplier": 0.75
+  },
+  "visual": {
+    "primary_color": "#3d1f4b",
+    "secondary_color": "#12061a",
+    "ambient_event": "eclipsed_ambient",
+    "ability_event_prefix": "eclipsed"
+  },
+  "milestone_advancements": [
+    {
+      "level": 30,
+      "advancement": "petsplus:edgewalker",
+      "message": {
+        "translation_key": "petsplus.role.eclipsed.milestone",
+        "fallback": "%s embraces the edge at level %s!"
+      }
+    }
+  ],
+  "presentation": {
+    "petting": {
+      "feedback_event": "eclipsed_void_pulse",
+      "message": {
+        "fallback": "Reality flickers around your eclipsed companion"
+      }
+    },
+    "memorial_epithets": [
+      { "fallback": "The Void Touched" },
+      { "fallback": "The Shadow Walker" },
+      { "fallback": "The Eclipse Born" },
+      { "fallback": "The Dark Star" }
+    ],
+    "admin_summary": {
+      "fallback": "Shadow manipulator that brands enemies and provides stealth"
+    }
+  }
+}

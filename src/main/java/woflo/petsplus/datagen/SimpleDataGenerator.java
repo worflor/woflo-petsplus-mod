@@ -314,81 +314,60 @@ public class SimpleDataGenerator {
     private static JsonObject createPhasePartner() {
         JsonObject ability = new JsonObject();
         ability.addProperty("id", "petsplus:phase_partner");
-        
+        ability.addProperty("description", "Teleport tether to owner");
+        ability.addProperty("required_level", 23);
+
         JsonObject trigger = new JsonObject();
-        trigger.addProperty("event", "after_pet_blink");
-        trigger.addProperty("internal_cd_ticks", "${eclipsed.phaseChargeInternalCdTicks}");
+        trigger.addProperty("event", "on_combat_end");
+        trigger.addProperty("cooldown_ticks", 200);
         ability.add("trigger", trigger);
-        
+
         JsonArray effects = new JsonArray();
-        
-        // Speed buff if perched
-        JsonObject speedBuff = new JsonObject();
-        speedBuff.addProperty("type", "buff");
-        speedBuff.addProperty("target", "owner");
-        speedBuff.addProperty("id", "minecraft:speed");
-        speedBuff.addProperty("duration", 40);
-        speedBuff.addProperty("amplifier", 0);
-        speedBuff.addProperty("only_if_perched", true);
-        effects.add(speedBuff);
-        
-        // Attack bonus
-        JsonObject attackBonus = new JsonObject();
-        attackBonus.addProperty("type", "owner_next_attack_bonus");
-        attackBonus.addProperty("bonus_damage_pct", "${eclipsed.phaseChargeBonusDamagePct}");
-        attackBonus.addProperty("expire_ticks", "${eclipsed.phaseChargeWindowTicks}");
-        
-        JsonObject slownessEffect = new JsonObject();
-        slownessEffect.addProperty("type", "effect");
-        slownessEffect.addProperty("target", "victim");
-        slownessEffect.addProperty("id", "minecraft:slowness");
-        slownessEffect.addProperty("duration", 40);
-        slownessEffect.addProperty("amplifier", 0);
-        attackBonus.add("on_hit_effect", slownessEffect);
-        effects.add(attackBonus);
-        
+
+        JsonObject retarget = new JsonObject();
+        retarget.addProperty("type", "retarget_nearest_hostile");
+        retarget.addProperty("radius", 12);
+        retarget.addProperty("store_as", "pp_target");
+        effects.add(retarget);
+
+        JsonObject tagEffect = new JsonObject();
+        tagEffect.addProperty("type", "tag_target");
+        tagEffect.addProperty("target", "pp_target");
+        tagEffect.addProperty("key", "petsplus:phase_partner");
+        tagEffect.addProperty("duration_ticks", 80);
+        effects.add(tagEffect);
+
         ability.add("effects", effects);
         return ability;
     }
-    
+
     private static JsonObject createPerchPing() {
         JsonObject ability = new JsonObject();
         ability.addProperty("id", "petsplus:perch_ping");
-        
+        ability.addProperty("description", "Perch reconnaissance ping");
+        ability.addProperty("required_level", 27);
+
         JsonObject trigger = new JsonObject();
         trigger.addProperty("event", "interval_while_active");
-        trigger.addProperty("ticks", "${eclipsed.perchPingIntervalTicks}");
+        trigger.addProperty("ticks", 40);
         trigger.addProperty("require_perched", true);
-        trigger.addProperty("require_in_combat", true);
         ability.add("trigger", trigger);
-        
+
         JsonArray effects = new JsonArray();
-        
-        // Retarget nearest hostile
+
         JsonObject retarget = new JsonObject();
         retarget.addProperty("type", "retarget_nearest_hostile");
-        retarget.addProperty("radius", "${eclipsed.perchPingRadius}");
+        retarget.addProperty("radius", 12);
         retarget.addProperty("store_as", "pp_target");
         effects.add(retarget);
-        
-        // Apply darkness to target
-        JsonObject darknessEffect = new JsonObject();
-        darknessEffect.addProperty("type", "effect");
-        darknessEffect.addProperty("target", "pp_target");
-        darknessEffect.addProperty("id", "minecraft:darkness");
-        darknessEffect.addProperty("duration", 10);
-        darknessEffect.addProperty("amplifier", 0);
-        darknessEffect.addProperty("boss_safe", true);
-        effects.add(darknessEffect);
-        
-        // Tag target
+
         JsonObject tagEffect = new JsonObject();
         tagEffect.addProperty("type", "tag_target");
         tagEffect.addProperty("target", "pp_target");
         tagEffect.addProperty("key", "petsplus:voidbrand");
         tagEffect.addProperty("duration_ticks", 60);
         effects.add(tagEffect);
-        
+
         ability.add("effects", effects);
         return ability;
     }

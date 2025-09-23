@@ -12,7 +12,7 @@ import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
 import woflo.petsplus.Petsplus;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
 /**
@@ -30,7 +30,7 @@ public class SupportInteractionHandler {
         if (!(entity instanceof MobEntity mob)) return ActionResult.PASS;
 
         PetComponent comp = PetComponent.get(mob);
-        if (comp == null || comp.getRole() != PetRole.SUPPORT) return ActionResult.PASS;
+        if (comp == null || !comp.hasRole(PetRoleType.SUPPORT)) return ActionResult.PASS;
 
         // Must be owner
         if (!comp.isOwnedBy(player)) return ActionResult.PASS;

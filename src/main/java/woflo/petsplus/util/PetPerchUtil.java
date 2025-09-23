@@ -3,8 +3,9 @@ package woflo.petsplus.util;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.Optional;
@@ -41,7 +42,7 @@ public final class PetPerchUtil {
         boolean perched = leftMatch.orElse(false) || rightMatch.orElse(false);
 
         if (!seenData) {
-            perched = ownerHasPerchedRole(owner, component.getRole());
+            perched = ownerHasPerchedRole(owner, component.getRoleId());
         }
 
         component.setPerched(perched);
@@ -67,16 +68,20 @@ public final class PetPerchUtil {
     /**
      * Check if the owner currently has a perched pet with the given role.
      */
-    public static boolean ownerHasPerchedRole(@Nullable PlayerEntity owner, PetRole role) {
-        if (owner == null) {
+    public static boolean ownerHasPerchedRole(@Nullable PlayerEntity owner, @Nullable Identifier roleId) {
+        if (owner == null || roleId == null) {
             return false;
         }
 
-        return hasRoleOnShoulder(owner.getShoulderEntityLeft(), role)
-            || hasRoleOnShoulder(owner.getShoulderEntityRight(), role);
+        return hasRoleOnShoulder(owner.getShoulderEntityLeft(), roleId)
+            || hasRoleOnShoulder(owner.getShoulderEntityRight(), roleId);
     }
 
-    private static boolean hasRoleOnShoulder(@Nullable NbtCompound data, PetRole role) {
+    public static boolean ownerHasPerchedRole(@Nullable PlayerEntity owner, @Nullable PetRoleType roleType) {
+        return roleType != null && ownerHasPerchedRole(owner, roleType.id());
+    }
+
+    private static boolean hasRoleOnShoulder(@Nullable NbtCompound data, Identifier roleId) {
         if (data == null || data.isEmpty() || !data.contains(PETSPLUS_DATA_KEY)) {
             return false;
         }
@@ -87,7 +92,12 @@ public final class PetPerchUtil {
         }
 
         Optional<String> roleKey = petsPlusData.get().getString(ROLE_KEY);
-        return roleKey.isPresent() && roleKey.get().equals(role.getKey());
+        if (roleKey.isEmpty()) {
+            return false;
+        }
+
+        String stored = roleKey.get();
+        return stored.equals(roleId.toString()) || stored.equals(roleId.getPath());
     }
 
     private static Optional<Boolean> matchesComponent(@Nullable NbtCompound data, PetComponent component, String petUuid) {
@@ -105,8 +115,11 @@ public final class PetPerchUtil {
         Optional<String> storedRole = compound.getString(ROLE_KEY);
         if (storedRole.isPresent()) {
             String roleKey = storedRole.get();
-            if (!roleKey.isEmpty() && !roleKey.equals(component.getRole().getKey())) {
-                return Optional.of(false);
+            if (!roleKey.isEmpty()) {
+                Identifier currentRole = component.getRoleId();
+                if (!roleKey.equals(currentRole.toString()) && !roleKey.equals(currentRole.getPath())) {
+                    return Optional.of(false);
+                }
             }
         }
 

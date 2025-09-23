@@ -11,6 +11,7 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 
 import java.util.List;
@@ -28,7 +29,7 @@ public class MountedConeAuraEffect implements Effect {
     public MountedConeAuraEffect(JsonObject config) {
         this.baseRadius = getDoubleOrDefault(config, "base_radius", 8.0);
         this.extraRadius = getIntOrDefault(config, "extra_radius",
-            PetsPlusConfig.getInstance().getInt("support", "mountedConeExtraRadius", 2));
+            PetsPlusConfig.getInstance().getRoleInt(PetRoleType.SUPPORT.id(), "mountedConeExtraRadius", 2));
         this.effectDuration = getIntOrDefault(config, "effect_duration", 60);
         this.effectAmplifier = getIntOrDefault(config, "effect_amplifier", 0);
     }
@@ -64,9 +65,11 @@ public class MountedConeAuraEffect implements Effect {
     private static double parseConfigVariable(String value, double defaultValue) {
         if (value.startsWith("${") && value.endsWith("}")) {
             String configPath = value.substring(2, value.length() - 1);
-            String[] parts = configPath.split("\\.");
-            if (parts.length == 2) {
-                return PetsPlusConfig.getInstance().getDouble(parts[0], parts[1], defaultValue);
+            int delimiter = configPath.lastIndexOf('.');
+            if (delimiter > 0 && delimiter < configPath.length() - 1) {
+                String scope = configPath.substring(0, delimiter);
+                String key = configPath.substring(delimiter + 1);
+                return PetsPlusConfig.getInstance().resolveScopedDouble(scope, key, defaultValue);
             }
         }
         try {

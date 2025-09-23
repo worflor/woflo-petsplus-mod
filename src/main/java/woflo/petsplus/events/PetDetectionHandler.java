@@ -6,8 +6,10 @@ import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.Identifier;
 import woflo.petsplus.Petsplus;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -75,8 +77,11 @@ public class PetDetectionHandler {
         
         // Check if this pet already has a role assigned
         PetComponent existingComponent = PetComponent.get(mob);
-        if (existingComponent != null && existingComponent.getRole() != null) {
-            return; // Already registered
+        if (existingComponent != null && !pendingRoleSelection.containsKey(mob)) {
+            Identifier existingRole = existingComponent.getRoleId();
+            if (PetsPlusRegistries.petRoleTypeRegistry().get(existingRole) != null) {
+                return; // Already registered with a known role
+            }
         }
         
         // Prompt player for role selection
@@ -117,63 +122,71 @@ public class PetDetectionHandler {
     private static void sendClickableRoleLines(PlayerEntity owner) {
         if (!(owner instanceof net.minecraft.server.network.ServerPlayerEntity sp)) return;
         
-        // Create an array of role suggestions using the ChatLinks helper
-        woflo.petsplus.ui.ChatLinks.Suggest[] suggests = new woflo.petsplus.ui.ChatLinks.Suggest[PetRole.values().length];
-        int i = 0;
-        for (PetRole role : PetRole.values()) {
-            suggests[i] = new woflo.petsplus.ui.ChatLinks.Suggest(
-                "[" + role.getDisplayName() + "]",
-                "/petsplus role " + role.getKey(),
-                getRoleDescription(role),
+        java.util.List<woflo.petsplus.ui.ChatLinks.Suggest> suggests = new java.util.ArrayList<>();
+
+        for (PetRoleType type : PetsPlusRegistries.petRoleTypeRegistry()) {
+            Identifier id = type.id();
+            Text label = resolveRoleLabel(id, type);
+            String hover = getRoleDescription(id, type);
+            suggests.add(new woflo.petsplus.ui.ChatLinks.Suggest(
+                "[" + label.getString() + "]",
+                "/petsplus role " + id,
+                hover,
                 "aqua",
                 true
-            );
-            i++;
+            ));
         }
-        
-        // Send the suggestions in rows of 3 for better readability
-        woflo.petsplus.ui.ChatLinks.sendSuggestRow(sp, suggests, 3);
+
+        if (suggests.isEmpty()) {
+            return;
+        }
+
+        woflo.petsplus.ui.ChatLinks.sendSuggestRow(
+            sp,
+            suggests.toArray(new woflo.petsplus.ui.ChatLinks.Suggest[0]),
+            3
+        );
     }
 
-    
+
     /**
      * Get a short description for a pet role.
      */
-    private static String getRoleDescription(PetRole role) {
-        return switch (role) {
-            case GUARDIAN -> "Defensive tank, protects owner";
-            case STRIKER -> "Aggressive damage dealer";
-            case SCOUT -> "Fast explorer, utility abilities";
-            case SKYRIDER -> "Aerial support, mobility";
-            case SUPPORT -> "Healing and buffs";
-            case ENCHANTMENT_BOUND -> "Magic-focused abilities";
-            case CURSED_ONE -> "Dark magic, high risk/reward";
-            case EEPY_EEPER -> "Sleep-based abilities";
-            case ECLIPSED -> "Shadow magic, stealth";
-        };
+    private static String getRoleDescription(Identifier roleId, PetRoleType type) {
+        return PetRoleType.defaultDescription(roleId);
     }
-    
+
+    private static Text resolveRoleLabel(Identifier roleId, PetRoleType type) {
+        Text translated = Text.translatable(type.translationKey());
+        if (!translated.getString().equals(type.translationKey())) {
+            return translated;
+        }
+        return Text.literal(PetRoleType.fallbackName(roleId));
+    }
+
     /**
      * Assign a role to a pending pet.
      */
-    public static boolean assignPendingRole(PlayerEntity player, MobEntity pet, PetRole role) {
+    public static boolean assignPendingRole(PlayerEntity player, MobEntity pet, Identifier roleId) {
         PlayerEntity pendingOwner = pendingRoleSelection.get(pet);
         if (pendingOwner != null && pendingOwner.equals(player)) {
             // Create pet component with the selected role
             PetComponent component = PetComponent.getOrCreate(pet);
             component.setOwner(player);
-            component.setRole(role);
-            
+            component.setRoleId(roleId);
+
             // Generate unique characteristics for this pet (first time only)
             component.ensureCharacteristics();
-            
+
             // Remove from pending list
             pendingRoleSelection.remove(pet);
-            
+
             // Confirm to player
+            PetRoleType type = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+            Text label = type != null ? resolveRoleLabel(roleId, type) : Text.literal(roleId.toString());
             player.sendMessage(Text.literal("✓ ").formatted(Formatting.GREEN)
                 .append(Text.literal("Assigned role ").formatted(Formatting.WHITE))
-                .append(Text.literal(role.getDisplayName()).formatted(Formatting.AQUA))
+                .append(label.copy().formatted(Formatting.AQUA))
                 .append(Text.literal(" to your pet!").formatted(Formatting.WHITE)), false);
             if (player instanceof net.minecraft.server.network.ServerPlayerEntity sp) {
                 woflo.petsplus.ui.ChatLinks.sendSuggestRow(sp, new woflo.petsplus.ui.ChatLinks.Suggest[] {
@@ -181,10 +194,10 @@ public class PetDetectionHandler {
                     new woflo.petsplus.ui.ChatLinks.Suggest("[Change Role…]", "/petsplus role ", "Click then type a role or pick from buttons", "aqua", true)
                 }, 4);
             }
-                
-            Petsplus.LOGGER.info("Assigned role {} to pet {} for owner {}", 
-                role, pet.getType().toString(), player.getName().getString());
-            
+
+            Petsplus.LOGGER.info("Assigned role {} to pet {} for owner {}",
+                roleId, pet.getType().toString(), player.getName().getString());
+
             return true;
         }
         return false;
@@ -201,56 +214,6 @@ public class PetDetectionHandler {
     }
     
     /**
-     * Determine the appropriate role for a pet based on its type and characteristics.
-     */
-    @SuppressWarnings("unused")
-    private static PetRole determinePetRole(MobEntity mob) {
-        // This is a basic implementation - could be made more sophisticated
-        // or data-driven through configuration files
-        
-        String mobType = mob.getType().toString();
-        
-        // Guardian roles - tanky mobs
-        if (mobType.contains("iron_golem") || 
-            mobType.contains("snow_golem") ||
-            mobType.contains("turtle")) {
-            return PetRole.GUARDIAN;
-        }
-        
-        // Striker roles - aggressive mobs
-        if (mobType.contains("wolf") ||
-            mobType.contains("cat") ||
-            mobType.contains("ocelot")) {
-            return PetRole.STRIKER;
-        }
-        
-        // Scout roles - fast/utility mobs
-        if (mobType.contains("horse") ||
-            mobType.contains("donkey") ||
-            mobType.contains("llama") ||
-            mobType.contains("fox")) {
-            return PetRole.SCOUT;
-        }
-        
-        // Skyrider roles - flying mobs
-        if (mobType.contains("parrot") ||
-            mobType.contains("bee") ||
-            mobType.contains("phantom")) {
-            return PetRole.SKYRIDER;
-        }
-        
-        // Support roles - passive utility mobs
-        if (mobType.contains("sheep") ||
-            mobType.contains("cow") ||
-            mobType.contains("pig")) {
-            return PetRole.SUPPORT;
-        }
-        
-        // Default to Guardian for unknown types
-        return PetRole.GUARDIAN;
-    }
-    
-    /**
      * Called when an entity is tamed (via mixin hook).
      * This provides immediate detection of newly tamed pets.
      */
@@ -260,8 +223,11 @@ public class PetDetectionHandler {
         
         // Check if this pet already has a role assigned
         PetComponent existingComponent = PetComponent.get(tameable);
-        if (existingComponent != null && existingComponent.getRole() != null) {
-            return; // Already registered
+        if (existingComponent != null && !pendingRoleSelection.containsKey(tameable)) {
+            Identifier roleId = existingComponent.getRoleId();
+            if (PetsPlusRegistries.petRoleTypeRegistry().get(roleId) != null) {
+                return; // Already registered
+            }
         }
         
         // Prompt player for role selection
@@ -272,17 +238,24 @@ public class PetDetectionHandler {
      * Manually register a pet with a specific role and owner.
      * Useful for custom pet registration or admin commands.
      */
-    public static void registerPet(MobEntity mob, PlayerEntity owner, PetRole role) {
+    public static void registerPet(MobEntity mob, PlayerEntity owner, PetRoleType roleType) {
+        Identifier roleId = roleType != null ? roleType.id() : PetRoleType.GUARDIAN_ID;
+        registerPet(mob, owner, roleId);
+    }
+
+    public static void registerPet(MobEntity mob, PlayerEntity owner, Identifier roleId) {
         PetComponent component = PetComponent.getOrCreate(mob);
         component.setOwner(owner);
-        component.setRole(role);
-        
+        component.setRoleId(roleId);
+
         // Generate unique characteristics for this pet (first time only)
         component.ensureCharacteristics();
 
-        Petsplus.LOGGER.info("Manually registered pet {} with role {} for owner {}", 
-            mob.getType().toString(), role, owner.getName().getString());
-    }    /**
+        Petsplus.LOGGER.info("Manually registered pet {} with role {} for owner {}",
+            mob.getType().toString(), roleId, owner.getName().getString());
+    }
+
+    /**
      * Unregister a pet from the PetsPlus system.
      */
     public static void unregisterPet(MobEntity mob) {

@@ -1,0 +1,57 @@
+{
+  "id": "petsplus:striker",
+  "translation_key": "petsplus.role.striker",
+  "base_stat_scalars": {
+    "offense": 0.02
+  },
+  "stat_affinities": {
+    "attack": 0.05,
+    "speed": 0.03,
+    "learning": 0.03
+  },
+  "attribute_scaling": {
+    "attack_bonus_per_level": 0.02,
+    "attack_post_softcap_bonus_per_level": 0.01,
+    "attack_softcap_level": 15,
+    "attack_max_bonus": 1.5
+  },
+  "default_abilities": [
+    "petsplus:finisher_mark"
+  ],
+  "tribute_defaults": {
+    "10": "minecraft:gold_ingot",
+    "20": "minecraft:diamond",
+    "30": "minecraft:netherite_ingot"
+  },
+  "xp_curve": {
+    "max_level": 30,
+    "feature_levels": [3, 7, 12, 17, 23, 27],
+    "tribute_milestones": [10, 20, 30],
+    "base_linear_per_level": 20,
+    "quadratic_factor": 8,
+    "feature_level_bonus_multiplier": 0.75
+  },
+  "visual": {
+    "primary_color": "#e23a3a",
+    "secondary_color": "#8b1e1e",
+    "ambient_event": "striker_ambient",
+    "ability_event_prefix": "striker"
+  },
+  "presentation": {
+    "petting": {
+      "feedback_event": "striker_eagerness",
+      "message": {
+        "fallback": "Your striker's eyes gleam with hunting intent"
+      }
+    },
+    "memorial_epithets": [
+      { "fallback": "The Swift Strike" },
+      { "fallback": "The Final Word" },
+      { "fallback": "The Hunter's Mark" },
+      { "fallback": "The Decisive Blow" }
+    ],
+    "admin_summary": {
+      "fallback": "Aggressive fighter that marks weakened enemies for execution"
+    }
+  }
+}

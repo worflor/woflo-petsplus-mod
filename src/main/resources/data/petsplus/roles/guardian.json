@@ -1,0 +1,90 @@
+{
+  "id": "petsplus:guardian",
+  "translation_key": "petsplus.role.guardian",
+  "base_stat_scalars": {
+    "defense": 0.02
+  },
+  "stat_affinities": {
+    "health": 0.05,
+    "defense": 0.05,
+    "learning": 0.02
+  },
+  "attribute_scaling": {
+    "health_bonus_per_level": 0.02,
+    "health_post_softcap_bonus_per_level": 0.01,
+    "health_softcap_level": 20,
+    "health_max_bonus": 2.0
+  },
+  "default_abilities": [
+    "petsplus:shield_bash_rider"
+  ],
+  "tribute_defaults": {
+    "10": "minecraft:gold_ingot",
+    "20": "minecraft:diamond",
+    "30": "minecraft:netherite_ingot"
+  },
+  "xp_curve": {
+    "max_level": 30,
+    "feature_levels": [3, 7, 12, 17, 23, 27],
+    "tribute_milestones": [10, 20, 30],
+    "base_linear_per_level": 20,
+    "quadratic_factor": 8,
+    "feature_level_bonus_multiplier": 0.75
+  },
+  "visual": {
+    "primary_color": "#4aa3f0",
+    "secondary_color": "#1f6db5",
+    "ambient_event": "guardian_ambient",
+    "ability_event_prefix": "guardian"
+  },
+  "passive_auras": [
+    {
+      "id": "guardian_shield",
+      "interval": 160,
+      "radius": 8.0,
+      "min_level": 3,
+      "effects": [
+        {
+          "effect": "minecraft:resistance",
+          "target": "owner",
+          "duration": 200,
+          "amplifier": 0
+        },
+        {
+          "effect": "minecraft:absorption",
+          "target": "owner",
+          "duration": 120,
+          "amplifier": 0,
+          "min_level": 12
+        }
+      ],
+      "message": {
+        "translation_key": "petsplus.role.guardian.aura",
+        "fallback": "%s holds the line (+Resistance)"
+      },
+      "sound": {
+        "id": "minecraft:item.shield.block",
+        "volume": 0.3,
+        "pitch": 1.2
+      },
+      "particle_event": "guardian"
+    }
+  ],
+  "presentation": {
+    "petting": {
+      "feedback_event": "guardian_protection_stance",
+      "message": {
+        "fallback": "Your guardian stands proudly, ready to protect"
+      }
+    },
+    "memorial_epithets": [
+      { "fallback": "The Steadfast Shield" },
+      { "fallback": "The Loyal Protector" },
+      { "fallback": "The Unbreaking Wall" },
+      { "fallback": "The Gentle Guardian" }
+    ],
+    "admin_summary": {
+      "fallback": "Protective tank that redirects damage and provides stability"
+    }
+  }
+}

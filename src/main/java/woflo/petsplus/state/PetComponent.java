@@ -3,9 +3,14 @@ package woflo.petsplus.state;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.registry.Registry;
+import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
+import woflo.petsplus.Petsplus;
+import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.component.PetsplusComponents;
-import woflo.petsplus.api.PetRole;
 import woflo.petsplus.stats.PetCharacteristics;
 
 import java.util.HashMap;
@@ -18,9 +23,10 @@ import java.util.WeakHashMap;
  */
 public class PetComponent {
     private static final Map<MobEntity, PetComponent> COMPONENTS = new WeakHashMap<>();
-    
+    private static final Identifier DEFAULT_ROLE_ID = PetRoleType.GUARDIAN_ID;
+
     private final MobEntity pet;
-    private PetRole role;
+    private Identifier roleId;
     private PlayerEntity owner;
     private final Map<String, Long> cooldowns;
     private final Map<String, Object> stateData;
@@ -33,7 +39,7 @@ public class PetComponent {
     
     public PetComponent(MobEntity pet) {
         this.pet = pet;
-        this.role = PetRole.GUARDIAN; // Default role
+        this.roleId = DEFAULT_ROLE_ID;
         this.cooldowns = new HashMap<>();
         this.stateData = new HashMap<>();
         this.lastAttackTick = 0;
@@ -78,17 +84,78 @@ public class PetComponent {
         return pet;
     }
     
-    public PetRole getRole() {
-        return role;
+    public Identifier getRoleId() {
+        return roleId != null ? roleId : DEFAULT_ROLE_ID;
     }
-    
-    public void setRole(PetRole role) {
-        this.role = role;
-        
+
+    public boolean hasRole(@Nullable Identifier id) {
+        if (id == null) {
+            return false;
+        }
+        return getRoleId().equals(id);
+    }
+
+    public boolean hasRole(@Nullable PetRoleType type) {
+        return type != null && hasRole(type.id());
+    }
+
+    public boolean hasRole(@Nullable RegistryEntry<PetRoleType> entry) {
+        return entry != null && hasRole(entry.value());
+    }
+
+    public void setRoleId(@Nullable Identifier id) {
+        Identifier newId = id != null ? id : DEFAULT_ROLE_ID;
+        this.roleId = newId;
+
         // Apply attribute modifiers when role changes
         woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
     }
-    
+
+    public void setRoleType(@Nullable PetRoleType type) {
+        setRoleId(type != null ? type.id() : DEFAULT_ROLE_ID);
+    }
+
+    public void setRoleEntry(@Nullable RegistryEntry<PetRoleType> entry) {
+        if (entry == null) {
+            setRoleId(DEFAULT_ROLE_ID);
+            return;
+        }
+
+        setRoleType(entry.value());
+    }
+
+    @Nullable
+    public RegistryEntry<PetRoleType> getRoleEntry() {
+        Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
+        PetRoleType type = registry.get(getRoleId());
+        if (type != null) {
+            return registry.getEntry(type);
+        }
+
+        PetRoleType fallback = registry.get(DEFAULT_ROLE_ID);
+        return fallback != null ? registry.getEntry(fallback) : null;
+    }
+
+    public PetRoleType getRoleType() {
+        return getRoleType(true);
+    }
+
+    public PetRoleType getRoleType(boolean logMissing) {
+        Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
+        Identifier roleId = getRoleId();
+        PetRoleType type = registry.get(roleId);
+        if (type != null) {
+            return type;
+        }
+
+        if (logMissing) {
+            Petsplus.LOGGER.warn("Pet {} references missing role {}; defaulting to {}", pet.getUuid(), roleId, DEFAULT_ROLE_ID);
+        }
+
+        PetRoleType fallback = registry.get(DEFAULT_ROLE_ID);
+        return fallback != null ? fallback : PetRoleType.GUARDIAN;
+    }
+
     @Nullable
     public PlayerEntity getOwner() {
         return owner;
@@ -106,9 +173,13 @@ public class PetComponent {
         Long cooldownEnd = cooldowns.get(key);
         return cooldownEnd != null && pet.getWorld().getTime() < cooldownEnd;
     }
-    
+
     public void setCooldown(String key, int ticks) {
         cooldowns.put(key, pet.getWorld().getTime() + ticks);
+    }
+
+    public void clearCooldown(String key) {
+        cooldowns.remove(key);
     }
 
     /**
@@ -237,26 +308,26 @@ public class PetComponent {
      * Feature levels are: 3, 7, 12, 17, 23, 27
      * Uses exponential scaling similar to Minecraft player XP but much more gentle.
      */
-    public static int getXpRequiredForLevel(int level) {
-        if (level <= 1) return 0;
-        
-        // Base XP progression - gentler exponential scaling (~60% reduction from original)
-        // Lower levels: 20, 60, 120, 200, 300, 420, 560, 720, 900, 1100...
-        // Much more approachable while maintaining meaningful progression
-        int baseXp = (level - 1) * 20 + (level - 1) * (level - 1) * 8;
-        
-        // Feature level milestones (3, 7, 12, 17, 23, 27) get 25% XP BONUS (not penalty!)
-        // These should feel rewarding and exciting to reach, not punishing
-        boolean isFeatureLevel = level == 3 || level == 7 || level == 12 || 
-                                level == 17 || level == 23 || level == 27;
-        
-        return isFeatureLevel ? (int)(baseXp * 0.75) : baseXp;
+    public int getXpRequiredForLevel(int level) {
+        if (level <= 1) {
+            return 0;
+        }
+
+        PetRoleType.XpCurve curve = getRoleType().xpCurve();
+        int baseXp = (level - 1) * curve.baseLinearPerLevel()
+            + (level - 1) * (level - 1) * curve.quadraticFactor();
+
+        if (curve.isFeatureLevel(level)) {
+            baseXp = Math.round(baseXp * curve.featureLevelBonusMultiplier());
+        }
+
+        return Math.max(1, baseXp);
     }
-    
+
     /**
      * Get total XP required from level 1 to reach target level.
      */
-    public static int getTotalXpForLevel(int level) {
+    public int getTotalXpForLevel(int level) {
         int total = 0;
         for (int i = 2; i <= level; i++) {
             total += getXpRequiredForLevel(i);
@@ -276,10 +347,11 @@ public class PetComponent {
         this.experience += xpGained;
         
         // Check for level ups
-        while (this.experience >= getTotalXpForLevel(this.level + 1) && this.level < 30) {
+        PetRoleType.XpCurve curve = getRoleType().xpCurve();
+        while (this.experience >= getTotalXpForLevel(this.level + 1) && this.level < curve.maxLevel()) {
             this.level++;
         }
-        
+
         return this.level > oldLevel;
     }
     
@@ -287,13 +359,14 @@ public class PetComponent {
      * Get XP progress toward next level as a percentage (0.0 to 1.0).
      */
     public float getXpProgress() {
-        if (level >= 30) return 1.0f; // Max level
-        
+        PetRoleType.XpCurve curve = getRoleType().xpCurve();
+        if (level >= curve.maxLevel()) return 1.0f;
+
         int currentLevelTotalXp = getTotalXpForLevel(level);
         int nextLevelTotalXp = getTotalXpForLevel(level + 1);
-        int xpForThisLevel = nextLevelTotalXp - currentLevelTotalXp;
+        int xpForThisLevel = Math.max(1, nextLevelTotalXp - currentLevelTotalXp);
         int currentXpInLevel = experience - currentLevelTotalXp;
-        
+
         return Math.max(0f, Math.min(1f, (float)currentXpInLevel / xpForThisLevel));
     }
     
@@ -301,8 +374,7 @@ public class PetComponent {
      * Check if pet has reached a feature level (3, 7, 12, 17, 23, 27).
      */
     public boolean isFeatureLevel() {
-        return level == 3 || level == 7 || level == 12 || 
-               level == 17 || level == 23 || level == 27;
+        return getRoleType().xpCurve().isFeatureLevel(level);
     }
     
     /**
@@ -330,9 +402,13 @@ public class PetComponent {
      * Check if pet is waiting for tribute at current level.
      */
     public boolean isWaitingForTribute() {
-        return (level == 10 && !isMilestoneUnlocked(10)) ||
-               (level == 20 && !isMilestoneUnlocked(20)) ||
-               (level == 30 && !isMilestoneUnlocked(30));
+        PetRoleType.XpCurve curve = getRoleType().xpCurve();
+        for (int milestone : curve.tributeMilestones()) {
+            if (level == milestone && !isMilestoneUnlocked(milestone)) {
+                return true;
+            }
+        }
+        return false;
     }
     
     /**
@@ -424,7 +500,7 @@ public class PetComponent {
     }
     
     public void writeToNbt(NbtCompound nbt) {
-        nbt.putString("role", role.getKey());
+        nbt.putString("role", getRoleId().toString());
         nbt.putString("petUuid", pet.getUuidAsString());
         nbt.putLong("lastAttackTick", lastAttackTick);
         nbt.putBoolean("isPerched", isPerched);
@@ -492,9 +568,13 @@ public class PetComponent {
     public void readFromNbt(NbtCompound nbt) {
         if (nbt.contains("role")) {
             nbt.getString("role").ifPresent(roleKey -> {
-                PetRole loadedRole = PetRole.fromKey(roleKey);
-                if (loadedRole != null) {
-                    this.role = loadedRole;
+                Identifier parsed = Identifier.tryParse(roleKey);
+                if (parsed == null && !roleKey.contains(":")) {
+                    parsed = PetRoleType.normalizeId(roleKey);
+                }
+
+                if (parsed != null) {
+                    setRoleId(parsed);
                 }
             });
         }
@@ -576,12 +656,9 @@ public class PetComponent {
      * Save component data to entity using component system.
      */
     public void saveToEntity() {
-        PetsplusComponents.PetData data = PetsplusComponents.PetData.empty();
-        
-        if (role != null) {
-            data = data.withRole(role.getKey());
-        }
-        
+        PetsplusComponents.PetData data = PetsplusComponents.PetData.empty()
+            .withRole(getRoleId());
+
         data = data.withLastAttackTick(lastAttackTick)
                   .withPerched(isPerched);
             

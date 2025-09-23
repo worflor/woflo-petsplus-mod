@@ -1,0 +1,67 @@
+{
+  "id": "petsplus:eepy_eeper",
+  "translation_key": "petsplus.role.eepy_eeper",
+  "base_stat_scalars": {
+    "slumber": 0.02
+  },
+  "stat_affinities": {
+    "health": 0.03,
+    "vitality": 0.05,
+    "learning": 0.01
+  },
+  "default_abilities": [],
+  "tribute_defaults": {
+    "10": "minecraft:gold_ingot",
+    "20": "minecraft:diamond",
+    "30": "minecraft:netherite_ingot"
+  },
+  "xp_curve": {
+    "max_level": 30,
+    "feature_levels": [3, 7, 12, 17, 23, 27],
+    "tribute_milestones": [10, 20, 30],
+    "base_linear_per_level": 20,
+    "quadratic_factor": 8,
+    "feature_level_bonus_multiplier": 0.75
+  },
+  "visual": {
+    "primary_color": "#d18afd",
+    "secondary_color": "#6f3bae",
+    "ambient_event": "eepy_eeper_ambient",
+    "ability_event_prefix": "eepy_eeper"
+  },
+  "passive_auras": [
+    {
+      "id": "nap_time",
+      "interval": 120,
+      "radius": 4.0,
+      "min_level": 10,
+      "require_sitting": true,
+      "effects": [
+        {
+          "effect": "minecraft:regeneration",
+          "target": "owner_and_allies",
+          "duration": 120,
+          "amplifier": 0
+        }
+      ],
+      "particle_event": "nap_time"
+    }
+  ],
+  "presentation": {
+    "petting": {
+      "feedback_event": "eepy_sleepy_contentment",
+      "message": {
+        "fallback": "Your sleepy companion purrs drowsily"
+      }
+    },
+    "memorial_epithets": [
+      { "fallback": "The Dreaming Spirit" },
+      { "fallback": "The Restful Soul" },
+      { "fallback": "The Sleepy Guardian" },
+      { "fallback": "The Cozy Companion" }
+    ],
+    "admin_summary": {
+      "fallback": "Sleep specialist that provides rest-based healing and protection"
+    }
+  }
+}

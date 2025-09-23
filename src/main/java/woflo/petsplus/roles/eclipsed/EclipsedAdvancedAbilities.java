@@ -6,6 +6,7 @@ import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.Vec3d;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.OwnerCombatState;
 
@@ -22,9 +23,9 @@ public class EclipsedAdvancedAbilities {
             return;
         }
         
-        double radius = PetsPlusConfig.getInstance().getDouble("eclipsed", "eventHorizonRadius", 6.0);
-        int duration = PetsPlusConfig.getInstance().getInt("eclipsed", "eventHorizonDurationTicks", 100);
-        double projectileDr = PetsPlusConfig.getInstance().getDouble("eclipsed", "eventHorizonProjectileDrPct", 0.25);
+        double radius = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.ECLIPSED.id(), "eventHorizonRadius", 6.0);
+        int duration = PetsPlusConfig.getInstance().getRoleInt(PetRoleType.ECLIPSED.id(), "eventHorizonDurationTicks", 100);
+        double projectileDr = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.ECLIPSED.id(), "eventHorizonProjectileDrPct", 0.25);
         
         // Apply slowness to nearby mobs
         serverWorld.getEntitiesByClass(
@@ -73,14 +74,14 @@ public class EclipsedAdvancedAbilities {
         
         long currentTime = owner.getWorld().getTime();
         long lastEdgeStep = combatState.getTempState("last_edge_step");
-        int cooldown = PetsPlusConfig.getInstance().getInt("eclipsed", "edgeStepCooldownTicks", 240);
+        int cooldown = PetsPlusConfig.getInstance().getRoleInt(PetRoleType.ECLIPSED.id(), "edgeStepCooldownTicks", 240);
         
         if (currentTime - lastEdgeStep < cooldown) {
             return fallDamage; // Still on cooldown
         }
         
         // Apply fall reduction
-        double reductionPct = PetsPlusConfig.getInstance().getDouble("eclipsed", "edgeStepFallReductionPct", 0.25);
+        double reductionPct = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.ECLIPSED.id(), "edgeStepFallReductionPct", 0.25);
         combatState.setTempState("last_edge_step", currentTime);
         
         return fallDamage * (1.0f - (float) reductionPct);

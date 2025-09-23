@@ -4,88 +4,80 @@ import com.mojang.brigadier.StringReader;
 import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
-import net.minecraft.command.CommandSource;
 import net.minecraft.command.argument.serialize.ConstantArgumentSerializer;
+import net.minecraft.registry.Registry;
 import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.Petsplus;
+import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.api.registry.PetsPlusRegistries;
 
-import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 /**
  * Custom argument type for pet roles following Fabric documentation patterns.
- * Provides validation and suggestions for role names.
+ * Provides validation and suggestions for role identifiers.
  */
-public class PetRoleArgumentType implements ArgumentType<PetRole> {
-    
-    /**
-     * Parse a role from the command input.
-     * Supports both display names and internal keys.
-     */
+public class PetRoleArgumentType implements ArgumentType<Identifier> {
+    private static final DynamicCommandExceptionType UNKNOWN_ROLE = new DynamicCommandExceptionType(
+        name -> Text.literal("Unknown pet role: " + name)
+    );
+
     @Override
-    public PetRole parse(StringReader reader) throws CommandSyntaxException {
+    public Identifier parse(StringReader reader) throws CommandSyntaxException {
+        int start = reader.getCursor();
         String input = reader.readString();
-        
-        // Try direct key match first
-        for (PetRole role : PetRole.values()) {
-            if (role.getKey().equalsIgnoreCase(input)) {
-                return role;
-            }
+
+        Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
+
+        Identifier identifier = PetRoleType.normalizeId(input);
+        if (identifier != null && registry.get(identifier) != null) {
+            return identifier;
         }
-        
-        // Try display name match
-        for (PetRole role : PetRole.values()) {
-            if (role.getDisplayName().equalsIgnoreCase(input)) {
-                return role;
-            }
-        }
-        
-        // If no match found, throw exception with helpful message
-        String availableRoles = Arrays.stream(PetRole.values())
-            .map(PetRole::getKey)
-            .collect(Collectors.joining(", "));
-        throw CommandSyntaxException.BUILT_IN_EXCEPTIONS.literalIncorrect()
-            .createWithContext(reader, "Unknown role '" + input + "'. Available: " + availableRoles);
+
+        reader.setCursor(start);
+        throw UNKNOWN_ROLE.createWithContext(reader, input);
     }
-    
-    /**
-     * Provide suggestions for role names.
-     */
+
     @Override
     public <S> CompletableFuture<Suggestions> listSuggestions(CommandContext<S> context, SuggestionsBuilder builder) {
-        return CommandSource.suggestMatching(
-            Arrays.stream(PetRole.values())
-                .map(role -> role.getKey().toLowerCase())
-                .collect(Collectors.toList()),
-            builder
-        );
+        Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
+        boolean namespaced = builder.getRemaining().contains(":");
+
+        for (PetRoleType type : registry) {
+            Identifier id = type.id();
+            Text tooltip = Text.translatable(type.translationKey());
+            if (!namespaced) {
+                builder.suggest(id.getPath(), tooltip);
+            }
+            builder.suggest(id.toString(), tooltip);
+        }
+
+        return builder.buildFuture();
     }
-    
-    /**
-     * Static factory method for creating instances.
-     */
+
+    @Override
+    public Collection<String> getExamples() {
+        return List.of(Petsplus.MOD_ID + ":guardian", "guardian");
+    }
+
     public static PetRoleArgumentType petRole() {
         return new PetRoleArgumentType();
     }
-    
-    /**
-     * Helper method to get the role from a command context.
-     */
-    public static PetRole getRole(CommandContext<ServerCommandSource> context, String name) {
-        return context.getArgument(name, PetRole.class);
+
+    public static Identifier getRoleId(CommandContext<ServerCommandSource> context, String name) {
+        return context.getArgument(name, Identifier.class);
     }
-    
-    /**
-     * Register this argument type with Fabric.
-     * Call this during mod initialization.
-     */
+
     public static void register() {
         net.fabricmc.fabric.api.command.v2.ArgumentTypeRegistry.registerArgumentType(
-            Identifier.of("petsplus", "pet_role"),
+            Identifier.of(Petsplus.MOD_ID, "pet_role"),
             PetRoleArgumentType.class,
             ConstantArgumentSerializer.of(PetRoleArgumentType::new)
         );

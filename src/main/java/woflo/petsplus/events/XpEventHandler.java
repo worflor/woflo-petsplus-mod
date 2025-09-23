@@ -6,13 +6,20 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.registry.Registries;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvent;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.config.PetsPlusConfig;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.event.PetLevelUpEvent;
+import woflo.petsplus.api.event.XpAwardEvent;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.advancement.AdvancementManager;
+import woflo.petsplus.Petsplus;
 import woflo.petsplus.stats.PetAttributeManager;
 
 import java.util.List;
@@ -72,7 +79,7 @@ public class XpEventHandler {
         
         // Base 1:1 XP sharing - much more generous than the old 50%
         PetsPlusConfig config = PetsPlusConfig.getInstance();
-        double baseXpModifier = config.getDouble("pet_leveling", "xp_modifier", 1.0); // Now defaults to 1:1
+        double baseXpModifier = config.getSectionDouble("pet_leveling", "xp_modifier", 1.0); // Now defaults to 1:1
         
         // Give XP to all nearby pets with individual scaling
         for (MobEntity pet : nearbyPets) {
@@ -84,7 +91,7 @@ public class XpEventHandler {
                 // Apply pet's unique learning characteristic (±15% variation)
                 float learningModifier = 1.0f;
                 if (petComp.getCharacteristics() != null) {
-                    learningModifier = petComp.getCharacteristics().getXpLearningModifier(petComp.getRole());
+                    learningModifier = petComp.getCharacteristics().getXpLearningModifier(petComp.getRoleType(false));
                 }
                 
                 // Apply participation bonuses/penalties
@@ -96,7 +103,24 @@ public class XpEventHandler {
                 // Check if this is the first time gaining pet XP (first bond)
                 boolean wasFirstBond = petComp.getLevel() == 1 && petComp.getExperience() == 0;
 
-                boolean leveledUp = petComp.addExperience(petXpGain);
+                int previousLevel = petComp.getLevel();
+
+                XpAwardEvent.Context xpContext = new XpAwardEvent.Context(
+                    player,
+                    pet,
+                    petComp,
+                    xpGained,
+                    petXpGain,
+                    XpAwardEvent.OWNER_XP_SHARE
+                );
+                XpAwardEvent.fire(xpContext);
+
+                if (xpContext.isCancelled() || xpContext.getAmount() <= 0) {
+                    continue;
+                }
+
+                int awardedXp = xpContext.getAmount();
+                boolean leveledUp = petComp.addExperience(awardedXp);
 
                 if (wasFirstBond) {
                     // Trigger first pet bond advancement
@@ -104,7 +128,19 @@ public class XpEventHandler {
                 }
 
                 if (leveledUp) {
-                    handlePetLevelUp(player, pet, petComp);
+                    PetLevelUpEvent.Context levelContext = new PetLevelUpEvent.Context(
+                        player,
+                        pet,
+                        petComp,
+                        previousLevel,
+                        petComp.getLevel(),
+                        awardedXp
+                    );
+                    PetLevelUpEvent.fire(levelContext);
+
+                    if (!levelContext.isDefaultCelebrationSuppressed()) {
+                        handlePetLevelUp(player, pet, petComp);
+                    }
                 }
             }
         }
@@ -149,13 +185,13 @@ public class XpEventHandler {
         
         // Combat participation bonuses
         if (playerRecentCombat || petRecentCombat) {
-            float participationBonus = (float) config.getDouble("pet_leveling", "participation_bonus", 0.5);
+            float participationBonus = (float) config.getSectionDouble("pet_leveling", "participation_bonus", 0.5);
             modifier += participationBonus; // +50% default for combat participation
         }
         
         // AFK penalty
         if (playerAFK) {
-            float afkPenalty = (float) config.getDouble("pet_leveling", "afk_penalty", 0.25);
+            float afkPenalty = (float) config.getSectionDouble("pet_leveling", "afk_penalty", 0.25);
             modifier = afkPenalty; // 25% of normal XP when AFK
         }
         
@@ -188,25 +224,29 @@ public class XpEventHandler {
     
     private static void handlePetLevelUp(ServerPlayerEntity owner, MobEntity pet, PetComponent petComp) {
         int newLevel = petComp.getLevel();
+        PetRoleType roleType = petComp.getRoleType();
 
-        // Trigger advancement for milestone levels
-        if (newLevel == 10 || newLevel == 20 || newLevel == 30) {
-            AdvancementManager.triggerMilestoneUnlock(owner, newLevel);
+        // Trigger advancement for milestone levels defined by the role
+        for (int milestone : roleType.xpCurve().tributeMilestones()) {
+            if (newLevel == milestone) {
+                AdvancementManager.triggerMilestoneUnlock(owner, newLevel);
+                break;
+            }
         }
 
-        // Trigger level 30 advancement
-        if (newLevel == 30) {
+        // Trigger max level advancement if applicable
+        if (newLevel == roleType.xpCurve().maxLevel()) {
             AdvancementManager.triggerPetLevel30(owner, pet);
         }
 
         // Trigger role-specific milestones
-        PetRole role = petComp.getRole();
-        if (role != null) {
-            String roleId = "petsplus:" + role.name().toLowerCase();
-            if (newLevel == 20 && role == PetRole.SKYRIDER) {
-                AdvancementManager.triggerRoleMilestone(owner, roleId, newLevel);
-            } else if (newLevel == 30 && role == PetRole.ECLIPSED) {
-                AdvancementManager.triggerRoleMilestone(owner, roleId, newLevel);
+        for (PetRoleType.MilestoneAdvancement advancement : roleType.milestoneAdvancements()) {
+            if (advancement.level() == newLevel) {
+                if (advancement.advancementId() != null) {
+                    AdvancementManager.triggerConfiguredAdvancement(owner, advancement.advancementId());
+                }
+                sendMilestoneMessage(owner, pet, advancement);
+                playMilestoneSound(owner, pet, advancement.sound());
             }
         }
         
@@ -225,7 +265,7 @@ public class XpEventHandler {
         
         // Send level up message to owner
         String petName = pet.hasCustomName() ? pet.getCustomName().getString() : pet.getType().getName().getString();
-        String roleDisplayName = getRoleDisplayName(petComp.getRole());
+        String roleDisplayName = getRoleDisplayName(petComp);
         
         if (petComp.isFeatureLevel()) {
             // Special message for feature levels that unlock new abilities
@@ -266,18 +306,57 @@ public class XpEventHandler {
             }
         }
     }
-    
-    private static String getRoleDisplayName(PetRole role) {
-        return switch (role) {
-            case GUARDIAN -> "Guardian";
-            case STRIKER -> "Striker";
-            case SUPPORT -> "Support";
-            case SCOUT -> "Scout";
-            case SKYRIDER -> "Skyrider";
-            case ENCHANTMENT_BOUND -> "Enchantment-Bound";
-            case CURSED_ONE -> "Cursed One";
-            case EEPY_EEPER -> "Eepy Eeper";
-            case ECLIPSED -> "Eclipsed";
-        };
+
+    private static String getRoleDisplayName(PetComponent petComp) {
+        PetRoleType roleType = petComp.getRoleType(false);
+        if (roleType != null) {
+            String translated = Text.translatable(roleType.translationKey()).getString();
+            if (!translated.equals(roleType.translationKey())) {
+                return translated;
+            }
+        }
+
+        Identifier roleId = petComp.getRoleId();
+        return roleId != null ? roleId.toString() : "Unknown";
+    }
+
+    private static void sendMilestoneMessage(ServerPlayerEntity owner, MobEntity pet, PetRoleType.MilestoneAdvancement advancement) {
+        PetRoleType.Message message = advancement.message();
+        if (message == null || !message.isPresent()) {
+            return;
+        }
+        Text text = buildMilestoneText(message, pet, advancement.level());
+        if (text != null) {
+            owner.sendMessage(text, false);
+        }
+    }
+
+    private static Text buildMilestoneText(PetRoleType.Message message, MobEntity pet, int level) {
+        String translationKey = message.translationKey();
+        if (translationKey != null && !translationKey.isBlank()) {
+            return Text.translatable(translationKey, pet.getDisplayName(), level);
+        }
+        String fallback = message.fallback();
+        if (fallback != null && !fallback.isBlank()) {
+            String formatted = fallback;
+            try {
+                formatted = String.format(fallback, pet.hasCustomName() ? pet.getCustomName().getString() : pet.getName().getString(), level);
+            } catch (IllegalArgumentException ignored) {
+            }
+            return Text.literal(formatted);
+        }
+        return null;
+    }
+
+    private static void playMilestoneSound(ServerPlayerEntity owner, MobEntity pet, PetRoleType.SoundCue cue) {
+        if (cue == null || !cue.isPresent()) {
+            return;
+        }
+        RegistryEntry<SoundEvent> entry = Registries.SOUND_EVENT.getEntry(cue.soundId()).orElse(null);
+        if (entry == null) {
+            Petsplus.LOGGER.warn("Unknown sound '{}' configured for milestone on pet {}", cue.soundId(), pet.getUuid());
+            return;
+        }
+        owner.getWorld().playSound(null, pet.getX(), pet.getY(), pet.getZ(), entry.value(), SoundCategory.NEUTRAL, cue.volume(), cue.pitch());
     }
 }

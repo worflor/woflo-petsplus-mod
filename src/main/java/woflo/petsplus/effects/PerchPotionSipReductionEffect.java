@@ -6,7 +6,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
-import woflo.petsplus.api.PetRole;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.util.PetPerchUtil;
@@ -20,7 +20,7 @@ public class PerchPotionSipReductionEffect implements Effect {
     
     public PerchPotionSipReductionEffect(JsonObject config) {
         this.discountPercent = getDoubleOrDefault(config, "discount_percent",
-            PetsPlusConfig.getInstance().getDouble("support", "perchSipDiscount", 0.20));
+            PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.SUPPORT.id(), "perchSipDiscount", 0.20));
     }
 
     private static double getDoubleOrDefault(JsonObject json, String key, double defaultValue) {
@@ -40,9 +40,11 @@ public class PerchPotionSipReductionEffect implements Effect {
     private static double parseConfigVariable(String value, double defaultValue) {
         if (value.startsWith("${") && value.endsWith("}")) {
             String configPath = value.substring(2, value.length() - 1);
-            String[] parts = configPath.split("\\.");
-            if (parts.length == 2) {
-                return PetsPlusConfig.getInstance().getDouble(parts[0], parts[1], defaultValue);
+            int delimiter = configPath.lastIndexOf('.');
+            if (delimiter > 0 && delimiter < configPath.length() - 1) {
+                String scope = configPath.substring(0, delimiter);
+                String key = configPath.substring(delimiter + 1);
+                return PetsPlusConfig.getInstance().resolveScopedDouble(scope, key, defaultValue);
             }
         }
         try {
@@ -87,13 +89,13 @@ public class PerchPotionSipReductionEffect implements Effect {
 
         PetComponent component = PetComponent.get(pet);
         if (component != null &&
-            component.getRole() == PetRole.SUPPORT &&
+            component.hasRole(PetRoleType.SUPPORT) &&
             component.isOwnedBy(owner) &&
             PetPerchUtil.isPetPerched(component)) {
             return true;
         }
 
-        return PetPerchUtil.ownerHasPerchedRole(owner, PetRole.SUPPORT);
+        return PetPerchUtil.ownerHasPerchedRole(owner, PetRoleType.SUPPORT);
     }
     
     /**
