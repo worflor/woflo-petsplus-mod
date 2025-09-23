@@ -32,6 +32,10 @@ If your pet dies, it will drop all its items and be gone for good. Your tribute 
 
 ## Configuration
 Pets+ includes a configuration file (`config/petsplus.json`) where you can customize various settings. Explore it yourself.
+- Tribute Level + Items
+- 
+
+
 
 ## Credits
 - woflo - (me)
