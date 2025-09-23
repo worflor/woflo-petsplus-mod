@@ -40,14 +40,19 @@ public final class PetRoleDataLoader implements SimpleSynchronousResourceReloadL
         Map<Identifier, Resource> located = manager.findResources(ROOT_PATH, id -> id.getPath().endsWith(".json"));
         for (Identifier resourceId : located.keySet()) {
             List<Resource> stack = manager.getAllResources(resourceId);
+            JsonElement resolved = null;
 
             for (Resource resource : stack) {
                 try (Reader reader = resource.getReader()) {
-                    JsonElement json = JsonParser.parseReader(reader);
-                    prepared.put(toRoleId(resourceId), json);
+                    resolved = JsonParser.parseReader(reader);
+                    break;
                 } catch (IOException | JsonParseException e) {
                     Petsplus.LOGGER.error("Failed to parse role data from {}", resourceId, e);
                 }
+            }
+
+            if (resolved != null) {
+                prepared.put(toRoleId(resourceId), resolved);
             }
         }
 
