@@ -8,6 +8,11 @@
   },
   "effects": [
     {
+      "type": "retarget_nearest_hostile",
+      "radius": 12,
+      "store_as": "pp_target"
+    },
+    {
       "type": "tag_target",
       "target": "pp_target",
       "key": "petsplus:phase_partner",

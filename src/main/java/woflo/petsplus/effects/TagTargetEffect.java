@@ -15,10 +15,12 @@ public class TagTargetEffect implements Effect {
     private static final Identifier ID = Identifier.of("petsplus", "tag_target");
     private static final Map<Entity, Map<String, Long>> ENTITY_TAGS = new HashMap<>();
     
+    private final String targetKey;
     private final String key;
     private final int durationTicks;
-    
-    public TagTargetEffect(String key, int durationTicks) {
+
+    public TagTargetEffect(String targetKey, String key, int durationTicks) {
+        this.targetKey = targetKey == null || targetKey.isBlank() ? "target" : targetKey;
         this.key = key;
         this.durationTicks = durationTicks;
     }
@@ -45,10 +47,21 @@ public class TagTargetEffect implements Effect {
     }
     
     private Entity getTarget(EffectContext context) {
-        // Try to get explicit target first
-        Entity target = context.getTarget();
-        if (target != null) return target;
-        
+        Entity target = context.getData(targetKey, Entity.class);
+        if (target != null) {
+            return target;
+        }
+
+        target = context.getTriggerContext().getData(targetKey, Entity.class);
+        if (target != null) {
+            return target;
+        }
+
+        target = context.getTarget();
+        if (target != null) {
+            return target;
+        }
+
         // Fall back to victim from trigger context
         return context.getTriggerContext().getVictim();
     }
