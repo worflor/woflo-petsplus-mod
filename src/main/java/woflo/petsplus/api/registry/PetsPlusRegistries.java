@@ -323,7 +323,8 @@ public final class PetsPlusRegistries {
             .build());
 
         registerEffectSerializer(EffectSerializer.builder(id("tag_target"), TagTargetConfig.CODEC,
-            (abilityId, config, context) -> DataResult.success(new TagTargetEffect(config.key(), config.durationTicks())))
+            (abilityId, config, context) -> DataResult.success(new TagTargetEffect(
+                config.targetKey(), config.key(), config.durationTicks())))
             .description("Applies a named tag to the current target.")
             .build());
 
@@ -484,8 +485,9 @@ public final class PetsPlusRegistries {
 
     }
 
-    private record TagTargetConfig(String key, int durationTicks) {
+    private record TagTargetConfig(String targetKey, String key, int durationTicks) {
         static final Codec<TagTargetConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+            Codec.STRING.optionalFieldOf("target", "target").forGetter(TagTargetConfig::targetKey),
             Codec.STRING.optionalFieldOf("key", "").forGetter(TagTargetConfig::key),
             Codec.INT.optionalFieldOf("duration_ticks", 80).forGetter(TagTargetConfig::durationTicks)
         ).apply(instance, TagTargetConfig::new));
