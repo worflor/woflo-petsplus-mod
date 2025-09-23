@@ -7,6 +7,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -155,9 +156,7 @@ public class BossBarManager {
     public static void removeBossBar(ServerPlayerEntity player) {
         UUID playerId = player.getUuid();
         BossBarInfo info = activeBossBars.remove(playerId);
-        if (info != null && info.bossBar != null) {
-            info.bossBar.removePlayer(player);
-        }
+        detachBossBar(info);
     }
     
     /**
@@ -168,13 +167,10 @@ public class BossBarManager {
         activeBossBars.entrySet().removeIf(entry -> {
             BossBarInfo info = entry.getValue();
             info.remainingTicks--;
-            
+
             if (info.remainingTicks <= 0) {
-                // Boss bar expired, remove it
-                if (info.bossBar != null) {
-                    // Note: In a full implementation, you'd need to get the player and remove the boss bar
-                    // This is simplified for the current implementation
-                }
+                // Detach any players so the bar immediately disappears client-side.
+                detachBossBar(info);
                 return true;
             } else {
                 // Update progress: fixed percent mode keeps set percent; otherwise, show time-based countdown fill
@@ -221,5 +217,16 @@ public class BossBarManager {
 
     private static float clamp01(float v) {
         return v < 0 ? 0 : (v > 1 ? 1 : v);
+    }
+
+    private static void detachBossBar(BossBarInfo info) {
+        if (info == null || info.bossBar == null) {
+            return;
+        }
+
+        for (ServerPlayerEntity player : List.copyOf(info.bossBar.getPlayers())) {
+            info.bossBar.removePlayer(player);
+        }
+        info.bossBar = null;
     }
 }
