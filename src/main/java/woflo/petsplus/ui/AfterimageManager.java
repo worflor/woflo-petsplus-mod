@@ -50,7 +50,7 @@ public final class AfterimageManager {
     }
 
     /**
-     * Reload styles from the petsplus.json configuration.
+     * Reload styles from the Pets+ configuration bundle.
      */
     public static void reloadStyles() {
         STYLES.clear();

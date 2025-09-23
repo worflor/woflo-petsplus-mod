@@ -22,6 +22,7 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.commands.arguments.PetRoleArgumentType;
 import woflo.petsplus.commands.suggestions.PetsSuggestionProviders;
+import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.ui.ChatLinks;
 
@@ -99,6 +100,11 @@ public class PetsCommand {
                 .requires(source -> source.hasPermissionLevel(2))
                 .then(CommandManager.literal("reload")
                     .executes(PetsCommand::reloadConfig))
+                .then(CommandManager.literal("config")
+                    .then(CommandManager.literal("regen")
+                        .then(CommandManager.argument("role", PetRoleArgumentType.petRole())
+                            .suggests(PetsSuggestionProviders.SMART_ROLE_SUGGESTIONS)
+                            .executes(PetsCommand::regenerateRoleConfig))))
                 .then(CommandManager.literal("debug")
                     .then(CommandManager.literal("on")
                         .executes(context -> toggleDebug(context, true)))
@@ -293,18 +299,28 @@ public class PetsCommand {
     }
     
     private static int reloadConfig(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-        
         try {
-            woflo.petsplus.config.PetsPlusConfig.getInstance().reload();
-            player.sendMessage(Text.literal("Configuration reloaded successfully!")
-                .formatted(Formatting.GREEN), false);
+            PetsPlusConfig.getInstance().reload();
+            context.getSource().sendFeedback(
+                () -> Text.literal("Configuration reloaded successfully!").formatted(Formatting.GREEN),
+                false
+            );
             return 1;
         } catch (Exception e) {
-            player.sendMessage(Text.literal("Error reloading config: " + e.getMessage())
-                .formatted(Formatting.RED), false);
+            context.getSource().sendError(Text.literal("Error reloading config: " + e.getMessage())
+                .formatted(Formatting.RED));
             return 0;
         }
+    }
+
+    private static int regenerateRoleConfig(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        Identifier roleId = PetRoleArgumentType.getRoleId(context, "role");
+        PetsPlusConfig.getInstance().regenerateRoleConfig(roleId);
+        context.getSource().sendFeedback(
+            () -> Text.literal("Regenerated config stub for role " + roleId + ".").formatted(Formatting.GREEN),
+            false
+        );
+        return 1;
     }
     
     private static int toggleDebug(CommandContext<ServerCommandSource> context, boolean enable) throws CommandSyntaxException {
