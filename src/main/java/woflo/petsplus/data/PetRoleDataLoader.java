@@ -72,10 +72,9 @@ public final class PetRoleDataLoader implements SimpleSynchronousResourceReloadL
             PetRoleDefinition definition = PetRoleDefinition.fromJson(fileId, json, source);
             Identifier roleId = definition.id();
 
-            String existingSource = seenSources.putIfAbsent(roleId, source);
-            if (existingSource != null) {
-                Petsplus.LOGGER.error("Duplicate role definition {} encountered in {} (already defined in {})", roleId, source, existingSource);
-                continue;
+            String previousSource = seenSources.put(roleId, source);
+            if (previousSource != null && !previousSource.equals(source)) {
+                Petsplus.LOGGER.debug("Role definition {} in {} overrides {}", roleId, source, previousSource);
             }
 
             definitions.put(roleId, definition);

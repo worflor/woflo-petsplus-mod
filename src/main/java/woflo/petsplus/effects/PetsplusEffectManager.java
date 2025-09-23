@@ -253,6 +253,10 @@ public final class PetsplusEffectManager {
             return true;
         }
         AuraTimer timer = AURA_TIMERS.computeIfAbsent(key, k -> new AuraTimer());
+        if (worldTime < timer.lastWorldTime) {
+            timer.lastWorldTime = worldTime;
+            timer.lastRealTime = System.currentTimeMillis();
+        }
         if (worldTime - timer.lastWorldTime >= interval) {
             timer.lastWorldTime = worldTime;
             timer.lastRealTime = System.currentTimeMillis();

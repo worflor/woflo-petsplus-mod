@@ -83,13 +83,6 @@ public class AbilityDataLoader implements SimpleSynchronousResourceReloadListene
                 continue;
             }
 
-            String duplicateSource = abilitySources.putIfAbsent(abilityId, source);
-            if (duplicateSource != null) {
-                Petsplus.LOGGER.error("Duplicate ability id {} encountered in {} (already defined in {})",
-                    abilityId, source, duplicateSource);
-                continue;
-            }
-
             if (json.has("role")) {
                 Petsplus.LOGGER.warn("Ability {} in {} still defines legacy field 'role'; loadouts are now provided by role definitions and this value will be ignored.", abilityId, source);
             }
@@ -159,6 +152,10 @@ public class AbilityDataLoader implements SimpleSynchronousResourceReloadListene
 
             Supplier<Ability> factory = () -> AbilityFactory.fromJson(baseDefinition.deepCopy());
             definitions.put(abilityId, new LoadedAbility(abilityId, description, factory));
+            String previousSource = abilitySources.put(abilityId, source);
+            if (previousSource != null && !previousSource.equals(source)) {
+                Petsplus.LOGGER.debug("Ability {} in {} overrides definition from {}", abilityId, source, previousSource);
+            }
             staleCandidates.remove(abilityId);
         }
 
