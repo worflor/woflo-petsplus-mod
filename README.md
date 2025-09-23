@@ -36,9 +36,9 @@ If your pet dies, it will drop all its items and be gone for good. Your tribute 
 - Peaceful: State lasts 15 minutes before fully dying.
 
 ## Configuration and Expandability
-Pets+ includes a configuration file (`config/petsplus.json`) where you can customize various settings. Explore it yourself.
+Pets+ includes configuration files (`config/petsplus/...`) where you can customize various components. Explore it yourself.
 - Roles, Abilities, and Tributes have configurations availible.
-- The backend API is open for extending via Datapacks and Add-On Mods. Base roles, abilities, and progression rewards can be tinkered, modified, or overritten to your liking.
+- The backend API is extendable via Datapacks and Add-On Mods. Base roles, abilities, and progression rewards can be tinkered, modified, or overritten to your liking.
 
 ## Advancements
 - "Best Friends Forever++"
@@ -57,3 +57,5 @@ Pets+ includes a configuration file (`config/petsplus.json`) where you can custo
 
 ## Credits
 - woflo - (me)
+- woflo - (myself)
+- woflo - (i)
