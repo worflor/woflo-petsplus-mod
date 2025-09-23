@@ -30,6 +30,11 @@ Your pet shares your experience and grows alongside you. Feature levels (3, 7, 1
 ## Pet Death and Loss
 If your pet dies, it will drop all its items and be gone for good. Your tribute items are lost and all pet experience is lost. You will need to invest in a new pet.
 
+### Future Plan:
+- Deaths on easier difficulties trigger a 'dying' state rather than immediate death, right clicking with a golden apple resurrects the pet in place at 50% health.
+- Easy: State lasts 5 minutes before fully dying.
+- Peaceful: State lasts 15 minutes before fully dying.
+
 ## Configuration and Expandability
 Pets+ includes a configuration file (`config/petsplus.json`) where you can customize various settings. Explore it yourself.
 - Roles, Abilities, and Tributes have configurations availible.
