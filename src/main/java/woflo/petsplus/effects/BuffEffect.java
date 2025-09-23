@@ -6,6 +6,7 @@ import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
+import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.util.PetPerchUtil;
 
@@ -76,7 +77,17 @@ public class BuffEffect implements Effect {
             case PET:
                 return context.getPet();
             case VICTIM:
-                Entity victim = context.getTriggerContext().getVictim();
+                LivingEntity storedTarget = getStoredLivingTarget(context);
+                if (storedTarget != null) {
+                    return storedTarget;
+                }
+
+                TriggerContext triggerContext = context.getTriggerContext();
+                if (triggerContext == null) {
+                    return null;
+                }
+
+                Entity victim = triggerContext.getVictim();
                 return victim instanceof LivingEntity ? (LivingEntity) victim : null;
             case MOUNT:
                 Entity mount = context.getMount();
@@ -84,5 +95,23 @@ public class BuffEffect implements Effect {
             default:
                 return null;
         }
+    }
+
+    private LivingEntity getStoredLivingTarget(EffectContext context) {
+        LivingEntity fromTarget = asLivingEntity(context.getTarget());
+        if (fromTarget != null) {
+            return fromTarget;
+        }
+
+        LivingEntity fromTargetData = asLivingEntity(context.getData("target", Entity.class));
+        if (fromTargetData != null) {
+            return fromTargetData;
+        }
+
+        return asLivingEntity(context.getData("victim", Entity.class));
+    }
+
+    private LivingEntity asLivingEntity(Entity entity) {
+        return entity instanceof LivingEntity living ? living : null;
     }
 }
