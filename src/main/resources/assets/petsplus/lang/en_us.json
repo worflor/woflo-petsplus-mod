@@ -34,15 +34,12 @@
   "petsplus.ability.activated": "%s activated!",
   "petsplus.ability.cooldown": "%s cooldown",
   "petsplus.ability.ready": "%s ready!",
-  "petsplus.ability.test_triggered": "Test triggered ability: %s",
   
   "petsplus.mount.speed": "Your mount gains speed",
   "petsplus.mount.resistance": "Your mount gains resistance",
   "petsplus.mount.knockback_resistance": "Your mount stands firm",
   
   "petsplus.role.assigned": "Assigned role %s to %s",
-  "petsplus.test.ui": "UI Test: %s",
-  "petsplus.test.mount_detected": "Mount detected: %s",
 
   "petsplus.adv.first_pet.title": "Best Friends Forever++",
   "petsplus.adv.first_pet.desc": "A quiet glance... It's official—you belong to each other.",
