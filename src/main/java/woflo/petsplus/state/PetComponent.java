@@ -56,20 +56,20 @@ public class PetComponent {
      * Pet mood states derived from interactions and environment.
      */
     public enum Mood {
-        JOYFUL(PetMood.JOYFUL),
+        HAPPY(PetMood.HAPPY),
         PLAYFUL(PetMood.PLAYFUL),
         CURIOUS(PetMood.CURIOUS),
         BONDED(PetMood.BONDED),
-        ZEN(PetMood.ZEN),
-        ZEALOUS(PetMood.ZEALOUS),
+        CALM(PetMood.CALM),
+        PASSIONATE(PetMood.PASSIONATE),
         YUGEN(PetMood.YUGEN),
-        TARAB(PetMood.TARAB),
-        KINTSUGI(PetMood.KINTSUGI),
+        FOCUSED(PetMood.FOCUSED),
+        SISU(PetMood.SISU),
         SAUDADE(PetMood.SAUDADE),
         PROTECTIVE(PetMood.PROTECTIVE),
         RESTLESS(PetMood.RESTLESS),
-        FEARFUL(PetMood.FEARFUL),
-        WRATHFUL(PetMood.WRATHFUL);
+        AFRAID(PetMood.AFRAID),
+        ANGRY(PetMood.ANGRY);
 
         public final Formatting primaryFormatting;
         public final Formatting secondaryFormatting;
@@ -81,12 +81,11 @@ public class PetComponent {
         }
     }
 
-    /** Hidden, reactive emotions (de-duplicated; ~30 from spec) */
+    /** Hidden, reactive emotions (de-duplicated list from spec) */
     public enum Emotion {
-        FROHLICH, QUERENCIA, GLEE, ANANDA, FJELLVANT, UBUNTU, GEZELLIG, KEFI,
-        ANGST, FOREBODING, WELTSCHMERZ, PROTECTIVENESS, FRUSTRATION, STARTLE, DISGUST, REGRET,
-        MONO_NO_AWARE, FERNWEH, SOBREMESA, HANYAUKU, WABI_SABI, LAGOM, ENNUI, YUGEN,
-        SAUDADE, HIRAETH, SISU, AMAL, RELIEF, GAMAN
+        CHEERFUL, QUERECIA, GLEE, BLISSFUL, UBUNTU, KEFI, ANGST, FOREBODING,
+        PROTECTIVENESS, FRUSTRATION, STARTLE, DISGUST, REGRET, MONO_NO_AWARE, FERNWEH, SOBREMESA,
+        HANYAUKU, WABI_SABI, LAGOM, ENNUI, YUGEN, SAUDADE, HIRAETH, STOIC, HOPEFUL, RELIEF, GAMAN
     }
 
     // Emotion slots are fully managed by PetMoodEngine

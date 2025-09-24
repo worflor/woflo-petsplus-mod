@@ -11,7 +11,7 @@ import woflo.petsplus.state.PetComponent;
 
 /**
  * Lightweight comfort/safety provider:
- * - Near owner and indoors at night → calm (ANANDA, GEZELLIG)
+ * - Near owner and indoors at night → calm (BLISSFUL, QUERECIA)
  * - Next to campfire/bed → calm
  * - In rain/thunder without cover → slight discomfort (FOREBODING)
  */
@@ -26,7 +26,7 @@ public class EnvironmentComfortProvider implements EmotionProvider {
         if (owner != null && owner.isAlive()) {
             double d2 = pet.squaredDistanceTo(owner);
             if (d2 < 36) { // within 6 blocks
-                api.pushEmotion(pet, PetComponent.Emotion.GEZELLIG, 0.05f);
+                api.pushEmotion(pet, PetComponent.Emotion.QUERECIA, 0.05f);
             }
         }
 
@@ -36,7 +36,7 @@ public class EnvironmentComfortProvider implements EmotionProvider {
             BlockPos pos = pet.getBlockPos();
             boolean covered = !world.isSkyVisible(pos.up());
             if (covered) {
-                api.pushEmotion(pet, PetComponent.Emotion.ANANDA, 0.03f);
+                api.pushEmotion(pet, PetComponent.Emotion.BLISSFUL, 0.03f);
             } else {
                 api.pushEmotion(pet, PetComponent.Emotion.FOREBODING, 0.02f);
             }
@@ -47,7 +47,7 @@ public class EnvironmentComfortProvider implements EmotionProvider {
         for (BlockPos off : new BlockPos[]{base, base.down(), base.up(), base.north(), base.south(), base.east(), base.west()}) {
             var state = world.getBlockState(off);
             if (state.isOf(Blocks.CAMPFIRE) || state.isOf(Blocks.SOUL_CAMPFIRE)) {
-                api.pushEmotion(pet, PetComponent.Emotion.GEZELLIG, 0.04f);
+                api.pushEmotion(pet, PetComponent.Emotion.SOBREMESA, 0.04f);
                 break;
             }
             if (state.getBlock().asItem() == Items.RED_BED || state.getBlock().asItem() == Items.WHITE_BED) {

@@ -31,25 +31,25 @@ public class MoodBasedAIManager {
             // Higher number = higher priority, but we want these to be medium priority
 
             // Defensive/survival goals (higher priority)
-            goalSelector.add(5, new FearfulFleeGoal(pet));        // FEARFUL - flee from threats
+            goalSelector.add(5, new AfraidFleeGoal(pet));         // AFRAID - flee from threats
             goalSelector.add(6, new ProtectiveGuardGoal(pet));    // PROTECTIVE - guard owner
 
             // Combat/aggressive goals (medium-high priority)
-            goalSelector.add(7, new WrathfulAttackGoal(pet));     // WRATHFUL - attack threats
+            goalSelector.add(7, new AngryAttackGoal(pet));        // ANGRY - attack threats
 
             // Exploration/activity goals (medium priority)
             goalSelector.add(10, new CuriousExploreGoal(pet));    // CURIOUS - investigate objects
-            goalSelector.add(11, new JoyfulPlayGoal(pet));        // JOYFUL - playful behavior
+            goalSelector.add(11, new HappyPlayGoal(pet));         // HAPPY - playful behavior
 
             // Social/movement goals (medium priority)
             goalSelector.add(12, new BondedStayCloseGoal(pet));   // BONDED - stay close to owner
             goalSelector.add(13, new RestlessWanderGoal(pet));    // RESTLESS - constant movement
 
             // Rest/passive goals (lower priority)
-            goalSelector.add(15, new ZenRestGoal(pet));           // ZEN - find peaceful rest spots
+            goalSelector.add(15, new CalmRestGoal(pet));          // CALM - find peaceful rest spots
 
             // Note: Each mood should have exactly one associated goal
-            // Current coverage: FEARFUL, PROTECTIVE, WRATHFUL, CURIOUS, JOYFUL, BONDED, RESTLESS, ZEN
+            // Current coverage: AFRAID, PROTECTIVE, ANGRY, CURIOUS, HAPPY, BONDED, RESTLESS, CALM
 
         } catch (Exception e) {
             woflo.petsplus.Petsplus.LOGGER.warn("Failed to initialize mood-based AI for pet {}: {}",

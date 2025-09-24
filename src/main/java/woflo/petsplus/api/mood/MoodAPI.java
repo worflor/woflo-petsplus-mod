@@ -26,7 +26,7 @@ public interface MoodAPI {
 
     // Optional helpers
     default void pushAffiliative(MobEntity pet, float amount) {
-        pushEmotion(pet, PetComponent.Emotion.GEZELLIG, amount * 0.5f);
+        pushEmotion(pet, PetComponent.Emotion.SOBREMESA, amount * 0.5f);
         pushEmotion(pet, PetComponent.Emotion.UBUNTU, amount * 0.5f);
     }
 

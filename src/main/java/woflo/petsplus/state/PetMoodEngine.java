@@ -29,7 +29,7 @@ final class PetMoodEngine {
     private static final double DEFAULT_EVICTION_WEIGHT_COEFF = 1.0d;
     private static final double DEFAULT_EVICTION_PARKED_BIAS = 1.0d;
     private static final float[] DEFAULT_LEVEL_THRESHOLDS = new float[]{0.33f, 0.66f, 0.85f};
-    private static final Map<PetComponent.Mood, Float> DEFAULT_ZEN_WEIGHTS = singletonMoodMap(PetComponent.Mood.ZEN);
+    private static final Map<PetComponent.Mood, Float> DEFAULT_CALM_WEIGHTS = singletonMoodMap(PetComponent.Mood.CALM);
     private static final EnumMap<PetComponent.Emotion, Map<PetComponent.Mood, Float>> DEFAULT_EMOTION_TO_MOOD_WEIGHTS = buildDefaultEmotionWeights();
 
     private static class EmotionSlot {
@@ -43,7 +43,7 @@ final class PetMoodEngine {
 
     // Blended mood state
     private EnumMap<PetComponent.Mood, Float> moodBlend = new EnumMap<>(PetComponent.Mood.class);
-    private PetComponent.Mood currentMood = PetComponent.Mood.ZEN;
+    private PetComponent.Mood currentMood = PetComponent.Mood.CALM;
     private int moodLevel = 0;
     private long lastMoodUpdate = 0;
     private long lastEmotionDecayTick = 0;
@@ -162,7 +162,7 @@ final class PetMoodEngine {
 
     PetComponent.Mood getDominantMood() {
         update();
-        PetComponent.Mood best = PetComponent.Mood.ZEN;
+        PetComponent.Mood best = PetComponent.Mood.CALM;
         float bestVal = -1f;
         for (Map.Entry<PetComponent.Mood, Float> e : moodBlend.entrySet()) {
             if (e.getValue() > bestVal) { bestVal = e.getValue(); best = e.getKey(); }
@@ -292,16 +292,16 @@ final class PetMoodEngine {
 
     BossBar.Color getMoodBossBarColor() {
         return switch (getCurrentMood()) {
-            case JOYFUL -> BossBar.Color.YELLOW;      // Happy - bright
-            case FEARFUL -> BossBar.Color.RED;        // Scared - danger
-            case WRATHFUL -> BossBar.Color.RED;       // Angry - intense (keeping red for both fear/anger)
-            case SAUDADE -> BossBar.Color.BLUE;       // Melancholic - deep blue
-            case ZEN -> BossBar.Color.GREEN;          // Calm - natural
-            case ZEALOUS -> BossBar.Color.YELLOW;     // Passionate - fire (keeping yellow for energy)
-            case YUGEN -> BossBar.Color.PURPLE;       // Mysterious - purple
-            case TARAB -> BossBar.Color.PINK;         // Ecstatic - vibrant pink
-            case KINTSUGI -> BossBar.Color.WHITE;     // Healing - pure white
-            case PLAYFUL -> BossBar.Color.GREEN;      // Fun - lively green
+            case HAPPY -> BossBar.Color.YELLOW;       // Joyful brightness
+            case AFRAID -> BossBar.Color.RED;         // Scared - danger signal
+            case ANGRY -> BossBar.Color.RED;          // Mad - intense red band
+            case SAUDADE -> BossBar.Color.BLUE;       // Nostalgic - deep blue
+            case CALM -> BossBar.Color.GREEN;         // Peaceful - natural greens
+            case PASSIONATE -> BossBar.Color.PINK;    // Enthusiastic - vibrant pinks
+            case YUGEN -> BossBar.Color.PURPLE;       // Subtle awe - dusky purple
+            case FOCUSED -> BossBar.Color.BLUE;       // Concentrated - crisp blue focus
+            case SISU -> BossBar.Color.WHITE;         // Resilient resolve - tempered white
+            case PLAYFUL -> BossBar.Color.GREEN;      // Energetic fun - lively green
             case CURIOUS -> BossBar.Color.BLUE;       // Wonder - bright blue (different from protective)
             case PROTECTIVE -> BossBar.Color.BLUE;    // Guardian - steady blue
             case BONDED -> BossBar.Color.PURPLE;      // Connection - deep purple
@@ -347,7 +347,7 @@ final class PetMoodEngine {
         if (nbt.contains("currentMood")) {
             nbt.getString("currentMood").ifPresent(value -> {
                 try { currentMood = PetComponent.Mood.valueOf(value); }
-                catch (IllegalArgumentException e) { currentMood = PetComponent.Mood.ZEN; }
+                catch (IllegalArgumentException e) { currentMood = PetComponent.Mood.CALM; }
             });
         }
         if (nbt.contains("moodLevel")) {
@@ -450,7 +450,7 @@ final class PetMoodEngine {
         for (float s : moodScores) sum += Math.max(0f, s);
         EnumMap<PetComponent.Mood, Float> target = new EnumMap<>(PetComponent.Mood.class);
         if (sum <= epsilon) {
-            for (PetComponent.Mood m : PetComponent.Mood.values()) target.put(m, m == PetComponent.Mood.ZEN ? 1f : 0f);
+            for (PetComponent.Mood m : PetComponent.Mood.values()) target.put(m, m == PetComponent.Mood.CALM ? 1f : 0f);
         } else {
             for (int i = 0; i < moodScores.length; i++) {
                 target.put(PetComponent.Mood.values()[i], Math.max(0f, moodScores[i]) / sum);
@@ -460,13 +460,13 @@ final class PetMoodEngine {
         float momentum = (float) getMoodsDouble("momentum", 0.25);
         if (moodBlend == null) moodBlend = new EnumMap<>(PetComponent.Mood.class);
         for (PetComponent.Mood m : PetComponent.Mood.values()) {
-            float cur = moodBlend.getOrDefault(m, m == PetComponent.Mood.ZEN ? 1f : 0f);
+            float cur = moodBlend.getOrDefault(m, m == PetComponent.Mood.CALM ? 1f : 0f);
             float tar = target.getOrDefault(m, 0f);
             float next = cur + (tar - cur) * Math.max(0f, Math.min(1f, momentum));
             moodBlend.put(m, next);
         }
 
-        PetComponent.Mood bestMood = PetComponent.Mood.ZEN;
+        PetComponent.Mood bestMood = PetComponent.Mood.CALM;
         float bestVal = -1f;
         for (Map.Entry<PetComponent.Mood, Float> e : moodBlend.entrySet()) {
             if (e.getValue() > bestVal) { bestVal = e.getValue(); bestMood = e.getKey(); }
@@ -730,7 +730,7 @@ final class PetMoodEngine {
     private Map<PetComponent.Mood, Float> getEmotionToMoodWeights(PetComponent.Emotion emotion) {
         ensureConfigCache();
         if (emotion == null) {
-            return DEFAULT_ZEN_WEIGHTS;
+            return DEFAULT_CALM_WEIGHTS;
         }
         return cachedEmotionToMoodWeights.computeIfAbsent(emotion, this::lookupEmotionToMoodWeights);
     }
@@ -747,13 +747,13 @@ final class PetMoodEngine {
             } catch (Exception ignored) {}
         }
         if (res.isEmpty()) {
-            return DEFAULT_ZEN_WEIGHTS;
+            return DEFAULT_CALM_WEIGHTS;
         }
         return Collections.unmodifiableMap(res);
     }
 
     private Map<PetComponent.Mood, Float> defaultMoodWeights(PetComponent.Emotion emotion) {
-        return DEFAULT_EMOTION_TO_MOOD_WEIGHTS.getOrDefault(emotion, DEFAULT_ZEN_WEIGHTS);
+        return DEFAULT_EMOTION_TO_MOOD_WEIGHTS.getOrDefault(emotion, DEFAULT_CALM_WEIGHTS);
     }
 
     private float[] parseLevelThresholds(JsonObject moods) {
@@ -837,33 +837,148 @@ final class PetMoodEngine {
 
     private static EnumMap<PetComponent.Emotion, Map<PetComponent.Mood, Float>> buildDefaultEmotionWeights() {
         EnumMap<PetComponent.Emotion, Map<PetComponent.Mood, Float>> weights = new EnumMap<>(PetComponent.Emotion.class);
-        registerDefaultMapping(weights, PetComponent.Mood.JOYFUL, PetComponent.Emotion.FROHLICH, PetComponent.Emotion.GLEE, PetComponent.Emotion.KEFI);
-        registerDefaultMapping(weights, PetComponent.Mood.BONDED, PetComponent.Emotion.QUERENCIA, PetComponent.Emotion.GEZELLIG, PetComponent.Emotion.UBUNTU);
-        registerDefaultMapping(weights, PetComponent.Mood.ZEN, PetComponent.Emotion.ANANDA, PetComponent.Emotion.RELIEF, PetComponent.Emotion.LAGOM, PetComponent.Emotion.WABI_SABI);
-        registerDefaultMapping(weights, PetComponent.Mood.FEARFUL, PetComponent.Emotion.ANGST, PetComponent.Emotion.FOREBODING, PetComponent.Emotion.STARTLE, PetComponent.Emotion.DISGUST);
-        registerDefaultMapping(weights, PetComponent.Mood.PROTECTIVE, PetComponent.Emotion.PROTECTIVENESS);
-        registerDefaultMapping(weights, PetComponent.Mood.WRATHFUL, PetComponent.Emotion.FRUSTRATION, PetComponent.Emotion.WELTSCHMERZ);
-        registerDefaultMapping(weights, PetComponent.Mood.SAUDADE, PetComponent.Emotion.REGRET, PetComponent.Emotion.SAUDADE, PetComponent.Emotion.HIRAETH);
-        registerDefaultMapping(weights, PetComponent.Mood.CURIOUS, PetComponent.Emotion.FERNWEH);
-        registerDefaultMapping(weights, PetComponent.Mood.RESTLESS, PetComponent.Emotion.AMAL);
-        registerDefaultMapping(weights, PetComponent.Mood.PLAYFUL, PetComponent.Emotion.FJELLVANT);
-        registerDefaultMapping(weights, PetComponent.Mood.YUGEN, PetComponent.Emotion.YUGEN, PetComponent.Emotion.SOBREMESA, PetComponent.Emotion.ENNUI);
-        registerDefaultMapping(weights, PetComponent.Mood.TARAB, PetComponent.Emotion.MONO_NO_AWARE);
-        registerDefaultMapping(weights, PetComponent.Mood.KINTSUGI, PetComponent.Emotion.SISU, PetComponent.Emotion.GAMAN);
-        registerDefaultMapping(weights, PetComponent.Mood.ZEALOUS, PetComponent.Emotion.HANYAUKU);
+        weights.put(PetComponent.Emotion.CHEERFUL, moodWeights(
+            PetComponent.Mood.HAPPY, 0.75f,
+            PetComponent.Mood.PLAYFUL, 0.25f
+        ));
+        weights.put(PetComponent.Emotion.QUERECIA, moodWeights(
+            PetComponent.Mood.BONDED, 0.65f,
+            PetComponent.Mood.CALM, 0.35f
+        ));
+        weights.put(PetComponent.Emotion.GLEE, moodWeights(
+            PetComponent.Mood.PLAYFUL, 0.7f,
+            PetComponent.Mood.HAPPY, 0.3f
+        ));
+        weights.put(PetComponent.Emotion.BLISSFUL, moodWeights(
+            PetComponent.Mood.CALM, 0.7f,
+            PetComponent.Mood.HAPPY, 0.3f
+        ));
+        weights.put(PetComponent.Emotion.UBUNTU, moodWeights(
+            PetComponent.Mood.BONDED, 0.6f,
+            PetComponent.Mood.PROTECTIVE, 0.4f
+        ));
+        weights.put(PetComponent.Emotion.KEFI, moodWeights(
+            PetComponent.Mood.PASSIONATE, 0.65f,
+            PetComponent.Mood.PLAYFUL, 0.35f
+        ));
+        weights.put(PetComponent.Emotion.ANGST, moodWeights(
+            PetComponent.Mood.AFRAID, 0.65f,
+            PetComponent.Mood.RESTLESS, 0.35f
+        ));
+        weights.put(PetComponent.Emotion.FOREBODING, moodWeights(
+            PetComponent.Mood.AFRAID, 0.7f,
+            PetComponent.Mood.PROTECTIVE, 0.3f
+        ));
+        weights.put(PetComponent.Emotion.PROTECTIVENESS, moodWeights(
+            PetComponent.Mood.PROTECTIVE, 0.7f,
+            PetComponent.Mood.BONDED, 0.3f
+        ));
+        weights.put(PetComponent.Emotion.FRUSTRATION, moodWeights(
+            PetComponent.Mood.ANGRY, 0.7f,
+            PetComponent.Mood.RESTLESS, 0.3f
+        ));
+        weights.put(PetComponent.Emotion.STARTLE, moodWeights(
+            PetComponent.Mood.AFRAID, 0.7f,
+            PetComponent.Mood.RESTLESS, 0.3f
+        ));
+        weights.put(PetComponent.Emotion.DISGUST, moodWeights(
+            PetComponent.Mood.ANGRY, 0.65f,
+            PetComponent.Mood.PROTECTIVE, 0.35f
+        ));
+        weights.put(PetComponent.Emotion.REGRET, moodWeights(
+            PetComponent.Mood.SAUDADE, 0.7f,
+            PetComponent.Mood.CALM, 0.3f
+        ));
+        weights.put(PetComponent.Emotion.MONO_NO_AWARE, moodWeights(
+            PetComponent.Mood.YUGEN, 0.65f,
+            PetComponent.Mood.SAUDADE, 0.35f
+        ));
+        weights.put(PetComponent.Emotion.FERNWEH, moodWeights(
+            PetComponent.Mood.CURIOUS, 0.65f,
+            PetComponent.Mood.SAUDADE, 0.35f
+        ));
+        weights.put(PetComponent.Emotion.SOBREMESA, moodWeights(
+            PetComponent.Mood.BONDED, 0.7f,
+            PetComponent.Mood.CALM, 0.3f
+        ));
+        weights.put(PetComponent.Emotion.HANYAUKU, moodWeights(
+            PetComponent.Mood.PLAYFUL, 0.7f,
+            PetComponent.Mood.HAPPY, 0.3f
+        ));
+        weights.put(PetComponent.Emotion.WABI_SABI, moodWeights(
+            PetComponent.Mood.YUGEN, 0.6f,
+            PetComponent.Mood.CALM, 0.4f
+        ));
+        weights.put(PetComponent.Emotion.LAGOM, moodWeights(
+            PetComponent.Mood.CALM, 0.6f,
+            PetComponent.Mood.FOCUSED, 0.4f
+        ));
+        weights.put(PetComponent.Emotion.ENNUI, moodWeights(
+            PetComponent.Mood.RESTLESS, 0.65f,
+            PetComponent.Mood.SAUDADE, 0.35f
+        ));
+        weights.put(PetComponent.Emotion.YUGEN, moodWeights(
+            PetComponent.Mood.YUGEN, 0.7f,
+            PetComponent.Mood.CURIOUS, 0.3f
+        ));
+        weights.put(PetComponent.Emotion.SAUDADE, moodWeights(
+            PetComponent.Mood.SAUDADE, 0.7f,
+            PetComponent.Mood.BONDED, 0.3f
+        ));
+        weights.put(PetComponent.Emotion.HIRAETH, moodWeights(
+            PetComponent.Mood.SAUDADE, 0.65f,
+            PetComponent.Mood.BONDED, 0.35f
+        ));
+        weights.put(PetComponent.Emotion.STOIC, moodWeights(
+            PetComponent.Mood.SISU, 0.6f,
+            PetComponent.Mood.FOCUSED, 0.4f
+        ));
+        weights.put(PetComponent.Emotion.HOPEFUL, moodWeights(
+            PetComponent.Mood.PASSIONATE, 0.55f,
+            PetComponent.Mood.SISU, 0.45f
+        ));
+        weights.put(PetComponent.Emotion.RELIEF, moodWeights(
+            PetComponent.Mood.CALM, 0.6f,
+            PetComponent.Mood.HAPPY, 0.4f
+        ));
+        weights.put(PetComponent.Emotion.GAMAN, moodWeights(
+            PetComponent.Mood.SISU, 0.7f,
+            PetComponent.Mood.FOCUSED, 0.3f
+        ));
         for (PetComponent.Emotion emotion : PetComponent.Emotion.values()) {
-            weights.putIfAbsent(emotion, DEFAULT_ZEN_WEIGHTS);
+            weights.putIfAbsent(emotion, DEFAULT_CALM_WEIGHTS);
         }
         return weights;
     }
 
-    private static void registerDefaultMapping(EnumMap<PetComponent.Emotion, Map<PetComponent.Mood, Float>> target,
-                                               PetComponent.Mood mood,
-                                               PetComponent.Emotion... emotions) {
-        Map<PetComponent.Mood, Float> weights = singletonMoodMap(mood);
-        for (PetComponent.Emotion emotion : emotions) {
-            target.put(emotion, weights);
+    private static Map<PetComponent.Mood, Float> moodWeights(Object... args) {
+        if (args.length % 2 != 0) {
+            throw new IllegalArgumentException("Mood weights must be provided as mood/weight pairs");
         }
+        EnumMap<PetComponent.Mood, Float> map = new EnumMap<>(PetComponent.Mood.class);
+        float sum = 0f;
+        for (int i = 0; i < args.length; i += 2) {
+            Object moodObj = args[i];
+            Object weightObj = args[i + 1];
+            if (!(moodObj instanceof PetComponent.Mood mood) || !(weightObj instanceof Number number)) {
+                continue;
+            }
+            float weight = number.floatValue();
+            if (weight <= 0f) {
+                continue;
+            }
+            map.put(mood, weight);
+            sum += weight;
+        }
+        if (map.isEmpty()) {
+            return DEFAULT_CALM_WEIGHTS;
+        }
+        EnumMap<PetComponent.Mood, Float> normalized = new EnumMap<>(PetComponent.Mood.class);
+        float normalizer = sum > 0f ? (1f / sum) : 1f;
+        for (Map.Entry<PetComponent.Mood, Float> entry : map.entrySet()) {
+            normalized.put(entry.getKey(), entry.getValue() * normalizer);
+        }
+        return Collections.unmodifiableMap(normalized);
     }
 
     private static Map<PetComponent.Mood, Float> singletonMoodMap(PetComponent.Mood mood) {

@@ -10,15 +10,15 @@ import woflo.petsplus.state.PetComponent;
 import java.util.EnumSet;
 
 /**
- * When pets are WRATHFUL, they become more aggressive and likely to attack nearby threats.
+ * When pets are ANGRY, they become more aggressive and likely to attack nearby threats.
  */
-public class WrathfulAttackGoal extends MoodBasedGoal {
+public class AngryAttackGoal extends MoodBasedGoal {
     private LivingEntity target;
     private int aggressionTicks;
     private static final int MAX_AGGRESSION_TICKS = 200; // 10 seconds
 
-    public WrathfulAttackGoal(MobEntity mob) {
-        super(mob, PetComponent.Mood.WRATHFUL);
+    public AngryAttackGoal(MobEntity mob) {
+        super(mob, PetComponent.Mood.ANGRY);
         this.setControls(EnumSet.of(Control.MOVE, Control.TARGET));
     }
 

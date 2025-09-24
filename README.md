@@ -33,20 +33,20 @@ If your pet dies, it will drop all its items and be gone for good. Your tribute 
 ## Moods and Emotion
 Unfortunately your pet has gained feelings. Behind the scenes, 30 emotions influence your pet's overall mood. Various events and triggers cause these emotional weights to shift and combine, creating your pet's current **mood state**.
 ### Core Moods
-1. **Joyful** [happy]
-2. **Playful** [energetic fun]
+1. **Happy** [joyful]
+2. **Playful** [energetic]
 3. **Curious** [exploring]
 4. **Bonded** [attached]
-5. **Zen** [calm]
-6. **Zealous** [passionate]
-7. **Yūgen** [contemplative]
-8. **Tarab** [entranced]
-9. **Kintsugi** [resilient]
+5. **Calm** [peaceful]
+6. **Passionate** [enthusiastic]
+7. **Yugen** [contemplative]
+8. **Focused** [concentrated]
+9. **Sisu** [resilient]
 10. **Saudade** [nostalgic]
 11. **Protective** [defensive]
 12. **Restless** [agitated]
-13. **Fearful** [scared]
-14. **Wrathful** [angry]
+13. **Afraid** [scared]
+14. **Angry** [mad]
 ### Core Emotion Groups
 - positive / afflicted
 - threat / adversion

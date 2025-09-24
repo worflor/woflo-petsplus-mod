@@ -104,12 +104,12 @@ public class PetsplusAdminCommands {
                     .then(CommandManager.literal("preset")
                         .then(CommandManager.literal("happy")
                             .executes(PetsplusAdminCommands::presetHappy))
-                        .then(CommandManager.literal("fearful")
-                            .executes(PetsplusAdminCommands::presetFearful))
+                        .then(CommandManager.literal("afraid")
+                            .executes(PetsplusAdminCommands::presetAfraid))
                         .then(CommandManager.literal("angry")
                             .executes(PetsplusAdminCommands::presetAngry))
-                        .then(CommandManager.literal("zen")
-                            .executes(PetsplusAdminCommands::presetZen))
+                        .then(CommandManager.literal("calm")
+                            .executes(PetsplusAdminCommands::presetCalm))
                         .then(CommandManager.literal("playful")
                             .executes(PetsplusAdminCommands::presetPlayful))
                         .then(CommandManager.literal("protective")
@@ -554,38 +554,34 @@ public class PetsplusAdminCommands {
     // Emotion presets for common moods
     private static int presetHappy(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         return applyEmotionPreset(context, "Happy", new EmotionWeight[]{
-            new EmotionWeight(PetComponent.Emotion.FROHLICH, 3.0f),
-            new EmotionWeight(PetComponent.Emotion.GLEE, 2.5f),
-            new EmotionWeight(PetComponent.Emotion.ANANDA, 2.0f),
-            new EmotionWeight(PetComponent.Emotion.UBUNTU, 1.5f),
-            new EmotionWeight(PetComponent.Emotion.KEFI, 1.0f)
+            new EmotionWeight(PetComponent.Emotion.CHEERFUL, 3.0f),
+            new EmotionWeight(PetComponent.Emotion.RELIEF, 2.5f),
+            new EmotionWeight(PetComponent.Emotion.GLEE, 1.5f),
+            new EmotionWeight(PetComponent.Emotion.BLISSFUL, 1.0f)
         });
     }
-    
-    private static int presetFearful(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        return applyEmotionPreset(context, "Fearful", new EmotionWeight[]{
+
+    private static int presetAfraid(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        return applyEmotionPreset(context, "Afraid", new EmotionWeight[]{
             new EmotionWeight(PetComponent.Emotion.ANGST, 3.0f),
             new EmotionWeight(PetComponent.Emotion.FOREBODING, 2.5f),
-            new EmotionWeight(PetComponent.Emotion.STARTLE, 2.0f),
-            new EmotionWeight(PetComponent.Emotion.WELTSCHMERZ, 1.5f)
+            new EmotionWeight(PetComponent.Emotion.STARTLE, 2.0f)
         });
     }
-    
+
     private static int presetAngry(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         return applyEmotionPreset(context, "Angry", new EmotionWeight[]{
             new EmotionWeight(PetComponent.Emotion.FRUSTRATION, 3.0f),
-            new EmotionWeight(PetComponent.Emotion.DISGUST, 2.0f),
-            new EmotionWeight(PetComponent.Emotion.REGRET, 1.5f),
-            new EmotionWeight(PetComponent.Emotion.WELTSCHMERZ, 1.0f)
+            new EmotionWeight(PetComponent.Emotion.DISGUST, 2.0f)
         });
     }
-    
-    private static int presetZen(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        return applyEmotionPreset(context, "Zen", new EmotionWeight[]{
-            new EmotionWeight(PetComponent.Emotion.LAGOM, 3.0f),
-            new EmotionWeight(PetComponent.Emotion.WABI_SABI, 2.5f),
-            new EmotionWeight(PetComponent.Emotion.YUGEN, 2.0f),
-            new EmotionWeight(PetComponent.Emotion.SOBREMESA, 1.5f)
+
+    private static int presetCalm(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        return applyEmotionPreset(context, "Calm", new EmotionWeight[]{
+            new EmotionWeight(PetComponent.Emotion.BLISSFUL, 3.0f),
+            new EmotionWeight(PetComponent.Emotion.LAGOM, 2.5f),
+            new EmotionWeight(PetComponent.Emotion.WABI_SABI, 1.8f),
+            new EmotionWeight(PetComponent.Emotion.RELIEF, 1.2f)
         });
     }
     
@@ -593,17 +589,17 @@ public class PetsplusAdminCommands {
         return applyEmotionPreset(context, "Playful", new EmotionWeight[]{
             new EmotionWeight(PetComponent.Emotion.GLEE, 3.0f),
             new EmotionWeight(PetComponent.Emotion.KEFI, 2.5f),
-            new EmotionWeight(PetComponent.Emotion.FROHLICH, 2.0f),
-            new EmotionWeight(PetComponent.Emotion.GEZELLIG, 1.5f)
+            new EmotionWeight(PetComponent.Emotion.CHEERFUL, 2.0f),
+            new EmotionWeight(PetComponent.Emotion.SOBREMESA, 1.5f)
         });
     }
     
     private static int presetProtective(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         return applyEmotionPreset(context, "Protective", new EmotionWeight[]{
             new EmotionWeight(PetComponent.Emotion.PROTECTIVENESS, 3.0f),
-            new EmotionWeight(PetComponent.Emotion.SISU, 2.5f),
-            new EmotionWeight(PetComponent.Emotion.AMAL, 2.0f),
-            new EmotionWeight(PetComponent.Emotion.GAMAN, 1.5f)
+            new EmotionWeight(PetComponent.Emotion.QUERECIA, 2.2f),
+            new EmotionWeight(PetComponent.Emotion.UBUNTU, 1.8f),
+            new EmotionWeight(PetComponent.Emotion.SOBREMESA, 1.4f)
         });
     }
     
