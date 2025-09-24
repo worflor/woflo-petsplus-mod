@@ -35,6 +35,30 @@ If your pet dies, it will drop all its items and be gone for good. Your tribute 
 - Easy: State lasts 5 minutes before fully dying.
 - Peaceful: State lasts 15 minutes before fully dying.
 
+## Moods and Emotion
+Unfortunately your pet has gained feelings. 
+### Core Moods
+1. Joyful
+2. Fearful
+3. Wrathful
+4. Saudade
+5. Zen
+6. Zealous
+7. Yūgen
+8. Mellow
+9. Tarab
+10. Kintsugi
+### Core Emotions
+There are positive/afflicted, threat/adversion, reflective/neutral, longing/resilient/aspiration related emotions.
+
+
+
+
+
+
+
+
+
 ## Configuration and Expandability
 Pets+ includes configuration files (`config/petsplus/...`) where you can customize various components. Explore it yourself.
 - Roles, Abilities, and Tributes have configurations availible.
