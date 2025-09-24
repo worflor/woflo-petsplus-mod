@@ -529,6 +529,19 @@ All values are overridable via datapack/server config.
 * **"Noo, Luna!"** — Trigger Dream's Escape once. A heartfelt, dramatic save; your companion took the hit so you didn't.
 * **"At what cost…"** — Trigger Dream's Escape twice. Somber; survival weighs heavy when it's not free.
 * **"Heartless, but Alive."** — Trigger Dream's Escape three times. Darkly satirical; you're still here. That's what counts… right?
+* **"Restless, Sit, Glow"** — Ready, set, glow: ease a level-3 Restless companion into any Happy tier using ambience alone.
+* **"Here Comes the Sunbeam"** — Celebrate the first-ever level-3 Happy surge by basking in pure solar joy.
+* **"[please] F*CKING PLAY WITH ME NOW!"** — Hit Playful III for the first time by staging an over-the-top play session that sends the whole squad into delighted chaos.
+* **"Indiana Bones and the Temple of Zoomies"** — Sprint, sniff, and solve ruins together while Curious III stays pinned.
+* **"Bond Voyage!"** — Cement your Bonded III while completing an expedition hand-in-paw.
+* **"Be More Chilllllll"** — Hit Calm III for the first time by queuing up a SQUIP-approved chill session, winking at Be More Chill's wired zen.
+* **"Hearts on Pyre"** — Sustain Passionate III through a climactic fight, channeling the blaze into a finish flourish.
+* **"(sighs) sigh…"** — Hit Yugen III for the first time by echoing Lifeweaver's stagey double sigh beneath a cosmic hush.
+* **"Finnish Him!"** — Maintain Sisu III through a punishing gauntlet, nodding to Mortal Kombat's "Finish Him!" while saluting Finland's grit-fueled concept of sisu.
+* **"Wish You Were Here (Fur Real)"** — Trigger Saudade III by revisiting keepsake-laced memories, a whiskered wink to Pink Floyd's "Wish You Were Here."
+* **"Afraidiana Grande"** — Keep Afraid III cresting through a haunted crescendo, then stick the landing with an Ariana-grade encore of courage.
+* **"are you mad at me..?"** — Spark Angry III for the first time and calm it back down with an apologetic cuddle before the embers flare out of control.
+* **"Guardian of the Grrr-laxy"** — Reach Protective III while shielding different allies, riffing on Marvel's cosmic misfits.
 
 > Bullets keep punchy tone; the localization block below is the authoritative in-game copy.
 > Implementation: Hidden advancement `petsplus:bond_stargaze` with criterion `stargaze_timeout` (starts a 120s window after tribute; if it's night and you stay crouched within 3 blocks of your sitting pet for 30 continuous seconds, you earn it).
@@ -609,6 +622,32 @@ petsplus.adv.at_what_cost.desc=Twice now, you monster.
 
 petsplus.adv.heartless_but_alive.title=Heartless, but Alive.
 petsplus.adv.heartless_but_alive.desc=Three times, huh. The world feels heavier than it did yesterday...
+petsplus.adv.restless_sit_glow.title=Restless, Sit, Glow
+petsplus.adv.restless_sit_glow.desc=Ready, set, glow: ease a level-3 Restless companion into any Happy tier using ambience alone.
+petsplus.adv.here_comes_the_sunbeam.title=Here Comes the Sunbeam
+petsplus.adv.here_comes_the_sunbeam.desc=Celebrate the first-ever level-3 Happy surge by basking in pure solar joy.
+petsplus.adv.please_fcking_play_with_me_now.title=[please] F*CKING PLAY WITH ME NOW!
+petsplus.adv.please_fcking_play_with_me_now.desc=Hit Playful III for the first time with a command performance of pure, chaotic fun.
+petsplus.adv.indiana_bones_zoomies.title=Indiana Bones and the Temple of Zoomies
+petsplus.adv.indiana_bones_zoomies.desc=Sprint, sniff, and solve ruins together while Curious III stays pinned.
+petsplus.adv.bond_voyage.title=Bond Voyage!
+petsplus.adv.bond_voyage.desc=Cement your Bonded III while completing an expedition hand-in-paw.
+petsplus.adv.be_more_chilllllll.title=Be More Chilllllll
+petsplus.adv.be_more_chilllllll.desc=Hit Calm III for the first time by queuing up a SQUIP-approved chill session, winking at Be More Chill's wired zen.
+petsplus.adv.hearts_on_pyre.title=Hearts on Pyre
+petsplus.adv.hearts_on_pyre.desc=Sustain Passionate III through a climactic fight, channeling the blaze into a finish flourish.
+petsplus.adv.yugen_sigh_sigh.title=(sighs) sigh…
+petsplus.adv.yugen_sigh_sigh.desc=Channel Lifeweaver's signature double sigh as Yugen III finally settles in.
+petsplus.adv.finnish_him.title=Finnish Him!
+petsplus.adv.finnish_him.desc=Maintain Sisu III through a punishing gauntlet, saluting Finland's grit-fueled concept of sisu.
+petsplus.adv.wish_you_were_here_fur_real.title=Wish You Were Here (Fur Real)
+petsplus.adv.wish_you_were_here_fur_real.desc=Trigger Saudade III by revisiting keepsake-laced memories, a whiskered wink to Pink Floyd.
+petsplus.adv.afraidiana_grande.title=Afraidiana Grande
+petsplus.adv.afraidiana_grande.desc=Keep Afraid III cresting through a haunted crescendo, then nail the Ariana-grade encore.
+petsplus.adv.are_you_mad_at_me.title=are you mad at me..?
+petsplus.adv.are_you_mad_at_me.desc=Spark Angry III for the first time, then soothe it with an anxious apology before sparks fly again.
+petsplus.adv.guardian_of_the_grrr_laxy.title=Guardian of the Grrr-laxy
+petsplus.adv.guardian_of_the_grrr_laxy.desc=Reach Protective III while shielding different allies, riffing on Marvel's cosmic misfits.
 ```
 
 
