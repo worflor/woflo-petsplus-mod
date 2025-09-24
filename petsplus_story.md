@@ -329,6 +329,12 @@
 * **Ambient tells**: soft particles when auras pulse; brief dust trail when Scout speed bonus engages; arcane glint swirl when Arcane Focus surges; ash/smoke wisp on Cursed One death/resurrection; sleepy 'Z' wisps when Nap Time aura is active.
 * **Accessibility**: concise chat summaries with hover tooltips for numbers; no spam, capped frequency.
 
+### 8.2 Hidden Mood Codex
+
+* **Sankofa Resonance** *(Akan — “go back and fetch it”)*: Stirs when a pet brushes heritage touchstones (cat circling a fossil, horse breathing in a storied stable, parrot harmonizing with a tuned melody block). It plants its stance, slips into ancestral mannerisms, and shakes off fear while lineage pride lingers.
+* **Náttvörðr Vigil** *(Old Norse — “night guardian”)*: Settles in fog-damp twilight when you’re waning and alone. Eyes glow soft as the pet shadows every step, widening its danger sense to body-block anything slipping through the veil.
+* **Chandralekha Reverie** *(Sanskrit — “moonbeam”)*: Unfurls under auroras, comets, or thunder-lit moonlight while a joyful pet feels utterly safe. It drinks in the night with shimmer motes, shares hushed awe, and nudges you to roam on that shared beam.
+
 ---
 
 ## 9) Commands & Permissions
