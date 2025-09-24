@@ -1,0 +1,793 @@
+{
+  "defaults": {
+    "radius": 24.0,
+    "cooldown": 200,
+    "category_cooldown": 80,
+    "digest_window": 120,
+    "min_delta": 0.05,
+    "highlight_hud": true
+  },
+  "categories": {
+    "block_break": {
+      "cooldown": 200,
+      "category_cooldown": 80,
+      "digest_window": 160,
+      "min_delta": 0.05
+    },
+    "combat": {
+      "cooldown": 200,
+      "category_cooldown": 120,
+      "digest_window": 200,
+      "min_delta": 0.08
+    },
+    "item": {
+      "cooldown": 200,
+      "category_cooldown": 120,
+      "digest_window": 200,
+      "min_delta": 0.06
+    },
+    "block_use": {
+      "cooldown": 200,
+      "category_cooldown": 160,
+      "digest_window": 200,
+      "min_delta": 0.05
+    },
+    "block_place": {
+      "cooldown": 200,
+      "category_cooldown": 160,
+      "digest_window": 200,
+      "min_delta": 0.05
+    },
+    "entity": {
+      "cooldown": 200,
+      "category_cooldown": 160,
+      "digest_window": 200,
+      "min_delta": 0.05
+    },
+    "species": {
+      "cooldown": 200,
+      "category_cooldown": 200,
+      "digest_window": 240,
+      "min_delta": 0.04
+    }
+  },
+  "profiles": {
+    "block_break_generic": {
+      "radius": 32.0,
+      "emotions": {
+        "KEFI": 0.12
+      }
+    },
+    "block_break_ore": {
+      "radius": 32.0,
+      "emotions": {
+        "KEFI": 0.12,
+        "GLEE": 0.35
+      }
+    },
+    "block_break_crafting": {
+      "radius": 32.0,
+      "emotions": {
+        "KEFI": 0.12,
+        "WABI_SABI": 0.18
+      }
+    },
+    "block_break_resource": {
+      "radius": 32.0,
+      "emotions": {
+        "KEFI": 0.12,
+        "STOIC": 0.10
+      }
+    },
+    "combat_owner_kill": {
+      "radius": 32.0,
+      "emotions": {
+        "KEFI": 0.25,
+        "GLEE": 0.40,
+        "RELIEF": 0.25,
+        "HOPEFUL": 0.18
+      }
+    },
+    "combat_pet_kill": {
+      "radius": 32.0,
+      "emotions": {
+        "KEFI": 0.35,
+        "HOPEFUL": 0.40,
+      "STOIC": 0.30
+      }
+    }
+  },
+  "stimuli": {
+    "block_break": {
+      "default": "block_break.generic",
+      "matchers": [
+        {
+          "definition": "block_break.ore",
+          "block_tags": [
+            "petsplus:emotion/block_break/ores"
+          ]
+        },
+        {
+          "definition": "block_break.crafting",
+          "block_tags": [
+            "petsplus:emotion/block_break/crafting"
+          ]
+        },
+        {
+          "definition": "block_break.resource",
+          "block_tags": [
+            "petsplus:emotion/block_break/resource"
+          ]
+        }
+      ]
+    },
+    "block_use": {
+      "matchers": [
+        {
+          "definition": "block_use.smithing",
+          "block_tags": [
+            "petsplus:emotion/block_use/smithing"
+          ]
+        },
+        {
+          "definition": "block_use.grindstone",
+          "block_tags": [
+            "petsplus:emotion/block_use/grindstone"
+          ]
+        },
+        {
+          "definition": "block_use.beacon",
+          "block_tags": [
+            "petsplus:emotion/block_use/beacon"
+          ]
+        },
+        {
+          "definition": "block_use.bell",
+          "block_tags": [
+            "petsplus:emotion/block_use/bell"
+          ]
+        },
+        {
+          "definition": "block_use.bee",
+          "block_tags": [
+            "petsplus:emotion/block_use/bee"
+          ]
+        },
+        {
+          "definition": "block_use.music",
+          "block_tags": [
+            "petsplus:emotion/block_use/music"
+          ]
+        },
+        {
+          "definition": "block_use.cooking",
+          "block_tags": [
+            "petsplus:emotion/block_use/cooking"
+          ]
+        },
+        {
+          "definition": "block_use.home",
+          "block_tags": [
+            "petsplus:emotion/block_use/home"
+          ]
+        },
+        {
+          "definition": "block_use.crafting",
+          "block_tags": [
+            "petsplus:emotion/block_use/crafting"
+          ]
+        },
+        {
+          "definition": "block_use.decor",
+          "block_tags": [
+            "petsplus:emotion/block_use/decor"
+          ]
+        }
+      ]
+    },
+    "block_place": {
+      "default": "block_place.generic",
+      "matchers": [
+        {
+          "definition": "block_place.decor",
+          "block_tags": [
+            "petsplus:emotion/block_place/decor"
+          ]
+        },
+        {
+          "definition": "block_place.crafting",
+          "block_tags": [
+            "petsplus:emotion/block_place/crafting"
+          ]
+        }
+      ]
+    },
+    "item_use": {
+      "matchers": [
+        {
+          "definition": "item.enchanted_golden_apple",
+          "item_tags": [
+            "petsplus:emotion/item/enchanted_golden_apple"
+          ]
+        },
+        {
+          "definition": "item.golden_apple",
+          "item_tags": [
+            "petsplus:emotion/item/golden_apple"
+          ]
+        },
+        {
+          "definition": "item.totem",
+          "item_tags": [
+            "petsplus:emotion/item/totems"
+          ]
+        },
+        {
+          "definition": "item.spyglass",
+          "item_tags": [
+            "petsplus:emotion/item/spyglasses"
+          ]
+        },
+        {
+          "definition": "item.map",
+          "item_tags": [
+            "petsplus:emotion/item/maps"
+          ]
+        },
+        {
+          "definition": "item.recovery_compass",
+          "item_tags": [
+            "petsplus:emotion/item/recovery_compasses"
+          ]
+        },
+        {
+          "definition": "item.compass",
+          "item_tags": [
+            "petsplus:emotion/item/compasses"
+          ]
+        },
+        {
+          "definition": "item.firework",
+          "item_tags": [
+            "petsplus:emotion/item/fireworks"
+          ]
+        },
+        {
+          "definition": "item.ender_pearl",
+          "item_tags": [
+            "petsplus:emotion/item/ender_pearls"
+          ]
+        },
+        {
+          "definition": "item.honey_bottle",
+          "item_tags": [
+            "petsplus:emotion/item/honey_bottles"
+          ]
+        },
+        {
+          "definition": "item.milk_bucket",
+          "item_tags": [
+            "petsplus:emotion/item/milk_buckets"
+          ]
+        },
+        {
+          "definition": "item.saddle",
+          "item_tags": [
+            "petsplus:emotion/item/saddles"
+          ]
+        },
+        {
+          "definition": "item.shield",
+          "item_tags": [
+            "petsplus:emotion/item/shields"
+          ]
+        },
+        {
+          "definition": "item.book",
+          "item_tags": [
+            "petsplus:emotion/item/books"
+          ]
+        },
+        {
+          "definition": "item.brush",
+          "item_tags": [
+            "petsplus:emotion/item/brushes"
+          ]
+        },
+        {
+          "definition": "item.sus_food",
+          "item_tags": [
+            "petsplus:emotion/item/suspicious_foods"
+          ]
+        },
+        {
+          "definition": "item.food",
+          "requires_food": true
+        }
+      ]
+    },
+    "entity_use": {
+      "matchers": [
+        {
+          "definition": "entity.lead",
+          "requires_mob": true,
+          "item_tags": [
+            "petsplus:emotion/item/leads"
+          ]
+        },
+        {
+          "definition": "entity.mount",
+          "entity_tags": [
+            "petsplus:emotion/entity/mounts"
+          ]
+        },
+        {
+          "definition": "entity.villager_greet",
+          "entity_types": [
+            "minecraft:villager"
+          ]
+        }
+      ]
+    }
+  },
+  "events": {
+    "block_break.generic": {
+      "category": "block_break",
+      "profile": "block_break_generic",
+      "text": "petsplus.emotion_cue.block_break.generic"
+    },
+    "block_break.ore": {
+      "category": "block_break",
+      "profile": "block_break_ore",
+      "text": "petsplus.emotion_cue.block_break.ore"
+    },
+    "block_break.crafting": {
+      "category": "block_break",
+      "profile": "block_break_crafting",
+      "text": "petsplus.emotion_cue.block_break.crafting"
+    },
+    "block_break.resource": {
+      "category": "block_break",
+      "profile": "block_break_resource",
+      "text": "petsplus.emotion_cue.block_break.resource"
+    },
+    "combat.owner_kill": {
+      "category": "combat",
+      "profile": "combat_owner_kill",
+      "text": "petsplus.emotion_cue.combat.owner_kill",
+      "digest_label": "petsplus.emotion_cue.combat.owner_kill"
+    },
+    "combat.pet_kill": {
+      "category": "combat",
+      "profile": "combat_pet_kill",
+      "text": "petsplus.emotion_cue.combat.pet_kill",
+      "digest_label": "petsplus.emotion_cue.combat.pet_kill"
+    },
+    "item.food": {
+      "category": "item",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.item.food",
+      "emotions": {
+        "SOBREMESA": 0.22,
+        "QUERECIA": 0.18
+      }
+    },
+    "item.golden_apple": {
+      "category": "item",
+      "radius": 32.0,
+      "text": "petsplus.emotion_cue.item.golden_apple",
+      "emotions": {
+        "RELIEF": 0.35,
+        "BLISSFUL": 0.20
+      }
+    },
+    "item.enchanted_golden_apple": {
+      "category": "item",
+      "radius": 32.0,
+      "text": "petsplus.emotion_cue.item.enchanted_golden_apple",
+      "emotions": {
+        "RELIEF": 0.45,
+        "BLISSFUL": 0.30
+      }
+    },
+    "item.honey_bottle": {
+      "category": "item",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.item.honey_bottle",
+      "emotions": {
+        "SOBREMESA": 0.25
+      }
+    },
+    "item.milk_bucket": {
+      "category": "item",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.item.milk_bucket",
+      "emotions": {
+        "RELIEF": 0.22
+      }
+    },
+    "item.totem": {
+      "category": "item",
+      "radius": 32.0,
+      "text": "petsplus.emotion_cue.item.totem",
+      "emotions": {
+        "RELIEF": 0.50
+      }
+    },
+    "item.ender_pearl": {
+      "category": "item",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.item.ender_pearl",
+      "emotions": {
+        "FERNWEH": 0.18
+      }
+    },
+    "item.firework": {
+      "category": "item",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.item.firework",
+      "emotions": {
+        "KEFI": 0.20
+      }
+    },
+    "item.sus_food": {
+      "category": "item",
+      "radius": 16.0,
+      "text": "petsplus.emotion_cue.item.sus_food",
+      "emotions": {
+        "DISGUST": 0.28
+      }
+    },
+    "item.spyglass": {
+      "category": "item",
+      "radius": 32.0,
+      "text": "petsplus.emotion_cue.item.spyglass",
+      "emotions": {
+        "YUGEN": 0.20
+      }
+    },
+    "item.map": {
+      "category": "item",
+      "radius": 32.0,
+      "text": "petsplus.emotion_cue.item.map",
+      "emotions": {
+        "FERNWEH": 0.15
+      }
+    },
+    "item.compass": {
+      "category": "item",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.item.compass",
+      "emotions": {
+        "QUERECIA": 0.12
+      }
+    },
+    "item.recovery_compass": {
+      "category": "item",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.item.recovery_compass",
+      "emotions": {
+        "REGRET": 0.15
+      }
+    },
+    "item.book": {
+      "category": "item",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.item.book",
+      "emotions": {
+        "LAGOM": 0.12,
+        "MONO_NO_AWARE": 0.08
+      }
+    },
+    "item.shield": {
+      "category": "item",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.item.shield",
+      "emotions": {
+        "PROTECTIVENESS": 0.15
+      }
+    },
+    "item.saddle": {
+      "category": "item",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.item.saddle",
+      "emotions": {
+        "FERNWEH": 0.12
+      }
+    },
+    "item.brush": {
+      "category": "item",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.item.brush",
+      "emotions": {
+        "MONO_NO_AWARE": 0.12
+      }
+    },
+    "block_use.smithing": {
+      "category": "block_use",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.block_use.smithing",
+      "emotions": {
+        "LAGOM": 0.12
+      }
+    },
+    "block_use.grindstone": {
+      "category": "block_use",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.block_use.grindstone",
+      "emotions": {
+        "REGRET": 0.10
+      }
+    },
+    "block_use.beacon": {
+      "category": "block_use",
+      "radius": 48.0,
+      "text": "petsplus.emotion_cue.block_use.beacon",
+      "emotions": {
+        "BLISSFUL": 0.30
+      }
+    },
+    "block_use.bell": {
+      "category": "block_use",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.block_use.bell",
+      "emotions": {
+        "SOBREMESA": 0.18
+      }
+    },
+    "block_use.bee": {
+      "category": "block_use",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.block_use.bee",
+      "emotions": {
+        "SOBREMESA": 0.18
+      }
+    },
+    "block_use.decor": {
+      "category": "block_use",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.block_use.decor",
+      "emotions": {
+        "MONO_NO_AWARE": 0.10
+      }
+    },
+    "block_use.music": {
+      "category": "block_use",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.block_use.music",
+      "emotions": {
+        "BLISSFUL": 0.22
+      }
+    },
+    "block_use.cooking": {
+      "category": "block_use",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.block_use.cooking",
+      "emotions": {
+        "SOBREMESA": 0.22
+      }
+    },
+    "block_use.home": {
+      "category": "block_use",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.block_use.home",
+      "emotions": {
+        "QUERECIA": 0.25
+      }
+    },
+    "block_use.crafting": {
+      "category": "block_use",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.block_use.crafting",
+      "emotions": {
+        "WABI_SABI": 0.20
+      }
+    },
+    "block_place.decor": {
+      "category": "block_place",
+      "radius": 32.0,
+      "text": "petsplus.emotion_cue.block_place.decor",
+      "emotions": {
+        "KEFI": 0.10,
+        "QUERECIA": 0.22
+      }
+    },
+    "block_place.crafting": {
+      "category": "block_place",
+      "radius": 32.0,
+      "text": "petsplus.emotion_cue.block_place.crafting",
+      "emotions": {
+        "KEFI": 0.10,
+        "WABI_SABI": 0.16
+      }
+    },
+    "block_place.generic": {
+      "category": "block_place",
+      "radius": 32.0,
+      "text": "petsplus.emotion_cue.block_place.generic",
+      "emotions": {
+        "KEFI": 0.10
+      }
+    },
+    "entity.lead": {
+      "category": "entity",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.entity.lead",
+      "emotions": {
+        "PROTECTIVENESS": 0.20
+      }
+    },
+    "entity.mount": {
+      "category": "entity",
+      "radius": 32.0,
+      "text": "petsplus.emotion_cue.entity.mount",
+      "emotions": {
+        "FERNWEH": 0.22
+      }
+    },
+    "entity.villager_greet": {
+      "category": "entity",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.entity.villager_greet",
+      "emotions": {
+        "LAGOM": 0.12,
+        "SOBREMESA": 0.10
+      }
+    },
+    "species.horse.ride": {
+      "category": "species",
+      "radius": 28.0,
+      "cooldown": 220,
+      "text": "petsplus.emotion_cue.species.horse.ride",
+      "emotions": {
+        "FERNWEH": 0.18,
+        "KEFI": 0.16,
+        "UBUNTU": 0.12
+      }
+    },
+    "species.horse.graze": {
+      "category": "species",
+      "radius": 24.0,
+      "cooldown": 320,
+      "text": "petsplus.emotion_cue.species.horse.graze",
+      "emotions": {
+        "LAGOM": 0.18,
+        "QUERECIA": 0.16
+      }
+    },
+    "species.parrot.dance": {
+      "category": "species",
+      "radius": 24.0,
+      "cooldown": 240,
+      "text": "petsplus.emotion_cue.species.parrot.dance",
+      "emotions": {
+        "KEFI": 0.20,
+        "YUGEN": 0.14
+      }
+    },
+    "species.parrot.flight": {
+      "category": "species",
+      "radius": 28.0,
+      "cooldown": 200,
+      "text": "petsplus.emotion_cue.species.parrot.flight",
+      "emotions": {
+        "FERNWEH": 0.20,
+        "YUGEN": 0.16
+      }
+    },
+    "species.cat.bed": {
+      "category": "species",
+      "radius": 24.0,
+      "cooldown": 360,
+      "text": "petsplus.emotion_cue.species.cat.bed",
+      "emotions": {
+        "SOBREMESA": 0.22,
+        "QUERECIA": 0.16
+      }
+    },
+    "species.cat.chest": {
+      "category": "species",
+      "radius": 24.0,
+      "cooldown": 320,
+      "text": "petsplus.emotion_cue.species.cat.chest",
+      "emotions": {
+        "PROTECTIVENESS": 0.20,
+        "QUERECIA": 0.14
+      }
+    },
+    "species.ocelot.stalk": {
+      "category": "species",
+      "radius": 24.0,
+      "cooldown": 220,
+      "text": "petsplus.emotion_cue.species.ocelot.stalk",
+      "emotions": {
+        "STOIC": 0.16,
+        "YUGEN": 0.12
+      }
+    },
+    "species.ocelot.jungle": {
+      "category": "species",
+      "radius": 28.0,
+      "cooldown": 360,
+      "text": "petsplus.emotion_cue.species.ocelot.jungle",
+      "emotions": {
+        "FERNWEH": 0.18,
+        "YUGEN": 0.14,
+        "MONO_NO_AWARE": 0.10
+      }
+    },
+    "species.fox.sleep": {
+      "category": "species",
+      "radius": 24.0,
+      "cooldown": 320,
+      "text": "petsplus.emotion_cue.species.fox.sleep",
+      "emotions": {
+        "SOBREMESA": 0.18,
+        "LAGOM": 0.16
+      }
+    },
+    "species.fox.treasure": {
+      "category": "species",
+      "radius": 24.0,
+      "cooldown": 260,
+      "text": "petsplus.emotion_cue.species.fox.treasure",
+      "emotions": {
+        "GLEE": 0.18,
+        "PROTECTIVENESS": 0.14
+      }
+    },
+    "species.wolf.treat": {
+      "category": "species",
+      "radius": 24.0,
+      "cooldown": 200,
+      "text": "petsplus.emotion_cue.species.wolf.treat",
+      "emotions": {
+        "KEFI": 0.18,
+        "UBUNTU": 0.16
+      }
+    },
+    "species.wolf.campfire": {
+      "category": "species",
+      "radius": 24.0,
+      "cooldown": 360,
+      "text": "petsplus.emotion_cue.species.wolf.campfire",
+      "emotions": {
+        "LAGOM": 0.20,
+        "SOBREMESA": 0.16
+      }
+    },
+    "species.wolf.howl": {
+      "category": "species",
+      "radius": 32.0,
+      "cooldown": 600,
+      "text": "petsplus.emotion_cue.species.wolf.howl",
+      "emotions": {
+        "FERNWEH": 0.22,
+        "PROTECTIVENESS": 0.18,
+        "KEFI": 0.14
+      }
+    }
+  },
+  "modes": {
+    "immersive": {
+      "cooldown_scale": 1.0,
+      "category_cooldown_scale": 1.0,
+      "digest_scale": 1.0,
+      "min_delta_scale": 1.0
+    },
+    "minimal": {
+      "cooldown_scale": 1.8,
+      "category_cooldown_scale": 1.4,
+      "digest_scale": 1.6,
+      "min_delta_scale": 1.5
+    },
+    "debug": {
+      "cooldown_scale": 0.2,
+      "category_cooldown_scale": 0.2,
+      "digest_scale": 0.6,
+      "min_delta_scale": 0.0,
+      "force_show": true,
+      "debug_overlay": true
+    }
+  }
+}

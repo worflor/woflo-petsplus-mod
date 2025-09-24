@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:crafting_table",
+    "minecraft:cartography_table",
+    "minecraft:loom",
+    "minecraft:stonecutter",
+    "minecraft:anvil",
+    "minecraft:enchanting_table"
+  ]
+}

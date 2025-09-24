@@ -183,6 +183,10 @@ public class PetsPlusConfig {
             core.add("visuals", createVisualDefaults());
             changed = true;
         }
+        if (!core.has("emotion_cues") || !core.get("emotion_cues").isJsonObject()) {
+            core.add("emotion_cues", createEmotionCueDefaults());
+            changed = true;
+        }
         return changed;
     }
 
@@ -215,6 +219,7 @@ public class PetsPlusConfig {
         root.add("tribute_items", createDefaultTributeJson());
         root.add("pets", new JsonObject());
         root.add("visuals", createVisualDefaults());
+        root.add("emotion_cues", createEmotionCueDefaults());
         return root;
     }
 
@@ -560,6 +565,16 @@ public class PetsPlusConfig {
         return visuals;
     }
 
+    private static JsonObject createEmotionCueDefaults() {
+        JsonObject cues = new JsonObject();
+        cues.addProperty("mode", "immersive");
+        cues.addProperty("min_delta_override", -1.0);
+        cues.addProperty("digest_window_override", -1);
+        cues.addProperty("hud_pulse", true);
+        cues.addProperty("debug_overlay", false);
+        return cues;
+    }
+
     private static JsonObject createDefaultTributeJson() {
         JsonObject tributes = new JsonObject();
         DEFAULT_TRIBUTE_ITEMS.forEach((level, id) -> tributes.addProperty(String.valueOf(level), id.toString()));
@@ -595,6 +610,26 @@ public class PetsPlusConfig {
 
     public int getConfigGeneration() {
         return configGeneration;
+    }
+
+    public String getEmotionCueMode() {
+        return readString(getSection("emotion_cues"), "mode", "immersive");
+    }
+
+    public double getEmotionCueMinDeltaOverride() {
+        return readDouble(getSection("emotion_cues"), "min_delta_override", -1.0);
+    }
+
+    public int getEmotionCueDigestWindowOverride() {
+        return readInt(getSection("emotion_cues"), "digest_window_override", -1);
+    }
+
+    public boolean isEmotionCueHudPulseEnabled() {
+        return readBoolean(getSection("emotion_cues"), "hud_pulse", true);
+    }
+
+    public boolean isEmotionCueDebugOverlayEnabled() {
+        return readBoolean(getSection("emotion_cues"), "debug_overlay", false);
     }
 
     public JsonObject getRoleOverrides(Identifier roleId) {
