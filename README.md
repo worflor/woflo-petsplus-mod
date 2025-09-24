@@ -30,13 +30,8 @@ Your pet shares your experience and grows alongside you. Feature levels (3, 7, 1
 ## Pet Death and Loss
 If your pet dies, it will drop all its items and be gone for good. Your tribute items are lost and all pet experience is lost. You will need to invest in a new pet.
 
-### Future Plan:
-- Deaths on easier difficulties trigger a 'dying' state rather than immediate death, right clicking with a golden apple resurrects the pet in place at 50% health.
-- Easy: State lasts 5 minutes before fully dying.
-- Peaceful: State lasts 15 minutes before fully dying.
-
 ## Moods and Emotion
-Unfortunately your pet has gained feelings. 
+Unfortunately your pet has gained feelings. Behind the scenes, 30 emotions influence your pet's overall mood. Various events and triggers cause these emotional weights to shift and combine, creating your pet's current **mood state**.
 ### Core Moods
 1. Joyful
 2. Fearful
@@ -48,12 +43,11 @@ Unfortunately your pet has gained feelings.
 8. Mellow
 9. Tarab
 10. Kintsugi
-#### Core Emotion Groups
-- positive/afflicted, 
-- threat/adversion, 
-- reflective/neutral, 
-- longing/resilient/aspiration 
-
+### Core Emotion Groups
+- positive / afflicted
+- threat / adversion
+- reflective / neutral
+- longing / resilient / aspiration 
 
 ## Advancements
 - "Best Friends Forever++"
