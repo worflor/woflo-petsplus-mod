@@ -63,6 +63,7 @@ public class PetsPlusConfig {
     private static PetsPlusConfig instance;
 
     private JsonObject config;
+    private volatile int configGeneration;
     private final Set<String> legacyScopeWarnings = new HashSet<>();
 
     private PetsPlusConfig() {
@@ -110,6 +111,8 @@ public class PetsPlusConfig {
         config.add(ROLES_KEY, rolesObject);
 
         validateOverrides();
+
+        configGeneration++;
     }
 
     private LoadResult readJsonObject(Path path, String description) {
@@ -588,6 +591,10 @@ public class PetsPlusConfig {
     public JsonObject getSection(String key) {
         JsonObject section = getObject(config, key);
         return section != null ? section : EMPTY_OBJECT;
+    }
+
+    public int getConfigGeneration() {
+        return configGeneration;
     }
 
     public JsonObject getRoleOverrides(Identifier roleId) {
