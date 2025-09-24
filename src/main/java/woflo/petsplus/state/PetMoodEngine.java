@@ -12,6 +12,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
+import woflo.petsplus.config.PetsPlusConfig;
+
 /**
  * Encapsulates all mood/emotion logic for a PetComponent: emotion slots, blending, momentum,
  * hysteresis, config helpers, and NBT serialization.
@@ -26,6 +28,9 @@ final class PetMoodEngine {
     private static final double DEFAULT_EVICTION_AGE_COEFF = 0.0005d;
     private static final double DEFAULT_EVICTION_WEIGHT_COEFF = 1.0d;
     private static final double DEFAULT_EVICTION_PARKED_BIAS = 1.0d;
+    private static final float[] DEFAULT_LEVEL_THRESHOLDS = new float[]{0.33f, 0.66f, 0.85f};
+    private static final Map<PetComponent.Mood, Float> DEFAULT_ZEN_WEIGHTS = singletonMoodMap(PetComponent.Mood.ZEN);
+    private static final EnumMap<PetComponent.Emotion, Map<PetComponent.Mood, Float>> DEFAULT_EMOTION_TO_MOOD_WEIGHTS = buildDefaultEmotionWeights();
 
     private static class EmotionSlot {
         PetComponent.Emotion emotion;
@@ -45,6 +50,35 @@ final class PetMoodEngine {
     private int moodPendingCounter = 0;
     private PetComponent.Mood moodPendingCandidate = null;
     private EmotionSlot[] emotionSlots;
+
+    private int cachedConfigGeneration = -1;
+    private JsonObject cachedMoodsSection;
+    private JsonObject cachedWeightSection;
+    private JsonObject cachedPerEmotionDecaySection;
+    private JsonObject cachedEmotionToMoodWeightsSection;
+    private JsonObject cachedPerEmotionMaxSection;
+    private JsonObject cachedEvictionSection;
+    private JsonObject cachedEvictionTypeBiasSection;
+
+    private int cachedSlotCount = DEFAULT_EMOTION_SLOT_COUNT;
+    private int cachedDecayTickInterval = 40;
+    private float cachedEpsilon = 0.05f;
+    private double cachedDefaultDecayRate = 0.96d;
+    private double cachedMomentum = 0.25d;
+    private double cachedSwitchMargin = 0.15d;
+    private int cachedHysteresisTicks = 60;
+    private float[] cachedLevelThresholds = DEFAULT_LEVEL_THRESHOLDS.clone();
+    private float cachedWeightSaturationAlpha = DEFAULT_WEIGHT_SATURATION_ALPHA;
+    private float cachedDefaultMaxWeight = DEFAULT_MAX_EMOTION_WEIGHT;
+    private double cachedEvictionAgeCoeff = DEFAULT_EVICTION_AGE_COEFF;
+    private double cachedEvictionLowWeightCoeff = DEFAULT_EVICTION_WEIGHT_COEFF;
+    private double cachedEvictionParkedBias = DEFAULT_EVICTION_PARKED_BIAS;
+    private boolean cachedUseLastUpdatedForEviction = true;
+
+    private final EnumMap<PetComponent.Emotion, Double> cachedPerEmotionDecay = new EnumMap<>(PetComponent.Emotion.class);
+    private final EnumMap<PetComponent.Emotion, Float> cachedMaxWeight = new EnumMap<>(PetComponent.Emotion.class);
+    private final EnumMap<PetComponent.Emotion, Map<PetComponent.Mood, Float>> cachedEmotionToMoodWeights = new EnumMap<>(PetComponent.Emotion.class);
+    private final EnumMap<PetComponent.Emotion, Double> cachedEvictionTypeBias = new EnumMap<>(PetComponent.Emotion.class);
 
     PetMoodEngine(PetComponent parent) {
         this.parent = parent;
@@ -365,7 +399,7 @@ final class PetMoodEngine {
                         try { s.emotion = PetComponent.Emotion.valueOf(id); } catch (Exception ignored) {}
                     });
                     s.weight = snbt.getFloat("w").orElse(0f);
-                    s.decayRate = snbt.getFloat("d").orElse((float) getMoodsDouble("defaultDecayRate", 0.96));
+                    s.decayRate = snbt.getFloat("d").orElse((float) getDefaultDecayRate());
                     s.addedTick = snbt.getLong("added").orElse(0L);
                     s.lastUpdatedTick = snbt.getLong("updated").orElse(0L);
                     s.parked = snbt.getBoolean("parked").orElse(false);
@@ -394,7 +428,7 @@ final class PetMoodEngine {
                 EmotionSlot slot = emotionSlots[i];
                 if (slot == null) continue;
                 if (slot.parked) { emotionSlots[i] = null; continue; }
-                float rate = slot.decayRate > 0 ? slot.decayRate : (float) getMoodsDouble("defaultDecayRate", 0.96);
+                float rate = slot.decayRate > 0 ? slot.decayRate : (float) getDefaultDecayRate();
                 slot.weight *= rate;
                 if (slot.weight < epsilon) { emotionSlots[i] = null; }
             }
@@ -474,7 +508,7 @@ final class PetMoodEngine {
         EmotionSlot s = new EmotionSlot();
         s.emotion = emotion;
         s.weight = saturateWeight(0f, amount, emotion);
-        s.decayRate = (float) getPerEmotionDecay(emotion, getMoodsDouble("defaultDecayRate", 0.96));
+        s.decayRate = (float) getPerEmotionDecay(emotion);
         s.addedTick = now;
         s.lastUpdatedTick = now;
         s.parked = false;
@@ -556,232 +590,286 @@ final class PetMoodEngine {
     }
 
     // Config helpers
-    private JsonObject moodsSection() {
-        try {
-            return woflo.petsplus.config.PetsPlusConfig.getInstance().getSection("moods");
-        } catch (Exception e) {
-            return new JsonObject();
+    private void ensureConfigCache() {
+        PetsPlusConfig config = PetsPlusConfig.getInstance();
+        int generation = config.getConfigGeneration();
+        if (generation == cachedConfigGeneration && cachedMoodsSection != null) {
+            return;
         }
+
+        cachedConfigGeneration = generation;
+        cachedEmotionToMoodWeights.clear();
+        cachedPerEmotionDecay.clear();
+        cachedMaxWeight.clear();
+        cachedEvictionTypeBias.clear();
+
+        cachedMoodsSection = config.getSection("moods");
+        cachedSlotCount = readInt(cachedMoodsSection, "slotCount", DEFAULT_EMOTION_SLOT_COUNT);
+        cachedDecayTickInterval = readInt(cachedMoodsSection, "decayTickInterval", 40);
+        cachedEpsilon = (float) readDouble(cachedMoodsSection, "epsilon", 0.05);
+        cachedDefaultDecayRate = readDouble(cachedMoodsSection, "defaultDecayRate", 0.96);
+        cachedMomentum = readDouble(cachedMoodsSection, "momentum", 0.25);
+        cachedSwitchMargin = readDouble(cachedMoodsSection, "switchMargin", 0.15);
+        cachedHysteresisTicks = readInt(cachedMoodsSection, "hysteresisTicks", 60);
+        cachedLevelThresholds = parseLevelThresholds(cachedMoodsSection);
+
+        cachedPerEmotionDecaySection = getObject(cachedMoodsSection, "perEmotionDecay");
+        cachedEmotionToMoodWeightsSection = getObject(cachedMoodsSection, "emotionToMoodWeights");
+
+        cachedWeightSection = getObject(cachedMoodsSection, "weight");
+        cachedWeightSaturationAlpha = readFloat(cachedWeightSection, "saturationAlpha", DEFAULT_WEIGHT_SATURATION_ALPHA);
+        cachedDefaultMaxWeight = readFloat(cachedWeightSection, "defaultMax", DEFAULT_MAX_EMOTION_WEIGHT);
+        cachedPerEmotionMaxSection = getObject(cachedWeightSection, "perEmotionMax");
+
+        cachedEvictionSection = getObject(cachedMoodsSection, "eviction");
+        cachedEvictionAgeCoeff = readDouble(cachedEvictionSection, "ageCoeff", DEFAULT_EVICTION_AGE_COEFF);
+        cachedEvictionLowWeightCoeff = readDouble(cachedEvictionSection, "lowWeightCoeff", DEFAULT_EVICTION_WEIGHT_COEFF);
+        cachedEvictionParkedBias = readDouble(cachedEvictionSection, "parkedBias", DEFAULT_EVICTION_PARKED_BIAS);
+        cachedUseLastUpdatedForEviction = readBoolean(cachedEvictionSection, "useLastUpdated", true);
+        cachedEvictionTypeBiasSection = getObject(cachedEvictionSection, "typeBias");
     }
 
     private double getMoodsDouble(String key, double def) {
-        JsonObject o = moodsSection();
-        if (o != null && o.has(key) && o.get(key).isJsonPrimitive()) {
-            try { return o.get(key).getAsDouble(); } catch (Exception ignored) {}
-        }
-        return def;
+        ensureConfigCache();
+        return switch (key) {
+            case "epsilon" -> cachedEpsilon;
+            case "defaultDecayRate" -> cachedDefaultDecayRate;
+            case "momentum" -> cachedMomentum;
+            case "switchMargin" -> cachedSwitchMargin;
+            default -> readDouble(cachedMoodsSection, key, def);
+        };
     }
 
     private int getMoodsInt(String key, int def) {
-        JsonObject o = moodsSection();
-        if (o != null && o.has(key) && o.get(key).isJsonPrimitive()) {
-            try { return o.get(key).getAsInt(); } catch (Exception ignored) {}
-        }
-        return def;
+        ensureConfigCache();
+        return switch (key) {
+            case "slotCount" -> cachedSlotCount;
+            case "decayTickInterval" -> cachedDecayTickInterval;
+            case "hysteresisTicks" -> cachedHysteresisTicks;
+            default -> readInt(cachedMoodsSection, key, def);
+        };
     }
 
     private boolean getMoodsBoolean(String key, boolean def) {
-        JsonObject o = moodsSection();
-        if (o != null && o.has(key) && o.get(key).isJsonPrimitive()) {
-            try { return o.get(key).getAsBoolean(); } catch (Exception ignored) {}
-        }
-        return def;
+        ensureConfigCache();
+        return readBoolean(cachedMoodsSection, key, def);
     }
 
     private float getEpsilon() {
-        return (float) getMoodsDouble("epsilon", 0.05);
+        ensureConfigCache();
+        return cachedEpsilon;
     }
 
-    private double getPerEmotionDecay(PetComponent.Emotion emotion, double def) {
-        JsonObject o = moodsSection();
-        if (o != null && o.has("perEmotionDecay") && o.get("perEmotionDecay").isJsonObject()) {
-            JsonObject m = o.getAsJsonObject("perEmotionDecay");
-            String key = emotion.name().toLowerCase();
-            if (m.has(key)) {
-                try { return m.get(key).getAsDouble(); } catch (Exception ignored) {}
-            }
+    private double getPerEmotionDecay(PetComponent.Emotion emotion) {
+        ensureConfigCache();
+        if (emotion == null) {
+            return cachedDefaultDecayRate;
         }
-        return def;
+        return cachedPerEmotionDecay.computeIfAbsent(emotion, emo -> {
+            if (cachedPerEmotionDecaySection != null) {
+                String key = emo.name().toLowerCase();
+                if (cachedPerEmotionDecaySection.has(key) && cachedPerEmotionDecaySection.get(key).isJsonPrimitive()) {
+                    try { return cachedPerEmotionDecaySection.get(key).getAsDouble(); } catch (Exception ignored) {}
+                }
+            }
+            return cachedDefaultDecayRate;
+        });
+    }
+
+    private double getDefaultDecayRate() {
+        ensureConfigCache();
+        return cachedDefaultDecayRate;
     }
 
     private float[] getLevelThresholds() {
-        float[] d = new float[]{0.33f, 0.66f, 0.85f};
-        JsonObject o = moodsSection();
-        if (o != null && o.has("levelThresholds") && o.get("levelThresholds").isJsonArray()) {
-            var arr = o.getAsJsonArray("levelThresholds");
-            for (int i = 0; i < Math.min(3, arr.size()); i++) {
-                try { d[i] = arr.get(i).getAsFloat(); } catch (Exception ignored) {}
-            }
-            if (d[0] > 1f || d[1] > 1f || d[2] > 1f) {
-                d = new float[]{0.33f, 0.66f, 0.85f};
-            }
-        }
-        return d;
-    }
-
-    private JsonObject weightSection() {
-        JsonObject moods = moodsSection();
-        if (moods != null && moods.has("weight") && moods.get("weight").isJsonObject()) {
-            return moods.getAsJsonObject("weight");
-        }
-        return null;
+        ensureConfigCache();
+        return cachedLevelThresholds.clone();
     }
 
     private float getWeightSaturationAlpha() {
-        JsonObject weight = weightSection();
-        if (weight != null && weight.has("saturationAlpha") && weight.get("saturationAlpha").isJsonPrimitive()) {
-            try { return weight.get("saturationAlpha").getAsFloat(); } catch (Exception ignored) {}
-        }
-        return DEFAULT_WEIGHT_SATURATION_ALPHA;
+        ensureConfigCache();
+        return cachedWeightSaturationAlpha;
     }
 
     private float getMaxWeight(PetComponent.Emotion emotion) {
-        JsonObject weight = weightSection();
-        float defaultMax = DEFAULT_MAX_EMOTION_WEIGHT;
-        if (weight != null && weight.has("defaultMax") && weight.get("defaultMax").isJsonPrimitive()) {
-            try { defaultMax = weight.get("defaultMax").getAsFloat(); } catch (Exception ignored) {}
+        ensureConfigCache();
+        if (emotion == null) {
+            return cachedDefaultMaxWeight;
         }
-        if (emotion == null || weight == null) {
-            return defaultMax;
-        }
-        if (weight.has("perEmotionMax") && weight.get("perEmotionMax").isJsonObject()) {
-            JsonObject per = weight.getAsJsonObject("perEmotionMax");
-            String key = emotion.name().toLowerCase();
-            if (per.has(key) && per.get(key).isJsonPrimitive()) {
-                try { return per.get(key).getAsFloat(); } catch (Exception ignored) {}
-            }
-        }
-        return defaultMax;
-    }
-
-    private JsonObject evictionSection() {
-        JsonObject moods = moodsSection();
-        if (moods != null && moods.has("eviction") && moods.get("eviction").isJsonObject()) {
-            return moods.getAsJsonObject("eviction");
-        }
-        return null;
+        return cachedMaxWeight.computeIfAbsent(emotion, this::lookupMaxWeight);
     }
 
     private double getEvictionAgeCoeff() {
-        JsonObject eviction = evictionSection();
-        if (eviction != null && eviction.has("ageCoeff") && eviction.get("ageCoeff").isJsonPrimitive()) {
-            try { return eviction.get("ageCoeff").getAsDouble(); } catch (Exception ignored) {}
-        }
-        return DEFAULT_EVICTION_AGE_COEFF;
+        ensureConfigCache();
+        return cachedEvictionAgeCoeff;
     }
 
     private double getEvictionLowWeightCoeff() {
-        JsonObject eviction = evictionSection();
-        if (eviction != null && eviction.has("lowWeightCoeff") && eviction.get("lowWeightCoeff").isJsonPrimitive()) {
-            try { return eviction.get("lowWeightCoeff").getAsDouble(); } catch (Exception ignored) {}
-        }
-        return DEFAULT_EVICTION_WEIGHT_COEFF;
+        ensureConfigCache();
+        return cachedEvictionLowWeightCoeff;
     }
 
     private double getEvictionParkedBias() {
-        JsonObject eviction = evictionSection();
-        if (eviction != null && eviction.has("parkedBias") && eviction.get("parkedBias").isJsonPrimitive()) {
-            try { return eviction.get("parkedBias").getAsDouble(); } catch (Exception ignored) {}
-        }
-        return DEFAULT_EVICTION_PARKED_BIAS;
+        ensureConfigCache();
+        return cachedEvictionParkedBias;
     }
 
     private boolean useLastUpdatedForEviction() {
-        JsonObject eviction = evictionSection();
-        if (eviction != null && eviction.has("useLastUpdated") && eviction.get("useLastUpdated").isJsonPrimitive()) {
-            try { return eviction.get("useLastUpdated").getAsBoolean(); } catch (Exception ignored) {}
-        }
-        return true;
+        ensureConfigCache();
+        return cachedUseLastUpdatedForEviction;
     }
 
     private double getEvictionTypeBias(PetComponent.Emotion emotion) {
-        JsonObject eviction = evictionSection();
-        if (eviction != null && eviction.has("typeBias") && eviction.get("typeBias").isJsonObject() && emotion != null) {
-            JsonObject map = eviction.getAsJsonObject("typeBias");
+        ensureConfigCache();
+        if (emotion == null) {
+            return 0d;
+        }
+        return cachedEvictionTypeBias.computeIfAbsent(emotion, this::lookupEvictionTypeBias);
+    }
+
+    private Map<PetComponent.Mood, Float> getEmotionToMoodWeights(PetComponent.Emotion emotion) {
+        ensureConfigCache();
+        if (emotion == null) {
+            return DEFAULT_ZEN_WEIGHTS;
+        }
+        return cachedEmotionToMoodWeights.computeIfAbsent(emotion, this::lookupEmotionToMoodWeights);
+    }
+
+    private Map<PetComponent.Mood, Float> parseMoodWeights(JsonObject json) {
+        EnumMap<PetComponent.Mood, Float> res = new EnumMap<>(PetComponent.Mood.class);
+        for (Map.Entry<String, JsonElement> e : json.entrySet()) {
+            try {
+                PetComponent.Mood m = PetComponent.Mood.valueOf(e.getKey().toUpperCase());
+                float w = e.getValue().getAsFloat();
+                if (w > 0f) {
+                    res.put(m, w);
+                }
+            } catch (Exception ignored) {}
+        }
+        if (res.isEmpty()) {
+            return DEFAULT_ZEN_WEIGHTS;
+        }
+        return Collections.unmodifiableMap(res);
+    }
+
+    private Map<PetComponent.Mood, Float> defaultMoodWeights(PetComponent.Emotion emotion) {
+        return DEFAULT_EMOTION_TO_MOOD_WEIGHTS.getOrDefault(emotion, DEFAULT_ZEN_WEIGHTS);
+    }
+
+    private float[] parseLevelThresholds(JsonObject moods) {
+        float[] thresholds = DEFAULT_LEVEL_THRESHOLDS.clone();
+        if (moods != null && moods.has("levelThresholds") && moods.get("levelThresholds").isJsonArray()) {
+            var arr = moods.getAsJsonArray("levelThresholds");
+            for (int i = 0; i < Math.min(3, arr.size()); i++) {
+                try { thresholds[i] = arr.get(i).getAsFloat(); } catch (Exception ignored) {}
+            }
+            if (thresholds[0] > 1f || thresholds[1] > 1f || thresholds[2] > 1f) {
+                thresholds = DEFAULT_LEVEL_THRESHOLDS.clone();
+            }
+        }
+        return thresholds;
+    }
+
+    private float lookupMaxWeight(PetComponent.Emotion emotion) {
+        if (cachedPerEmotionMaxSection != null) {
             String key = emotion.name().toLowerCase();
-            if (map.has(key) && map.get(key).isJsonPrimitive()) {
-                try { return map.get(key).getAsDouble(); } catch (Exception ignored) {}
+            if (cachedPerEmotionMaxSection.has(key) && cachedPerEmotionMaxSection.get(key).isJsonPrimitive()) {
+                try { return cachedPerEmotionMaxSection.get(key).getAsFloat(); } catch (Exception ignored) {}
+            }
+        }
+        return cachedDefaultMaxWeight;
+    }
+
+    private double lookupEvictionTypeBias(PetComponent.Emotion emotion) {
+        if (cachedEvictionTypeBiasSection != null) {
+            String key = emotion.name().toLowerCase();
+            if (cachedEvictionTypeBiasSection.has(key) && cachedEvictionTypeBiasSection.get(key).isJsonPrimitive()) {
+                try { return cachedEvictionTypeBiasSection.get(key).getAsDouble(); } catch (Exception ignored) {}
             }
         }
         return 0d;
     }
 
-    private Map<PetComponent.Mood, Float> getEmotionToMoodWeights(PetComponent.Emotion emotion) {
-        JsonObject o = moodsSection();
-        if (o != null && o.has("emotionToMoodWeights") && o.get("emotionToMoodWeights").isJsonObject()) {
-            JsonObject map = o.getAsJsonObject("emotionToMoodWeights");
-            String emoKey = emotion.name().toLowerCase();
-            if (map.has(emoKey) && map.get(emoKey).isJsonObject()) {
-                return parseMoodWeights(map.getAsJsonObject(emoKey));
+    private Map<PetComponent.Mood, Float> lookupEmotionToMoodWeights(PetComponent.Emotion emotion) {
+        if (cachedEmotionToMoodWeightsSection != null) {
+            String key = emotion.name().toLowerCase();
+            if (cachedEmotionToMoodWeightsSection.has(key) && cachedEmotionToMoodWeightsSection.get(key).isJsonObject()) {
+                return parseMoodWeights(cachedEmotionToMoodWeightsSection.getAsJsonObject(key));
             }
         }
         return defaultMoodWeights(emotion);
     }
 
-    private Map<PetComponent.Mood, Float> parseMoodWeights(JsonObject json) {
-        Map<PetComponent.Mood, Float> res = new HashMap<>();
-        for (Map.Entry<String, JsonElement> e : json.entrySet()) {
-            try {
-                PetComponent.Mood m = PetComponent.Mood.valueOf(e.getKey().toUpperCase());
-                float w = e.getValue().getAsFloat();
-                if (w > 0) res.put(m, w);
-            } catch (Exception ignored) {}
+    private static double readDouble(JsonObject obj, String key, double def) {
+        if (obj != null && obj.has(key) && obj.get(key).isJsonPrimitive()) {
+            try { return obj.get(key).getAsDouble(); } catch (Exception ignored) {}
         }
-        if (res.isEmpty()) res.put(PetComponent.Mood.ZEN, 1.0f);
-        return res;
+        return def;
     }
 
-    private Map<PetComponent.Mood, Float> defaultMoodWeights(PetComponent.Emotion e) {
-        Map<PetComponent.Mood, Float> m = new HashMap<>();
-        switch (e) {
-            // Pure Joy & Happiness
-            case FROHLICH, GLEE, KEFI -> m.put(PetComponent.Mood.JOYFUL, 1.0f);
-
-            // Bonding & Connection
-            case QUERENCIA, GEZELLIG, UBUNTU -> m.put(PetComponent.Mood.BONDED, 1.0f);
-
-            // Calm & Peaceful
-            case ANANDA, RELIEF -> m.put(PetComponent.Mood.ZEN, 1.0f);
-
-            // Fear & Anxiety
-            case ANGST, FOREBODING, STARTLE, DISGUST -> m.put(PetComponent.Mood.FEARFUL, 1.0f);
-
-            // Protective Instincts (FIXED - no longer maps to wrathful)
-            case PROTECTIVENESS -> m.put(PetComponent.Mood.PROTECTIVE, 1.0f);
-
-            // Anger & Aggression
-            case FRUSTRATION, WELTSCHMERZ -> m.put(PetComponent.Mood.WRATHFUL, 1.0f);
-
-            // Longing & Melancholy
-            case REGRET, SAUDADE, HIRAETH -> m.put(PetComponent.Mood.SAUDADE, 1.0f);
-
-            // Curiosity & Wonder (NEW)
-            case FERNWEH -> m.put(PetComponent.Mood.CURIOUS, 1.0f); // wanderlust = curiosity
-
-            // Restless Energy (NEW)
-            case AMAL -> m.put(PetComponent.Mood.RESTLESS, 1.0f); // hope/energy = restless drive
-
-            // Playful Energy (NEW) - distribute some zen emotions to playful
-            case FJELLVANT -> m.put(PetComponent.Mood.PLAYFUL, 1.0f); // mountain joy = playful
-
-            // Contemplative & Mysterious
-            case YUGEN, SOBREMESA, ENNUI -> m.put(PetComponent.Mood.YUGEN, 1.0f);
-
-            // Musical/Ecstatic Joy
-            case MONO_NO_AWARE -> m.put(PetComponent.Mood.TARAB, 1.0f); // bittersweet awareness = ecstatic
-
-            // Resilience & Growth
-            case SISU, GAMAN -> m.put(PetComponent.Mood.KINTSUGI, 1.0f);
-
-            // Enthusiastic Energy
-            case HANYAUKU -> m.put(PetComponent.Mood.ZEALOUS, 1.0f); // gratitude energy = zealous
-
-            // Balanced/Content (reduced zen usage)
-            case LAGOM, WABI_SABI -> m.put(PetComponent.Mood.ZEN, 1.0f);
-
-            default -> m.put(PetComponent.Mood.ZEN, 1.0f);
+    private static int readInt(JsonObject obj, String key, int def) {
+        if (obj != null && obj.has(key) && obj.get(key).isJsonPrimitive()) {
+            try { return obj.get(key).getAsInt(); } catch (Exception ignored) {}
         }
-        return m;
+        return def;
+    }
+
+    private static float readFloat(JsonObject obj, String key, float def) {
+        if (obj != null && obj.has(key) && obj.get(key).isJsonPrimitive()) {
+            try { return obj.get(key).getAsFloat(); } catch (Exception ignored) {}
+        }
+        return def;
+    }
+
+    private static boolean readBoolean(JsonObject obj, String key, boolean def) {
+        if (obj != null && obj.has(key) && obj.get(key).isJsonPrimitive()) {
+            try { return obj.get(key).getAsBoolean(); } catch (Exception ignored) {}
+        }
+        return def;
+    }
+
+    private static JsonObject getObject(JsonObject parent, String key) {
+        if (parent != null && parent.has(key) && parent.get(key).isJsonObject()) {
+            return parent.getAsJsonObject(key);
+        }
+        return null;
+    }
+
+    private static EnumMap<PetComponent.Emotion, Map<PetComponent.Mood, Float>> buildDefaultEmotionWeights() {
+        EnumMap<PetComponent.Emotion, Map<PetComponent.Mood, Float>> weights = new EnumMap<>(PetComponent.Emotion.class);
+        registerDefaultMapping(weights, PetComponent.Mood.JOYFUL, PetComponent.Emotion.FROHLICH, PetComponent.Emotion.GLEE, PetComponent.Emotion.KEFI);
+        registerDefaultMapping(weights, PetComponent.Mood.BONDED, PetComponent.Emotion.QUERENCIA, PetComponent.Emotion.GEZELLIG, PetComponent.Emotion.UBUNTU);
+        registerDefaultMapping(weights, PetComponent.Mood.ZEN, PetComponent.Emotion.ANANDA, PetComponent.Emotion.RELIEF, PetComponent.Emotion.LAGOM, PetComponent.Emotion.WABI_SABI);
+        registerDefaultMapping(weights, PetComponent.Mood.FEARFUL, PetComponent.Emotion.ANGST, PetComponent.Emotion.FOREBODING, PetComponent.Emotion.STARTLE, PetComponent.Emotion.DISGUST);
+        registerDefaultMapping(weights, PetComponent.Mood.PROTECTIVE, PetComponent.Emotion.PROTECTIVENESS);
+        registerDefaultMapping(weights, PetComponent.Mood.WRATHFUL, PetComponent.Emotion.FRUSTRATION, PetComponent.Emotion.WELTSCHMERZ);
+        registerDefaultMapping(weights, PetComponent.Mood.SAUDADE, PetComponent.Emotion.REGRET, PetComponent.Emotion.SAUDADE, PetComponent.Emotion.HIRAETH);
+        registerDefaultMapping(weights, PetComponent.Mood.CURIOUS, PetComponent.Emotion.FERNWEH);
+        registerDefaultMapping(weights, PetComponent.Mood.RESTLESS, PetComponent.Emotion.AMAL);
+        registerDefaultMapping(weights, PetComponent.Mood.PLAYFUL, PetComponent.Emotion.FJELLVANT);
+        registerDefaultMapping(weights, PetComponent.Mood.YUGEN, PetComponent.Emotion.YUGEN, PetComponent.Emotion.SOBREMESA, PetComponent.Emotion.ENNUI);
+        registerDefaultMapping(weights, PetComponent.Mood.TARAB, PetComponent.Emotion.MONO_NO_AWARE);
+        registerDefaultMapping(weights, PetComponent.Mood.KINTSUGI, PetComponent.Emotion.SISU, PetComponent.Emotion.GAMAN);
+        registerDefaultMapping(weights, PetComponent.Mood.ZEALOUS, PetComponent.Emotion.HANYAUKU);
+        for (PetComponent.Emotion emotion : PetComponent.Emotion.values()) {
+            weights.putIfAbsent(emotion, DEFAULT_ZEN_WEIGHTS);
+        }
+        return weights;
+    }
+
+    private static void registerDefaultMapping(EnumMap<PetComponent.Emotion, Map<PetComponent.Mood, Float>> target,
+                                               PetComponent.Mood mood,
+                                               PetComponent.Emotion... emotions) {
+        Map<PetComponent.Mood, Float> weights = singletonMoodMap(mood);
+        for (PetComponent.Emotion emotion : emotions) {
+            target.put(emotion, weights);
+        }
+    }
+
+    private static Map<PetComponent.Mood, Float> singletonMoodMap(PetComponent.Mood mood) {
+        EnumMap<PetComponent.Mood, Float> map = new EnumMap<>(PetComponent.Mood.class);
+        map.put(mood, 1.0f);
+        return Collections.unmodifiableMap(map);
     }
 
     private static String capitalize(String s) {
