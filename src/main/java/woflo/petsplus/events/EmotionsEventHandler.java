@@ -58,9 +58,11 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.UUID;
 
 import woflo.petsplus.events.EmotionCueConfig.EmotionCueDefinition;
 
@@ -245,6 +247,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
     // ==== Weather transitions (ultra-light) → SOBREMESA, YUGEN, FOREBODING, RELIEF ====
     private static final java.util.Map<ServerWorld, WeatherState> WEATHER = new java.util.WeakHashMap<>();
+    private static final Map<ServerWorld, Long> LAST_WET_WEATHER_TICK = new WeakHashMap<>();
+    private static final Map<UUID, Long> LAST_CLEAR_WEATHER_TRIGGER = new HashMap<>();
     private record WeatherState(boolean raining, boolean thundering) {}
 
     private static final TagKey<Item> VALUABLE_ITEMS = TagKey.of(RegistryKeys.ITEM,
@@ -287,9 +291,13 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
     private static void onWorldTickWeatherAndEnv(ServerWorld world) {
         EmotionContextCues.tick(world);
+        long now = world.getTime();
         WeatherState prev = WEATHER.get(world);
         boolean r = world.isRaining();
         boolean t = world.isThundering();
+        if (r || t) {
+            LAST_WET_WEATHER_TICK.put(world, now);
+        }
         if (prev == null) {
             WEATHER.put(world, new WeatherState(r, t));
             // Initialize time phase too
@@ -298,6 +306,9 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             if (r != prev.raining || t != prev.thundering) {
                 WEATHER.put(world, new WeatherState(r, t));
                 // Push to pets near players in this world
+                if (!r && !t && (prev.raining || prev.thundering)) {
+                    LAST_WET_WEATHER_TICK.put(world, Math.max(0L, now - 1L));
+                }
                 for (ServerPlayerEntity sp : world.getPlayers()) {
                     if (r && !prev.raining) {
                         // Rain started → cozy introspection
@@ -1264,8 +1275,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                     Text.translatable("petsplus.emotion_cue.weather.rain_pet", pet.getDisplayName()), 400);
             }
         } else {
-            // Clear weather after storm - relief
-            if (world.getTime() % 6000 == 0) { // Check periodically
+            if (shouldCelebrateClearWeather(pet, world)) {
                 pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.06f);
                 pc.pushEmotion(PetComponent.Emotion.KEFI, 0.04f); // Energy from clear skies
                 EmotionContextCues.sendCue(owner, "weather.clear." + pet.getUuidAsString(),
@@ -1290,6 +1300,26 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                     Text.translatable("petsplus.emotion_cue.environment.cold", pet.getDisplayName()), 600);
             }
         } catch (Exception ignored) {}
+    }
+
+    private static boolean shouldCelebrateClearWeather(MobEntity pet, ServerWorld world) {
+        if (world.isRaining() || world.isThundering()) {
+            return false;
+        }
+        Long lastWet = LAST_WET_WEATHER_TICK.get(world);
+        if (lastWet == null) {
+            return false;
+        }
+        long now = world.getTime();
+        if (now - lastWet > 200L) {
+            return false;
+        }
+        Long lastCelebrated = LAST_CLEAR_WEATHER_TRIGGER.get(pet.getUuid());
+        if (lastCelebrated != null && lastCelebrated >= lastWet) {
+            return false;
+        }
+        LAST_CLEAR_WEATHER_TRIGGER.put(pet.getUuid(), now);
+        return true;
     }
 
     private static void addTagBasedItemTriggers(MobEntity pet, PetComponent pc, ServerPlayerEntity owner) {

@@ -154,12 +154,14 @@ public final class EmotionContextCues {
     }
 
     private static boolean checkCueCooldown(ServerPlayerEntity player, String cueId, long now, long cooldown) {
-        Map<String, Long> perPlayer = LAST_CUES.computeIfAbsent(player, p -> new HashMap<>());
+        Map<String, Long> perPlayer = LAST_CUES.get(player);
+        if (perPlayer == null) {
+            return true;
+        }
         Long last = perPlayer.get(cueId);
         if (last != null && now - last < cooldown) {
             return false;
         }
-        perPlayer.put(cueId, now);
         return true;
     }
 
@@ -167,12 +169,14 @@ public final class EmotionContextCues {
         if (category == null || category.isEmpty()) {
             return true;
         }
-        Map<String, Long> perPlayer = CATEGORY_COOLDOWNS.computeIfAbsent(player, p -> new HashMap<>());
+        Map<String, Long> perPlayer = CATEGORY_COOLDOWNS.get(player);
+        if (perPlayer == null) {
+            return true;
+        }
         Long last = perPlayer.get(category);
         if (last != null && now - last < cooldown) {
             return false;
         }
-        perPlayer.put(category, now);
         return true;
     }
 
@@ -197,6 +201,7 @@ public final class EmotionContextCues {
 
     private static void deliverCue(ServerPlayerEntity player, String cueId, EmotionCueDefinition definition,
                                    Text text, long now, float impact) {
+        markCueFired(player, cueId, now);
         player.sendMessage(text, true);
 
         if (definition != null) {
@@ -214,6 +219,10 @@ public final class EmotionContextCues {
                 .append(Text.literal(String.format(Locale.ROOT, " [Δ=%.2f]", impact)));
             player.sendMessage(debug, false);
         }
+    }
+
+    private static void markCueFired(ServerPlayerEntity player, String cueId, long now) {
+        LAST_CUES.computeIfAbsent(player, p -> new HashMap<>()).put(cueId, now);
     }
 
     private static void queueDigest(ServerPlayerEntity player, String definitionId, EmotionCueDefinition definition,
