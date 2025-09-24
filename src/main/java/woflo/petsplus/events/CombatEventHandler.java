@@ -288,6 +288,17 @@ public class CombatEventHandler {
         float maxHealth = pet.getMaxHealth();
         float damageRatio = Math.min(1.0f, amount / maxHealth);
 
+        // Chip damage should agitate pets over time - build restlessness from repeated light hits
+        float restlessnessAmount = damageRatio * 0.25f;
+        if (damageRatio <= 0.35f) {
+            float lightDamageBonus = (0.35f - damageRatio) / 0.35f;
+            restlessnessAmount += 0.05f + lightDamageBonus * 0.15f;
+        }
+        restlessnessAmount = Math.min(0.6f, restlessnessAmount);
+        if (restlessnessAmount > 0f) {
+            petComponent.pushEmotion(PetComponent.Emotion.AMAL, restlessnessAmount);
+        }
+
         Entity attacker = damageSource.getAttacker();
         PlayerEntity owner = petComponent.getOwner();
 
