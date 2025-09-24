@@ -49,20 +49,12 @@ Unfortunately your pet has gained feelings.
 9. Tarab
 10. Kintsugi
 ### Core Emotions
-There are positive/afflicted, threat/adversion, reflective/neutral, longing/resilient/aspiration related emotions.
+Emotions relating to:
+- positive/afflicted, 
+- threat/adversion, 
+- reflective/neutral, 
+- longing/resilient/aspiration 
 
-
-
-
-
-
-
-
-
-## Configuration and Expandability
-Pets+ includes configuration files (`config/petsplus/...`) where you can customize various components. Explore it yourself.
-- Roles, Abilities, and Tributes have configurations availible.
-- The backend API is extendable via Datapacks and Add-On Mods. Base roles, abilities, and progression rewards can be tinkered, modified, or overritten to your liking.
 
 ## Advancements
 - "Best Friends Forever++"
@@ -78,6 +70,11 @@ Pets+ includes configuration files (`config/petsplus/...`) where you can customi
 - "Noo, Luna!"
 - "At what cost..."
 - "Heartless, but Alive."
+
+## Configuration and Expandability
+Pets+ includes configuration files (`config/petsplus/...`) where you can customize various components. Explore it yourself.
+- Roles, Abilities, and Tributes have configurations availible.
+- The backend API is extendable via Datapacks and Add-On Mods. Base roles, abilities, and progression rewards can be tinkered, modified, or overritten to your liking.
 
 ## Credits
 - woflo - (me)
