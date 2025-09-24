@@ -149,6 +149,6 @@ public class EnhancedFollowOwnerGoal extends Goal {
         return world.getBlockState(pos.down()).isSolidBlock(world, pos.down()) &&
                world.getBlockState(pos).isAir() &&
                world.getBlockState(pos.up()).isAir() &&
-               !world.getFluidState(pos).isEmpty();
+               world.getFluidState(pos).isEmpty();
     }
 }
