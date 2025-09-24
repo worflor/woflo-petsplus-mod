@@ -57,19 +57,19 @@ public class PetComponent {
      */
     public enum Mood {
         JOYFUL(PetMood.JOYFUL),
-        FEARFUL(PetMood.FEARFUL),
-        WRATHFUL(PetMood.WRATHFUL),
-        SAUDADE(PetMood.SAUDADE),
+        PLAYFUL(PetMood.PLAYFUL),
+        CURIOUS(PetMood.CURIOUS),
+        BONDED(PetMood.BONDED),
         ZEN(PetMood.ZEN),
         ZEALOUS(PetMood.ZEALOUS),
         YUGEN(PetMood.YUGEN),
         TARAB(PetMood.TARAB),
         KINTSUGI(PetMood.KINTSUGI),
-        PLAYFUL(PetMood.PLAYFUL),
-        CURIOUS(PetMood.CURIOUS),
+        SAUDADE(PetMood.SAUDADE),
         PROTECTIVE(PetMood.PROTECTIVE),
-        BONDED(PetMood.BONDED),
-        RESTLESS(PetMood.RESTLESS);
+        RESTLESS(PetMood.RESTLESS),
+        FEARFUL(PetMood.FEARFUL),
+        WRATHFUL(PetMood.WRATHFUL);
 
         public final Formatting primaryFormatting;
         public final Formatting secondaryFormatting;
