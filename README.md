@@ -48,8 +48,7 @@ Unfortunately your pet has gained feelings.
 8. Mellow
 9. Tarab
 10. Kintsugi
-### Core Emotions
-Emotions relating to:
+#### Core Emotion Groups
 - positive/afflicted, 
 - threat/adversion, 
 - reflective/neutral, 
