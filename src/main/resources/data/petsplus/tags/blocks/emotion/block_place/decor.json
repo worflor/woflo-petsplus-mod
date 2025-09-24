@@ -1,0 +1,16 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:beds",
+    "#minecraft:campfires",
+    "#minecraft:candles",
+    "#minecraft:potted_plants",
+    "#minecraft:flowers",
+    "#minecraft:decorated_pots",
+    "#minecraft:wool_carpets",
+    "minecraft:lantern",
+    "minecraft:soul_lantern",
+    "minecraft:bookshelf",
+    "minecraft:chiseled_bookshelf"
+  ]
+}

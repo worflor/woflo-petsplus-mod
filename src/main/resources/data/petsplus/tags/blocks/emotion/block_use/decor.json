@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:flower_pot",
+    "#minecraft:potted_plants",
+    "#minecraft:candles",
+    "minecraft:lantern",
+    "minecraft:soul_lantern"
+  ]
+}

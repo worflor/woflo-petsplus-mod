@@ -23,6 +23,7 @@ import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.commands.arguments.PetRoleArgumentType;
 import woflo.petsplus.commands.suggestions.PetsSuggestionProviders;
 import woflo.petsplus.config.PetsPlusConfig;
+import woflo.petsplus.events.EmotionContextCues;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.ui.ChatLinks;
 
@@ -115,6 +116,10 @@ public class PetsCommand {
                     .then(CommandManager.argument("level", StringArgumentType.string())
                         .executes(PetsCommand::adminSetPetLevel))))
 
+            .then(CommandManager.literal("journal")
+                .executes(PetsCommand::showCueJournal))
+            .then(CommandManager.literal("journal")
+                .executes(PetsCommand::showCueJournal))
             // Help system
             .then(CommandManager.literal("help")
                 .executes(PetsCommand::showHelp)
@@ -365,6 +370,12 @@ public class PetsCommand {
         return 0;
     }
     
+    private static int showCueJournal(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        EmotionContextCues.dumpJournal(player);
+        return 1;
+    }
+
     private static int reloadConfig(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         try {
             PetsPlusConfig.getInstance().reload();
