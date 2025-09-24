@@ -1,5 +1,5 @@
 # Pets+ (Pets Plus)
-A Minecraft mod that expands pets with unique roles and abilities to add new twists on vanilla mechanics.
+A Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
 
 ## Pet Roles and Levelling
 Each role has a unique set of abilities, and can be applied to *any* tamable/trustable entity. *So MaNY wAcKy CoMbInAtiOnS*!
@@ -31,10 +31,10 @@ Your pet shares your experience and grows alongside you. Feature levels (3, 7, 1
 If your pet dies, it will drop all its items and be gone for good. Your tribute items are lost and all pet experience is lost. You will need to invest in a new pet.
 
 ## Moods and Emotion
-Unfortunately your pet has gained feelings. Behind the scenes, 30 emotions influence your pet's overall mood. Various events and triggers cause these emotional weights to shift and combine, creating your pet's current **mood state**.
+Unfortunately, your pet has gained feelings. Behind the scenes, **30 emotions** influence your pet's overall mood. Various events and triggers cause these emotional weights to shift and combine, creating your pet's current **mood state**.
 ### Core Moods
 1. **Happy** [joyful]
-2. **Playful** [energetic]
+2. **Playful** [energetic fun]
 3. **Curious** [exploring]
 4. **Bonded** [attached]
 5. **Calm** [peaceful]
@@ -47,6 +47,7 @@ Unfortunately your pet has gained feelings. Behind the scenes, 30 emotions influ
 12. **Restless** [agitated]
 13. **Afraid** [scared]
 14. **Angry** [mad]
+Mood intensity varies depending on how strong the emotional weights are.
 ### Core Emotion Groups
 - positive / afflicted
 - threat / adversion
@@ -67,11 +68,19 @@ Unfortunately your pet has gained feelings. Behind the scenes, 30 emotions influ
 - "Noo, Luna!"
 - "At what cost..."
 - "Heartless, but Alive."
+### uninplemented yet:
+- "Be more *chilllllll*" (get calm mood state to level 3 for the first time) 
+- "(sighs) Sigh..." (Have a pet go from 'yugen' to 'saundade' for the first time)
+- "Another one, thank you." (get your second pet to level 30)
+- "
+
+
+
 
 ## Configuration and Expandability
 Pets+ includes configuration files (`config/petsplus/...`) where you can customize various components. Explore it yourself.
-- Roles, Abilities, and Tributes have configurations availible.
-- The backend API is extendable via Datapacks and Add-On Mods. Base roles, abilities, and progression rewards can be tinkered, modified, or overritten to your liking.
+- Roles, Abilities, Tributes, and Moods have configurations availible.
+- The backend API is extendable via Datapacks and Add-On Mods. Base roles, abilities, progression rewards, and emotional events can be tinkered, modified, or overritten to your liking.
 
 ## Credits
 - woflo - (me)
