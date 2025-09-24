@@ -387,31 +387,31 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 st.biomeKey = biomeKey;
                 if (biomeEntry != null) {
                     if (biomeEntry.isIn(DESERT_LIKE_BIOMES)) {
-                        pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.HANYAUKU, 0.12f));
+                        pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.HANYAUKU, 0.12f), false);
                     }
                     if (biomeKey.equals(BiomeKeys.CHERRY_GROVE) || biomeKey.equals(BiomeKeys.FLOWER_FOREST)) {
                         pushToNearbyOwnedPets(sp, 32, pc -> {
                             pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.10f);
                             pc.pushEmotion(PetComponent.Emotion.BLISSFUL, 0.08f);
-                        });
+                        }, false);
                     }
                     if (biomeKey.equals(BiomeKeys.MUSHROOM_FIELDS)) {
                         pushToNearbyOwnedPets(sp, 48, pc -> {
                             pc.pushEmotion(PetComponent.Emotion.GLEE, 0.15f);
                             pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.08f);
-                        });
+                        }, false);
                     }
                     if (biomeKey.equals(BiomeKeys.DEEP_DARK)) {
                         pushToNearbyOwnedPets(sp, 48, pc -> {
                             pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.18f);
                             pc.pushEmotion(PetComponent.Emotion.ANGST, 0.12f);
-                        });
+                        }, false);
                     }
                     if (biomeEntry.isIn(OCEANIC_BIOMES)) {
-                        pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.08f));
+                        pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.08f), false);
                     }
                     if (biomeEntry.isIn(SNOWY_BIOMES)) {
-                        pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.STOIC, 0.10f));
+                        pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.STOIC, 0.10f), false);
                     }
                 }
                 Identifier newBiomeId = biomeKey.getValue();
@@ -439,19 +439,19 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                     pushToNearbyOwnedPets(sp, 64, pc -> {
                         pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.12f);
                         pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.10f);
-                    });
+                    }, false);
                 } else if (worldKey == World.NETHER) {
                     pushToNearbyOwnedPets(sp, 64, pc -> {
                         pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f);
                         pc.pushEmotion(PetComponent.Emotion.STOIC, 0.12f);
                         pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
-                    });
+                    }, false);
                 } else if (worldKey == World.END) {
                     pushToNearbyOwnedPets(sp, 64, pc -> {
                         pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.14f);
                         pc.pushEmotion(PetComponent.Emotion.STOIC, 0.12f);
                         pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.08f);
-                    });
+                    }, false);
                 }
             }
 
@@ -517,6 +517,11 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
     private interface PetConsumer { void accept(PetComponent pc); }
 
     private static StimulusSummary pushToNearbyOwnedPets(ServerPlayerEntity owner, double radius, PetConsumer consumer) {
+        return pushToNearbyOwnedPets(owner, radius, consumer, true);
+    }
+
+    private static StimulusSummary pushToNearbyOwnedPets(ServerPlayerEntity owner, double radius, PetConsumer consumer,
+                                                         boolean recordStimulus) {
         List<MobEntity> pets = owner.getWorld().getEntitiesByClass(MobEntity.class,
             owner.getBoundingBox().expand(radius),
             mob -> {
@@ -539,7 +544,9 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             } catch (Throwable ignored) {}
         }
         StimulusSummary summary = builder.build();
-        EmotionContextCues.recordStimulus(owner, summary);
+        if (recordStimulus) {
+            EmotionContextCues.recordStimulus(owner, summary);
+        }
         return summary;
     }
 
