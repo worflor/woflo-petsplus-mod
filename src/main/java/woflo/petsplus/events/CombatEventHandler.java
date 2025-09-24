@@ -509,6 +509,9 @@ public class CombatEventHandler {
                 petComponent.pushEmotion(PetComponent.Emotion.HIRAETH, remorse);
                 petComponent.pushEmotion(PetComponent.Emotion.ANGST, panic);
                 petComponent.pushEmotion(PetComponent.Emotion.FOREBODING, dread);
+                if (victim.getHealth() - damage <= 0) {
+                    handlePetKill(pet, petComponent, victim);
+                }
                 Petsplus.LOGGER.debug("Pet {} accidentally hurt owner, pushed guilt emotions", pet.getName().getString());
                 return;
             }
