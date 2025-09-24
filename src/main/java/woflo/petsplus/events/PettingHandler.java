@@ -26,9 +26,6 @@ import woflo.petsplus.ui.FeedbackManager;
  */
 public class PettingHandler {
 
-    private static final String LAST_PET_TIME_KEY = "last_pet_time";
-    private static final String PET_COUNT_KEY = "pet_count";
-
     public static void register() {
         UseEntityCallback.EVENT.register(PettingHandler::onUseEntity);
         Petsplus.LOGGER.info("Petting interaction handler registered");
@@ -61,7 +58,7 @@ public class PettingHandler {
         PetsPlusConfig config = PetsPlusConfig.getInstance();
         int cooldownTicks = config.getPettingCooldownTicks();
         
-        Long lastPetTime = petComp.getStateData(LAST_PET_TIME_KEY, Long.class);
+        Long lastPetTime = petComp.getStateData(PetComponent.StateKeys.LAST_PET_TIME, Long.class);
         if (lastPetTime != null && (currentTime - lastPetTime) < cooldownTicks) {
             // Still on cooldown, but provide subtle feedback
             player.sendMessage(Text.literal("Your companion is still enjoying the last pets"), true);
@@ -79,10 +76,10 @@ public class PettingHandler {
         Identifier roleId = petComp.getRoleId();
 
         // Update petting state
-        petComp.setStateData(LAST_PET_TIME_KEY, currentTime);
-        Integer currentCount = petComp.getStateData(PET_COUNT_KEY, Integer.class);
+        petComp.setStateData(PetComponent.StateKeys.LAST_PET_TIME, currentTime);
+        Integer currentCount = petComp.getStateData(PetComponent.StateKeys.PET_COUNT, Integer.class);
         int newCount = (currentCount == null ? 0 : currentCount) + 1;
-        petComp.setStateData(PET_COUNT_KEY, newCount);
+        petComp.setStateData(PetComponent.StateKeys.PET_COUNT, newCount);
 
         // Base petting effects
         emitBasePettingEffects(player, pet, world, newCount);
