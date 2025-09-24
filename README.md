@@ -49,6 +49,7 @@ Behind the scenes, *30 emotions influence your pet's overall mood*. Various even
 12. **Restless** [agitated]
 13. **Afraid** [scared]
 14. **Angry** [mad]
+
 Mood intensity varies based on the strength of these emotional weights.
 ### Core Emotion Groups
 - afflicted / positive
