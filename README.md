@@ -35,7 +35,7 @@ Behind the scenes, *30 emotions influence your pet's overall mood*. Various even
 4. **Bonded** [attached]
 5. **Calm** [peaceful]
 6. **Passionate** [enthusiastic]
-7. **Yugen** [profound awareness]
+7. **Yūgen** [profound awareness]
 8. **Focused** [concentrated]
 9. **Sisu** [determined endurance]
 10. **Saudade** [wistful longing]
