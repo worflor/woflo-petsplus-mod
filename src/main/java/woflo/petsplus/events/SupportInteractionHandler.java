@@ -49,9 +49,6 @@ public class SupportInteractionHandler {
 
             ItemStack emptied = ItemUsage.exchangeStack(stack, player, new ItemStack(Items.BUCKET));
             player.setStackInHand(hand, emptied);
-            if (player.getAbilities().creativeMode) {
-                player.setStackInHand(hand, new ItemStack(Items.BUCKET));
-            }
 
             ServerWorld serverWorld = (ServerWorld) world;
             serverWorld.spawnParticles(net.minecraft.particle.ParticleTypes.END_ROD,
