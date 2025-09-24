@@ -28,10 +28,12 @@ Your pet shares your experience and grows alongside you. Feature levels (3, 7, 1
 - **Level 30 →** Netherite Ingot
 
 ## Pet Death and Loss
-If your pet dies, it will drop all its items and be gone for good. Your tribute items are lost and all pet experience is lost. You will need to invest in a new pet.
+If your pet dies, it will drop all its items and be gone for good. Your tribute items are lost and all that pet's experience is lost. 
+Memorialize the trauma, a **Proof of Existence** drops on every pet death.
 
 ## Moods and Emotion
-Unfortunately, your pet has gained feelings. Behind the scenes, **30 emotions** influence your pet's overall mood. Various events and triggers cause these emotional weights to shift and combine, creating your pet's current **mood state**.
+Unfortunately, your pet has developed feelings too. 
+Behind the scenes, *30 emotions influence your pet's overall mood*. Various events and triggers cause these emotional weights to shift and combine, blending into your pet's current **mood state**.
 ### Core Moods
 1. **Happy** [joyful]
 2. **Playful** [energetic fun]
@@ -39,18 +41,18 @@ Unfortunately, your pet has gained feelings. Behind the scenes, **30 emotions** 
 4. **Bonded** [attached]
 5. **Calm** [peaceful]
 6. **Passionate** [enthusiastic]
-7. **Yugen** [contemplative]
+7. **Yugen** [profound awareness]
 8. **Focused** [concentrated]
-9. **Sisu** [resilient]
-10. **Saudade** [nostalgic]
+9. **Sisu** [determined endurance]
+10. **Saudade** [wistful longing]
 11. **Protective** [defensive]
 12. **Restless** [agitated]
 13. **Afraid** [scared]
 14. **Angry** [mad]
-Mood intensity varies depending on how strong the emotional weights are.
+Mood intensity varies based on the strength of these emotional weights.
 ### Core Emotion Groups
-- positive / afflicted
-- threat / adversion
+- afflicted / positive
+- threat / aversion
 - reflective / neutral
 - longing / resilient / aspiration 
 
@@ -83,15 +85,11 @@ Mood intensity varies depending on how strong the emotional weights are.
 - "Guardian of the Grrr-laxy"
 ### uninplemented yet:
 - "Another one, thank you." (get your second pet to level 30)
-- "
-
-
-
 
 ## Configuration and Expandability
 Pets+ includes configuration files (`config/petsplus/...`) where you can customize various components. Explore it yourself.
 - Roles, Abilities, Tributes, and Moods have configurations availible.
-- The backend API is extendable via Datapacks and Add-On Mods. Base roles, abilities, progression rewards, and emotional events can be tinkered, modified, or overritten to your liking.
+- The backend API is extendable via Datapacks and Add-On Mods. Base roles, abilities, progression rewards, and emotional events can be tinkered, modified, or overwritten to your liking.
 
 ## Credits
 - woflo - (me)
