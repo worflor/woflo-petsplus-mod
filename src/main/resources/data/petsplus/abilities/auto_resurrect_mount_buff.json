@@ -1,0 +1,25 @@
+{
+  "id": "petsplus:auto_resurrect_mount_buff",
+  "trigger": {
+    "event": "after_pet_resurrect",
+    "require_mounted_owner": true,
+    "min_level": 25,
+    "internal_cd_ticks": 0
+  },
+  "effects": [
+    {
+      "type": "buff",
+      "target": "mount",
+      "id": "minecraft:resistance",
+      "duration": 60,
+      "amplifier": 0,
+      "only_if_mounted": true
+    },
+    {
+      "type": "feedback",
+      "message": "§8Your mount feels the dark protection...",
+      "target": "owner",
+      "action_bar": true
+    }
+  ]
+}

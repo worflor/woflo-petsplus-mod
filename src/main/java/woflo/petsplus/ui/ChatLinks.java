@@ -1,83 +1,173 @@
 package woflo.petsplus.ui;
 
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.MutableText;
+import net.minecraft.text.Style;
+import net.minecraft.text.Text;
+import net.minecraft.text.TextColor;
+import net.minecraft.util.Formatting;
 
 /**
- * Helper for sending clickable chat components using tellraw with suggest_command/hover text.
+ * Helper for sending formatted chat components with basic styling.
  */
 public class ChatLinks {
 
     /**
-     * Simple container for a clickable suggestion.
+     * Simple container for a formatted text suggestion.
      */
     public record Suggest(String label, String command, String hover, String color, boolean bold) {}
 
     /**
-     * Send a single clickable suggestion component line to a player.
+     * Container for a formatted text command display.
+     */
+    public record RunCommand(String label, String command, String hover, String color, boolean bold) {}
+
+    /**
+     * Send a single formatted text component line to a player.
      */
     public static void sendSuggest(ServerPlayerEntity player, Suggest suggest) {
-        if (player == null || player.getServer() == null || suggest == null) return;
-        String json = componentJson(suggest);
-        String full = wrapExtras(json);
-        executeTellraw(player, full);
+        if (player == null || suggest == null) return;
+        // Note: Click/hover interactivity can be added once API usage is finalized for this MC version
+        MutableText text = createFormattedText(suggest.label(), suggest.color(), suggest.bold());
+        player.sendMessage(text, false);
     }
 
     /**
-     * Send a row of clickable suggestions (spaced) to a player.
+     * Send a single formatted text command display to a player.
+     */
+    public static void sendRunCommand(ServerPlayerEntity player, RunCommand command) {
+        if (player == null || command == null) return;
+        MutableText text = createFormattedText(command.label(), command.color(), command.bold());
+        player.sendMessage(text, false);
+    }
+
+    /**
+     * Send a row of formatted suggestions (spaced) to a player.
      * perLine controls wrapping; if <= 0 no wrapping occurs.
      */
     public static void sendSuggestRow(ServerPlayerEntity player, Suggest[] suggests, int perLine) {
-        if (player == null || player.getServer() == null || suggests == null || suggests.length == 0) return;
-        StringBuilder extra = new StringBuilder();
+        if (player == null || suggests == null || suggests.length == 0) return;
+        
+        MutableText currentLine = Text.empty();
         int count = 0;
+        
         for (Suggest s : suggests) {
             if (s == null) continue;
+            
             if (count > 0) {
-                extra.append(',').append("{\"text\":\"  \",\"color\":\"dark_gray\"}");
+                currentLine.append(Text.literal("  ").formatted(Formatting.DARK_GRAY));
             }
-            extra.append(',').append(componentJson(s));
+            currentLine.append(createFormattedText(s.label(), s.color(), s.bold()));
             count++;
+            
             if (perLine > 0 && count == perLine) {
-                String json = wrapExtras(extra.substring(1));
-                executeTellraw(player, json);
-                extra.setLength(0);
+                player.sendMessage(currentLine, false);
+                currentLine = Text.empty();
                 count = 0;
             }
         }
-        if (extra.length() > 0) {
-            String json = wrapExtras(extra.substring(1));
-            executeTellraw(player, json);
+        
+        if (count > 0) {
+            player.sendMessage(currentLine, false);
         }
     }
 
-    private static String componentJson(Suggest s) {
-        String label = escape(s.label());
-        String command = escape(s.command());
-        String hover = escape(s.hover() == null ? "" : s.hover());
-        String color = s.color() == null ? "aqua" : s.color();
-        String bold = s.bold() ? ",\"bold\":true" : "";
-        return "{\"text\":\"" + label + "\",\"color\":\"" + color + "\"" + bold
-                + ",\"clickEvent\":{\"action\":\"suggest_command\",\"value\":\"" + command + "\"}"
-                + ",\"hoverEvent\":{\"action\":\"show_text\",\"contents\":{\"text\":\"" + hover + "\",\"color\":\"gray\",\"italic\":true}}}";
+    /**
+     * Send a row of formatted commands (spaced) to a player.
+     * perLine controls wrapping; if <= 0 no wrapping occurs.
+     */
+    public static void sendRunCommandRow(ServerPlayerEntity player, RunCommand[] commands, int perLine) {
+        if (player == null || commands == null || commands.length == 0) return;
+        
+        MutableText currentLine = Text.empty();
+        int count = 0;
+        
+        for (RunCommand c : commands) {
+            if (c == null) continue;
+            
+            if (count > 0) {
+                currentLine.append(Text.literal("  ").formatted(Formatting.DARK_GRAY));
+            }
+            currentLine.append(createFormattedText(c.label(), c.color(), c.bold()));
+            count++;
+            
+            if (perLine > 0 && count == perLine) {
+                player.sendMessage(currentLine, false);
+                currentLine = Text.empty();
+                count = 0;
+            }
+        }
+        
+        if (count > 0) {
+            player.sendMessage(currentLine, false);
+        }
     }
 
-    private static String wrapExtras(String extras) {
-        return "{\"text\":\"\",\"extra\":[" + extras + "]}";
+    /**
+     * Create a formatted text component with color and styling.
+     */
+    private static MutableText createFormattedText(String label, String color, boolean bold) {
+        if (label == null) return Text.empty();
+        
+        // Create the base text with color and formatting
+        MutableText text = Text.literal(label);
+
+    // Build style starting from current
+    Style style = text.getStyle();
+
+        // Apply color (supports named Formatting or hex like #RRGGBB)
+        boolean appliedColor = false;
+        if (color != null) {
+            Integer hex = parseHexColor(color);
+            if (hex != null) {
+                style = style.withColor(TextColor.fromRgb(hex));
+                appliedColor = true;
+            } else {
+                Formatting colorFormat = parseColor(color);
+                if (colorFormat != null && colorFormat.isColor() && colorFormat.getColorValue() != null) {
+                    style = style.withColor(TextColor.fromRgb(colorFormat.getColorValue()));
+                    appliedColor = true;
+                }
+            }
+        }
+        if (!appliedColor) {
+            // Fallback color
+            style = style.withColor(TextColor.fromRgb(Formatting.AQUA.getColorValue()));
+        }
+
+        // Apply bold if requested
+        if (bold) {
+            style = style.withBold(true);
+        }
+
+        text.setStyle(style);
+        return text;
+    }
+    
+    /**
+     * Parse color string to Formatting enum.
+     */
+    private static Formatting parseColor(String color) {
+        if (color == null) return null;
+        // Leverage Formatting.byName which sanitizes names (ignores spaces/underscores/case)
+        return Formatting.byName(color);
     }
 
-    private static void executeTellraw(ServerPlayerEntity player, String json) {
-        MinecraftServer server = player.getServer();
-        if (server == null) return;
-        ServerCommandSource source = server.getCommandSource();
-        String target = player.getName().getString();
-        String cmd = "tellraw " + target + " " + json;
-        server.getCommandManager().executeWithPrefix(source, cmd);
-    }
-
-    private static String escape(String s) {
-        if (s == null) return "";
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    /**
+     * Parse hex color strings like "#RRGGBB" or "0xRRGGBB" to an integer RGB value.
+     */
+    private static Integer parseHexColor(String color) {
+        String c = color.trim().toLowerCase();
+        try {
+            if (c.startsWith("#") && c.length() == 7) {
+                return Integer.parseInt(c.substring(1), 16);
+            }
+            if (c.startsWith("0x") && c.length() == 8) {
+                return Integer.parseInt(c.substring(2), 16);
+            }
+            return null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

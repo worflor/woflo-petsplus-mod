@@ -213,6 +213,11 @@ public class OwnerCombatState {
     public long getTimeSinceLastHitTaken() {
         return owner.getWorld().getTime() - lastHitTakenTick;
     }
+
+    /** Returns true if the owner took damage within the last given window ticks. */
+    public boolean recentlyDamaged(long now, int windowTicks) {
+        return now - lastHitTakenTick <= windowTicks;
+    }
     
     /**
      * Check if owner is mounted on any vehicle.

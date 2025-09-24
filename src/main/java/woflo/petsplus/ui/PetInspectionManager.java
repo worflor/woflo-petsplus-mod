@@ -5,6 +5,7 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
+import net.minecraft.text.MutableText;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.state.PetComponent;
 import net.minecraft.entity.boss.BossBar;
@@ -121,7 +122,8 @@ public final class PetInspectionManager {
         boolean canLevelUp = comp.isFeatureLevel();
         boolean injured = healthPercent < 1.0f;
         boolean critical = healthPercent <= 0.25f;
-        boolean inCombat = pet.getAttacking() != null || pet.getAttacker() != null;
+        boolean inCombat = pet.getAttacking() != null || pet.getAttacker() != null ||
+                          (pet.getWorld().getTime() - comp.getLastAttackTick()) < 60; // 3 seconds since last damage
         
         // Check for cooldowns and auras
         boolean hasCooldowns = hasActiveCooldowns(comp);
@@ -139,67 +141,54 @@ public final class PetInspectionManager {
         // Priority Frame 1: Critical health (always priority)
         if (status.critical) {
             Text text = UIStyle.statusIndicator("injured")
-                .append(UIStyle.dynamicPetName(name, status.healthPercent))
-                .append(UIStyle.sepDot())
-                .append(UIStyle.smartHealth(pet.getHealth(), pet.getMaxHealth(), status.inCombat));
+                .append(UIStyle.cleanPetDisplay(name, status.healthPercent, comp.getLevel(), comp.getXpProgress(), status.canLevelUp, status.recentXpGain, currentTick, status.inCombat));
             frames.add(new DisplayFrame(text, status.healthPercent, BossBar.Color.RED, FramePriority.CRITICAL));
         }
-        
-        // Priority Frame 2: Ready to level up (with pulsing effect)
-        if (status.canLevelUp) {
-            Text text = UIStyle.statusIndicator("happy")
-                .append(UIStyle.dynamicPetName(name, status.healthPercent))
+
+        // Priority Frame 2: Tribute milestone required
+        PetRoleType roleType = comp.getRoleType();
+        if (roleType != null && roleType.xpCurve().tributeMilestones().contains(comp.getLevel()) && !comp.isMilestoneUnlocked(comp.getLevel())) {
+            MutableText text = UIStyle.statusIndicator("happy")
+                .append(UIStyle.cleanPetDisplay(name, status.healthPercent, comp.getLevel(), comp.getXpProgress(), status.canLevelUp, status.recentXpGain, currentTick, status.inCombat))
                 .append(UIStyle.sepDot())
                 .append(UIStyle.tributeNeeded(getTributeItemName(comp, comp.getLevel())));
             frames.add(new DisplayFrame(text, 1.0f, BossBar.Color.YELLOW, FramePriority.HIGH));
         }
         
         // Single Context Bar: Shows the most relevant information with light gray base
-        if (status.critical || status.canLevelUp) {
-            // For critical states, keep the specific priority frames above
+        if (status.critical || (roleType != null && roleType.xpCurve().tributeMilestones().contains(comp.getLevel()) && !comp.isMilestoneUnlocked(comp.getLevel()))) {
+            // For critical states or tribute milestones, keep the specific priority frames above
             return frames;
         }
         
-        // Context-aware main display - no rotating bars
-        Text mainDisplay;
-        BossBar.Color barColor;
-        float progress;
+        // Clean, simple display: "Name • Lv.X" with mood indicator
+        // Bar color based on health, level color based on XP progress, name color responds to combat
+        Text mainDisplay = UIStyle.cleanPetDisplay(
+            name,
+            status.healthPercent,
+            comp.getLevel(),
+            comp.getXpProgress(),
+            status.canLevelUp,
+            status.recentXpGain,
+            currentTick,
+            status.inCombat
+        );
         
-        if (status.hasCooldowns) {
-            // Show cooldown context
-            String cooldownInfo = getActiveCooldownSummary(comp);
-            mainDisplay = UIStyle.dynamicPetName(name, status.healthPercent)
-                .append(UIStyle.sepDot())
-                .append(UIStyle.contextBar("Cooldowns", cooldownInfo, Formatting.YELLOW, status.recentXpGain, currentTick));
-            barColor = BossBar.Color.YELLOW;
-            progress = 0.8f; // Visual indicator for active systems
-        } else if (status.hasAura) {
-            // Show aura context
-            String auraInfo = getActiveAuraSummary(comp);
-            mainDisplay = UIStyle.dynamicPetName(name, status.healthPercent)
-                .append(UIStyle.sepDot())
-                .append(UIStyle.contextBar("Aura", auraInfo, Formatting.LIGHT_PURPLE, status.recentXpGain, currentTick));
-            barColor = BossBar.Color.PURPLE;
-            progress = 1.0f; // Full bar for active aura
-        } else if (status.injured) {
-            // Show health context when injured
-            mainDisplay = UIStyle.dynamicPetName(name, status.healthPercent)
-                .append(UIStyle.sepDot())
-                .append(UIStyle.levelWithXpFlash(comp.getLevel(), comp.getXpProgress(), status.canLevelUp, status.recentXpGain, currentTick))
-                .append(UIStyle.sepDot())
-                .append(UIStyle.smartHealth(pet.getHealth(), pet.getMaxHealth(), status.inCombat));
-            barColor = BossBar.Color.RED;
-            progress = status.healthPercent;
-        } else {
-            // Default: Level progression with integrated XP flashing
-            mainDisplay = UIStyle.dynamicPetName(name, status.healthPercent)
-                .append(UIStyle.sepDot())
-                .append(UIStyle.levelWithXpFlash(comp.getLevel(), comp.getXpProgress(), status.canLevelUp, status.recentXpGain, currentTick));
-            barColor = BossBar.Color.GREEN;
-            progress = comp.getXpProgress();
-        }
+        // Add mood display to main text (with debug info if enabled)
+        Text moodText = woflo.petsplus.Petsplus.DEBUG_MODE ? comp.getMoodTextWithDebug() : comp.getMoodText();
+
+        MutableText displayWithMood = Text.empty()
+            .append(mainDisplay)
+            .append(Text.literal(" "))
+            .append(moodText);
+
+        // Use mood-based color if mood level is high, otherwise health-based
+        BossBar.Color barColor = comp.getMoodLevel() >= 2 ? 
+            comp.getMoodBossBarColor() : 
+            UIStyle.getHealthBasedBossBarColor(status.healthPercent);
+        float progress = status.healthPercent; // Bar shows health, not XP
         
-        frames.add(new DisplayFrame(mainDisplay, progress, barColor, FramePriority.NORMAL));
+        frames.add(new DisplayFrame(displayWithMood, progress, barColor, FramePriority.NORMAL));
         return frames;
     }
 

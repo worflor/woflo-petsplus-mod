@@ -3,6 +3,8 @@ package woflo.petsplus.events;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.passive.TameableEntity;
+import net.minecraft.entity.passive.FoxEntity;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -63,10 +65,35 @@ public class PetDetectionHandler {
             PlayerEntity nearest = mob.getWorld().getClosestPlayer(mob, 8.0);
             if (nearest != null && nearest.isAlive()) owner = nearest;
         }
-        // Foxes: treat nearest player within small range as trusted owner; leash not required
-        if (owner == null && mob.getType().toString().contains("fox")) {
+        // Foxes: only treat as pet if actually trusted to the player or leashed by the player
+        if (owner == null && mob instanceof FoxEntity fox) {
             PlayerEntity nearest = mob.getWorld().getClosestPlayer(mob, 8.0);
-            if (nearest != null && nearest.isAlive()) owner = nearest;
+            if (nearest != null && nearest.isAlive()) {
+                boolean trusted = false;
+                // Prefer API methods if available across mappings, fallback via reflection for safety
+                try {
+                    // Yarn often exposes: boolean isTrusted(LivingEntity)
+                    java.lang.reflect.Method m = FoxEntity.class.getMethod("isTrusted", LivingEntity.class);
+                    Object res = m.invoke(fox, (LivingEntity) nearest);
+                    if (res instanceof Boolean b) trusted = b.booleanValue();
+                } catch (NoSuchMethodException ignored) {
+                    try {
+                        // Alternate mapping: boolean isTrustedUuid(java.util.UUID)
+                        java.lang.reflect.Method m2 = FoxEntity.class.getMethod("isTrustedUuid", java.util.UUID.class);
+                        Object res2 = m2.invoke(fox, nearest.getUuid());
+                        if (res2 instanceof Boolean b2) trusted = b2.booleanValue();
+                    } catch (ReflectiveOperationException ignored2) {
+                        // As a last resort, leave trusted = false
+                    }
+                } catch (ReflectiveOperationException ignored) {
+                    // Leave trusted = false
+                }
+
+                boolean leashedToPlayer = fox.isLeashed() && fox.getLeashHolder() == nearest;
+                if (trusted || leashedToPlayer) {
+                    owner = nearest;
+                }
+            }
         }
         // Tamed mounts (horses, donkeys, llamas) are handled through TameableEntity above in current versions
         
@@ -98,7 +125,7 @@ public class PetDetectionHandler {
         // Send interactive message header
         owner.sendMessage(Text.literal("🐾 ").formatted(Formatting.GOLD)
             .append(Text.literal("Choose a role for your new pet ").formatted(Formatting.GRAY))
-            .append(Text.literal(mob.getType().getName().getString()).formatted(Formatting.AQUA).formatted(Formatting.BOLD))
+            .append(Text.literal(mob.getType().getName().getString()).formatted(Formatting.AQUA, Formatting.BOLD))
             .append(Text.literal("!").formatted(Formatting.DARK_GRAY)), false);
 
     // Build and send clickable role lines using tellraw JSON for wide compatibility
@@ -177,6 +204,9 @@ public class PetDetectionHandler {
 
             // Generate unique characteristics for this pet (first time only)
             component.ensureCharacteristics();
+            
+            // Apply AI enhancements based on role
+            woflo.petsplus.ai.PetAIEnhancements.enhancePetAI(pet, component);
 
             // Remove from pending list
             pendingRoleSelection.remove(pet);
@@ -250,6 +280,11 @@ public class PetDetectionHandler {
 
         // Generate unique characteristics for this pet (first time only)
         component.ensureCharacteristics();
+        
+        // Apply AI enhancements based on role
+        woflo.petsplus.ai.PetAIEnhancements.enhancePetAI(mob, component);
+        
+
 
         Petsplus.LOGGER.info("Manually registered pet {} with role {} for owner {}",
             mob.getType().toString(), roleId, owner.getName().getString());

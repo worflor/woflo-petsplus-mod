@@ -1,7 +1,5 @@
 {
   "id": "petsplus:finisher_mark",
-  "description": "Marks low-health targets for burst damage",
-  "required_level": 7,
   "trigger": {
     "event": "owner_dealt_damage",
     "target_hp_pct_below": 0.4,
@@ -11,20 +9,20 @@
     {
       "type": "tag_target",
       "key": "petsplus:finisher",
-      "duration_ticks": 200
+      "duration_ticks": 80
     },
     {
       "type": "owner_next_attack_bonus",
       "vs_tag": "petsplus:finisher",
-      "bonus_damage_pct": 1.5,
+      "bonus_damage_pct": 0.2,
+      "expire_ticks": 100,
       "on_hit_effect": {
         "type": "effect",
         "target": "victim",
         "id": "minecraft:slowness",
         "duration": 40,
         "amplifier": 0
-      },
-      "expire_ticks": 100
+      }
     },
     {
       "type": "buff",

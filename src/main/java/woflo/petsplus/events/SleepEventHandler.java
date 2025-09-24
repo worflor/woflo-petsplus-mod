@@ -94,6 +94,23 @@ public class SleepEventHandler {
     private static void onSuccessfulSleep(ServerPlayerEntity player) {
         // Trigger Eepy Eeper sleep mechanics
         EepyEeperCore.triggerSleepEvent(player);
+
+        // Push calming emotions to nearby owned pets
+        player.getWorld().getEntitiesByClass(net.minecraft.entity.mob.MobEntity.class,
+            player.getBoundingBox().expand(32),
+            mob -> {
+                woflo.petsplus.state.PetComponent pc = woflo.petsplus.state.PetComponent.get(mob);
+                return pc != null && pc.isOwnedBy(player);
+            }
+        ).forEach(pet -> {
+            woflo.petsplus.state.PetComponent pc = woflo.petsplus.state.PetComponent.get(pet);
+            if (pc != null) {
+                pc.pushEmotion(woflo.petsplus.state.PetComponent.Emotion.ANANDA, 0.4f);
+                pc.pushEmotion(woflo.petsplus.state.PetComponent.Emotion.SOBREMESA, 0.3f);
+                pc.pushEmotion(woflo.petsplus.state.PetComponent.Emotion.RELIEF, 0.3f);
+                pc.updateMood();
+            }
+        });
     }
 
     /**

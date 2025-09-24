@@ -63,10 +63,69 @@ public class PetsCommand {
         CommandRegistrationCallback.EVENT.register(PetsCommand::registerCommands);
     }
     
-    private static void registerCommands(CommandDispatcher<ServerCommandSource> dispatcher, 
-                                       CommandRegistryAccess registryAccess, 
+    private static void registerCommands(CommandDispatcher<ServerCommandSource> dispatcher,
+                                       CommandRegistryAccess registryAccess,
                                        CommandManager.RegistrationEnvironment environment) {
-        
+
+        // Register both /pets and /petsplus commands
+        var petsPlusCommand = CommandManager.literal("petsplus")
+            // Base command - shows pet overview
+            .executes(PetsCommand::showPetOverview)
+
+            // Role assignment with interactive suggestions
+            .then(CommandManager.literal("role")
+                .executes(PetsCommand::showRoleSelectionMenu)
+                .then(CommandManager.argument("role", StringArgumentType.string())
+                    .suggests(PetsSuggestionProviders.SMART_ROLE_SUGGESTIONS)
+                    .executes(PetsCommand::assignRoleToFirstPendingPetWithValidation)
+                    .then(CommandManager.argument("pet_name", StringArgumentType.string())
+                        .suggests(PetsSuggestionProviders.SMART_PET_SUGGESTIONS)
+                        .executes(PetsCommand::assignRoleToSpecificPet))))
+
+            // Pet info and inspection
+            .then(CommandManager.literal("info")
+                .executes(PetsCommand::showNearbyPetsInfo)
+                .then(CommandManager.argument("pet_name", StringArgumentType.string())
+                    .suggests(PetsSuggestionProviders.SMART_PET_SUGGESTIONS)
+                    .executes(PetsCommand::showSpecificPetInfo)))
+
+            // Tribute system
+            .then(CommandManager.literal("tribute")
+                .executes(PetsCommand::showTributeInfo)
+                .then(CommandManager.argument("pet_name", StringArgumentType.string())
+                    .suggests(PetsSuggestionProviders.SMART_PET_SUGGESTIONS)
+                    .executes(PetsCommand::showSpecificTributeInfo)))
+
+            // Admin commands
+            .then(CommandManager.literal("admin")
+                .requires(source -> source.hasPermissionLevel(2))
+                .then(CommandManager.literal("reload")
+                    .executes(PetsCommand::reloadConfig))
+                .then(CommandManager.literal("config")
+                    .then(CommandManager.literal("regen")
+                        .then(CommandManager.argument("role", StringArgumentType.string())
+                            .suggests(PetsSuggestionProviders.SMART_ROLE_SUGGESTIONS)
+                            .executes(PetsCommand::regenerateRoleConfigWithValidation))))
+                .then(CommandManager.literal("debug")
+                    .then(CommandManager.literal("on")
+                        .executes(context -> toggleDebug(context, true)))
+                    .then(CommandManager.literal("off")
+                        .executes(context -> toggleDebug(context, false))))
+                .then(CommandManager.literal("setlevel")
+                    .then(CommandManager.argument("level", StringArgumentType.string())
+                        .executes(PetsCommand::adminSetPetLevel))))
+
+            // Help system
+            .then(CommandManager.literal("help")
+                .executes(PetsCommand::showHelp)
+                .then(CommandManager.literal("roles")
+                    .executes(PetsCommand::showRoleHelp))
+                .then(CommandManager.literal("commands")
+                    .executes(PetsCommand::showCommandHelp)));
+
+        dispatcher.register(petsPlusCommand);
+
+        // Also register shorter /pets alias
         dispatcher.register(CommandManager.literal("pets")
             // Base command - shows pet overview
             .executes(PetsCommand::showPetOverview)
@@ -74,9 +133,9 @@ public class PetsCommand {
             // Role assignment with interactive suggestions
             .then(CommandManager.literal("role")
                 .executes(PetsCommand::showRoleSelectionMenu)
-                .then(CommandManager.argument("role", PetRoleArgumentType.petRole())
+                .then(CommandManager.argument("role", StringArgumentType.string())
                     .suggests(PetsSuggestionProviders.SMART_ROLE_SUGGESTIONS)
-                    .executes(PetsCommand::assignRoleToFirstPendingPet)
+                    .executes(PetsCommand::assignRoleToFirstPendingPetWithValidation)
                     .then(CommandManager.argument("pet_name", StringArgumentType.string())
                         .suggests(PetsSuggestionProviders.SMART_PET_SUGGESTIONS)
                         .executes(PetsCommand::assignRoleToSpecificPet))))
@@ -102,9 +161,9 @@ public class PetsCommand {
                     .executes(PetsCommand::reloadConfig))
                 .then(CommandManager.literal("config")
                     .then(CommandManager.literal("regen")
-                        .then(CommandManager.argument("role", PetRoleArgumentType.petRole())
+                        .then(CommandManager.argument("role", StringArgumentType.string())
                             .suggests(PetsSuggestionProviders.SMART_ROLE_SUGGESTIONS)
-                            .executes(PetsCommand::regenerateRoleConfig))))
+                            .executes(PetsCommand::regenerateRoleConfigWithValidation))))
                 .then(CommandManager.literal("debug")
                     .then(CommandManager.literal("on")
                         .executes(context -> toggleDebug(context, true)))
@@ -194,10 +253,18 @@ public class PetsCommand {
         return 1;
     }
     
-    private static int assignRoleToFirstPendingPet(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        Identifier roleId = PetRoleArgumentType.getRoleId(context, "role");
-        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+    private static int assignRoleToFirstPendingPetWithValidation(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        String roleInput = StringArgumentType.getString(context, "role");
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+
+        // Direct role validation using static constants to avoid registry sync issues
+        PetRoleType roleType = getBuiltinRoleByName(roleInput);
+        Identifier roleId = roleType != null ? roleType.id() : null;
+
+        if (roleType == null) {
+            player.sendMessage(Text.literal("Unknown pet role: " + roleInput + ". Available roles: guardian, striker, support, scout, skyrider, enchantment_bound, cursed_one, eepy_eeper, eclipsed").formatted(Formatting.RED), false);
+            return 0;
+        }
 
         // Get pending pets
         List<MobEntity> pendingPets = woflo.petsplus.events.PetDetectionHandler.getPendingPets(player);
@@ -313,8 +380,17 @@ public class PetsCommand {
         }
     }
 
-    private static int regenerateRoleConfig(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        Identifier roleId = PetRoleArgumentType.getRoleId(context, "role");
+    private static int regenerateRoleConfigWithValidation(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        String roleInput = StringArgumentType.getString(context, "role");
+
+        // Direct role validation using static constants
+        PetRoleType roleType = getBuiltinRoleByName(roleInput);
+        if (roleType == null) {
+            context.getSource().sendError(Text.literal("Unknown pet role: " + roleInput).formatted(Formatting.RED));
+            return 0;
+        }
+
+        Identifier roleId = roleType.id();
         PetsPlusConfig.getInstance().regenerateRoleConfig(roleId);
         context.getSource().sendFeedback(
             () -> Text.literal("Regenerated config stub for role " + roleId + ".").formatted(Formatting.GREEN),
@@ -325,11 +401,13 @@ public class PetsCommand {
     
     private static int toggleDebug(CommandContext<ServerCommandSource> context, boolean enable) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-        
-        // TODO: Implement actual debug toggle
-        player.sendMessage(Text.literal("Debug mode " + (enable ? "enabled" : "disabled"))
+
+        // Set debug mode flag
+        woflo.petsplus.Petsplus.DEBUG_MODE = enable;
+
+        player.sendMessage(Text.literal("Debug mode " + (enable ? "enabled" : "disabled") + " - mood power levels will " + (enable ? "show" : "be hidden"))
             .formatted(enable ? Formatting.GREEN : Formatting.RED), false);
-        
+
         return 1;
     }
     
@@ -423,6 +501,28 @@ public class PetsCommand {
     }
     
     // Helper methods
+
+    /**
+     * Get builtin role by name using static constants to avoid registry sync issues
+     */
+    private static PetRoleType getBuiltinRoleByName(String input) {
+        if (input == null) return null;
+
+        String normalized = input.toLowerCase().trim();
+        return switch (normalized) {
+            case "guardian" -> PetRoleType.GUARDIAN;
+            case "striker" -> PetRoleType.STRIKER;
+            case "support" -> PetRoleType.SUPPORT;
+            case "scout" -> PetRoleType.SCOUT;
+            case "skyrider" -> PetRoleType.SKYRIDER;
+            case "enchantment_bound", "enchantmentbound" -> PetRoleType.ENCHANTMENT_BOUND;
+            case "cursed_one", "cursedone" -> PetRoleType.CURSED_ONE;
+            case "eepy_eeper", "eepyeeper" -> PetRoleType.EEPY_EEPER;
+            case "eclipsed" -> PetRoleType.ECLIPSED;
+            default -> null;
+        };
+    }
+
     private static List<MobEntity> findNearbyOwnedPets(ServerPlayerEntity player) {
         return player.getWorld().getEntitiesByClass(
             MobEntity.class,
@@ -451,38 +551,38 @@ public class PetsCommand {
     
     private static void showRoleButtons(ServerPlayerEntity player) {
         Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
-        List<ChatLinks.Suggest> suggestions = new ArrayList<>();
+        List<ChatLinks.Suggest> commands = new ArrayList<>();
 
         for (PetRoleType type : registry) {
             Identifier id = type.id();
             Text label = resolveRoleLabel(id, type);
             String hover = getRoleDescription(id, type);
-            suggestions.add(new ChatLinks.Suggest(
+            commands.add(new ChatLinks.Suggest(
                 "[" + label.getString() + "]",
-                "/pets role " + id.toString(),
+                "/petsplus role " + id.getPath(),
                 hover,
                 "aqua",
                 true
             ));
         }
 
-        if (suggestions.isEmpty()) {
+        if (commands.isEmpty()) {
             return;
         }
 
-        ChatLinks.sendSuggestRow(player, suggestions.toArray(new ChatLinks.Suggest[0]), 4);
+        ChatLinks.sendSuggestRow(player, commands.toArray(new ChatLinks.Suggest[0]), 4);
     }
     
     private static void showQuickActions(ServerPlayerEntity player) {
         player.sendMessage(Text.empty(), false);
         player.sendMessage(Text.literal("Quick Actions:").formatted(Formatting.GRAY), false);
-        
+
         ChatLinks.Suggest[] actions = new ChatLinks.Suggest[] {
-            new ChatLinks.Suggest("[Assign Roles]", "/pets role", "Choose a role for pending pets", "green", false),
-            new ChatLinks.Suggest("[Pet Info]", "/pets info", "View detailed pet information", "aqua", false),
-            new ChatLinks.Suggest("[Help]", "/pets help", "Show help information", "yellow", false)
+            new ChatLinks.Suggest("[Assign Roles]", "/petsplus role ", "Click to prefill then type a role or pick a button", "green", false),
+            new ChatLinks.Suggest("[Pet Info]", "/petsplus info", "View detailed pet information", "aqua", false),
+            new ChatLinks.Suggest("[Help]", "/petsplus help", "Show help information", "yellow", false)
         };
-        
+
         ChatLinks.sendSuggestRow(player, actions, 3);
     }
     

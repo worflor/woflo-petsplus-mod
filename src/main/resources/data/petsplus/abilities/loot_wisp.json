@@ -1,7 +1,5 @@
 {
   "id": "petsplus:loot_wisp",
-  "description": "Post-combat loot attraction",
-  "required_level": 3,
   "trigger": {
     "event": "on_combat_end",
     "cooldown_ticks": 200
@@ -10,7 +8,7 @@
     {
       "type": "magnetize_drops_and_xp",
       "radius": 12,
-      "duration_ticks": 100
+      "duration_ticks": 80
     }
   ]
 }

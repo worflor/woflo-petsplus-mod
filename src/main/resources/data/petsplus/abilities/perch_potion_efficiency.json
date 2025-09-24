@@ -1,7 +1,6 @@
 {
   "id": "petsplus:perch_potion_efficiency",
   "description": "Perched potion efficiency",
-  "required_level": 5,
   "trigger": {
     "event": "interval_while_active",
     "ticks": 40,
@@ -10,7 +9,7 @@
   "effects": [
     {
       "type": "perch_potion_sip_reduction",
-      "discount_percent": "${petsplus:support.perchSipDiscount}"
+      "discount_percent": 0.2
     }
   ]
 }

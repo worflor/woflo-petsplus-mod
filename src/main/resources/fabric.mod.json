@@ -13,7 +13,7 @@
 	},
 	"license": "CC0-1.0",
 	"icon": "assets/petsplus/icon.png",
-	"environment": "server",
+	"environment": "*",
 	"entrypoints": {
 		"main": [
 			"woflo.petsplus.Petsplus"

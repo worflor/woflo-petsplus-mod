@@ -48,15 +48,12 @@ public class PetRoleArgumentType implements ArgumentType<Identifier> {
     @Override
     public <S> CompletableFuture<Suggestions> listSuggestions(CommandContext<S> context, SuggestionsBuilder builder) {
         Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
-        boolean namespaced = builder.getRemaining().contains(":");
 
         for (PetRoleType type : registry) {
             Identifier id = type.id();
             Text tooltip = Text.translatable(type.translationKey());
-            if (!namespaced) {
-                builder.suggest(id.getPath(), tooltip);
-            }
-            builder.suggest(id.toString(), tooltip);
+            // Only suggest the path part (e.g., "guardian") to avoid duplicates
+            builder.suggest(id.getPath(), tooltip);
         }
 
         return builder.buildFuture();

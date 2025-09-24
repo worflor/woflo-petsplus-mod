@@ -47,6 +47,12 @@ public class PettingHandler {
         if (!(mob instanceof TameableEntity tameable) || !tameable.isTamed()) return ActionResult.PASS;
         if (tameable.getOwner() != player) return ActionResult.PASS;
 
+        // Skip petting for rideable entities when they could be mounted
+        // Let vanilla handle mounting, then petting can happen when already mounted
+        if (isRideable(mob) && !player.hasVehicle()) {
+            return ActionResult.PASS;
+        }
+
         PetComponent petComp = PetComponent.get(mob);
         if (petComp == null) return ActionResult.PASS;
 
@@ -86,6 +92,12 @@ public class PettingHandler {
         
         // Bonding benefits (small XP bonus, temporary buffs)
         applyBondingBenefits(player, pet, petComp);
+        
+    // Emotion push: affiliative uplift
+    petComp.pushEmotion(PetComponent.Emotion.FROHLICH, 0.6f);
+    petComp.pushEmotion(PetComponent.Emotion.UBUNTU, 0.4f);
+    petComp.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.4f);
+    petComp.updateMood();
 
         // Achievement tracking
         if (newCount >= 100) {
@@ -104,7 +116,7 @@ public class PettingHandler {
         String soundEffect = determinePetSound(pet);
         FeedbackManager.emitFeedback(soundEffect, pet, world);
         
-        // Action bar message with personality
+        // Action bar message
         String message = generatePettingMessage(pet, petCount);
         player.sendMessage(Text.literal(message), true);
     }
@@ -194,6 +206,20 @@ public class PettingHandler {
             }
         }
         return (fallback == null || fallback.isBlank()) ? Text.empty() : Text.literal(fallback);
+    }
+
+    /**
+     * Check if this entity is rideable (horse, donkey, llama, camel, etc.)
+     */
+    private static boolean isRideable(MobEntity mob) {
+        String entityType = mob.getType().toString();
+        return entityType.contains("horse") ||
+               entityType.contains("donkey") ||
+               entityType.contains("mule") ||
+               entityType.contains("llama") ||
+               entityType.contains("camel") ||
+               entityType.contains("pig") ||
+               entityType.contains("strider");
     }
 
     /**

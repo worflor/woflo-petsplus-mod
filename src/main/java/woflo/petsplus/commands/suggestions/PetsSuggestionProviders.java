@@ -132,17 +132,14 @@ public class PetsSuggestionProviders {
     // Helper methods
     
     private static CompletableFuture<Suggestions> suggestAllRolesWithDescriptions(SuggestionsBuilder builder) {
-        boolean namespaced = builder.getRemaining().contains(":");
         for (PetRoleType type : PetsPlusRegistries.petRoleTypeRegistry()) {
             String displayName = Text.translatable(type.translationKey()).getString();
             if (displayName.equals(type.translationKey())) {
                 displayName = PetRoleType.fallbackName(type.id());
             }
             Text tooltip = Text.literal(displayName);
-            if (!namespaced) {
-                builder.suggest(type.id().getPath(), tooltip);
-            }
-            builder.suggest(type.id().toString(), tooltip);
+            // Only suggest the path part (e.g., "guardian") to avoid duplicates
+            builder.suggest(type.id().getPath(), tooltip);
         }
         return builder.buildFuture();
     }

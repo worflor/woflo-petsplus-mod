@@ -46,10 +46,19 @@ public class TributeHandler {
         if (!petComp.isOwnedBy(player)) return ActionResult.PASS;
 
         // Must be sneaking for tribute payment
-        if (!player.isSneaking()) return ActionResult.PASS;
+        if (!player.isSneaking()) {
+            Petsplus.LOGGER.info("Player {} not sneaking when interacting with pet", player.getName().getString());
+            return ActionResult.PASS;
+        }
 
         ItemStack stack = player.getStackInHand(hand);
-        if (stack.isEmpty()) return ActionResult.PASS;
+        if (stack.isEmpty()) {
+            Petsplus.LOGGER.info("Player {} has empty hand when interacting with pet", player.getName().getString());
+            return ActionResult.PASS;
+        }
+
+        Petsplus.LOGGER.info("Player {} interacting with pet level {} with item {}",
+            player.getName().getString(), petComp.getLevel(), stack.getItem().toString());
 
         PetRoleType roleType = petComp.getRoleType();
         TributeInfo tributeInfo = getTributeInfo(petComp);
@@ -100,18 +109,24 @@ public class TributeHandler {
         int level = petComp.getLevel();
         PetRoleType roleType = petComp.getRoleType();
         if (roleType == null) {
+            Petsplus.LOGGER.info("Pet has no role type");
             return null;
         }
 
+        Petsplus.LOGGER.info("Pet level {}, tribute milestones: {}", level, roleType.xpCurve().tributeMilestones());
+
         if (!roleType.xpCurve().tributeMilestones().contains(level)) {
+            Petsplus.LOGGER.info("Pet level {} is not a tribute milestone", level);
             return null;
         }
 
         if (petComp.isMilestoneUnlocked(level)) {
+            Petsplus.LOGGER.info("Pet level {} milestone already unlocked", level);
             return null;
         }
 
         Item item = resolveTributeItem(roleType, level);
+        Petsplus.LOGGER.info("Required tribute item for level {}: {}", level, item);
         return item == null ? null : new TributeInfo(level, item);
     }
 

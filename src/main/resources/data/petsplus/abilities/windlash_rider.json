@@ -1,7 +1,5 @@
 {
   "id": "petsplus:windlash_rider",
-  "description": "Falling attack empowerment",
-  "required_level": 7,
   "trigger": {
     "event": "owner_begin_fall",
     "min_fall": 3,
@@ -17,12 +15,12 @@
     },
     {
       "type": "owner_next_attack_bonus",
+      "expire_ticks": 100,
       "on_hit_effect": {
         "type": "knockup",
         "target": "victim",
         "strength": 0.35
-      },
-      "expire_ticks": 100
+      }
     }
   ]
 }

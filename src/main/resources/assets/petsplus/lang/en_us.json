@@ -30,6 +30,8 @@
   
   "petsplus.cooldown": "%s cooldown: %d seconds",
   "petsplus.ready": "%s is ready!",
+
+  "petsplus.tribute.needs": "Needs %s",
   
   "petsplus.ability.activated": "%s activated!",
   "petsplus.ability.cooldown": "%s cooldown",

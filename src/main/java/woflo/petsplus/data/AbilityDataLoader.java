@@ -167,9 +167,9 @@ public class AbilityDataLoader implements SimpleSynchronousResourceReloadListene
                 existing.update(ability.factory(), ability.description());
                 updated++;
             } else {
-                PetsPlusRegistries.registerAbilityType(ability.id(),
-                    new AbilityType(ability.id(), ability.factory(), ability.description()));
-                added++;
+                // Skip registration of new abilities during resource reload to avoid registry freeze crash
+                // New abilities must be registered during mod initialization, not during resource reloads
+                Petsplus.LOGGER.warn("Skipping registration of new ability {} during resource reload - new abilities must be registered during mod initialization", ability.id());
             }
         }
 
@@ -178,8 +178,8 @@ public class AbilityDataLoader implements SimpleSynchronousResourceReloadListene
         }
 
         if (!definitions.isEmpty()) {
-            Petsplus.LOGGER.info("Loaded {} ability definitions ({} new, {} updated)",
-                definitions.size(), added, updated);
+            Petsplus.LOGGER.info("Loaded {} ability definitions ({} updated)",
+                definitions.size(), updated);
         } else {
             Petsplus.LOGGER.warn("No ability definitions were loaded from datapacks; using existing registry entries.");
         }

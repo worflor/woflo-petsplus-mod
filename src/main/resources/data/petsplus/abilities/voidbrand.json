@@ -1,24 +1,27 @@
 {
   "id": "petsplus:voidbrand",
-  "description": "Voidbrand damage over time",
-  "required_level": 17,
   "trigger": {
     "event": "aggro_acquired",
-    "cooldown_ticks": 200
+    "cooldown_ticks": 300
   },
   "effects": [
     {
-      "type": "area_effect",
-      "radius": 5,
-      "effects": [
-        {
-          "type": "effect",
-          "target": "victim",
-          "id": "minecraft:wither",
-          "duration": 80,
-          "amplifier": 0
-        }
-      ]
+      "type": "tag_target",
+      "key": "petsplus:voidbrand",
+      "duration_ticks": 80
+    },
+    {
+      "type": "owner_next_attack_bonus",
+      "vs_tag": "petsplus:voidbrand",
+      "bonus_damage_pct": 0.1,
+      "expire_ticks": 100,
+      "on_hit_effect": {
+        "type": "effect",
+        "target": "victim",
+        "id": "minecraft:wither",
+        "duration": 40,
+        "amplifier": 0
+      }
     }
   ]
 }

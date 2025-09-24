@@ -1,0 +1,1005 @@
+package woflo.petsplus.events;
+
+import net.fabricmc.fabric.api.entity.event.v1.ServerEntityCombatEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
+import net.fabricmc.fabric.api.event.player.UseEntityCallback;
+import net.fabricmc.fabric.api.event.player.UseItemCallback;
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.minecraft.block.Block;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.damage.DamageSource;
+import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.passive.VillagerEntity;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.item.BlockItem;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.text.Text;
+import net.minecraft.util.ActionResult;
+import net.minecraft.util.Hand;
+import net.minecraft.util.hit.EntityHitResult;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.world.World;
+import net.minecraft.registry.RegistryKey;
+import net.minecraft.util.Identifier;
+import net.minecraft.world.biome.Biome;
+import net.minecraft.util.math.Vec3d;
+import woflo.petsplus.Petsplus;
+import woflo.petsplus.state.PetComponent;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.WeakHashMap;
+
+/**
+ * Central, low-cost, event-driven emotion hooks.
+ * Ties pet emotions to existing gameplay events (no per-tick polling).
+ */
+public final class EmotionsEventHandler {
+
+    private EmotionsEventHandler() {}
+
+    public static void register() {
+        // After a block is broken (server): mining satisfaction, discovery moments
+        PlayerBlockBreakEvents.AFTER.register(EmotionsEventHandler::onAfterBlockBreak);
+
+        // After a block is placed (server): building/creation
+    // Note: Fabric API for block place events may vary by MC version.
+    // We piggyback on UseBlockCallback and detect intended placement via held BlockItem.
+
+        // When an entity kills another: triumph/relief/zeal
+        ServerEntityCombatEvents.AFTER_KILLED_OTHER_ENTITY.register(EmotionsEventHandler::onAfterKilledOther);
+
+        // When player uses an item: food, potions, notable items
+        UseItemCallback.EVENT.register(EmotionsEventHandler::onUseItem);
+
+        // When player uses a block: beds, chests, stations, jukebox
+        UseBlockCallback.EVENT.register(EmotionsEventHandler::onUseBlock);
+
+        // When interacting with entities: leads/mounting
+        UseEntityCallback.EVENT.register(EmotionsEventHandler::onUseEntity);
+
+        // After player respawn: relief and resilience
+        ServerPlayerEvents.AFTER_RESPAWN.register(EmotionsEventHandler::onAfterRespawn);
+
+        // Owner death: grief/longing on pets
+        ServerLivingEntityEvents.AFTER_DEATH.register(EmotionsEventHandler::onAfterDeath);
+
+        // 5th Wave: Tag-based and data-driven emotion hooks
+        // Enchanting events (via block use on enchanting table)
+        UseBlockCallback.EVENT.register(EmotionsEventHandler::onEnchantingTableUse);
+
+        // Trading events (via villager interaction)
+        UseEntityCallback.EVENT.register(EmotionsEventHandler::onVillagerTrade);
+
+        // Lightweight weather transition tracker (per world)
+        ServerTickEvents.END_WORLD_TICK.register(EmotionsEventHandler::onWorldTickWeatherAndEnv);
+
+        // 4th Wave: Nuanced living system triggers
+        ServerTickEvents.END_WORLD_TICK.register(EmotionsEventHandler::onWorldTickNuancedEmotions);
+
+        // 5th Wave: Enhanced weather and item awareness
+        ServerTickEvents.END_WORLD_TICK.register(EmotionsEventHandler::onWorldTickAdvancedTriggers);
+
+        Petsplus.LOGGER.info("Emotions event handlers registered");
+    }
+
+    // ==== Block Break → KEFI, GLEE, WABI_SABI (building), FJELLVANT (familiarity) ====
+    private static void onAfterBlockBreak(World world, PlayerEntity player, BlockPos pos, net.minecraft.block.BlockState state, net.minecraft.block.entity.BlockEntity blockEntity) {
+        if (world.isClient() || !(player instanceof ServerPlayerEntity sp)) return;
+        String idPath = getBlockPath(state.getBlock());
+
+        // Determine emotion mix based on block type
+    float kefi = 0.12f; // general vigor for doing stuff
+    float glee = 0.0f;
+    float wabi = 0.0f;
+    float fjell = 0.0f;
+
+        if (idPath.contains("ore") || idPath.contains("ancient_debris") || idPath.contains("trial_ore") || idPath.contains("raw_")) {
+            glee = 0.35f; // shiny find!
+        } else if (idPath.contains("log") || idPath.contains("planks") || idPath.contains("brick") || idPath.contains("stone_bricks") || idPath.contains("concrete")) {
+            wabi = 0.18f; // building/crafting aesthetic
+        } else if (idPath.contains("dirt") || idPath.contains("sand") || idPath.contains("gravel") || idPath.contains("deepslate")) {
+            fjell = 0.10f; // familiar resource grind
+        }
+
+        final float kefiF = kefi;
+        final float gleeF = glee;
+        final float wabiF = wabi;
+        final float fjellF = fjell;
+        pushToNearbyOwnedPets(sp, 32, pc -> {
+            if (kefiF > 0) pc.pushEmotion(PetComponent.Emotion.KEFI, kefiF);
+            if (gleeF > 0) pc.pushEmotion(PetComponent.Emotion.GLEE, gleeF);
+            if (wabiF > 0) pc.pushEmotion(PetComponent.Emotion.WABI_SABI, wabiF);
+            if (fjellF > 0) pc.pushEmotion(PetComponent.Emotion.FJELLVANT, fjellF);
+        });
+    }
+
+    private static String getBlockPath(Block block) {
+        try {
+            var id = net.minecraft.registry.Registries.BLOCK.getId(block);
+            return id == null ? "" : id.getPath();
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
+    // (Block place detour handled in onUseBlock based on held BlockItem)
+
+    // ==== Kill Events → ZEALOUS, GLEE, RELIEF, SISU ====
+    private static void onAfterKilledOther(ServerWorld world, Entity killer, LivingEntity killed) {
+        if (killer instanceof ServerPlayerEntity sp) {
+            // Owner kill → triumph and relief (more if low health)
+            float healthPct = Math.max(0f, sp.getHealth() / sp.getMaxHealth());
+            float relief = healthPct < 0.35f ? 0.45f : 0.25f;
+            pushToNearbyOwnedPets(sp, 32, pc -> {
+                pc.pushEmotion(PetComponent.Emotion.GLEE, 0.40f);
+                pc.pushEmotion(PetComponent.Emotion.RELIEF, relief);
+                pc.pushEmotion(PetComponent.Emotion.AMAL, 0.18f);
+            });
+        }
+
+        if (killer instanceof MobEntity mob) {
+            PetComponent pc = PetComponent.get(mob);
+            if (pc != null && pc.getOwner() instanceof ServerPlayerEntity owner) {
+                // Pet secured a kill → zeal (aspiration) and resilience
+                pc.pushEmotion(PetComponent.Emotion.AMAL, 0.45f);
+                pc.pushEmotion(PetComponent.Emotion.SISU, 0.30f);
+                pc.updateMood();
+                // Small feedback to owner
+                owner.sendMessage(Text.literal("Your companion is emboldened"), true);
+            }
+        }
+    }
+
+    // ==== Item Use → Food/potion themed emotions ====
+    private static ActionResult onUseItem(PlayerEntity player, World world, Hand hand) {
+        if (world.isClient() || !(player instanceof ServerPlayerEntity sp)) return ActionResult.PASS;
+        ItemStack stack = player.getStackInHand(hand);
+        if (stack.isEmpty()) return ActionResult.PASS;
+
+        // Food in general → GEZELLIG + QUERENCIA (home/comfort)
+        if (stack.get(DataComponentTypes.FOOD) != null) {
+            pushToNearbyOwnedPets(sp, 24, pc -> {
+                pc.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.22f);
+                pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.18f);
+            });
+            return ActionResult.PASS;
+        }
+
+        // Specific notable items
+        if (stack.isOf(Items.GOLDEN_APPLE)) {
+            pushToNearbyOwnedPets(sp, 32, pc -> {
+                pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.35f);
+                pc.pushEmotion(PetComponent.Emotion.ANANDA, 0.20f);
+            });
+        } else if (stack.isOf(Items.ENCHANTED_GOLDEN_APPLE)) {
+            pushToNearbyOwnedPets(sp, 32, pc -> {
+                pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.45f);
+                pc.pushEmotion(PetComponent.Emotion.ANANDA, 0.30f);
+            });
+        } else if (stack.isOf(Items.HONEY_BOTTLE)) {
+            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.25f));
+        } else if (stack.isOf(Items.MILK_BUCKET)) {
+            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.22f));
+        } else if (stack.isOf(Items.TOTEM_OF_UNDYING)) {
+            pushToNearbyOwnedPets(sp, 32, pc -> pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.5f));
+        } else if (stack.isOf(Items.ENDER_PEARL)) {
+            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.18f));
+        } else if (stack.isOf(Items.FIREWORK_ROCKET)) {
+            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.KEFI, 0.2f));
+        } else if (stack.isOf(Items.ROTTEN_FLESH) || stack.isOf(Items.SPIDER_EYE) || stack.isOf(Items.PUFFERFISH)) {
+            pushToNearbyOwnedPets(sp, 16, pc -> pc.pushEmotion(PetComponent.Emotion.DISGUST, 0.28f));
+        } else if (stack.isOf(Items.SPYGLASS)) {
+            pushToNearbyOwnedPets(sp, 32, pc -> pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.20f));
+        } else if (stack.isOf(Items.FILLED_MAP)) {
+            pushToNearbyOwnedPets(sp, 32, pc -> pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f));
+        } else if (stack.isOf(Items.COMPASS)) {
+            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.12f));
+        } else if (stack.isOf(Items.RECOVERY_COMPASS)) {
+            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.REGRET, 0.15f));
+        } else if (stack.isOf(Items.WRITABLE_BOOK) || stack.isOf(Items.WRITTEN_BOOK) || stack.isOf(Items.BOOK)) {
+            pushToNearbyOwnedPets(sp, 24, pc -> {
+                pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.12f);
+                pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.08f);
+            });
+        } else if (stack.isOf(Items.SHIELD)) {
+            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.15f));
+        } else if (stack.isOf(Items.SADDLE)) {
+            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.12f));
+        } else if (stack.isOf(Items.BRUSH)) { // archaeology
+            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.12f));
+        }
+
+        return ActionResult.PASS;
+    }
+
+    // ==== Block Use → Homey stations, beds, jukebox ====
+    private static ActionResult onUseBlock(PlayerEntity player, World world, Hand hand, net.minecraft.util.hit.BlockHitResult hitResult) {
+        if (world.isClient() || !(player instanceof ServerPlayerEntity sp)) return ActionResult.PASS;
+        BlockPos pos = hitResult.getBlockPos();
+        var state = world.getBlockState(pos);
+        String idPath = getBlockPath(state.getBlock());
+
+        float gezellig = 0f, sobremesa = 0f, wabi = 0f, ananda = 0f;
+        if (idPath.contains("bed") || idPath.contains("chest") || idPath.contains("barrel")) {
+            gezellig += 0.25f;
+        }
+        if (idPath.contains("campfire") || idPath.contains("furnace") || idPath.contains("smoker") || idPath.contains("blast_furnace")) {
+            sobremesa += 0.22f; // cozy food vibes
+        }
+        if (idPath.contains("crafting_table") || idPath.contains("anvil") || idPath.contains("grindstone") || idPath.contains("enchanting_table") || idPath.contains("cartography_table") || idPath.contains("loom")) {
+            wabi += 0.2f; // craft/repair aesthetic
+        }
+        if (idPath.contains("jukebox") || idPath.contains("note_block")) {
+            ananda += 0.22f; // music joy
+        }
+
+        // Niche block interactions
+        if (idPath.contains("smithing_table")) {
+            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.12f));
+        }
+        if (idPath.contains("grindstone")) {
+            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.REGRET, 0.10f));
+        }
+        if (idPath.contains("beacon")) {
+            pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.ANANDA, 0.30f));
+        }
+        if (idPath.contains("bell")) {
+            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.18f));
+        }
+        if (idPath.contains("beehive") || idPath.contains("bee_nest")) {
+            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.18f));
+        }
+        if (idPath.contains("flower_pot") || idPath.contains("potted_")) {
+            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.10f));
+        }
+
+        // Detected intent to place a block: use held BlockItem to infer "building/homey" emotions
+        ItemStack held = player.getStackInHand(hand);
+        if (held.getItem() instanceof BlockItem blockItem) {
+            String placePath = getBlockPath(blockItem.getBlock());
+            float kefi = 0.0f, wabiPlace = 0.0f, gezPlace = 0.0f;
+            // General building vigor
+            kefi = 0.10f;
+            // Aesthetic crafting/building
+            if (placePath.contains("log") || placePath.contains("planks") || placePath.contains("brick") || placePath.contains("stone_bricks") || placePath.contains("concrete")) {
+                wabiPlace += 0.16f;
+            }
+            // Homey decor
+            if (placePath.contains("bed") || placePath.contains("campfire") || placePath.contains("lantern") || placePath.contains("candle") || placePath.contains("flower") || placePath.contains("carpet") || placePath.contains("bookshelf")) {
+                gezPlace += 0.22f;
+            }
+            if (kefi > 0 || wabiPlace > 0 || gezPlace > 0) {
+                final float kF = kefi, wF = wabiPlace, gF = gezPlace;
+                pushToNearbyOwnedPets(sp, 32, pc -> {
+                    if (kF > 0) pc.pushEmotion(PetComponent.Emotion.KEFI, kF);
+                    if (wF > 0) pc.pushEmotion(PetComponent.Emotion.WABI_SABI, wF);
+                    if (gF > 0) pc.pushEmotion(PetComponent.Emotion.GEZELLIG, gF);
+                });
+            }
+        }
+
+        if (gezellig + sobremesa + wabi + ananda > 0) {
+            final float gF = gezellig, sF = sobremesa, wF = wabi, aF = ananda;
+            pushToNearbyOwnedPets(sp, 24, pc -> {
+                if (gF > 0) pc.pushEmotion(PetComponent.Emotion.GEZELLIG, gF);
+                if (sF > 0) pc.pushEmotion(PetComponent.Emotion.SOBREMESA, sF);
+                if (wF > 0) pc.pushEmotion(PetComponent.Emotion.WABI_SABI, wF);
+                if (aF > 0) pc.pushEmotion(PetComponent.Emotion.ANANDA, aF);
+            });
+        }
+        return ActionResult.PASS;
+    }
+
+    // ==== Entity Use → Lead/mount moments → PROTECTIVENESS, FERNWEH ====
+    private static ActionResult onUseEntity(PlayerEntity player, World world, Hand hand, Entity entity, EntityHitResult hitResult) {
+        if (world.isClient() || !(player instanceof ServerPlayerEntity sp)) return ActionResult.PASS;
+        ItemStack stack = player.getStackInHand(hand);
+
+        // Leashing or unleashing signals protectiveness/affection
+        if (stack.isOf(Items.LEAD) && entity instanceof MobEntity) {
+            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.20f));
+            return ActionResult.PASS; // don't consume event
+        }
+
+        // Right-clicking ridables often uses entity interact; give wanderlust when mounting mounts/boats
+        String type = entity.getType().toString().toLowerCase();
+        if (type.contains("boat") || type.contains("horse") || type.contains("camel") || type.contains("donkey") || type.contains("mule") || type.contains("llama")) {
+            pushToNearbyOwnedPets(sp, 32, pc -> pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.22f));
+        }
+
+        // Trading with villagers: balance and cozy community
+        if (entity instanceof VillagerEntity) {
+            pushToNearbyOwnedPets(sp, 24, pc -> {
+                pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.12f);
+                pc.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.10f);
+            });
+        }
+        return ActionResult.PASS;
+    }
+
+    // ==== Respawn → RELIEF + SISU/GAMAN ====
+    private static void onAfterRespawn(ServerPlayerEntity oldPlayer, ServerPlayerEntity newPlayer, boolean alive) {
+        if (!alive) return;
+        pushToNearbyOwnedPets(newPlayer, 32, pc -> {
+            pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.35f);
+            pc.pushEmotion(PetComponent.Emotion.SISU, 0.28f);
+            pc.pushEmotion(PetComponent.Emotion.GAMAN, 0.12f);
+        });
+    }
+
+    // ==== Owner Death → SAUDADE + HIRAETH + REGRET (nearby pets) ====
+    private static void onAfterDeath(LivingEntity entity, DamageSource damageSource) {
+        if (!(entity instanceof ServerPlayerEntity sp)) return;
+        ServerWorld world = (ServerWorld) sp.getWorld();
+        world.getEntitiesByClass(MobEntity.class, sp.getBoundingBox().expand(48), mob -> {
+            PetComponent pc = PetComponent.get(mob);
+            return pc != null && pc.isOwnedBy(sp);
+        }).forEach(pet -> {
+            PetComponent pc = PetComponent.get(pet);
+            if (pc != null) {
+                pc.pushEmotion(PetComponent.Emotion.SAUDADE, 0.35f);
+                pc.pushEmotion(PetComponent.Emotion.HIRAETH, 0.25f);
+                pc.pushEmotion(PetComponent.Emotion.REGRET, 0.18f);
+                pc.updateMood();
+            }
+        });
+    }
+
+    // ==== Weather transitions (ultra-light) → SOBREMESA, YUGEN, FOREBODING, RELIEF ====
+    private static final java.util.Map<ServerWorld, WeatherState> WEATHER = new java.util.WeakHashMap<>();
+    private record WeatherState(boolean raining, boolean thundering) {}
+
+    // Time of day phases for subtle transitions
+    private enum TimePhase { DAWN, DAY, DUSK, NIGHT }
+    private static final Map<ServerWorld, TimePhase> TIME_PHASES = new WeakHashMap<>();
+
+    // Lightweight per-player environment state for biome/dimension/idle tracking
+    private static final Map<ServerPlayerEntity, PlayerEnvState> PLAYER_ENV = new WeakHashMap<>();
+    private static class PlayerEnvState {
+        Identifier biomeId;
+        Identifier dimensionId;
+        Vec3d lastPos;
+        int idleTicks;
+        PlayerEnvState(Identifier biomeId, Identifier dimensionId, Vec3d lastPos) {
+            this.biomeId = biomeId;
+            this.dimensionId = dimensionId;
+            this.lastPos = lastPos;
+            this.idleTicks = 0;
+        }
+    }
+
+    private static void onWorldTickWeatherAndEnv(ServerWorld world) {
+        WeatherState prev = WEATHER.get(world);
+        boolean r = world.isRaining();
+        boolean t = world.isThundering();
+        if (prev == null) {
+            WEATHER.put(world, new WeatherState(r, t));
+            // Initialize time phase too
+            TIME_PHASES.put(world, computeTimePhase(world.getTimeOfDay()));
+        } else {
+            if (r != prev.raining || t != prev.thundering) {
+                WEATHER.put(world, new WeatherState(r, t));
+                // Push to pets near players in this world
+                for (ServerPlayerEntity sp : world.getPlayers()) {
+                    if (r && !prev.raining) {
+                        // Rain started → cozy introspection
+                        pushToNearbyOwnedPets(sp, 48, pc -> {
+                            pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.08f);
+                            pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.06f);
+                            pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.04f);
+                        });
+                    } else if (!r && prev.raining) {
+                        // Rain ended → relief/joy
+                        pushToNearbyOwnedPets(sp, 48, pc -> {
+                            pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.10f);
+                            pc.pushEmotion(PetComponent.Emotion.GLEE, 0.06f);
+                        });
+                    }
+                    if (t && !prev.thundering) {
+                        // Thunder started → foreboding and protectiveness
+                        pushToNearbyOwnedPets(sp, 48, pc -> {
+                            pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.12f);
+                            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
+                            pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.06f);
+                        });
+                    }
+                }
+            }
+        }
+
+        // Time of day transitions (very cheap)
+        TimePhase current = TIME_PHASES.getOrDefault(world, computeTimePhase(world.getTimeOfDay()));
+        TimePhase next = computeTimePhase(world.getTimeOfDay());
+        if (next != current) {
+            TIME_PHASES.put(world, next);
+            for (ServerPlayerEntity sp : world.getPlayers()) {
+                switch (next) {
+                    case DAWN -> pushToNearbyOwnedPets(sp, 48, pc -> {
+                        pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.10f);
+                        pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.06f);
+                        pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.04f);
+                    });
+                    case DUSK -> pushToNearbyOwnedPets(sp, 48, pc -> {
+                        pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.08f);
+                        pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.06f);
+                        pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.04f);
+                    });
+                    case DAY -> pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.KEFI, 0.04f));
+                    case NIGHT -> pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.04f));
+                }
+            }
+        }
+
+        // Per-player lightweight environment checks (biome/dimension/idle/hunger)
+        long time = world.getTime();
+        for (ServerPlayerEntity sp : world.getPlayers()) {
+            // Resolve biome identifier
+            Identifier biomeId = null;
+            try {
+                var entry = world.getBiome(sp.getBlockPos());
+                Optional<RegistryKey<Biome>> key = entry.getKey();
+                biomeId = key.map(RegistryKey::getValue).orElse(null);
+            } catch (Throwable ignored) {}
+            Identifier dimId = world.getRegistryKey().getValue();
+
+            PlayerEnvState st = PLAYER_ENV.get(sp);
+            Vec3d pos = sp.getPos();
+            if (st == null) {
+                st = new PlayerEnvState(biomeId, dimId, pos);
+                PLAYER_ENV.put(sp, st);
+            }
+
+            // Biome change
+            if (biomeId != null && (st.biomeId == null || !biomeId.equals(st.biomeId))) {
+                st.biomeId = biomeId;
+                String path = biomeId.getPath();
+                if (containsAny(path, "desert", "badlands", "beach")) {
+                    pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.HANYAUKU, 0.12f));
+                }
+                if (containsAny(path, "cherry_grove", "flower_forest")) {
+                    pushToNearbyOwnedPets(sp, 32, pc -> {
+                        pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.10f);
+                        pc.pushEmotion(PetComponent.Emotion.ANANDA, 0.08f);
+                    });
+                }
+                if (path.contains("mushroom_fields")) {
+                    pushToNearbyOwnedPets(sp, 48, pc -> {
+                        pc.pushEmotion(PetComponent.Emotion.GLEE, 0.15f);
+                        pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.08f);
+                    });
+                }
+                if (containsAny(path, "deep_dark")) {
+                    pushToNearbyOwnedPets(sp, 48, pc -> {
+                        pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.18f);
+                        pc.pushEmotion(PetComponent.Emotion.ANGST, 0.12f);
+                    });
+                }
+                if (containsAny(path, "ocean")) {
+                    pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.08f));
+                }
+                if (containsAny(path, "snow", "ice_spikes", "grove")) {
+                    pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.FJELLVANT, 0.10f));
+                }
+            }
+
+            // Dimension change
+            if (dimId != null && (st.dimensionId == null || !dimId.equals(st.dimensionId))) {
+                Identifier old = st.dimensionId;
+                st.dimensionId = dimId;
+                if (dimId.getPath().contains("overworld") && old != null && !old.getPath().contains("overworld")) {
+                    pushToNearbyOwnedPets(sp, 64, pc -> {
+                        pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.12f);
+                        pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.10f);
+                    });
+                } else if (dimId.getPath().contains("the_nether")) {
+                    pushToNearbyOwnedPets(sp, 64, pc -> {
+                        pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f);
+                        pc.pushEmotion(PetComponent.Emotion.SISU, 0.12f);
+                        pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
+                    });
+                } else if (dimId.getPath().contains("the_end")) {
+                    pushToNearbyOwnedPets(sp, 64, pc -> {
+                        pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.14f);
+                        pc.pushEmotion(PetComponent.Emotion.SISU, 0.12f);
+                        pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.08f);
+                    });
+                }
+            }
+
+            // Idle/AFK tracking for ENNUI (push after ~3 minutes, then every 2 minutes with activity detection)
+            double dx = pos.x - st.lastPos.x;
+            double dz = pos.z - st.lastPos.z;
+            if ((dx * dx + dz * dz) < 0.0025) { // ~0.05 blocks
+                st.idleTicks++;
+                // Check for nearby activity (player building/crafting)
+                boolean nearActivity = hasNearbyActivity(sp, world);
+                if (!nearActivity) {
+                    if (st.idleTicks == 3600 || (st.idleTicks > 3600 && st.idleTicks % 2400 == 0)) { // 3min, then every 2min
+                        pushToNearbyOwnedPets(sp, 32, pc -> pc.pushEmotion(PetComponent.Emotion.ENNUI, 0.15f));
+                    }
+                    // Long rainy nights weariness (reduced frequency and weight)
+                    if (world.isRaining() && TIME_PHASES.getOrDefault(world, TimePhase.NIGHT) == TimePhase.NIGHT && st.idleTicks % 1200 == 0 && st.idleTicks >= 2400) {
+                        pushToNearbyOwnedPets(sp, 32, pc -> pc.pushEmotion(PetComponent.Emotion.WELTSCHMERZ, 0.06f));
+                    }
+                }
+            } else {
+                st.idleTicks = 0;
+                st.lastPos = pos;
+            }
+
+            // Low hunger empathy: UBUNTU + light PROTECTIVENESS (every 30s)
+            try {
+                if (sp.getHungerManager().getFoodLevel() <= 4 && (time % 600 == 0)) {
+                    pushToNearbyOwnedPets(sp, 32, pc -> {
+                        pc.pushEmotion(PetComponent.Emotion.UBUNTU, 0.12f);
+                        pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
+                    });
+                }
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    private static TimePhase computeTimePhase(long timeOfDay) {
+        long t = timeOfDay % 24000L;
+        if (t < 1000L || t >= 23000L) return TimePhase.DAWN;
+        if (t < 12000L) return TimePhase.DAY;
+        if (t < 13000L) return TimePhase.DUSK;
+        return TimePhase.NIGHT;
+    }
+
+    private static boolean containsAny(String haystack, String... needles) {
+        for (String n : needles) {
+            if (haystack.contains(n)) return true;
+        }
+        return false;
+    }
+
+    // Activity detection: check if player is building/crafting (recent block place, interaction, or item use)
+    private static boolean hasNearbyActivity(ServerPlayerEntity player, ServerWorld world) {
+        // Simple heuristic: if player has been interacting recently, skip ENNUI
+        // This could be enhanced with more sophisticated detection
+        long time = world.getTime();
+        // Check if any owned pets are nearby and actively engaged
+        return world.getEntitiesByClass(net.minecraft.entity.mob.MobEntity.class,
+            player.getBoundingBox().expand(16), mob -> {
+                var pc = PetComponent.get(mob);
+                return pc != null && pc.isOwnedBy(player) && 
+                       (time - pc.getLastAttackTick()) < 600; // Pet active in last 30s
+            }).size() > 0;
+    }
+
+    // ==== Utilities ====
+    private interface PetConsumer { void accept(PetComponent pc); }
+
+    private static void pushToNearbyOwnedPets(ServerPlayerEntity owner, double radius, PetConsumer consumer) {
+        List<MobEntity> pets = owner.getWorld().getEntitiesByClass(MobEntity.class,
+            owner.getBoundingBox().expand(radius),
+            mob -> {
+                PetComponent pc = PetComponent.get(mob);
+                return pc != null && pc.isOwnedBy(owner);
+            }
+        );
+        for (MobEntity pet : pets) {
+            PetComponent pc = PetComponent.get(pet);
+            if (pc != null) {
+                try {
+                    consumer.accept(pc);
+                    pc.updateMood();
+                } catch (Throwable ignored) {}
+            }
+        }
+    }
+
+    // ==== 4th Wave: Nuanced Living System - Subtle Environmental & Social Awareness ====
+    private static void onWorldTickNuancedEmotions(ServerWorld world) {
+        // Run every 3 seconds to keep performance light
+        if (world.getTime() % 60 != 0) return;
+
+        for (ServerPlayerEntity player : world.getPlayers()) {
+            List<MobEntity> pets = world.getEntitiesByClass(MobEntity.class,
+                player.getBoundingBox().expand(32),
+                mob -> {
+                    PetComponent pc = PetComponent.get(mob);
+                    return pc != null && pc.isOwnedBy(player);
+                }
+            );
+
+            for (MobEntity pet : pets) {
+                PetComponent pc = PetComponent.get(pet);
+                if (pc == null) continue;
+
+                // Subtle social awareness triggers
+                addSocialAwarenessTriggers(pet, pc, player, world);
+
+                // Environmental micro-reactions
+                addEnvironmentalMicroTriggers(pet, pc, world);
+
+                // Movement and activity patterns
+                addMovementActivityTriggers(pet, pc, world);
+
+                // Inter-pet social dynamics
+                addInterPetSocialTriggers(pet, pc, pets, world);
+
+                pc.updateMood();
+            }
+        }
+    }
+
+    private static void addSocialAwarenessTriggers(MobEntity pet, PetComponent pc, ServerPlayerEntity owner, ServerWorld world) {
+        double distanceToOwner = pet.squaredDistanceTo(owner);
+        Vec3d ownerLookDir = owner.getRotationVec(1.0f);
+        Vec3d petToPet = pet.getPos().subtract(owner.getPos()).normalize();
+        double lookAlignment = ownerLookDir.dotProduct(petToPet);
+
+        // Owner looking directly at pet - awareness and attention
+        if (distanceToOwner < 64 && lookAlignment > 0.8) { // Owner looking at pet
+            pc.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.08f); // Cozy attention
+            if (pet.getHealth() / pet.getMaxHealth() < 0.7f) {
+                pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.12f); // Owner noticing when hurt
+            }
+        }
+
+        // Owner proximity dynamics
+        if (distanceToOwner < 4) { // Very close
+            pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.06f); // Home/safety feeling
+        } else if (distanceToOwner > 256) { // Far away
+            pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.04f); // Longing
+        }
+
+        // Owner's current activity awareness
+        if (owner.getAttackCooldownProgress(0.0f) < 1.0f) {
+            pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.05f);
+            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
+        }
+
+        if (owner.isSneaking() && distanceToOwner < 16) {
+            pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.03f); // Mysterious quiet behavior
+        }
+
+        // Owner health awareness
+        float ownerHealthPercent = owner.getHealth() / owner.getMaxHealth();
+        if (ownerHealthPercent < 0.3f && distanceToOwner < 64) {
+            pc.pushEmotion(PetComponent.Emotion.ANGST, 0.15f); // Worry about hurt owner
+            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.12f);
+        }
+    }
+
+    private static void addEnvironmentalMicroTriggers(MobEntity pet, PetComponent pc, ServerWorld world) {
+        BlockPos petPos = pet.getBlockPos();
+
+        // Light level awareness
+        int lightLevel = world.getLightLevel(petPos);
+        if (lightLevel <= 3) {
+            pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.04f); // Dark places feel ominous
+        } else if (lightLevel >= 12) {
+            pc.pushEmotion(PetComponent.Emotion.KEFI, 0.02f); // Bright areas feel energizing
+        }
+
+        // Height awareness
+        int y = petPos.getY();
+        if (y > 120) { // High altitude
+            pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.03f); // Awe at heights
+            pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.02f); // Wanderlust from vistas
+        } else if (y < 20) { // Deep underground
+            pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.05f); // Underground unease
+        }
+
+        // Water proximity
+        if (world.getBlockState(petPos.down()).getFluidState().isEmpty() == false) {
+            pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.03f); // Water brings balance
+        }
+
+        // Flowers and nature
+        for (BlockPos offset : BlockPos.iterate(petPos.add(-2, -1, -2), petPos.add(2, 1, 2))) {
+            String blockName = world.getBlockState(offset).getBlock().toString().toLowerCase();
+            if (blockName.contains("flower") || blockName.contains("grass") || blockName.contains("fern")) {
+                pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.02f); // Beauty of nature
+                break;
+            }
+        }
+
+        // Hostile mob proximity (extended awareness)
+        boolean hostilesNearby = !world.getEntitiesByClass(net.minecraft.entity.mob.HostileEntity.class,
+            pet.getBoundingBox().expand(16), monster -> true).isEmpty();
+        if (hostilesNearby) {
+            pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.08f);
+            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.06f);
+        }
+    }
+
+    private static void addMovementActivityTriggers(MobEntity pet, PetComponent pc, ServerWorld world) {
+        Vec3d velocity = pet.getVelocity();
+        double speed = velocity.length();
+
+        // Movement patterns
+        if (speed > 0.2) { // Pet is moving fast
+            pc.pushEmotion(PetComponent.Emotion.KEFI, 0.04f); // Energy from movement
+            pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.02f); // Adventure spirit
+        } else if (speed < 0.01) { // Pet is very still
+            pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.03f); // Peaceful stillness
+        }
+
+        // Falling or jumping
+        if (velocity.y < -0.5) { // Falling fast
+            pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.08f);
+            pc.pushEmotion(PetComponent.Emotion.ANGST, 0.05f);
+        } else if (velocity.y > 0.3) { // Jumping up
+            pc.pushEmotion(PetComponent.Emotion.KEFI, 0.06f); // Joy of leaping
+        }
+
+        // Swimming
+        if (pet.isInFluid()) {
+            if (pet.getType().toString().contains("cat")) {
+                pc.pushEmotion(PetComponent.Emotion.DISGUST, 0.15f); // Cats hate water
+                pc.pushEmotion(PetComponent.Emotion.ANGST, 0.10f);
+            } else {
+                pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.05f); // Others find it refreshing
+            }
+        }
+    }
+
+    private static void addInterPetSocialTriggers(MobEntity pet, PetComponent pc, List<MobEntity> allPets, ServerWorld world) {
+        int nearbyPetCount = 0;
+        boolean hasOlderPet = false;
+        boolean hasYoungerPet = false;
+
+        for (MobEntity otherPet : allPets) {
+            if (otherPet == pet) continue;
+            if (pet.squaredDistanceTo(otherPet) > 64) continue; // Within 8 blocks
+
+            nearbyPetCount++;
+            PetComponent otherPc = PetComponent.get(otherPet);
+            if (otherPc != null) {
+                // Age-based social dynamics
+                if (otherPc.getLevel() > pc.getLevel()) {
+                    hasOlderPet = true;
+                } else if (otherPc.getLevel() < pc.getLevel()) {
+                    hasYoungerPet = true;
+                }
+
+                // Mood contagion - pets influence each other's moods subtly
+                PetComponent.Mood otherMood = otherPc.getCurrentMood();
+                if (otherMood != null) {
+                    switch (otherMood) {
+                        case JOYFUL -> pc.pushEmotion(PetComponent.Emotion.FROHLICH, 0.02f);
+                        case FEARFUL -> pc.pushEmotion(PetComponent.Emotion.ANGST, 0.03f);
+                        case WRATHFUL -> pc.pushEmotion(PetComponent.Emotion.FRUSTRATION, 0.02f);
+                        case ZEN -> pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.03f);
+                    }
+                }
+            }
+        }
+
+        // Pack dynamics
+        if (nearbyPetCount >= 2) {
+            pc.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.06f); // Cozy group feeling
+            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.04f); // Pack protection
+        }
+
+        if (hasOlderPet) {
+            pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.03f); // Learning from elders
+        }
+
+        if (hasYoungerPet) {
+            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.05f); // Protective of youngsters
+        }
+
+        // Loneliness when isolated
+        if (nearbyPetCount == 0) {
+            PetComponent.Mood currentMood = pc.getCurrentMood();
+            if (currentMood != PetComponent.Mood.ZEN) { // Unless they're zen/content
+                pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.03f); // Longing for companionship
+            }
+        }
+    }
+
+    // ==== 5th Wave: Tag-Based and Data-Driven Advanced Emotion Hooks ====
+
+    /**
+     * Enchanting table interactions - magic and wonder
+     */
+    private static ActionResult onEnchantingTableUse(PlayerEntity player, World world, Hand hand, net.minecraft.util.hit.BlockHitResult hitResult) {
+        if (world.isClient() || !(player instanceof ServerPlayerEntity sp)) return ActionResult.PASS;
+
+        BlockPos pos = hitResult.getBlockPos();
+        net.minecraft.block.BlockState state = world.getBlockState(pos);
+
+        // Check if it's an enchanting table using block tags (flexible)
+        if (state.isIn(net.minecraft.registry.tag.BlockTags.ENCHANTMENT_POWER_PROVIDER) ||
+            state.getBlock().toString().contains("enchanting_table")) {
+
+            pushToNearbyOwnedPets(sp, 24, pc -> {
+                pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.18f); // Wonder at magic
+                pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.08f); // Slight wariness of unknown
+                pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.06f); // Beauty of magical sparkles
+            });
+        }
+
+        return ActionResult.PASS;
+    }
+
+    /**
+     * Trading interactions - using entity tags and villager profession data
+     */
+    private static ActionResult onVillagerTrade(PlayerEntity player, World world, Hand hand, Entity entity, EntityHitResult hitResult) {
+        if (world.isClient() || !(player instanceof ServerPlayerEntity sp)) return ActionResult.PASS;
+
+        // Use entity tags and types rather than hardcoding
+        if (entity instanceof VillagerEntity villager) {
+            pushToNearbyOwnedPets(sp, 20, pc -> {
+                pc.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.12f); // Social interaction comfort
+                pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.08f); // Observing human customs
+
+                // Professional-specific reactions
+                String profession = villager.getVillagerData().profession().toString();
+                if (profession.contains("butcher") || profession.contains("farmer")) {
+                    pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.10f); // Food security feelings
+                } else if (profession.contains("cleric")) {
+                    pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.08f); // Mystical presence
+                } else if (profession.contains("weaponsmith") || profession.contains("armorer")) {
+                    pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f); // Defense associations
+                }
+            });
+        }
+
+        return ActionResult.PASS;
+    }
+
+    /**
+     * Advanced weather and item awareness using tags and component data
+     */
+    private static void onWorldTickAdvancedTriggers(ServerWorld world) {
+        // Run every 5 seconds to keep it lightweight
+        if (world.getTime() % 100 != 0) return;
+
+        for (ServerPlayerEntity player : world.getPlayers()) {
+            List<MobEntity> pets = world.getEntitiesByClass(MobEntity.class,
+                player.getBoundingBox().expand(32),
+                mob -> {
+                    PetComponent pc = PetComponent.get(mob);
+                    return pc != null && pc.isOwnedBy(player);
+                }
+            );
+
+            for (MobEntity pet : pets) {
+                PetComponent pc = PetComponent.get(pet);
+                if (pc == null) continue;
+
+                // Enhanced weather awareness
+                addAdvancedWeatherTriggers(pet, pc, world);
+
+                // Tag-based item awareness
+                addTagBasedItemTriggers(pet, pc, player);
+
+                pc.updateMood();
+            }
+        }
+    }
+
+    private static void addAdvancedWeatherTriggers(MobEntity pet, PetComponent pc, ServerWorld world) {
+        // Thunder detection - much more impactful than basic rain
+        if (world.isThundering()) {
+            pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.15f); // Thunder is startling
+            pc.pushEmotion(PetComponent.Emotion.ANGST, 0.12f); // Weather anxiety
+            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f); // Protective of owner during storms
+        } else if (world.isRaining()) {
+            // Rain reactions based on pet type - data-driven approach
+            String petType = pet.getType().toString().toLowerCase();
+            if (petType.contains("cat")) {
+                pc.pushEmotion(PetComponent.Emotion.DISGUST, 0.08f); // Cats dislike getting wet
+                pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.06f); // Seeking shelter
+            } else if (petType.contains("wolf") || petType.contains("dog")) {
+                pc.pushEmotion(PetComponent.Emotion.KEFI, 0.04f); // Dogs often enjoy rain
+                pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.05f); // Refreshing feeling
+            } else {
+                pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.03f); // General refresh feeling
+            }
+        } else {
+            // Clear weather after storm - relief
+            if (world.getTime() % 6000 == 0) { // Check periodically
+                pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.06f);
+                pc.pushEmotion(PetComponent.Emotion.KEFI, 0.04f); // Energy from clear skies
+            }
+        }
+
+        // Temperature simulation based on biome data
+        try {
+            var biome = world.getBiome(pet.getBlockPos());
+            float temperature = biome.value().getTemperature();
+
+            if (temperature > 1.0f) { // Hot biomes
+                pc.pushEmotion(PetComponent.Emotion.LAGOM, -0.02f); // Slight discomfort
+                pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.03f); // Seeking shade
+            } else if (temperature < 0.0f) { // Cold biomes
+                pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.04f); // Seeking warmth/owner
+                pc.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.03f); // Cozy feelings
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private static void addTagBasedItemTriggers(MobEntity pet, PetComponent pc, ServerPlayerEntity owner) {
+        // Analyze owner's inventory using item tags and components rather than hardcoding
+        var inventory = owner.getInventory();
+
+        boolean hasValuableItems = false;
+        boolean hasFoodItems = false;
+        boolean hasMagicalItems = false;
+        boolean hasWeapons = false;
+        boolean hasTools = false;
+
+        for (int i = 0; i < inventory.size(); i++) {
+            ItemStack stack = inventory.getStack(i);
+            if (stack.isEmpty()) continue;
+
+            // Use item tags for flexible detection
+            if (stack.isIn(net.minecraft.registry.tag.ItemTags.TRIM_MATERIALS) ||
+                stack.getItem().toString().contains("diamond") ||
+                stack.getItem().toString().contains("gold") ||
+                stack.getItem().toString().contains("emerald")) {
+                hasValuableItems = true;
+            }
+
+            if (stack.get(net.minecraft.component.DataComponentTypes.FOOD) != null ||
+                stack.isIn(net.minecraft.registry.tag.ItemTags.MEAT) ||
+                stack.isIn(net.minecraft.registry.tag.ItemTags.FISHES)) {
+                hasFoodItems = true;
+            }
+
+            if (stack.hasEnchantments() ||
+                stack.getItem().toString().contains("potion") ||
+                stack.getItem().toString().contains("enchanted") ||
+                stack.isIn(net.minecraft.registry.tag.ItemTags.BOOKSHELF_BOOKS)) {
+                hasMagicalItems = true;
+            }
+
+            if (stack.isIn(net.minecraft.registry.tag.ItemTags.SWORDS) ||
+                stack.isIn(net.minecraft.registry.tag.ItemTags.AXES) ||
+                stack.getItem().toString().contains("bow") ||
+                stack.getItem().toString().contains("crossbow")) {
+                hasWeapons = true;
+            }
+
+            if (stack.isIn(net.minecraft.registry.tag.ItemTags.PICKAXES) ||
+                stack.isIn(net.minecraft.registry.tag.ItemTags.SHOVELS) ||
+                stack.isIn(net.minecraft.registry.tag.ItemTags.HOES)) {
+                hasTools = true;
+            }
+        }
+
+        // Emotional reactions based on inventory composition
+        if (hasValuableItems) {
+            pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.04f); // Security from wealth
+            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.06f); // Guarding valuable things
+        }
+
+        if (hasFoodItems) {
+            pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.05f); // Food security
+            pc.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.03f); // Comfort from sustenance
+        }
+
+        if (hasMagicalItems) {
+            pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.06f); // Wonder at magical things
+            pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.02f); // Slight wariness
+        }
+
+        if (hasWeapons) {
+            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.05f); // Ready for danger
+            pc.pushEmotion(PetComponent.Emotion.SISU, 0.03f); // Determination
+        }
+
+        if (hasTools) {
+            pc.pushEmotion(PetComponent.Emotion.KEFI, 0.03f); // Energy from productivity
+            pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.04f); // Balance from useful work
+        }
+    }
+}

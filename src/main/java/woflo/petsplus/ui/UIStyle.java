@@ -45,11 +45,11 @@ public final class UIStyle {
     };
 
     public static MutableText primary(String s) {
-        return Text.literal(s).setStyle(Text.literal("").getStyle().withColor(PRIMARY_TEXT));
+        return Text.literal(s).styled(style -> style.withColor(PRIMARY_TEXT));
     }
 
     public static MutableText secondary(String s) {
-        return Text.literal(s).setStyle(Text.literal("").getStyle().withColor(SECONDARY_TEXT));
+        return Text.literal(s).styled(style -> style.withColor(SECONDARY_TEXT));
     }
 
     public static MutableText value(String s, Formatting color) {
@@ -57,7 +57,7 @@ public final class UIStyle {
     }
     
     public static MutableText valueHex(String s, TextColor color) {
-        return Text.literal(s).setStyle(Text.literal("").getStyle().withColor(color));
+        return Text.literal(s).styled(style -> style.withColor(color));
     }
 
     public static MutableText bold(Text base) {
@@ -82,40 +82,79 @@ public final class UIStyle {
      * Pet name with smooth health-based color gradient and custom color support
      */
     public static MutableText dynamicPetName(String name, float healthPercent) {
-        return dynamicPetName(name, healthPercent, null);
+        return dynamicPetName(name, healthPercent, null, 0);
     }
-    
+
     /**
      * Pet name with custom base color override
      */
     public static MutableText dynamicPetName(String name, float healthPercent, TextColor customBaseColor) {
-        TextColor color;
-        boolean bold = false;
-        
-        if (healthPercent <= 0.15f) {
-            // Critical health - bright red with bold
-            color = HEALTH_CRITICAL;
-            bold = true;
+        return dynamicPetName(name, healthPercent, customBaseColor, 0);
+    }
+
+    /**
+     * Pet name with health-based blinking effect and combat state priority
+     * Gray by default, shows health color during combat/damage, blinks health color periodically
+     */
+    public static MutableText dynamicPetName(String name, float healthPercent, TextColor customBaseColor, long currentTick) {
+        return dynamicPetName(name, healthPercent, customBaseColor, currentTick, false);
+    }
+
+    /**
+     * Pet name with combat state override for immediate health color display
+     */
+    public static MutableText dynamicPetName(String name, float healthPercent, TextColor customBaseColor, long currentTick, boolean inCombat) {
+        // Default color is gray
+        TextColor baseColor = customBaseColor != null ? customBaseColor : PRIMARY_TEXT;
+
+        // Determine health color
+        TextColor healthColor;
+        if (healthPercent <= 0.25f) {
+            healthColor = HEALTH_CRITICAL;    // Red for critical
         } else if (healthPercent <= 0.35f) {
-            // Low health - orange
-            color = HEALTH_LOW;
+            healthColor = HEALTH_LOW;         // Orange for low
         } else if (healthPercent <= 0.60f) {
-            // Medium health - yellow
-            color = HEALTH_MEDIUM; 
-        } else if (healthPercent <= 0.85f) {
-            // Good health - light green
-            color = HEALTH_GOOD;
-        } else if (healthPercent >= 0.95f) {
-            // Perfect health - bright aqua with bold
-            color = HEALTH_PERFECT;
-            bold = true;
+            healthColor = HEALTH_MEDIUM;      // Yellow for medium
         } else {
-            // High health - use custom color or default
-            color = customBaseColor != null ? customBaseColor : DEFAULT_PET_NAME_COLOR;
+            healthColor = HEALTH_GOOD;        // Green for good
         }
-        
-        MutableText text = valueHex(name, color);
-        return bold ? text.formatted(Formatting.BOLD) : text;
+
+        // Priority 1: Combat state (immediate health color)
+        if (inCombat) {
+            return valueHex(name, healthColor);
+        }
+
+        // Priority 2: Periodic blinking for health indication
+        int blinkInterval;
+        boolean doubleBlink = false;
+
+        if (healthPercent <= 0.25f) {
+            // Critical health - fast double blink every 3s
+            blinkInterval = 60; // 3 seconds
+            doubleBlink = true;
+        } else if (healthPercent <= 0.60f) {
+            // Low health - normal blink every 5s
+            blinkInterval = 100; // 5 seconds
+        } else {
+            // Good health - normal blink every 5s
+            blinkInterval = 100; // 5 seconds
+        }
+
+        // Calculate blinking
+        long cyclePosition = currentTick % blinkInterval;
+        boolean shouldBlink = false;
+
+        if (doubleBlink) {
+            // Double blink pattern: blink at 0-3 ticks and 8-11 ticks
+            shouldBlink = (cyclePosition >= 0 && cyclePosition <= 3) ||
+                         (cyclePosition >= 8 && cyclePosition <= 11);
+        } else {
+            // Single blink pattern: blink at 0-5 ticks
+            shouldBlink = cyclePosition >= 0 && cyclePosition <= 5;
+        }
+
+        TextColor displayColor = shouldBlink ? healthColor : baseColor;
+        return valueHex(name, displayColor);
     }
     
     /**
@@ -204,46 +243,68 @@ public final class UIStyle {
     }
 
     /**
-     * Enhanced level display that integrates XP gain flashing with true color gradients
+     * Clean level display with XP-based color progression and XP gain flashing
+     * Level color goes from black (0% XP) to white (100% XP), flashes green on XP gain
      */
     public static MutableText levelWithXpFlash(int level, float xpProgress, boolean canLevelUp, boolean recentXpGain, long currentTick) {
-        // Create true gradient progress bar
-        MutableText progressBar = createGradientProgressBar(xpProgress, 10);
-        
+        TextColor levelColor;
+
         if (canLevelUp) {
-            // Gentle pulsing effect at tribute threshold
+            // Ready to level up - bright gold with gentle pulse
             boolean pulse = (currentTick / 30) % 2 == 0;
-            TextColor levelColor = pulse ? LEVEL_TRIBUTE_READY : LEVEL_NEAR_TRIBUTE;
-            
-            return secondary("Lv.").append(valueHex(String.valueOf(level), levelColor))
-                .append(secondary(" ")).append(progressBar)
-                .append(secondary(" ")).append(pulsingTextHex("◆", LEVEL_TRIBUTE_READY, LEVEL_NEAR_TRIBUTE, currentTick, 15));
-        } else if (recentXpGain) {
-            // Gentle green flash for recent XP gain (first 30 ticks = 1.5 seconds)
-            long flashDuration = 30;
-            long ticksSinceStart = currentTick % 100; // Cycle with detection system
-            
-            if (ticksSinceStart < flashDuration) {
-                // Very gentle green pulse during XP gain
-                boolean softFlash = (currentTick / 8) % 2 == 0; // Gentle 8-tick cycle
-                TextColor flashColor = softFlash ? LEVEL_NORMAL : interpolateColor(LEVEL_NORMAL, SECONDARY_TEXT, 0.3f);
-                
-                return secondary("Lv.").append(valueHex(String.valueOf(level), LEVEL_NORMAL))
-                    .append(secondary(" ")).append(createFlashingGradientBar(xpProgress, 10, flashColor, currentTick));
-            } else {
-                // Fade back to normal
-                return secondary("Lv.").append(valueHex(String.valueOf(level), LEVEL_NORMAL))
-                    .append(secondary(" ")).append(progressBar);
-            }
-        } else if (xpProgress > 0.85f) {
-            // Close to leveling - subtle anticipation glow
-            return secondary("Lv.").append(valueHex(String.valueOf(level), LEVEL_NEAR_TRIBUTE))
-                .append(secondary(" ")).append(progressBar);
+            levelColor = pulse ? LEVEL_TRIBUTE_READY : LEVEL_NEAR_TRIBUTE;
+        } else if (recentXpGain && (currentTick % 100) < 20) {
+            // Recent XP gain - flash green briefly (20 ticks = 1 second)
+            levelColor = TextColor.fromRgb(0x55FF55); // Bright green
         } else {
-            // Normal level display with gradient bar
-            return secondary("Lv.").append(valueHex(String.valueOf(level), LEVEL_NORMAL))
-                .append(secondary(" ")).append(progressBar);
+            // Normal: XP-based color progression from black to white
+            levelColor = getXpProgressColor(xpProgress);
         }
+
+        return secondary("Lv.").append(valueHex(String.valueOf(level), levelColor));
+    }
+
+    /**
+     * Get color based on XP progress: black (0%) to white (100%)
+     */
+    private static TextColor getXpProgressColor(float xpProgress) {
+        xpProgress = Math.max(0f, Math.min(1f, xpProgress)); // Clamp 0-1
+
+        // Smooth progression from dark gray to white
+        int intensity = Math.round(80 + (175 * xpProgress)); // 80-255 range for good visibility
+        int rgb = (intensity << 16) | (intensity << 8) | intensity; // Grayscale
+
+        return TextColor.fromRgb(rgb);
+    }
+
+    /**
+     * Get boss bar color based on health percentage
+     */
+    public static net.minecraft.entity.boss.BossBar.Color getHealthBasedBossBarColor(float healthPercent) {
+        if (healthPercent <= 0.25f) {
+            return net.minecraft.entity.boss.BossBar.Color.RED;    // Critical health
+        } else if (healthPercent <= 0.60f) {
+            return net.minecraft.entity.boss.BossBar.Color.YELLOW; // Low health
+        } else {
+            return net.minecraft.entity.boss.BossBar.Color.GREEN;  // Good health
+        }
+    }
+
+    /**
+     * Create clean pet display: "Name • Lv.X" where level color shows XP progress
+     * Name blinks health color every 5s (3s with double blink for low health)
+     */
+    public static MutableText cleanPetDisplay(String name, float healthPercent, int level, float xpProgress, boolean canLevelUp, boolean recentXpGain, long currentTick) {
+        return cleanPetDisplay(name, healthPercent, level, xpProgress, canLevelUp, recentXpGain, currentTick, false);
+    }
+
+    /**
+     * Create clean pet display with combat state for immediate health color feedback
+     */
+    public static MutableText cleanPetDisplay(String name, float healthPercent, int level, float xpProgress, boolean canLevelUp, boolean recentXpGain, long currentTick, boolean inCombat) {
+        return dynamicPetName(name, healthPercent, null, currentTick, inCombat)
+            .append(sepDot())
+            .append(levelWithXpFlash(level, xpProgress, canLevelUp, recentXpGain, currentTick));
     }
     
     /**
@@ -360,65 +421,53 @@ public final class UIStyle {
     }
     
     /**
-     * Creates a gradient progress bar with actual hex color transitions
+     * Creates a simple progress bar optimized for boss bar display
      */
     public static MutableText createGradientProgressBar(float percent, int length) {
+        // Use simpler characters for better boss bar compatibility
+        return createSimpleProgressBar(percent, length);
+    }
+
+    /**
+     * Creates a simple progress bar using standard formatting instead of complex gradients
+     */
+    public static MutableText createSimpleProgressBar(float percent, int length) {
         int filled = Math.round(percent * length);
-        MutableText result = Text.literal("");
-        
+        StringBuilder bar = new StringBuilder();
+
         for (int i = 0; i < length; i++) {
             if (i < filled) {
-                // Calculate gradient position (0.0 to 1.0)
-                float gradientPos = (float)i / (length - 1);
-                
-                // Get color from gradient array
-                int colorIndex = Math.min((int)(gradientPos * (PROGRESS_GRADIENT.length - 1)), PROGRESS_GRADIENT.length - 1);
-                TextColor blockColor = PROGRESS_GRADIENT[colorIndex];
-                
-                // Use solid block character with gradient color
-                result.append(valueHex("█", blockColor));
+                bar.append("▰"); // Simpler filled character
             } else {
-                // Empty block with very dark color
-                result.append(valueHex("░", PROGRESS_GRADIENT[0]));
+                bar.append("▱"); // Simpler empty character
             }
         }
-        
-        return result;
+
+        // Use standard formatting instead of complex hex colors
+        Formatting color = percent >= 0.85f ? Formatting.YELLOW : Formatting.GREEN;
+        return value(bar.toString(), color);
     }
     
     /**
-     * Creates a gradient progress bar that flashes during XP gain
+     * Creates a simple flashing progress bar for XP gain
      */
     public static MutableText createFlashingGradientBar(float progress, int length, TextColor flashColor, long currentTick) {
-        if (progress <= 0) return Text.literal("░".repeat(length)).styled(style -> style.withColor(PROGRESS_GRADIENT[0]));
-        if (progress >= 1) {
-            // Flash the entire bar on level up
-            boolean flash = (currentTick / 5) % 2 == 0;
-            TextColor fullColor = flash ? flashColor : PROGRESS_GRADIENT[PROGRESS_GRADIENT.length - 1];
-            return Text.literal("█".repeat(length)).styled(style -> style.withColor(fullColor));
-        }
-        
-        int filledCount = Math.round(progress * length);
-        MutableText bar = Text.literal("");
-        
+        int filled = Math.round(progress * length);
+        StringBuilder bar = new StringBuilder();
+
         for (int i = 0; i < length; i++) {
-            if (i < filledCount) {
-                // Create gradient with subtle flash influence
-                float gradientPos = (float)i / (length - 1);
-                int colorIndex = Math.min((int)(gradientPos * (PROGRESS_GRADIENT.length - 1)), PROGRESS_GRADIENT.length - 1);
-                TextColor baseColor = PROGRESS_GRADIENT[colorIndex];
-                
-                // Subtle flash influence - very gentle
-                boolean flash = (currentTick / 8) % 2 == 0;
-                TextColor finalColor = flash ? interpolateColor(baseColor, flashColor, 0.15f) : baseColor;
-                
-                bar.append(Text.literal("█").styled(style -> style.withColor(finalColor)));
+            if (i < filled) {
+                bar.append("▰");
             } else {
-                bar.append(Text.literal("░").styled(style -> style.withColor(PROGRESS_GRADIENT[0])));
+                bar.append("▱");
             }
         }
-        
-        return bar;
+
+        // Simple flashing effect using standard formatting
+        boolean flash = (currentTick / 8) % 2 == 0;
+        Formatting color = flash ? Formatting.YELLOW : Formatting.GREEN;
+
+        return value(bar.toString(), color);
     }
     
     /**
@@ -487,7 +536,6 @@ public final class UIStyle {
      * Tribute indicator for milestone pets
      */
     public static MutableText tributeNeeded(String itemName) {
-        return value("💎 ", Formatting.GOLD).append(secondary("Needs "))
-            .append(value(itemName, Formatting.GOLD));
+        return Text.translatable("petsplus.tribute.needs", itemName).formatted(Formatting.GRAY);
     }
 }

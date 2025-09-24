@@ -50,6 +50,11 @@ public class InitializationManager {
         
         // Register custom argument types
         PetRoleArgumentType.register();
+
+        // Register default emotion providers
+        var mood = woflo.petsplus.api.mood.MoodAPI.get();
+        mood.registerProvider(new woflo.petsplus.mood.providers.EnvironmentComfortProvider());
+        mood.registerProvider(new woflo.petsplus.mood.providers.CombatThreatProvider());
     }
     
     /**
@@ -59,6 +64,7 @@ public class InitializationManager {
         // Main event handlers
         ServerEventHandler.register();
         woflo.petsplus.events.CombatEventHandler.register();
+        woflo.petsplus.events.EmotionsEventHandler.register();
         
         // Interaction handlers
         woflo.petsplus.events.SupportInteractionHandler.register();

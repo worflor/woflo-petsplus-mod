@@ -1,10 +1,12 @@
 package woflo.petsplus.state;
-
+import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
@@ -24,6 +26,8 @@ import java.util.WeakHashMap;
 public class PetComponent {
     private static final Map<MobEntity, PetComponent> COMPONENTS = new WeakHashMap<>();
     private static final Identifier DEFAULT_ROLE_ID = PetRoleType.GUARDIAN_ID;
+    
+    // (legacy mood keys removed)
 
     private final MobEntity pet;
     private Identifier roleId;
@@ -36,6 +40,56 @@ public class PetComponent {
     private int experience;
     private final Map<Integer, Boolean> unlockedMilestones;
     private PetCharacteristics characteristics;
+    // New: encapsulated mood/emotion engine
+    private final PetMoodEngine moodEngine;
+
+    // BossBar UI enhancements
+    private long xpFlashStartTick = -1;
+    private static final int XP_FLASH_DURATION = 40; // 2 seconds
+    
+
+
+    // Mood/emotion state moved to PetMoodEngine
+
+    
+    /**
+     * Pet mood states derived from interactions and environment.
+     */
+    public enum Mood {
+        JOYFUL(PetMood.JOYFUL),
+        FEARFUL(PetMood.FEARFUL),
+        WRATHFUL(PetMood.WRATHFUL),
+        SAUDADE(PetMood.SAUDADE),
+        ZEN(PetMood.ZEN),
+        ZEALOUS(PetMood.ZEALOUS),
+        YUGEN(PetMood.YUGEN),
+        TARAB(PetMood.TARAB),
+        KINTSUGI(PetMood.KINTSUGI),
+        PLAYFUL(PetMood.PLAYFUL),
+        CURIOUS(PetMood.CURIOUS),
+        PROTECTIVE(PetMood.PROTECTIVE),
+        BONDED(PetMood.BONDED),
+        RESTLESS(PetMood.RESTLESS);
+
+        public final Formatting primaryFormatting;
+        public final Formatting secondaryFormatting;
+        public final PetMood delegate;
+        Mood(PetMood d) {
+            this.delegate = d;
+            this.primaryFormatting = d.primaryFormatting;
+            this.secondaryFormatting = d.secondaryFormatting;
+        }
+    }
+
+    /** Hidden, reactive emotions (de-duplicated; ~30 from spec) */
+    public enum Emotion {
+        FROHLICH, QUERENCIA, GLEE, ANANDA, FJELLVANT, UBUNTU, GEZELLIG, KEFI,
+        ANGST, FOREBODING, WELTSCHMERZ, PROTECTIVENESS, FRUSTRATION, STARTLE, DISGUST, REGRET,
+        MONO_NO_AWARE, FERNWEH, SOBREMESA, HANYAUKU, WABI_SABI, LAGOM, ENNUI, YUGEN,
+        SAUDADE, HIRAETH, SISU, AMAL, RELIEF, GAMAN
+    }
+
+    // Emotion slots are fully managed by PetMoodEngine
     
     public PetComponent(MobEntity pet) {
         this.pet = pet;
@@ -47,7 +101,13 @@ public class PetComponent {
         this.level = 1; // Start at level 1
         this.experience = 0;
         this.unlockedMilestones = new HashMap<>();
-        this.characteristics = null; // Will be generated when pet is first tamed
+    this.characteristics = null; // Will be generated when pet is first tamed
+        
+    // Initialize mood/emotion engine
+    this.moodEngine = new PetMoodEngine(this);
+        
+
+        // Mood/emotion state is managed by moodEngine
     }
     
     public static PetComponent getOrCreate(MobEntity pet) {
@@ -109,6 +169,11 @@ public class PetComponent {
 
         // Apply attribute modifiers when role changes
         woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
+        
+        // Apply AI enhancements when role changes
+        if (!this.pet.getWorld().isClient) {
+            woflo.petsplus.ai.PetAIEnhancements.enhancePetAI(this.pet, this);
+        }
     }
 
     public void setRoleType(@Nullable PetRoleType type) {
@@ -248,6 +313,8 @@ public class PetComponent {
     
     public void setLastAttackTick(long tick) {
         this.lastAttackTick = tick;
+        // Update mood when combat occurs
+        updateMood();
     }
     
     public boolean isPerched() {
@@ -288,6 +355,104 @@ public class PetComponent {
     public void setCharacteristics(@Nullable PetCharacteristics characteristics) {
         this.characteristics = characteristics;
     }
+    
+
+    
+    // ===== EMOTION–MOOD SYSTEM (delegated) =====
+    public Mood getCurrentMood() { return moodEngine.getCurrentMood(); }
+    public int getMoodLevel() { return moodEngine.getMoodLevel(); }
+    public void updateMood() { moodEngine.update(); }
+
+    // ===== Emotions API =====
+
+    /** Push an emotion with additive weight; creates or refreshes a slot. */
+    public void pushEmotion(Emotion emotion, float amount) { moodEngine.pushEmotion(emotion, amount); }
+
+    // All slot management lives in PetMoodEngine
+
+    // Removed legacy per-tick direct mood scoring methods in favor of emotion aggregation
+    
+
+    
+    /**
+     * Get mood display text with symbol and formatting.
+     */
+    public Text getMoodText() { return moodEngine.getMoodText(); }
+
+    /**
+     * Get mood display text with debug information showing power level.
+     */
+    public Text getMoodTextWithDebug() { return moodEngine.getMoodTextWithDebug(); }
+    
+    /**
+     * Get boss bar color based on XP flash and progression.
+     */
+    public BossBar.Color getMoodBossBarColor() {
+        // Priority 1: XP flash (overrides everything)
+        if (isXpFlashing()) {
+            return BossBar.Color.GREEN; // Light green flash
+        }
+
+        // Priority 2: Progression-based color (default)
+        return getProgressionBossBarColor();
+    }
+
+    /**
+     * Check if pet is currently in combat or recently took damage.
+     */
+    public boolean isInCombat() {
+        // Check active combat
+        if (pet.getAttacking() != null || pet.getAttacker() != null) {
+            return true;
+        }
+
+        // Check recent damage (within last 3 seconds)
+        long currentTick = pet.getWorld().getTime();
+        return (currentTick - lastAttackTick) < 60; // 60 ticks = 3 seconds
+    }
+
+    /**
+     * Check if XP flash animation is active.
+     */
+    public boolean isXpFlashing() {
+        if (xpFlashStartTick < 0) return false;
+        long currentTick = pet.getWorld().getTime();
+        return (currentTick - xpFlashStartTick) < XP_FLASH_DURATION;
+    }
+
+    /**
+     * Get BossBar color based on XP progression (black to white gradient concept).
+     */
+    private BossBar.Color getProgressionBossBarColor() {
+        float progress = getXpProgress();
+
+        // Map progress to black->gray->white using available BossBar colors
+        if (progress < 0.33f) {
+            return BossBar.Color.PURPLE; // Darkest available (representing black)
+        } else if (progress < 0.66f) {
+            return BossBar.Color.BLUE; // Medium (representing gray)
+        } else {
+            return BossBar.Color.WHITE; // Lightest (representing white)
+        }
+    }
+
+    // ===== Blend API =====
+    public float getMoodStrength(Mood mood) { return moodEngine.getMoodStrength(mood); }
+
+    public Map<Mood, Float> getMoodBlend() { return moodEngine.getMoodBlend(); }
+
+    public boolean hasMoodAbove(Mood mood, float threshold) { return moodEngine.hasMoodAbove(mood, threshold); }
+
+    public Mood getDominantMood() { return moodEngine.getDominantMood(); }
+    
+    // Helper methods for config access
+    // ===== Config helpers for new moods section =====
+    // Config helpers and mood calculations are implemented in PetMoodEngine
+
+    /** Expose dominant emotion for API consumers; may return null if none. */
+    public @Nullable Emotion getDominantEmotion() { return moodEngine.getDominantEmotion(); }
+
+    // capitalize/prettify handled by engine
     
     /**
      * Generate and set characteristics for this pet if they don't exist.
@@ -342,10 +507,13 @@ public class PetComponent {
      */
     public boolean addExperience(int xpGained) {
         if (xpGained <= 0) return false;
-        
+
         int oldLevel = this.level;
         this.experience += xpGained;
-        
+
+        // Trigger XP flash animation
+        this.xpFlashStartTick = pet.getWorld().getTime();
+
         // Check for level ups
         PetRoleType.XpCurve curve = getRoleType().xpCurve();
         while (this.experience >= getTotalXpForLevel(this.level + 1) && this.level < curve.maxLevel()) {
@@ -506,6 +674,10 @@ public class PetComponent {
         nbt.putBoolean("isPerched", isPerched);
         nbt.putInt("level", level);
         nbt.putInt("experience", experience);
+        nbt.putLong("xpFlashStartTick", xpFlashStartTick);
+
+        // Mood system persistence handled by engine
+        moodEngine.writeToNbt(nbt);
 
         // Save unlocked milestones
         NbtCompound milestonesNbt = new NbtCompound();
@@ -557,6 +729,9 @@ public class PetComponent {
             nbt.put("stateData", stateNbt);
         }
         
+        
+
+        
         // Save characteristics
         if (characteristics != null) {
             NbtCompound characteristicsNbt = new NbtCompound();
@@ -591,6 +766,12 @@ public class PetComponent {
         if (nbt.contains("experience")) {
             nbt.getInt("experience").ifPresent(xp -> this.experience = Math.max(0, xp));
         }
+        if (nbt.contains("xpFlashStartTick")) {
+            nbt.getLong("xpFlashStartTick").ifPresent(tick -> this.xpFlashStartTick = tick);
+        }
+
+        // Mood system persistence handled by engine
+        moodEngine.readFromNbt(nbt);
 
         if (nbt.contains("milestones")) {
             nbt.getCompound("milestones").ifPresent(milestonesNbt -> {
@@ -643,6 +824,9 @@ public class PetComponent {
                 }
             });
         }
+        
+        
+
         
         // Load characteristics
         if (nbt.contains("characteristics")) {

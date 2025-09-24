@@ -1,7 +1,5 @@
 {
   "id": "petsplus:doom_echo",
-  "description": "Low-health retaliation pulse",
-  "required_level": 12,
   "trigger": {
     "event": "owner_low_health",
     "owner_hp_pct_below": 0.35,
@@ -18,6 +16,22 @@
           "amplifier": 0
         }
       ]
+    },
+    {
+      "type": "owner_next_attack_bonus",
+      "bonus_damage_pct": 0.0,
+      "expire_ticks": 100,
+      "on_hit_effect": {
+        "type": "heal_owner_flat_pct",
+        "value": 0.15
+      }
+    },
+    {
+      "type": "effect",
+      "target": "owner",
+      "id": "minecraft:nausea",
+      "duration": 20,
+      "amplifier": 0
     }
   ]
 }

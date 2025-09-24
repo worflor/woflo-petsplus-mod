@@ -43,19 +43,23 @@ public class SimpleDataGenerator {
     private static void generateAbilities() throws IOException {
         // Guardian abilities
         writeFile("abilities/shield_bash_rider.json", createShieldBashRider());
-        
+
         // Striker abilities
         writeFile("abilities/finisher_mark.json", createFinisherMark());
-        
+
+        // Support abilities
+        writeFile("abilities/perch_potion_efficiency.json", createPerchPotionEfficiency());
+        writeFile("abilities/mounted_cone_aura.json", createMountedConeAura());
+
         // Scout abilities
         writeFile("abilities/loot_wisp.json", createLootWisp());
-        
+
         // Skyrider abilities
         writeFile("abilities/windlash_rider.json", createWindlashRider());
-        
+
         // Cursed One abilities
         writeFile("abilities/doom_echo.json", createDoomEcho());
-        
+
         // Eclipsed abilities
         writeFile("abilities/voidbrand.json", createVoidbrand());
         writeFile("abilities/phase_partner.json", createPhasePartner());
@@ -336,6 +340,50 @@ public class SimpleDataGenerator {
         tagEffect.addProperty("key", "petsplus:phase_partner");
         tagEffect.addProperty("duration_ticks", 80);
         effects.add(tagEffect);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createPerchPotionEfficiency() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:perch_potion_efficiency");
+        ability.addProperty("description", "Perched potion efficiency");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "interval_while_active");
+        trigger.addProperty("ticks", 40);
+        trigger.addProperty("require_perched", true);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject potionReduction = new JsonObject();
+        potionReduction.addProperty("type", "perch_potion_sip_reduction");
+        potionReduction.addProperty("discount_percent", 0.2);
+        effects.add(potionReduction);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createMountedConeAura() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:mounted_cone_aura");
+        ability.addProperty("description", "Mounted support aura");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "interval_while_active");
+        trigger.addProperty("ticks", 40);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject coneAura = new JsonObject();
+        coneAura.addProperty("type", "mounted_cone_aura");
+        coneAura.addProperty("base_radius", 8.0);
+        coneAura.addProperty("extra_radius", 2);
+        coneAura.addProperty("effect_duration", 60);
+        coneAura.addProperty("effect_amplifier", 0);
+        effects.add(coneAura);
 
         ability.add("effects", effects);
         return ability;

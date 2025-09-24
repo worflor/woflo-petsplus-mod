@@ -184,6 +184,13 @@ public class StateManager {
                 if (woflo.petsplus.ui.ParticleEffectManager.shouldEmitParticles(pet, world)) {
                     woflo.petsplus.ui.ParticleEffectManager.emitRoleParticles(pet, world, time);
                 }
+
+                // Feed cheap emotion providers (rate-limited internally)
+                try {
+                    woflo.petsplus.api.mood.MoodAPI.get().processPet(world, pet, comp, time);
+                } catch (Exception e) {
+                    Petsplus.LOGGER.warn("Emotion provider processing failed for pet {}", pet.getUuid(), e);
+                }
             }
         }
 

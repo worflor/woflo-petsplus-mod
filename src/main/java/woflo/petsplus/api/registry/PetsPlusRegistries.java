@@ -13,6 +13,7 @@ import net.minecraft.resource.ResourceType;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.abilities.AbilityManager;
+import woflo.petsplus.api.Ability;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.Trigger;
 import woflo.petsplus.api.TriggerContext;
@@ -82,6 +83,7 @@ public final class PetsPlusRegistries {
         registerTriggerSerializers();
         registerEffectSerializers();
         registerLevelRewardTypes();
+        registerDefaultAbilities();
 
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
             .registerReloadListener(new PetRoleDataLoader());
@@ -409,6 +411,60 @@ public final class PetsPlusRegistries {
     private static void registerLevelRewardTypes() {
         registerLevelRewardType("ability_unlock",
             new LevelRewardType(id("ability_unlock"), "Unlocks a new ability at a milestone level."));
+    }
+
+    private static void registerDefaultAbilities() {
+        // Register placeholder abilities that will be properly loaded from data later
+        // This prevents role validation errors during startup
+        registerAbilityType("shield_bash_rider", createPlaceholderAbility("shield_bash_rider"));
+        registerAbilityType("finisher_mark", createPlaceholderAbility("finisher_mark"));
+        registerAbilityType("perch_potion_efficiency", createPlaceholderAbility("perch_potion_efficiency"));
+        registerAbilityType("mounted_cone_aura", createPlaceholderAbility("mounted_cone_aura"));
+        registerAbilityType("loot_wisp", createPlaceholderAbility("loot_wisp"));
+        registerAbilityType("windlash_rider", createPlaceholderAbility("windlash_rider"));
+        registerAbilityType("doom_echo", createPlaceholderAbility("doom_echo"));
+        registerAbilityType("voidbrand", createPlaceholderAbility("voidbrand"));
+        registerAbilityType("phase_partner", createPlaceholderAbility("phase_partner"));
+        registerAbilityType("perch_ping", createPlaceholderAbility("perch_ping"));
+        registerAbilityType("bulwark_redirect", createPlaceholderAbility("bulwark_redirect"));
+        registerAbilityType("execution_bonus", createPlaceholderAbility("execution_bonus"));
+        registerAbilityType("spotter_fallback", createPlaceholderAbility("spotter_fallback"));
+        registerAbilityType("gale_pace", createPlaceholderAbility("gale_pace"));
+        registerAbilityType("projectile_levitation", createPlaceholderAbility("projectile_levitation"));
+        registerAbilityType("skybond_mount_extension", createPlaceholderAbility("skybond_mount_extension"));
+        registerAbilityType("perched_haste_bonus", createPlaceholderAbility("perched_haste_bonus"));
+        registerAbilityType("mounted_extra_rolls", createPlaceholderAbility("mounted_extra_rolls"));
+        registerAbilityType("auto_resurrect_mount_buff", createPlaceholderAbility("auto_resurrect_mount_buff"));
+        registerAbilityType("nap_time_radius", createPlaceholderAbility("nap_time_radius"));
+        registerAbilityType("event_horizon", createPlaceholderAbility("event_horizon"));
+        registerAbilityType("edge_step", createPlaceholderAbility("edge_step"));
+    }
+
+    private static AbilityType createPlaceholderAbility(String name) {
+        return new AbilityType(id(name), () -> createFallbackAbility(name), "Placeholder for " + name);
+    }
+
+    private static Ability createFallbackAbility(String name) {
+        // Create a fallback ability that will work temporarily until data loading replaces it
+        Identifier abilityId = id(name);
+        Trigger fallbackTrigger = new Trigger() {
+            @Override
+            public Identifier getId() {
+                return abilityId;
+            }
+
+            @Override
+            public int getInternalCooldownTicks() {
+                return 0;
+            }
+
+            @Override
+            public boolean shouldActivate(TriggerContext context) {
+                return false; // Placeholder abilities don't activate
+            }
+        };
+
+        return new woflo.petsplus.api.Ability(abilityId, fallbackTrigger, java.util.List.of(), new com.google.gson.JsonObject());
     }
 
     private static Trigger simpleEventTrigger(String eventType, int cooldown) {
