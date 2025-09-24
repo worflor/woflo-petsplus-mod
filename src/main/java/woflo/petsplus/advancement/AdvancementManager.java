@@ -6,6 +6,8 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.Identifier;
 
+import woflo.petsplus.state.PetComponent;
+
 /**
  * Manages advancement triggering for Pets+ mod using vanilla advancement system.
  * In 1.21.8, advancements are data-driven through JSON files with criteria and triggers.
@@ -86,6 +88,37 @@ public class AdvancementManager {
             triggerAdvancement(player, "petsplus:gentle_touch");
         } else if (petCount >= 100) {
             triggerAdvancement(player, "petsplus:devoted_companion");
+        }
+    }
+
+    public static void triggerRestlessRelax(ServerPlayerEntity player) {
+        triggerAdvancement(player, "petsplus:restless_sit_glow");
+    }
+
+    public static void triggerAngryCooldown(ServerPlayerEntity player) {
+        triggerAdvancement(player, "petsplus:are_you_mad_at_me");
+    }
+
+    public static void triggerMoodLevelThree(ServerPlayerEntity player, PetComponent.Mood mood) {
+        if (player == null || mood == null) {
+            return;
+        }
+
+        switch (mood) {
+            case HAPPY -> triggerAdvancement(player, "petsplus:here_comes_the_sunbeam");
+            case PLAYFUL -> triggerAdvancement(player, "petsplus:please_fcking_play_with_me_now");
+            case CURIOUS -> triggerAdvancement(player, "petsplus:indiana_bones_zoomies");
+            case BONDED -> triggerAdvancement(player, "petsplus:bond_voyage");
+            case CALM -> triggerAdvancement(player, "petsplus:be_more_chilllllll");
+            case PASSIONATE -> triggerAdvancement(player, "petsplus:hearts_on_pyre");
+            case YUGEN -> triggerAdvancement(player, "petsplus:yugen_sigh_sigh");
+            case SISU -> triggerAdvancement(player, "petsplus:finnish_him");
+            case SAUDADE -> triggerAdvancement(player, "petsplus:wish_you_were_here_fur_real");
+            case PROTECTIVE -> triggerAdvancement(player, "petsplus:guardian_of_the_grrr_laxy");
+            case AFRAID -> triggerAdvancement(player, "petsplus:afraidiana_grande");
+            default -> {
+                // Other moods do not currently award direct level-three advancements.
+            }
         }
     }
 
