@@ -20,6 +20,9 @@ public class MoodBasedAIManager {
         if (petComponent == null) return;
 
         try {
+            // Ensure we don't accumulate duplicate mood goals from repeated initialization
+            clearMoodAI(pet);
+
             // Access the goal selector via mixin
             MobEntityAccessor accessor = (MobEntityAccessor) pet;
             var goalSelector = accessor.getGoalSelector();

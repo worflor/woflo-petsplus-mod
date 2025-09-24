@@ -59,25 +59,55 @@ final class PetMoodEngine {
     void update() { updateEmotionStateAndMood(); }
 
     void pushEmotion(PetComponent.Emotion emotion, float amount) {
-        if (amount <= 0) return;
         long now = parent.getPet().getWorld().getTime();
         float epsilon = getEpsilon();
         int bestFreeIdx = -1;
+        int existingIdx = -1;
+        EmotionSlot existing = null;
+
         for (int i = 0; i < emotionSlots.length; i++) {
             EmotionSlot slot = emotionSlots[i];
             if (slot != null && slot.emotion == emotion) {
-                slot.weight = saturateWeight(slot.weight, amount, emotion);
-                slot.lastUpdatedTick = now;
-                slot.parked = false;
-                return;
+                existing = slot;
+                existingIdx = i;
+                break;
             }
             if (bestFreeIdx >= 0) continue;
             if (slot == null || slot.parked || slot.weight <= epsilon) bestFreeIdx = i;
         }
+
+        if (amount == 0f) {
+            if (existingIdx >= 0) {
+                emotionSlots[existingIdx] = null;
+            }
+            return;
+        }
+
+        if (amount < 0f) {
+            if (existing != null) {
+                existing.weight = Math.max(0f, existing.weight + amount);
+                existing.lastUpdatedTick = now;
+                if (existing.weight <= epsilon) {
+                    emotionSlots[existingIdx] = null;
+                } else {
+                    existing.parked = false;
+                }
+            }
+            return;
+        }
+
+        if (existing != null) {
+            existing.weight = saturateWeight(existing.weight, amount, emotion);
+            existing.lastUpdatedTick = now;
+            existing.parked = false;
+            return;
+        }
+
         if (bestFreeIdx >= 0) {
             emotionSlots[bestFreeIdx] = createSlot(emotion, amount, now);
             return;
         }
+
         int evictIdx = selectEvictionIndex(now);
         emotionSlots[evictIdx] = createSlot(emotion, amount, now);
     }

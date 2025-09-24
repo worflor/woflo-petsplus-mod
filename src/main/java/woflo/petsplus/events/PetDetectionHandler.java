@@ -205,9 +205,6 @@ public class PetDetectionHandler {
             // Generate unique characteristics for this pet (first time only)
             component.ensureCharacteristics();
             
-            // Apply AI enhancements based on role
-            woflo.petsplus.ai.PetAIEnhancements.enhancePetAI(pet, component);
-
             // Remove from pending list
             pendingRoleSelection.remove(pet);
 
@@ -280,9 +277,6 @@ public class PetDetectionHandler {
 
         // Generate unique characteristics for this pet (first time only)
         component.ensureCharacteristics();
-        
-        // Apply AI enhancements based on role
-        woflo.petsplus.ai.PetAIEnhancements.enhancePetAI(mob, component);
         
 
 
