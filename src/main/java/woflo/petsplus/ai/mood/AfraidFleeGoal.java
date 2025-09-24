@@ -13,15 +13,15 @@ import net.minecraft.entity.LivingEntity;
 import java.util.EnumSet;
 
 /**
- * When pets are FEARFUL, they flee from threats and seek safety near their owner.
+ * When pets are AFRAID, they flee from threats and seek safety near their owner.
  */
-public class FearfulFleeGoal extends MoodBasedGoal {
+public class AfraidFleeGoal extends MoodBasedGoal {
     private Vec3d fleeDirection;
     private int fleeTicks;
     private static final int MAX_FLEE_TICKS = 100; // 5 seconds
 
-    public FearfulFleeGoal(MobEntity mob) {
-        super(mob, PetComponent.Mood.FEARFUL);
+    public AfraidFleeGoal(MobEntity mob) {
+        super(mob, PetComponent.Mood.AFRAID);
         this.setControls(EnumSet.of(Control.MOVE));
     }
 

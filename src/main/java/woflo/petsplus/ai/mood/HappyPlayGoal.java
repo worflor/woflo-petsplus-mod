@@ -10,9 +10,9 @@ import woflo.petsplus.state.PetComponent;
 import java.util.EnumSet;
 
 /**
- * When pets are JOYFUL, they exhibit playful behavior - bouncing, circling owner, random movements.
+ * When pets are HAPPY, they exhibit playful behavior - bouncing, circling owner, random movements.
  */
-public class JoyfulPlayGoal extends MoodBasedGoal {
+public class HappyPlayGoal extends MoodBasedGoal {
     private int playTicks;
     private Vec3d playTarget;
     private PlayBehavior currentBehavior;
@@ -24,8 +24,8 @@ public class JoyfulPlayGoal extends MoodBasedGoal {
         CHASE_NOTHING
     }
 
-    public JoyfulPlayGoal(MobEntity mob) {
-        super(mob, PetComponent.Mood.JOYFUL);
+    public HappyPlayGoal(MobEntity mob) {
+        super(mob, PetComponent.Mood.HAPPY);
         this.setControls(EnumSet.of(Control.MOVE, Control.JUMP));
     }
 

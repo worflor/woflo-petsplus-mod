@@ -92,34 +92,34 @@ public final class EmotionsEventHandler {
         Petsplus.LOGGER.info("Emotions event handlers registered");
     }
 
-    // ==== Block Break → KEFI, GLEE, WABI_SABI (building), FJELLVANT (familiarity) ====
+    // ==== Block Break → KEFI, GLEE, WABI_SABI (building), STOIC (familiar grind resilience) ====
     private static void onAfterBlockBreak(World world, PlayerEntity player, BlockPos pos, net.minecraft.block.BlockState state, net.minecraft.block.entity.BlockEntity blockEntity) {
         if (world.isClient() || !(player instanceof ServerPlayerEntity sp)) return;
         String idPath = getBlockPath(state.getBlock());
 
         // Determine emotion mix based on block type
-    float kefi = 0.12f; // general vigor for doing stuff
-    float glee = 0.0f;
-    float wabi = 0.0f;
-    float fjell = 0.0f;
+        float kefi = 0.12f; // general vigor for doing stuff
+        float glee = 0.0f;
+        float wabi = 0.0f;
+        float stoic = 0.0f;
 
         if (idPath.contains("ore") || idPath.contains("ancient_debris") || idPath.contains("trial_ore") || idPath.contains("raw_")) {
             glee = 0.35f; // shiny find!
         } else if (idPath.contains("log") || idPath.contains("planks") || idPath.contains("brick") || idPath.contains("stone_bricks") || idPath.contains("concrete")) {
             wabi = 0.18f; // building/crafting aesthetic
         } else if (idPath.contains("dirt") || idPath.contains("sand") || idPath.contains("gravel") || idPath.contains("deepslate")) {
-            fjell = 0.10f; // familiar resource grind
+            stoic = 0.10f; // resilient resource grind
         }
 
         final float kefiF = kefi;
         final float gleeF = glee;
         final float wabiF = wabi;
-        final float fjellF = fjell;
+        final float stoicF = stoic;
         pushToNearbyOwnedPets(sp, 32, pc -> {
             if (kefiF > 0) pc.pushEmotion(PetComponent.Emotion.KEFI, kefiF);
             if (gleeF > 0) pc.pushEmotion(PetComponent.Emotion.GLEE, gleeF);
             if (wabiF > 0) pc.pushEmotion(PetComponent.Emotion.WABI_SABI, wabiF);
-            if (fjellF > 0) pc.pushEmotion(PetComponent.Emotion.FJELLVANT, fjellF);
+            if (stoicF > 0) pc.pushEmotion(PetComponent.Emotion.STOIC, stoicF);
         });
     }
 
@@ -134,16 +134,17 @@ public final class EmotionsEventHandler {
 
     // (Block place detour handled in onUseBlock based on held BlockItem)
 
-    // ==== Kill Events → ZEALOUS, GLEE, RELIEF, SISU ====
+    // ==== Kill Events → PASSIONATE, PLAYFUL, HAPPY, FOCUSED ====
     private static void onAfterKilledOther(ServerWorld world, Entity killer, LivingEntity killed) {
         if (killer instanceof ServerPlayerEntity sp) {
             // Owner kill → triumph and relief (more if low health)
             float healthPct = Math.max(0f, sp.getHealth() / sp.getMaxHealth());
             float relief = healthPct < 0.35f ? 0.45f : 0.25f;
             pushToNearbyOwnedPets(sp, 32, pc -> {
+                pc.pushEmotion(PetComponent.Emotion.KEFI, 0.25f);
                 pc.pushEmotion(PetComponent.Emotion.GLEE, 0.40f);
                 pc.pushEmotion(PetComponent.Emotion.RELIEF, relief);
-                pc.pushEmotion(PetComponent.Emotion.AMAL, 0.18f);
+                pc.pushEmotion(PetComponent.Emotion.HOPEFUL, 0.18f);
             });
         }
 
@@ -151,8 +152,9 @@ public final class EmotionsEventHandler {
             PetComponent pc = PetComponent.get(mob);
             if (pc != null && pc.getOwner() instanceof ServerPlayerEntity owner) {
                 // Pet secured a kill → zeal (aspiration) and resilience
-                pc.pushEmotion(PetComponent.Emotion.AMAL, 0.45f);
-                pc.pushEmotion(PetComponent.Emotion.SISU, 0.30f);
+                pc.pushEmotion(PetComponent.Emotion.KEFI, 0.35f);
+                pc.pushEmotion(PetComponent.Emotion.HOPEFUL, 0.40f);
+                pc.pushEmotion(PetComponent.Emotion.STOIC, 0.30f);
                 pc.updateMood();
                 // Small feedback to owner
                 owner.sendMessage(Text.literal("Your companion is emboldened"), true);
@@ -166,11 +168,11 @@ public final class EmotionsEventHandler {
         ItemStack stack = player.getStackInHand(hand);
         if (stack.isEmpty()) return ActionResult.PASS;
 
-        // Food in general → GEZELLIG + QUERENCIA (home/comfort)
+        // Food in general → SOBREMESA + QUERECIA (home/comfort)
         if (stack.get(DataComponentTypes.FOOD) != null) {
             pushToNearbyOwnedPets(sp, 24, pc -> {
-                pc.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.22f);
-                pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.18f);
+                pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.22f);
+                pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.18f);
             });
             return ActionResult.PASS;
         }
@@ -179,12 +181,12 @@ public final class EmotionsEventHandler {
         if (stack.isOf(Items.GOLDEN_APPLE)) {
             pushToNearbyOwnedPets(sp, 32, pc -> {
                 pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.35f);
-                pc.pushEmotion(PetComponent.Emotion.ANANDA, 0.20f);
+                pc.pushEmotion(PetComponent.Emotion.BLISSFUL, 0.20f);
             });
         } else if (stack.isOf(Items.ENCHANTED_GOLDEN_APPLE)) {
             pushToNearbyOwnedPets(sp, 32, pc -> {
                 pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.45f);
-                pc.pushEmotion(PetComponent.Emotion.ANANDA, 0.30f);
+                pc.pushEmotion(PetComponent.Emotion.BLISSFUL, 0.30f);
             });
         } else if (stack.isOf(Items.HONEY_BOTTLE)) {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.25f));
@@ -203,7 +205,7 @@ public final class EmotionsEventHandler {
         } else if (stack.isOf(Items.FILLED_MAP)) {
             pushToNearbyOwnedPets(sp, 32, pc -> pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f));
         } else if (stack.isOf(Items.COMPASS)) {
-            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.12f));
+            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.12f));
         } else if (stack.isOf(Items.RECOVERY_COMPASS)) {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.REGRET, 0.15f));
         } else if (stack.isOf(Items.WRITABLE_BOOK) || stack.isOf(Items.WRITTEN_BOOK) || stack.isOf(Items.BOOK)) {
@@ -229,9 +231,9 @@ public final class EmotionsEventHandler {
         var state = world.getBlockState(pos);
         String idPath = getBlockPath(state.getBlock());
 
-        float gezellig = 0f, sobremesa = 0f, wabi = 0f, ananda = 0f;
+        float querecia = 0f, sobremesa = 0f, wabi = 0f, bliss = 0f;
         if (idPath.contains("bed") || idPath.contains("chest") || idPath.contains("barrel")) {
-            gezellig += 0.25f;
+            querecia += 0.25f;
         }
         if (idPath.contains("campfire") || idPath.contains("furnace") || idPath.contains("smoker") || idPath.contains("blast_furnace")) {
             sobremesa += 0.22f; // cozy food vibes
@@ -240,7 +242,7 @@ public final class EmotionsEventHandler {
             wabi += 0.2f; // craft/repair aesthetic
         }
         if (idPath.contains("jukebox") || idPath.contains("note_block")) {
-            ananda += 0.22f; // music joy
+            bliss += 0.22f; // music joy
         }
 
         // Niche block interactions
@@ -251,10 +253,10 @@ public final class EmotionsEventHandler {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.REGRET, 0.10f));
         }
         if (idPath.contains("beacon")) {
-            pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.ANANDA, 0.30f));
+            pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.BLISSFUL, 0.30f));
         }
         if (idPath.contains("bell")) {
-            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.18f));
+            pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.18f));
         }
         if (idPath.contains("beehive") || idPath.contains("bee_nest")) {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.18f));
@@ -267,7 +269,7 @@ public final class EmotionsEventHandler {
         ItemStack held = player.getStackInHand(hand);
         if (held.getItem() instanceof BlockItem blockItem) {
             String placePath = getBlockPath(blockItem.getBlock());
-            float kefi = 0.0f, wabiPlace = 0.0f, gezPlace = 0.0f;
+            float kefi = 0.0f, wabiPlace = 0.0f, havenPlace = 0.0f;
             // General building vigor
             kefi = 0.10f;
             // Aesthetic crafting/building
@@ -276,25 +278,25 @@ public final class EmotionsEventHandler {
             }
             // Homey decor
             if (placePath.contains("bed") || placePath.contains("campfire") || placePath.contains("lantern") || placePath.contains("candle") || placePath.contains("flower") || placePath.contains("carpet") || placePath.contains("bookshelf")) {
-                gezPlace += 0.22f;
+                havenPlace += 0.22f;
             }
-            if (kefi > 0 || wabiPlace > 0 || gezPlace > 0) {
-                final float kF = kefi, wF = wabiPlace, gF = gezPlace;
+            if (kefi > 0 || wabiPlace > 0 || havenPlace > 0) {
+                final float kF = kefi, wF = wabiPlace, gF = havenPlace;
                 pushToNearbyOwnedPets(sp, 32, pc -> {
                     if (kF > 0) pc.pushEmotion(PetComponent.Emotion.KEFI, kF);
                     if (wF > 0) pc.pushEmotion(PetComponent.Emotion.WABI_SABI, wF);
-                    if (gF > 0) pc.pushEmotion(PetComponent.Emotion.GEZELLIG, gF);
+                    if (gF > 0) pc.pushEmotion(PetComponent.Emotion.QUERECIA, gF);
                 });
             }
         }
 
-        if (gezellig + sobremesa + wabi + ananda > 0) {
-            final float gF = gezellig, sF = sobremesa, wF = wabi, aF = ananda;
+        if (querecia + sobremesa + wabi + bliss > 0) {
+            final float gF = querecia, sF = sobremesa, wF = wabi, aF = bliss;
             pushToNearbyOwnedPets(sp, 24, pc -> {
-                if (gF > 0) pc.pushEmotion(PetComponent.Emotion.GEZELLIG, gF);
+                if (gF > 0) pc.pushEmotion(PetComponent.Emotion.QUERECIA, gF);
                 if (sF > 0) pc.pushEmotion(PetComponent.Emotion.SOBREMESA, sF);
                 if (wF > 0) pc.pushEmotion(PetComponent.Emotion.WABI_SABI, wF);
-                if (aF > 0) pc.pushEmotion(PetComponent.Emotion.ANANDA, aF);
+                if (aF > 0) pc.pushEmotion(PetComponent.Emotion.BLISSFUL, aF);
             });
         }
         return ActionResult.PASS;
@@ -321,18 +323,18 @@ public final class EmotionsEventHandler {
         if (entity instanceof VillagerEntity) {
             pushToNearbyOwnedPets(sp, 24, pc -> {
                 pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.12f);
-                pc.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.10f);
+                pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.10f);
             });
         }
         return ActionResult.PASS;
     }
 
-    // ==== Respawn → RELIEF + SISU/GAMAN ====
+    // ==== Respawn → RELIEF + STOIC/GAMAN ====
     private static void onAfterRespawn(ServerPlayerEntity oldPlayer, ServerPlayerEntity newPlayer, boolean alive) {
         if (!alive) return;
         pushToNearbyOwnedPets(newPlayer, 32, pc -> {
             pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.35f);
-            pc.pushEmotion(PetComponent.Emotion.SISU, 0.28f);
+            pc.pushEmotion(PetComponent.Emotion.STOIC, 0.28f);
             pc.pushEmotion(PetComponent.Emotion.GAMAN, 0.12f);
         });
     }
@@ -469,7 +471,7 @@ public final class EmotionsEventHandler {
                 if (containsAny(path, "cherry_grove", "flower_forest")) {
                     pushToNearbyOwnedPets(sp, 32, pc -> {
                         pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.10f);
-                        pc.pushEmotion(PetComponent.Emotion.ANANDA, 0.08f);
+                        pc.pushEmotion(PetComponent.Emotion.BLISSFUL, 0.08f);
                     });
                 }
                 if (path.contains("mushroom_fields")) {
@@ -488,7 +490,7 @@ public final class EmotionsEventHandler {
                     pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.08f));
                 }
                 if (containsAny(path, "snow", "ice_spikes", "grove")) {
-                    pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.FJELLVANT, 0.10f));
+                    pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.STOIC, 0.10f));
                 }
             }
 
@@ -499,18 +501,18 @@ public final class EmotionsEventHandler {
                 if (dimId.getPath().contains("overworld") && old != null && !old.getPath().contains("overworld")) {
                     pushToNearbyOwnedPets(sp, 64, pc -> {
                         pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.12f);
-                        pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.10f);
+                        pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.10f);
                     });
                 } else if (dimId.getPath().contains("the_nether")) {
                     pushToNearbyOwnedPets(sp, 64, pc -> {
                         pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f);
-                        pc.pushEmotion(PetComponent.Emotion.SISU, 0.12f);
+                        pc.pushEmotion(PetComponent.Emotion.STOIC, 0.12f);
                         pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
                     });
                 } else if (dimId.getPath().contains("the_end")) {
                     pushToNearbyOwnedPets(sp, 64, pc -> {
                         pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.14f);
-                        pc.pushEmotion(PetComponent.Emotion.SISU, 0.12f);
+                        pc.pushEmotion(PetComponent.Emotion.STOIC, 0.12f);
                         pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.08f);
                     });
                 }
@@ -529,7 +531,7 @@ public final class EmotionsEventHandler {
                     }
                     // Long rainy nights weariness (reduced frequency and weight)
                     if (world.isRaining() && TIME_PHASES.getOrDefault(world, TimePhase.NIGHT) == TimePhase.NIGHT && st.idleTicks % 1200 == 0 && st.idleTicks >= 2400) {
-                        pushToNearbyOwnedPets(sp, 32, pc -> pc.pushEmotion(PetComponent.Emotion.WELTSCHMERZ, 0.06f));
+                        pushToNearbyOwnedPets(sp, 32, pc -> pc.pushEmotion(PetComponent.Emotion.ENNUI, 0.06f));
                     }
                 }
             } else {
@@ -643,7 +645,7 @@ public final class EmotionsEventHandler {
 
         // Owner looking directly at pet - awareness and attention
         if (distanceToOwner < 64 && lookAlignment > 0.8) { // Owner looking at pet
-            pc.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.08f); // Cozy attention
+            pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.08f); // Cozy attention
             if (pet.getHealth() / pet.getMaxHealth() < 0.7f) {
                 pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.12f); // Owner noticing when hurt
             }
@@ -651,7 +653,7 @@ public final class EmotionsEventHandler {
 
         // Owner proximity dynamics
         if (distanceToOwner < 4) { // Very close
-            pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.06f); // Home/safety feeling
+            pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.06f); // Home/safety feeling
         } else if (distanceToOwner > 256) { // Far away
             pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.04f); // Longing
         }
@@ -771,10 +773,10 @@ public final class EmotionsEventHandler {
                 PetComponent.Mood otherMood = otherPc.getCurrentMood();
                 if (otherMood != null) {
                     switch (otherMood) {
-                        case JOYFUL -> pc.pushEmotion(PetComponent.Emotion.FROHLICH, 0.02f);
-                        case FEARFUL -> pc.pushEmotion(PetComponent.Emotion.ANGST, 0.03f);
-                        case WRATHFUL -> pc.pushEmotion(PetComponent.Emotion.FRUSTRATION, 0.02f);
-                        case ZEN -> pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.03f);
+                        case HAPPY -> pc.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.02f);
+                        case AFRAID -> pc.pushEmotion(PetComponent.Emotion.ANGST, 0.03f);
+                        case ANGRY -> pc.pushEmotion(PetComponent.Emotion.FRUSTRATION, 0.02f);
+                        case CALM -> pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.03f);
                     }
                 }
             }
@@ -782,7 +784,7 @@ public final class EmotionsEventHandler {
 
         // Pack dynamics
         if (nearbyPetCount >= 2) {
-            pc.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.06f); // Cozy group feeling
+            pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.06f); // Cozy group feeling
             pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.04f); // Pack protection
         }
 
@@ -797,7 +799,7 @@ public final class EmotionsEventHandler {
         // Loneliness when isolated
         if (nearbyPetCount == 0) {
             PetComponent.Mood currentMood = pc.getCurrentMood();
-            if (currentMood != PetComponent.Mood.ZEN) { // Unless they're zen/content
+            if (currentMood != PetComponent.Mood.CALM) { // Unless they're calm/content
                 pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.03f); // Longing for companionship
             }
         }
@@ -837,13 +839,13 @@ public final class EmotionsEventHandler {
         // Use entity tags and types rather than hardcoding
         if (entity instanceof VillagerEntity villager) {
             pushToNearbyOwnedPets(sp, 20, pc -> {
-                pc.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.12f); // Social interaction comfort
+                pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.12f); // Social interaction comfort
                 pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.08f); // Observing human customs
 
                 // Professional-specific reactions
                 String profession = villager.getVillagerData().profession().toString();
                 if (profession.contains("butcher") || profession.contains("farmer")) {
-                    pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.10f); // Food security feelings
+                    pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.10f); // Food security feelings
                 } else if (profession.contains("cleric")) {
                     pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.08f); // Mystical presence
                 } else if (profession.contains("weaponsmith") || profession.contains("armorer")) {
@@ -897,7 +899,7 @@ public final class EmotionsEventHandler {
             String petType = pet.getType().toString().toLowerCase();
             if (petType.contains("cat")) {
                 pc.pushEmotion(PetComponent.Emotion.DISGUST, 0.08f); // Cats dislike getting wet
-                pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.06f); // Seeking shelter
+                pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.06f); // Seeking shelter
             } else if (petType.contains("wolf") || petType.contains("dog")) {
                 pc.pushEmotion(PetComponent.Emotion.KEFI, 0.04f); // Dogs often enjoy rain
                 pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.05f); // Refreshing feeling
@@ -919,10 +921,10 @@ public final class EmotionsEventHandler {
 
             if (temperature > 1.0f) { // Hot biomes
                 pc.pushEmotion(PetComponent.Emotion.LAGOM, -0.02f); // Slight discomfort
-                pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.03f); // Seeking shade
+                pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.03f); // Seeking shade
             } else if (temperature < 0.0f) { // Cold biomes
-                pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.04f); // Seeking warmth/owner
-                pc.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.03f); // Cozy feelings
+                pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.04f); // Seeking warmth/owner
+                pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.03f); // Cozy feelings
             }
         } catch (Exception ignored) {}
     }
@@ -983,8 +985,8 @@ public final class EmotionsEventHandler {
         }
 
         if (hasFoodItems) {
-            pc.pushEmotion(PetComponent.Emotion.QUERENCIA, 0.05f); // Food security
-            pc.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.03f); // Comfort from sustenance
+            pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.05f); // Food security
+            pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.03f); // Comfort from sustenance
         }
 
         if (hasMagicalItems) {
@@ -994,7 +996,7 @@ public final class EmotionsEventHandler {
 
         if (hasWeapons) {
             pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.05f); // Ready for danger
-            pc.pushEmotion(PetComponent.Emotion.SISU, 0.03f); // Determination
+            pc.pushEmotion(PetComponent.Emotion.STOIC, 0.03f); // Determination
         }
 
         if (hasTools) {

@@ -93,11 +93,11 @@ public class PettingHandler {
         // Bonding benefits (small XP bonus, temporary buffs)
         applyBondingBenefits(player, pet, petComp);
         
-    // Emotion push: affiliative uplift
-    petComp.pushEmotion(PetComponent.Emotion.FROHLICH, 0.6f);
-    petComp.pushEmotion(PetComponent.Emotion.UBUNTU, 0.4f);
-    petComp.pushEmotion(PetComponent.Emotion.GEZELLIG, 0.4f);
-    petComp.updateMood();
+        // Emotion push: affiliative uplift
+        petComp.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.6f);
+        petComp.pushEmotion(PetComponent.Emotion.UBUNTU, 0.4f);
+        petComp.pushEmotion(PetComponent.Emotion.QUERECIA, 0.4f);
+        petComp.updateMood();
 
         // Achievement tracking
         if (newCount >= 100) {

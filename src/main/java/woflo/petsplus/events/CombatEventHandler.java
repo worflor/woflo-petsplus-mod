@@ -183,7 +183,7 @@ public class CombatEventHandler {
             ).forEach(pet -> {
                 PetComponent pc = PetComponent.get(pet);
                 if (pc != null) {
-                    pc.pushEmotion(PetComponent.Emotion.AMAL, 0.25f);
+                    pc.pushEmotion(PetComponent.Emotion.HOPEFUL, 0.25f);
                 }
             });
         }
@@ -295,7 +295,7 @@ public class CombatEventHandler {
         if (attacker instanceof PlayerEntity playerAttacker) {
             if (owner != null && playerAttacker.equals(owner)) {
                 // Owner accidentally hurt pet - confusion and sadness
-                petComponent.pushEmotion(PetComponent.Emotion.WELTSCHMERZ, damageRatio * 0.8f);
+                petComponent.pushEmotion(PetComponent.Emotion.ENNUI, damageRatio * 0.8f);
                 petComponent.pushEmotion(PetComponent.Emotion.FOREBODING, damageRatio * 0.4f);
                 Petsplus.LOGGER.debug("Pet {} hurt by owner, pushed confusion emotions", pet.getName().getString());
             } else {
@@ -314,7 +314,7 @@ public class CombatEventHandler {
             PetComponent attackerPetComponent = PetComponent.get(mobAttacker);
             if (attackerPetComponent != null && owner != null && attackerPetComponent.isOwnedBy(owner)) {
                 // Friendly fire from another pet - mild confusion
-                petComponent.pushEmotion(PetComponent.Emotion.WELTSCHMERZ, damageRatio * 0.3f);
+                petComponent.pushEmotion(PetComponent.Emotion.ENNUI, damageRatio * 0.3f);
                 Petsplus.LOGGER.debug("Pet {} hurt by friendly pet, pushed mild confusion", pet.getName().getString());
             } else {
                 // Wild/hostile mob - appropriate combat response
@@ -330,7 +330,7 @@ public class CombatEventHandler {
         } else {
             // Environmental damage (fall, fire, etc) - frustration and caution
             if (damageSource.isOf(net.minecraft.entity.damage.DamageTypes.FALL)) {
-                petComponent.pushEmotion(PetComponent.Emotion.WELTSCHMERZ, damageRatio * 0.4f);
+                petComponent.pushEmotion(PetComponent.Emotion.ENNUI, damageRatio * 0.4f);
             } else if (damageSource.isOf(net.minecraft.entity.damage.DamageTypes.IN_FIRE) ||
                       damageSource.isOf(net.minecraft.entity.damage.DamageTypes.ON_FIRE)) {
                 petComponent.pushEmotion(PetComponent.Emotion.ANGST, damageRatio * 0.6f);
@@ -376,7 +376,7 @@ public class CombatEventHandler {
         if (victim instanceof PlayerEntity playerVictim) {
             if (owner != null && playerVictim.equals(owner)) {
                 // Pet accidentally hurt owner - extreme guilt and confusion
-                petComponent.pushEmotion(PetComponent.Emotion.WELTSCHMERZ, 1.0f);
+                petComponent.pushEmotion(PetComponent.Emotion.ENNUI, 1.0f);
                 petComponent.pushEmotion(PetComponent.Emotion.ANGST, 0.6f);
                 Petsplus.LOGGER.debug("Pet {} accidentally hurt owner, pushed guilt emotions", pet.getName().getString());
             } else {
@@ -390,16 +390,16 @@ public class CombatEventHandler {
                     // Low health - mixed fear and diminished protectiveness
                     petComponent.pushEmotion(PetComponent.Emotion.ANGST, 0.5f);
                     petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.5f); // Reduced protectiveness
-                    petComponent.pushEmotion(PetComponent.Emotion.AMAL, damageRatio * 0.4f);
+                    petComponent.pushEmotion(PetComponent.Emotion.HOPEFUL, damageRatio * 0.4f);
                 } else {
                     // Healthy - strong protective instincts
                     petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.8f);
-                    petComponent.pushEmotion(PetComponent.Emotion.AMAL, damageRatio * 0.6f);
+                    petComponent.pushEmotion(PetComponent.Emotion.HOPEFUL, damageRatio * 0.6f);
                 }
 
                 // Extra emotions if owner is nearby and in danger (but not if pet is critical)
                 if (!petIsCritical && owner != null && owner.squaredDistanceTo(pet) < 16 * 16 && owner.getHealth() / owner.getMaxHealth() < 0.5f) {
-                    petComponent.pushEmotion(PetComponent.Emotion.SISU, 0.5f); // Determined to protect
+                    petComponent.pushEmotion(PetComponent.Emotion.STOIC, 0.5f); // Determined to protect
                 }
                 Petsplus.LOGGER.debug("Pet {} defending against hostile player, health-adjusted emotions", pet.getName().getString());
             }
@@ -407,7 +407,7 @@ public class CombatEventHandler {
             PetComponent victimPetComponent = PetComponent.get(mobVictim);
             if (victimPetComponent != null && owner != null && victimPetComponent.isOwnedBy(owner)) {
                 // Fighting another friendly pet - confusion and distress
-                petComponent.pushEmotion(PetComponent.Emotion.WELTSCHMERZ, damageRatio * 0.8f);
+                petComponent.pushEmotion(PetComponent.Emotion.ENNUI, damageRatio * 0.8f);
                 petComponent.pushEmotion(PetComponent.Emotion.ANGST, damageRatio * 0.4f);
                 Petsplus.LOGGER.debug("Pet {} fighting friendly pet, pushed distress emotions", pet.getName().getString());
             } else {
@@ -416,21 +416,21 @@ public class CombatEventHandler {
                     // Critical health - desperate survival, less protectiveness
                     petComponent.pushEmotion(PetComponent.Emotion.ANGST, 0.6f);
                     petComponent.pushEmotion(PetComponent.Emotion.FRUSTRATION, damageRatio * 0.6f);
-                    petComponent.pushEmotion(PetComponent.Emotion.AMAL, damageRatio * 0.2f); // Reduced zealousness
+                    petComponent.pushEmotion(PetComponent.Emotion.HOPEFUL, damageRatio * 0.2f); // Reduced zealousness
                 } else if (petIsLowHealth) {
                     // Low health - mixed fear with fighting spirit
                     petComponent.pushEmotion(PetComponent.Emotion.ANGST, 0.3f);
-                    petComponent.pushEmotion(PetComponent.Emotion.AMAL, damageRatio * 0.3f);
+                    petComponent.pushEmotion(PetComponent.Emotion.HOPEFUL, damageRatio * 0.3f);
                     petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.2f); // Reduced protectiveness
                 } else {
                     // Healthy - normal combat emotions
-                    petComponent.pushEmotion(PetComponent.Emotion.AMAL, damageRatio * 0.4f);
+                    petComponent.pushEmotion(PetComponent.Emotion.HOPEFUL, damageRatio * 0.4f);
                     petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.3f);
                 }
 
                 // Extra satisfaction against dangerous enemies (but not if pet is critical)
                 if (!petIsCritical && mobVictim.getMaxHealth() > pet.getMaxHealth()) {
-                    petComponent.pushEmotion(PetComponent.Emotion.SISU, damageRatio * 0.3f); // Pride in facing stronger foe
+                    petComponent.pushEmotion(PetComponent.Emotion.STOIC, damageRatio * 0.3f); // Pride in facing stronger foe
                 }
 
                 // Different emotions for different mob types
@@ -440,7 +440,7 @@ public class CombatEventHandler {
                 } else if (mobVictim instanceof net.minecraft.entity.passive.AnimalEntity) {
                     // Attacking peaceful animals - mild guilt (unless protecting owner)
                     if (owner != null && owner.squaredDistanceTo(pet) > 8 * 8) {
-                        petComponent.pushEmotion(PetComponent.Emotion.WELTSCHMERZ, damageRatio * 0.2f);
+                        petComponent.pushEmotion(PetComponent.Emotion.ENNUI, damageRatio * 0.2f);
                     }
                 }
                 Petsplus.LOGGER.debug("Pet {} fighting hostile mob, pushed combat emotions", pet.getName().getString());
@@ -449,7 +449,7 @@ public class CombatEventHandler {
 
         // Bonus emotions for critical hits or high damage
         if (damage > pet.getAttributeValue(net.minecraft.entity.attribute.EntityAttributes.ATTACK_DAMAGE) * 1.5) {
-            petComponent.pushEmotion(PetComponent.Emotion.FROHLICH, 0.2f); // Joy from powerful strike
+            petComponent.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.2f); // Joy from powerful strike
         }
 
         // Check if this killed the victim
@@ -467,20 +467,20 @@ public class CombatEventHandler {
         if (victim instanceof PlayerEntity playerVictim) {
             if (owner != null && playerVictim.equals(owner)) {
                 // Pet killed owner - extreme trauma and confusion
-                petComponent.pushEmotion(PetComponent.Emotion.WELTSCHMERZ, 1.0f);
+                petComponent.pushEmotion(PetComponent.Emotion.ENNUI, 1.0f);
                 petComponent.pushEmotion(PetComponent.Emotion.ANGST, 1.0f);
                 petComponent.pushEmotion(PetComponent.Emotion.FOREBODING, 0.8f);
                 Petsplus.LOGGER.debug("Pet {} killed owner - extreme trauma emotions", pet.getName().getString());
                 return; // Don't add positive emotions
             } else {
                 // Pet killed hostile player - strong protective satisfaction
-                petComponent.pushEmotion(PetComponent.Emotion.SISU, 0.8f);
+                petComponent.pushEmotion(PetComponent.Emotion.STOIC, 0.8f);
                 petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.7f);
-                petComponent.pushEmotion(PetComponent.Emotion.FROHLICH, 0.4f);
+                petComponent.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.4f);
 
                 // Extra pride if protecting owner
                 if (owner != null && owner.squaredDistanceTo(pet) < 16 * 16) {
-                    petComponent.pushEmotion(PetComponent.Emotion.AMAL, 0.3f);
+                    petComponent.pushEmotion(PetComponent.Emotion.HOPEFUL, 0.3f);
                 }
                 Petsplus.LOGGER.debug("Pet {} killed hostile player - protective triumph", pet.getName().getString());
             }
@@ -488,36 +488,36 @@ public class CombatEventHandler {
             PetComponent victimPetComponent = PetComponent.get(mobVictim);
             if (victimPetComponent != null && owner != null && victimPetComponent.isOwnedBy(owner)) {
                 // Pet killed friendly pet - severe guilt and trauma
-                petComponent.pushEmotion(PetComponent.Emotion.WELTSCHMERZ, 0.9f);
+                petComponent.pushEmotion(PetComponent.Emotion.ENNUI, 0.9f);
                 petComponent.pushEmotion(PetComponent.Emotion.ANGST, 0.7f);
                 Petsplus.LOGGER.debug("Pet {} killed friendly pet - guilt and trauma", pet.getName().getString());
                 return; // Don't add positive emotions
             } else {
                 // Killed wild/hostile mob - appropriate triumph
-                petComponent.pushEmotion(PetComponent.Emotion.FROHLICH, 0.6f);
-                petComponent.pushEmotion(PetComponent.Emotion.SISU, 0.5f);
+                petComponent.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.6f);
+                petComponent.pushEmotion(PetComponent.Emotion.STOIC, 0.5f);
                 petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.4f);
 
                 // Extra emotions based on victim type
                 if (mobVictim instanceof net.minecraft.entity.mob.HostileEntity) {
                     // Killed monster - righteous satisfaction
-                    petComponent.pushEmotion(PetComponent.Emotion.AMAL, 0.3f);
+                    petComponent.pushEmotion(PetComponent.Emotion.HOPEFUL, 0.3f);
 
                     // Boss monsters give extra pride
                     if (mobVictim.getMaxHealth() > 100) {
-                        petComponent.pushEmotion(PetComponent.Emotion.SISU, 0.4f);
+                        petComponent.pushEmotion(PetComponent.Emotion.STOIC, 0.4f);
                     }
                 } else if (mobVictim instanceof net.minecraft.entity.passive.AnimalEntity) {
                     // Killed peaceful animal - some guilt unless protecting owner
                     if (owner == null || owner.squaredDistanceTo(pet) > 8 * 8) {
-                        petComponent.pushEmotion(PetComponent.Emotion.WELTSCHMERZ, 0.3f);
+                        petComponent.pushEmotion(PetComponent.Emotion.ENNUI, 0.3f);
                     }
                 }
 
                 // First kill bonus - extra excitement
                 Integer killCount = petComponent.getStateData("kill_count", Integer.class);
                 if (killCount == null || killCount == 0) {
-                    petComponent.pushEmotion(PetComponent.Emotion.FROHLICH, 0.3f);
+                    petComponent.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.3f);
                     petComponent.setStateData("kill_count", 1);
                 } else {
                     petComponent.setStateData("kill_count", killCount + 1);
