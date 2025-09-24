@@ -17,7 +17,7 @@
   "parent": "petsplus:first_pet",
   "criteria": {
     "trigger": {
-      "trigger": "minecraft:tick"
+      "trigger": "minecraft:impossible"
     }
   }
 }
