@@ -8,6 +8,7 @@ import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
@@ -90,6 +91,20 @@ public class PetComponent {
 
     // Emotion slots are fully managed by PetMoodEngine
     
+    public static final class StateKeys {
+        public static final String TAMED_TICK = "tamed_tick";
+        public static final String LAST_PET_TIME = "last_pet_time";
+        public static final String PET_COUNT = "pet_count";
+        public static final String LAST_SOCIAL_BUFFER_TICK = "social_buffer_tick";
+        public static final String THREAT_LAST_TICK = "threat_last_tick";
+        public static final String THREAT_SAFE_STREAK = "threat_safe_streak";
+        public static final String THREAT_SENSITIZED_STREAK = "threat_sensitized_streak";
+        public static final String THREAT_LAST_DANGER = "threat_last_danger";
+        public static final String THREAT_LAST_RECOVERY_TICK = "threat_last_recovery_tick";
+
+        private StateKeys() {}
+    }
+
     public PetComponent(MobEntity pet) {
         this.pet = pet;
         this.roleId = DEFAULT_ROLE_ID;
@@ -284,7 +299,7 @@ public class PetComponent {
     public void setStateData(String key, Object value) {
         stateData.put(key, value);
     }
-    
+
     @SuppressWarnings("unchecked")
     public <T> T getStateData(String key, Class<T> type) {
         Object value = stateData.get(key);
@@ -304,6 +319,61 @@ public class PetComponent {
             return (T) value;
         }
         return defaultValue;
+    }
+
+    /** Convenience accessor for the stored tame tick, writing a default if missing. */
+    public long getTamedTick() {
+        Long stored = getStateData(StateKeys.TAMED_TICK, Long.class);
+        if (stored != null) {
+            return stored;
+        }
+        long now = pet.getWorld().getTime();
+        setStateData(StateKeys.TAMED_TICK, now);
+        return now;
+    }
+
+    public float getBondAgeDays() {
+        return getBondAgeDays(pet.getWorld().getTime());
+    }
+
+    public float getBondAgeDays(long currentTick) {
+        Long tamed = getStateData(StateKeys.TAMED_TICK, Long.class);
+        if (tamed == null) {
+            setStateData(StateKeys.TAMED_TICK, currentTick);
+            return 0f;
+        }
+        if (currentTick <= tamed) {
+            return 0f;
+        }
+        return (currentTick - tamed) / 24000f;
+    }
+
+    public float computeBondResilience() {
+        return computeBondResilience(pet.getWorld().getTime());
+    }
+
+    public float computeBondResilience(long currentTick) {
+        float ageFactor = MathHelper.clamp(getBondAgeDays(currentTick) / 30f, 0f, 1f);
+
+        Integer petCount = getStateData(StateKeys.PET_COUNT, Integer.class);
+        float depthFactor = petCount != null
+            ? MathHelper.clamp(petCount / 120f, 0f, 1f)
+            : 0f;
+
+        Long lastPet = getStateData(StateKeys.LAST_PET_TIME, Long.class);
+        float recentCare = 0f;
+        if (lastPet != null) {
+            if (currentTick <= lastPet) {
+                recentCare = 1f;
+            } else {
+                float daysSincePet = (currentTick - lastPet) / 24000f;
+                recentCare = MathHelper.clamp(1f - (daysSincePet / 3f), 0f, 1f);
+            }
+        }
+
+        float careFactor = (depthFactor * 0.5f) + (recentCare * 0.5f);
+        float resilience = 0.25f + ageFactor * 0.4f + careFactor * 0.6f;
+        return MathHelper.clamp(resilience, 0.25f, 1.0f);
     }
     
     public long getLastAttackTick() {
@@ -460,6 +530,9 @@ public class PetComponent {
     public void ensureCharacteristics() {
         if (characteristics == null) {
             long tameTime = pet.getWorld().getTime();
+            if (getStateData(StateKeys.TAMED_TICK, Long.class) == null) {
+                setStateData(StateKeys.TAMED_TICK, tameTime);
+            }
             characteristics = PetCharacteristics.generateForNewPet(pet, tameTime);
             
             // Apply attribute modifiers with the new characteristics
@@ -650,6 +723,18 @@ public class PetComponent {
         Map<String, Object> preservedData = new HashMap<>();
         preservedData.put("bondStrength", getStateData("bondStrength", Long.class, 0L));
         preservedData.put("isSpecial", getStateData("isSpecial", Boolean.class, false));
+        Long tamedTick = getStateData(StateKeys.TAMED_TICK, Long.class);
+        if (tamedTick != null) {
+            preservedData.put(StateKeys.TAMED_TICK, tamedTick);
+        }
+        Long lastPet = getStateData(StateKeys.LAST_PET_TIME, Long.class);
+        if (lastPet != null) {
+            preservedData.put(StateKeys.LAST_PET_TIME, lastPet);
+        }
+        Integer petCount = getStateData(StateKeys.PET_COUNT, Integer.class);
+        if (petCount != null) {
+            preservedData.put(StateKeys.PET_COUNT, petCount);
+        }
         
         // Preserve custom tags
         for (String key : stateData.keySet()) {
