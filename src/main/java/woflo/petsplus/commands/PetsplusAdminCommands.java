@@ -78,7 +78,46 @@ public class PetsplusAdminCommands {
                 .then(CommandManager.literal("reset")
                     .executes(PetsplusAdminCommands::resetPet))
                 .then(CommandManager.literal("info")
-                    .executes(PetsplusAdminCommands::showPetInfo)))
+                    .executes(PetsplusAdminCommands::showPetInfo))
+                .then(CommandManager.literal("emotions")
+                    .then(CommandManager.literal("set")
+                        .then(CommandManager.argument("emotion", StringArgumentType.string())
+                            .suggests((context, builder) -> {
+                                // Add all emotion suggestions
+                                for (PetComponent.Emotion emotion : PetComponent.Emotion.values()) {
+                                    builder.suggest(emotion.name().toLowerCase());
+                                }
+                                return builder.buildFuture();
+                            })
+                            .then(CommandManager.argument("weight", StringArgumentType.string())
+                                .suggests((context, builder) -> {
+                                    builder.suggest("0.2");
+                                    builder.suggest("0.5");
+                                    builder.suggest("1.0");
+                                    builder.suggest("2.0");
+                                    builder.suggest("5.0");
+                                    return builder.buildFuture();
+                                })
+                                .executes(PetsplusAdminCommands::setEmotion))))
+                    .then(CommandManager.literal("clear")
+                        .executes(PetsplusAdminCommands::clearEmotions))
+                    .then(CommandManager.literal("preset")
+                        .then(CommandManager.literal("happy")
+                            .executes(PetsplusAdminCommands::presetHappy))
+                        .then(CommandManager.literal("fearful")
+                            .executes(PetsplusAdminCommands::presetFearful))
+                        .then(CommandManager.literal("angry")
+                            .executes(PetsplusAdminCommands::presetAngry))
+                        .then(CommandManager.literal("zen")
+                            .executes(PetsplusAdminCommands::presetZen))
+                        .then(CommandManager.literal("playful")
+                            .executes(PetsplusAdminCommands::presetPlayful))
+                        .then(CommandManager.literal("protective")
+                            .executes(PetsplusAdminCommands::presetProtective))
+                        .then(CommandManager.literal("melancholy")
+                            .executes(PetsplusAdminCommands::presetMelancholy)))
+                    .then(CommandManager.literal("info")
+                        .executes(PetsplusAdminCommands::showEmotionInfo))))
             .then(CommandManager.literal("test")
                 .then(CommandManager.literal("loot")
                     .then(CommandManager.literal("death")
@@ -399,6 +438,226 @@ public class PetsplusAdminCommands {
         } catch (Exception e) {
             context.getSource().sendError(Text.literal("Failed to reload config: " + e.getMessage()));
             return 0;
+        }
+    }
+    
+    // ============ EMOTION DEBUG COMMANDS ============
+    
+    private static int setEmotion(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        String emotionName = StringArgumentType.getString(context, "emotion").toUpperCase();
+        String weightStr = StringArgumentType.getString(context, "weight");
+        
+        MobEntity targetPet = findNearestPet(player);
+        if (targetPet == null) {
+            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            return 0;
+        }
+        
+        PetComponent petComp = PetComponent.get(targetPet);
+        if (petComp == null) {
+            player.sendMessage(Text.literal("Target entity is not a pet!").formatted(Formatting.RED), false);
+            return 0;
+        }
+        
+        try {
+            PetComponent.Emotion emotion = PetComponent.Emotion.valueOf(emotionName);
+            float weight = Float.parseFloat(weightStr);
+            
+            petComp.pushEmotion(emotion, weight);
+            petComp.updateMood();
+            
+            player.sendMessage(Text.literal("Set emotion ")
+                .formatted(Formatting.GREEN)
+                .append(Text.literal(emotion.name().toLowerCase()).formatted(Formatting.AQUA))
+                .append(Text.literal(" to weight ").formatted(Formatting.GREEN))
+                .append(Text.literal(String.valueOf(weight)).formatted(Formatting.YELLOW)), false);
+            
+            return 1;
+        } catch (IllegalArgumentException e) {
+            player.sendMessage(Text.literal("Invalid emotion name or weight! Use tab completion to see valid emotions.").formatted(Formatting.RED), false);
+            return 0;
+        }
+    }
+    
+    private static int clearEmotions(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        
+        MobEntity targetPet = findNearestPet(player);
+        if (targetPet == null) {
+            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            return 0;
+        }
+        
+        PetComponent petComp = PetComponent.get(targetPet);
+        if (petComp == null) {
+            player.sendMessage(Text.literal("Target entity is not a pet!").formatted(Formatting.RED), false);
+            return 0;
+        }
+        
+        // Clear emotions by setting them to very low values - there's no direct clear method
+        for (PetComponent.Emotion emotion : PetComponent.Emotion.values()) {
+            petComp.pushEmotion(emotion, 0.0f);
+        }
+        petComp.updateMood();
+        
+        player.sendMessage(Text.literal("Cleared all emotions from pet!").formatted(Formatting.GREEN), false);
+        return 1;
+    }
+    
+    private static int showEmotionInfo(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        
+        MobEntity targetPet = findNearestPet(player);
+        if (targetPet == null) {
+            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            return 0;
+        }
+        
+        PetComponent petComp = PetComponent.get(targetPet);
+        if (petComp == null) {
+            player.sendMessage(Text.literal("Target entity is not a pet!").formatted(Formatting.RED), false);
+            return 0;
+        }
+        
+        player.sendMessage(Text.literal("=== Pet Emotion & Mood Info ===").formatted(Formatting.GOLD), false);
+        
+        // Show current mood
+        player.sendMessage(Text.literal("Current Mood: ")
+            .formatted(Formatting.GRAY)
+            .append(petComp.getMoodTextWithDebug()), false);
+        
+        // Show dominant emotion
+        PetComponent.Emotion dominantEmotion = petComp.getDominantEmotion();
+        if (dominantEmotion != null) {
+            player.sendMessage(Text.literal("Dominant Emotion: ")
+                .formatted(Formatting.GRAY)
+                .append(Text.literal(dominantEmotion.name().toLowerCase()).formatted(Formatting.AQUA)), false);
+        } else {
+            player.sendMessage(Text.literal("Dominant Emotion: None").formatted(Formatting.GRAY), false);
+        }
+        
+        // Show mood blend
+        player.sendMessage(Text.literal("Mood Strengths:").formatted(Formatting.YELLOW), false);
+        for (PetComponent.Mood mood : PetComponent.Mood.values()) {
+            float strength = petComp.getMoodBlend().getOrDefault(mood, 0f);
+            if (strength > 0.1f) {
+                player.sendMessage(Text.literal("  " + mood.name().toLowerCase() + ": ")
+                    .formatted(Formatting.GRAY)
+                    .append(Text.literal(String.format("%.2f", strength)).formatted(Formatting.WHITE)), false);
+            }
+        }
+        
+        return 1;
+    }
+    
+    // Emotion presets for common moods
+    private static int presetHappy(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        return applyEmotionPreset(context, "Happy", new EmotionWeight[]{
+            new EmotionWeight(PetComponent.Emotion.FROHLICH, 3.0f),
+            new EmotionWeight(PetComponent.Emotion.GLEE, 2.5f),
+            new EmotionWeight(PetComponent.Emotion.ANANDA, 2.0f),
+            new EmotionWeight(PetComponent.Emotion.UBUNTU, 1.5f),
+            new EmotionWeight(PetComponent.Emotion.KEFI, 1.0f)
+        });
+    }
+    
+    private static int presetFearful(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        return applyEmotionPreset(context, "Fearful", new EmotionWeight[]{
+            new EmotionWeight(PetComponent.Emotion.ANGST, 3.0f),
+            new EmotionWeight(PetComponent.Emotion.FOREBODING, 2.5f),
+            new EmotionWeight(PetComponent.Emotion.STARTLE, 2.0f),
+            new EmotionWeight(PetComponent.Emotion.WELTSCHMERZ, 1.5f)
+        });
+    }
+    
+    private static int presetAngry(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        return applyEmotionPreset(context, "Angry", new EmotionWeight[]{
+            new EmotionWeight(PetComponent.Emotion.FRUSTRATION, 3.0f),
+            new EmotionWeight(PetComponent.Emotion.DISGUST, 2.0f),
+            new EmotionWeight(PetComponent.Emotion.REGRET, 1.5f),
+            new EmotionWeight(PetComponent.Emotion.WELTSCHMERZ, 1.0f)
+        });
+    }
+    
+    private static int presetZen(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        return applyEmotionPreset(context, "Zen", new EmotionWeight[]{
+            new EmotionWeight(PetComponent.Emotion.LAGOM, 3.0f),
+            new EmotionWeight(PetComponent.Emotion.WABI_SABI, 2.5f),
+            new EmotionWeight(PetComponent.Emotion.YUGEN, 2.0f),
+            new EmotionWeight(PetComponent.Emotion.SOBREMESA, 1.5f)
+        });
+    }
+    
+    private static int presetPlayful(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        return applyEmotionPreset(context, "Playful", new EmotionWeight[]{
+            new EmotionWeight(PetComponent.Emotion.GLEE, 3.0f),
+            new EmotionWeight(PetComponent.Emotion.KEFI, 2.5f),
+            new EmotionWeight(PetComponent.Emotion.FROHLICH, 2.0f),
+            new EmotionWeight(PetComponent.Emotion.GEZELLIG, 1.5f)
+        });
+    }
+    
+    private static int presetProtective(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        return applyEmotionPreset(context, "Protective", new EmotionWeight[]{
+            new EmotionWeight(PetComponent.Emotion.PROTECTIVENESS, 3.0f),
+            new EmotionWeight(PetComponent.Emotion.SISU, 2.5f),
+            new EmotionWeight(PetComponent.Emotion.AMAL, 2.0f),
+            new EmotionWeight(PetComponent.Emotion.GAMAN, 1.5f)
+        });
+    }
+    
+    private static int presetMelancholy(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        return applyEmotionPreset(context, "Melancholy", new EmotionWeight[]{
+            new EmotionWeight(PetComponent.Emotion.SAUDADE, 3.0f),
+            new EmotionWeight(PetComponent.Emotion.HIRAETH, 2.5f),
+            new EmotionWeight(PetComponent.Emotion.MONO_NO_AWARE, 2.0f),
+            new EmotionWeight(PetComponent.Emotion.FERNWEH, 1.5f),
+            new EmotionWeight(PetComponent.Emotion.ENNUI, 1.0f)
+        });
+    }
+    
+    private static int applyEmotionPreset(CommandContext<ServerCommandSource> context, String presetName, EmotionWeight[] emotions) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        
+        MobEntity targetPet = findNearestPet(player);
+        if (targetPet == null) {
+            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            return 0;
+        }
+        
+        PetComponent petComp = PetComponent.get(targetPet);
+        if (petComp == null) {
+            player.sendMessage(Text.literal("Target entity is not a pet!").formatted(Formatting.RED), false);
+            return 0;
+        }
+        
+        // Clear existing emotions first
+        for (PetComponent.Emotion emotion : PetComponent.Emotion.values()) {
+            petComp.pushEmotion(emotion, 0.0f);
+        }
+        
+        // Apply preset emotions
+        for (EmotionWeight ew : emotions) {
+            petComp.pushEmotion(ew.emotion, ew.weight);
+        }
+        petComp.updateMood();
+        
+        player.sendMessage(Text.literal("Applied ")
+            .formatted(Formatting.GREEN)
+            .append(Text.literal(presetName).formatted(Formatting.AQUA))
+            .append(Text.literal(" emotion preset to pet!").formatted(Formatting.GREEN)), false);
+        
+        return 1;
+    }
+    
+    private static class EmotionWeight {
+        final PetComponent.Emotion emotion;
+        final float weight;
+        
+        EmotionWeight(PetComponent.Emotion emotion, float weight) {
+            this.emotion = emotion;
+            this.weight = weight;
         }
     }
     
