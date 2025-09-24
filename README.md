@@ -68,9 +68,20 @@ Mood intensity varies depending on how strong the emotional weights are.
 - "Noo, Luna!"
 - "At what cost..."
 - "Heartless, but Alive."
+- "Restless, Sit, Glow"
+- "Here Comes the Sunbeam"
+- "[please] F*CKING PLAY WITH ME NOW!"
+- "Indiana Bones and the Temple of Zoomies"
+- "Bond Voyage!"
+- "Be More Chilllllll"
+- "Hearts on Pyre"
+- "(sighs) sigh…"
+- "Finnish Him!"
+- "Afraidiana Grande"
+- "Wish You Were Here (Fur Real)"
+- "are you mad at me..?"
+- "Guardian of the Grrr-laxy"
 ### uninplemented yet:
-- "Be more *chilllllll*" (get calm mood state to level 3 for the first time) 
-- "(sighs) Sigh..." (Have a pet go from 'yugen' to 'saundade' for the first time)
 - "Another one, thank you." (get your second pet to level 30)
 - "
 
