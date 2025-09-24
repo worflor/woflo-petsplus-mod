@@ -4,6 +4,7 @@ import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.item.ItemUsage;
@@ -14,6 +15,7 @@ import net.minecraft.util.hit.EntityHitResult;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
+import net.minecraft.text.Text;
 
 /**
  * Handles right-click interactions to give potions to Support pets.
@@ -28,6 +30,7 @@ public class SupportInteractionHandler {
     private static ActionResult onUseEntity(PlayerEntity player, net.minecraft.world.World world, Hand hand, Entity entity, EntityHitResult hitResult) {
         if (world.isClient()) return ActionResult.PASS;
         if (!(entity instanceof MobEntity mob)) return ActionResult.PASS;
+        if (!(player instanceof ServerPlayerEntity serverPlayer)) return ActionResult.PASS;
 
         PetComponent comp = PetComponent.get(mob);
         if (comp == null || !comp.hasRole(PetRoleType.SUPPORT)) return ActionResult.PASS;
@@ -58,7 +61,10 @@ public class SupportInteractionHandler {
                 net.minecraft.sound.SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME,
                 net.minecraft.sound.SoundCategory.NEUTRAL,
                 0.8f, 1.3f);
-            player.sendMessage(net.minecraft.text.Text.literal("Your companion is cleansed and ready for a new potion"), true);
+            EmotionContextCues.sendCue(serverPlayer,
+                "support.potion.ready." + mob.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.support.potion_ready", mob.getDisplayName()),
+                200);
 
             return ActionResult.SUCCESS;
         }
@@ -70,7 +76,10 @@ public class SupportInteractionHandler {
 
         // Enforce single-slot: if already has a stored potion, reject
         if (woflo.petsplus.roles.support.SupportPotionUtils.hasStoredPotion(comp)) {
-            player.sendMessage(net.minecraft.text.Text.literal("Your companion is already holding a potion"), true);
+            EmotionContextCues.sendCue(serverPlayer,
+                "support.potion.full." + mob.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.support.potion_full", mob.getDisplayName()),
+                200);
             return ActionResult.SUCCESS; // handled
         }
 
@@ -87,7 +96,10 @@ public class SupportInteractionHandler {
         ((ServerWorld) world).spawnParticles(net.minecraft.particle.ParticleTypes.HEART,
             mob.getX(), mob.getY() + mob.getHeight() * 0.6, mob.getZ(),
             7, 0.2, 0.3, 0.2, 0.02);
-        player.sendMessage(net.minecraft.text.Text.literal("Your support companion holds the potion for allies"), true);
+        EmotionContextCues.sendCue(serverPlayer,
+            "support.potion.stored." + mob.getUuidAsString(),
+            Text.translatable("petsplus.emotion_cue.support.potion_stored", mob.getDisplayName()),
+            200);
 
         return ActionResult.SUCCESS;
     }

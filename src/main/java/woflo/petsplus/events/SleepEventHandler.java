@@ -6,7 +6,9 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.roles.eepyeeper.EepyEeperCore;
+import net.minecraft.text.Text;
 
 import java.util.Map;
 import java.util.UUID;
@@ -109,8 +111,19 @@ public class SleepEventHandler {
                 pc.pushEmotion(woflo.petsplus.state.PetComponent.Emotion.SOBREMESA, 0.3f);
                 pc.pushEmotion(woflo.petsplus.state.PetComponent.Emotion.RELIEF, 0.3f);
                 pc.updateMood();
+                if (pc.hasRole(PetRoleType.EEPY_EEPER)) {
+                    EmotionContextCues.sendCue(player,
+                        "role.eepy.dream." + pet.getUuidAsString(),
+                        Text.translatable("petsplus.emotion_cue.role.eepy_dream", pet.getDisplayName()),
+                        2400);
+                }
             }
         });
+
+        EmotionContextCues.sendCue(player,
+            "sleep.rested",
+            Text.translatable("petsplus.emotion_cue.sleep.rested"),
+            2400);
     }
 
     /**
@@ -122,6 +135,10 @@ public class SleepEventHandler {
             if (newPlayer.getWorld().getRegistryKey().getValue().getPath().equals("the_nether")) {
                 // Trigger sleep-like benefits for respawn anchor usage
                 EepyEeperCore.triggerSleepEvent(newPlayer);
+                EmotionContextCues.sendCue(newPlayer,
+                    "sleep.anchor",
+                    Text.translatable("petsplus.emotion_cue.sleep.anchor"),
+                    2400);
             }
         }
     }

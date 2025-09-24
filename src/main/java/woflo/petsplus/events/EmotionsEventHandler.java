@@ -32,6 +32,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.Petsplus;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.List;
@@ -121,6 +122,16 @@ public final class EmotionsEventHandler {
             if (wabiF > 0) pc.pushEmotion(PetComponent.Emotion.WABI_SABI, wabiF);
             if (stoicF > 0) pc.pushEmotion(PetComponent.Emotion.STOIC, stoicF);
         });
+
+        if (gleeF > 0) {
+            EmotionContextCues.sendCue(sp, "block_break.ore", Text.translatable("petsplus.emotion_cue.block_break.ore"), 200);
+        } else if (wabiF > 0) {
+            EmotionContextCues.sendCue(sp, "block_break.crafting", Text.translatable("petsplus.emotion_cue.block_break.crafting"), 200);
+        } else if (stoicF > 0) {
+            EmotionContextCues.sendCue(sp, "block_break.resource", Text.translatable("petsplus.emotion_cue.block_break.resource"), 200);
+        } else if (kefiF > 0) {
+            EmotionContextCues.sendCue(sp, "block_break.generic", Text.translatable("petsplus.emotion_cue.block_break.generic"), 400);
+        }
     }
 
     private static String getBlockPath(Block block) {
@@ -146,6 +157,11 @@ public final class EmotionsEventHandler {
                 pc.pushEmotion(PetComponent.Emotion.RELIEF, relief);
                 pc.pushEmotion(PetComponent.Emotion.HOPEFUL, 0.18f);
             });
+
+            String translationKey = healthPct < 0.35f
+                ? "petsplus.emotion_cue.combat.owner_kill_close"
+                : "petsplus.emotion_cue.combat.owner_kill";
+            EmotionContextCues.sendCue(sp, "combat.owner_kill", Text.translatable(translationKey), 200);
         }
 
         if (killer instanceof MobEntity mob) {
@@ -156,8 +172,16 @@ public final class EmotionsEventHandler {
                 pc.pushEmotion(PetComponent.Emotion.HOPEFUL, 0.40f);
                 pc.pushEmotion(PetComponent.Emotion.STOIC, 0.30f);
                 pc.updateMood();
-                // Small feedback to owner
-                owner.sendMessage(Text.literal("Your companion is emboldened"), true);
+                EmotionContextCues.sendCue(owner,
+                    "combat.pet_kill." + mob.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.combat.pet_kill", mob.getDisplayName()),
+                    200);
+                if (pc.hasRole(PetRoleType.STRIKER)) {
+                    EmotionContextCues.sendCue(owner,
+                        "role.striker.execute." + mob.getUuidAsString(),
+                        Text.translatable("petsplus.emotion_cue.role.striker_execute", mob.getDisplayName()),
+                        200);
+                }
             }
         }
     }
@@ -174,6 +198,7 @@ public final class EmotionsEventHandler {
                 pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.22f);
                 pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.18f);
             });
+            EmotionContextCues.sendCue(sp, "item.food", Text.translatable("petsplus.emotion_cue.item.food"), 160);
             return ActionResult.PASS;
         }
 
@@ -183,42 +208,58 @@ public final class EmotionsEventHandler {
                 pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.35f);
                 pc.pushEmotion(PetComponent.Emotion.BLISSFUL, 0.20f);
             });
+            EmotionContextCues.sendCue(sp, "item.golden_apple", Text.translatable("petsplus.emotion_cue.item.golden_apple"), 400);
         } else if (stack.isOf(Items.ENCHANTED_GOLDEN_APPLE)) {
             pushToNearbyOwnedPets(sp, 32, pc -> {
                 pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.45f);
                 pc.pushEmotion(PetComponent.Emotion.BLISSFUL, 0.30f);
             });
+            EmotionContextCues.sendCue(sp, "item.enchanted_golden_apple", Text.translatable("petsplus.emotion_cue.item.enchanted_golden_apple"), 400);
         } else if (stack.isOf(Items.HONEY_BOTTLE)) {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.25f));
+            EmotionContextCues.sendCue(sp, "item.honey_bottle", Text.translatable("petsplus.emotion_cue.item.honey_bottle"), 200);
         } else if (stack.isOf(Items.MILK_BUCKET)) {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.22f));
+            EmotionContextCues.sendCue(sp, "item.milk_bucket", Text.translatable("petsplus.emotion_cue.item.milk_bucket"), 200);
         } else if (stack.isOf(Items.TOTEM_OF_UNDYING)) {
             pushToNearbyOwnedPets(sp, 32, pc -> pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.5f));
+            EmotionContextCues.sendCue(sp, "item.totem", Text.translatable("petsplus.emotion_cue.item.totem"), 600);
         } else if (stack.isOf(Items.ENDER_PEARL)) {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.18f));
+            EmotionContextCues.sendCue(sp, "item.ender_pearl", Text.translatable("petsplus.emotion_cue.item.ender_pearl"), 200);
         } else if (stack.isOf(Items.FIREWORK_ROCKET)) {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.KEFI, 0.2f));
+            EmotionContextCues.sendCue(sp, "item.firework", Text.translatable("petsplus.emotion_cue.item.firework"), 200);
         } else if (stack.isOf(Items.ROTTEN_FLESH) || stack.isOf(Items.SPIDER_EYE) || stack.isOf(Items.PUFFERFISH)) {
             pushToNearbyOwnedPets(sp, 16, pc -> pc.pushEmotion(PetComponent.Emotion.DISGUST, 0.28f));
+            EmotionContextCues.sendCue(sp, "item.sus_food", Text.translatable("petsplus.emotion_cue.item.sus_food"), 200);
         } else if (stack.isOf(Items.SPYGLASS)) {
             pushToNearbyOwnedPets(sp, 32, pc -> pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.20f));
+            EmotionContextCues.sendCue(sp, "item.spyglass", Text.translatable("petsplus.emotion_cue.item.spyglass"), 200);
         } else if (stack.isOf(Items.FILLED_MAP)) {
             pushToNearbyOwnedPets(sp, 32, pc -> pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f));
+            EmotionContextCues.sendCue(sp, "item.map", Text.translatable("petsplus.emotion_cue.item.map"), 200);
         } else if (stack.isOf(Items.COMPASS)) {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.12f));
+            EmotionContextCues.sendCue(sp, "item.compass", Text.translatable("petsplus.emotion_cue.item.compass"), 200);
         } else if (stack.isOf(Items.RECOVERY_COMPASS)) {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.REGRET, 0.15f));
+            EmotionContextCues.sendCue(sp, "item.recovery_compass", Text.translatable("petsplus.emotion_cue.item.recovery_compass"), 200);
         } else if (stack.isOf(Items.WRITABLE_BOOK) || stack.isOf(Items.WRITTEN_BOOK) || stack.isOf(Items.BOOK)) {
             pushToNearbyOwnedPets(sp, 24, pc -> {
                 pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.12f);
                 pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.08f);
             });
+            EmotionContextCues.sendCue(sp, "item.book", Text.translatable("petsplus.emotion_cue.item.book"), 200);
         } else if (stack.isOf(Items.SHIELD)) {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.15f));
+            EmotionContextCues.sendCue(sp, "item.shield", Text.translatable("petsplus.emotion_cue.item.shield"), 200);
         } else if (stack.isOf(Items.SADDLE)) {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.12f));
+            EmotionContextCues.sendCue(sp, "item.saddle", Text.translatable("petsplus.emotion_cue.item.saddle"), 200);
         } else if (stack.isOf(Items.BRUSH)) { // archaeology
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.12f));
+            EmotionContextCues.sendCue(sp, "item.brush", Text.translatable("petsplus.emotion_cue.item.brush"), 200);
         }
 
         return ActionResult.PASS;
@@ -248,21 +289,27 @@ public final class EmotionsEventHandler {
         // Niche block interactions
         if (idPath.contains("smithing_table")) {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.12f));
+            EmotionContextCues.sendCue(sp, "block_use.smithing", Text.translatable("petsplus.emotion_cue.block_use.smithing"), 200);
         }
         if (idPath.contains("grindstone")) {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.REGRET, 0.10f));
+            EmotionContextCues.sendCue(sp, "block_use.grindstone", Text.translatable("petsplus.emotion_cue.block_use.grindstone"), 200);
         }
         if (idPath.contains("beacon")) {
             pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.BLISSFUL, 0.30f));
+            EmotionContextCues.sendCue(sp, "block_use.beacon", Text.translatable("petsplus.emotion_cue.block_use.beacon"), 600);
         }
         if (idPath.contains("bell")) {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.18f));
+            EmotionContextCues.sendCue(sp, "block_use.bell", Text.translatable("petsplus.emotion_cue.block_use.bell"), 200);
         }
         if (idPath.contains("beehive") || idPath.contains("bee_nest")) {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.18f));
+            EmotionContextCues.sendCue(sp, "block_use.bee", Text.translatable("petsplus.emotion_cue.block_use.bee"), 200);
         }
         if (idPath.contains("flower_pot") || idPath.contains("potted_")) {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.10f));
+            EmotionContextCues.sendCue(sp, "block_use.decor", Text.translatable("petsplus.emotion_cue.block_use.decor"), 200);
         }
 
         // Detected intent to place a block: use held BlockItem to infer "building/homey" emotions
@@ -287,6 +334,13 @@ public final class EmotionsEventHandler {
                     if (wF > 0) pc.pushEmotion(PetComponent.Emotion.WABI_SABI, wF);
                     if (gF > 0) pc.pushEmotion(PetComponent.Emotion.QUERECIA, gF);
                 });
+                if (gF > 0) {
+                    EmotionContextCues.sendCue(sp, "block_place.decor", Text.translatable("petsplus.emotion_cue.block_place.decor"), 200);
+                } else if (wF > 0) {
+                    EmotionContextCues.sendCue(sp, "block_place.crafting", Text.translatable("petsplus.emotion_cue.block_place.crafting"), 200);
+                } else {
+                    EmotionContextCues.sendCue(sp, "block_place.generic", Text.translatable("petsplus.emotion_cue.block_place.generic"), 200);
+                }
             }
         }
 
@@ -298,6 +352,24 @@ public final class EmotionsEventHandler {
                 if (wF > 0) pc.pushEmotion(PetComponent.Emotion.WABI_SABI, wF);
                 if (aF > 0) pc.pushEmotion(PetComponent.Emotion.BLISSFUL, aF);
             });
+            String cueId = null;
+            Text cueText = null;
+            if (aF > 0) {
+                cueId = "block_use.music";
+                cueText = Text.translatable("petsplus.emotion_cue.block_use.music");
+            } else if (sF > 0) {
+                cueId = "block_use.cooking";
+                cueText = Text.translatable("petsplus.emotion_cue.block_use.cooking");
+            } else if (gF > 0) {
+                cueId = "block_use.home";
+                cueText = Text.translatable("petsplus.emotion_cue.block_use.home");
+            } else if (wF > 0) {
+                cueId = "block_use.crafting";
+                cueText = Text.translatable("petsplus.emotion_cue.block_use.crafting");
+            }
+            if (cueId != null && cueText != null) {
+                EmotionContextCues.sendCue(sp, cueId, cueText, 200);
+            }
         }
         return ActionResult.PASS;
     }
@@ -310,6 +382,7 @@ public final class EmotionsEventHandler {
         // Leashing or unleashing signals protectiveness/affection
         if (stack.isOf(Items.LEAD) && entity instanceof MobEntity) {
             pushToNearbyOwnedPets(sp, 24, pc -> pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.20f));
+            EmotionContextCues.sendCue(sp, "entity.lead", Text.translatable("petsplus.emotion_cue.entity.lead"), 200);
             return ActionResult.PASS; // don't consume event
         }
 
@@ -317,6 +390,7 @@ public final class EmotionsEventHandler {
         String type = entity.getType().toString().toLowerCase();
         if (type.contains("boat") || type.contains("horse") || type.contains("camel") || type.contains("donkey") || type.contains("mule") || type.contains("llama")) {
             pushToNearbyOwnedPets(sp, 32, pc -> pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.22f));
+            EmotionContextCues.sendCue(sp, "entity.mount", Text.translatable("petsplus.emotion_cue.entity.mount"), 200);
         }
 
         // Trading with villagers: balance and cozy community
@@ -325,6 +399,7 @@ public final class EmotionsEventHandler {
                 pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.12f);
                 pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.10f);
             });
+            EmotionContextCues.sendCue(sp, "entity.villager_greet", Text.translatable("petsplus.emotion_cue.entity.villager_greet"), 200);
         }
         return ActionResult.PASS;
     }
@@ -332,11 +407,14 @@ public final class EmotionsEventHandler {
     // ==== Respawn → RELIEF + STOIC/GAMAN ====
     private static void onAfterRespawn(ServerPlayerEntity oldPlayer, ServerPlayerEntity newPlayer, boolean alive) {
         if (!alive) return;
+        EmotionContextCues.clear(oldPlayer);
+        EmotionContextCues.clear(newPlayer);
         pushToNearbyOwnedPets(newPlayer, 32, pc -> {
             pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.35f);
             pc.pushEmotion(PetComponent.Emotion.STOIC, 0.28f);
             pc.pushEmotion(PetComponent.Emotion.GAMAN, 0.12f);
         });
+        EmotionContextCues.sendCue(newPlayer, "player.respawn", Text.translatable("petsplus.emotion_cue.player.respawn"), 200);
     }
 
     // ==== Owner Death → SAUDADE + HIRAETH + REGRET (nearby pets) ====
@@ -400,12 +478,14 @@ public final class EmotionsEventHandler {
                             pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.06f);
                             pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.04f);
                         });
+                        EmotionContextCues.sendCue(sp, "weather.rain_start", Text.translatable("petsplus.emotion_cue.weather.rain_start"), 600);
                     } else if (!r && prev.raining) {
                         // Rain ended → relief/joy
                         pushToNearbyOwnedPets(sp, 48, pc -> {
                             pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.10f);
                             pc.pushEmotion(PetComponent.Emotion.GLEE, 0.06f);
                         });
+                        EmotionContextCues.sendCue(sp, "weather.rain_end", Text.translatable("petsplus.emotion_cue.weather.rain_end"), 600);
                     }
                     if (t && !prev.thundering) {
                         // Thunder started → foreboding and protectiveness
@@ -414,6 +494,7 @@ public final class EmotionsEventHandler {
                             pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
                             pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.06f);
                         });
+                        EmotionContextCues.sendCue(sp, "weather.thunder", Text.translatable("petsplus.emotion_cue.weather.thunder"), 600);
                     }
                 }
             }
@@ -426,18 +507,30 @@ public final class EmotionsEventHandler {
             TIME_PHASES.put(world, next);
             for (ServerPlayerEntity sp : world.getPlayers()) {
                 switch (next) {
-                    case DAWN -> pushToNearbyOwnedPets(sp, 48, pc -> {
-                        pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.10f);
-                        pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.06f);
-                        pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.04f);
-                    });
-                    case DUSK -> pushToNearbyOwnedPets(sp, 48, pc -> {
-                        pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.08f);
-                        pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.06f);
-                        pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.04f);
-                    });
-                    case DAY -> pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.KEFI, 0.04f));
-                    case NIGHT -> pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.04f));
+                    case DAWN -> {
+                        pushToNearbyOwnedPets(sp, 48, pc -> {
+                            pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.10f);
+                            pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.06f);
+                            pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.04f);
+                        });
+                        EmotionContextCues.sendCue(sp, "time.dawn", Text.translatable("petsplus.emotion_cue.time.dawn"), 1200);
+                    }
+                    case DUSK -> {
+                        pushToNearbyOwnedPets(sp, 48, pc -> {
+                            pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.08f);
+                            pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.06f);
+                            pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.04f);
+                        });
+                        EmotionContextCues.sendCue(sp, "time.dusk", Text.translatable("petsplus.emotion_cue.time.dusk"), 1200);
+                    }
+                    case DAY -> {
+                        pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.KEFI, 0.04f));
+                        EmotionContextCues.sendCue(sp, "time.day", Text.translatable("petsplus.emotion_cue.time.day"), 2400);
+                    }
+                    case NIGHT -> {
+                        pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.04f));
+                        EmotionContextCues.sendCue(sp, "time.night", Text.translatable("petsplus.emotion_cue.time.night"), 2400);
+                    }
                 }
             }
         }
@@ -492,6 +585,20 @@ public final class EmotionsEventHandler {
                 if (containsAny(path, "snow", "ice_spikes", "grove")) {
                     pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.STOIC, 0.10f));
                 }
+                Identifier newBiomeId = biomeId;
+                Text biomeName = Text.translatable("biome." + newBiomeId.getNamespace() + "." + newBiomeId.getPath());
+                pushToNearbyOwnedPets(sp, 48, pc -> {
+                    if (pc.hasRole(PetRoleType.SCOUT)) {
+                        MobEntity scoutPet = pc.getPet();
+                        if (scoutPet != null) {
+                            EmotionContextCues.sendCue(sp,
+                                "role.scout.biome." + scoutPet.getUuidAsString(),
+                                Text.translatable("petsplus.emotion_cue.role.scout_biome",
+                                    scoutPet.getDisplayName(), biomeName),
+                                600);
+                        }
+                    }
+                });
             }
 
             // Dimension change
@@ -528,10 +635,12 @@ public final class EmotionsEventHandler {
                 if (!nearActivity) {
                     if (st.idleTicks == 3600 || (st.idleTicks > 3600 && st.idleTicks % 2400 == 0)) { // 3min, then every 2min
                         pushToNearbyOwnedPets(sp, 32, pc -> pc.pushEmotion(PetComponent.Emotion.ENNUI, 0.15f));
+                        EmotionContextCues.sendCue(sp, "idle.ennui", Text.translatable("petsplus.emotion_cue.idle.ennui"), 2400);
                     }
                     // Long rainy nights weariness (reduced frequency and weight)
                     if (world.isRaining() && TIME_PHASES.getOrDefault(world, TimePhase.NIGHT) == TimePhase.NIGHT && st.idleTicks % 1200 == 0 && st.idleTicks >= 2400) {
                         pushToNearbyOwnedPets(sp, 32, pc -> pc.pushEmotion(PetComponent.Emotion.ENNUI, 0.06f));
+                        EmotionContextCues.sendCue(sp, "idle.rainy_ennui", Text.translatable("petsplus.emotion_cue.idle.rainy"), 2400);
                     }
                 }
             } else {
@@ -546,6 +655,7 @@ public final class EmotionsEventHandler {
                         pc.pushEmotion(PetComponent.Emotion.UBUNTU, 0.12f);
                         pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
                     });
+                    EmotionContextCues.sendCue(sp, "owner.low_hunger", Text.translatable("petsplus.emotion_cue.owner.low_hunger"), 600);
                 }
             } catch (Throwable ignored) {}
         }
@@ -624,13 +734,16 @@ public final class EmotionsEventHandler {
                 addSocialAwarenessTriggers(pet, pc, player, world);
 
                 // Environmental micro-reactions
-                addEnvironmentalMicroTriggers(pet, pc, world);
+                addEnvironmentalMicroTriggers(pet, pc, player, world);
 
                 // Movement and activity patterns
-                addMovementActivityTriggers(pet, pc, world);
+                addMovementActivityTriggers(pet, pc, player, world);
 
                 // Inter-pet social dynamics
-                addInterPetSocialTriggers(pet, pc, pets, world);
+                addInterPetSocialTriggers(pet, pc, pets, player, world);
+
+                // Role-specific ambient awareness
+                addRoleSpecificAmbientTriggers(pet, pc, player, world);
 
                 pc.updateMood();
             }
@@ -649,23 +762,39 @@ public final class EmotionsEventHandler {
             if (pet.getHealth() / pet.getMaxHealth() < 0.7f) {
                 pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.12f); // Owner noticing when hurt
             }
+            EmotionContextCues.sendCue(owner, "social.look." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.social.look", pet.getDisplayName()), 200);
         }
 
         // Owner proximity dynamics
         if (distanceToOwner < 4) { // Very close
             pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.06f); // Home/safety feeling
+            EmotionContextCues.sendCue(owner, "social.close." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.social.close", pet.getDisplayName()), 200);
         } else if (distanceToOwner > 256) { // Far away
             pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.04f); // Longing
+            EmotionContextCues.sendCue(owner, "social.far." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.social.far", pet.getDisplayName()), 400);
         }
 
         // Owner's current activity awareness
         if (owner.getAttackCooldownProgress(0.0f) < 1.0f) {
             pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.05f);
             pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
+            EmotionContextCues.sendCue(owner, "social.combat." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.social.combat", pet.getDisplayName()), 200);
         }
 
         if (owner.isSneaking() && distanceToOwner < 16) {
             pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.03f); // Mysterious quiet behavior
+            EmotionContextCues.sendCue(owner, "social.sneak." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.social.sneak", pet.getDisplayName()), 200);
+            if (pc.hasRole(PetRoleType.ECLIPSED)) {
+                EmotionContextCues.sendCue(owner,
+                    "role.eclipsed.shadow." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.role.eclipsed_shroud", pet.getDisplayName()),
+                    200);
+            }
         }
 
         // Owner health awareness
@@ -673,18 +802,30 @@ public final class EmotionsEventHandler {
         if (ownerHealthPercent < 0.3f && distanceToOwner < 64) {
             pc.pushEmotion(PetComponent.Emotion.ANGST, 0.15f); // Worry about hurt owner
             pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.12f);
+            EmotionContextCues.sendCue(owner, "social.owner_hurt." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.social.owner_hurt", pet.getDisplayName()), 200);
+            if (pc.hasRole(PetRoleType.GUARDIAN)) {
+                EmotionContextCues.sendCue(owner,
+                    "role.guardian.vigil." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.role.guardian_vigil", pet.getDisplayName()),
+                    200);
+            }
         }
     }
 
-    private static void addEnvironmentalMicroTriggers(MobEntity pet, PetComponent pc, ServerWorld world) {
+    private static void addEnvironmentalMicroTriggers(MobEntity pet, PetComponent pc, ServerPlayerEntity owner, ServerWorld world) {
         BlockPos petPos = pet.getBlockPos();
 
         // Light level awareness
         int lightLevel = world.getLightLevel(petPos);
         if (lightLevel <= 3) {
             pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.04f); // Dark places feel ominous
+            EmotionContextCues.sendCue(owner, "environment.dark." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.environment.dark", pet.getDisplayName()), 200);
         } else if (lightLevel >= 12) {
             pc.pushEmotion(PetComponent.Emotion.KEFI, 0.02f); // Bright areas feel energizing
+            EmotionContextCues.sendCue(owner, "environment.bright." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.environment.bright", pet.getDisplayName()), 400);
         }
 
         // Height awareness
@@ -692,13 +833,19 @@ public final class EmotionsEventHandler {
         if (y > 120) { // High altitude
             pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.03f); // Awe at heights
             pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.02f); // Wanderlust from vistas
+            EmotionContextCues.sendCue(owner, "environment.high." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.environment.high", pet.getDisplayName()), 400);
         } else if (y < 20) { // Deep underground
             pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.05f); // Underground unease
+            EmotionContextCues.sendCue(owner, "environment.deep." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.environment.deep", pet.getDisplayName()), 400);
         }
 
         // Water proximity
         if (world.getBlockState(petPos.down()).getFluidState().isEmpty() == false) {
             pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.03f); // Water brings balance
+            EmotionContextCues.sendCue(owner, "environment.water." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.environment.water", pet.getDisplayName()), 400);
         }
 
         // Flowers and nature
@@ -706,6 +853,8 @@ public final class EmotionsEventHandler {
             String blockName = world.getBlockState(offset).getBlock().toString().toLowerCase();
             if (blockName.contains("flower") || blockName.contains("grass") || blockName.contains("fern")) {
                 pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.02f); // Beauty of nature
+                EmotionContextCues.sendCue(owner, "environment.flower." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.environment.flower", pet.getDisplayName()), 400);
                 break;
             }
         }
@@ -716,10 +865,18 @@ public final class EmotionsEventHandler {
         if (hostilesNearby) {
             pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.08f);
             pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.06f);
+            EmotionContextCues.sendCue(owner, "environment.hostiles." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.environment.hostiles", pet.getDisplayName()), 200);
+            if (pc.hasRole(PetRoleType.GUARDIAN)) {
+                EmotionContextCues.sendCue(owner,
+                    "role.guardian.hold." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.role.guardian_hold", pet.getDisplayName()),
+                    200);
+            }
         }
     }
 
-    private static void addMovementActivityTriggers(MobEntity pet, PetComponent pc, ServerWorld world) {
+    private static void addMovementActivityTriggers(MobEntity pet, PetComponent pc, ServerPlayerEntity owner, ServerWorld world) {
         Vec3d velocity = pet.getVelocity();
         double speed = velocity.length();
 
@@ -727,16 +884,24 @@ public final class EmotionsEventHandler {
         if (speed > 0.2) { // Pet is moving fast
             pc.pushEmotion(PetComponent.Emotion.KEFI, 0.04f); // Energy from movement
             pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.02f); // Adventure spirit
+            EmotionContextCues.sendCue(owner, "movement.run." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.movement.run", pet.getDisplayName()), 200);
         } else if (speed < 0.01) { // Pet is very still
             pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.03f); // Peaceful stillness
+            EmotionContextCues.sendCue(owner, "movement.still." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.movement.still", pet.getDisplayName()), 200);
         }
 
         // Falling or jumping
         if (velocity.y < -0.5) { // Falling fast
             pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.08f);
             pc.pushEmotion(PetComponent.Emotion.ANGST, 0.05f);
+            EmotionContextCues.sendCue(owner, "movement.fall." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.movement.fall", pet.getDisplayName()), 200);
         } else if (velocity.y > 0.3) { // Jumping up
             pc.pushEmotion(PetComponent.Emotion.KEFI, 0.06f); // Joy of leaping
+            EmotionContextCues.sendCue(owner, "movement.jump." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.movement.jump", pet.getDisplayName()), 200);
         }
 
         // Swimming
@@ -744,13 +909,17 @@ public final class EmotionsEventHandler {
             if (pet.getType().toString().contains("cat")) {
                 pc.pushEmotion(PetComponent.Emotion.DISGUST, 0.15f); // Cats hate water
                 pc.pushEmotion(PetComponent.Emotion.ANGST, 0.10f);
+                EmotionContextCues.sendCue(owner, "movement.cat_swim." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.movement.cat_swim", pet.getDisplayName()), 200);
             } else {
                 pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.05f); // Others find it refreshing
+                EmotionContextCues.sendCue(owner, "movement.swim." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.movement.swim", pet.getDisplayName()), 200);
             }
         }
     }
 
-    private static void addInterPetSocialTriggers(MobEntity pet, PetComponent pc, List<MobEntity> allPets, ServerWorld world) {
+    private static void addInterPetSocialTriggers(MobEntity pet, PetComponent pc, List<MobEntity> allPets, ServerPlayerEntity owner, ServerWorld world) {
         int nearbyPetCount = 0;
         boolean hasOlderPet = false;
         boolean hasYoungerPet = false;
@@ -786,14 +955,20 @@ public final class EmotionsEventHandler {
         if (nearbyPetCount >= 2) {
             pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.06f); // Cozy group feeling
             pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.04f); // Pack protection
+            EmotionContextCues.sendCue(owner, "social.pack." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.social.pack", pet.getDisplayName()), 200);
         }
 
         if (hasOlderPet) {
             pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.03f); // Learning from elders
+            EmotionContextCues.sendCue(owner, "social.elder." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.social.elder", pet.getDisplayName()), 200);
         }
 
         if (hasYoungerPet) {
             pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.05f); // Protective of youngsters
+            EmotionContextCues.sendCue(owner, "social.young." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.social.young", pet.getDisplayName()), 200);
         }
 
         // Loneliness when isolated
@@ -801,6 +976,73 @@ public final class EmotionsEventHandler {
             PetComponent.Mood currentMood = pc.getCurrentMood();
             if (currentMood != PetComponent.Mood.CALM) { // Unless they're calm/content
                 pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.03f); // Longing for companionship
+                EmotionContextCues.sendCue(owner, "social.lonely." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.social.lonely", pet.getDisplayName()), 200);
+            }
+        }
+    }
+
+    private static void addRoleSpecificAmbientTriggers(MobEntity pet, PetComponent pc, ServerPlayerEntity owner, ServerWorld world) {
+        PetRoleType roleType = pc.getRoleType(false);
+        if (roleType == null) {
+            return;
+        }
+
+        Identifier roleId = roleType.id();
+
+        if (PetRoleType.STRIKER_ID.equals(roleId)) {
+            LivingEntity target = pet.getTarget();
+            if (target != null && target.isAlive() && target != owner) {
+                float maxHealth = target.getMaxHealth();
+                float pct = maxHealth > 0.0f ? target.getHealth() / maxHealth : 1.0f;
+                if (pct <= 0.35f) {
+                    EmotionContextCues.sendCue(owner,
+                        "role.striker.mark." + pet.getUuidAsString(),
+                        Text.translatable("petsplus.emotion_cue.role.striker_mark",
+                            pet.getDisplayName(), target.getDisplayName()),
+                        200);
+                }
+            }
+        }
+
+        if (PetRoleType.SUPPORT_ID.equals(roleId)) {
+            Boolean present = pc.getStateData("support_potion_present", Boolean.class);
+            if (Boolean.TRUE.equals(present)) {
+                Double total = pc.getStateData("support_potion_total_charges", Double.class);
+                Double remaining = pc.getStateData("support_potion_charges_remaining", Double.class);
+                if (total != null && total > 0.0 && remaining != null) {
+                    double ratio = remaining / total;
+                    if (ratio <= 0.25d) {
+                        EmotionContextCues.sendCue(owner,
+                            "role.support.potion_low." + pet.getUuidAsString(),
+                            Text.translatable("petsplus.emotion_cue.role.support_low", pet.getDisplayName()),
+                            600);
+                    }
+                }
+            }
+        }
+
+        if (PetRoleType.SKYRIDER_ID.equals(roleId)) {
+            if (!owner.isOnGround() && owner.fallDistance > 4.0f && owner.getVelocity().y < -0.6f) {
+                EmotionContextCues.sendCue(owner,
+                    "role.skyrider.catch." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.role.skyrider_dive", pet.getDisplayName()),
+                    200);
+            }
+        }
+
+        if (PetRoleType.CURSED_ONE_ID.equals(roleId)) {
+            Identifier dimension = world.getRegistryKey().getValue();
+            if (dimension != null && dimension.getPath().contains("the_nether")) {
+                EmotionContextCues.sendCue(owner,
+                    "role.cursed.nether." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.role.cursed_nether", pet.getDisplayName()),
+                    600);
+            } else if (world.getLightLevel(pet.getBlockPos()) <= 3) {
+                EmotionContextCues.sendCue(owner,
+                    "role.cursed.gloom." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.role.cursed_gloom", pet.getDisplayName()),
+                    400);
             }
         }
     }
@@ -824,7 +1066,17 @@ public final class EmotionsEventHandler {
                 pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.18f); // Wonder at magic
                 pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.08f); // Slight wariness of unknown
                 pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.06f); // Beauty of magical sparkles
+                if (pc.hasRole(PetRoleType.ENCHANTMENT_BOUND)) {
+                    MobEntity petEntity = pc.getPet();
+                    if (petEntity != null) {
+                        EmotionContextCues.sendCue(sp,
+                            "role.enchanter.attune." + petEntity.getUuidAsString(),
+                            Text.translatable("petsplus.emotion_cue.role.enchanter_attune", petEntity.getDisplayName()),
+                            200);
+                    }
+                }
             });
+            EmotionContextCues.sendCue(sp, "block_use.enchanting", Text.translatable("petsplus.emotion_cue.block_use.enchanting"), 200);
         }
 
         return ActionResult.PASS;
@@ -852,6 +1104,15 @@ public final class EmotionsEventHandler {
                     pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f); // Defense associations
                 }
             });
+            EmotionContextCues.sendCue(sp, "entity.trade", Text.translatable("petsplus.emotion_cue.entity.trade"), 200);
+            String profession = villager.getVillagerData().profession().toString();
+            if (profession.contains("butcher") || profession.contains("farmer")) {
+                EmotionContextCues.sendCue(sp, "entity.trade.food", Text.translatable("petsplus.emotion_cue.entity.trade_food"), 400);
+            } else if (profession.contains("cleric")) {
+                EmotionContextCues.sendCue(sp, "entity.trade.mystic", Text.translatable("petsplus.emotion_cue.entity.trade_mystic"), 400);
+            } else if (profession.contains("weaponsmith") || profession.contains("armorer")) {
+                EmotionContextCues.sendCue(sp, "entity.trade.guard", Text.translatable("petsplus.emotion_cue.entity.trade_guard"), 400);
+            }
         }
 
         return ActionResult.PASS;
@@ -878,7 +1139,7 @@ public final class EmotionsEventHandler {
                 if (pc == null) continue;
 
                 // Enhanced weather awareness
-                addAdvancedWeatherTriggers(pet, pc, world);
+                addAdvancedWeatherTriggers(pet, pc, player, world);
 
                 // Tag-based item awareness
                 addTagBasedItemTriggers(pet, pc, player);
@@ -888,29 +1149,39 @@ public final class EmotionsEventHandler {
         }
     }
 
-    private static void addAdvancedWeatherTriggers(MobEntity pet, PetComponent pc, ServerWorld world) {
+    private static void addAdvancedWeatherTriggers(MobEntity pet, PetComponent pc, ServerPlayerEntity owner, ServerWorld world) {
         // Thunder detection - much more impactful than basic rain
         if (world.isThundering()) {
             pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.15f); // Thunder is startling
             pc.pushEmotion(PetComponent.Emotion.ANGST, 0.12f); // Weather anxiety
             pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f); // Protective of owner during storms
+            EmotionContextCues.sendCue(owner, "weather.thunder.pet." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.weather.thunder_pet", pet.getDisplayName()), 400);
         } else if (world.isRaining()) {
             // Rain reactions based on pet type - data-driven approach
             String petType = pet.getType().toString().toLowerCase();
             if (petType.contains("cat")) {
                 pc.pushEmotion(PetComponent.Emotion.DISGUST, 0.08f); // Cats dislike getting wet
                 pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.06f); // Seeking shelter
+                EmotionContextCues.sendCue(owner, "weather.rain.cat." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.weather.rain_cat", pet.getDisplayName()), 400);
             } else if (petType.contains("wolf") || petType.contains("dog")) {
                 pc.pushEmotion(PetComponent.Emotion.KEFI, 0.04f); // Dogs often enjoy rain
                 pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.05f); // Refreshing feeling
+                EmotionContextCues.sendCue(owner, "weather.rain.dog." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.weather.rain_dog", pet.getDisplayName()), 400);
             } else {
                 pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.03f); // General refresh feeling
+                EmotionContextCues.sendCue(owner, "weather.rain.pet." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.weather.rain_pet", pet.getDisplayName()), 400);
             }
         } else {
             // Clear weather after storm - relief
             if (world.getTime() % 6000 == 0) { // Check periodically
                 pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.06f);
                 pc.pushEmotion(PetComponent.Emotion.KEFI, 0.04f); // Energy from clear skies
+                EmotionContextCues.sendCue(owner, "weather.clear." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.weather.clear", pet.getDisplayName()), 6000);
             }
         }
 
@@ -922,9 +1193,13 @@ public final class EmotionsEventHandler {
             if (temperature > 1.0f) { // Hot biomes
                 pc.pushEmotion(PetComponent.Emotion.LAGOM, -0.02f); // Slight discomfort
                 pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.03f); // Seeking shade
+                EmotionContextCues.sendCue(owner, "environment.hot." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.environment.hot", pet.getDisplayName()), 600);
             } else if (temperature < 0.0f) { // Cold biomes
                 pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.04f); // Seeking warmth/owner
                 pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.03f); // Cozy feelings
+                EmotionContextCues.sendCue(owner, "environment.cold." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.environment.cold", pet.getDisplayName()), 600);
             }
         } catch (Exception ignored) {}
     }
@@ -982,26 +1257,36 @@ public final class EmotionsEventHandler {
         if (hasValuableItems) {
             pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.04f); // Security from wealth
             pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.06f); // Guarding valuable things
+            EmotionContextCues.sendCue(owner, "inventory.valuables",
+                Text.translatable("petsplus.emotion_cue.inventory.valuables"), 1200);
         }
 
         if (hasFoodItems) {
             pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.05f); // Food security
             pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.03f); // Comfort from sustenance
+            EmotionContextCues.sendCue(owner, "inventory.food",
+                Text.translatable("petsplus.emotion_cue.inventory.food"), 1200);
         }
 
         if (hasMagicalItems) {
             pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.06f); // Wonder at magical things
             pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.02f); // Slight wariness
+            EmotionContextCues.sendCue(owner, "inventory.magic",
+                Text.translatable("petsplus.emotion_cue.inventory.magic"), 1200);
         }
 
         if (hasWeapons) {
             pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.05f); // Ready for danger
             pc.pushEmotion(PetComponent.Emotion.STOIC, 0.03f); // Determination
+            EmotionContextCues.sendCue(owner, "inventory.weapons",
+                Text.translatable("petsplus.emotion_cue.inventory.weapons"), 1200);
         }
 
         if (hasTools) {
             pc.pushEmotion(PetComponent.Emotion.KEFI, 0.03f); // Energy from productivity
             pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.04f); // Balance from useful work
+            EmotionContextCues.sendCue(owner, "inventory.tools",
+                Text.translatable("petsplus.emotion_cue.inventory.tools"), 1200);
         }
     }
 }

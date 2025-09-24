@@ -60,8 +60,11 @@ public class PettingHandler {
         
         Long lastPetTime = petComp.getStateData(PetComponent.StateKeys.LAST_PET_TIME, Long.class);
         if (lastPetTime != null && (currentTime - lastPetTime) < cooldownTicks) {
-            // Still on cooldown, but provide subtle feedback
-            player.sendMessage(Text.literal("Your companion is still enjoying the last pets"), true);
+            // Still on cooldown, but provide subtle feedback through the cue helper
+            EmotionContextCues.sendCue(serverPlayer,
+                "petting.cooldown." + mob.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.petting.cooldown", mob.getDisplayName()),
+                80);
             return ActionResult.SUCCESS;
         }
 
@@ -83,13 +86,15 @@ public class PettingHandler {
 
         // Base petting effects
         emitBasePettingEffects(player, pet, world, newCount);
-        
+
         // Role-specific effects
         emitRoleSpecificEffects(player, pet, world, roleId);
-        
+
         // Bonding benefits (small XP bonus, temporary buffs)
         applyBondingBenefits(player, pet, petComp);
-        
+
+        emitPettingCues(player, pet, newCount);
+
         // Emotion push: affiliative uplift
         petComp.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.6f);
         petComp.pushEmotion(PetComponent.Emotion.UBUNTU, 0.4f);
@@ -108,14 +113,17 @@ public class PettingHandler {
     private static void emitBasePettingEffects(ServerPlayerEntity player, MobEntity pet, ServerWorld world, int petCount) {
         // Heart particles - more hearts for higher pet counts (caps at 10)
         FeedbackManager.emitFeedback("pet_hearts", pet, world);
-        
+
         // Pet-appropriate sound based on entity type
         String soundEffect = determinePetSound(pet);
         FeedbackManager.emitFeedback(soundEffect, pet, world);
-        
-        // Action bar message
+
+        // Action bar message via emotion cue helper so it respects throttling with other cues
         String message = generatePettingMessage(pet, petCount);
-        player.sendMessage(Text.literal(message), true);
+        EmotionContextCues.sendCue(player,
+            "petting.message." + pet.getUuidAsString(),
+            Text.literal(message),
+            0);
     }
 
     private static void emitRoleSpecificEffects(ServerPlayerEntity player, MobEntity pet, ServerWorld world, Identifier roleId) {
@@ -131,7 +139,27 @@ public class PettingHandler {
 
         Text message = resolveMessage(petting.message(), "Your companion seems content.");
         if (!message.getString().isBlank()) {
-            player.sendMessage(message, true);
+            String cueId = "petting.role." + (roleId != null ? roleId.toString() : "default") + "." + pet.getUuidAsString();
+            EmotionContextCues.sendCue(player, cueId, message, 100);
+        }
+    }
+
+    private static void emitPettingCues(ServerPlayerEntity player, MobEntity pet, int petCount) {
+        EmotionContextCues.sendCue(player,
+            "petting.affection." + pet.getUuidAsString(),
+            Text.translatable("petsplus.emotion_cue.petting.affection", pet.getDisplayName()),
+            80);
+
+        if (petCount == 1) {
+            EmotionContextCues.sendCue(player,
+                "petting.first." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.petting.first", pet.getDisplayName()),
+                6000);
+        } else if (petCount % 25 == 0) {
+            EmotionContextCues.sendCue(player,
+                "petting.milestone." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.petting.milestone", pet.getDisplayName(), petCount),
+                6000);
         }
     }
 
