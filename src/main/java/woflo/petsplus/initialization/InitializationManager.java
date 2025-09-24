@@ -55,6 +55,7 @@ public class InitializationManager {
         var mood = woflo.petsplus.api.mood.MoodAPI.get();
         mood.registerProvider(new woflo.petsplus.mood.providers.EnvironmentComfortProvider());
         mood.registerProvider(new woflo.petsplus.mood.providers.CombatThreatProvider());
+        woflo.petsplus.mood.MoodAdvancementTracker.register();
     }
     
     /**

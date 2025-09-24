@@ -1,0 +1,23 @@
+{
+  "display": {
+    "icon": {
+      "item": "minecraft:sunflower"
+    },
+    "title": {
+      "translate": "petsplus.adv.here_comes_the_sunbeam.title"
+    },
+    "description": {
+      "translate": "petsplus.adv.here_comes_the_sunbeam.desc"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}
