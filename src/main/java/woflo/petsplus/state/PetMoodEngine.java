@@ -624,15 +624,31 @@ final class PetMoodEngine {
 
         conflicts.sort(Comparator.comparingDouble((OpponentConflict c) -> c.combinedWeight).reversed());
         for (OpponentConflict conflict : conflicts) {
-            Candidate a = conflict.a;
-            Candidate b = conflict.b;
-            float transferFactor = Math.min(OPPONENT_TRANSFER_MAX, 0.15f + 0.1f * Math.abs(a.signal - b.signal));
-            float transfer = a.signal * transferFactor;
+            Candidate first = conflict.a;
+            Candidate second = conflict.b;
+            float difference = Math.abs(first.signal - second.signal);
+            if (difference <= EPSILON) {
+                continue;
+            }
+
+            Candidate donor;
+            Candidate receiver;
+            if (first.signal <= second.signal) {
+                donor = first;
+                receiver = second;
+            } else {
+                donor = second;
+                receiver = first;
+            }
+
+            float transferFactor = Math.min(OPPONENT_TRANSFER_MAX, 0.15f + 0.1f * difference);
+            float transfer = donor.signal * transferFactor;
             if (transfer <= EPSILON) continue;
-            a.signal = Math.max(0f, a.signal - transfer);
-            float rebound = transfer * (0.2f + REBOUND_GAIN * (a.record.appraisalConfidence + b.record.appraisalConfidence) * 0.5f);
-            b.signal = Math.min(weightCap, b.signal + transfer * 0.85f);
-            a.signal = Math.max(0f, a.signal + rebound * 0.2f);
+
+            donor.signal = Math.max(0f, donor.signal - transfer);
+            float rebound = transfer * (0.2f + REBOUND_GAIN * (first.record.appraisalConfidence + second.record.appraisalConfidence) * 0.5f);
+            receiver.signal = Math.min(weightCap, receiver.signal + transfer * 0.85f);
+            donor.signal = Math.max(0f, donor.signal + rebound * 0.2f);
         }
     }
 
