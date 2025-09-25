@@ -3,11 +3,15 @@ package woflo.petsplus.ai;
 
 import net.minecraft.entity.ai.goal.Goal;
 import net.minecraft.entity.ai.goal.MeleeAttackGoal;
+import net.minecraft.entity.attribute.EntityAttributeInstance;
+import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.mixin.MobEntityAccessor;
+
+import net.minecraft.util.Identifier;
 
 import java.util.EnumSet;
 
@@ -331,6 +335,13 @@ public class MoodAdvancedAI {
         private int staminaTimer = 0;
         private float virtualStamina = 100.0f;
         private int restTimer = 0;
+        private static final float SPEED_EPSILON = 1.0e-4f;
+        private static final Identifier STAMINA_SPEED_MODIFIER_ID = Identifier.of("petsplus", "stamina_speed");
+        private float currentSpeedMultiplier = 1.0f;
+        private double baselineMovementSpeed = Double.NaN;
+        private EntityAttributeInstance cachedSpeedAttribute;
+        private int modifierSyncTicker = 0;
+        private static final int MODIFIER_SYNC_INTERVAL_TICKS = 5;
 
         public MoodStaminaManager(MobEntity pet) {
             this.pet = pet;
@@ -352,6 +363,23 @@ public class MoodAdvancedAI {
             virtualStamina = 100.0f;
             staminaTimer = 0;
             restTimer = 0;
+            cacheBaselineMovementSpeed();
+            modifierSyncTicker = 0;
+            syncModifierState();
+            if (Math.abs(currentSpeedMultiplier - 1.0f) > SPEED_EPSILON) {
+                SpeedModifierHelper.clearMovementSpeedModifier(pet, STAMINA_SPEED_MODIFIER_ID);
+                currentSpeedMultiplier = 1.0f;
+            }
+        }
+
+        @Override
+        public void stop() {
+            if (Math.abs(currentSpeedMultiplier - 1.0f) > SPEED_EPSILON) {
+                SpeedModifierHelper.clearMovementSpeedModifier(pet, STAMINA_SPEED_MODIFIER_ID);
+                currentSpeedMultiplier = 1.0f;
+            }
+            baselineMovementSpeed = Double.NaN;
+            cachedSpeedAttribute = null;
         }
 
         @Override
@@ -359,6 +387,11 @@ public class MoodAdvancedAI {
             staminaTimer++;
             PetComponent pc = PetComponent.get(pet);
             if (pc == null) return;
+
+            if (++modifierSyncTicker >= MODIFIER_SYNC_INTERVAL_TICKS) {
+                modifierSyncTicker = 0;
+                syncModifierState();
+            }
 
             // Update stamina every second
             if (staminaTimer % 20 == 0) {
@@ -426,36 +459,72 @@ public class MoodAdvancedAI {
         }
 
         private void applyStaminaEffects(PetComponent pc) {
-            if (virtualStamina > 80) {
-                // High stamina - no effects
-                return;
-            } else if (virtualStamina > 50) {
-                // Medium stamina - slight slowdown
-                if (pet.getNavigation().isFollowingPath()) {
-                    pet.setMovementSpeed(pet.getMovementSpeed() * 0.95f);
-                }
-            } else if (virtualStamina > 20) {
-                // Low stamina - noticeable effects
-                pet.setMovementSpeed(pet.getMovementSpeed() * 0.85f);
-                
-                // Occasionally stop to rest
-                if (pet.getRandom().nextInt(100) == 0) {
-                    pet.getNavigation().stop();
-                }
-            } else {
-                // Very low stamina - significant effects
-                pet.setMovementSpeed(pet.getMovementSpeed() * 0.7f);
-                
-                // Force periodic rest
-                if (pet.getRandom().nextInt(40) == 0) {
-                    pet.getNavigation().stop();
-                    pet.setSneaking(true); // Visual indicator of tiredness
+            float targetMultiplier = 1.0f;
+            if (virtualStamina <= 20) {
+                targetMultiplier = 0.7f;
+            } else if (virtualStamina <= 50) {
+                targetMultiplier = 0.85f;
+            } else if (virtualStamina <= 80 && pet.getNavigation().isFollowingPath()) {
+                targetMultiplier = 0.95f;
+            }
+
+            if (Math.abs(targetMultiplier - currentSpeedMultiplier) > SPEED_EPSILON) {
+                SpeedModifierHelper.applyMovementSpeedMultiplier(
+                    pet,
+                    STAMINA_SPEED_MODIFIER_ID,
+                    targetMultiplier
+                );
+                currentSpeedMultiplier = targetMultiplier;
+            }
+
+            if (virtualStamina <= 50) {
+                if (virtualStamina <= 20) {
+                    if (pet.getRandom().nextInt(40) == 0) {
+                        pet.getNavigation().stop();
+                        pet.setSneaking(true); // Visual indicator of tiredness
+                    }
+                } else {
+                    if (pet.getRandom().nextInt(100) == 0) {
+                        pet.getNavigation().stop();
+                    }
                 }
             }
 
             // Reset sneaking when stamina recovers
             if (virtualStamina > 30 && pet.isSneaking()) {
                 pet.setSneaking(false);
+            }
+        }
+
+        private void cacheBaselineMovementSpeed() {
+            cachedSpeedAttribute = pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED);
+            if (cachedSpeedAttribute == null) {
+                baselineMovementSpeed = Double.NaN;
+                return;
+            }
+            baselineMovementSpeed = cachedSpeedAttribute.getBaseValue();
+        }
+
+        private void syncModifierState() {
+            EntityAttributeInstance speedAttribute = cachedSpeedAttribute;
+            if (speedAttribute == null) {
+                cachedSpeedAttribute = pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED);
+                speedAttribute = cachedSpeedAttribute;
+            }
+            if (speedAttribute == null) {
+                baselineMovementSpeed = Double.NaN;
+                currentSpeedMultiplier = 1.0f;
+                return;
+            }
+            cachedSpeedAttribute = speedAttribute;
+
+            double baseValue = speedAttribute.getBaseValue();
+            if (Double.isNaN(baselineMovementSpeed) || Math.abs(baseValue - baselineMovementSpeed) > SPEED_EPSILON) {
+                baselineMovementSpeed = baseValue;
+            }
+
+            if (speedAttribute.getModifier(STAMINA_SPEED_MODIFIER_ID) == null && Math.abs(currentSpeedMultiplier - 1.0f) > SPEED_EPSILON) {
+                currentSpeedMultiplier = 1.0f;
             }
         }
     }
