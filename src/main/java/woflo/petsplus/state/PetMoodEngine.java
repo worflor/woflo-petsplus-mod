@@ -484,6 +484,13 @@ final class PetMoodEngine {
         // Opponent transfer
         applyOpponentTransfers(weighted, weightCap);
 
+        // Sync the record weights with any transfer-adjusted signals so downstream
+        // consumers (dominant mood queries, persistence, debugging) reflect the
+        // post-transfer values.
+        for (Candidate candidate : weighted) {
+            candidate.record.weight = candidate.signal;
+        }
+
         // Build mood vector
         EnumMap<PetComponent.Mood, Float> targetBlend = new EnumMap<>(PetComponent.Mood.class);
         for (PetComponent.Mood mood : PetComponent.Mood.values()) {
