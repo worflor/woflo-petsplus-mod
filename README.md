@@ -75,8 +75,8 @@ Mood intensity varies based on the strength of these emotional weights.
 - "[please] F*CKING PLAY WITH ME NOW!"
 - "Indiana Bones and the Temple of Zoomies"
 - "Bond Voyage!"
-- "Be More Chilllllll"
-- "Hearts on Pyre"
+- "Be More Chilllllll" 
+- "Hearts on Pyre" [RENAME CUZ I HATE]
 - "(sighs) sigh…"
 - "Finnish Him!"
 - "Afraidiana Grande"
@@ -85,6 +85,10 @@ Mood intensity varies based on the strength of these emotional weights.
 - "Guardian of the Grrr-laxy"
 ### uninplemented yet:
 - "Another one, thank you." (get your second pet to level 30)
+- "is that... THE BITE OF '87?!!" - credits, colours_c(jamie) (witniss your pet fox do 100% of the damage on a kill)
+- "its called, damage rei-duction" - credits, colours_c(jamie) (get your guardian role pet with the name "Rei" to level 10 and give them a tribute)
+- "this isnt vanilla, chocolate, or strawberry..." (tame an entity usually untamable in the vanilla game)
+
 
 ## Configuration and Expandability
 Pets+ includes configuration files (`config/petsplus/...`) where you can customize various components. Explore it yourself.
