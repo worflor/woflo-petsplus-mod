@@ -6,6 +6,7 @@ import net.minecraft.entity.passive.TameableEntity;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.mixin.MobEntityAccessor;
+import woflo.petsplus.ai.goals.CrouchCuddleGoal;
 import woflo.petsplus.ai.goals.EnhancedFollowOwnerGoal;
 
 /**
@@ -24,6 +25,9 @@ public class PetAIEnhancements {
         try {
             // Enhanced follow behavior for all pets
             addEnhancedFollowGoal(pet, petComponent);
+
+            // Crouch cuddle handshake keeps pets cozy near crouching owners
+            addCrouchCuddleGoal(pet, petComponent);
             
             // Improved pathfinding penalties
             adjustPathfindingPenalties(pet, petComponent);
@@ -50,7 +54,7 @@ public class PetAIEnhancements {
      */
     private static void addEnhancedFollowGoal(MobEntity pet, PetComponent petComponent) {
         if (!(pet instanceof TameableEntity tameable)) return;
-        
+
         MobEntityAccessor accessor = (MobEntityAccessor) pet;
         
         // Remove existing follow goals to replace with enhanced version
@@ -63,6 +67,12 @@ public class PetAIEnhancements {
         
         accessor.getGoalSelector().add(5, new EnhancedFollowOwnerGoal(tameable, 1.0, 
             followDistance, teleportDistance, false));
+    }
+
+    private static void addCrouchCuddleGoal(MobEntity pet, PetComponent petComponent) {
+        MobEntityAccessor accessor = (MobEntityAccessor) pet;
+        accessor.getGoalSelector().getGoals().removeIf(entry -> entry.getGoal() instanceof CrouchCuddleGoal);
+        accessor.getGoalSelector().add(4, new CrouchCuddleGoal(pet, petComponent));
     }
     
     /**

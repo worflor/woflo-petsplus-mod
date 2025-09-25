@@ -72,7 +72,8 @@ public class InitializationManager {
         woflo.petsplus.events.TributeHandler.register();
         woflo.petsplus.events.PetsplusItemHandler.register();
         woflo.petsplus.events.PettingHandler.register();
-        
+        woflo.petsplus.interaction.OwnerAbilitySignalTracker.register();
+
         // System event handlers
         woflo.petsplus.events.PetDetectionHandler.register();
         woflo.petsplus.events.PlayerStateTracker.register();

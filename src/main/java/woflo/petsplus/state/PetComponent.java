@@ -19,6 +19,7 @@ import woflo.petsplus.stats.PetCharacteristics;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.UUID;
 import java.util.WeakHashMap;
 
 /**
@@ -41,6 +42,8 @@ public class PetComponent {
     private int experience;
     private final Map<Integer, Boolean> unlockedMilestones;
     private PetCharacteristics characteristics;
+    private UUID crouchCuddleOwnerId;
+    private long crouchCuddleExpiryTick;
     // New: encapsulated mood/emotion engine
     private final PetMoodEngine moodEngine;
 
@@ -298,6 +301,45 @@ public class PetComponent {
         Long cooldownEnd = cooldowns.get(key);
         if (cooldownEnd == null) return 0;
         return Math.max(0, cooldownEnd - pet.getWorld().getTime());
+    }
+
+    public void beginCrouchCuddle(UUID ownerId, long expiryTick) {
+        this.crouchCuddleOwnerId = ownerId;
+        this.crouchCuddleExpiryTick = expiryTick;
+    }
+
+    public void refreshCrouchCuddle(UUID ownerId, long expiryTick) {
+        if (this.crouchCuddleOwnerId != null && this.crouchCuddleOwnerId.equals(ownerId)) {
+            this.crouchCuddleExpiryTick = Math.max(this.crouchCuddleExpiryTick, expiryTick);
+        } else {
+            beginCrouchCuddle(ownerId, expiryTick);
+        }
+    }
+
+    public void endCrouchCuddle(UUID ownerId) {
+        if (this.crouchCuddleOwnerId != null && this.crouchCuddleOwnerId.equals(ownerId)) {
+            this.crouchCuddleOwnerId = null;
+            this.crouchCuddleExpiryTick = 0L;
+        }
+    }
+
+    public boolean isCrouchCuddleActiveWith(@Nullable PlayerEntity owner, long currentTick) {
+        if (owner == null || this.crouchCuddleOwnerId == null) {
+            return false;
+        }
+        if (!owner.getUuid().equals(this.crouchCuddleOwnerId)) {
+            return false;
+        }
+        return currentTick <= this.crouchCuddleExpiryTick;
+    }
+
+    public boolean isCrouchCuddleActive(long currentTick) {
+        return this.crouchCuddleOwnerId != null && currentTick <= this.crouchCuddleExpiryTick;
+    }
+
+    @Nullable
+    public UUID getCrouchCuddleOwnerId() {
+        return this.crouchCuddleOwnerId;
     }
     
     public void setStateData(String key, Object value) {
