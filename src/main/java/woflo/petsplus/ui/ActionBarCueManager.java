@@ -29,6 +29,11 @@ public final class ActionBarCueManager {
     private static final int FOCUS_MEMORY_TICKS = 20 * 180; // 3 minutes
 
     private static final Map<UUID, PlayerCueState> PLAYER_STATES = new HashMap<>();
+    private static final ActionBarCueSource BROADCAST_SOURCE = new ActionBarCueSource(
+        null,
+        null,
+        Double.POSITIVE_INFINITY
+    );
 
     private ActionBarCueManager() {}
 
@@ -57,9 +62,10 @@ public final class ActionBarCueManager {
         ActionBarCueSource source = cue.source();
         if (source == null) {
             source = state.deriveImplicitSource(currentTick, recentPetLimit);
+            // No current or recent focus; fall back to a broadcast cue so generic
+            // notifications (e.g. cooldowns) still reach the player.
             if (source == null) {
-                // No current or recent focus; drop the cue quietly to avoid spamming.
-                return;
+                source = BROADCAST_SOURCE;
             }
         }
 
