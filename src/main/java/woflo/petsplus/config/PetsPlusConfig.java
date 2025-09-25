@@ -187,6 +187,10 @@ public class PetsPlusConfig {
             core.add("emotion_cues", createEmotionCueDefaults());
             changed = true;
         }
+        if (!core.has("action_bar") || !core.get("action_bar").isJsonObject()) {
+            core.add("action_bar", createActionBarDefaults());
+            changed = true;
+        }
         return changed;
     }
 
@@ -220,6 +224,7 @@ public class PetsPlusConfig {
         root.add("pets", new JsonObject());
         root.add("visuals", createVisualDefaults());
         root.add("emotion_cues", createEmotionCueDefaults());
+        root.add("action_bar", createActionBarDefaults());
         return root;
     }
 
@@ -575,6 +580,12 @@ public class PetsPlusConfig {
         return cues;
     }
 
+    private static JsonObject createActionBarDefaults() {
+        JsonObject actionBar = new JsonObject();
+        actionBar.addProperty("recent_pet_limit", 1);
+        return actionBar;
+    }
+
     private static JsonObject createDefaultTributeJson() {
         JsonObject tributes = new JsonObject();
         DEFAULT_TRIBUTE_ITEMS.forEach((level, id) -> tributes.addProperty(String.valueOf(level), id.toString()));
@@ -630,6 +641,10 @@ public class PetsPlusConfig {
 
     public boolean isEmotionCueDebugOverlayEnabled() {
         return readBoolean(getSection("emotion_cues"), "debug_overlay", false);
+    }
+
+    public int getActionBarRecentPetLimit() {
+        return readInt(getSection("action_bar"), "recent_pet_limit", 1);
     }
 
     public JsonObject getRoleOverrides(Identifier roleId) {

@@ -70,6 +70,8 @@ public final class PetInspectionManager {
             clearEmotionScoreboard(player);
             inspecting.remove(player.getUuid());
         }
+
+        ActionBarCueManager.onPlayerLookedAway(player);
     }
 
     private static void handleLookAt(ServerPlayerEntity player, MobEntity pet, InspectionState state) {
@@ -89,6 +91,8 @@ public final class PetInspectionManager {
             inspecting.remove(player.getUuid());
             return;
         }
+
+        ActionBarCueManager.onPlayerLookedAtPet(player, pet);
 
         state.tick();
         updatePetDisplay(player, pet, comp, state);
