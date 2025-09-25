@@ -1,5 +1,6 @@
 package woflo.petsplus.ui;
 
+import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -11,18 +12,26 @@ import net.minecraft.util.Formatting;
 public class UIFeedbackManager {
     
     /**
-     * Send an action bar message to the player.
+     * Send an action bar message to the player using the contextual cue system.
      */
     public static void sendActionBarMessage(ServerPlayerEntity player, String messageKey, Object... args) {
-    Text message = Text.translatable(messageKey, args).formatted(Formatting.GRAY);
-        player.sendMessage(message, true); // true = action bar
+        ActionBarCueManager.queueCue(player, ActionBarCueManager.ActionBarCue.of(messageKey, args));
+    }
+
+    /**
+     * Send a contextual action bar message tied to a specific pet.
+     */
+    public static void sendActionBarMessage(ServerPlayerEntity player, MobEntity pet, String messageKey, Object... args) {
+        ActionBarCueManager.ActionBarCue cue = ActionBarCueManager.ActionBarCue.of(messageKey, args)
+            .withSource(ActionBarCueManager.ActionBarCueSource.forPet(pet));
+        ActionBarCueManager.queueCue(player, cue);
     }
     
     /**
      * Send a regular chat message to the player.
      */
     public static void sendChatMessage(ServerPlayerEntity player, String messageKey, Object... args) {
-    Text message = Text.translatable(messageKey, args).formatted(Formatting.DARK_GRAY);
+        Text message = Text.translatable(messageKey, args).formatted(Formatting.DARK_GRAY);
         player.sendMessage(message, false); // false = chat
     }
     

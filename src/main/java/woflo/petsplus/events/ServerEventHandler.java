@@ -7,6 +7,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.state.StateManager;
+import woflo.petsplus.ui.ActionBarCueManager;
 
 /**
  * Handles server-wide events and ticking for PetsPlus systems.
@@ -30,7 +31,10 @@ public class ServerEventHandler {
 
         // Update pet inspection boss bars
         woflo.petsplus.ui.PetInspectionManager.tick(server);
-        
+
+        // Update action bar cues with contextual gating
+        ActionBarCueManager.tick(server);
+
         // Tick boss bars for cleanup and updates
         woflo.petsplus.ui.BossBarManager.tickBossBars();
     }
@@ -56,6 +60,7 @@ public class ServerEventHandler {
         woflo.petsplus.effects.PetsplusEffectManager.shutdown();
         woflo.petsplus.ui.BossBarManager.shutdown();
         woflo.petsplus.ui.PetInspectionManager.shutdown();
+        ActionBarCueManager.shutdown();
         woflo.petsplus.ui.CooldownParticleManager.shutdown();
         woflo.petsplus.util.EntityTagUtil.shutdown();
         
