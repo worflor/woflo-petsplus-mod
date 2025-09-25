@@ -45,12 +45,9 @@ Behind the scenes, *30 emotions influence your pet's overall mood*. Various even
 14. **Angry** [mad]
 
 ### Ultra-Rare Moods
-15. **Sankofa Resonance** [Akan, “go back and fetch it”] — stirs when a pet brushes heritage touchstones. It plants its stance, slips into ancestral
-  mannerisms, and shakes off fear while lineage pride lingers.
-16. **Náttvörðr Vigil** [Old Norse, “night guardian”] — settles in fog-damp twilight when you’re waning and alone. Eyes glow
-  soft, the pet shadows every step, and its danger sense widens to body-block anything slipping through the veil.
-17. **Chandralekha Reverie** [Sanskrit, “moonbeam”] — unfurls under auroras, comets, or thunder-lit skies while a joyful pet
-  feels utterly safe. It drinks in the night with shimmer motes, shares hushed awe, and nudges you to roam on that shared beam.
+15. **Sankofa Resonance** [Akan] — ancestral pride awakens, fear fades.
+16. **Náttvörðr Vigil** [Old Norse] — silent guardian in dark hours
+17. **Chandralekha Reverie** [Sanskrit] — stargazing in perfect peace
 
 Mood intensity varies based on the strength of these emotional weights.
 ### Core Emotion Groups
