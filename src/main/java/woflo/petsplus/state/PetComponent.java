@@ -86,7 +86,9 @@ public class PetComponent {
     public enum Emotion {
         CHEERFUL, QUERECIA, GLEE, BLISSFUL, UBUNTU, KEFI, ANGST, FOREBODING,
         PROTECTIVENESS, FRUSTRATION, STARTLE, DISGUST, REGRET, MONO_NO_AWARE, FERNWEH, SOBREMESA,
-        HANYAUKU, WABI_SABI, LAGOM, ENNUI, YUGEN, SAUDADE, HIRAETH, STOIC, HOPEFUL, RELIEF, GAMAN
+        HANYAUKU, WABI_SABI, LAGOM, ENNUI, YUGEN, SAUDADE, HIRAETH, STOIC, HOPEFUL, RELIEF, GAMAN,
+        CURIOUS, SISU, FOCUSED, PRIDE, VIGILANT, WORRIED, PROTECTIVE, MELANCHOLY, CONTENT, RESTLESS,
+        EMPATHY, NOSTALGIA, PLAYFULNESS, LOYALTY
     }
 
     // Emotion slots are fully managed by PetMoodEngine
@@ -101,6 +103,8 @@ public class PetComponent {
         public static final String THREAT_SENSITIZED_STREAK = "threat_sensitized_streak";
         public static final String THREAT_LAST_DANGER = "threat_last_danger";
         public static final String THREAT_LAST_RECOVERY_TICK = "threat_last_recovery_tick";
+        public static final String HEALTH_LAST_LOW_TICK = "health_last_low_tick";
+        public static final String HEALTH_RECOVERY_COOLDOWN = "health_recovery_cooldown";
 
         private StateKeys() {}
     }
@@ -520,6 +524,14 @@ public class PetComponent {
 
     /** Expose dominant emotion for API consumers; may return null if none. */
     public @Nullable Emotion getDominantEmotion() { return moodEngine.getDominantEmotion(); }
+
+    /** Debug access to emotion pool for debugging */
+    public java.util.List<EmotionDebugInfo> getEmotionPoolDebug() {
+        return moodEngine.getEmotionPoolDebug();
+    }
+
+    /** Debug record for emotion information */
+    public record EmotionDebugInfo(Emotion emotion, float weight, boolean parked) {}
 
     // capitalize/prettify handled by engine
     

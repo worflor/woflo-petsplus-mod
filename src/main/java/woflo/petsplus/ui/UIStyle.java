@@ -124,27 +124,38 @@ public final class UIStyle {
             return valueHex(name, healthColor);
         }
 
-        // Priority 2: Periodic blinking for health indication
+        // Priority 2: Periodic blinking based on health percentage removed (damage taken)
+        float healthMissing = 1.0f - healthPercent; // 0.0 = full health, 1.0 = no health
         int blinkInterval;
         boolean doubleBlink = false;
-
-        if (healthPercent <= 0.25f) {
-            // Critical health - fast double blink every 3s
-            blinkInterval = 60; // 3 seconds
+        
+        // Blinking frequency increases with damage taken
+        if (healthMissing >= 0.75f) {
+            // Very injured (25% health or less) - rapid triple blink every 2s
+            blinkInterval = 40; // 2 seconds
+            doubleBlink = true; // Will be enhanced to triple blink below
+        } else if (healthMissing >= 0.40f) {
+            // Moderately injured (60% health or less) - double blink every 3s
+            blinkInterval = 60; // 3 seconds  
             doubleBlink = true;
-        } else if (healthPercent <= 0.60f) {
-            // Low health - normal blink every 5s
+        } else if (healthMissing >= 0.05f) {
+            // Lightly injured (95% health or less) - single blink every 5s
             blinkInterval = 100; // 5 seconds
         } else {
-            // Good health - normal blink every 5s
-            blinkInterval = 100; // 5 seconds
+            // Full health - no blinking
+            return valueHex(name, baseColor);
         }
 
-        // Calculate blinking
+        // Calculate blinking pattern
         long cyclePosition = currentTick % blinkInterval;
         boolean shouldBlink = false;
 
-        if (doubleBlink) {
+        if (healthMissing >= 0.75f) {
+            // Triple blink pattern for critical health: blink at 0-3, 6-9, and 12-15 ticks
+            shouldBlink = (cyclePosition >= 0 && cyclePosition <= 3) ||
+                         (cyclePosition >= 6 && cyclePosition <= 9) ||
+                         (cyclePosition >= 12 && cyclePosition <= 15);
+        } else if (doubleBlink) {
             // Double blink pattern: blink at 0-3 ticks and 8-11 ticks
             shouldBlink = (cyclePosition >= 0 && cyclePosition <= 3) ||
                          (cyclePosition >= 8 && cyclePosition <= 11);
@@ -244,7 +255,7 @@ public final class UIStyle {
 
     /**
      * Clean level display with XP-based color progression and XP gain flashing
-     * Level color goes from black (0% XP) to white (100% XP), flashes green on XP gain
+     * Level color goes from black (0% XP) to white (100% XP), fades to/from green on XP gain
      */
     public static MutableText levelWithXpFlash(int level, float xpProgress, boolean canLevelUp, boolean recentXpGain, long currentTick) {
         TextColor levelColor;
@@ -253,9 +264,9 @@ public final class UIStyle {
             // Ready to level up - bright gold with gentle pulse
             boolean pulse = (currentTick / 30) % 2 == 0;
             levelColor = pulse ? LEVEL_TRIBUTE_READY : LEVEL_NEAR_TRIBUTE;
-        } else if (recentXpGain && (currentTick % 100) < 20) {
-            // Recent XP gain - flash green briefly (20 ticks = 1 second)
-            levelColor = TextColor.fromRgb(0x55FF55); // Bright green
+        } else if (recentXpGain) {
+            // Recent XP gain - smooth fade to/from green over 40 ticks (2 seconds)
+            levelColor = getXpFlashColor(xpProgress, currentTick);
         } else {
             // Normal: XP-based color progression from black to white
             levelColor = getXpProgressColor(xpProgress);
@@ -275,6 +286,35 @@ public final class UIStyle {
         int rgb = (intensity << 16) | (intensity << 8) | intensity; // Grayscale
 
         return TextColor.fromRgb(rgb);
+    }
+
+    /**
+     * Get smooth fading XP flash color: base → green → base over 2 seconds (40 ticks)
+     */
+    private static TextColor getXpFlashColor(float xpProgress, long currentTick) {
+        // Calculate flash progress over 40 ticks (2 seconds)
+        long flashCycle = currentTick % 100; // Within the 5-second recentXpGain window
+        
+        if (flashCycle >= 40) {
+            // After flash period, return to normal color
+            return getXpProgressColor(xpProgress);
+        }
+        
+        // Create smooth fade: 0→1→0 over 40 ticks
+        float flashPhase;
+        if (flashCycle <= 20) {
+            // Fade to green (0-20 ticks)
+            flashPhase = flashCycle / 20.0f;
+        } else {
+            // Fade from green (20-40 ticks)
+            flashPhase = (40 - flashCycle) / 20.0f;
+        }
+        
+        // Interpolate between base XP color and bright green
+        TextColor baseColor = getXpProgressColor(xpProgress);
+        TextColor flashColor = TextColor.fromRgb(0x55FF55); // Bright green
+        
+        return interpolateColor(baseColor, flashColor, flashPhase);
     }
 
     /**

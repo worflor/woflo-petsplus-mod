@@ -51,6 +51,14 @@ public class ServerEventHandler {
             }
         }
         
+        // Clean up all background tasks and resources to prevent watchdog timeouts
+        woflo.petsplus.ui.FeedbackManager.cleanup();
+        woflo.petsplus.effects.PetsplusEffectManager.shutdown();
+        woflo.petsplus.ui.BossBarManager.shutdown();
+        woflo.petsplus.ui.PetInspectionManager.shutdown();
+        woflo.petsplus.ui.CooldownParticleManager.shutdown();
+        woflo.petsplus.util.EntityTagUtil.shutdown();
+        
         Petsplus.LOGGER.info("PetsPlus: All pet data persisted successfully");
     }
     

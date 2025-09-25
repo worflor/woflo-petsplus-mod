@@ -9,7 +9,9 @@
     "agility": 0.03,
     "learning": 0.06
   },
-  "default_abilities": [],
+  "default_abilities": [
+    "petsplus:phase_partner"
+  ],
   "tribute_defaults": {
     "10": "minecraft:gold_ingot",
     "20": "minecraft:diamond",

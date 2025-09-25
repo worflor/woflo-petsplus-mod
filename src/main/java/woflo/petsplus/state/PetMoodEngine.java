@@ -28,7 +28,7 @@ final class PetMoodEngine {
     private static final double DEFAULT_EVICTION_AGE_COEFF = 0.0005d;
     private static final double DEFAULT_EVICTION_WEIGHT_COEFF = 1.0d;
     private static final double DEFAULT_EVICTION_PARKED_BIAS = 1.0d;
-    private static final float[] DEFAULT_LEVEL_THRESHOLDS = new float[]{0.33f, 0.66f, 0.85f};
+    private static final float[] DEFAULT_LEVEL_THRESHOLDS = new float[]{0.20f, 0.40f, 0.60f}; // Higher thresholds for less sensitive mood levels
     private static final Map<PetComponent.Mood, Float> DEFAULT_CALM_WEIGHTS = singletonMoodMap(PetComponent.Mood.CALM);
     private static final EnumMap<PetComponent.Emotion, Map<PetComponent.Mood, Float>> DEFAULT_EMOTION_TO_MOOD_WEIGHTS = buildDefaultEmotionWeights();
 
@@ -65,7 +65,7 @@ final class PetMoodEngine {
     private float cachedEpsilon = 0.05f;
     private double cachedDefaultDecayRate = 0.96d;
     private double cachedMomentum = 0.25d;
-    private double cachedSwitchMargin = 0.15d;
+    private double cachedSwitchMargin = 0.05d;
     private int cachedHysteresisTicks = 60;
     private float[] cachedLevelThresholds = DEFAULT_LEVEL_THRESHOLDS.clone();
     private float cachedWeightSaturationAlpha = DEFAULT_WEIGHT_SATURATION_ALPHA;
@@ -74,11 +74,23 @@ final class PetMoodEngine {
     private double cachedEvictionLowWeightCoeff = DEFAULT_EVICTION_WEIGHT_COEFF;
     private double cachedEvictionParkedBias = DEFAULT_EVICTION_PARKED_BIAS;
     private boolean cachedUseLastUpdatedForEviction = true;
+    
+    // Animation configuration
+    private int cachedBaseAnimationUpdateInterval = 16; // Base interval in ticks (0.8 seconds at 20 TPS)
+    private double cachedAnimationSpeedMultiplier = 0.15; // 15% faster per level
+    private int cachedMinAnimationInterval = 4; // Minimum interval (0.2 seconds at 20 TPS)
+    private int cachedMaxAnimationInterval = 40; // Maximum interval (2 seconds at 20 TPS)
 
     private final EnumMap<PetComponent.Emotion, Double> cachedPerEmotionDecay = new EnumMap<>(PetComponent.Emotion.class);
     private final EnumMap<PetComponent.Emotion, Float> cachedMaxWeight = new EnumMap<>(PetComponent.Emotion.class);
     private final EnumMap<PetComponent.Emotion, Map<PetComponent.Mood, Float>> cachedEmotionToMoodWeights = new EnumMap<>(PetComponent.Emotion.class);
     private final EnumMap<PetComponent.Emotion, Double> cachedEvictionTypeBias = new EnumMap<>(PetComponent.Emotion.class);
+
+    // Text animation caching
+    private Text cachedMoodText = null;
+    private Text cachedMoodTextWithDebug = null;
+    private long lastTextUpdateTime = -1;
+    private int cachedLastLevel = -1; // Track last level used for caching
 
     PetMoodEngine(PetComponent parent) {
         this.parent = parent;
@@ -91,6 +103,20 @@ final class PetMoodEngine {
     PetComponent.Mood getCurrentMood() { update(); return currentMood; }
     int getMoodLevel() { update(); return moodLevel; }
     void update() { updateEmotionStateAndMood(); }
+
+    // Debug API for emotion pool inspection
+    public java.util.List<PetComponent.EmotionDebugInfo> getEmotionPoolDebug() {
+        update();
+        java.util.List<PetComponent.EmotionDebugInfo> result = new java.util.ArrayList<>();
+        if (emotionSlots == null) return result;
+
+        for (EmotionSlot slot : emotionSlots) {
+            if (slot != null && slot.weight > 0.01f) {
+                result.add(new PetComponent.EmotionDebugInfo(slot.emotion, slot.weight, slot.parked));
+            }
+        }
+        return result;
+    }
 
     void pushEmotion(PetComponent.Emotion emotion, float amount) {
         long now = parent.getPet().getWorld().getTime();
@@ -192,101 +218,273 @@ final class PetMoodEngine {
     }
 
     Text getMoodText() {
-        PetComponent.Mood mood = getCurrentMood();
+        return getCachedMoodText(false);
+    }
+    
+    private Text getCachedMoodText(boolean withDebug) {
+        long currentTime = parent.getPet().getWorld().getTime();
         int level = getMoodLevel();
+        int updateInterval = getAnimationUpdateInterval(level);
+        
+        // Check if we need to update the cached text
+        // Force update if level changed to ensure animation speed matches displayed level
+        boolean levelChanged = (cachedMoodText != null || cachedMoodTextWithDebug != null) && 
+                              !isCurrentLevelMatchingCache(level);
+        boolean needsUpdate = cachedMoodText == null || 
+                            cachedMoodTextWithDebug == null ||
+                            levelChanged ||
+                            (currentTime - lastTextUpdateTime) >= updateInterval;
+        
+        if (needsUpdate) {
+            lastTextUpdateTime = currentTime;
+            // Pass the level to ensure consistent usage
+            cachedMoodText = generateMoodText(false, level);
+            cachedMoodTextWithDebug = generateMoodText(true, level);
+            cachedLastLevel = level; // Store for level change detection
+        }
+        
+        return withDebug ? cachedMoodTextWithDebug : cachedMoodText;
+    }
+    
+    private boolean isCurrentLevelMatchingCache(int level) {
+        return cachedLastLevel == level;
+    }
+    
+    private Text generateMoodText(boolean withDebug) {
+        return generateMoodText(withDebug, getMoodLevel());
+    }
+    
+    private Text generateMoodText(boolean withDebug, int level) {
+        PetComponent.Mood mood = getCurrentMood();
 
         boolean showEmotion = getMoodsBoolean("showDominantEmotion", false);
         String label = showEmotion ? getDominantEmotionName() : capitalize(mood.name());
 
         Formatting primary = mood.primaryFormatting;
         Formatting secondary = mood.secondaryFormatting;
+        
+
 
         // Progressive display based on mood intensity level (0-3)
-        return switch (level) {
-            case 0, 1 -> {
-                // Level 0-1: Base color only
+        Text baseText = switch (level) {
+            case 0 -> {
+                // Level 0: Full base color only
                 yield Text.literal(label).styled(s -> s.withColor(TextColor.fromFormatting(primary)));
             }
+            case 1 -> {
+                // Level 1: Light breathing effect with secondary color
+                yield createBreathingText(label, primary, secondary, 1);
+            }
             case 2 -> {
-                // Level 2: Static gradient (alternating characters)
-                MutableText out = Text.empty();
-                char[] chars = label.toCharArray();
-                for (int i = 0; i < chars.length; i++) {
-                    Formatting f = (i % 2 == 0) ? primary : secondary;
-                    out.append(Text.literal(String.valueOf(chars[i])).styled(s -> s.withColor(TextColor.fromFormatting(f))));
-                }
-                yield out;
+                // Level 2: Gradient with breathing effect
+                yield createBreathingGradient(label, primary, secondary, 2);
             }
             case 3 -> {
-                // Level 3: Moving gradient (shifts over time)
-                yield createMovingGradient(label, primary, secondary);
+                // Level 3: Moving gradient with fast breathing
+                yield createBreathingMovingGradient(label, primary, secondary, 3);
             }
             default -> Text.literal(label).styled(s -> s.withColor(TextColor.fromFormatting(primary)));
         };
+        
+        if (withDebug) {
+            if (level == 0) {
+                String debugLabel = label + " [" + level + "]";
+                return Text.literal(debugLabel).styled(s -> s.withColor(TextColor.fromFormatting(primary)));
+            } else {
+                // For animated levels, add debug info to the animated text
+                MutableText debugText = (MutableText) baseText;
+                debugText.append(Text.literal(" [" + level + "]").styled(s -> s.withColor(TextColor.fromFormatting(Formatting.GRAY))));
+                return debugText;
+            }
+        }
+        
+        return baseText;
     }
 
     /**
      * Get mood text with debug information showing power level.
      */
     Text getMoodTextWithDebug() {
-        PetComponent.Mood mood = getCurrentMood();
-        int level = getMoodLevel();
-
-        boolean showEmotion = getMoodsBoolean("showDominantEmotion", false);
-        String label = showEmotion ? getDominantEmotionName() : capitalize(mood.name());
-
-        // Add debug power level indicator
-        String debugLabel = label + " [" + level + "]";
-
-        Formatting primary = mood.primaryFormatting;
-        Formatting secondary = mood.secondaryFormatting;
-
-        // Progressive display based on mood intensity level (0-3) with debug info
-        return switch (level) {
-            case 0, 1 -> {
-                // Level 0-1: Base color only
-                yield Text.literal(debugLabel).styled(s -> s.withColor(TextColor.fromFormatting(primary)));
-            }
-            case 2 -> {
-                // Level 2: Static gradient (alternating characters) - only apply gradient to mood name, not debug info
-                MutableText out = Text.empty();
-                char[] chars = label.toCharArray();
-                for (int i = 0; i < chars.length; i++) {
-                    Formatting f = (i % 2 == 0) ? primary : secondary;
-                    out.append(Text.literal(String.valueOf(chars[i])).styled(s -> s.withColor(TextColor.fromFormatting(f))));
-                }
-                // Add debug info in gray
-                out.append(Text.literal(" [" + level + "]").styled(s -> s.withColor(TextColor.fromFormatting(Formatting.GRAY))));
-                yield out;
-            }
-            case 3 -> {
-                // Level 3: Moving gradient for mood name, gray debug info
-                MutableText gradientText = createMovingGradient(label, primary, secondary);
-                gradientText.append(Text.literal(" [" + level + "]").styled(s -> s.withColor(TextColor.fromFormatting(Formatting.GRAY))));
-                yield gradientText;
-            }
-            default -> Text.literal(debugLabel).styled(s -> s.withColor(TextColor.fromFormatting(primary)));
-        };
+        return getCachedMoodText(true);
     }
 
     /**
-     * Create a moving gradient that shifts colors based on world time.
+     * Create breathing text with dynamic intensity based on level.
+     * Uses consistent template across all levels with increasing intensity and speed.
      */
-    private MutableText createMovingGradient(String text, Formatting primary, Formatting secondary) {
+    private MutableText createBreathingText(String text, Formatting primary, Formatting secondary, int level) {
+        long worldTime = parent.getPet().getWorld().getTime();
+        
+        // Level-based animation speed: faster with higher levels
+        // Level 1: 300 ticks, Level 2: 200 ticks, Level 3: 120 ticks
+        int[] breathingSpeeds = {300, 200, 120};
+        int breathingSpeed = breathingSpeeds[Math.min(level - 1, breathingSpeeds.length - 1)];
+        
+        // Use update interval for visual update smoothness  
+        int updateInterval = getAnimationUpdateInterval(level);
+        long animationTime = (worldTime / updateInterval) * updateInterval;
+        
+        // Breathing pattern based on actual breathing speed
+        double breathingPhase = (animationTime % breathingSpeed) / (double) breathingSpeed;
+        
+        // Create smooth breathing curve (sine wave)
+        double breathingIntensity = (Math.sin(breathingPhase * 2 * Math.PI) + 1) / 2; // 0 to 1
+        
+        // Level-based intensity thresholds - same template, increasing effect
+        // Level 1: subtle (30-50%), Level 2: moderate (25-65%), Level 3: strong (15-75%)
+        double[] minIntensities = {0.30, 0.25, 0.15};
+        double[] maxIntensities = {0.50, 0.65, 0.75};
+        
+        int levelIndex = Math.min(level - 1, minIntensities.length - 1);
+        double minIntensity = minIntensities[levelIndex];
+        double maxIntensity = maxIntensities[levelIndex];
+        double scaledIntensity = minIntensity + (breathingIntensity * (maxIntensity - minIntensity));
+        
         MutableText out = Text.empty();
         char[] chars = text.toCharArray();
-
-        // Use world time to create movement (every 10 ticks = 0.5 seconds shift)
-        long worldTime = parent.getPet().getWorld().getTime();
-        int timeOffset = (int) (worldTime / 10) % 4; // 4-step animation cycle
-
+        
+        // Use same template: breathing intensity determines color blend
         for (int i = 0; i < chars.length; i++) {
-            // Create moving wave pattern
-            boolean usePrimary = ((i + timeOffset) % 3) != 0;
-            Formatting f = usePrimary ? primary : secondary;
+            // Per-character variation based on position (same for all levels)
+            double charPhase = (i * 0.4) + (breathingPhase * 1.5);
+            double charBreathing = (Math.sin(charPhase) + 1) / 2;
+            
+            // Combine global and character breathing
+            double finalIntensity = (scaledIntensity + charBreathing * 0.3) / 1.3;
+            
+            // Same threshold logic across all levels
+            boolean useSecondary = finalIntensity > 0.5;
+            Formatting f = useSecondary ? secondary : primary;
             out.append(Text.literal(String.valueOf(chars[i])).styled(s -> s.withColor(TextColor.fromFormatting(f))));
         }
+        
+        return out;
+    }
 
+    /**
+     * Calculate animation update interval based on level and configuration.
+     * Higher levels result in faster animations (lower intervals).
+     */
+    private int getAnimationUpdateInterval(int level) {
+        ensureConfigCache();
+        
+        // Calculate interval: base interval reduced by (level - 1) * speedMultiplier
+        double interval = cachedBaseAnimationUpdateInterval - ((level - 1) * cachedAnimationSpeedMultiplier * cachedBaseAnimationUpdateInterval);
+        
+        // Clamp to min/max bounds
+        int result = (int) Math.round(interval);
+        return Math.max(cachedMinAnimationInterval, Math.min(cachedMaxAnimationInterval, result));
+    }
+
+    /**
+     * Create breathing gradient with alternating pattern and breathing intensity.
+     * Uses consistent template with increasing intensity and complexity.
+     */
+    private MutableText createBreathingGradient(String text, Formatting primary, Formatting secondary, int level) {
+        long worldTime = parent.getPet().getWorld().getTime();
+        
+        // Level-based animation speed: faster with higher levels
+        int[] breathingSpeeds = {280, 180, 100};
+        int breathingSpeed = breathingSpeeds[Math.min(level - 1, breathingSpeeds.length - 1)];
+        
+        // Use update interval for visual update smoothness
+        int updateInterval = getAnimationUpdateInterval(level);
+        long animationTime = (worldTime / updateInterval) * updateInterval;
+        
+        // Breathing pattern 
+        double breathingPhase = (animationTime % breathingSpeed) / (double) breathingSpeed;
+        double breathingIntensity = (Math.sin(breathingPhase * 2 * Math.PI) + 1) / 2; // 0 to 1
+        
+        MutableText out = Text.empty();
+        char[] chars = text.toCharArray();
+        
+        for (int i = 0; i < chars.length; i++) {
+            // Base gradient pattern - same template for all levels
+            boolean baseGradient = (i % 2 == 0);
+            
+            // Level-based breathing effect intensity
+            // Level 1: subtle override (threshold 0.7), Level 2: moderate (0.6), Level 3: strong (0.5)
+            double[] breathingThresholds = {0.70, 0.60, 0.50};
+            int levelIndex = Math.min(level - 1, breathingThresholds.length - 1);
+            double threshold = breathingThresholds[levelIndex];
+            
+            // Character-specific breathing variation (consistent template)
+            double charPhase = (i * 0.6) + (breathingPhase * 3);
+            double charIntensity = breathingIntensity + (Math.sin(charPhase) * 0.25);
+            
+            // Same decision logic template, but different thresholds by level
+            boolean useBreathingOverride = charIntensity > threshold;
+            
+            Formatting f;
+            if (useBreathingOverride) {
+                f = secondary; // Breathing override color
+            } else {
+                f = baseGradient ? primary : secondary; // Base alternating gradient
+            }
+            
+            out.append(Text.literal(String.valueOf(chars[i])).styled(s -> s.withColor(TextColor.fromFormatting(f))));
+        }
+        
+        return out;
+    }
+
+    /**
+     * Create breathing moving gradient with wave motion and breathing intensity.
+     * Uses consistent template with increasing intensity and wave complexity.
+     */
+    private MutableText createBreathingMovingGradient(String text, Formatting primary, Formatting secondary, int level) {
+        long worldTime = parent.getPet().getWorld().getTime();
+        
+        // Level-based animation speeds: faster with higher levels  
+        int[] breathingSpeeds = {240, 150, 80};
+        int[] waveSpeeds = {32, 20, 12};
+        
+        int levelIndex = Math.min(level - 1, breathingSpeeds.length - 1);
+        int breathingSpeed = breathingSpeeds[levelIndex];
+        int waveSpeed = waveSpeeds[levelIndex];
+        
+        // Use update interval for visual update smoothness
+        int updateInterval = getAnimationUpdateInterval(level);
+        long animationTime = (worldTime / updateInterval) * updateInterval;
+        
+        // Breathing pattern
+        double breathingPhase = (animationTime % breathingSpeed) / (double) breathingSpeed;
+        double globalBreathingIntensity = (Math.sin(breathingPhase * 2 * Math.PI) + 1) / 2;
+        
+        // Moving wave pattern - same template, different speeds
+        int waveOffset = (int) (animationTime / waveSpeed) % 4;
+        
+        MutableText out = Text.empty();
+        char[] chars = text.toCharArray();
+        
+        for (int i = 0; i < chars.length; i++) {
+            // Base moving wave pattern (consistent template)
+            boolean waveGradient = ((i + waveOffset) % 3) != 0;
+            
+            // Level-based breathing effect intensity  
+            // Level 1: subtle (threshold 0.65), Level 2: moderate (0.55), Level 3: strong (0.4)
+            double[] breathingThresholds = {0.65, 0.55, 0.40};
+            double threshold = breathingThresholds[levelIndex];
+            
+            // Per-character breathing variation (consistent template)
+            double charPhase = (i * 0.4) + (breathingPhase * 2.5);
+            double charIntensity = (Math.sin(charPhase) + 1) / 2;
+            
+            // Combine breathing effects using level-specific threshold
+            double combinedIntensity = (globalBreathingIntensity + charIntensity * 0.4) / 1.4;
+            boolean useBreathingOverride = combinedIntensity > threshold;
+            
+            // Same decision template: wave gradient or breathing override
+            Formatting f;
+            if (useBreathingOverride) {
+                f = secondary; // Breathing override
+            } else {
+                f = waveGradient ? secondary : primary; // Base wave pattern
+            }
+            
+            out.append(Text.literal(String.valueOf(chars[i])).styled(s -> s.withColor(TextColor.fromFormatting(f))));
+        }
+        
         return out;
     }
 
@@ -437,10 +635,24 @@ final class PetMoodEngine {
         if (now - lastMoodUpdate < 20) return;
         lastMoodUpdate = now;
 
-        float[] moodScores = new float[PetComponent.Mood.values().length];
+        // Get active emotion slots and sort by weight
+        List<EmotionSlot> activeSlots = new ArrayList<>();
         float epsilon = getEpsilon();
         for (EmotionSlot slot : emotionSlots) {
-            if (slot == null || slot.parked || slot.weight <= epsilon) continue;
+            if (slot != null && !slot.parked && slot.weight > epsilon) {
+                activeSlots.add(slot);
+            }
+        }
+        
+        // Sort by weight descending
+        activeSlots.sort((a, b) -> Float.compare(b.weight, a.weight));
+        
+        // Only consider top N slots for mood calculation, where N = slotCount - 1 (exclude only the weakest)
+        int topSlotsToConsider = Math.max(1, configuredSlotCount - 1);
+        List<EmotionSlot> topSlots = activeSlots.subList(0, Math.min(topSlotsToConsider, activeSlots.size()));
+
+        float[] moodScores = new float[PetComponent.Mood.values().length];
+        for (EmotionSlot slot : topSlots) {
             Map<PetComponent.Mood, Float> weights = getEmotionToMoodWeights(slot.emotion);
             for (Map.Entry<PetComponent.Mood, Float> e : weights.entrySet()) {
                 moodScores[e.getKey().ordinal()] += slot.weight * e.getValue();
@@ -450,29 +662,44 @@ final class PetMoodEngine {
         for (float s : moodScores) sum += Math.max(0f, s);
         EnumMap<PetComponent.Mood, Float> target = new EnumMap<>(PetComponent.Mood.class);
         if (sum <= epsilon) {
-            for (PetComponent.Mood m : PetComponent.Mood.values()) target.put(m, m == PetComponent.Mood.CALM ? 1f : 0f);
+            // When no emotions are active, provide a small baseline distributed across all moods
+            // This prevents complete mood decay while avoiding heavy CALM bias
+            float baselineStrength = 0.1f; // Small baseline to maintain some mood presence
+            int moodCount = PetComponent.Mood.values().length;
+            float perMoodBaseline = baselineStrength / moodCount;
+            
+            for (PetComponent.Mood m : PetComponent.Mood.values()) {
+                target.put(m, perMoodBaseline);
+            }
         } else {
             for (int i = 0; i < moodScores.length; i++) {
                 target.put(PetComponent.Mood.values()[i], Math.max(0f, moodScores[i]) / sum);
             }
         }
 
-        float momentum = (float) getMoodsDouble("momentum", 0.25);
+        float momentum = (float) getMoodsDouble("momentum", 0.5); // Increased from 0.25 to 0.5 for more responsive mood changes
         if (moodBlend == null) moodBlend = new EnumMap<>(PetComponent.Mood.class);
         for (PetComponent.Mood m : PetComponent.Mood.values()) {
-            float cur = moodBlend.getOrDefault(m, m == PetComponent.Mood.CALM ? 1f : 0f);
+            // Initialize all moods equally instead of biasing toward CALM
+            float cur = moodBlend.getOrDefault(m, 0f);
             float tar = target.getOrDefault(m, 0f);
             float next = cur + (tar - cur) * Math.max(0f, Math.min(1f, momentum));
             moodBlend.put(m, next);
         }
 
-        PetComponent.Mood bestMood = PetComponent.Mood.CALM;
+        PetComponent.Mood bestMood = null;
         float bestVal = -1f;
         for (Map.Entry<PetComponent.Mood, Float> e : moodBlend.entrySet()) {
             if (e.getValue() > bestVal) { bestVal = e.getValue(); bestMood = e.getKey(); }
         }
+        
+        // Only fallback to CALM if no mood has any strength
+        if (bestMood == null || bestVal <= 0f) {
+            bestMood = PetComponent.Mood.CALM;
+            bestVal = 0f;
+        }
 
-        double switchMargin = getMoodsDouble("switchMargin", 0.15);
+        double switchMargin = getMoodsDouble("switchMargin", 0.05); // Reduced from 0.15 to 0.05 for easier mood transitions
         int hysteresisTicks = getMoodsInt("hysteresisTicks", 60);
         int requiredUpdates = Math.max(1, hysteresisTicks / 20);
         float currentStrength = moodBlend.getOrDefault(currentMood, 0f);
@@ -497,9 +724,33 @@ final class PetMoodEngine {
 
         float[] thresholds = getLevelThresholds();
         int level = 0;
-        if (bestVal >= thresholds[2]) level = 3;
-        else if (bestVal >= thresholds[1]) level = 2;
-        else if (bestVal >= thresholds[0]) level = 1;
+        
+        // Calculate level based on how much above baseline the mood strength is
+        // When no emotions are active, baseline is 0.1f / moodCount (~0.007 for 14 moods)
+        // But momentum keeps values higher, so we need to account for this
+        
+        // Check if we have any active emotions with significant weight
+        boolean hasActiveEmotions = false;
+        float totalEmotionWeight = 0f;
+        for (EmotionSlot slot : emotionSlots) {
+            if (slot != null && !slot.parked && slot.weight > epsilon) {
+                hasActiveEmotions = true;
+                totalEmotionWeight += slot.weight;
+            }
+        }
+        
+        if (!hasActiveEmotions || totalEmotionWeight < epsilon) {
+            // No active emotions - should be level 0 regardless of momentum artifacts
+            level = 0;
+        } else {
+            // Has active emotions - use normal threshold calculation
+            // But adjust thresholds to account for the fact that bestVal is a blend proportion, not raw emotion weight
+            if (bestVal >= thresholds[2]) level = 3;
+            else if (bestVal >= thresholds[1]) level = 2;
+            else if (bestVal >= thresholds[0]) level = 1;
+            else level = 0;
+        }
+        
         this.moodLevel = level;
     }
 
@@ -609,9 +860,15 @@ final class PetMoodEngine {
         cachedEpsilon = (float) readDouble(cachedMoodsSection, "epsilon", 0.05);
         cachedDefaultDecayRate = readDouble(cachedMoodsSection, "defaultDecayRate", 0.96);
         cachedMomentum = readDouble(cachedMoodsSection, "momentum", 0.25);
-        cachedSwitchMargin = readDouble(cachedMoodsSection, "switchMargin", 0.15);
+        cachedSwitchMargin = readDouble(cachedMoodsSection, "switchMargin", 0.05);
         cachedHysteresisTicks = readInt(cachedMoodsSection, "hysteresisTicks", 60);
         cachedLevelThresholds = parseLevelThresholds(cachedMoodsSection);
+
+        // Animation configuration
+        cachedBaseAnimationUpdateInterval = readInt(cachedMoodsSection, "baseAnimationUpdateInterval", 16);
+        cachedAnimationSpeedMultiplier = readDouble(cachedMoodsSection, "animationSpeedMultiplier", 0.15);
+        cachedMinAnimationInterval = readInt(cachedMoodsSection, "minAnimationInterval", 4);
+        cachedMaxAnimationInterval = readInt(cachedMoodsSection, "maxAnimationInterval", 40);
 
         cachedPerEmotionDecaySection = getObject(cachedMoodsSection, "perEmotionDecay");
         cachedEmotionToMoodWeightsSection = getObject(cachedMoodsSection, "emotionToMoodWeights");
@@ -636,6 +893,7 @@ final class PetMoodEngine {
             case "defaultDecayRate" -> cachedDefaultDecayRate;
             case "momentum" -> cachedMomentum;
             case "switchMargin" -> cachedSwitchMargin;
+            case "animationSpeedMultiplier" -> cachedAnimationSpeedMultiplier;
             default -> readDouble(cachedMoodsSection, key, def);
         };
     }
@@ -646,6 +904,9 @@ final class PetMoodEngine {
             case "slotCount" -> cachedSlotCount;
             case "decayTickInterval" -> cachedDecayTickInterval;
             case "hysteresisTicks" -> cachedHysteresisTicks;
+            case "baseAnimationUpdateInterval" -> cachedBaseAnimationUpdateInterval;
+            case "minAnimationInterval" -> cachedMinAnimationInterval;
+            case "maxAnimationInterval" -> cachedMaxAnimationInterval;
             default -> readInt(cachedMoodsSection, key, def);
         };
     }
@@ -842,8 +1103,8 @@ final class PetMoodEngine {
             PetComponent.Mood.PLAYFUL, 0.25f
         ));
         weights.put(PetComponent.Emotion.QUERECIA, moodWeights(
-            PetComponent.Mood.BONDED, 0.65f,
-            PetComponent.Mood.CALM, 0.35f
+            PetComponent.Mood.BONDED, 0.45f,
+            PetComponent.Mood.CALM, 0.55f
         ));
         weights.put(PetComponent.Emotion.GLEE, moodWeights(
             PetComponent.Mood.PLAYFUL, 0.7f,
@@ -854,16 +1115,16 @@ final class PetMoodEngine {
             PetComponent.Mood.HAPPY, 0.3f
         ));
         weights.put(PetComponent.Emotion.UBUNTU, moodWeights(
-            PetComponent.Mood.BONDED, 0.6f,
-            PetComponent.Mood.PROTECTIVE, 0.4f
+            PetComponent.Mood.BONDED, 0.4f,
+            PetComponent.Mood.PROTECTIVE, 0.6f
         ));
         weights.put(PetComponent.Emotion.KEFI, moodWeights(
             PetComponent.Mood.PASSIONATE, 0.65f,
             PetComponent.Mood.PLAYFUL, 0.35f
         ));
         weights.put(PetComponent.Emotion.ANGST, moodWeights(
-            PetComponent.Mood.AFRAID, 0.65f,
-            PetComponent.Mood.RESTLESS, 0.35f
+            PetComponent.Mood.AFRAID, 0.55f,
+            PetComponent.Mood.RESTLESS, 0.45f
         ));
         weights.put(PetComponent.Emotion.FOREBODING, moodWeights(
             PetComponent.Mood.AFRAID, 0.7f,
@@ -898,8 +1159,8 @@ final class PetMoodEngine {
             PetComponent.Mood.SAUDADE, 0.35f
         ));
         weights.put(PetComponent.Emotion.SOBREMESA, moodWeights(
-            PetComponent.Mood.BONDED, 0.7f,
-            PetComponent.Mood.CALM, 0.3f
+            PetComponent.Mood.BONDED, 0.5f,
+            PetComponent.Mood.CALM, 0.5f
         ));
         weights.put(PetComponent.Emotion.HANYAUKU, moodWeights(
             PetComponent.Mood.PLAYFUL, 0.7f,
@@ -944,6 +1205,62 @@ final class PetMoodEngine {
         weights.put(PetComponent.Emotion.GAMAN, moodWeights(
             PetComponent.Mood.SISU, 0.7f,
             PetComponent.Mood.FOCUSED, 0.3f
+        ));
+        weights.put(PetComponent.Emotion.CURIOUS, moodWeights(
+            PetComponent.Mood.CURIOUS, 0.65f,
+            PetComponent.Mood.PLAYFUL, 0.35f
+        ));
+        weights.put(PetComponent.Emotion.SISU, moodWeights(
+            PetComponent.Mood.SISU, 0.7f,
+            PetComponent.Mood.FOCUSED, 0.3f
+        ));
+        weights.put(PetComponent.Emotion.FOCUSED, moodWeights(
+            PetComponent.Mood.FOCUSED, 0.8f,
+            PetComponent.Mood.CALM, 0.2f
+        ));
+        weights.put(PetComponent.Emotion.PRIDE, moodWeights(
+            PetComponent.Mood.PASSIONATE, 0.6f,
+            PetComponent.Mood.HAPPY, 0.4f
+        ));
+        weights.put(PetComponent.Emotion.VIGILANT, moodWeights(
+            PetComponent.Mood.FOCUSED, 0.7f,
+            PetComponent.Mood.PROTECTIVE, 0.3f
+        ));
+        weights.put(PetComponent.Emotion.WORRIED, moodWeights(
+            PetComponent.Mood.AFRAID, 0.6f,
+            PetComponent.Mood.PROTECTIVE, 0.4f
+        ));
+        weights.put(PetComponent.Emotion.PROTECTIVE, moodWeights(
+            PetComponent.Mood.PROTECTIVE, 0.8f,
+            PetComponent.Mood.FOCUSED, 0.2f
+        ));
+        weights.put(PetComponent.Emotion.MELANCHOLY, moodWeights(
+            PetComponent.Mood.SAUDADE, 0.7f,
+            PetComponent.Mood.CALM, 0.3f
+        ));
+        weights.put(PetComponent.Emotion.CONTENT, moodWeights(
+            PetComponent.Mood.CALM, 0.6f,
+            PetComponent.Mood.HAPPY, 0.4f
+        ));
+        weights.put(PetComponent.Emotion.RESTLESS, moodWeights(
+            PetComponent.Mood.RESTLESS, 0.8f,
+            PetComponent.Mood.CURIOUS, 0.2f
+        ));
+        weights.put(PetComponent.Emotion.EMPATHY, moodWeights(
+            PetComponent.Mood.BONDED, 0.6f,
+            PetComponent.Mood.PROTECTIVE, 0.4f
+        ));
+        weights.put(PetComponent.Emotion.NOSTALGIA, moodWeights(
+            PetComponent.Mood.SAUDADE, 0.7f,
+            PetComponent.Mood.YUGEN, 0.3f
+        ));
+        weights.put(PetComponent.Emotion.PLAYFULNESS, moodWeights(
+            PetComponent.Mood.PLAYFUL, 0.8f,
+            PetComponent.Mood.HAPPY, 0.2f
+        ));
+        weights.put(PetComponent.Emotion.LOYALTY, moodWeights(
+            PetComponent.Mood.BONDED, 0.7f,
+            PetComponent.Mood.PROTECTIVE, 0.3f
         ));
         for (PetComponent.Emotion emotion : PetComponent.Emotion.values()) {
             weights.putIfAbsent(emotion, DEFAULT_CALM_WEIGHTS);

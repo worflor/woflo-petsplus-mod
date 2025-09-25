@@ -134,6 +134,8 @@ public final class EmotionContextCues {
     /** Clear throttles when a player changes dimension to avoid stale cooldowns. */
     public static void clearForDimensionChange(ServerPlayerEntity player) {
         clear(player);
+        // Clear boss bars to avoid cross-dimensional display issues
+        woflo.petsplus.ui.BossBarManager.clearForDimensionChange(player);
         // Preserve journal entries so players can still review missed cues after travelling.
     }
 
@@ -208,8 +210,8 @@ public final class EmotionContextCues {
             CATEGORY_COOLDOWNS.computeIfAbsent(player, p -> new HashMap<>())
                 .put(definition.category(), now);
             if (EmotionCueConfig.get().hudPulseEnabled() && definition.highlightHud()) {
-                if (impact > definition.minDelta() * 1.5f) {
-                    BossBarManager.showOrUpdateInfoBar(player, text.copy(), BossBar.Color.PURPLE, 60);
+                if (impact > definition.minDelta() * 3.0f) {
+                    BossBarManager.showOrUpdateInfoBar(player, text.copy(), BossBar.Color.PURPLE, 40);
                 }
             }
         }

@@ -430,4 +430,15 @@ public class FeedbackManager {
         String eventName = prefix + "_" + abilityName.toLowerCase();
         emitFeedback(eventName, source, world);
     }
+
+    /**
+     * Clean up all delayed tasks and resources.
+     * Should be called during server shutdown to prevent watchdog timeouts.
+     */
+    public static void cleanup() {
+        synchronized (FeedbackManager.class) {
+            DELAYED_TASKS.clear();
+            tickHandlerRegistered = false;
+        }
+    }
 }

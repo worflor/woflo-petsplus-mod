@@ -36,6 +36,9 @@ public class CombatThreatProvider implements EmotionProvider {
 
         int hostileCount = hostiles.size();
         boolean hasHostiles = hostileCount > 0;
+        
+        // Enhanced threat assessment
+        ThreatAssessment threat = assessThreat(hostiles, pet);
 
         long lastThreatTick = comp.getStateData(PetComponent.StateKeys.THREAT_LAST_TICK, Long.class, Long.MIN_VALUE);
         int safeStreak = comp.getStateData(PetComponent.StateKeys.THREAT_SAFE_STREAK, Integer.class, 0);
@@ -67,7 +70,10 @@ public class CombatThreatProvider implements EmotionProvider {
                 }
             }
 
-            float angstPush = Math.min(0.05f * hostileCount, 0.15f);
+            // Enhanced threat-based ANGST calculation
+            float baseThreat = Math.min(0.03f + threat.diversityFactor * 0.02f + threat.spreadFactor * 0.02f, 0.12f);
+            float angstPush = baseThreat * threat.countMultiplier;
+            
             if (danger) {
                 float amp = 1f + 0.15f * sensitizedStreak;
                 angstPush *= MathHelper.clamp(amp, 1f, 1.6f);
@@ -107,6 +113,14 @@ public class CombatThreatProvider implements EmotionProvider {
                         sensitizedStreak = Math.max(0, sensitizedStreak - 1);
                         comp.setStateData(PetComponent.StateKeys.THREAT_SENSITIZED_STREAK, sensitizedStreak);
                     }
+                    
+                    // CATEGORY 2: Enhanced Combat Recovery - Post-combat emotional recovery phases
+                    if (sinceLast > 1200) { // 1 minute after combat
+                        float recoveryAmount = 0.08f * resilience;
+                        api.pushEmotion(pet, PetComponent.Emotion.LAGOM, recoveryAmount); // Post-combat calm
+                        api.pushEmotion(pet, PetComponent.Emotion.SISU, recoveryAmount * 0.5f); // Resilience from survival
+                    }
+                    
                     if (sinceLast > MEMORY_FADE_TICKS * 2L) {
                         comp.setStateData(PetComponent.StateKeys.THREAT_LAST_TICK, Long.MIN_VALUE);
                         comp.setStateData(PetComponent.StateKeys.THREAT_LAST_DANGER, false);
@@ -119,6 +133,74 @@ public class CombatThreatProvider implements EmotionProvider {
             float harmAmp = 1f + 0.1f * MathHelper.clamp(sensitizedStreak, 0, 5);
             api.pushEmotion(pet, PetComponent.Emotion.STARTLE, 0.04f * harmAmp);
             api.pushEmotion(pet, PetComponent.Emotion.FRUSTRATION, 0.02f * harmAmp);
+        }
+    }
+
+    /**
+     * Assess threat level based on enemy variety, count, and spatial distribution
+     */
+    private static ThreatAssessment assessThreat(java.util.List<LivingEntity> hostiles, MobEntity pet) {
+        if (hostiles.isEmpty()) {
+            return new ThreatAssessment(0f, 0f, 0f);
+        }
+
+        // Count unique enemy types for diversity factor
+        java.util.Set<String> uniqueTypes = new java.util.HashSet<>();
+        for (LivingEntity hostile : hostiles) {
+            uniqueTypes.add(hostile.getType().toString());
+        }
+        float diversityFactor = Math.min(uniqueTypes.size() / 3.0f, 1.0f); // Cap at 3 types = max diversity
+
+        // Calculate spatial spread to detect mob farms vs natural spawns
+        if (hostiles.size() == 1) {
+            return new ThreatAssessment(diversityFactor, 1.0f, Math.min(1.5f, 1.0f + hostiles.size() * 0.15f));
+        }
+
+        // Find center of mob cluster
+        double centerX = 0, centerY = 0, centerZ = 0;
+        double avgDistanceToCenter = 0;
+        for (LivingEntity hostile : hostiles) {
+            net.minecraft.util.math.Vec3d pos = hostile.getPos();
+            centerX += pos.x;
+            centerY += pos.y;
+            centerZ += pos.z;
+        }
+        centerX /= hostiles.size();
+        centerY /= hostiles.size();
+        centerZ /= hostiles.size();
+
+        // Calculate how spread out the mobs are
+        double totalDistance = 0;
+        for (LivingEntity hostile : hostiles) {
+            net.minecraft.util.math.Vec3d pos = hostile.getPos();
+            double dist = Math.sqrt(Math.pow(pos.x - centerX, 2) + Math.pow(pos.y - centerY, 2) + Math.pow(pos.z - centerZ, 2));
+            totalDistance += dist;
+        }
+        avgDistanceToCenter = totalDistance / hostiles.size();
+
+        // Spread factor: low = clustered (mob farm), high = spread out (natural spawns)
+        float spreadFactor = (float) MathHelper.clamp(avgDistanceToCenter / 4.0, 0.2, 1.0);
+
+        // Count multiplier with diminishing returns and clustering penalty
+        float rawCountMultiplier = 1.0f + (hostiles.size() - 1) * 0.2f;
+        float clusterPenalty = spreadFactor < 0.4f ? 0.4f : 1.0f; // Reduce fear for very clustered mobs
+        float countMultiplier = Math.min(rawCountMultiplier * clusterPenalty, 2.5f);
+
+        return new ThreatAssessment(diversityFactor, spreadFactor, countMultiplier);
+    }
+
+    /**
+     * Data class for threat assessment results
+     */
+    private static class ThreatAssessment {
+        final float diversityFactor; // 0-1, more types = higher
+        final float spreadFactor;    // 0.2-1, more spread = higher  
+        final float countMultiplier; // 1-2.5, more enemies = higher (with clustering penalty)
+
+        ThreatAssessment(float diversityFactor, float spreadFactor, float countMultiplier) {
+            this.diversityFactor = diversityFactor;
+            this.spreadFactor = spreadFactor;
+            this.countMultiplier = countMultiplier;
         }
     }
 }

@@ -1,7 +1,7 @@
 {
   "replace": false,
   "values": [
-    "#minecraft:is_snowy",
+    "#c:is_snowy",
     "minecraft:snowy_plains",
     "minecraft:snowy_taiga",
     "minecraft:ice_spikes",

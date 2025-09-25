@@ -16,6 +16,8 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Item;
 import net.minecraft.registry.Registries;
 import net.minecraft.util.Identifier;
+import net.minecraft.scoreboard.ScoreHolder;
+
 
 import java.util.*;
 
@@ -60,11 +62,12 @@ public final class PetInspectionManager {
             // Just stopped looking: extend current bar duration for smooth transition
             BossBarManager.extendDuration(player, LINGER_TICKS);
         }
-        
+
         if (state.lingerTicks > 0) {
             state.lingerTicks--;
         } else {
             BossBarManager.removeBossBar(player);
+            clearEmotionScoreboard(player);
             inspecting.remove(player.getUuid());
         }
     }
@@ -82,6 +85,7 @@ public final class PetInspectionManager {
         PetComponent comp = PetComponent.get(pet);
         if (comp == null || !comp.isOwnedBy(player)) {
             BossBarManager.removeBossBar(player);
+            clearEmotionScoreboard(player);
             inspecting.remove(player.getUuid());
             return;
         }
@@ -104,6 +108,11 @@ public final class PetInspectionManager {
         
         // Show the frame with appropriate styling
         showFrame(player, activeFrame);
+
+        // Debug mode: Show emotion pool in scoreboard
+        if (woflo.petsplus.Petsplus.DEBUG_MODE) {
+            showEmotionPoolScoreboard(player, comp, pet.getDisplayName().getString());
+        }
     }
 
     private static PetStatus analyzePetStatus(MobEntity pet, PetComponent comp, InspectionState state) {
@@ -111,14 +120,9 @@ public final class PetInspectionManager {
         float maxHealth = pet.getMaxHealth();
         float healthPercent = maxHealth > 0 ? health / maxHealth : 0;
         
-        float xp = comp.getXpProgress();
-        boolean xpChanged = Math.abs(xp - state.lastXp) > 0.001f;
-        if (xpChanged) {
-            state.lastXp = xp;
-            state.lastXpChangeTime = state.tickCounter;
-        }
-        
-        boolean recentXpGain = (state.tickCounter - state.lastXpChangeTime) < 100; // 5s
+        // Use the actual XP flash system from PetComponent instead of detecting changes manually
+        // This ensures XP flashing only happens when XP is actually gained via addExperience()
+        boolean recentXpGain = comp.isXpFlashing();
         boolean canLevelUp = comp.isFeatureLevel();
         boolean injured = healthPercent < 1.0f;
         boolean critical = healthPercent <= 0.25f;
@@ -129,7 +133,7 @@ public final class PetInspectionManager {
         boolean hasCooldowns = hasActiveCooldowns(comp);
         boolean hasAura = hasActiveAura(comp);
         
-        return new PetStatus(healthPercent, xpChanged, recentXpGain, canLevelUp, 
+        return new PetStatus(healthPercent, recentXpGain, canLevelUp, 
                            injured, critical, inCombat, hasCooldowns, hasAura);
     }
 
@@ -182,10 +186,10 @@ public final class PetInspectionManager {
             .append(Text.literal(" "))
             .append(moodText);
 
-        // Use mood-based color if mood level is high, otherwise health-based
-        BossBar.Color barColor = comp.getMoodLevel() >= 2 ? 
-            comp.getMoodBossBarColor() : 
-            UIStyle.getHealthBasedBossBarColor(status.healthPercent);
+        // Note: Debug scoreboard will be handled in updatePetDisplay with player context
+
+        // Boss bar always shows health-based color, only the text shows mood colors
+        BossBar.Color barColor = UIStyle.getHealthBasedBossBarColor(status.healthPercent);
         float progress = status.healthPercent; // Bar shows health, not XP
         
         frames.add(new DisplayFrame(displayWithMood, progress, barColor, FramePriority.NORMAL));
@@ -202,10 +206,11 @@ public final class PetInspectionManager {
     }
 
     private static void showFrame(ServerPlayerEntity player, DisplayFrame frame) {
+        // Use forceUpdate=true for animated mood content to ensure smooth animations
         switch (frame.priority) {
-            case CRITICAL -> BossBarManager.showOrUpdateBossBar(player, frame.text, frame.progress, frame.color, 20);
-            case HIGH -> BossBarManager.showOrUpdateBossBar(player, frame.text, frame.progress, frame.color, 40);
-            default -> BossBarManager.showOrUpdateBossBar(player, frame.text, frame.progress, frame.color, 60);
+            case CRITICAL -> BossBarManager.showOrUpdateBossBar(player, frame.text, frame.progress, frame.color, 20, true);
+            case HIGH -> BossBarManager.showOrUpdateBossBar(player, frame.text, frame.progress, frame.color, 40, true);
+            default -> BossBarManager.showOrUpdateBossBar(player, frame.text, frame.progress, frame.color, 60, true);
         }
     }
 
@@ -233,8 +238,6 @@ public final class PetInspectionManager {
         int tickCounter = 0;
         int lingerTicks = 0;
         UUID lastPetId = null;
-        float lastXp = -1f;
-        long lastXpChangeTime = 0;
 
         void tick() { 
             tickCounter++; 
@@ -243,12 +246,10 @@ public final class PetInspectionManager {
         void reset(UUID petId) {
             tickCounter = 0;
             lastPetId = petId;
-            lastXp = -1f;
-            lastXpChangeTime = 0;
         }
     }
 
-    private record PetStatus(float healthPercent, boolean xpChanged, boolean recentXpGain, 
+    private record PetStatus(float healthPercent, boolean recentXpGain, 
                            boolean canLevelUp, boolean injured, boolean critical, 
                            boolean inCombat, boolean hasCooldowns, boolean hasAura) {}
 
@@ -258,17 +259,7 @@ public final class PetInspectionManager {
         LOW, NORMAL, MEDIUM, HIGH, CRITICAL
     }
 
-    private static String shortenId(String id) {
-        int idx = id.indexOf(':');
-        if (idx > 0 && idx < id.length()-1) {
-            return id.substring(idx+1).replace('_',' ');
-        }
-        return id.replace('_',' ');
-    }
 
-    private static String humanizeKey(String key) {
-        return key.replace('_', ' ');
-    }
 
     private static String getTributeItemName(PetComponent component, int level) {
         if (component == null) {
@@ -310,63 +301,7 @@ public final class PetInspectionManager {
         Boolean hasPotion = comp.getStateData("support_potion_present", Boolean.class);
         return Boolean.TRUE.equals(hasPotion);
     }
-    
-    private static String getActiveCooldownSummary(PetComponent comp) {
-        String[] cooldownKeys = {
-            "ability_primary_cd", "ability_secondary_cd", "guardian_bulwark_cd",
-            "striker_exec_cd", "scout_recon_cd", "skyrider_winds_cd", "eclipsed_blink_cd"
-        };
-        
-        StringBuilder summary = new StringBuilder();
-        int count = 0;
-        
-        for (String key : cooldownKeys) {
-            long remaining = comp.getRemainingCooldown(key);
-            if (remaining > 0 && count < 2) { // Limit to 2 for brevity
-                if (count > 0) summary.append(", ");
-                summary.append(humanizeKey(key.replace("_cd", "")));
-                count++;
-            }
-        }
-        
-        return count > 0 ? summary.toString() : "None";
-    }
-    
-    private static String getActiveAuraSummary(PetComponent comp) {
-        @SuppressWarnings("unchecked")
-        List<String> effects = comp.getStateData("support_potion_effects", List.class);
-        Double chargesRemaining = comp.getStateData("support_potion_charges_remaining", Double.class);
-        Double totalCharges = comp.getStateData("support_potion_total_charges", Double.class);
 
-        if (effects != null && !effects.isEmpty()) {
-            StringBuilder summary = new StringBuilder();
-            int shown = 0;
-
-            for (String effect : effects) {
-                if (shown > 0) summary.append(", ");
-                String[] parts = effect.split("\\|");
-                String name = parts.length > 0 ? parts[0] : effect;
-                summary.append(shortenId(name));
-                if (++shown >= 2) break; // Limit to 2 effects
-            }
-
-            if (chargesRemaining != null) {
-                int pulsesLeft = Math.max(0, (int) Math.ceil(chargesRemaining));
-                summary.append(" [");
-                if (totalCharges != null && totalCharges > 0) {
-                    int pulsesTotal = Math.max(0, (int) Math.round(totalCharges));
-                    summary.append(pulsesLeft).append('/').append(pulsesTotal);
-                } else {
-                    summary.append(pulsesLeft);
-                }
-                summary.append(']');
-            }
-
-            return summary.toString();
-        }
-
-        return "Active";
-    }
     
     /**
      * Clean up inspection states for players who are no longer online
@@ -379,5 +314,92 @@ public final class PetInspectionManager {
         
         // Remove inspection states for offline players
         inspecting.entrySet().removeIf(entry -> !onlinePlayerIds.contains(entry.getKey()));
+    }
+
+    /**
+     * Show emotion pool debug information in the scoreboard panel
+     */
+    private static void showEmotionPoolScoreboard(ServerPlayerEntity player, PetComponent comp, String petName) {
+        var emotions = comp.getEmotionPoolDebug();
+
+        // Create or update scoreboard objective
+        var scoreboard = player.getServer().getScoreboard();
+        var objective = scoreboard.getNullableObjective("pet_emotions");
+
+        if (objective == null) {
+            objective = scoreboard.addObjective("pet_emotions",
+                net.minecraft.scoreboard.ScoreboardCriterion.DUMMY,
+                Text.literal("Pet Emotions").formatted(Formatting.YELLOW),
+                net.minecraft.scoreboard.ScoreboardCriterion.RenderType.INTEGER,
+                false, null);
+
+            // Show the scoreboard on the sidebar
+            scoreboard.setObjectiveSlot(net.minecraft.scoreboard.ScoreboardDisplaySlot.SIDEBAR, objective);
+        }
+
+        // Clear existing scores for this objective by getting all score entries
+        for (var entry : scoreboard.getScoreboardEntries(objective)) {
+            scoreboard.removeScore(ScoreHolder.fromName(entry.owner()), objective);
+        }
+
+        // Add pet name header
+        String header = "§e" + petName + " [" + comp.getMoodLevel() + "]";
+        ScoreHolder headerHolder = ScoreHolder.fromName(header);
+        scoreboard.getOrCreateScore(headerHolder, objective).setScore(15);
+
+        // Add current mood
+        String moodLine = "§7Mood: " + comp.getCurrentMood().name().toLowerCase();
+        ScoreHolder moodHolder = ScoreHolder.fromName(moodLine);
+        scoreboard.getOrCreateScore(moodHolder, objective).setScore(14);
+
+        // Add separator
+        String separatorLine = "§8─────────────";
+        ScoreHolder separatorHolder = ScoreHolder.fromName(separatorLine);
+        scoreboard.getOrCreateScore(separatorHolder, objective).setScore(13);
+
+        if (emotions.isEmpty()) {
+            String noEmotionsLine = "§7No emotions";
+            ScoreHolder noEmotionsHolder = ScoreHolder.fromName(noEmotionsLine);
+            scoreboard.getOrCreateScore(noEmotionsHolder, objective).setScore(12);
+        } else {
+            int score = 12;
+            for (var emotionInfo : emotions) {
+                if (score < 1) break; // Scoreboard limit
+
+                // Color by weight intensity
+                String color = emotionInfo.weight() > 2.0f ? "§c" : // Red
+                              emotionInfo.weight() > 1.0f ? "§e" : // Yellow
+                              "§f"; // White
+
+                String parkedMarker = emotionInfo.parked() ? "§b*" : "";
+                String line = color + emotionInfo.emotion().name().toLowerCase() +
+                             " §7(" + String.format("%.2f", emotionInfo.weight()) + ")" + parkedMarker;
+
+                ScoreHolder emotionHolder = ScoreHolder.fromName(line);
+                scoreboard.getOrCreateScore(emotionHolder, objective).setScore(score--);
+            }
+        }
+    }
+
+    /**
+     * Clear the emotion debug scoreboard
+     */
+    private static void clearEmotionScoreboard(ServerPlayerEntity player) {
+        var scoreboard = player.getServer().getScoreboard();
+        var objective = scoreboard.getNullableObjective("pet_emotions");
+
+        if (objective != null) {
+            // Clear the sidebar slot
+            scoreboard.setObjectiveSlot(net.minecraft.scoreboard.ScoreboardDisplaySlot.SIDEBAR, null);
+            // Remove the objective entirely
+            scoreboard.removeObjective(objective);
+        }
+    }
+
+    /**
+     * Clean up all inspection states during server shutdown.
+     */
+    public static void shutdown() {
+        inspecting.clear();
     }
 }

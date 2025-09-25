@@ -9,7 +9,9 @@
     "vitality": 0.05,
     "learning": 0.01
   },
-  "default_abilities": [],
+  "default_abilities": [
+    "petsplus:perch_ping"
+  ],
   "tribute_defaults": {
     "10": "minecraft:gold_ingot",
     "20": "minecraft:diamond",

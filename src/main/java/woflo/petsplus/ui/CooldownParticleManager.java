@@ -91,4 +91,11 @@ public class CooldownParticleManager {
         lastRefreshTime.entrySet().removeIf(entry -> 
             currentTime - entry.getValue() > 6000); // Remove entries older than 5 minutes
     }
+
+    /**
+     * Clean up all entries during server shutdown.
+     */
+    public static void shutdown() {
+        lastRefreshTime.clear();
+    }
 }

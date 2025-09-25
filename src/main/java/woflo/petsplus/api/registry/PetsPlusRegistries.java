@@ -314,6 +314,11 @@ public final class PetsPlusRegistries {
             }))
             .description("Owner reaches a low health threshold.")
             .build());
+
+        registerTriggerSerializer(TriggerSerializer.builder(id("on_pet_resurrect"), CooldownSettings.CODEC,
+            (abilityId, config) -> DataResult.success(simpleEventTrigger("on_pet_resurrect", config.resolvedCooldown())))
+            .description("Triggered when a pet is resurrected.")
+            .build());
     }
 
     private static void registerEffectSerializers() {

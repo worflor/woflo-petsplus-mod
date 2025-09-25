@@ -144,6 +144,10 @@ public class CursedOneResurrection {
         // Visual and audio feedback for resurrection
         playResurrectionCompleteFeedback(pet, world);
         
+        // Fire pet resurrection abilities
+        woflo.petsplus.api.TriggerContext context = new woflo.petsplus.api.TriggerContext(world, pet, petComp.getOwner(), "on_pet_resurrect");
+        woflo.petsplus.abilities.AbilityManager.triggerAbilities(pet, context);
+        
         // Handle mount buff if owner is mounted and pet is level 25+
         if (petComp.getLevel() >= 25 && petComp.getOwner() != null) {
             handlePetResurrectionMountBuff(petComp.getOwner());
@@ -747,21 +751,33 @@ public class CursedOneResurrection {
         }
 
         PetComponent petComp = PetComponent.get(mobEntity);
-        if (petComp == null || !petComp.hasRole(PetRoleType.CURSED_ONE)) {
+        if (petComp == null) {
+            return true; // No pet component, allow death
+        }
+        
+        if (!petComp.hasRole(PetRoleType.CURSED_ONE)) {
             return true; // Not a Cursed One pet, allow death
         }
 
+        // Debug logging
+        woflo.petsplus.Petsplus.LOGGER.info("Cursed One pet {} is dying - Level: {}, Health: {}/{}", 
+            mobEntity.hasCustomName() ? mobEntity.getCustomName().getString() : mobEntity.getType().getName().getString(),
+            petComp.getLevel(), mobEntity.getHealth(), mobEntity.getMaxHealth());
+
         // Require level 15+ for immortality (matches doom echo unlock level)
         if (petComp.getLevel() < 15) {
+            woflo.petsplus.Petsplus.LOGGER.info("Cursed One pet level {} is too low for immortality (needs 15+)", petComp.getLevel());
             return true; // Too low level for immortality, allow death
         }
 
         // Don't prevent death if already reanimating (prevents infinite loop)
         if (isReanimating(mobEntity)) {
+            woflo.petsplus.Petsplus.LOGGER.info("Cursed One pet is already reanimating, allowing death");
             return true; // Allow death while reanimating
         }
 
         if (!(entity.getWorld() instanceof ServerWorld serverWorld)) {
+            woflo.petsplus.Petsplus.LOGGER.warn("Cursed One pet death occurred in non-server world");
             return true;
         }
 
@@ -772,9 +788,12 @@ public class CursedOneResurrection {
         long resurrectionCooldown = 15 * 20; // 15 seconds in ticks
 
         if (currentTime - lastResurrectTime < resurrectionCooldown) {
-            // Still on cooldown, allow death this time
-            return true;
+            long cooldownRemaining = resurrectionCooldown - (currentTime - lastResurrectTime);
+            woflo.petsplus.Petsplus.LOGGER.info("Cursed One pet resurrection on cooldown for {} more ticks", cooldownRemaining);
+            return true; // Still on cooldown, allow death this time
         }
+
+        woflo.petsplus.Petsplus.LOGGER.info("Attempting to enter reanimation state for Cursed One pet");
 
         // Enter reanimation state instead of dying
         boolean enteredReanimation = enterReanimationState(mobEntity, petComp, damageSource, serverWorld);
@@ -782,9 +801,11 @@ public class CursedOneResurrection {
         if (enteredReanimation) {
             // Update resurrection timestamp
             petComp.setStateData("last_resurrect_time", currentTime);
+            woflo.petsplus.Petsplus.LOGGER.info("Successfully entered reanimation state - preventing death");
             return false; // Prevent death - entering reanimation
         }
 
+        woflo.petsplus.Petsplus.LOGGER.warn("Failed to enter reanimation state - allowing death");
         return true; // Allow death if reanimation failed
     }
 

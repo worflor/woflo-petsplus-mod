@@ -383,6 +383,15 @@ public final class PetsplusEffectManager {
         LAST_EFFECT_NOTIFICATION.entrySet().removeIf(entry -> now - entry.getValue() > 300_000);
     }
 
+    /**
+     * Clean up all aura timers and resources.
+     * Should be called during server shutdown to prevent watchdog timeouts.
+     */
+    public static void shutdown() {
+        AURA_TIMERS.clear();
+        LAST_EFFECT_NOTIFICATION.clear();
+    }
+
     private static final class AuraTimer {
         long lastWorldTime;
         long lastRealTime;

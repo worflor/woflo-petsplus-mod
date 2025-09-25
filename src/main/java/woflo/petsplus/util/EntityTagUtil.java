@@ -82,4 +82,11 @@ public class EntityTagUtil {
     public static void cleanupEntity(Entity entity) {
         ENTITY_TAGS.remove(entity);
     }
+
+    /**
+     * Clean up all entity tags during server shutdown.
+     */
+    public static void shutdown() {
+        ENTITY_TAGS.clear();
+    }
 }

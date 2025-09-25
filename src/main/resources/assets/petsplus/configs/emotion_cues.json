@@ -1,54 +1,66 @@
 {
   "defaults": {
     "radius": 24.0,
-    "cooldown": 200,
-    "category_cooldown": 80,
-    "digest_window": 120,
-    "min_delta": 0.05,
-    "highlight_hud": true
+    "cooldown": 40,
+    "category_cooldown": 20,
+    "digest_window": 80,
+    "min_delta": 0.03,
+    "highlight_hud": false
   },
   "categories": {
     "block_break": {
-      "cooldown": 200,
-      "category_cooldown": 80,
-      "digest_window": 160,
-      "min_delta": 0.05
+      "cooldown": 60,
+      "category_cooldown": 30,
+      "digest_window": 100,
+      "min_delta": 0.03
     },
     "combat": {
-      "cooldown": 200,
-      "category_cooldown": 120,
-      "digest_window": 200,
-      "min_delta": 0.08
+      "cooldown": 80,
+      "category_cooldown": 40,
+      "digest_window": 120,
+      "min_delta": 0.05
     },
     "item": {
-      "cooldown": 200,
-      "category_cooldown": 120,
-      "digest_window": 200,
-      "min_delta": 0.06
+      "cooldown": 50,
+      "category_cooldown": 25,
+      "digest_window": 120,
+      "min_delta": 0.04
     },
     "block_use": {
-      "cooldown": 200,
-      "category_cooldown": 160,
-      "digest_window": 200,
-      "min_delta": 0.05
+      "cooldown": 60,
+      "category_cooldown": 40,
+      "digest_window": 120,
+      "min_delta": 0.03
     },
     "block_place": {
-      "cooldown": 200,
-      "category_cooldown": 160,
-      "digest_window": 200,
-      "min_delta": 0.05
+      "cooldown": 60,
+      "category_cooldown": 40,
+      "digest_window": 120,
+      "min_delta": 0.03
     },
     "entity": {
-      "cooldown": 200,
-      "category_cooldown": 160,
-      "digest_window": 200,
-      "min_delta": 0.05
+      "cooldown": 70,
+      "category_cooldown": 50,
+      "digest_window": 120,
+      "min_delta": 0.03
     },
     "species": {
+      "cooldown": 100,
+      "category_cooldown": 80,
+      "digest_window": 160,
+      "min_delta": 0.02
+    },
+    "weather": {
+      "cooldown": 120,
+      "category_cooldown": 100,
+      "digest_window": 200,
+      "min_delta": 0.02
+    },
+    "special": {
       "cooldown": 200,
-      "category_cooldown": 200,
-      "digest_window": 240,
-      "min_delta": 0.04
+      "category_cooldown": 150,
+      "digest_window": 300,
+      "min_delta": 0.05
     }
   },
   "profiles": {
@@ -61,8 +73,9 @@
     "block_break_ore": {
       "radius": 32.0,
       "emotions": {
-        "KEFI": 0.12,
-        "GLEE": 0.35
+        "KEFI": 0.15,
+        "GLEE": 0.20,
+        "HOPEFUL": 0.08
       }
     },
     "block_break_crafting": {
@@ -82,18 +95,19 @@
     "combat_owner_kill": {
       "radius": 32.0,
       "emotions": {
-        "KEFI": 0.25,
-        "GLEE": 0.40,
-        "RELIEF": 0.25,
-        "HOPEFUL": 0.18
+        "KEFI": 0.18,
+        "PROTECTIVENESS": 0.22,
+        "RELIEF": 0.15,
+        "HOPEFUL": 0.12
       }
     },
     "combat_pet_kill": {
       "radius": 32.0,
       "emotions": {
-        "KEFI": 0.35,
-        "HOPEFUL": 0.40,
-      "STOIC": 0.30
+        "KEFI": 0.20,
+        "HOPEFUL": 0.25,
+        "STOIC": 0.18,
+        "PROTECTIVENESS": 0.15
       }
     }
   },
@@ -386,8 +400,9 @@
       "radius": 32.0,
       "text": "petsplus.emotion_cue.item.enchanted_golden_apple",
       "emotions": {
-        "RELIEF": 0.45,
-        "BLISSFUL": 0.30
+        "RELIEF": 0.35,
+        "BLISSFUL": 0.22,
+        "HOPEFUL": 0.15
       }
     },
     "item.honey_bottle": {
@@ -411,7 +426,9 @@
       "radius": 32.0,
       "text": "petsplus.emotion_cue.item.totem",
       "emotions": {
-        "RELIEF": 0.50
+        "RELIEF": 0.40,
+        "PROTECTIVENESS": 0.18,
+        "HOPEFUL": 0.12
       }
     },
     "item.ender_pearl": {
@@ -435,7 +452,8 @@
       "radius": 16.0,
       "text": "petsplus.emotion_cue.item.sus_food",
       "emotions": {
-        "DISGUST": 0.28
+        "DISGUST": 0.20,
+        "REGRET": 0.08
       }
     },
     "item.spyglass": {
@@ -467,7 +485,9 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.item.recovery_compass",
       "emotions": {
-        "REGRET": 0.15
+        "SAUDADE": 0.18,
+        "REGRET": 0.10,
+        "HOPEFUL": 0.08
       }
     },
     "item.book": {
@@ -524,7 +544,9 @@
       "radius": 48.0,
       "text": "petsplus.emotion_cue.block_use.beacon",
       "emotions": {
-        "BLISSFUL": 0.30
+        "BLISSFUL": 0.25,
+        "HOPEFUL": 0.15,
+        "YUGEN": 0.10
       }
     },
     "block_use.bell": {
@@ -572,7 +594,9 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.home",
       "emotions": {
-        "QUERECIA": 0.25
+        "QUERECIA": 0.22,
+        "SOBREMESA": 0.15,
+        "LAGOM": 0.08
       }
     },
     "block_use.crafting": {
@@ -765,6 +789,37 @@
         "FERNWEH": 0.22,
         "PROTECTIVENESS": 0.18,
         "KEFI": 0.14
+      }
+    },
+    "weather.rain": {
+      "category": "weather",
+      "radius": 24.0,
+      "cooldown": 400,
+      "text": "petsplus.emotion_cue.weather.rain",
+      "emotions": {
+        "SOBREMESA": 0.12,
+        "MONO_NO_AWARE": 0.08
+      }
+    },
+    "weather.thunder": {
+      "category": "weather",
+      "radius": 32.0,
+      "cooldown": 300,
+      "text": "petsplus.emotion_cue.weather.thunder",
+      "emotions": {
+        "ANGST": 0.18,
+        "PROTECTIVENESS": 0.12
+      }
+    },
+    "owner.death": {
+      "category": "special",
+      "radius": 48.0,
+      "cooldown": 1200,
+      "text": "petsplus.emotion_cue.owner.death",
+      "emotions": {
+        "SAUDADE": 0.45,
+        "REGRET": 0.25,
+        "PROTECTIVENESS": 0.20
       }
     }
   },

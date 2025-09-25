@@ -1,7 +1,7 @@
 {
   "id": "petsplus:auto_resurrect_mount_buff",
   "trigger": {
-    "event": "after_pet_resurrect",
+    "event": "on_pet_resurrect",
     "require_mounted_owner": true,
     "min_level": 25,
     "internal_cd_ticks": 0

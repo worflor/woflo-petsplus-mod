@@ -17,29 +17,41 @@ import woflo.petsplus.state.PetComponent;
  */
 public class EnvironmentComfortProvider implements EmotionProvider {
     @Override public String id() { return "env_comfort"; }
-    @Override public int periodHintTicks() { return 40; } // ~2s
+    @Override public int periodHintTicks() { return 80; } // Increased from 40 to 80 ticks (~4s instead of ~2s)
 
     @Override
     public void contribute(ServerWorld world, MobEntity pet, PetComponent comp, long time, MoodAPI api) {
-        // Owner proximity
+        // Owner proximity with fatigue
         var owner = comp.getOwner();
         if (owner != null && owner.isAlive()) {
             double d2 = pet.squaredDistanceTo(owner);
             if (d2 < 36) { // within 6 blocks
-                api.pushEmotion(pet, PetComponent.Emotion.QUERECIA, 0.05f);
+                float baseAmount = 0.02f;
+                float fatigueMultiplier = calculateEmotionFatigue(comp, "proximity_querecia", time, baseAmount, 160); // 8s fatigue window
+                if (fatigueMultiplier > 0.1f) { // Only trigger if not heavily fatigued
+                    api.pushEmotion(pet, PetComponent.Emotion.QUERECIA, baseAmount * fatigueMultiplier);
+                }
                 applySocialBuffer(comp, pet, time, api);
             }
         }
 
-        // Night and cover check: cheap overhead block test
+        // Night and cover check: cheap overhead block test with fatigue
         boolean isNight = world.getTimeOfDay() % 24000L > 13000L; // simple heuristic
         if (isNight) {
             BlockPos pos = pet.getBlockPos();
             boolean covered = !world.isSkyVisible(pos.up());
             if (covered) {
-                api.pushEmotion(pet, PetComponent.Emotion.BLISSFUL, 0.03f);
+                float baseAmount = 0.015f;
+                float fatigueMultiplier = calculateEmotionFatigue(comp, "night_covered_blissful", time, baseAmount, 240); // 12s fatigue window
+                if (fatigueMultiplier > 0.2f) { // Only trigger if not heavily fatigued
+                    api.pushEmotion(pet, PetComponent.Emotion.BLISSFUL, baseAmount * fatigueMultiplier);
+                }
             } else {
-                api.pushEmotion(pet, PetComponent.Emotion.FOREBODING, 0.02f);
+                float baseAmount = 0.02f;
+                float fatigueMultiplier = calculateEmotionFatigue(comp, "night_exposed_foreboding", time, baseAmount, 180); // 9s fatigue window
+                if (fatigueMultiplier > 0.15f) { // Only trigger if not heavily fatigued
+                    api.pushEmotion(pet, PetComponent.Emotion.FOREBODING, baseAmount * fatigueMultiplier);
+                }
             }
         }
 
@@ -57,9 +69,13 @@ public class EnvironmentComfortProvider implements EmotionProvider {
             }
         }
 
-        // Rain discomfort if in rain and sky visible
+        // Rain discomfort if in rain and sky visible with fatigue
         if (world.isRaining() && world.isSkyVisible(pet.getBlockPos().up())) {
-            api.pushEmotion(pet, PetComponent.Emotion.FOREBODING, 0.02f);
+            float baseAmount = 0.02f;
+            float fatigueMultiplier = calculateEmotionFatigue(comp, "rain_foreboding", time, baseAmount, 200); // 10s fatigue window
+            if (fatigueMultiplier > 0.15f) { // Only trigger if not heavily fatigued
+                api.pushEmotion(pet, PetComponent.Emotion.FOREBODING, baseAmount * fatigueMultiplier);
+            }
         }
     }
 
@@ -87,5 +103,54 @@ public class EnvironmentComfortProvider implements EmotionProvider {
         api.pushEmotion(pet, PetComponent.Emotion.UBUNTU, reassurance * 0.6f);
 
         comp.setStateData(PetComponent.StateKeys.LAST_SOCIAL_BUFFER_TICK, now);
+    }
+
+    /**
+     * Calculate emotion fatigue multiplier based on recent trigger frequency.
+     * Returns a value from 0.1 to 1.0 where lower values indicate more fatigue.
+     * 
+     * @param comp Pet component for state storage
+     * @param triggerKey Unique key for this trigger type
+     * @param currentTime Current game time
+     * @param baseAmount The base emotion amount being triggered
+     * @param fatigueWindow Time window in ticks for fatigue calculation
+     * @return Multiplier from 0.1 to 1.0
+     */
+    private static float calculateEmotionFatigue(PetComponent comp, String triggerKey, long currentTime, float baseAmount, int fatigueWindow) {
+        String lastTickKey = "fatigue_" + triggerKey + "_last_tick";
+        String intensityKey = "fatigue_" + triggerKey + "_intensity";
+        String countKey = "fatigue_" + triggerKey + "_count";
+
+        long lastTick = comp.getStateData(lastTickKey, Long.class, 0L);
+        float lastIntensity = comp.getStateData(intensityKey, Float.class, 0f);
+        int triggerCount = comp.getStateData(countKey, Integer.class, 0);
+
+        // If outside fatigue window, reset counters
+        if (currentTime - lastTick > fatigueWindow) {
+            triggerCount = 0;
+            lastIntensity = 0f;
+        }
+
+        // Increment trigger count and update intensity
+        triggerCount++;
+        float newIntensity = Math.max(lastIntensity * 0.8f, baseAmount); // Intensity fades but is boosted by new triggers
+
+        // Calculate fatigue based on trigger frequency and intensity changes
+        float frequencyFatigue = Math.max(0.1f, 1.0f - (triggerCount - 1) * 0.15f); // Each repeat reduces by 15%
+        
+        // If intensity increased significantly (25%+), reduce fatigue
+        float intensityBoost = 1.0f;
+        if (newIntensity > lastIntensity * 1.25f) {
+            intensityBoost = Math.min(1.5f, 1.0f + (newIntensity - lastIntensity) * 2.0f);
+        }
+
+        float finalMultiplier = Math.min(1.0f, frequencyFatigue * intensityBoost);
+
+        // Store updated state
+        comp.setStateData(lastTickKey, currentTime);
+        comp.setStateData(intensityKey, newIntensity);
+        comp.setStateData(countKey, triggerCount);
+
+        return finalMultiplier;
     }
 }

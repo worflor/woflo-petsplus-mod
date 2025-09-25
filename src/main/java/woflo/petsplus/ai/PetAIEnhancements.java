@@ -33,6 +33,12 @@ public class PetAIEnhancements {
 
             // Mood-based AI goals - new modular system
             MoodBasedAIManager.initializeMoodAI(pet);
+            
+            // Subtle mood-influenced behaviors - fidgets, movement variations, etc.
+            MoodInfluencedBehaviors.addMoodBehaviors(pet);
+            
+            // Advanced mood-influenced vanilla AI enhancements
+            MoodAdvancedAI.enhanceVanillaAI(pet);
 
         } catch (Exception e) {
             Petsplus.LOGGER.warn("Failed to enhance AI for pet {}: {}", pet.getType(), e.getMessage());
