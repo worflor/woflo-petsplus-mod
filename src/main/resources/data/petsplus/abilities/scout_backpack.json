@@ -1,0 +1,13 @@
+{
+  "id": "petsplus:scout_backpack",
+  "required_level": 5,
+  "trigger": {
+    "event": "owner_signal_proximity_channel",
+    "cooldown_ticks": 40
+  },
+  "effects": [
+    {
+      "type": "open_pet_backpack"
+    }
+  ]
+}
