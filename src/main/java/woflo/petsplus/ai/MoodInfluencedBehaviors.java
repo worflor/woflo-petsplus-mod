@@ -19,7 +19,6 @@ import woflo.petsplus.mixin.MobEntityAccessor;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
@@ -388,6 +387,9 @@ public class MoodInfluencedBehaviors {
         private static final float SPEED_EPSILON = 1.0e-4f;
         private float currentSpeedMultiplier = 1.0f;
         private int contextTimer;
+        private Vec3d cachedItemInterest;
+        private long lastItemInterestTick = Long.MIN_VALUE;
+        private static final int ITEM_INTEREST_REFRESH_TICKS = 30;
 
         public MoodMovementVariationGoal(MobEntity pet) {
             this.pet = pet;
@@ -412,6 +414,8 @@ public class MoodInfluencedBehaviors {
             }
             adjustmentTimer = 0;
             contextTimer = 0;
+            cachedItemInterest = null;
+            lastItemInterestTick = Long.MIN_VALUE;
         }
 
         @Override
@@ -598,6 +602,8 @@ public class MoodInfluencedBehaviors {
                 SpeedModifierHelper.clearMovementSpeedModifier(pet, MOVEMENT_VARIATION_MODIFIER_ID);
                 currentSpeedMultiplier = 1.0f;
             }
+            cachedItemInterest = null;
+            lastItemInterestTick = Long.MIN_VALUE;
         }
 
         private void applyContextualNudges(PetComponent pc) {
@@ -632,10 +638,30 @@ public class MoodInfluencedBehaviors {
         }
 
         private Optional<Vec3d> findNearbyItemInterest() {
+            long now = pet.getWorld().getTime();
+            if (now - lastItemInterestTick <= ITEM_INTEREST_REFRESH_TICKS) {
+                return Optional.ofNullable(cachedItemInterest);
+            }
+
+            lastItemInterestTick = now;
             List<ItemEntity> items = pet.getWorld().getEntitiesByClass(ItemEntity.class, pet.getBoundingBox().expand(4.0), ItemEntity::isAlive);
-            if (items.isEmpty()) return Optional.empty();
-            items.sort(Comparator.comparingDouble(pet::squaredDistanceTo));
-            return Optional.of(items.get(0).getPos());
+            if (items.isEmpty()) {
+                cachedItemInterest = null;
+                return Optional.empty();
+            }
+
+            ItemEntity closest = null;
+            double closestDistance = Double.MAX_VALUE;
+            for (ItemEntity item : items) {
+                double distance = pet.squaredDistanceTo(item);
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closest = item;
+                }
+            }
+
+            cachedItemInterest = closest != null ? closest.getPos() : null;
+            return Optional.ofNullable(cachedItemInterest);
         }
     }
 
@@ -648,6 +674,21 @@ public class MoodInfluencedBehaviors {
         private int scanTimer = 0;
         private Vec3d currentLookTarget = null;
         private int lookDuration = 0;
+        private Vec3d cachedThreatTarget;
+        private long lastThreatScanTick = Long.MIN_VALUE;
+        private Vec3d cachedMovingTarget;
+        private long lastMovingTargetScanTick = Long.MIN_VALUE;
+        private Vec3d cachedExplorationTarget;
+        private long lastExplorationScanTick = Long.MIN_VALUE;
+        private Vec3d cachedSafetyTarget;
+        private long lastSafetyScanTick = Long.MIN_VALUE;
+        private Vec3d cachedInspectionTarget;
+        private long lastInspectionScanTick = Long.MIN_VALUE;
+        private static final int THREAT_SCAN_INTERVAL_TICKS = 20;
+        private static final int MOVING_TARGET_SCAN_INTERVAL_TICKS = 15;
+        private static final int EXPLORATION_SCAN_INTERVAL_TICKS = 40;
+        private static final int SAFETY_SCAN_INTERVAL_TICKS = 40;
+        private static final int INSPECTION_SCAN_INTERVAL_TICKS = 30;
 
         public MoodLookBehaviorGoal(MobEntity pet) {
             this.pet = pet;
@@ -679,6 +720,7 @@ public class MoodInfluencedBehaviors {
             PetComponent pc = PetComponent.get(pet);
             if (pc == null) return;
 
+            resetLookCaches();
             currentLookTarget = selectLookTarget(pc);
             lookDuration = calculateLookDuration(pc);
             scanTimer = 0;
@@ -711,6 +753,7 @@ public class MoodInfluencedBehaviors {
             currentLookTarget = null;
             lookDuration = 0;
             scanTimer = 0;
+            resetLookCaches();
         }
 
         private Vec3d selectLookTarget(PetComponent pc) {
@@ -827,28 +870,37 @@ public class MoodInfluencedBehaviors {
         }
 
         private Vec3d getExplorationTarget() {
-            return findInterestingBlock(pos ->
-                pos.isIn(BlockTags.CROPS)
-                    || pos.isOf(Blocks.CRAFTING_TABLE)
-                    || pos.isOf(Blocks.CHEST)
-                    || pos.isOf(Blocks.FURNACE)
-                    || pos.isIn(BlockTags.FLOWERS)
-            ).orElseGet(this::getRandomLookTarget);
+            Vec3d target = refreshExplorationTarget();
+            return target != null ? target : getRandomLookTarget();
         }
 
         private Optional<Vec3d> getThreatScanTarget() {
+            long now = pet.getWorld().getTime();
+            if (now - lastThreatScanTick <= THREAT_SCAN_INTERVAL_TICKS) {
+                return Optional.ofNullable(cachedThreatTarget);
+            }
+
+            lastThreatScanTick = now;
             List<HostileEntity> hostiles = pet.getWorld().getEntitiesByClass(
                 HostileEntity.class,
                 pet.getBoundingBox().expand(12.0),
                 LivingEntity::isAlive
             );
 
-            if (hostiles.isEmpty()) {
-                return Optional.empty();
+            HostileEntity closest = null;
+            double closestDistance = Double.MAX_VALUE;
+            for (HostileEntity hostile : hostiles) {
+                double distance = pet.squaredDistanceTo(hostile);
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closest = hostile;
+                }
             }
 
-            hostiles.sort(Comparator.comparingDouble(pet::squaredDistanceTo));
-            return Optional.of(hostiles.get(0).getPos().add(0, hostiles.get(0).getStandingEyeHeight(), 0));
+            cachedThreatTarget = closest != null
+                ? closest.getPos().add(0, closest.getStandingEyeHeight(), 0)
+                : null;
+            return Optional.ofNullable(cachedThreatTarget);
         }
 
         private Vec3d getOwnerOrSafetyTarget() {
@@ -857,13 +909,16 @@ public class MoodInfluencedBehaviors {
             if (owner != null && pet.squaredDistanceTo(owner) < 64) {
                 return owner.getPos().add(0, owner.getStandingEyeHeight() * 0.7, 0);
             }
-            return findInterestingBlock(state -> state.isOf(Blocks.TORCH) || state.isIn(BlockTags.BEDS))
-                .orElseGet(this::getRandomLookTarget);
+            Vec3d safety = refreshSafetyTarget();
+            return safety != null ? safety : getRandomLookTarget();
         }
 
         private Optional<Vec3d> getDetailedInspectionTarget() {
-            return findInterestingBlock(state -> !state.isAir(), 3, 1.5)
-                .or(() -> Optional.of(pet.getPos().add(0, -0.5, 0)));
+            Vec3d inspection = refreshInspectionTarget();
+            if (inspection != null) {
+                return Optional.of(inspection);
+            }
+            return Optional.of(pet.getPos().add(0, -0.5, 0));
         }
 
         private Vec3d getPlayfulLookTarget() {
@@ -878,25 +933,72 @@ public class MoodInfluencedBehaviors {
         }
 
         private Optional<Vec3d> getRandomMovingTarget() {
+            long now = pet.getWorld().getTime();
+            if (now - lastMovingTargetScanTick <= MOVING_TARGET_SCAN_INTERVAL_TICKS) {
+                return Optional.ofNullable(cachedMovingTarget);
+            }
+
+            lastMovingTargetScanTick = now;
             List<LivingEntity> entities = pet.getWorld().getEntitiesByClass(
                 LivingEntity.class,
                 pet.getBoundingBox().expand(10.0),
                 entity -> entity != pet && entity.isAlive()
             );
-            if (entities.isEmpty()) return Optional.empty();
+            if (entities.isEmpty()) {
+                cachedMovingTarget = null;
+                return Optional.empty();
+            }
+
             LivingEntity choice = entities.get(pet.getRandom().nextInt(entities.size()));
-            return Optional.of(choice.getPos().add(0, choice.getStandingEyeHeight() * 0.6, 0));
+            cachedMovingTarget = choice.getPos().add(0, choice.getStandingEyeHeight() * 0.6, 0);
+            return Optional.ofNullable(cachedMovingTarget);
         }
 
         private Optional<Vec3d> findInterestingBlock(Predicate<BlockState> predicate) {
             return findInterestingBlock(predicate, 6, 2.5);
         }
 
+        private Vec3d refreshExplorationTarget() {
+            long now = pet.getWorld().getTime();
+            if (cachedExplorationTarget == null || now - lastExplorationScanTick > EXPLORATION_SCAN_INTERVAL_TICKS) {
+                lastExplorationScanTick = now;
+                cachedExplorationTarget = findInterestingBlock(pos ->
+                    pos.isIn(BlockTags.CROPS)
+                        || pos.isOf(Blocks.CRAFTING_TABLE)
+                        || pos.isOf(Blocks.CHEST)
+                        || pos.isOf(Blocks.FURNACE)
+                        || pos.isIn(BlockTags.FLOWERS)
+                ).orElse(null);
+            }
+            return cachedExplorationTarget;
+        }
+
+        private Vec3d refreshSafetyTarget() {
+            long now = pet.getWorld().getTime();
+            if (cachedSafetyTarget == null || now - lastSafetyScanTick > SAFETY_SCAN_INTERVAL_TICKS) {
+                lastSafetyScanTick = now;
+                cachedSafetyTarget = findInterestingBlock(state -> state.isOf(Blocks.TORCH) || state.isIn(BlockTags.BEDS))
+                    .orElse(null);
+            }
+            return cachedSafetyTarget;
+        }
+
+        private Vec3d refreshInspectionTarget() {
+            long now = pet.getWorld().getTime();
+            if (cachedInspectionTarget == null || now - lastInspectionScanTick > INSPECTION_SCAN_INTERVAL_TICKS) {
+                lastInspectionScanTick = now;
+                cachedInspectionTarget = findInterestingBlock(state -> !state.isAir(), 3, 1.5)
+                    .orElse(null);
+            }
+            return cachedInspectionTarget;
+        }
+
         private Optional<Vec3d> findInterestingBlock(Predicate<BlockState> predicate, int radius, double verticalRange) {
             BlockPos origin = pet.getBlockPos();
-            List<BlockPos> matches = new ArrayList<>();
             BlockPos.Mutable mutable = new BlockPos.Mutable();
             int maxY = MathHelper.floor(verticalRange);
+            double closestDistance = Double.MAX_VALUE;
+            Vec3d closest = null;
 
             for (int dx = -radius; dx <= radius; dx++) {
                 for (int dy = -maxY; dy <= maxY; dy++) {
@@ -904,19 +1006,17 @@ public class MoodInfluencedBehaviors {
                         mutable.set(origin.getX() + dx, origin.getY() + dy, origin.getZ() + dz);
                         BlockState state = pet.getWorld().getBlockState(mutable);
                         if (predicate.test(state)) {
-                            matches.add(mutable.toImmutable());
+                            double distance = mutable.getSquaredDistance(origin);
+                            if (distance < closestDistance) {
+                                closestDistance = distance;
+                                closest = Vec3d.ofCenter(mutable);
+                            }
                         }
                     }
                 }
             }
 
-            if (matches.isEmpty()) {
-                return Optional.empty();
-            }
-
-            matches.sort(Comparator.comparingDouble(pos -> pos.getSquaredDistance(origin)));
-            BlockPos closest = matches.get(0);
-            return Optional.of(Vec3d.ofCenter(closest));
+            return Optional.ofNullable(closest);
         }
 
         private PlayerEntity getOwner() {
@@ -924,6 +1024,19 @@ public class MoodInfluencedBehaviors {
                 return tameable.getOwner() instanceof PlayerEntity player ? player : null;
             }
             return null;
+        }
+
+        private void resetLookCaches() {
+            cachedThreatTarget = null;
+            cachedMovingTarget = null;
+            cachedExplorationTarget = null;
+            cachedSafetyTarget = null;
+            cachedInspectionTarget = null;
+            lastThreatScanTick = Long.MIN_VALUE;
+            lastMovingTargetScanTick = Long.MIN_VALUE;
+            lastExplorationScanTick = Long.MIN_VALUE;
+            lastSafetyScanTick = Long.MIN_VALUE;
+            lastInspectionScanTick = Long.MIN_VALUE;
         }
     }
 }

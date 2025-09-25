@@ -30,6 +30,14 @@ public final class SpeedModifierHelper {
             return;
         }
 
+        EntityAttributeModifier existing = speedAttribute.getModifier(modifierId);
+        if (existing != null) {
+            double currentMultiplier = existing.value() + 1.0;
+            if (Math.abs(currentMultiplier - multiplier) < SPEED_EPSILON) {
+                return;
+            }
+        }
+
         double amount = multiplier - 1.0;
         EntityAttributeModifier modifier = new EntityAttributeModifier(modifierId, amount, EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE);
         speedAttribute.removeModifier(modifierId);

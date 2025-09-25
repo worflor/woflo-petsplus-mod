@@ -339,6 +339,9 @@ public class MoodAdvancedAI {
         private static final Identifier STAMINA_SPEED_MODIFIER_ID = Identifier.of("petsplus", "stamina_speed");
         private float currentSpeedMultiplier = 1.0f;
         private double baselineMovementSpeed = Double.NaN;
+        private EntityAttributeInstance cachedSpeedAttribute;
+        private int modifierSyncTicker = 0;
+        private static final int MODIFIER_SYNC_INTERVAL_TICKS = 5;
 
         public MoodStaminaManager(MobEntity pet) {
             this.pet = pet;
@@ -361,6 +364,8 @@ public class MoodAdvancedAI {
             staminaTimer = 0;
             restTimer = 0;
             cacheBaselineMovementSpeed();
+            modifierSyncTicker = 0;
+            syncModifierState();
             if (Math.abs(currentSpeedMultiplier - 1.0f) > SPEED_EPSILON) {
                 SpeedModifierHelper.clearMovementSpeedModifier(pet, STAMINA_SPEED_MODIFIER_ID);
                 currentSpeedMultiplier = 1.0f;
@@ -374,6 +379,7 @@ public class MoodAdvancedAI {
                 currentSpeedMultiplier = 1.0f;
             }
             baselineMovementSpeed = Double.NaN;
+            cachedSpeedAttribute = null;
         }
 
         @Override
@@ -382,7 +388,10 @@ public class MoodAdvancedAI {
             PetComponent pc = PetComponent.get(pet);
             if (pc == null) return;
 
-            syncModifierState();
+            if (++modifierSyncTicker >= MODIFIER_SYNC_INTERVAL_TICKS) {
+                modifierSyncTicker = 0;
+                syncModifierState();
+            }
 
             // Update stamina every second
             if (staminaTimer % 20 == 0) {
@@ -488,21 +497,26 @@ public class MoodAdvancedAI {
         }
 
         private void cacheBaselineMovementSpeed() {
-            EntityAttributeInstance speedAttribute = pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED);
-            if (speedAttribute == null) {
+            cachedSpeedAttribute = pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED);
+            if (cachedSpeedAttribute == null) {
                 baselineMovementSpeed = Double.NaN;
                 return;
             }
-            baselineMovementSpeed = speedAttribute.getBaseValue();
+            baselineMovementSpeed = cachedSpeedAttribute.getBaseValue();
         }
 
         private void syncModifierState() {
-            EntityAttributeInstance speedAttribute = pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED);
+            EntityAttributeInstance speedAttribute = cachedSpeedAttribute;
+            if (speedAttribute == null) {
+                cachedSpeedAttribute = pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED);
+                speedAttribute = cachedSpeedAttribute;
+            }
             if (speedAttribute == null) {
                 baselineMovementSpeed = Double.NaN;
                 currentSpeedMultiplier = 1.0f;
                 return;
             }
+            cachedSpeedAttribute = speedAttribute;
 
             double baseValue = speedAttribute.getBaseValue();
             if (Double.isNaN(baselineMovementSpeed) || Math.abs(baseValue - baselineMovementSpeed) > SPEED_EPSILON) {
