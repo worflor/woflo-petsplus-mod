@@ -2,13 +2,22 @@ package woflo.petsplus.state;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import com.mojang.serialization.DataResult;
+import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtElement;
+import net.minecraft.nbt.NbtList;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.collection.DefaultedList;
+import net.minecraft.registry.DynamicRegistryManager;
+import net.minecraft.registry.RegistryOps;
+import net.minecraft.server.world.ServerWorld;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
@@ -36,6 +45,7 @@ public class PetComponent {
     private PlayerEntity owner;
     private final Map<String, Long> cooldowns;
     private final Map<String, Object> stateData;
+    private final Map<String, DefaultedList<ItemStack>> inventories;
     private long lastAttackTick;
     private boolean isPerched;
     private int level;
@@ -117,6 +127,7 @@ public class PetComponent {
         this.roleId = DEFAULT_ROLE_ID;
         this.cooldowns = new HashMap<>();
         this.stateData = new HashMap<>();
+        this.inventories = new HashMap<>();
         this.lastAttackTick = 0;
         this.isPerched = false;
         this.level = 1; // Start at level 1
@@ -365,6 +376,54 @@ public class PetComponent {
             return (T) value;
         }
         return defaultValue;
+    }
+
+    /**
+     * Retrieve a persistent inventory for this pet, resizing as needed.
+     *
+     * @param key  unique identifier for the inventory
+     * @param size desired size in slots
+     * @return backing list representing the inventory contents
+     */
+    public DefaultedList<ItemStack> getInventory(String key, int size) {
+        DefaultedList<ItemStack> inventory = inventories.get(key);
+        if (inventory == null) {
+            inventory = DefaultedList.ofSize(size, ItemStack.EMPTY);
+            inventories.put(key, inventory);
+            return inventory;
+        }
+
+        if (inventory.size() == size) {
+            return inventory;
+        }
+
+        DefaultedList<ItemStack> resized = DefaultedList.ofSize(size, ItemStack.EMPTY);
+        int limit = Math.min(size, inventory.size());
+        for (int i = 0; i < limit; i++) {
+            ItemStack stack = inventory.get(i);
+            resized.set(i, stack.isEmpty() ? ItemStack.EMPTY : stack.copy());
+        }
+        inventories.put(key, resized);
+        return resized;
+    }
+
+    @Nullable
+    public DefaultedList<ItemStack> getInventoryIfPresent(String key) {
+        return inventories.get(key);
+    }
+
+    /**
+     * Store a persistent inventory backing list for this pet.
+     */
+    public void setInventory(String key, DefaultedList<ItemStack> inventory) {
+        inventories.put(key, inventory);
+    }
+
+    private RegistryOps<NbtElement> getRegistryOps() {
+        if (pet.getWorld() instanceof ServerWorld serverWorld) {
+            return RegistryOps.of(NbtOps.INSTANCE, serverWorld.getRegistryManager());
+        }
+        return RegistryOps.of(NbtOps.INSTANCE, DynamicRegistryManager.EMPTY);
     }
 
     /** Convenience accessor for the stored tame tick, writing a default if missing. */
@@ -870,6 +929,35 @@ public class PetComponent {
         
 
         
+        // Save inventories
+        if (!inventories.isEmpty()) {
+            NbtCompound inventoriesNbt = new NbtCompound();
+            for (Map.Entry<String, DefaultedList<ItemStack>> entry : inventories.entrySet()) {
+                DefaultedList<ItemStack> list = entry.getValue();
+                if (list == null) {
+                    continue;
+                }
+
+                NbtCompound inventoryNbt = new NbtCompound();
+                inventoryNbt.putInt("size", list.size());
+
+                NbtList items = new NbtList();
+                RegistryOps<NbtElement> ops = getRegistryOps();
+                for (ItemStack stack : list) {
+                    DataResult<NbtElement> encoded = ItemStack.CODEC.encodeStart(ops, stack);
+                    NbtElement element = encoded.result().orElseGet(NbtCompound::new);
+                    items.add(element);
+                }
+                inventoryNbt.put("items", items);
+
+                inventoriesNbt.put(entry.getKey(), inventoryNbt);
+            }
+
+            if (!inventoriesNbt.getKeys().isEmpty()) {
+                nbt.put("inventories", inventoriesNbt);
+            }
+        }
+
         // Save characteristics
         if (characteristics != null) {
             NbtCompound characteristicsNbt = new NbtCompound();
@@ -966,6 +1054,33 @@ public class PetComponent {
         
 
         
+        // Load inventories
+        inventories.clear();
+        if (nbt.contains("inventories")) {
+            nbt.getCompound("inventories").ifPresent(inventoriesNbt -> {
+                for (String key : inventoriesNbt.getKeys()) {
+                    inventoriesNbt.getCompound(key).ifPresent(inventoryNbt -> {
+                        int size = inventoryNbt.getInt("size").orElse(0);
+                        if (size <= 0) {
+                            inventories.put(key, DefaultedList.ofSize(0, ItemStack.EMPTY));
+                            return;
+                        }
+
+                        DefaultedList<ItemStack> list = DefaultedList.ofSize(size, ItemStack.EMPTY);
+                        RegistryOps<NbtElement> ops = getRegistryOps();
+                        inventoryNbt.getList("items").ifPresent(items -> {
+                            for (int i = 0; i < items.size() && i < list.size(); i++) {
+                                NbtElement element = items.get(i);
+                                ItemStack decoded = ItemStack.CODEC.parse(ops, element).result().orElse(ItemStack.EMPTY);
+                                list.set(i, decoded);
+                            }
+                        });
+                        inventories.put(key, list);
+                    });
+                }
+            });
+        }
+
         // Load characteristics
         if (nbt.contains("characteristics")) {
             nbt.getCompound("characteristics").ifPresent(characteristicsNbt -> {

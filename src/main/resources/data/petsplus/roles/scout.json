@@ -14,7 +14,8 @@
     "speed_max_bonus": 0.6
   },
   "default_abilities": [
-    "petsplus:loot_wisp"
+    "petsplus:loot_wisp",
+    "petsplus:scout_backpack"
   ],
   "tribute_defaults": {
     "10": "minecraft:gold_ingot",

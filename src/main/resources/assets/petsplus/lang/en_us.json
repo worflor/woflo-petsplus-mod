@@ -1,4 +1,13 @@
 {
+  "container.petsplus.scout_backpack": "%s's Scout Backpack",
+  "container.petsplus.scout_backpack.toggle.player": "Loot routing: Player inventory",
+  "container.petsplus.scout_backpack.toggle.pet": "Loot routing: %s's backpack",
+  "container.petsplus.scout_backpack.toggle.off": "Loot magnet disabled",
+  "container.petsplus.scout_backpack.toggle.hint": "Click to cycle routing modes",
+  "container.petsplus.scout_backpack.locked": "Reserved slot",
+  "message.petsplus.scout_backpack.route.pet": "Loot will now fill %s's backpack.",
+  "message.petsplus.scout_backpack.route.player": "Loot will now go to your inventory.",
+  "message.petsplus.scout_backpack.route.off": "Loot magnet disabled.",
   "petsplus.guardian.bulwark": "%s holds the line. (+Proj DR)",
   "petsplus.guardian.projectile_dr": "Protected by guardian shield",
   "petsplus.striker.finisher_mark": "%s marked a finisher.",
