@@ -286,6 +286,16 @@ public final class PetsPlusRegistries {
             .description("Triggered when the pet exits combat.")
             .build());
 
+        registerTriggerSerializer(TriggerSerializer.builder(id("owner_signal_double_crouch"), CooldownSettings.CODEC,
+            (abilityId, config) -> DataResult.success(simpleEventTrigger("owner_signal_double_crouch", config.resolvedCooldown())))
+            .description("Fires when the owner performs the double crouch manual trigger on their pet.")
+            .build());
+
+        registerTriggerSerializer(TriggerSerializer.builder(id("owner_signal_proximity_channel"), CooldownSettings.CODEC,
+            (abilityId, config) -> DataResult.success(simpleEventTrigger("owner_signal_proximity_channel", config.resolvedCooldown())))
+            .description("Fires when the owner completes the crouch-and-hold proximity channel with their pet.")
+            .build());
+
         registerTriggerSerializer(TriggerSerializer.builder(id("owner_low_health"), OwnerLowHealthConfig.CODEC,
             (abilityId, config) -> DataResult.success(new Trigger() {
                 private final Identifier triggerId = id("owner_low_health");
