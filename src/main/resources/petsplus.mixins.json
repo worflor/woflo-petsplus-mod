@@ -4,9 +4,10 @@
 	"compatibilityLevel": "JAVA_21",
 	"mixins": [
 		"PlayerDamageMixin",
-		"PlayerAttackMixin",
-		"TameableEntityMixin",
-		"MobEntityDataMixin",
+                "PlayerAttackMixin",
+                "TameableEntityMixin",
+                "AnimalEntityMixin",
+                "MobEntityDataMixin",
                 "MobEntityAccessor",
                 "EntitySneakMixin"
         ],
