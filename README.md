@@ -1,4 +1,4 @@
-# Pets+ dev-0.75 (Pets Plus)
+# Pets+ dev-0.76 (Pets Plus)
 A Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
 
 
