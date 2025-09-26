@@ -64,7 +64,9 @@ public final class PetBreedingHandler {
         if (!ownersDiffer && (resolvedOwner != null || primaryComponent != null || partnerComponent != null)) {
             childComponent = PetComponent.getOrCreate(mobChild);
 
-            birthContext = captureBirthContext(serverWorld, mobChild);
+            boolean primaryOwned = primaryOwner != null;
+            boolean partnerOwned = partnerOwner != null;
+            birthContext = captureBirthContext(serverWorld, mobChild, primaryOwned, partnerOwned);
             long now = birthContext.getWorldTime();
             childComponent.setStateData(PetComponent.StateKeys.BREEDING_BIRTH_TICK, now);
             childComponent.setStateData(PetComponent.StateKeys.BREEDING_PARENT_A_UUID, primaryParent.getUuidAsString());
@@ -147,7 +149,8 @@ public final class PetBreedingHandler {
         ));
     }
 
-    private static PetBreedEvent.BirthContext captureBirthContext(ServerWorld world, MobEntity child) {
+    private static PetBreedEvent.BirthContext captureBirthContext(ServerWorld world, MobEntity child,
+                                                                  boolean primaryOwned, boolean partnerOwned) {
         BlockPos pos = child.getBlockPos();
         boolean indoors = !world.isSkyVisible(pos);
         boolean daytime = world.isDay();
@@ -156,12 +159,15 @@ public final class PetBreedingHandler {
         long worldTime = world.getTime();
         long timeOfDay = world.getTimeOfDay();
         Identifier dimensionId = world.getRegistryKey().getValue();
+        boolean fullMoon = world.getMoonPhase() == 0;
 
         double witnessRadius = 12.0D;
         double witnessRadiusSq = witnessRadius * witnessRadius;
         int nearbyPlayers = world.getPlayers(player -> !player.isSpectator() && player.squaredDistanceTo(child) <= witnessRadiusSq).size();
         int nearbyPets = world.getEntitiesByClass(MobEntity.class, child.getBoundingBox().expand(witnessRadius),
             entity -> entity != child && PetComponent.get(entity) != null).size();
+
+        PetBreedEvent.BirthContext.Environment environment = PetNatureSelector.captureEnvironment(world, child);
 
         return new PetBreedEvent.BirthContext(
             worldTime,
@@ -172,7 +178,11 @@ public final class PetBreedingHandler {
             raining,
             thundering,
             nearbyPlayers,
-            nearbyPets
+            nearbyPets,
+            fullMoon,
+            primaryOwned,
+            partnerOwned,
+            environment
         );
     }
 
