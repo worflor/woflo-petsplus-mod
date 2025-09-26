@@ -3,6 +3,7 @@ package woflo.petsplus.ai.mood;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.util.math.BlockPos;
 import woflo.petsplus.ai.MoodBasedGoal;
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.EnumSet;
@@ -57,9 +58,9 @@ public class CalmRestGoal extends MoodBasedGoal {
             mob.getNavigation().stop();
 
             // Occasionally sit if the mob supports it (like wolves/cats)
-            if (restTicks % 60 == 0 && mob instanceof net.minecraft.entity.passive.TameableEntity tameable) {
-                if (!tameable.isSitting() && mob.getRandom().nextFloat() < 0.7f) {
-                    tameable.setSitting(true);
+            if (restTicks % 60 == 0 && mob instanceof PetsplusTameable tameable) {
+                if (!tameable.petsplus$isSitting() && mob.getRandom().nextFloat() < 0.7f) {
+                    tameable.petsplus$setSitting(true);
                 }
             }
         } else if (!mob.getNavigation().isFollowingPath()) {
@@ -72,8 +73,8 @@ public class CalmRestGoal extends MoodBasedGoal {
             BlockPos newSpot = findPeacefulSpot();
             if (newSpot != null && !newSpot.equals(restSpot)) {
                 restSpot = newSpot;
-                if (mob instanceof net.minecraft.entity.passive.TameableEntity tameable) {
-                    tameable.setSitting(false);
+                if (mob instanceof PetsplusTameable tameable) {
+                    tameable.petsplus$setSitting(false);
                 }
                 mob.getNavigation().startMovingTo(restSpot.getX() + 0.5, restSpot.getY(), restSpot.getZ() + 0.5, 0.8);
             }
@@ -86,8 +87,8 @@ public class CalmRestGoal extends MoodBasedGoal {
         restTicks = 0;
 
         // Stand up if sitting
-        if (mob instanceof net.minecraft.entity.passive.TameableEntity tameable && tameable.isSitting()) {
-            tameable.setSitting(false);
+        if (mob instanceof PetsplusTameable tameable && tameable.petsplus$isSitting()) {
+            tameable.petsplus$setSitting(false);
         }
     }
 

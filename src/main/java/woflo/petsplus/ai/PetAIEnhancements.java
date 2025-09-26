@@ -2,12 +2,12 @@ package woflo.petsplus.ai;
 
 import net.minecraft.entity.ai.goal.*;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.passive.TameableEntity;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.mixin.MobEntityAccessor;
 import woflo.petsplus.ai.goals.CrouchCuddleGoal;
 import woflo.petsplus.ai.goals.EnhancedFollowOwnerGoal;
+import woflo.petsplus.api.entity.PetsplusTameable;
 
 /**
  * Modular AI enhancements for pets in the PetsPlus system.
@@ -53,7 +53,7 @@ public class PetAIEnhancements {
      * Add enhanced follow goal that's smarter about distances and obstacles.
      */
     private static void addEnhancedFollowGoal(MobEntity pet, PetComponent petComponent) {
-        if (!(pet instanceof TameableEntity tameable)) return;
+        if (!(pet instanceof PetsplusTameable tameable)) return;
 
         MobEntityAccessor accessor = (MobEntityAccessor) pet;
         
@@ -65,7 +65,7 @@ public class PetAIEnhancements {
         float followDistance = getFollowDistance(petComponent);
         float teleportDistance = getTeleportDistance(petComponent);
         
-        accessor.getGoalSelector().add(5, new EnhancedFollowOwnerGoal(tameable, 1.0, 
+        accessor.getGoalSelector().add(5, new EnhancedFollowOwnerGoal(pet, tameable, 1.0,
             followDistance, teleportDistance, false));
     }
 
