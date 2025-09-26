@@ -42,6 +42,11 @@ public final class CustomTameables {
             SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME,
             Items.SLIME_BALL
         ));
+        register(EntityType.TURTLE, Definition.forItems(
+            SoundEvents.BLOCK_ENCHANTMENT_TABLE_USE,
+            SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME,
+            Items.SEAGRASS
+        ));
         defaultsRegistered = true;
     }
 

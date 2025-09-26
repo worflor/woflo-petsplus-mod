@@ -10,7 +10,8 @@
                 "MobEntityAccessor",
                 "EntitySneakMixin",
                 "RabbitEntityMixin",
-                "FrogEntityMixin"
+                "FrogEntityMixin",
+                "TurtleEntityMixin"
         ],
 	"client": [
 	],
