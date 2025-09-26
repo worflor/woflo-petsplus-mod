@@ -96,6 +96,7 @@ Pets come with distinct natures based on the conditions found when being tamed o
 - Llamas
 - Fully taming foxes on breed
 - Every base passive mob via Trust 
+
 Dev Note: After scale testing the back-end algorithms and systems, expansion can be considered.
 
 
