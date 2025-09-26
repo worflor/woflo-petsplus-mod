@@ -20,24 +20,6 @@ Your pet shares your experience and grows alongside you. Feature levels (3, 7, 1
 - **Level 20 →** Diamond  
 - **Level 30 →** Netherite Ingot
 
-## Pet Death and Loss
-If your pet dies, it will drop all its items and be gone for good. Your tribute items are lost and all that pet's experience is lost. 
-
-Memorialize the trauma, a **Proof of Existence** drops on every pet death.
-
-
-## New Friends
-### Now Tamable:
-1. Frogs with slimeballs
-2. Rabbits with carrots
-3. Turtles with seagrass
-
-### Unimplemented / being considered
-- Phantoms via Trust
-- tiny slimes and tiny magma cubes 
-- Camels
-- Llamas
-
 
 ## Moods and Emotion
 Unfortunately, your new friend has developed feelings too. 
@@ -99,6 +81,28 @@ Pets come with distinct natures based on the conditions found when being tamed o
 21. Mire
 22. Relic
 23. Unnatural
+
+
+## New Friends
+### Now Tamable:
+1. Frogs with slimeballs
+2. Rabbits with carrots
+3. Turtles with seagrass
+
+### Unimplemented / being considered
+- Phantoms via Trust
+- tiny slimes and tiny magma cubes 
+- Camels
+- Llamas
+- Fully taming foxes on breed
+- Every base passive mob via Trust 
+Dev Note: After scale testing the back-end algorithms and systems, expansion can be considered.
+
+
+## Pet Death and Loss
+If your pet dies, it will drop all its items and be gone for good. Your tribute items are lost and all that pet's experience is lost. 
+
+Memorialize the trauma, a **Proof of Existence** drops on every pet death.
 
 
 ## Advancements
