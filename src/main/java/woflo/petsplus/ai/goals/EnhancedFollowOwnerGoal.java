@@ -160,6 +160,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
     private void tryAlternativePathfinding(PlayerEntity owner) {
         float oldWaterPenalty = this.mob.getPathfindingPenalty(PathNodeType.WATER);
         float oldFencePenalty = this.mob.getPathfindingPenalty(PathNodeType.FENCE);
+        float oldDoorPenalty = this.mob.getPathfindingPenalty(PathNodeType.DOOR_WOOD_CLOSED);
 
         this.mob.setPathfindingPenalty(PathNodeType.WATER, -1.0f);
         this.mob.setPathfindingPenalty(PathNodeType.FENCE, -2.0f);
@@ -167,13 +168,9 @@ public class EnhancedFollowOwnerGoal extends Goal {
 
         boolean success = this.mob.getNavigation().startMovingTo(owner, this.speed);
 
-        if (this.mob.getWorld().getServer() != null) {
-            this.mob.getWorld().getServer().execute(() -> {
-                this.mob.setPathfindingPenalty(PathNodeType.WATER, oldWaterPenalty);
-                this.mob.setPathfindingPenalty(PathNodeType.FENCE, oldFencePenalty);
-                this.mob.setPathfindingPenalty(PathNodeType.DOOR_WOOD_CLOSED, 0.0f);
-            });
-        }
+        this.mob.setPathfindingPenalty(PathNodeType.WATER, oldWaterPenalty);
+        this.mob.setPathfindingPenalty(PathNodeType.FENCE, oldFencePenalty);
+        this.mob.setPathfindingPenalty(PathNodeType.DOOR_WOOD_CLOSED, oldDoorPenalty);
 
         if (!success) {
             double distance = this.mob.squaredDistanceTo(owner);
