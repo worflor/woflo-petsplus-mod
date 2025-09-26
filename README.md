@@ -75,7 +75,7 @@ Mood intensity varies based on the strength of these emotional weights.
 ## Natures
 Pets come with distinct natures based on the conditions found when being tamed or born.
 ### Wild Natures
-1. Frozen
+1. Frisky
 2. Feral
 3. Fierce
 ### Bred Natures
