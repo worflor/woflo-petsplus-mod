@@ -3,7 +3,6 @@ package woflo.petsplus.events;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -14,6 +13,7 @@ import woflo.petsplus.Petsplus;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Language;
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.config.PetsPlusConfig;
@@ -41,8 +41,8 @@ public class PettingHandler {
         if (!player.isSneaking()) return ActionResult.PASS;
 
         // Must be a tamed entity owned by this player
-        if (!(mob instanceof TameableEntity tameable) || !tameable.isTamed()) return ActionResult.PASS;
-        if (tameable.getOwner() != player) return ActionResult.PASS;
+        if (!(mob instanceof PetsplusTameable tameable) || !tameable.petsplus$isTamed()) return ActionResult.PASS;
+        if (tameable.petsplus$getOwner() != player) return ActionResult.PASS;
 
         // Skip petting for rideable entities when they could be mounted
         // Let vanilla handle mounting, then petting can happen when already mounted

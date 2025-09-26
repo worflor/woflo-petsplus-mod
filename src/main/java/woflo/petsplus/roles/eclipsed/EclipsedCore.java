@@ -7,6 +7,7 @@ import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
@@ -48,8 +49,8 @@ public class EclipsedCore {
                 
                 // Eclipse energy and void abilities
                 if (petComp.getOwner() instanceof ServerPlayerEntity owner &&
-                    mobEntity instanceof net.minecraft.entity.passive.TameableEntity tameable) {
-                    EclipsedVoid.onServerTick(tameable, owner);
+                    mobEntity instanceof PetsplusTameable) {
+                    EclipsedVoid.onServerTick(mobEntity, owner);
                 }
             }
         }
@@ -92,9 +93,9 @@ public class EclipsedCore {
                     }
                 ).forEach(eclipsedPet -> {
                     PetComponent petComp = PetComponent.get(eclipsedPet);
-                    if (petComp != null && eclipsedPet instanceof net.minecraft.entity.passive.TameableEntity tameable) {
+                    if (petComp != null && eclipsedPet instanceof PetsplusTameable) {
                         // Process eclipse field using existing void mechanics
-                        EclipsedVoid.onServerTick(tameable, player);
+                        EclipsedVoid.onServerTick(eclipsedPet, player);
                         
                         // Apply advanced abilities for high-level pets
                         if (petComp.getLevel() >= 7) {
@@ -234,9 +235,9 @@ public class EclipsedCore {
             }
         ).forEach(eclipsedPet -> {
             PetComponent petComp = PetComponent.get(eclipsedPet);
-            if (petComp != null && eclipsedPet instanceof net.minecraft.entity.passive.TameableEntity tameable) {
+            if (petComp != null && eclipsedPet instanceof PetsplusTameable) {
                 // Trigger void abilities when entering darkness
-                EclipsedVoid.onServerTick(tameable, player);
+                EclipsedVoid.onServerTick(eclipsedPet, player);
                 
                 // Apply edge step effects for fall damage reduction
                 if (EclipsedAdvancedAbilities.shouldTriggerEdgeStep(player, 3.0)) {

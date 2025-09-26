@@ -3,8 +3,13 @@ import net.minecraft.entity.EntityType;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import com.mojang.serialization.DataResult;
+import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.registry.Registries;
+import net.minecraft.nbt.NbtElement;
+import net.minecraft.nbt.NbtList;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.registry.tag.TagKey;
@@ -12,6 +17,10 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.collection.DefaultedList;
+import net.minecraft.registry.DynamicRegistryManager;
+import net.minecraft.registry.RegistryOps;
+import net.minecraft.server.world.ServerWorld;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
@@ -42,8 +51,10 @@ public class PetComponent {
     private final MobEntity pet;
     private Identifier roleId;
     private PlayerEntity owner;
+    private UUID ownerUuid;
     private final Map<String, Long> cooldowns;
     private final Map<String, Object> stateData;
+    private final Map<String, DefaultedList<ItemStack>> inventories;
     private long lastAttackTick;
     private boolean isPerched;
     private int level;
@@ -160,6 +171,24 @@ public class PetComponent {
         public static final String THREAT_LAST_RECOVERY_TICK = "threat_last_recovery_tick";
         public static final String HEALTH_LAST_LOW_TICK = "health_last_low_tick";
         public static final String HEALTH_RECOVERY_COOLDOWN = "health_recovery_cooldown";
+        public static final String BREEDING_BIRTH_TICK = "breeding_birth_tick";
+        public static final String BREEDING_PARENT_A_UUID = "breeding_parent_a_uuid";
+        public static final String BREEDING_PARENT_B_UUID = "breeding_parent_b_uuid";
+        public static final String BREEDING_OWNER_UUID = "breeding_owner_uuid";
+        public static final String BREEDING_PRIMARY_ROLE = "breeding_primary_role";
+        public static final String BREEDING_PARTNER_ROLE = "breeding_partner_role";
+        public static final String BREEDING_INHERITED_ROLE = "breeding_inherited_role";
+        public static final String BREEDING_INHERITED_STATS = "breeding_inherited_stats";
+        public static final String BREEDING_SOURCE = "breeding_source";
+        public static final String BREEDING_BIRTH_TIME_OF_DAY = "breeding_birth_time_of_day";
+        public static final String BREEDING_BIRTH_IS_DAYTIME = "breeding_birth_is_daytime";
+        public static final String BREEDING_BIRTH_IS_INDOORS = "breeding_birth_is_indoors";
+        public static final String BREEDING_BIRTH_IS_RAINING = "breeding_birth_is_raining";
+        public static final String BREEDING_BIRTH_IS_THUNDERING = "breeding_birth_is_thundering";
+        public static final String BREEDING_BIRTH_NEARBY_PLAYER_COUNT = "breeding_birth_nearby_player_count";
+        public static final String BREEDING_BIRTH_NEARBY_PET_COUNT = "breeding_birth_nearby_pet_count";
+        public static final String BREEDING_BIRTH_DIMENSION = "breeding_birth_dimension";
+        public static final String BREEDING_ASSIGNED_NATURE = "breeding_assigned_nature";
 
         private StateKeys() {}
     }
@@ -169,6 +198,7 @@ public class PetComponent {
         this.roleId = DEFAULT_ROLE_ID;
         this.cooldowns = new HashMap<>();
         this.stateData = new HashMap<>();
+        this.inventories = new HashMap<>();
         this.lastAttackTick = 0;
         this.isPerched = false;
         this.level = 1; // Start at level 1
@@ -488,11 +518,42 @@ public class PetComponent {
 
     @Nullable
     public PlayerEntity getOwner() {
+        if (owner != null && owner.isRemoved()) {
+            owner = null;
+        }
+        if (owner == null && ownerUuid != null && pet.getWorld() instanceof ServerWorld serverWorld) {
+            PlayerEntity resolved = serverWorld.getPlayerByUuid(ownerUuid);
+            if (resolved != null) {
+                owner = resolved;
+            }
+        }
         return owner;
     }
-    
+
     public void setOwner(@Nullable PlayerEntity owner) {
         this.owner = owner;
+        this.ownerUuid = owner != null ? owner.getUuid() : null;
+        setStateData("petsplus:owner_uuid", owner != null ? owner.getUuidAsString() : "");
+    }
+
+    public void setOwnerUuid(@Nullable UUID ownerUuid) {
+        this.ownerUuid = ownerUuid;
+        setStateData("petsplus:owner_uuid", ownerUuid != null ? ownerUuid.toString() : "");
+        if (ownerUuid == null) {
+            this.owner = null;
+            return;
+        }
+        if (pet.getWorld() instanceof ServerWorld serverWorld) {
+            PlayerEntity player = serverWorld.getPlayerByUuid(ownerUuid);
+            if (player != null) {
+                this.owner = player;
+            }
+        }
+    }
+
+    @Nullable
+    public UUID getOwnerUuid() {
+        return this.ownerUuid;
     }
     
     public boolean isOwnedBy(@Nullable PlayerEntity player) {
@@ -696,6 +757,52 @@ public class PetComponent {
         }
 
         return null;
+    /**
+     * Retrieve a persistent inventory for this pet, resizing as needed.
+     *
+     * @param key  unique identifier for the inventory
+     * @param size desired size in slots
+     * @return backing list representing the inventory contents
+     */
+    public DefaultedList<ItemStack> getInventory(String key, int size) {
+        DefaultedList<ItemStack> inventory = inventories.get(key);
+        if (inventory == null) {
+            inventory = DefaultedList.ofSize(size, ItemStack.EMPTY);
+            inventories.put(key, inventory);
+            return inventory;
+        }
+
+        if (inventory.size() == size) {
+            return inventory;
+        }
+
+        DefaultedList<ItemStack> resized = DefaultedList.ofSize(size, ItemStack.EMPTY);
+        int limit = Math.min(size, inventory.size());
+        for (int i = 0; i < limit; i++) {
+            ItemStack stack = inventory.get(i);
+            resized.set(i, stack.isEmpty() ? ItemStack.EMPTY : stack.copy());
+        }
+        inventories.put(key, resized);
+        return resized;
+    }
+
+    @Nullable
+    public DefaultedList<ItemStack> getInventoryIfPresent(String key) {
+        return inventories.get(key);
+    }
+
+    /**
+     * Store a persistent inventory backing list for this pet.
+     */
+    public void setInventory(String key, DefaultedList<ItemStack> inventory) {
+        inventories.put(key, inventory);
+    }
+
+    private RegistryOps<NbtElement> getRegistryOps() {
+        if (pet.getWorld() instanceof ServerWorld serverWorld) {
+            return RegistryOps.of(NbtOps.INSTANCE, serverWorld.getRegistryManager());
+        }
+        return RegistryOps.of(NbtOps.INSTANCE, DynamicRegistryManager.EMPTY);
     }
 
     /** Convenience accessor for the stored tame tick, writing a default if missing. */
@@ -1204,6 +1311,35 @@ public class PetComponent {
         
 
         
+        // Save inventories
+        if (!inventories.isEmpty()) {
+            NbtCompound inventoriesNbt = new NbtCompound();
+            for (Map.Entry<String, DefaultedList<ItemStack>> entry : inventories.entrySet()) {
+                DefaultedList<ItemStack> list = entry.getValue();
+                if (list == null) {
+                    continue;
+                }
+
+                NbtCompound inventoryNbt = new NbtCompound();
+                inventoryNbt.putInt("size", list.size());
+
+                NbtList items = new NbtList();
+                RegistryOps<NbtElement> ops = getRegistryOps();
+                for (ItemStack stack : list) {
+                    DataResult<NbtElement> encoded = ItemStack.CODEC.encodeStart(ops, stack);
+                    NbtElement element = encoded.result().orElseGet(NbtCompound::new);
+                    items.add(element);
+                }
+                inventoryNbt.put("items", items);
+
+                inventoriesNbt.put(entry.getKey(), inventoryNbt);
+            }
+
+            if (!inventoriesNbt.getKeys().isEmpty()) {
+                nbt.put("inventories", inventoriesNbt);
+            }
+        }
+
         // Save characteristics
         if (characteristics != null) {
             NbtCompound characteristicsNbt = new NbtCompound();
@@ -1297,10 +1433,48 @@ public class PetComponent {
             });
         }
         refreshSpeciesDescriptor();
+
+        String ownerId = getStateData("petsplus:owner_uuid", String.class, "");
+        if (ownerId != null && !ownerId.isEmpty()) {
+            try {
+                setOwnerUuid(UUID.fromString(ownerId));
+            } catch (IllegalArgumentException ignored) {
+                setOwnerUuid(null);
+            }
+        } else {
+            setOwnerUuid(null);
+        }
         
         
 
         
+        // Load inventories
+        inventories.clear();
+        if (nbt.contains("inventories")) {
+            nbt.getCompound("inventories").ifPresent(inventoriesNbt -> {
+                for (String key : inventoriesNbt.getKeys()) {
+                    inventoriesNbt.getCompound(key).ifPresent(inventoryNbt -> {
+                        int size = inventoryNbt.getInt("size").orElse(0);
+                        if (size <= 0) {
+                            inventories.put(key, DefaultedList.ofSize(0, ItemStack.EMPTY));
+                            return;
+                        }
+
+                        DefaultedList<ItemStack> list = DefaultedList.ofSize(size, ItemStack.EMPTY);
+                        RegistryOps<NbtElement> ops = getRegistryOps();
+                        inventoryNbt.getList("items").ifPresent(items -> {
+                            for (int i = 0; i < items.size() && i < list.size(); i++) {
+                                NbtElement element = items.get(i);
+                                ItemStack decoded = ItemStack.CODEC.parse(ops, element).result().orElse(ItemStack.EMPTY);
+                                list.set(i, decoded);
+                            }
+                        });
+                        inventories.put(key, list);
+                    });
+                }
+            });
+        }
+
         // Load characteristics
         if (nbt.contains("characteristics")) {
             nbt.getCompound("characteristics").ifPresent(characteristicsNbt -> {

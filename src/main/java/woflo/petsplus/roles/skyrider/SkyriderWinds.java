@@ -1,8 +1,9 @@
 package woflo.petsplus.roles.skyrider;
 
-import net.minecraft.entity.passive.TameableEntity;
+import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.OwnerCombatState;
@@ -24,7 +25,7 @@ public class SkyriderWinds {
      * Check if projectile crit levitation should trigger.
      * Called when owner scores a projectile critical hit.
      */
-    public static boolean shouldTriggerProjLevitation(TameableEntity pet, PlayerEntity owner) {
+    public static boolean shouldTriggerProjLevitation(MobEntity pet, PlayerEntity owner) {
         if (!(owner instanceof ServerPlayerEntity serverOwner)) {
             return false;
         }
@@ -79,7 +80,7 @@ public class SkyriderWinds {
     /**
      * Check if fall reduction should apply to mount.
      */
-    public static boolean shouldApplyFallReductionToMount(TameableEntity pet, PlayerEntity owner) {
+    public static boolean shouldApplyFallReductionToMount(MobEntity pet, PlayerEntity owner) {
         // For Skyrider, fall reduction should apply to mount as well
         return owner.getVehicle() != null;
     }
@@ -182,7 +183,10 @@ public class SkyriderWinds {
     /**
      * Apply skyrider role effects during server tick.
      */
-    public static void onServerTick(TameableEntity pet, ServerPlayerEntity owner) {
+    public static void onServerTick(MobEntity pet, ServerPlayerEntity owner) {
+        if (!(pet instanceof PetsplusTameable)) {
+            return;
+        }
         // Skyrider role effects are mostly event-driven
         // This method can be used for any periodic skyrider role effects in the future
     }

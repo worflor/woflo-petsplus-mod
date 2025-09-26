@@ -8,6 +8,7 @@ import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.Vec3d;
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.mixin.MobEntityAccessor;
 
@@ -233,8 +234,8 @@ public class MoodAdvancedAI {
         }
 
         private PlayerEntity getOwner() {
-            if (pet instanceof net.minecraft.entity.passive.TameableEntity tameable) {
-                return (PlayerEntity) tameable.getOwner();
+            if (pet instanceof PetsplusTameable tameable) {
+                return tameable.petsplus$getOwner() instanceof PlayerEntity player ? player : null;
             }
             return null;
         }

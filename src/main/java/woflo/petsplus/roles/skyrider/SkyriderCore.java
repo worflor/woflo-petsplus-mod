@@ -6,10 +6,10 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.damage.DamageTypes;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.Petsplus;
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
@@ -51,12 +51,12 @@ public class SkyriderCore {
                 
                 // Check for wind abilities  
                 if (petComp.getOwner() instanceof ServerPlayerEntity owner &&
-                    mobEntity instanceof TameableEntity tameable) {
+                    mobEntity instanceof PetsplusTameable tameable) {
                     // Use wind abilities for fall reduction checks
-                    boolean shouldApplyFallReduction = SkyriderWinds.shouldApplyFallReductionToMount(tameable, owner);
+                    boolean shouldApplyFallReduction = SkyriderWinds.shouldApplyFallReductionToMount(mobEntity, owner);
                     if (shouldApplyFallReduction && SkyriderWinds.isOwnerFallingMinDistance(owner, 3.0)) {
                         // Apply levitation effect if configured
-                        if (SkyriderWinds.shouldTriggerProjLevitation(tameable, owner)) {
+                        if (SkyriderWinds.shouldTriggerProjLevitation(mobEntity, owner)) {
                             // Wind effects triggered
                         }
                     }
@@ -99,11 +99,11 @@ public class SkyriderCore {
                                component.hasRole(PetRoleType.SKYRIDER) &&
                                entity.isAlive() &&
                                component.isOwnedBy(player) &&
-                               entity instanceof TameableEntity;
+                               entity instanceof PetsplusTameable;
                     }
                 ).forEach(skyriderPet -> {
-                    if (skyriderPet instanceof TameableEntity tameable) {
-                        SkyriderWinds.onServerTick(tameable, player);
+                    if (skyriderPet instanceof PetsplusTameable tameable) {
+                        SkyriderWinds.onServerTick(skyriderPet, player);
                     }
                 });
             }
@@ -186,14 +186,14 @@ public class SkyriderCore {
                        component.getLevel() >= 7 &&
                        entity.isAlive() &&
                        component.isOwnedBy(player) &&
-                       entity instanceof TameableEntity;
+                       entity instanceof PetsplusTameable;
             }
         );
 
         boolean triggered = false;
 
         for (MobEntity skyriderPet : skyriderPets) {
-            if (!(skyriderPet instanceof TameableEntity tameable)) {
+            if (!(skyriderPet instanceof PetsplusTameable tameable)) {
                 continue;
             }
 
@@ -201,8 +201,8 @@ public class SkyriderCore {
                 continue;
             }
 
-            boolean applyToMount = SkyriderWinds.shouldApplyFallReductionToMount(tameable, player);
-            SkyriderWinds.onServerTick(tameable, player);
+            boolean applyToMount = SkyriderWinds.shouldApplyFallReductionToMount(skyriderPet, player);
+            SkyriderWinds.onServerTick(skyriderPet, player);
             triggered = true;
 
             Petsplus.LOGGER.debug(

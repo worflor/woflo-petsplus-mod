@@ -2,6 +2,7 @@ package woflo.petsplus.stats;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.registry.PetRoleType;
 
@@ -67,6 +68,65 @@ public class PetCharacteristics {
         float val1 = MIN_MODIFIER + (MAX_MODIFIER - MIN_MODIFIER) * random.nextFloat();
         float val2 = MIN_MODIFIER + (MAX_MODIFIER - MIN_MODIFIER) * random.nextFloat();
         return (val1 + val2) / 2.0f;
+    }
+
+    /**
+     * Blend parent characteristics to create a child profile. If no parents are
+     * provided this falls back to a fresh roll so callers don't need special
+     * handling.
+     */
+    public static PetCharacteristics blendFromParents(MobEntity child,
+                                                      long tameTime,
+                                                      @Nullable PetCharacteristics primary,
+                                                      @Nullable PetCharacteristics partner) {
+        if (primary == null && partner == null) {
+            return generateForNewPet(child, tameTime);
+        }
+
+        UUID uuid = child.getUuid();
+        long seed = uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits() ^ tameTime;
+        if (primary != null) {
+            seed ^= primary.characteristicSeed;
+        }
+        if (partner != null) {
+            seed ^= partner.characteristicSeed;
+        }
+
+        Random random = new Random(seed);
+
+        float[] blended = new float[6];
+        float[] primaryValues = primary != null ? primary.toArray() : null;
+        float[] partnerValues = partner != null ? partner.toArray() : null;
+
+        for (int i = 0; i < blended.length; i++) {
+            float baseA = primaryValues != null ? primaryValues[i] : generateModifier(random);
+            float baseB = partnerValues != null ? partnerValues[i] : generateModifier(random);
+            float midpoint = (baseA + baseB) / 2.0f;
+
+            // Drift toward the stronger parent trait with a little randomness.
+            float bias = (random.nextFloat() - 0.5f) * 0.12f; // +/- 6%
+            float value = clampModifier(midpoint + bias);
+            blended[i] = value;
+        }
+
+        return new PetCharacteristics(
+            blended[0], blended[1], blended[2], blended[3], blended[4], blended[5], seed
+        );
+    }
+
+    private static float clampModifier(float value) {
+        return MathHelper.clamp(value, MIN_MODIFIER, MAX_MODIFIER);
+    }
+
+    private float[] toArray() {
+        return new float[]{
+            healthModifier,
+            speedModifier,
+            attackModifier,
+            defenseModifier,
+            agilityModifier,
+            vitalityModifier
+        };
     }
     
     /**

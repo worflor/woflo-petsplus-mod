@@ -53,6 +53,7 @@ public class SimpleDataGenerator {
 
         // Scout abilities
         writeFile("abilities/loot_wisp.json", createLootWisp());
+        writeFile("abilities/scout_backpack.json", createScoutBackpack());
 
         // Skyrider abilities
         writeFile("abilities/windlash_rider.json", createWindlashRider());
@@ -62,6 +63,7 @@ public class SimpleDataGenerator {
 
         // Eclipsed abilities
         writeFile("abilities/voidbrand.json", createVoidbrand());
+        writeFile("abilities/void_storage.json", createVoidStorage());
         writeFile("abilities/phase_partner.json", createPhasePartner());
         writeFile("abilities/perch_ping.json", createPerchPing());
     }
@@ -172,7 +174,7 @@ public class SimpleDataGenerator {
     private static JsonObject createLootWisp() {
         JsonObject ability = new JsonObject();
         ability.addProperty("id", "petsplus:loot_wisp");
-        
+
         JsonObject trigger = new JsonObject();
         trigger.addProperty("event", "on_combat_end");
         trigger.addProperty("cooldown_ticks", 200);
@@ -188,11 +190,30 @@ public class SimpleDataGenerator {
         ability.add("effects", effects);
         return ability;
     }
-    
+
+    private static JsonObject createScoutBackpack() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:scout_backpack");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_signal_proximity_channel");
+        trigger.addProperty("cooldown_ticks", 40);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject openBackpack = new JsonObject();
+        openBackpack.addProperty("type", "open_pet_backpack");
+        effects.add(openBackpack);
+
+        ability.add("effects", effects);
+        ability.addProperty("required_level", 5);
+        return ability;
+    }
+
     private static JsonObject createWindlashRider() {
         JsonObject ability = new JsonObject();
         ability.addProperty("id", "petsplus:windlash_rider");
-        
+
         JsonObject trigger = new JsonObject();
         trigger.addProperty("event", "owner_begin_fall");
         trigger.addProperty("min_fall", 3);
@@ -280,7 +301,7 @@ public class SimpleDataGenerator {
     private static JsonObject createVoidbrand() {
         JsonObject ability = new JsonObject();
         ability.addProperty("id", "petsplus:voidbrand");
-        
+
         JsonObject trigger = new JsonObject();
         trigger.addProperty("event", "aggro_acquired");
         trigger.addProperty("cooldown_ticks", 300);
@@ -314,7 +335,26 @@ public class SimpleDataGenerator {
         ability.add("effects", effects);
         return ability;
     }
-    
+
+    private static JsonObject createVoidStorage() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:void_storage");
+        ability.addProperty("required_level", 7);
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_signal_proximity_channel");
+        trigger.addProperty("cooldown_ticks", 120);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject openEnderChest = new JsonObject();
+        openEnderChest.addProperty("type", "open_ender_chest");
+        effects.add(openEnderChest);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
     private static JsonObject createPhasePartner() {
         JsonObject ability = new JsonObject();
         ability.addProperty("id", "petsplus:phase_partner");
@@ -481,11 +521,12 @@ public class SimpleDataGenerator {
         JsonObject role = new JsonObject();
         role.addProperty("name", "Scout");
         role.addProperty("description", "Information gathering and mobility for everyone");
-        
+
         JsonArray abilities = new JsonArray();
         abilities.add("petsplus:spotter_fallback");
         abilities.add("petsplus:gale_pace");
         abilities.add("petsplus:loot_wisp");
+        abilities.add("petsplus:scout_backpack");
         role.add("abilities", abilities);
         
         JsonObject featureLevels = new JsonObject();
@@ -577,6 +618,7 @@ public class SimpleDataGenerator {
         
         JsonArray abilities = new JsonArray();
         abilities.add("petsplus:voidbrand");
+        abilities.add("petsplus:void_storage");
         abilities.add("petsplus:phase_partner");
         abilities.add("petsplus:perch_ping");
         abilities.add("petsplus:event_horizon");

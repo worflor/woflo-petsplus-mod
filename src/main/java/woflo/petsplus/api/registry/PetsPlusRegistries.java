@@ -26,6 +26,8 @@ import woflo.petsplus.effects.HealOwnerFlatPctEffect;
 import woflo.petsplus.effects.KnockupEffect;
 import woflo.petsplus.effects.MagnetizeDropsAndXpEffect;
 import woflo.petsplus.effects.MountedConeAuraEffect;
+import woflo.petsplus.effects.OpenEnderChestEffect;
+import woflo.petsplus.effects.OpenPetBackpackEffect;
 import woflo.petsplus.effects.OwnerNextAttackBonusEffect;
 import woflo.petsplus.effects.PerchPotionSipReductionEffect;
 import woflo.petsplus.effects.ProjectileDrForOwnerEffect;
@@ -392,6 +394,16 @@ public final class PetsPlusRegistries {
             .description("Pulls item drops and XP orbs toward the pet.")
             .build());
 
+        registerEffectSerializer(EffectSerializer.builder(id("open_ender_chest"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new OpenEnderChestEffect()))
+            .description("Opens the owner's ender chest.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("open_pet_backpack"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new OpenPetBackpackEffect()))
+            .description("Opens the pet's persistent backpack inventory.")
+            .build());
+
         registerEffectSerializer(EffectSerializer.builder(id("area_effect"), RegistryJsonHelper.JSON_OBJECT_CODEC,
             (abilityId, json, context) -> DataResult.success(new AreaEffectEffect(json)))
             .description("Executes nested effects over an area.")
@@ -453,6 +465,8 @@ public final class PetsPlusRegistries {
         registerAbilityType("nap_time_radius", createPlaceholderAbility("nap_time_radius"));
         registerAbilityType("event_horizon", createPlaceholderAbility("event_horizon"));
         registerAbilityType("edge_step", createPlaceholderAbility("edge_step"));
+        registerAbilityType("void_storage", createPlaceholderAbility("void_storage"));
+        registerAbilityType("scout_backpack", createPlaceholderAbility("scout_backpack"));
     }
 
     private static AbilityType createPlaceholderAbility(String name) {
