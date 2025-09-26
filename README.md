@@ -149,6 +149,8 @@ Pets+ includes configuration files (`config/petsplus/...`) where you can customi
 - Roles, Abilities, Tributes, and Moods have configurations availible.
 - The backend API is extendable via Datapacks and Add-On Mods. Base roles, abilities, progression rewards, and emotional events can be tinkered, modified, or overwritten to your liking.
 
+### Performance
+I tried and am trying. Thats all I'm saying. No promises, but there are efforts and guard-rails.
 
 ## Credits
 - woflo - (me)
