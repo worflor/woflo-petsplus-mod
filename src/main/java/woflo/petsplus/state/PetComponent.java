@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.WeakHashMap;
 
@@ -749,12 +750,20 @@ public class PetComponent {
      * Persist a nature identifier for the pet. Passing {@code null} clears the nature.
      */
     public void setNatureId(@Nullable Identifier natureId) {
-        if (natureId == null) {
-            clearStateData(StateKeys.ASSIGNED_NATURE);
+        Identifier current = getNatureId();
+        if (Objects.equals(current, natureId)) {
             return;
         }
 
-        setStateData(StateKeys.ASSIGNED_NATURE, natureId.toString());
+        if (natureId == null) {
+            clearStateData(StateKeys.ASSIGNED_NATURE);
+        } else {
+            setStateData(StateKeys.ASSIGNED_NATURE, natureId.toString());
+        }
+
+        if (pet.getWorld() instanceof net.minecraft.server.world.ServerWorld && this.characteristics != null) {
+            woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
+        }
     }
 
     private Identifier computeSpeciesDescriptor() {
