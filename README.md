@@ -1,4 +1,4 @@
-# Pets+ dev-0.76 (Pets Plus)
+# Pets+ dev-0.80-backend_overhauls (Pets Plus)
 A Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
 
 
@@ -26,25 +26,25 @@ Unfortunately, your new friend has developed feelings too.
 
 Behind the scenes, *30 emotions influence your pet's overall mood*. Various events and triggers cause these emotional weights to shift and combine, blending into your pet's current **mood state**.
 ### Core Moods
-1. **Happy** [joyful]
-2. **Playful** [energetic fun]
-3. **Curious** [exploring]
-4. **Bonded** [attached]
-5. **Calm** [peaceful]
-6. **Passionate** [enthusiastic]
-7. **Yūgen** [profound awareness]
-8. **Focused** [concentrated]
-9. **Sisu** [determined endurance]
-10. **Saudade** [wistful longing]
-11. **Protective** [defensive]
-12. **Restless** [agitated]
-13. **Afraid** [scared]
-14. **Angry** [mad]
+1. **Happy** [ joyful ]
+2. **Playful** [ energetic fun ]
+3. **Curious** [ exploring ]
+4. **Bonded** [ attached ]
+5. **Calm** [ peaceful ]
+6. **Passionate** [ enthusiastic ]
+7. **Yūgen** [ profound awareness ]
+8. **Focused** [ concentrated ]
+9. **Sisu** [ determined endurance ]
+10. **Saudade** [ wistful longing ]
+11. **Protective** [ defensive ]
+12. **Restless** [ agitated ]
+13. **Afraid** [ scared ]
+14. **Angry** [ mad ]
 
 ### Ultra-Rare Moods
-15. **Sankofa Resonance** [Akan] — ancestral pride awakens, fear fades.
-16. **Náttvörðr Vigil** [Old Norse] — silent guardian in dark hours
-17. **Chandralekha Reverie** [Sanskrit] — stargazing in perfect peace
+15. **Sankofa Resonance** [ Akan ] — ancestral pride awakens, fear fades.
+16. **Náttvörðr Vigil** [ Old Norse ] — silent guardian in dark hours
+17. **Chandralekha Reverie** [ Sanskrit ] — stargazing in perfect peace
 
 Mood intensity varies based on the strength of these emotional weights.
 ### Core Emotion Groups
@@ -97,6 +97,7 @@ Wild natures are not rolled for when breeding.
 - Camels
 - Llamas
 - Fully taming foxes on breed
+- Sniffers via either Trust or a 'Courting' system
 - Every base passive mob via Trust 
 
 Dev Note: After scale testing the back-end algorithms and systems, expansion can be considered.
@@ -109,32 +110,32 @@ Memorialize the trauma, a **Proof of Existence** drops on every pet death.
 
 
 ## Advancements
-- "Best Friends Forever++"
-- "Trial-Ready"
-- "The Melody of the Wind"
-- "Edgewalker"
-- "Even Bester Friends Foreverer!"
-- "Or not."
-- "The Truest Form of Sacrilege"
-- "Mmmm, Healing Magic!"
-- "Is This Designer?"
-- "I love you and me"
-- "Noo, Luna!"
-- "At what cost..."
-- "Heartless, but Alive."
-- "Restless, Sit, Glow"
-- "Here Comes the Sunbeam"
-- "[please] F*CKING PLAY WITH ME NOW!"
+- "Best Friends Forever++" 
+- "Trial-Ready" [ Max level a *Scout* pet ]
+- "The Melody of the Wind" [ Max level a *Skyrider* pet ]
+- "Edgewalker" [ Level 30 on *Eclisped* pet ]
+- "Even Bester Friends Foreverer!" [ Max level one pet ]
+- "Or not." [ the pet that acquired 'Even bester friends foreverer' dies.]
+- "The Truest Form of Sacrilege" [ Max level a *Guardian* pet ]
+- "Mmmm, Healing Magic!" [ Max level a *Support* pet ]
+- "Is This Designer?" 
+- "I love you and me" [ Share a moonlight moment with your pet ]
+- "Noo, Luna!" [ Utilize the *Dream's Escape* ability ]
+- "At what cost..." [ Utilize the *Dream's Escape* ability twice ]
+- "Heartless, but Alive." [ Utilize the *Dream's Escape* ability thrice ]
+- "Restless, Sit, Glow" [ Witniss a pet's *Restless Mood* at its most intense for the first time ]
+- "Here Comes the Sunbeam" [ Witniss a pet's *Happy Mood* at its most intense for the first time ]
+- "[please] F*CKING PLAY WITH ME NOW!" [ Witniss a pet's *Playful Mood* at its most intense for the first time ]
 - "Indiana Bones and the Temple of Zoomies"
-- "Bond Voyage!"
-- "Be More Chilllllll" 
+- "Bond Voyage!" [ Witniss a pet's *Bonded mood* at its most intense for the first time ]
+- "Be More Chilllllll" [ Witniss a pet's *Calm Mood* at its most intense for the first time ]
 - "Hearts on Pyre" [RENAME CUZ I HATE]
 - "(sighs) sigh…"
 - "Finnish Him!"
-- "Afraidiana Grande"
-- "Wish You Were Here (Fur Real)"
-- "are you mad at me..?"
-- "Guardian of the Grrr-laxy"
+- "Afraidiana Grande" [ Witniss a pet's *Afraid Mood* at its most intense for the first time ]
+- "Wish you were Here (Fur Real)" [ Witniss a pet's *Saudade Mood* at its most intense for the first time ]
+- "are you mad at me..?" [ Witniss a pet's *Angry Mood* at its most intense for the first time ]
+- "Guardian of the Grrr-laxy" [ Witniss a pet's *Protective Mood* at its most intense for the first time ]
 ### uninplemented yet:
 - "Another one, thank you." (get your second pet to level 30)
 - "is that... THE BITE OF '87?!!" - credits, colours_c(jamie) (witniss your pet fox do 100% of the damage on a kill)
@@ -149,8 +150,6 @@ Pets+ includes configuration files (`config/petsplus/...`) where you can customi
 - Roles, Abilities, Tributes, and Moods have configurations availible.
 - The backend API is extendable via Datapacks and Add-On Mods. Base roles, abilities, progression rewards, and emotional events can be tinkered, modified, or overwritten to your liking.
 
-### Performance
-I tried and am trying. Thats all I'm saying. No promises, but there are efforts and guard-rails.
 
 ## Credits
 - woflo - (me)
