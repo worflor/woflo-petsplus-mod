@@ -92,6 +92,29 @@ class PetMoodEngineTest {
         assertTrue(after < initial, "Contagion share should decay when no new contributions arrive");
     }
 
+    @Test
+    void cleanupPreservesContagionOnlyEmotions() throws Exception {
+        PetMoodEngine engine = new PetMoodEngine(mock(PetComponent.class));
+        engine.addContagionShare(PetComponent.Emotion.UBUNTU, 0.3f, 1000L, 0.9f);
+
+        var cachedEpsilonField = PetMoodEngine.class.getDeclaredField("cachedEpsilon");
+        cachedEpsilonField.setAccessible(true);
+        float cachedEpsilon = cachedEpsilonField.getFloat(engine);
+        var baseEpsilonField = PetMoodEngine.class.getDeclaredField("EPSILON");
+        baseEpsilonField.setAccessible(true);
+        float baseEpsilon = baseEpsilonField.getFloat(null);
+        float epsilon = Math.max(baseEpsilon, cachedEpsilon);
+
+        var collectMethod = PetMoodEngine.class.getDeclaredMethod("collectActiveRecords", long.class, float.class);
+        collectMethod.setAccessible(true);
+        collectMethod.invoke(engine, 1240L, epsilon);
+
+        Object record = getEmotionRecord(engine, PetComponent.Emotion.UBUNTU);
+        float share = getContagionShare(record);
+        assertTrue(share > 0f,
+                "Contagion share should persist through cleanup when it is the only contribution");
+    }
+
     private static Object getEmotionRecord(PetMoodEngine engine, PetComponent.Emotion emotion) throws Exception {
         var field = PetMoodEngine.class.getDeclaredField("emotionRecords");
         field.setAccessible(true);

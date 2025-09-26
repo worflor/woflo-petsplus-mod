@@ -402,15 +402,7 @@ final class PetMoodEngine {
         float epsilon = Math.max(EPSILON, cachedEpsilon);
 
         // Decay + cleanup pass
-        List<EmotionRecord> active = new ArrayList<>();
-        for (EmotionRecord record : new ArrayList<>(emotionRecords.values())) {
-            record.applyDecay(now);
-            if (record.intensity <= epsilon && record.impactBudget <= epsilon) {
-                emotionRecords.remove(record.emotion);
-                continue;
-            }
-            active.add(record);
-        }
+        List<EmotionRecord> active = collectActiveRecords(now, epsilon);
 
         if (active.isEmpty()) {
             resetToCalmBaseline();
@@ -567,6 +559,21 @@ final class PetMoodEngine {
         float currentStrength = moodBlend.getOrDefault(currentMood, 0f);
         updateDominantHistory(currentStrength);
         updateMoodLevel(currentStrength);
+    }
+
+    private List<EmotionRecord> collectActiveRecords(long now, float epsilon) {
+        List<EmotionRecord> active = new ArrayList<>();
+        for (EmotionRecord record : new ArrayList<>(emotionRecords.values())) {
+            record.applyDecay(now);
+            float contagionMagnitude = Math.abs(record.contagionShare);
+            if (record.intensity <= epsilon && record.impactBudget <= epsilon
+                    && contagionMagnitude <= epsilon) {
+                emotionRecords.remove(record.emotion);
+                continue;
+            }
+            active.add(record);
+        }
+        return active;
     }
 
     private void resetToCalmBaseline() {
