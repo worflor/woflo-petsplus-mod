@@ -33,7 +33,7 @@ public class StateManager {
     }
     
     public PetComponent getPetComponent(MobEntity pet) {
-        return petComponents.computeIfAbsent(pet, entity -> {
+        PetComponent component = petComponents.computeIfAbsent(pet, entity -> {
             // Try to get existing component from entity
             PetComponent existing = PetComponent.get(entity);
             if (existing != null) {
@@ -45,6 +45,9 @@ public class StateManager {
             PetComponent.set(entity, created);
             return created;
         });
+
+        component.ensureSpeciesDescriptorInitialized();
+        return component;
     }
     
     public OwnerCombatState getOwnerState(PlayerEntity owner) {
