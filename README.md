@@ -64,14 +64,14 @@ Pets come with distinct natures based on the conditions found when being tamed o
 Wild natures are not rolled for when breeding.
 ### Bred Natures
 4. Radiant [ Daytime - Open sky - No weather ]
-5. Festival [ 3+ nearby players or pets ]
+5. Festival [ 3+ pets or players nearby ]
 6. Infernal [ In the Nether ]
 7. Otherworldly [ Any dimension; Besides Overworld and Nether ]
 8. Hearth
 9. Nocturne [ Nighttime - Full moon - Open sky ]
 10. Tempest [ Rain or thunder weather ]
 11. Solace 
-12. Echoed [ Deep dark biome ]
+12. Echoed [ Deep Dark biome ]
 13. Mycelial
 14. Gilded [ Valuable blocks present ]
 15. Gloom
