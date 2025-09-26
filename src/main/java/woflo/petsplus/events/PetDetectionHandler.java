@@ -286,8 +286,21 @@ public class PetDetectionHandler {
         Petsplus.LOGGER.info("Detected newly tamed entity: {} for player {}",
             mob.getType().toString(), owner.getName().getString());
 
+        // Check if this pet already has a role assigned
+        PetComponent existingComponent = PetComponent.get(mob);
+        boolean hasRegisteredRole = false;
+        if (existingComponent != null && !pendingRoleSelection.containsKey(mob)) {
+            Identifier roleId = existingComponent.getRoleId();
+            hasRegisteredRole = PetsPlusRegistries.petRoleTypeRegistry().get(roleId) != null;
+        }
+
+        if (!hasRegisteredRole) {
+            // Prompt player for role selection
+            promptRoleSelection(mob, owner);
+        }
+
         if (mob.getWorld() instanceof ServerWorld serverWorld) {
-            PetComponent component = PetComponent.getOrCreate(mob);
+            PetComponent component = existingComponent != null ? existingComponent : PetComponent.getOrCreate(mob);
             if (component.getNatureId() == null) {
                 PetNatureSelector.TameContext context = PetNatureSelector.captureTameContext(serverWorld, mob);
                 Identifier wildNature = PetNatureSelector.selectTameNature(mob, context);
@@ -297,18 +310,6 @@ public class PetDetectionHandler {
                 }
             }
         }
-
-        // Check if this pet already has a role assigned
-        PetComponent existingComponent = PetComponent.get(mob);
-        if (existingComponent != null && !pendingRoleSelection.containsKey(mob)) {
-            Identifier roleId = existingComponent.getRoleId();
-            if (PetsPlusRegistries.petRoleTypeRegistry().get(roleId) != null) {
-                return; // Already registered
-            }
-        }
-
-        // Prompt player for role selection
-        promptRoleSelection(mob, owner);
     }
     
     /**
