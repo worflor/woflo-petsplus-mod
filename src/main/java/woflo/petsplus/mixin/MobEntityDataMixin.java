@@ -1,6 +1,7 @@
 package woflo.petsplus.mixin;
 
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.storage.ReadView;
 import net.minecraft.storage.WriteView;
@@ -8,7 +9,10 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.state.PetComponent;
+
+import java.util.UUID;
 
 /**
  * Mixin to persist PetComponent data when entities are saved/loaded.
@@ -40,9 +44,28 @@ public class MobEntityDataMixin {
             // Create or get existing component
             PetComponent component = PetComponent.getOrCreate(entity);
             component.readFromNbt(petData);
-            
+
             // Ensure the component is properly registered
             PetComponent.set(entity, component);
+
+            if (entity instanceof PetsplusTameable tameable && !(entity instanceof TameableEntity)) {
+                boolean tamed = component.getStateData("petsplus:tamed", Boolean.class, false);
+                tameable.petsplus$setTamed(tamed);
+
+                boolean sitting = component.getStateData("petsplus:sitting", Boolean.class, false);
+                tameable.petsplus$setSitting(sitting);
+
+                String ownerId = component.getStateData("petsplus:owner_uuid", String.class, "");
+                if (ownerId != null && !ownerId.isEmpty()) {
+                    try {
+                        tameable.petsplus$setOwnerUuid(UUID.fromString(ownerId));
+                    } catch (IllegalArgumentException ignored) {
+                        tameable.petsplus$setOwnerUuid(null);
+                    }
+                } else {
+                    tameable.petsplus$setOwnerUuid(null);
+                }
+            }
         });
     }
 }

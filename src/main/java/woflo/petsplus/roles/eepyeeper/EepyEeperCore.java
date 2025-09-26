@@ -19,6 +19,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.particle.ParticleTypes;
 import woflo.petsplus.advancement.AdvancementManager;
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
@@ -493,10 +494,8 @@ public class EepyEeperCore {
 
                 boolean isSitting = false;
 
-                if (pet instanceof net.minecraft.entity.passive.TameableEntity tameable) {
-
-                    isSitting = tameable.isSitting();
-
+                if (pet instanceof PetsplusTameable tameable) {
+                    isSitting = tameable.petsplus$isSitting();
                 }
 
                 if (isSitting) {

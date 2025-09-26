@@ -2,7 +2,6 @@ package woflo.petsplus.events;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.entity.passive.FoxEntity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -11,6 +10,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.Petsplus;
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.state.PetComponent;
@@ -99,8 +99,8 @@ public class PetDetectionHandler {
 
     private static PlayerEntity resolveOwner(MobEntity mob) {
         PlayerEntity owner = null;
-        if (mob instanceof TameableEntity tameable) {
-            if (tameable.isTamed() && tameable.getOwner() instanceof PlayerEntity player) {
+        if (mob instanceof PetsplusTameable tameable) {
+            if (tameable.petsplus$isTamed() && tameable.petsplus$getOwner() instanceof PlayerEntity player) {
                 owner = player;
             }
         }
@@ -276,21 +276,25 @@ public class PetDetectionHandler {
      * Called when an entity is tamed (via mixin hook).
      * This provides immediate detection of newly tamed pets.
      */
-    public static void onEntityTamed(TameableEntity tameable, PlayerEntity owner) {
-        Petsplus.LOGGER.info("Detected newly tamed entity: {} for player {}", 
-            tameable.getType().toString(), owner.getName().getString());
-        
+    public static void onEntityTamed(MobEntity mob, PlayerEntity owner) {
+        if (!(mob instanceof PetsplusTameable tameable) || !tameable.petsplus$isTamed()) {
+            return;
+        }
+
+        Petsplus.LOGGER.info("Detected newly tamed entity: {} for player {}",
+            mob.getType().toString(), owner.getName().getString());
+
         // Check if this pet already has a role assigned
-        PetComponent existingComponent = PetComponent.get(tameable);
-        if (existingComponent != null && !pendingRoleSelection.containsKey(tameable)) {
+        PetComponent existingComponent = PetComponent.get(mob);
+        if (existingComponent != null && !pendingRoleSelection.containsKey(mob)) {
             Identifier roleId = existingComponent.getRoleId();
             if (PetsPlusRegistries.petRoleTypeRegistry().get(roleId) != null) {
                 return; // Already registered
             }
         }
-        
+
         // Prompt player for role selection
-        promptRoleSelection(tameable, owner);
+        promptRoleSelection(mob, owner);
     }
     
     /**

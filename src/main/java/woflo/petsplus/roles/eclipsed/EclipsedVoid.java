@@ -1,8 +1,9 @@
 package woflo.petsplus.roles.eclipsed;
 
-import net.minecraft.entity.passive.TameableEntity;
+import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
@@ -121,7 +122,7 @@ public class EclipsedVoid {
     /**
      * Check if pet is perched for eclipsed abilities.
      */
-    public static boolean isPetPerched(TameableEntity pet, PlayerEntity owner) {
+    public static boolean isPetPerched(MobEntity pet, PlayerEntity owner) {
         if (pet == null || owner == null) {
             return false;
         }
@@ -147,7 +148,7 @@ public class EclipsedVoid {
     /**
      * Check if pet has recently blinked (for phase partner).
      */
-    public static boolean hasPetRecentlyBlinked(TameableEntity pet) {
+    public static boolean hasPetRecentlyBlinked(MobEntity pet) {
         // In a full implementation, this would check if the pet has recently teleported/blinked
         // This would require tracking pet blink events
         
@@ -169,7 +170,10 @@ public class EclipsedVoid {
     /**
      * Apply eclipsed role effects during server tick.
      */
-    public static void onServerTick(TameableEntity pet, ServerPlayerEntity owner) {
+    public static void onServerTick(MobEntity pet, ServerPlayerEntity owner) {
+        if (!(pet instanceof PetsplusTameable)) {
+            return;
+        }
         // Check for phase partner trigger
         if (isPetPerched(pet, owner) && hasPetRecentlyBlinked(pet)) {
             // In a full implementation, this would trigger phase partner effects

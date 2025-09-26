@@ -17,6 +17,7 @@ import net.minecraft.world.World;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.abilities.AbilityManager;
 import woflo.petsplus.api.TriggerContext;
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
@@ -388,10 +389,10 @@ public class CombatEventHandler {
         }
         
         // Fall back to checking tameable entities
-        if (pet instanceof net.minecraft.entity.passive.TameableEntity tameable) {
-            return tameable.getOwner() == owner;
+        if (pet instanceof PetsplusTameable tameable) {
+            return tameable.petsplus$getOwner() == owner;
         }
-        
+
         return false;
     }
 

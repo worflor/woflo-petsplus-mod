@@ -3,6 +3,7 @@ package woflo.petsplus.roles.eepyeeper;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
@@ -36,8 +37,8 @@ public class EepyEeperNapBehaviors {
                 
                 // Check if pet is sitting or perched
                 boolean isSitting = false;
-                if (entity instanceof net.minecraft.entity.passive.TameableEntity tameable) {
-                    isSitting = tameable.isSitting();
+                if (entity instanceof PetsplusTameable tameable) {
+                    isSitting = tameable.petsplus$isSitting();
                 }
                 
                 return isSitting || PetPerchUtil.isPetPerched(component);

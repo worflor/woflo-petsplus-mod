@@ -7,7 +7,6 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.goal.Goal;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.util.Identifier;
@@ -15,6 +14,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.mixin.MobEntityAccessor;
 import woflo.petsplus.state.PetComponent;
 
@@ -631,8 +631,8 @@ public class MoodInfluencedBehaviors {
         }
 
         private PlayerEntity getOwner() {
-            if (pet instanceof TameableEntity tameable) {
-                return tameable.getOwner() instanceof PlayerEntity player ? player : null;
+            if (pet instanceof PetsplusTameable tameable) {
+                return tameable.petsplus$getOwner() instanceof PlayerEntity player ? player : null;
             }
             return null;
         }
@@ -1020,8 +1020,8 @@ public class MoodInfluencedBehaviors {
         }
 
         private PlayerEntity getOwner() {
-            if (pet instanceof TameableEntity tameable) {
-                return tameable.getOwner() instanceof PlayerEntity player ? player : null;
+            if (pet instanceof PetsplusTameable tameable) {
+                return tameable.petsplus$getOwner() instanceof PlayerEntity player ? player : null;
             }
             return null;
         }

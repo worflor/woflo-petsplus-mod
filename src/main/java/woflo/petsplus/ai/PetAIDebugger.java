@@ -2,8 +2,8 @@ package woflo.petsplus.ai;
 
 import net.minecraft.entity.ai.pathing.PathNodeType;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.passive.TameableEntity;
 import woflo.petsplus.Petsplus;
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.state.PetComponent;
 
 /**
@@ -28,7 +28,7 @@ public class PetAIDebugger {
         Petsplus.LOGGER.info("=== Pet AI State Debug ===");
         Petsplus.LOGGER.info("Pet Type: {}", pet.getType());
         Petsplus.LOGGER.info("Role: {}", roleId);
-        Petsplus.LOGGER.info("Is Tamed: {}", pet instanceof TameableEntity tameable ? tameable.isTamed() : "N/A");
+        Petsplus.LOGGER.info("Is Tamed: {}", pet instanceof PetsplusTameable tameable ? tameable.petsplus$isTamed() : "N/A");
         
         // Log pathfinding penalties
         Petsplus.LOGGER.info("Pathfinding Penalties:");

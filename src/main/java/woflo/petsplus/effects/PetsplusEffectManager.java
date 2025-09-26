@@ -18,6 +18,7 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.advancement.AdvancementManager;
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.roles.support.SupportPotionUtils;
@@ -371,7 +372,7 @@ public final class PetsplusEffectManager {
     }
 
     private static boolean isPetSitting(MobEntity pet) {
-        return pet instanceof net.minecraft.entity.passive.TameableEntity tameable && tameable.isSitting();
+        return pet instanceof PetsplusTameable tameable && tameable.petsplus$isSitting();
     }
 
     private static void notifyOwner(ServerPlayerEntity owner, String notificationKey, Text message) {

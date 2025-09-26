@@ -8,6 +8,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.advancement.AdvancementManager;
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 
@@ -53,8 +54,8 @@ public class StargazeMechanic {
             // Check pet is still sitting and nearby
             if (pet == null || !pet.isAlive() || pet.getPos().distanceTo(startPosition) > range) return false;
 
-            if (pet instanceof net.minecraft.entity.passive.TameableEntity tameable) {
-                return tameable.isSitting();
+            if (pet instanceof PetsplusTameable tameable) {
+                return tameable.petsplus$isSitting();
             }
 
             return false;
@@ -217,8 +218,8 @@ public class StargazeMechanic {
                     return false;
                 }
 
-                if (entity instanceof net.minecraft.entity.passive.TameableEntity tameable) {
-                    return tameable.isSitting();
+                if (entity instanceof PetsplusTameable tameable) {
+                    return tameable.petsplus$isSitting();
                 }
 
                 return false;
