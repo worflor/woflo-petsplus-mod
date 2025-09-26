@@ -40,12 +40,16 @@ import woflo.petsplus.tags.PetsplusEntityTypeTags;
 
 import java.util.Comparator;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * Handles combat-related events and triggers pet abilities accordingly.
  */
 public class CombatEventHandler {
+
+    private static final Map<EntityType<?>, Boolean> FLYER_TYPE_CACHE = new ConcurrentHashMap<>();
 
     private static final String CHIP_DAMAGE_ACCUM_KEY = "restless_chip_accum";
     private static final String CHIP_DAMAGE_LAST_TICK_KEY = "restless_chip_last_tick";
@@ -1218,7 +1222,12 @@ public class CombatEventHandler {
     }
 
     private static boolean isLikelyAirborne(LivingEntity entity) {
-        if (entity.getType().isIn(PetsplusEntityTypeTags.FLYERS)) {
+        PetComponent component = entity instanceof MobEntity mob ? PetComponent.get(mob) : null;
+        if (component != null && component.isFlightCapable()) {
+            return true;
+        }
+
+        if (isTaggedFlyer(entity.getType())) {
             return true;
         }
 
@@ -1229,14 +1238,17 @@ public class CombatEventHandler {
             return true;
         }
         if (entity instanceof MobEntity mob) {
-            PetComponent component = PetComponent.get(mob);
-            if (component != null && component.isFlightCapable()) {
-                return true;
-            }
             String navName = mob.getNavigation().getClass().getSimpleName().toLowerCase(Locale.ROOT);
             return navName.contains("bird") || navName.contains("fly");
         }
         return false;
+    }
+
+    private static boolean isTaggedFlyer(EntityType<?> type) {
+        if (type == null) {
+            return false;
+        }
+        return FLYER_TYPE_CACHE.computeIfAbsent(type, key -> key.isIn(PetsplusEntityTypeTags.FLYERS));
     }
 
     private static float scaledAmount(float base, float scale, float intensity) {

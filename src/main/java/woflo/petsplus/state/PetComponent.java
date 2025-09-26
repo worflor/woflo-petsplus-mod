@@ -587,13 +587,46 @@ public class PetComponent {
     }
     
     public void setStateData(String key, Object value) {
+        setStateDataInternal(key, value, true);
+    }
+
+    private void setStateDataSilently(String key, Object value) {
+        setStateDataInternal(key, value, false);
+    }
+
+    private void setStateDataInternal(String key, Object value, boolean invalidateCaches) {
         stateData.put(key, value);
-        if (key != null && (key.startsWith("context_") || key.startsWith("tag_"))) {
+        if (!invalidateCaches) {
+            return;
+        }
+
+        if (shouldInvalidateSpeciesDescriptor(key)) {
             refreshSpeciesDescriptor();
         }
-        if (key != null && (key.startsWith("context_") || key.startsWith("tag_") || key.contains("flight") || key.contains("fly"))) {
+        if (shouldInvalidateFlightCapability(key)) {
             this.flightCapabilityDirty = true;
         }
+    }
+
+    private boolean shouldInvalidateSpeciesDescriptor(@Nullable String key) {
+        if (key == null) {
+            return false;
+        }
+
+        String normalized = key.toLowerCase(Locale.ROOT);
+        return normalized.startsWith("context_") || normalized.startsWith("tag_");
+    }
+
+    private boolean shouldInvalidateFlightCapability(@Nullable String key) {
+        if (key == null) {
+            return false;
+        }
+
+        String normalized = key.toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("context_") || normalized.startsWith("tag_")) {
+            return true;
+        }
+        return normalized.contains("flight") || normalized.contains("fly");
     }
 
     @SuppressWarnings("unchecked")
@@ -1099,7 +1132,7 @@ public class PetComponent {
         
         // Clear all state data and restore preserved items
         stateData.clear();
-        preservedData.forEach(this::setStateData);
+        preservedData.forEach((key, value) -> setStateDataInternal(key, value, false));
         refreshSpeciesDescriptor();
         
         // Reset attributes to base values
@@ -1249,17 +1282,17 @@ public class PetComponent {
                             for (int i = 0; i < size; i++) {
                                 listNbt.getString(String.valueOf(i)).ifPresent(list::add);
                             }
-                            setStateData(key, list);
+                            setStateDataSilently(key, list);
                         });
                         continue;
                     }
 
-                    stateDataNbt.getString(key).ifPresent(value -> setStateData(key, value));
-                    stateDataNbt.getInt(key).ifPresent(value -> setStateData(key, value));
-                    stateDataNbt.getLong(key).ifPresent(value -> setStateData(key, value));
-                    stateDataNbt.getDouble(key).ifPresent(value -> setStateData(key, value));
-                    stateDataNbt.getFloat(key).ifPresent(value -> setStateData(key, value));
-                    stateDataNbt.getBoolean(key).ifPresent(value -> setStateData(key, value));
+                    stateDataNbt.getString(key).ifPresent(value -> setStateDataSilently(key, value));
+                    stateDataNbt.getInt(key).ifPresent(value -> setStateDataSilently(key, value));
+                    stateDataNbt.getLong(key).ifPresent(value -> setStateDataSilently(key, value));
+                    stateDataNbt.getDouble(key).ifPresent(value -> setStateDataSilently(key, value));
+                    stateDataNbt.getFloat(key).ifPresent(value -> setStateDataSilently(key, value));
+                    stateDataNbt.getBoolean(key).ifPresent(value -> setStateDataSilently(key, value));
                 }
             });
         }

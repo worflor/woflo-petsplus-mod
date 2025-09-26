@@ -1,7 +1,6 @@
 package woflo.petsplus.ai.goals;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -559,32 +558,8 @@ public class OwnerAssistAttackGoal extends Goal {
         }
 
         int cappedLimit = Math.min(limit, candidates.size());
-        MobEntity[] nearest = new MobEntity[cappedLimit];
-        double[] nearestDistance = new double[cappedLimit];
-        Arrays.fill(nearestDistance, Double.POSITIVE_INFINITY);
-
-        for (MobEntity candidate : candidates) {
-            double distance = candidate.squaredDistanceTo(target);
-            for (int i = 0; i < cappedLimit; i++) {
-                if (distance < nearestDistance[i]) {
-                    for (int j = cappedLimit - 1; j > i; j--) {
-                        nearestDistance[j] = nearestDistance[j - 1];
-                        nearest[j] = nearest[j - 1];
-                    }
-                    nearestDistance[i] = distance;
-                    nearest[i] = candidate;
-                    break;
-                }
-            }
-        }
-
-        List<MobEntity> allies = new ArrayList<>(cappedLimit);
-        for (MobEntity ally : nearest) {
-            if (ally != null) {
-                allies.add(ally);
-            }
-        }
-        return allies;
+        candidates.sort((a, b) -> Double.compare(a.squaredDistanceTo(target), b.squaredDistanceTo(target)));
+        return new ArrayList<>(candidates.subList(0, cappedLimit));
     }
 
     public static void markAssistHesitation(@Nullable PetComponent component, long now) {
