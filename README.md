@@ -57,9 +57,11 @@ Mood intensity varies based on the strength of these emotional weights.
 ## Natures
 Pets come with distinct natures based on the conditions found when being tamed or born.
 ### Wild Natures
-1. Frozen
-2. Feral
-3. Fierce
+1. Frozen [ Colder climates ]
+2. Feral [ Neutral climates ]
+3. Fierce [ Hotter climates ]
+
+Wild natures are not rolled for when breeding.
 ### Bred Natures
 4. Radiant [ Daytime - Open sky - No weather ]
 5. Festival [ 3+ nearby players or pets ]
@@ -69,12 +71,12 @@ Pets come with distinct natures based on the conditions found when being tamed o
 9. Nocturne [ Nighttime - Full moon - Open sky ]
 10. Tempest [ Rain or thunder weather ]
 11. Solace 
-12. Echoed
+12. Echoed [ Deep dark biome ]
 13. Mycelial
 14. Gilded [ Valuable blocks present ]
 15. Gloom
 16. Verdant [ Lush conditions present ]
-17. Summit
+17. Summit [ Height ≥100 - Open sky ]
 18. Tidal [ Fully submerged in water - Ocean biome ]
 19. Molten [ Near fiery blocks ]
 20. Frosty
