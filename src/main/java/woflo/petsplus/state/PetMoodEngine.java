@@ -3,6 +3,7 @@ package woflo.petsplus.state;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.text.TextColor;
@@ -92,6 +93,8 @@ final class PetMoodEngine {
     private PetComponent.Mood currentMood = PetComponent.Mood.CALM;
     private int moodLevel = 0;
     private long lastMoodUpdate = 0L;
+    private long lastStimulusTime = 0L;
+    private boolean dirty = false;
 
     // Text animation caching
     private Text cachedMoodText = null;
@@ -138,7 +141,35 @@ final class PetMoodEngine {
     }
 
     void update() {
-        updateEmotionStateAndMood();
+        long now = parent.getPet().getWorld() instanceof ServerWorld sw ? sw.getTime() : lastMoodUpdate;
+        ensureFresh(now);
+    }
+
+    void ensureFresh(long now) {
+        if (dirty || now - lastMoodUpdate >= 20) {
+            updateEmotionStateAndMood(now);
+            dirty = false;
+        }
+    }
+
+    long estimateNextWakeUp(long now) {
+        if (dirty) {
+            return 1L;
+        }
+        long soonest = Long.MAX_VALUE;
+        for (EmotionRecord record : emotionRecords.values()) {
+            float cadence = record.cadenceEMA > 0f ? record.cadenceEMA : HABITUATION_BASE;
+            float adaptiveHalf = MathHelper.clamp(cadence * HALF_LIFE_MULTIPLIER, MIN_HALF_LIFE, MAX_HALF_LIFE);
+            long elapsed = Math.max(0L, now - record.lastUpdateTime);
+            long next = Math.max(1L, Math.round(adaptiveHalf - elapsed));
+            if (next < soonest) {
+                soonest = next;
+            }
+        }
+        if (soonest == Long.MAX_VALUE) {
+            return 200L;
+        }
+        return Math.max(20L, soonest);
     }
 
     public List<PetComponent.EmotionDebugInfo> getEmotionPoolDebug() {
@@ -153,8 +184,17 @@ final class PetMoodEngine {
         return debug;
     }
 
-    void pushEmotion(PetComponent.Emotion emotion, float amount) {
-        long now = parent.getPet().getWorld().getTime();
+    void applyStimulus(PetComponent.EmotionDelta delta, long eventTime) {
+        if (delta == null) {
+            return;
+        }
+        long now = eventTime > 0 ? eventTime : parent.getPet().getWorld().getTime();
+        pushEmotion(delta.emotion(), delta.amount(), now);
+        lastStimulusTime = now;
+        dirty = true;
+    }
+
+    private void pushEmotion(PetComponent.Emotion emotion, float amount, long now) {
         if (amount == 0f) {
             emotionRecords.remove(emotion);
             return;
@@ -424,8 +464,7 @@ final class PetMoodEngine {
     // Core interpretation pipeline
     // --------------------------------------------------------------------------------------------
 
-    private void updateEmotionStateAndMood() {
-        long now = parent.getPet().getWorld().getTime();
+    private void updateEmotionStateAndMood(long now) {
         if (now - lastMoodUpdate < 20) {
             return;
         }

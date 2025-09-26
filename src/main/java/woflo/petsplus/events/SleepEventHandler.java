@@ -1,14 +1,12 @@
 package woflo.petsplus.events;
 
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.text.Text;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.roles.eepyeeper.EepyEeperCore;
-import net.minecraft.text.Text;
 
 import java.util.Map;
 import java.util.UUID;
@@ -24,69 +22,52 @@ public class SleepEventHandler {
     private static final Map<UUID, Long> sleepStartTime = new ConcurrentHashMap<>();
 
     public static void initialize() {
-        ServerTickEvents.END_WORLD_TICK.register(SleepEventHandler::onWorldTick);
         ServerPlayerEvents.AFTER_RESPAWN.register(SleepEventHandler::onPlayerRespawn);
-        
-        // Clean up disconnected players periodically 
-        ServerTickEvents.END_SERVER_TICK.register(server -> {
-            if (server.getTicks() % 1200 == 0) { // Every minute
-                cleanupDisconnectedPlayers(server);
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            ServerPlayerEntity player = handler.player;
+            if (player != null) {
+                onPlayerDisconnect(player);
             }
         });
     }
 
     /**
-     * Monitor player sleep status every tick
-     */
-    private static void onWorldTick(ServerWorld world) {
-        for (ServerPlayerEntity player : world.getPlayers()) {
-            checkPlayerSleepStatus(player);
-        }
-    }
-
-    /**
-     * Check if player sleep status has changed
-     */
-    private static void checkPlayerSleepStatus(ServerPlayerEntity player) {
-        UUID playerId = player.getUuid();
-        boolean currentlySleeping = player.isSleeping();
-        boolean wasSleeping = playerSleepStatus.getOrDefault(playerId, false);
-
-        if (currentlySleeping && !wasSleeping) {
-            // Player just started sleeping
-            onSleepStart(player);
-        } else if (!currentlySleeping && wasSleeping) {
-            // Player just woke up
-            onSleepEnd(player);
-        }
-
-        playerSleepStatus.put(playerId, currentlySleeping);
-    }
-
-    /**
      * Handle player starting to sleep
      */
-    private static void onSleepStart(ServerPlayerEntity player) {
-        sleepStartTime.put(player.getUuid(), player.getWorld().getTime());
+    public static void onSleepStart(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+
+        UUID playerId = player.getUuid();
+        if (Boolean.TRUE.equals(playerSleepStatus.put(playerId, true))) {
+            return;
+        }
+
+        sleepStartTime.put(playerId, player.getWorld().getTime());
     }
 
     /**
      * Handle player finishing sleep (successful sleep)
      */
-    private static void onSleepEnd(ServerPlayerEntity player) {
+    public static void onSleepEnd(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+
         UUID playerId = player.getUuid();
-        Long startTime = sleepStartTime.get(playerId);
+        playerSleepStatus.put(playerId, false);
 
-        if (startTime != null) {
-            long sleepDuration = player.getWorld().getTime() - startTime;
+        Long startTime = sleepStartTime.remove(playerId);
+        if (startTime == null) {
+            return;
+        }
 
-            // Check if this was a successful sleep (not interrupted)
-            // A full sleep cycle is typically 100 ticks (5 seconds) minimum
-            if (sleepDuration >= 100) {
-                onSuccessfulSleep(player);
-            }
+        long sleepDuration = player.getWorld().getTime() - startTime;
 
-            sleepStartTime.remove(playerId);
+        // A full sleep cycle is typically 100 ticks (5 seconds) minimum
+        if (sleepDuration >= 100) {
+            onSuccessfulSleep(player);
         }
     }
 
@@ -151,6 +132,19 @@ public class SleepEventHandler {
     }
 
     /**
+     * Remove all cached state for a disconnecting player.
+     */
+    public static void onPlayerDisconnect(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+
+        UUID playerId = player.getUuid();
+        playerSleepStatus.remove(playerId);
+        sleepStartTime.remove(playerId);
+    }
+
+    /**
      * Check if a player is currently sleeping
      */
     public static boolean isPlayerSleeping(PlayerEntity player) {
@@ -175,19 +169,4 @@ public class SleepEventHandler {
         onSuccessfulSleep(player);
     }
     
-    /**
-     * Clean up data for players who are no longer online
-     */
-    private static void cleanupDisconnectedPlayers(net.minecraft.server.MinecraftServer server) {
-        java.util.Set<UUID> onlinePlayerIds = new java.util.HashSet<>();
-        for (net.minecraft.server.world.ServerWorld world : server.getWorlds()) {
-            for (net.minecraft.server.network.ServerPlayerEntity player : world.getPlayers()) {
-                onlinePlayerIds.add(player.getUuid());
-            }
-        }
-        
-        // Remove data for offline players
-        playerSleepStatus.entrySet().removeIf(entry -> !onlinePlayerIds.contains(entry.getKey()));
-        sleepStartTime.entrySet().removeIf(entry -> !onlinePlayerIds.contains(entry.getKey()));
-    }
 }

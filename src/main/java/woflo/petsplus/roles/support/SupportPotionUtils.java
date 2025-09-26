@@ -49,6 +49,10 @@ public final class SupportPotionUtils {
 
     private SupportPotionUtils() {}
 
+    public static boolean isPotionItem(net.minecraft.item.Item item) {
+        return item == Items.POTION || item == Items.SPLASH_POTION || item == Items.LINGERING_POTION;
+    }
+
     /**
      * Extract potion effects from the given ItemStack suitable for an aura pulse.
      * Returns duration-adjusted copies based on original potion duration + pet level modifiers.

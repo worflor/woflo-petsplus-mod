@@ -1,7 +1,6 @@
 package woflo.petsplus.roles.skyrider;
 
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.damage.DamageTypes;
@@ -13,27 +12,63 @@ import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * Implements Skyrider role mechanics: fall safety and wind-based abilities.
- * 
+ *
  * Core Features:
  * - Baseline: Reduced fall damage for pet, gust dodge on hit
  * - L7 Windlash Rider: Jump boost on owner fall, knockup attacks
  * - Air control and vertical mobility enhancement
- * 
+ *
  * Design Philosophy:
  * - Air control and fall mastery archetype
  * - Enhances vertical mobility and aerial combat
  * - Provides fall safety and positioning advantages
  */
 public class SkyriderCore {
+
+    private static final double NEARBY_RADIUS = 16.0;
+    private static final long WIND_INTERVAL_TICKS = 5L;
+    private static final Map<UUID, Long> NEXT_WIND_TICK = new ConcurrentHashMap<>();
     
     public static void initialize() {
         // Register damage events for fall damage reduction
         ServerLivingEntityEvents.ALLOW_DAMAGE.register(SkyriderCore::onEntityDamage);
         
-        // Register world tick for wind effects processing
-        ServerTickEvents.END_WORLD_TICK.register(SkyriderCore::onWorldTick);
+    }
+
+    public static void handlePlayerTick(ServerPlayerEntity player) {
+        if (player.isRemoved() || player.isSpectator()) {
+            return;
+        }
+
+        if (!(player.getWorld() instanceof ServerWorld world)) {
+            return;
+        }
+
+        List<MobEntity> skyriderPets = getNearbySkyriderPets(player, NEARBY_RADIUS);
+        if (skyriderPets.isEmpty()) {
+            NEXT_WIND_TICK.remove(player.getUuid());
+            return;
+        }
+
+        long now = world.getTime();
+        long nextTick = NEXT_WIND_TICK.getOrDefault(player.getUuid(), 0L);
+        if (now < nextTick) {
+            return;
+        }
+
+        NEXT_WIND_TICK.put(player.getUuid(), now + WIND_INTERVAL_TICKS);
+        processSkyriderWindEffects(player, skyriderPets);
+    }
+
+    public static void handlePlayerDisconnect(ServerPlayerEntity player) {
+        NEXT_WIND_TICK.remove(player.getUuid());
     }
     
     /**
@@ -75,37 +110,10 @@ public class SkyriderCore {
         return true; // Allow damage
     }
     
-    /**
-     * World tick handler for wind effects and passive abilities.
-     */
-    private static void onWorldTick(ServerWorld world) {
-        // Process wind effects for all Skyrider pets
-        processSkyriderWindEffects(world);
-    }
-    
-    /**
-     * Process wind effects for Skyrider pets.
-     */
-    private static void processSkyriderWindEffects(ServerWorld world) {
-        for (ServerPlayerEntity player : world.getPlayers()) {
-            if (hasNearbySkyrider(player)) {
-                // Check if owner is falling and should trigger wind effects
-                world.getEntitiesByClass(
-                    MobEntity.class,
-                    player.getBoundingBox().expand(16.0),
-                    entity -> {
-                        PetComponent component = PetComponent.get(entity);
-                        return component != null && 
-                               component.hasRole(PetRoleType.SKYRIDER) &&
-                               entity.isAlive() &&
-                               component.isOwnedBy(player) &&
-                               entity instanceof PetsplusTameable;
-                    }
-                ).forEach(skyriderPet -> {
-                    if (skyriderPet instanceof PetsplusTameable tameable) {
-                        SkyriderWinds.onServerTick(skyriderPet, player);
-                    }
-                });
+    private static void processSkyriderWindEffects(ServerPlayerEntity player, List<MobEntity> skyriderPets) {
+        for (MobEntity skyriderPet : skyriderPets) {
+            if (skyriderPet instanceof PetsplusTameable) {
+                SkyriderWinds.onServerTick(skyriderPet, player);
             }
         }
     }
@@ -114,23 +122,27 @@ public class SkyriderCore {
      * Check if player has a nearby Skyrider pet.
      */
     private static boolean hasNearbySkyrider(ServerPlayerEntity player) {
+        return !getNearbySkyriderPets(player, NEARBY_RADIUS).isEmpty();
+    }
+
+    private static List<MobEntity> getNearbySkyriderPets(ServerPlayerEntity player, double radius) {
         if (!(player.getWorld() instanceof ServerWorld world)) {
-            return false;
+            return java.util.Collections.emptyList();
         }
-        
-        double searchRadius = 16.0;
+
         return world.getEntitiesByClass(
             MobEntity.class,
-            player.getBoundingBox().expand(searchRadius),
+            player.getBoundingBox().expand(radius),
             entity -> {
                 PetComponent component = PetComponent.get(entity);
-                return component != null && 
+                return component != null &&
                        component.hasRole(PetRoleType.SKYRIDER) &&
                        entity.isAlive() &&
                        component.isOwnedBy(player) &&
-                       entity.squaredDistanceTo(player) <= searchRadius * searchRadius;
+                       entity.squaredDistanceTo(player) <= radius * radius &&
+                       entity instanceof PetsplusTameable;
             }
-        ).size() > 0;
+        );
     }
     
     /**

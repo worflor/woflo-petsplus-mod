@@ -8,6 +8,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
@@ -39,39 +40,57 @@ public final class PetsplusEffectManager {
 
     private static final Map<String, AuraTimer> AURA_TIMERS = new ConcurrentHashMap<>();
     private static final Map<String, Long> LAST_EFFECT_NOTIFICATION = new ConcurrentHashMap<>();
+    private static final long AURA_CLEANUP_INTERVAL_TICKS = 6000L;
+    private static long nextCleanupTick;
 
     private PetsplusEffectManager() {}
 
     /**
      * Apply all configured aura behaviors for the supplied pet.
      */
-    public static void applyRoleAuraEffects(ServerWorld world, MobEntity pet, PetComponent petComp, PlayerEntity owner) {
+    public static long applyRoleAuraEffects(ServerWorld world, MobEntity pet, PetComponent petComp,
+                                            PlayerEntity owner, AuraTargetResolver resolver, long worldTime) {
         if (!(owner instanceof ServerPlayerEntity serverOwner) || !owner.isAlive()) {
-            return;
+            return Long.MAX_VALUE;
         }
 
         PetRoleType roleType = petComp.getRoleType(false);
         if (roleType == null) {
-            return;
+            return Long.MAX_VALUE;
         }
 
-        applyPassiveAuras(world, pet, petComp, serverOwner, roleType);
+        long nextCheckTick = applyPassiveAuras(world, pet, petComp, serverOwner, roleType, resolver, worldTime);
 
         PetRoleType.SupportPotionBehavior supportBehavior = roleType.supportPotionBehavior();
         if (supportBehavior != null) {
-            applySupportPotionAura(world, pet, petComp, serverOwner, roleType, supportBehavior);
+            long supportNext = applySupportPotionAura(
+                world,
+                pet,
+                petComp,
+                serverOwner,
+                roleType,
+                supportBehavior,
+                resolver,
+                worldTime
+            );
+            nextCheckTick = Math.min(nextCheckTick, supportNext);
         }
+
+        return nextCheckTick;
     }
 
-    private static void applyPassiveAuras(ServerWorld world, MobEntity pet, PetComponent petComp, ServerPlayerEntity owner, PetRoleType roleType) {
+    private static long applyPassiveAuras(ServerWorld world, MobEntity pet, PetComponent petComp, ServerPlayerEntity owner,
+                                          PetRoleType roleType, AuraTargetResolver resolver, long worldTime) {
         List<PetRoleType.PassiveAura> auras = roleType.passiveAuras();
         if (auras.isEmpty()) {
-            return;
+            return Long.MAX_VALUE;
         }
 
         int level = petComp.getLevel();
         String petKey = pet.getUuidAsString();
         PetsPlusConfig config = PetsPlusConfig.getInstance();
+
+        long nextCheckTick = Long.MAX_VALUE;
 
         for (PetRoleType.PassiveAura aura : auras) {
             if (!aura.hasEffects() || level < aura.minLevel()) {
@@ -82,7 +101,9 @@ public final class PetsplusEffectManager {
             }
 
             int interval = config.getPassiveAuraInterval(roleType, aura);
-            if (!shouldTriggerAura(petKey + "|passive|" + aura.id(), world.getTime(), interval)) {
+            String timerKey = petKey + "|passive|" + aura.id();
+            if (!shouldTriggerAura(timerKey, worldTime, interval)) {
+                nextCheckTick = Math.min(nextCheckTick, getNextAuraTick(timerKey, worldTime, interval));
                 continue;
             }
 
@@ -92,7 +113,7 @@ public final class PetsplusEffectManager {
                 if (level < effect.minLevel()) {
                     continue;
                 }
-                affectedEntities.addAll(applyAuraEffect(world, pet, owner, radius, effect));
+                affectedEntities.addAll(applyAuraEffect(world, pet, petComp, owner, radius, effect, resolver));
             }
 
             if (!affectedEntities.isEmpty()) {
@@ -100,19 +121,24 @@ public final class PetsplusEffectManager {
                 playSound(world, pet, aura.sound());
                 emitParticles(world, pet, owner, affectedEntities, radius, aura.particleEvent());
             }
+
+            nextCheckTick = Math.min(nextCheckTick, getNextAuraTick(timerKey, worldTime, interval));
         }
+
+        return nextCheckTick;
     }
 
-    private static void applySupportPotionAura(ServerWorld world, MobEntity pet, PetComponent petComp, ServerPlayerEntity owner,
-                                               PetRoleType roleType, PetRoleType.SupportPotionBehavior behavior) {
+    private static long applySupportPotionAura(ServerWorld world, MobEntity pet, PetComponent petComp, ServerPlayerEntity owner,
+                                               PetRoleType roleType, PetRoleType.SupportPotionBehavior behavior,
+                                               AuraTargetResolver resolver, long worldTime) {
         if (!SupportPotionUtils.hasStoredPotion(petComp)) {
-            return;
+            return Long.MAX_VALUE;
         }
         if (petComp.getLevel() < behavior.minLevel()) {
-            return;
+            return Long.MAX_VALUE;
         }
         if (behavior.requireSitting() && !isPetSitting(pet)) {
-            return;
+            return Long.MAX_VALUE;
         }
 
         PetsPlusConfig config = PetsPlusConfig.getInstance();
@@ -122,13 +148,13 @@ public final class PetsplusEffectManager {
             config.getSupportPotionInterval(roleType, behavior)
         );
         String auraKey = pet.getUuidAsString() + "|support_potion";
-        if (!shouldTriggerAura(auraKey, world.getTime(), interval)) {
-            return;
+        if (!shouldTriggerAura(auraKey, worldTime, interval)) {
+            return getNextAuraTick(auraKey, worldTime, interval);
         }
 
         SupportPotionState state = SupportPotionUtils.getStoredState(petComp);
         if (!state.isValid()) {
-            return;
+            return getNextAuraTick(auraKey, worldTime, interval);
         }
 
         int pulseDuration = woflo.petsplus.roles.support.SupportPotionUtils.getScaledAuraDuration(
@@ -146,7 +172,7 @@ public final class PetsplusEffectManager {
         }
         if (storedEffects.isEmpty()) {
             SupportPotionUtils.clearStoredPotion(petComp);
-            return;
+            return getNextAuraTick(auraKey, worldTime, interval);
         }
 
         double radius = woflo.petsplus.roles.support.SupportPotionUtils.getScaledAuraRadius(
@@ -154,13 +180,15 @@ public final class PetsplusEffectManager {
             behavior,
             config.getSupportPotionRadius(roleType, behavior)
         );
-        Set<LivingEntity> recipients = new LinkedHashSet<>(resolveTargets(world, pet, owner, radius, PetRoleType.AuraTarget.OWNER_AND_ALLIES));
+        Set<LivingEntity> recipients = new LinkedHashSet<>(
+            resolveTargets(world, pet, petComp, owner, radius, PetRoleType.AuraTarget.OWNER_AND_ALLIES, resolver)
+        );
         if (config.isSupportPotionAppliedToPet(roleType, behavior)) {
             recipients.add(pet);
         }
 
         if (recipients.isEmpty()) {
-            return;
+            return getNextAuraTick(auraKey, worldTime, interval);
         }
 
         boolean appliedToAlly = false;
@@ -182,17 +210,19 @@ public final class PetsplusEffectManager {
 
         double consumption = SupportPotionUtils.getConsumptionPerPulse(petComp);
         SupportPotionUtils.consumeCharges(petComp, state, consumption);
+        return getNextAuraTick(auraKey, worldTime, interval);
     }
 
-    private static List<LivingEntity> applyAuraEffect(ServerWorld world, MobEntity pet, ServerPlayerEntity owner,
-                                                      double radius, PetRoleType.AuraEffect effect) {
+    private static List<LivingEntity> applyAuraEffect(ServerWorld world, MobEntity pet, PetComponent petComp,
+                                                      ServerPlayerEntity owner, double radius, PetRoleType.AuraEffect effect,
+                                                      AuraTargetResolver resolver) {
         RegistryEntry<StatusEffect> entry = Registries.STATUS_EFFECT.getEntry(effect.effectId()).orElse(null);
         if (entry == null) {
             Petsplus.LOGGER.warn("Unknown status effect '{}' configured for aura {}", effect.effectId(), pet.getUuid());
             return List.of();
         }
 
-        List<LivingEntity> targets = resolveTargets(world, pet, owner, radius, effect.target());
+        List<LivingEntity> targets = resolveTargets(world, pet, petComp, owner, radius, effect.target(), resolver);
         if (targets.isEmpty()) {
             return List.of();
         }
@@ -203,8 +233,20 @@ public final class PetsplusEffectManager {
         return targets;
     }
 
-    private static List<LivingEntity> resolveTargets(ServerWorld world, MobEntity pet, ServerPlayerEntity owner,
-                                                     double radius, PetRoleType.AuraTarget target) {
+    private static List<LivingEntity> resolveTargets(ServerWorld world, MobEntity pet, PetComponent petComp,
+                                                     ServerPlayerEntity owner, double radius, PetRoleType.AuraTarget target,
+                                                     AuraTargetResolver resolver) {
+        if (resolver != null) {
+            List<LivingEntity> resolved = resolver.resolveTargets(world, pet, petComp, owner, radius, target);
+            if (!resolved.isEmpty()) {
+                return resolved;
+            }
+        }
+        return resolveTargetsFallback(world, pet, owner, radius, target);
+    }
+
+    private static List<LivingEntity> resolveTargetsFallback(ServerWorld world, MobEntity pet, ServerPlayerEntity owner,
+                                                             double radius, PetRoleType.AuraTarget target) {
         double squaredRadius = radius <= 0 ? 0 : radius * radius;
         Set<LivingEntity> resolved = new LinkedHashSet<>();
         switch (target) {
@@ -216,10 +258,10 @@ public final class PetsplusEffectManager {
             }
             case OWNER_AND_ALLIES -> {
                 addOwnerIfInRange(resolved, owner, pet, squaredRadius);
-                resolved.addAll(findNearbyAllies(world, pet, owner, radius, squaredRadius));
+                resolved.addAll(findNearbyAlliesFallback(world, pet, owner, radius, squaredRadius));
             }
-            case NEARBY_PLAYERS -> resolved.addAll(findNearbyPlayers(world, pet, owner, radius, squaredRadius));
-            case NEARBY_ALLIES -> resolved.addAll(findNearbyAllies(world, pet, owner, radius, squaredRadius));
+            case NEARBY_PLAYERS -> resolved.addAll(findNearbyPlayersFallback(world, pet, owner, radius, squaredRadius));
+            case NEARBY_ALLIES -> resolved.addAll(findNearbyAlliesFallback(world, pet, owner, radius, squaredRadius));
         }
         resolved.remove(pet); // ensure pet only included when explicitly requested
         if (target == PetRoleType.AuraTarget.PET || target == PetRoleType.AuraTarget.OWNER_AND_PET) {
@@ -237,8 +279,8 @@ public final class PetsplusEffectManager {
         }
     }
 
-    private static List<LivingEntity> findNearbyPlayers(ServerWorld world, MobEntity pet, ServerPlayerEntity owner,
-                                                        double radius, double squaredRadius) {
+    private static List<LivingEntity> findNearbyPlayersFallback(ServerWorld world, MobEntity pet, ServerPlayerEntity owner,
+                                                                double radius, double squaredRadius) {
         Box box = pet.getBoundingBox().expand(radius);
         List<ServerPlayerEntity> players = world.getEntitiesByClass(ServerPlayerEntity.class, box,
             player -> player.isAlive() && player.squaredDistanceTo(pet) <= squaredRadius);
@@ -248,8 +290,8 @@ public final class PetsplusEffectManager {
         return new ArrayList<>(players);
     }
 
-    private static List<LivingEntity> findNearbyAllies(ServerWorld world, MobEntity pet, ServerPlayerEntity owner,
-                                                       double radius, double squaredRadius) {
+    private static List<LivingEntity> findNearbyAlliesFallback(ServerWorld world, MobEntity pet, ServerPlayerEntity owner,
+                                                               double radius, double squaredRadius) {
         Box box = pet.getBoundingBox().expand(radius);
         List<LivingEntity> allies = new ArrayList<>();
         if (owner != null && (squaredRadius == 0 || owner.squaredDistanceTo(pet) <= squaredRadius)) {
@@ -262,20 +304,60 @@ public final class PetsplusEffectManager {
         return allies;
     }
 
-    private static boolean shouldTriggerAura(String key, long worldTime, int interval) {
-        if (interval <= 0) {
-            return true;
-        }
+    private static long getNextAuraTick(String key, long worldTime, int interval) {
         AuraTimer timer = AURA_TIMERS.computeIfAbsent(key, k -> new AuraTimer());
-        if (worldTime < timer.lastWorldTime) {
+        if (!timer.primed) {
+            timer.primed = true;
             timer.lastWorldTime = worldTime;
             timer.lastRealTime = System.currentTimeMillis();
+            timer.nextTick = interval <= 0 ? worldTime : worldTime + interval;
+            return timer.nextTick;
         }
-        if (worldTime - timer.lastWorldTime >= interval) {
+
+        if (interval <= 0) {
+            timer.nextTick = worldTime;
+            return worldTime;
+        }
+
+        long expectedNext = timer.lastWorldTime + interval;
+        if (expectedNext > worldTime && (timer.nextTick == 0L || expectedNext < timer.nextTick)) {
+            timer.nextTick = expectedNext;
+        } else if (timer.nextTick == 0L) {
+            timer.nextTick = worldTime + interval;
+        }
+        return timer.nextTick;
+    }
+
+    private static boolean shouldTriggerAura(String key, long worldTime, int interval) {
+        AuraTimer timer = AURA_TIMERS.computeIfAbsent(key, k -> new AuraTimer());
+
+        if (!timer.primed) {
+            timer.primed = true;
             timer.lastWorldTime = worldTime;
             timer.lastRealTime = System.currentTimeMillis();
+            timer.nextTick = interval <= 0 ? worldTime : worldTime + interval;
             return true;
         }
+
+        if (interval <= 0) {
+            timer.lastWorldTime = worldTime;
+            timer.lastRealTime = System.currentTimeMillis();
+            timer.nextTick = worldTime;
+            return true;
+        }
+
+        if (worldTime >= timer.nextTick) {
+            timer.lastWorldTime = worldTime;
+            timer.lastRealTime = System.currentTimeMillis();
+            timer.nextTick = worldTime + interval;
+            return true;
+        }
+
+        long expectedNext = timer.lastWorldTime + interval;
+        if (expectedNext > worldTime && expectedNext < timer.nextTick) {
+            timer.nextTick = expectedNext;
+        }
+
         return false;
     }
 
@@ -389,6 +471,23 @@ public final class PetsplusEffectManager {
     }
 
     /**
+     * Opportunistically clean up stale aura timers using the calling player's server tick.
+     */
+    public static void maybeCleanup(MinecraftServer server) {
+        if (server == null) {
+            return;
+        }
+
+        long currentTick = server.getTicks();
+        if (currentTick < nextCleanupTick) {
+            return;
+        }
+
+        cleanup();
+        nextCleanupTick = currentTick + AURA_CLEANUP_INTERVAL_TICKS;
+    }
+
+    /**
      * Clean up old tracking data to prevent memory leaks.
      */
     public static void cleanup() {
@@ -409,5 +508,7 @@ public final class PetsplusEffectManager {
     private static final class AuraTimer {
         long lastWorldTime;
         long lastRealTime;
+        long nextTick;
+        boolean primed;
     }
 }

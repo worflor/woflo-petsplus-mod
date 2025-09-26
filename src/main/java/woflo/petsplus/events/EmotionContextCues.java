@@ -12,7 +12,6 @@ import java.util.UUID;
 import java.util.WeakHashMap;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.text.Texts;
@@ -110,13 +109,33 @@ public final class EmotionContextCues {
         sendCue(player, cueId, text, 100);
     }
 
-    /** Flush digest queues and prune stale stimulus entries once per world tick. */
-    public static void tick(ServerWorld world) {
-        long now = world.getTime();
-        for (ServerPlayerEntity player : world.getPlayers()) {
-            pruneStimuli(player, now);
-            flushDigest(player, now);
+    /** Flush digest queues and prune stale stimulus entries for a specific player. */
+    public static void handlePlayerTick(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
         }
+
+        if (!PENDING_STIMULI.containsKey(player) && !DIGESTS.containsKey(player)) {
+            return;
+        }
+
+        long now = player.getWorld().getTime();
+        pruneStimuli(player, now);
+        flushDigest(player, now);
+    }
+
+    /** Clear cached cue state when a player disconnects. */
+    public static void onPlayerDisconnect(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+
+        LAST_CUES.remove(player);
+        CATEGORY_COOLDOWNS.remove(player);
+        PENDING_STIMULI.remove(player);
+        DIGESTS.remove(player);
+        HISTORY.remove(player);
+        JOURNALS.remove(player.getUuid());
     }
 
     /** Clear all cue state for a player (e.g., on respawn). */

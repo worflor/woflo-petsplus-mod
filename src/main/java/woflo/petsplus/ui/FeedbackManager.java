@@ -1,6 +1,5 @@
 package woflo.petsplus.ui;
 
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.MobEntity;
@@ -17,11 +16,10 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.state.PetComponent;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Centralized feedback system for visual and audio effects throughout the mod.
@@ -30,8 +28,11 @@ import java.util.UUID;
 public class FeedbackManager {
 
     private static final int AMBIENT_PARTICLE_INTERVAL = 80; // 4 seconds
-    private static final Map<ServerWorld, List<DelayedFeedbackTask>> DELAYED_TASKS = new HashMap<>();
-    private static boolean tickHandlerRegistered;
+    private static final ScheduledExecutorService FEEDBACK_EXECUTOR = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread thread = new Thread(r, "PetsPlus-Feedback");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     /**
      * Emit feedback for a specific event at an entity's location.
@@ -74,84 +75,19 @@ public class FeedbackManager {
             return;
         }
 
-        ensureTickHandlerRegistered();
-
         UUID sourceUuid = sourceEntity != null ? sourceEntity.getUuid() : null;
-        long executeTick = server.getTicks() + Math.max(1, effect.delayTicks);
-
-        if (server.isOnThread()) {
-            addDelayedTask(world, effect, position, sourceUuid, executeTick);
-        } else {
-            server.execute(() -> addDelayedTask(world, effect, position, sourceUuid, executeTick));
-        }
-    }
-
-    private static void addDelayedTask(ServerWorld world, FeedbackConfig.FeedbackEffect effect, Vec3d position,
-                                       UUID sourceUuid, long executeTick) {
-        var tasks = DELAYED_TASKS.computeIfAbsent(world, key -> new ArrayList<>());
-        tasks.add(new DelayedFeedbackTask(effect, position, sourceUuid, executeTick));
-    }
-
-    private static void ensureTickHandlerRegistered() {
-        if (tickHandlerRegistered) {
-            return;
-        }
-
-        synchronized (FeedbackManager.class) {
-            if (tickHandlerRegistered) {
-                return;
-            }
-            ServerTickEvents.END_WORLD_TICK.register(FeedbackManager::onWorldTick);
-            tickHandlerRegistered = true;
-        }
-    }
-
-    private static void onWorldTick(ServerWorld world) {
-        var tasks = DELAYED_TASKS.get(world);
-        if (tasks == null || tasks.isEmpty()) {
-            return;
-        }
-
-        long currentTick = world.getServer().getTicks();
-        List<DelayedFeedbackTask> dueTasks = new ArrayList<>();
-        for (var task : new ArrayList<>(tasks)) {
-            if (task.executeTick <= currentTick) {
-                dueTasks.add(task);
-            }
-        }
-
-        if (dueTasks.isEmpty()) {
-            return;
-        }
-
-        for (var task : dueTasks) {
-            Entity resolvedSource = resolveEntity(world, task.sourceEntityUuid);
-            executeImmediateFeedback(task.effect, task.position, world, resolvedSource);
-        }
-
-        tasks.removeAll(dueTasks);
-        if (tasks.isEmpty()) {
-            DELAYED_TASKS.remove(world);
-        }
+        long delayTicks = Math.max(1, effect.delayTicks);
+        FEEDBACK_EXECUTOR.schedule(() -> {
+            UUID uuidCopy = sourceUuid;
+            server.execute(() -> {
+                Entity resolvedSource = resolveEntity(world, uuidCopy);
+                executeImmediateFeedback(effect, position, world, resolvedSource);
+            });
+        }, delayTicks * 50L, TimeUnit.MILLISECONDS);
     }
 
     private static Entity resolveEntity(ServerWorld world, UUID uuid) {
         return uuid != null ? world.getEntity(uuid) : null;
-    }
-
-    private static final class DelayedFeedbackTask {
-        private final FeedbackConfig.FeedbackEffect effect;
-        private final Vec3d position;
-        private final UUID sourceEntityUuid;
-        private final long executeTick;
-
-        private DelayedFeedbackTask(FeedbackConfig.FeedbackEffect effect, Vec3d position,
-                                    UUID sourceEntityUuid, long executeTick) {
-            this.effect = effect;
-            this.position = position;
-            this.sourceEntityUuid = sourceEntityUuid;
-            this.executeTick = executeTick;
-        }
     }
 
     /**
@@ -436,9 +372,6 @@ public class FeedbackManager {
      * Should be called during server shutdown to prevent watchdog timeouts.
      */
     public static void cleanup() {
-        synchronized (FeedbackManager.class) {
-            DELAYED_TASKS.clear();
-            tickHandlerRegistered = false;
-        }
+        FEEDBACK_EXECUTOR.shutdownNow();
     }
 }

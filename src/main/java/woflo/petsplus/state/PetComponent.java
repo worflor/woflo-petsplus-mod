@@ -30,6 +30,10 @@ import woflo.petsplus.component.PetsplusComponents;
 import woflo.petsplus.stats.PetCharacteristics;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
 
+import net.minecraft.util.math.ChunkSectionPos;
+import net.minecraft.util.math.MathHelper;
+
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -71,6 +75,19 @@ public class PetComponent {
     private boolean flightCapabilityDirty = true;
     // New: encapsulated mood/emotion engine
     private final PetMoodEngine moodEngine;
+
+    private StateManager stateManager;
+
+    private final EnumMap<PetWorkScheduler.TaskType, Long> scheduledTaskTicks =
+        new EnumMap<>(PetWorkScheduler.TaskType.class);
+    private long earliestScheduledTick = Long.MAX_VALUE;
+    private boolean schedulingInitialized;
+
+    private boolean swarmTrackingInitialized;
+    private long lastSwarmCellKey = Long.MIN_VALUE;
+    private double lastSwarmX;
+    private double lastSwarmY;
+    private double lastSwarmZ;
 
     // BossBar UI enhancements
     private long xpFlashStartTick = -1;
@@ -298,6 +315,17 @@ public class PetComponent {
 
 
         // Mood/emotion state is managed by moodEngine
+    }
+
+    public void attachStateManager(StateManager manager) {
+        if (this.stateManager == manager) {
+            return;
+        }
+        this.stateManager = manager;
+    }
+
+    public MobEntity getPetEntity() {
+        return pet;
     }
     
     public static PetComponent getOrCreate(MobEntity pet) {
@@ -550,10 +578,14 @@ public class PetComponent {
 
         // Apply attribute modifiers when role changes
         woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
-        
+
         // Apply AI enhancements when role changes
         if (!this.pet.getWorld().isClient) {
             woflo.petsplus.ai.PetAIEnhancements.enhancePetAI(this.pet, this);
+        }
+
+        if (this.pet.getWorld() instanceof ServerWorld serverWorld) {
+            resetTickScheduling(serverWorld.getTime());
         }
     }
 
@@ -620,6 +652,13 @@ public class PetComponent {
         this.owner = owner;
         this.ownerUuid = owner != null ? owner.getUuid() : null;
         setStateData("petsplus:owner_uuid", owner != null ? owner.getUuidAsString() : "");
+        if (stateManager != null) {
+            stateManager.unscheduleAllTasks(this);
+        }
+        if (owner == null) {
+            invalidateSwarmTracking();
+        }
+        markSchedulingUninitialized();
     }
 
     public void setOwnerUuid(@Nullable UUID ownerUuid) {
@@ -627,6 +666,11 @@ public class PetComponent {
         setStateData("petsplus:owner_uuid", ownerUuid != null ? ownerUuid.toString() : "");
         if (ownerUuid == null) {
             this.owner = null;
+            invalidateSwarmTracking();
+            if (stateManager != null) {
+                stateManager.unscheduleAllTasks(this);
+            }
+            markSchedulingUninitialized();
             return;
         }
         if (pet.getWorld() instanceof ServerWorld serverWorld) {
@@ -634,6 +678,123 @@ public class PetComponent {
             if (player != null) {
                 this.owner = player;
             }
+        }
+        if (stateManager != null) {
+            stateManager.unscheduleAllTasks(this);
+        }
+        markSchedulingUninitialized();
+    }
+
+    public void ensureSchedulingInitialized(long currentTick) {
+        if (schedulingInitialized) {
+            return;
+        }
+        if (!(pet.getWorld() instanceof ServerWorld) || stateManager == null) {
+            return;
+        }
+        schedulingInitialized = true;
+        scheduleNextIntervalTick(currentTick);
+        scheduleNextAuraCheck(currentTick);
+        scheduleNextSupportPotionScan(currentTick);
+        scheduleNextParticleCheck(currentTick);
+    }
+
+    public void resetTickScheduling(long currentTick) {
+        if (stateManager != null) {
+            stateManager.unscheduleAllTasks(this);
+        }
+        markSchedulingUninitialized();
+        ensureSchedulingInitialized(currentTick);
+    }
+
+    public void scheduleNextIntervalTick(long nextTick) {
+        submitScheduledTask(PetWorkScheduler.TaskType.INTERVAL, nextTick);
+    }
+
+    public void scheduleNextAuraCheck(long nextTick) {
+        submitScheduledTask(PetWorkScheduler.TaskType.AURA, nextTick);
+    }
+
+    public void scheduleNextSupportPotionScan(long nextTick) {
+        submitScheduledTask(PetWorkScheduler.TaskType.SUPPORT_POTION, nextTick);
+    }
+
+    public void scheduleNextParticleCheck(long nextTick) {
+        submitScheduledTask(PetWorkScheduler.TaskType.PARTICLE, nextTick);
+    }
+
+    private void submitScheduledTask(PetWorkScheduler.TaskType type, long nextTick) {
+        if (!(pet.getWorld() instanceof ServerWorld) || stateManager == null) {
+            return;
+        }
+        long sanitized = nextTick == Long.MAX_VALUE ? Long.MAX_VALUE : Math.max(0L, nextTick);
+        stateManager.schedulePetTask(this, type, sanitized);
+    }
+
+    void onTaskScheduled(PetWorkScheduler.TaskType type, long tick) {
+        scheduledTaskTicks.put(type, tick);
+        recomputeEarliestScheduledTick();
+    }
+
+    void onTaskUnschedule(PetWorkScheduler.TaskType type) {
+        scheduledTaskTicks.remove(type);
+        recomputeEarliestScheduledTick();
+    }
+
+    private void recomputeEarliestScheduledTick() {
+        long earliest = Long.MAX_VALUE;
+        for (Long tick : scheduledTaskTicks.values()) {
+            if (tick != null && tick < earliest) {
+                earliest = tick;
+            }
+        }
+        earliestScheduledTick = earliest;
+    }
+
+    public boolean hasScheduledWork() {
+        return !scheduledTaskTicks.isEmpty();
+    }
+
+    public boolean hasDueWork(long currentTick) {
+        return earliestScheduledTick != Long.MAX_VALUE && currentTick >= earliestScheduledTick;
+    }
+
+    public void markSchedulingUninitialized() {
+        schedulingInitialized = false;
+        scheduledTaskTicks.clear();
+        earliestScheduledTick = Long.MAX_VALUE;
+    }
+
+    public void invalidateSwarmTracking() {
+        swarmTrackingInitialized = false;
+        lastSwarmCellKey = Long.MIN_VALUE;
+    }
+
+    public void updateSwarmTrackingIfMoved(PetSwarmIndex index) {
+        if (!(pet.getWorld() instanceof ServerWorld)) {
+            return;
+        }
+        double x = pet.getX();
+        double y = pet.getY();
+        double z = pet.getZ();
+        long cellKey = ChunkSectionPos.asLong(
+            ChunkSectionPos.getSectionCoord(MathHelper.floor(x)),
+            ChunkSectionPos.getSectionCoord(MathHelper.floor(y)),
+            ChunkSectionPos.getSectionCoord(MathHelper.floor(z))
+        );
+
+        double dx = x - lastSwarmX;
+        double dy = y - lastSwarmY;
+        double dz = z - lastSwarmZ;
+        double distanceSq = (dx * dx) + (dy * dy) + (dz * dz);
+
+        if (!swarmTrackingInitialized || cellKey != lastSwarmCellKey || distanceSq > 1.0E-4) {
+            swarmTrackingInitialized = true;
+            lastSwarmCellKey = cellKey;
+            lastSwarmX = x;
+            lastSwarmY = y;
+            lastSwarmZ = z;
+            index.updatePet(pet, this);
         }
     }
 
@@ -667,10 +828,14 @@ public class PetComponent {
         if (!(pet.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld)) {
             return;
         }
-        
+
+        if (cooldowns.isEmpty()) {
+            return;
+        }
+
         long currentTime = pet.getWorld().getTime();
         boolean anyExpired = false;
-        
+
         // Check for expired cooldowns
         Iterator<Map.Entry<String, Long>> iterator = cooldowns.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -1046,12 +1211,22 @@ public class PetComponent {
     // ===== EMOTION–MOOD SYSTEM (delegated) =====
     public Mood getCurrentMood() { return moodEngine.getCurrentMood(); }
     public int getMoodLevel() { return moodEngine.getMoodLevel(); }
-    public void updateMood() { moodEngine.update(); }
+    public void updateMood() {
+        long now = pet.getWorld() instanceof ServerWorld sw ? sw.getTime() : System.currentTimeMillis();
+        moodEngine.ensureFresh(now);
+    }
+
+    public long estimateNextEmotionUpdate(long now) { return moodEngine.estimateNextWakeUp(now); }
 
     // ===== Emotions API =====
 
+    public record EmotionDelta(Emotion emotion, float amount) {}
+
     /** Push an emotion with additive weight; creates or refreshes a slot. */
-    public void pushEmotion(Emotion emotion, float amount) { moodEngine.pushEmotion(emotion, amount); }
+    public void pushEmotion(Emotion emotion, float amount) {
+        long now = pet.getWorld() instanceof ServerWorld sw ? sw.getTime() : 0L;
+        moodEngine.applyStimulus(new EmotionDelta(emotion, amount), now);
+    }
 
     /** Apply mirrored pack contagion influence for an emotion. */
     public void addContagionShare(Emotion emotion, float amount) { moodEngine.addContagionShare(emotion, amount); }

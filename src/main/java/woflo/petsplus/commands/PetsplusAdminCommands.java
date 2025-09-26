@@ -402,8 +402,16 @@ public class PetsplusAdminCommands {
         }
         
         // Force apply aura effects
+        var world = (net.minecraft.server.world.ServerWorld) player.getWorld();
+        var stateManager = woflo.petsplus.state.StateManager.forWorld(world);
         woflo.petsplus.effects.PetsplusEffectManager.applyRoleAuraEffects(
-            (net.minecraft.server.world.ServerWorld) player.getWorld(), targetPet, petComp, player);
+            world,
+            targetPet,
+            petComp,
+            player,
+            stateManager.getAuraTargetResolver(),
+            world.getTime()
+        );
         
         player.sendMessage(Text.literal("Status effects applied from pet!").formatted(Formatting.GREEN), false);
         return 1;

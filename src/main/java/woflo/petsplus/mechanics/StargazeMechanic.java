@@ -1,11 +1,10 @@
 package woflo.petsplus.mechanics;
 
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.advancement.AdvancementManager;
 import woflo.petsplus.api.entity.PetsplusTameable;
@@ -33,37 +32,22 @@ public class StargazeMechanic {
         final Vec3d startPosition;
         final long startTime;
         boolean completed = false;
+        long lastReminderTick = -1L;
 
         StargazeSession(UUID petUuid, Vec3d startPosition, long startTime) {
             this.petUuid = petUuid;
             this.startPosition = startPosition;
             this.startTime = startTime;
         }
-
-        boolean isValid(ServerPlayerEntity player, MobEntity pet, long currentTime) {
-            if (completed) return false;
-
-            // Check time limit (30 seconds = 600 ticks)
-            long duration = currentTime - startTime;
-            if (duration > 600) return false;
-
-            // Check position hasn't moved too much (3 blocks)
-            double range = PetsPlusConfig.getInstance().getSectionDouble("bond", "stargazeRange", 3.0);
-            if (player.getPos().distanceTo(startPosition) > range) return false;
-
-            // Check pet is still sitting and nearby
-            if (pet == null || !pet.isAlive() || pet.getPos().distanceTo(startPosition) > range) return false;
-
-            if (pet instanceof PetsplusTameable tameable) {
-                return tameable.petsplus$isSitting();
-            }
-
-            return false;
-        }
     }
 
     public static void initialize() {
-        ServerTickEvents.END_WORLD_TICK.register(StargazeMechanic::onWorldTick);
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            ServerPlayerEntity player = handler.player;
+            if (player != null) {
+                handlePlayerDisconnect(player);
+            }
+        });
     }
 
     /**
@@ -77,93 +61,150 @@ public class StargazeMechanic {
     }
 
     /**
-     * Main tick handler
+     * Invoked from mixins when a player toggles sneaking.
      */
-    private static void onWorldTick(ServerWorld world) {
-        // Clean up expired windows
-        cleanupExpiredWindows(world.getTime());
+    public static void handleSneakToggle(ServerPlayerEntity player, boolean sneaking) {
+        if (player == null || player.getWorld().isClient()) {
+            return;
+        }
 
-        // Process active stargaze sessions
-        for (ServerPlayerEntity player : world.getPlayers()) {
-            processPlayerStargaze(player, world.getTime());
+        UUID playerId = player.getUuid();
+        long now = player.getWorld().getTime();
+
+        if (!sneaking) {
+            StargazeSession session = activeSessions.remove(playerId);
+            if (session != null && !session.completed) {
+                player.sendMessage(Text.of("§7The moment was broken..."), true);
+            }
+            return;
+        }
+
+        if (!isWindowActive(player, now)) {
+            return;
+        }
+
+        if (!isNightTime((ServerWorld) player.getWorld())) {
+            player.sendMessage(Text.of("§7Wait for nightfall..."), true);
+            return;
+        }
+
+        MobEntity sittingPet = findNearbySittingPet(player);
+        if (sittingPet == null) {
+            player.sendMessage(Text.of("§7Your pet must be sitting nearby..."), true);
+            return;
+        }
+
+        StargazeSession session = activeSessions.get(playerId);
+        if (session == null || !session.petUuid.equals(sittingPet.getUuid())) {
+            session = new StargazeSession(sittingPet.getUuid(), player.getPos(), now);
+            activeSessions.put(playerId, session);
+            player.sendMessage(Text.of("§dYou begin to share a quiet moment under the stars..."), true);
         }
     }
 
     /**
-     * Process stargaze logic for a player
+     * Called when a tracked player sends a movement packet.
      */
-    private static void processPlayerStargaze(ServerPlayerEntity player, long currentTime) {
+    public static void handlePlayerMove(ServerPlayerEntity player) {
+        if (player == null || player.getWorld().isClient()) {
+            return;
+        }
+
+        StargazeSession session = activeSessions.get(player.getUuid());
+        if (session == null) {
+            return;
+        }
+
+        tickSession(player, session, player.getWorld().getTime(), false);
+    }
+
+    /**
+     * Called from a player tick mixin to advance any active stargaze session.
+     */
+    public static void handlePlayerTick(ServerPlayerEntity player) {
+        if (player == null || player.getWorld().isClient()) {
+            return;
+        }
+
         UUID playerId = player.getUuid();
+        long now = player.getWorld().getTime();
 
-        // Check if player is in stargaze window
-        Long windowEnd = stargazeWindows.get(playerId);
-        if (windowEnd == null || currentTime > windowEnd) {
-            // Not in window or window expired
-            if (activeSessions.containsKey(playerId)) {
-                activeSessions.remove(playerId);
-                player.sendMessage(Text.of("§7The moment has passed..."), true);
-            }
+        // Drop expired windows when players stay idle beyond the grace period.
+        isWindowActive(player, now);
+
+        StargazeSession session = activeSessions.get(playerId);
+        if (session == null) {
             return;
         }
 
-        // Check if it's night time
-        if (!isNightTime((ServerWorld) player.getWorld())) {
-            if (activeSessions.containsKey(playerId)) {
-                activeSessions.remove(playerId);
-                player.sendMessage(Text.of("§7Wait for nightfall..."), true);
-            }
+        tickSession(player, session, now, true);
+    }
+
+    private static void tickSession(ServerPlayerEntity player, StargazeSession session, long now, boolean allowReminders) {
+        if (!isWindowActive(player, now)) {
+            activeSessions.remove(player.getUuid());
+            player.sendMessage(Text.of("§7The moment has passed..."), true);
             return;
         }
 
-        // Check if player is crouching
         if (!player.isSneaking()) {
-            if (activeSessions.containsKey(playerId)) {
-                activeSessions.remove(playerId);
+            activeSessions.remove(player.getUuid());
+            if (!session.completed) {
                 player.sendMessage(Text.of("§7You must stay close to your companion..."), true);
             }
             return;
         }
 
-        // Find nearby sitting pet
-        MobEntity sittingPet = findNearbySittingPet(player);
-        if (sittingPet == null) {
-            if (activeSessions.containsKey(playerId)) {
-                activeSessions.remove(playerId);
-                player.sendMessage(Text.of("§7Your pet must be sitting nearby..."), true);
-            }
+        ServerWorld world = (ServerWorld) player.getWorld();
+        if (!isNightTime(world)) {
+            activeSessions.remove(player.getUuid());
+            player.sendMessage(Text.of("§7Wait for nightfall..."), true);
             return;
         }
 
-        // Handle stargaze session
-        StargazeSession session = activeSessions.get(playerId);
-        if (session == null) {
-            // Start new session
-            session = new StargazeSession(sittingPet.getUuid(), player.getPos(), currentTime);
-            activeSessions.put(playerId, session);
-            player.sendMessage(Text.of("§dYou begin to share a quiet moment under the stars..."), true);
+        MobEntity pet = getSessionPet(world, session.petUuid);
+        if (pet == null) {
+            activeSessions.remove(player.getUuid());
+            player.sendMessage(Text.of("§7Your pet must be sitting nearby..."), true);
             return;
         }
 
-        // Check if session is still valid
-        if (!session.isValid(player, sittingPet, currentTime)) {
-            activeSessions.remove(playerId);
+        if (!pet.isAlive()) {
+            activeSessions.remove(player.getUuid());
             player.sendMessage(Text.of("§7The moment was broken..."), true);
             return;
         }
 
-        // Check if session completed (30 seconds)
-        long sessionDuration = currentTime - session.startTime;
-        long requiredDuration = PetsPlusConfig.getInstance().getSectionInt("bond", "stargazeHoldTicks", 600); // 30s
+        double range = PetsPlusConfig.getInstance().getSectionDouble("bond", "stargazeRange", 3.0);
+        if (player.getPos().distanceTo(session.startPosition) > range
+            || pet.getPos().distanceTo(session.startPosition) > range) {
+            activeSessions.remove(player.getUuid());
+            player.sendMessage(Text.of("§7You must stay close to your companion..."), true);
+            return;
+        }
 
-        if (sessionDuration >= requiredDuration && !session.completed) {
-            // Complete stargaze!
+        if (pet instanceof PetsplusTameable tameable && !tameable.petsplus$isSitting()) {
+            activeSessions.remove(player.getUuid());
+            player.sendMessage(Text.of("§7Your pet must be sitting nearby..."), true);
+            return;
+        }
+
+        long requiredDuration = PetsPlusConfig.getInstance().getSectionInt("bond", "stargazeHoldTicks", 600);
+        long duration = now - session.startTime;
+
+        if (duration >= requiredDuration && !session.completed) {
             session.completed = true;
-            completeStargaze(player, sittingPet);
-        } else {
-            // Show progress
-            if (sessionDuration % 100 == 0) { // Every 5 seconds
-                int secondsRemaining = (int) ((requiredDuration - sessionDuration) / 20);
-                player.sendMessage(Text.of("§d✦ " + secondsRemaining + "s remaining... ✦"), true);
+            completeStargaze(player, pet);
+            return;
+        }
+
+        if (allowReminders && duration >= 0) {
+            if (session.lastReminderTick < 0 || now - session.lastReminderTick >= 100) {
+                session.lastReminderTick = now;
+                int secondsRemaining = (int) Math.max(0, (requiredDuration - duration) / 20);
+                if (secondsRemaining > 0) {
+                    player.sendMessage(Text.of("§d✦ " + secondsRemaining + "s remaining... ✦"), true);
+                }
             }
         }
     }
@@ -227,6 +268,26 @@ public class StargazeMechanic {
         ).stream().findFirst().orElse(null);
     }
 
+    private static MobEntity getSessionPet(ServerWorld world, UUID petUuid) {
+        net.minecraft.entity.Entity entity = world.getEntity(petUuid);
+        if (entity instanceof MobEntity mob) {
+            return mob;
+        }
+        return null;
+    }
+
+    private static boolean isWindowActive(ServerPlayerEntity player, long now) {
+        Long windowEnd = stargazeWindows.get(player.getUuid());
+        if (windowEnd == null) {
+            return false;
+        }
+        if (now > windowEnd) {
+            stargazeWindows.remove(player.getUuid());
+            return false;
+        }
+        return true;
+    }
+
     /**
      * Check if it's nighttime in the world
      */
@@ -238,16 +299,16 @@ public class StargazeMechanic {
     /**
      * Clean up expired stargaze windows
      */
-    private static void cleanupExpiredWindows(long currentTime) {
-        stargazeWindows.entrySet().removeIf(entry -> currentTime > entry.getValue());
+    public static void handlePlayerDisconnect(ServerPlayerEntity player) {
+        stargazeWindows.remove(player.getUuid());
+        activeSessions.remove(player.getUuid());
     }
 
     /**
      * Check if a player is currently in a stargaze window
      */
     public static boolean isInStargazeWindow(ServerPlayerEntity player) {
-        Long windowEnd = stargazeWindows.get(player.getUuid());
-        return windowEnd != null && player.getWorld().getTime() <= windowEnd;
+        return isWindowActive(player, player.getWorld().getTime());
     }
 
     /**
@@ -267,5 +328,28 @@ public class StargazeMechanic {
         if (pet != null) {
             completeStargaze(player, pet);
         }
+    }
+
+    public static void handlePetSittingChange(MobEntity pet, boolean sitting) {
+        if (pet == null || sitting) {
+            return;
+        }
+
+        if (!(pet.getWorld() instanceof ServerWorld world)) {
+            return;
+        }
+
+        UUID petId = pet.getUuid();
+        activeSessions.entrySet().removeIf(entry -> {
+            if (!entry.getValue().petUuid.equals(petId)) {
+                return false;
+            }
+
+            ServerPlayerEntity player = world.getServer().getPlayerManager().getPlayer(entry.getKey());
+            if (player != null) {
+                player.sendMessage(Text.of("§7Your pet must be sitting nearby..."), true);
+            }
+            return true;
+        });
     }
 }

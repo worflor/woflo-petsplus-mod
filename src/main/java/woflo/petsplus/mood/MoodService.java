@@ -5,6 +5,7 @@ import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.api.mood.EmotionProvider;
 import woflo.petsplus.api.mood.MoodAPI;
 import woflo.petsplus.api.mood.MoodListener;
+import woflo.petsplus.api.mood.ReactiveEmotionProvider;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.ArrayList;
@@ -17,23 +18,25 @@ public final class MoodService implements MoodAPI {
     private static final MoodService INSTANCE = new MoodService();
     public static MoodService getInstance() { return INSTANCE; }
 
-    private final List<EmotionProvider> providers = new ArrayList<>();
+    private final List<EmotionProvider> legacyProviders = new ArrayList<>();
+    private final List<ReactiveEmotionProvider> reactiveProviders = new ArrayList<>();
     private final List<MoodListener> listeners = new ArrayList<>();
 
-    // Per-pet rate-limit trackers for providers (pet -> (providerIdx -> lastTick))
-    private final Map<MobEntity, long[]> petProviderLastTick = new WeakHashMap<>();
-    // Track last mood state per pet to emit change events
     private final Map<MobEntity, int[]> petMoodSnapshot = new WeakHashMap<>(); // [moodOrdinal, level]
+    private final EmotionStimulusBus stimulusBus = new EmotionStimulusBus(this);
+    private final ThreadLocal<Boolean> inStimulusDispatch = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     private MoodService() {}
 
     @Override
     public void pushEmotion(MobEntity pet, PetComponent.Emotion emotion, float amount) {
-    if (!(pet.getWorld() instanceof ServerWorld)) return;
+        if (!(pet.getWorld() instanceof ServerWorld)) return;
         PetComponent comp = PetComponent.getOrCreate(pet);
         comp.pushEmotion(emotion, amount);
-        comp.updateMood();
-        snapshotAndNotify(pet, comp);
+        if (!isInStimulusDispatch()) {
+            comp.updateMood();
+            snapshotAndNotify(pet, comp);
+        }
     }
 
     @Override
@@ -69,14 +72,26 @@ public final class MoodService implements MoodAPI {
     @Override
     public void registerProvider(EmotionProvider provider) {
         if (provider == null) return;
-        providers.add(provider);
-        // Expand rate-limit arrays for existing pets lazily on next process
+        if (provider instanceof ReactiveEmotionProvider reactive) {
+            if (!reactiveProviders.contains(reactive)) {
+                reactiveProviders.add(reactive);
+                reactive.register(stimulusBus);
+            }
+        } else {
+            legacyProviders.add(provider);
+        }
     }
 
     @Override
     public void unregisterProvider(EmotionProvider provider) {
-        providers.remove(provider);
-        // We won't shrink arrays; they'll be rebuilt implicitly on next process
+        if (provider == null) return;
+        if (provider instanceof ReactiveEmotionProvider reactive) {
+            if (reactiveProviders.remove(reactive)) {
+                reactive.unregister(stimulusBus);
+            }
+        } else {
+            legacyProviders.remove(provider);
+        }
     }
 
     @Override
@@ -91,30 +106,53 @@ public final class MoodService implements MoodAPI {
 
     @Override
     public void processPet(ServerWorld world, MobEntity pet, PetComponent comp, long time) {
-        if (providers.isEmpty() || pet == null || !pet.isAlive()) return;
-        if (comp == null) comp = PetComponent.getOrCreate(pet);
-
-        long[] lastTicks = petProviderLastTick.computeIfAbsent(pet, p -> new long[Math.max(1, providers.size())]);
-        if (lastTicks.length < providers.size()) {
-            long[] expanded = new long[providers.size()];
-            System.arraycopy(lastTicks, 0, expanded, 0, lastTicks.length);
-            lastTicks = expanded;
-            petProviderLastTick.put(pet, lastTicks);
+        // Legacy API is now routed through the stimulus bus; schedule an immediate flush.
+        if (pet == null) {
+            return;
         }
-
-        for (int i = 0; i < providers.size(); i++) {
-            EmotionProvider provider = providers.get(i);
-            int period = Math.max(1, provider.periodHintTicks());
-            long last = lastTicks[i];
-            if (time - last >= period) {
-                provider.contribute(world, pet, comp, time, this);
-                lastTicks[i] = time;
+        if (comp == null) {
+            comp = PetComponent.getOrCreate(pet);
+        }
+        PetComponent finalComp = comp;
+        stimulusBus.queueStimulus(pet, component -> {
+            for (EmotionProvider provider : legacyProviders) {
+                provider.contribute(world, pet, finalComp, time, this);
             }
-        }
+        });
+    }
 
-        // After contributions, update mood and notify if changed
+    public EmotionStimulusBus getStimulusBus() {
+        return stimulusBus;
+    }
+
+    void commitStimuli(MobEntity pet, PetComponent comp, long time) {
         comp.updateMood();
         snapshotAndNotify(pet, comp);
+    }
+
+    void ensureFresh(MobEntity pet, PetComponent comp, long time) {
+        comp.updateMood();
+        snapshotAndNotify(pet, comp);
+    }
+
+    boolean isInStimulusDispatch() {
+        return Boolean.TRUE.equals(inStimulusDispatch.get());
+    }
+
+    void beginStimulusDispatch() {
+        inStimulusDispatch.set(Boolean.TRUE);
+    }
+
+    void endStimulusDispatch() {
+        inStimulusDispatch.remove();
+    }
+
+    public void trackPet(ServerWorld world, MobEntity pet) {
+        PetComponent.getOrCreate(pet);
+    }
+
+    public void untrackPet(MobEntity pet) {
+        petMoodSnapshot.remove(pet);
     }
 
     private void snapshotAndNotify(MobEntity pet, PetComponent comp) {

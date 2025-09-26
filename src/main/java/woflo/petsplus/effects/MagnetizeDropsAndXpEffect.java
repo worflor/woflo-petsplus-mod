@@ -1,7 +1,6 @@
 package woflo.petsplus.effects;
 
 import com.google.gson.JsonObject;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.ExperienceOrbEntity;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.mob.MobEntity;
@@ -21,7 +20,6 @@ import woflo.petsplus.state.PetComponent;
 
 import net.minecraft.server.network.ServerPlayerEntity;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -36,10 +34,6 @@ public class MagnetizeDropsAndXpEffect implements Effect {
     private static final Identifier ID = Identifier.of("petsplus", "magnetize_drops_and_xp");
 
     private static final Map<ServerWorld, Map<UUID, MagnetizationState>> ACTIVE_MAGNETIZATIONS = new WeakHashMap<>();
-
-    static {
-        ServerTickEvents.END_WORLD_TICK.register(MagnetizeDropsAndXpEffect::tickWorld);
-    }
 
     private final double radius;
     private final int durationTicks;
@@ -114,40 +108,61 @@ public class MagnetizeDropsAndXpEffect implements Effect {
         }
     }
 
-    private static void tickWorld(ServerWorld world) {
+    public static void handlePlayerTick(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+
+        ServerWorld world = (ServerWorld) player.getWorld();
         Map<UUID, MagnetizationState> worldStates = ACTIVE_MAGNETIZATIONS.get(world);
         if (worldStates == null || worldStates.isEmpty()) {
             return;
         }
 
-        long currentTick = world.getTime();
-        Iterator<Map.Entry<UUID, MagnetizationState>> iterator = worldStates.entrySet().iterator();
-
-        while (iterator.hasNext()) {
-            Map.Entry<UUID, MagnetizationState> entry = iterator.next();
-            MagnetizationState state = entry.getValue();
-
-            if (currentTick >= state.getExpirationTick()) {
-                iterator.remove();
-                continue;
-            }
-
-            PlayerEntity owner = world.getPlayerByUuid(entry.getKey());
-            if (!(owner instanceof ServerPlayerEntity serverOwner) || !owner.isAlive()) {
-                iterator.remove();
-                continue;
-            }
-
-            if (owner.getPos().squaredDistanceTo(state.getAnchor()) > state.getRadius() * state.getRadius()) {
-                iterator.remove();
-                continue;
-            }
-
-            magnetizeNearbyItems(world, serverOwner, state);
+        MagnetizationState state = worldStates.get(player.getUuid());
+        if (state == null) {
+            return;
         }
 
+        long currentTick = world.getTime();
+        if (currentTick >= state.getExpirationTick()
+            || player.getPos().squaredDistanceTo(state.getAnchor()) > state.getRadius() * state.getRadius()
+            || !player.isAlive()) {
+            worldStates.remove(player.getUuid());
+            if (worldStates.isEmpty()) {
+                ACTIVE_MAGNETIZATIONS.remove(world);
+            }
+            return;
+        }
+
+        magnetizeNearbyItems(world, player, state);
+    }
+
+    public static void handleMobTick(MobEntity mob, ServerWorld world) {
+        Map<UUID, MagnetizationState> worldStates = ACTIVE_MAGNETIZATIONS.get(world);
+        if (worldStates == null || worldStates.isEmpty()) {
+            return;
+        }
+
+        UUID mobId = mob.getUuid();
+        worldStates.values().removeIf(state -> state.routesToPet(mobId)
+            && (!mob.isAlive() || world.getTime() >= state.getExpirationTick()));
         if (worldStates.isEmpty()) {
             ACTIVE_MAGNETIZATIONS.remove(world);
+        }
+    }
+
+    public static void onPlayerDisconnect(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+        ServerWorld world = (ServerWorld) player.getWorld();
+        Map<UUID, MagnetizationState> worldStates = ACTIVE_MAGNETIZATIONS.get(world);
+        if (worldStates != null) {
+            worldStates.remove(player.getUuid());
+            if (worldStates.isEmpty()) {
+                ACTIVE_MAGNETIZATIONS.remove(world);
+            }
         }
     }
 
@@ -255,6 +270,10 @@ public class MagnetizeDropsAndXpEffect implements Effect {
 
         private ScoutBackpack.RoutingMode getMode() {
             return mode;
+        }
+
+        private boolean routesToPet(UUID uuid) {
+            return petUuid != null && petUuid.equals(uuid);
         }
 
         private boolean tryHandleItem(ServerWorld world, ServerPlayerEntity owner, ItemEntity item) {

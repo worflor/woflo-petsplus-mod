@@ -7,6 +7,9 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import woflo.petsplus.api.mood.EmotionProvider;
 import woflo.petsplus.api.mood.MoodAPI;
+import woflo.petsplus.api.mood.ReactiveEmotionProvider;
+import woflo.petsplus.mood.EmotionStimulusBus;
+import woflo.petsplus.mood.MoodService;
 import woflo.petsplus.state.PetComponent;
 
 /**
@@ -15,9 +18,32 @@ import woflo.petsplus.state.PetComponent;
  * - Next to campfire/bed → calm
  * - In rain/thunder without cover → slight discomfort (FOREBODING)
  */
-public class EnvironmentComfortProvider implements EmotionProvider {
+public class EnvironmentComfortProvider implements EmotionProvider, ReactiveEmotionProvider {
+    private EmotionStimulusBus.DispatchListener dispatchListener;
     @Override public String id() { return "env_comfort"; }
     @Override public int periodHintTicks() { return 80; } // Increased from 40 to 80 ticks (~4s instead of ~2s)
+
+    @Override
+    public void register(EmotionStimulusBus bus) {
+        if (dispatchListener != null) {
+            return;
+        }
+        dispatchListener = (pet, component, time) -> {
+            if (!(pet.getWorld() instanceof ServerWorld world)) {
+                return;
+            }
+            contribute(world, pet, component, time, MoodService.getInstance());
+        };
+        bus.addDispatchListener(dispatchListener);
+    }
+
+    @Override
+    public void unregister(EmotionStimulusBus bus) {
+        if (dispatchListener != null) {
+            bus.removeDispatchListener(dispatchListener);
+            dispatchListener = null;
+        }
+    }
 
     @Override
     public void contribute(ServerWorld world, MobEntity pet, PetComponent comp, long time, MoodAPI api) {

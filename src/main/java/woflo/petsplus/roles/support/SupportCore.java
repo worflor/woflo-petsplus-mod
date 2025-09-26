@@ -1,6 +1,5 @@
 package woflo.petsplus.roles.support;
 
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -25,17 +24,7 @@ import java.util.List;
 public class SupportCore {
     
     public static void initialize() {
-        // Register world tick for potion aura processing
-        ServerTickEvents.END_WORLD_TICK.register(SupportCore::onWorldTick);
-    }
-    
-    /**
-     * World tick handler for potion aura processing.
-     */
-    private static void onWorldTick(ServerWorld world) {
-        // Support pet behaviors are handled through the existing SupportBehaviors class
-        // which provides potion sip discounts and mounted aura bonuses
-        // The actual potion loading and aura emission would be handled by the potion system
+        // Support mechanics are driven by event hooks and per-pet upkeep.
     }
     
     /**

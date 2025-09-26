@@ -1,6 +1,5 @@
 package woflo.petsplus.events;
 
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.mob.MobEntity;
@@ -30,38 +29,24 @@ import java.util.Map;
  * Handles pet XP gain when owners gain XP.
  */
 public class XpEventHandler {
-    private static final Map<PlayerEntity, Integer> PREVIOUS_XP = new WeakHashMap<>();
     private static final Map<PlayerEntity, Long> LAST_PLAYER_ACTION = new WeakHashMap<>();
     private static final Map<PlayerEntity, Long> LAST_COMBAT_TIME = new WeakHashMap<>();
     private static final Map<MobEntity, Long> LAST_PET_COMBAT = new WeakHashMap<>();
     
     public static void initialize() {
-        ServerTickEvents.END_WORLD_TICK.register(XpEventHandler::onWorldTick);
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-            PREVIOUS_XP.clear();
             LAST_PLAYER_ACTION.clear();
             LAST_COMBAT_TIME.clear();
             LAST_PET_COMBAT.clear();
         });
     }
-    
-    private static void onWorldTick(ServerWorld world) {
-        // Check all players for XP changes
-        for (ServerPlayerEntity player : world.getPlayers()) {
-            checkPlayerXpChange(player);
+
+    public static void onExperienceGained(ServerPlayerEntity player, int xpGained) {
+        if (player == null || xpGained <= 0) {
+            return;
         }
-    }
-    
-    private static void checkPlayerXpChange(ServerPlayerEntity player) {
-        int currentXp = player.totalExperience;
-        int previousXp = PREVIOUS_XP.getOrDefault(player, currentXp);
-        
-        if (currentXp > previousXp) {
-            int xpGained = currentXp - previousXp;
-            handlePlayerXpGain(player, xpGained);
-        }
-        
-        PREVIOUS_XP.put(player, currentXp);
+        handlePlayerXpGain(player, xpGained);
+        LAST_PLAYER_ACTION.put(player, player.getWorld().getTime());
     }
     
     private static void handlePlayerXpGain(ServerPlayerEntity player, int xpGained) {

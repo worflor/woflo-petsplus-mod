@@ -3,7 +3,6 @@ package woflo.petsplus.events;
 import net.fabricmc.fabric.api.entity.event.v1.ServerEntityCombatEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
@@ -56,15 +55,20 @@ import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.mood.MoodService;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.UUID;
+import java.util.function.BiConsumer;
 
 import woflo.petsplus.events.EmotionCueConfig.EmotionCueDefinition;
+import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.StateManager;
 
 /**
  * Central, low-cost, event-driven emotion hooks.
@@ -106,15 +110,6 @@ public final class EmotionsEventHandler {
 
         // Trading events (via villager interaction)
         UseEntityCallback.EVENT.register(EmotionsEventHandler::onVillagerTrade);
-
-        // Lightweight weather transition tracker (per world)
-        ServerTickEvents.END_WORLD_TICK.register(EmotionsEventHandler::onWorldTickWeatherAndEnv);
-
-        // 4th Wave: Nuanced living system triggers
-        ServerTickEvents.END_WORLD_TICK.register(EmotionsEventHandler::onWorldTickNuancedEmotions);
-
-        // 5th Wave: Enhanced weather and item awareness
-        ServerTickEvents.END_WORLD_TICK.register(EmotionsEventHandler::onWorldTickAdvancedTriggers);
 
         Petsplus.LOGGER.info("Emotions event handlers registered");
     }
@@ -237,10 +232,12 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         }).forEach(pet -> {
             PetComponent pc = PetComponent.get(pet);
             if (pc != null) {
-                pc.pushEmotion(PetComponent.Emotion.SAUDADE, 0.25f);
-                pc.pushEmotion(PetComponent.Emotion.HIRAETH, 0.20f);
-                pc.pushEmotion(PetComponent.Emotion.REGRET, 0.15f);
-                pc.updateMood();
+                MoodService.getInstance().getStimulusBus().queueStimulus(pet, component -> {
+                    component.pushEmotion(PetComponent.Emotion.SAUDADE, 0.25f);
+                    component.pushEmotion(PetComponent.Emotion.HIRAETH, 0.20f);
+                    component.pushEmotion(PetComponent.Emotion.REGRET, 0.15f);
+                });
+                MoodService.getInstance().getStimulusBus().dispatchStimuli(pet);
             }
         });
     }
@@ -249,6 +246,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
     private static final java.util.Map<ServerWorld, WeatherState> WEATHER = new java.util.WeakHashMap<>();
     private static final Map<ServerWorld, Long> LAST_WET_WEATHER_TICK = new WeakHashMap<>();
     private static final Map<UUID, Long> LAST_CLEAR_WEATHER_TRIGGER = new HashMap<>();
+    private static final Map<ServerPlayerEntity, String> INVENTORY_SIGNATURES = new WeakHashMap<>();
     private record WeatherState(boolean raining, boolean thundering) {}
 
     private static final TagKey<Item> VALUABLE_ITEMS = TagKey.of(RegistryKeys.ITEM,
@@ -280,226 +278,394 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         RegistryKey<Biome> biomeKey;
         RegistryKey<World> dimensionKey;
         Vec3d lastPos;
-        int idleTicks;
-        PlayerEnvState(@Nullable RegistryKey<Biome> biomeKey, @Nullable RegistryKey<World> dimensionKey, Vec3d lastPos) {
+        long lastMovementTick;
+        long lastIdleCueTick;
+        long lastRainyIdleCueTick;
+        boolean lowHungerNotified;
+        double lastFallDistance;
+        long nextIdleCheckTick;
+        long nextNuancedTick;
+
+        PlayerEnvState(@Nullable RegistryKey<Biome> biomeKey, @Nullable RegistryKey<World> dimensionKey, Vec3d lastPos, long currentTick) {
             this.biomeKey = biomeKey;
             this.dimensionKey = dimensionKey;
             this.lastPos = lastPos;
-            this.idleTicks = 0;
+            this.lastMovementTick = currentTick;
+            this.lastIdleCueTick = 0L;
+            this.lastRainyIdleCueTick = 0L;
+            this.lowHungerNotified = false;
+            this.lastFallDistance = 0d;
+            this.nextIdleCheckTick = currentTick + 20L;
+            this.nextNuancedTick = currentTick + 60L;
         }
     }
 
-    private static void onWorldTickWeatherAndEnv(ServerWorld world) {
-        EmotionContextCues.tick(world);
+    public static void handlePlayerTick(ServerPlayerEntity player) {
+        if (player == null || player.isRemoved()) {
+            return;
+        }
+        if (!(player.getWorld() instanceof ServerWorld world)) {
+            return;
+        }
+
+        WEATHER.computeIfAbsent(world, w -> new WeatherState(world.isRaining(), world.isThundering()));
+        TIME_PHASES.computeIfAbsent(world, w -> computeTimePhase(world.getTimeOfDay()));
+
         long now = world.getTime();
-        WeatherState prev = WEATHER.get(world);
-        boolean r = world.isRaining();
-        boolean t = world.isThundering();
-        if (r || t) {
+        PlayerEnvState state = PLAYER_ENV.computeIfAbsent(player,
+            p -> createEnvState(player, world, now));
+
+        if (player.isSpectator() || player.isSleeping()) {
+            state.nextIdleCheckTick = Math.max(state.nextIdleCheckTick, now + 20L);
+            state.nextNuancedTick = Math.max(state.nextNuancedTick, now + 60L);
+            state.lastFallDistance = player.fallDistance;
+            return;
+        }
+
+        updateFallTracking(player, state);
+
+        if (now >= state.nextIdleCheckTick) {
+            state.nextIdleCheckTick = now + 20L;
+            handleIdleMaintenance(world, player, state, now);
+        }
+
+        if (now >= state.nextNuancedTick) {
+            state.nextNuancedTick = now + 60L;
+            handleNuancedEmotions(player, world, now);
+        }
+    }
+
+    private static PlayerEnvState createEnvState(ServerPlayerEntity player, ServerWorld world, long now) {
+        RegistryKey<Biome> biomeKey = null;
+        try {
+            RegistryEntry<Biome> biomeEntry = world.getBiome(player.getBlockPos());
+            biomeKey = biomeEntry.getKey().orElse(null);
+        } catch (Throwable ignored) {}
+        return new PlayerEnvState(biomeKey, world.getRegistryKey(), player.getPos(), now);
+    }
+
+    private static void updateFallTracking(ServerPlayerEntity player, PlayerEnvState state) {
+        double current = player.fallDistance;
+        if (current > state.lastFallDistance) {
+            state.lastFallDistance = current;
+            return;
+        }
+
+        if (state.lastFallDistance > 4.0d && player.isOnGround() && current < 0.5d) {
+            handlePlayerFall(player, state.lastFallDistance);
+            state.lastFallDistance = current;
+        } else if (player.isOnGround()) {
+            state.lastFallDistance = current;
+        }
+    }
+
+    private static void handleIdleMaintenance(ServerWorld world, ServerPlayerEntity player, PlayerEnvState state, long now) {
+        long idleTicks = Math.max(0L, now - state.lastMovementTick);
+        if (idleTicks < 1200L) {
+            return;
+        }
+
+        if (hasNearbyActivity(player, world)) {
+            return;
+        }
+
+        if (idleTicks >= 3600L) {
+            long sinceLast = now - state.lastIdleCueTick;
+            if (state.lastIdleCueTick == 0L || sinceLast >= 2400L) {
+                pushToNearbyOwnedPets(player, 32, pc -> pc.pushEmotion(PetComponent.Emotion.ENNUI, 0.15f));
+                EmotionContextCues.sendCue(player, "idle.ennui", Text.translatable("petsplus.emotion_cue.idle.ennui"), 2400);
+                state.lastIdleCueTick = now;
+            }
+        }
+
+        if (world.isRaining() && TIME_PHASES.getOrDefault(world, TimePhase.NIGHT) == TimePhase.NIGHT && idleTicks >= 2400L) {
+            long sinceRainy = now - state.lastRainyIdleCueTick;
+            if (sinceRainy >= 1200L) {
+                pushToNearbyOwnedPets(player, 32, pc -> pc.pushEmotion(PetComponent.Emotion.ENNUI, 0.06f));
+                EmotionContextCues.sendCue(player, "idle.rainy_ennui", Text.translatable("petsplus.emotion_cue.idle.rainy"), 2400);
+                state.lastRainyIdleCueTick = now;
+            }
+        }
+    }
+
+    public static void handleWeatherUpdated(ServerWorld world, boolean wasRaining, boolean wasThundering, boolean raining, boolean thundering) {
+        WEATHER.put(world, new WeatherState(raining, thundering));
+        long now = world.getTime();
+        if (raining || thundering) {
             LAST_WET_WEATHER_TICK.put(world, now);
-        }
-        if (prev == null) {
-            WEATHER.put(world, new WeatherState(r, t));
-            // Initialize time phase too
-            TIME_PHASES.put(world, computeTimePhase(world.getTimeOfDay()));
-        } else {
-            if (r != prev.raining || t != prev.thundering) {
-                WEATHER.put(world, new WeatherState(r, t));
-                // Push to pets near players in this world
-                if (!r && !t && (prev.raining || prev.thundering)) {
-                    LAST_WET_WEATHER_TICK.put(world, Math.max(0L, now - 1L));
-                }
-                for (ServerPlayerEntity sp : world.getPlayers()) {
-                    if (r && !prev.raining) {
-                        // Rain started → cozy introspection
-                        pushToNearbyOwnedPets(sp, 48, pc -> {
-                            pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.08f);
-                            pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.06f);
-                            pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.04f);
-                        });
-                        EmotionContextCues.sendCue(sp, "weather.rain_start", Text.translatable("petsplus.emotion_cue.weather.rain_start"), 600);
-                    } else if (!r && prev.raining) {
-                        // Rain ended → relief/joy
-                        pushToNearbyOwnedPets(sp, 48, pc -> {
-                            pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.10f);
-                            pc.pushEmotion(PetComponent.Emotion.GLEE, 0.06f);
-                        });
-                        EmotionContextCues.sendCue(sp, "weather.rain_end", Text.translatable("petsplus.emotion_cue.weather.rain_end"), 600);
-                    }
-                    if (t && !prev.thundering) {
-                        // Thunder started → foreboding and protectiveness
-                        pushToNearbyOwnedPets(sp, 48, pc -> {
-                            pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.12f);
-                            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
-                            pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.06f);
-                        });
-                        EmotionContextCues.sendCue(sp, "weather.thunder", Text.translatable("petsplus.emotion_cue.weather.thunder"), 600);
-                    }
-                }
-            }
+        } else if (wasRaining || wasThundering) {
+            LAST_WET_WEATHER_TICK.put(world, Math.max(0L, now - 1L));
         }
 
-        // Time of day transitions (very cheap)
-        TimePhase current = TIME_PHASES.getOrDefault(world, computeTimePhase(world.getTimeOfDay()));
-        TimePhase next = computeTimePhase(world.getTimeOfDay());
-        if (next != current) {
-            TIME_PHASES.put(world, next);
-            for (ServerPlayerEntity sp : world.getPlayers()) {
-                switch (next) {
-                    case DAWN -> {
-                        pushToNearbyOwnedPets(sp, 48, pc -> {
-                            pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.10f);
-                            pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.06f);
-                            pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.04f);
-                        });
-                        EmotionContextCues.sendCue(sp, "time.dawn", Text.translatable("petsplus.emotion_cue.time.dawn"), 1200);
-                    }
-                    case DUSK -> {
-                        pushToNearbyOwnedPets(sp, 48, pc -> {
-                            pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.08f);
-                            pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.06f);
-                            pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.04f);
-                        });
-                        EmotionContextCues.sendCue(sp, "time.dusk", Text.translatable("petsplus.emotion_cue.time.dusk"), 1200);
-                    }
-                    case DAY -> {
-                        pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.KEFI, 0.04f));
-                        EmotionContextCues.sendCue(sp, "time.day", Text.translatable("petsplus.emotion_cue.time.day"), 2400);
-                    }
-                    case NIGHT -> {
-                        pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.04f));
-                        EmotionContextCues.sendCue(sp, "time.night", Text.translatable("petsplus.emotion_cue.time.night"), 2400);
-                    }
-                }
-            }
-        }
-
-        // Per-player lightweight environment checks (biome/dimension/idle/hunger)
-        long time = world.getTime();
         for (ServerPlayerEntity sp : world.getPlayers()) {
-            // Resolve biome identifier
-            RegistryEntry<Biome> biomeEntry = null;
-            RegistryKey<Biome> biomeKey = null;
-            try {
-                biomeEntry = world.getBiome(sp.getBlockPos());
-                biomeKey = biomeEntry.getKey().orElse(null);
-            } catch (Throwable ignored) {}
-            RegistryKey<World> worldKey = world.getRegistryKey();
-
-            PlayerEnvState st = PLAYER_ENV.get(sp);
-            Vec3d pos = sp.getPos();
-            if (st == null) {
-                st = new PlayerEnvState(biomeKey, worldKey, pos);
-                PLAYER_ENV.put(sp, st);
-            }
-
-            // Biome change
-            if (biomeKey != null && (st.biomeKey == null || !biomeKey.equals(st.biomeKey))) {
-                st.biomeKey = biomeKey;
-                if (biomeEntry != null) {
-                    if (biomeEntry.isIn(DESERT_LIKE_BIOMES)) {
-                        pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.HANYAUKU, 0.12f), false);
-                    }
-                    if (biomeKey.equals(BiomeKeys.CHERRY_GROVE) || biomeKey.equals(BiomeKeys.FLOWER_FOREST)) {
-                        pushToNearbyOwnedPets(sp, 32, pc -> {
-                            pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.10f);
-                            pc.pushEmotion(PetComponent.Emotion.BLISSFUL, 0.08f);
-                        }, false);
-                    }
-                    if (biomeKey.equals(BiomeKeys.MUSHROOM_FIELDS)) {
-                        pushToNearbyOwnedPets(sp, 48, pc -> {
-                            pc.pushEmotion(PetComponent.Emotion.GLEE, 0.15f);
-                            pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.08f);
-                        }, false);
-                    }
-                    if (biomeKey.equals(BiomeKeys.DEEP_DARK)) {
-                        pushToNearbyOwnedPets(sp, 48, pc -> {
-                            pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.18f);
-                            pc.pushEmotion(PetComponent.Emotion.ANGST, 0.12f);
-                        }, false);
-                    }
-                    if (biomeEntry.isIn(OCEANIC_BIOMES)) {
-                        pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.08f), false);
-                    }
-                    if (biomeEntry.isIn(SNOWY_BIOMES)) {
-                        pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.STOIC, 0.10f), false);
-                    }
-                }
-                Identifier newBiomeId = biomeKey.getValue();
-                Text biomeName = Text.translatable("biome." + newBiomeId.getNamespace() + "." + newBiomeId.getPath());
+            if (raining && !wasRaining) {
                 pushToNearbyOwnedPets(sp, 48, pc -> {
-                    if (pc.hasRole(PetRoleType.SCOUT)) {
-                        MobEntity scoutPet = pc.getPet();
-                        if (scoutPet != null) {
-                            EmotionContextCues.sendCue(sp,
-                                "role.scout.biome." + scoutPet.getUuidAsString(),
-                                Text.translatable("petsplus.emotion_cue.role.scout_biome",
-                                    scoutPet.getDisplayName(), biomeName),
-                                600);
-                        }
-                    }
+                    pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.08f);
+                    pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.06f);
+                    pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.04f);
                 });
+                EmotionContextCues.sendCue(sp, "weather.rain_start", Text.translatable("petsplus.emotion_cue.weather.rain_start"), 600);
+            } else if (!raining && wasRaining) {
+                pushToNearbyOwnedPets(sp, 48, pc -> {
+                    pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.10f);
+                    pc.pushEmotion(PetComponent.Emotion.GLEE, 0.06f);
+                });
+                EmotionContextCues.sendCue(sp, "weather.rain_end", Text.translatable("petsplus.emotion_cue.weather.rain_end"), 600);
             }
 
-            // Dimension change
-            if (worldKey != null && (st.dimensionKey == null || !worldKey.equals(st.dimensionKey))) {
-                RegistryKey<World> previous = st.dimensionKey;
-                st.dimensionKey = worldKey;
-                EmotionContextCues.clearForDimensionChange(sp);
-                if (worldKey == World.OVERWORLD && previous != null && previous != World.OVERWORLD) {
-                    pushToNearbyOwnedPets(sp, 64, pc -> {
-                        pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.12f);
-                        pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.10f);
-                    }, false);
-                } else if (worldKey == World.NETHER) {
-                    pushToNearbyOwnedPets(sp, 64, pc -> {
-                        pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f);
-                        pc.pushEmotion(PetComponent.Emotion.STOIC, 0.12f);
-                        pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
-                    }, false);
-                } else if (worldKey == World.END) {
-                    pushToNearbyOwnedPets(sp, 64, pc -> {
-                        pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.14f);
-                        pc.pushEmotion(PetComponent.Emotion.STOIC, 0.12f);
-                        pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.08f);
-                    }, false);
-                }
+            if (thundering && !wasThundering) {
+                pushToNearbyOwnedPets(sp, 48, pc -> {
+                    pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.12f);
+                    pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
+                    pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.06f);
+                });
+                EmotionContextCues.sendCue(sp, "weather.thunder", Text.translatable("petsplus.emotion_cue.weather.thunder"), 600);
             }
-
-            // Idle/AFK tracking for ENNUI (push after ~3 minutes, then every 2 minutes with activity detection)
-            double dx = pos.x - st.lastPos.x;
-            double dz = pos.z - st.lastPos.z;
-            if ((dx * dx + dz * dz) < 0.0025) { // ~0.05 blocks
-                st.idleTicks++;
-                // Check for nearby activity (player building/crafting)
-                boolean nearActivity = hasNearbyActivity(sp, world);
-                if (!nearActivity) {
-                    if (st.idleTicks == 3600 || (st.idleTicks > 3600 && st.idleTicks % 2400 == 0)) { // 3min, then every 2min
-                        pushToNearbyOwnedPets(sp, 32, pc -> pc.pushEmotion(PetComponent.Emotion.ENNUI, 0.15f));
-                        EmotionContextCues.sendCue(sp, "idle.ennui", Text.translatable("petsplus.emotion_cue.idle.ennui"), 2400);
-                    }
-                    // Long rainy nights weariness (reduced frequency and weight)
-                    if (world.isRaining() && TIME_PHASES.getOrDefault(world, TimePhase.NIGHT) == TimePhase.NIGHT && st.idleTicks % 1200 == 0 && st.idleTicks >= 2400) {
-                        pushToNearbyOwnedPets(sp, 32, pc -> pc.pushEmotion(PetComponent.Emotion.ENNUI, 0.06f));
-                        EmotionContextCues.sendCue(sp, "idle.rainy_ennui", Text.translatable("petsplus.emotion_cue.idle.rainy"), 2400);
-                    }
-                }
-            } else {
-                st.idleTicks = 0;
-                st.lastPos = pos;
-            }
-
-            // Low hunger empathy: UBUNTU + light PROTECTIVENESS (every 30s)
-            try {
-                if (sp.getHungerManager().getFoodLevel() <= 4 && (time % 600 == 0)) {
-                    pushToNearbyOwnedPets(sp, 32, pc -> {
-                        pc.pushEmotion(PetComponent.Emotion.UBUNTU, 0.12f);
-                        pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
-                    });
-                    EmotionContextCues.sendCue(sp, "owner.low_hunger", Text.translatable("petsplus.emotion_cue.owner.low_hunger"), 600);
-                }
-            } catch (Throwable ignored) {}
         }
+
+        dispatchWeatherReactions(world);
+    }
+
+    public static void handleTimeOfDayUpdated(ServerWorld world, long previousTimeOfDay, long newTimeOfDay) {
+        TimePhase previous = TIME_PHASES.getOrDefault(world, computeTimePhase(previousTimeOfDay));
+        TimePhase next = computeTimePhase(newTimeOfDay);
+        if (previous == next) {
+            TIME_PHASES.put(world, next);
+            return;
+        }
+        TIME_PHASES.put(world, next);
+
+        for (ServerPlayerEntity sp : world.getPlayers()) {
+            switch (next) {
+                case DAWN -> {
+                    pushToNearbyOwnedPets(sp, 48, pc -> {
+                        pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.10f);
+                        pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.06f);
+                        pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.04f);
+                    });
+                    EmotionContextCues.sendCue(sp, "time.dawn", Text.translatable("petsplus.emotion_cue.time.dawn"), 1200);
+                }
+                case DUSK -> {
+                    pushToNearbyOwnedPets(sp, 48, pc -> {
+                        pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.08f);
+                        pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.06f);
+                        pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.04f);
+                    });
+                    EmotionContextCues.sendCue(sp, "time.dusk", Text.translatable("petsplus.emotion_cue.time.dusk"), 1200);
+                }
+                case DAY -> {
+                    pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.KEFI, 0.04f));
+                    EmotionContextCues.sendCue(sp, "time.day", Text.translatable("petsplus.emotion_cue.time.day"), 2400);
+                }
+                case NIGHT -> {
+                    pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.04f));
+                    EmotionContextCues.sendCue(sp, "time.night", Text.translatable("petsplus.emotion_cue.time.night"), 2400);
+                }
+            }
+        }
+    }
+
+    private static void dispatchWeatherReactions(ServerWorld world) {
+        for (ServerPlayerEntity owner : world.getPlayers()) {
+            forEachOwnedPet(owner, 32.0d, (pet, component) -> {
+                MoodService.getInstance().getStimulusBus().queueStimulus(pet,
+                    pc -> addAdvancedWeatherTriggers(pet, pc, owner, world));
+                MoodService.getInstance().getStimulusBus().dispatchStimuli(pet);
+            });
+        }
+    }
+
+    public static void handleInventoryMutated(ServerPlayerEntity player) {
+        String signature = computeInventorySignature(player);
+        String previous = INVENTORY_SIGNATURES.get(player);
+        if (previous != null && previous.equals(signature)) {
+            return;
+        }
+        INVENTORY_SIGNATURES.put(player, signature);
+
+        forEachOwnedPet(player, 32.0d, (pet, component) -> {
+            MoodService.getInstance().getStimulusBus().queueStimulus(pet,
+                pc -> addTagBasedItemTriggers(pet, pc, player));
+            MoodService.getInstance().getStimulusBus().dispatchStimuli(pet);
+        });
+    }
+
+    private static String computeInventorySignature(ServerPlayerEntity owner) {
+        var inventory = owner.getInventory();
+        boolean hasValuableItems = false;
+        boolean hasFoodItems = false;
+        boolean hasMagicalItems = false;
+        boolean hasWeapons = false;
+        boolean hasTools = false;
+
+        for (int i = 0; i < inventory.size(); i++) {
+            ItemStack stack = inventory.getStack(i);
+            if (stack.isEmpty()) {
+                continue;
+            }
+
+            if (stack.isIn(ItemTags.TRIM_MATERIALS) || stack.isIn(VALUABLE_ITEMS)) {
+                hasValuableItems = true;
+            }
+
+            if (stack.get(DataComponentTypes.FOOD) != null ||
+                stack.isIn(ItemTags.MEAT) ||
+                stack.isIn(ItemTags.FISHES)) {
+                hasFoodItems = true;
+            }
+
+            if (stack.hasEnchantments() ||
+                stack.isIn(MYSTIC_ITEMS) ||
+                stack.isIn(ItemTags.BOOKSHELF_BOOKS)) {
+                hasMagicalItems = true;
+            }
+
+            if (stack.isIn(ItemTags.SWORDS) ||
+                stack.isIn(ItemTags.AXES) ||
+                stack.isIn(RANGED_WEAPONS)) {
+                hasWeapons = true;
+            }
+
+            if (stack.isIn(ItemTags.PICKAXES) ||
+                stack.isIn(ItemTags.SHOVELS) ||
+                stack.isIn(ItemTags.HOES) ||
+                stack.isIn(ItemTags.AXES) ||
+                stack.isOf(Items.SHEARS) ||
+                stack.isIn(SUPPORT_TOOLS)) {
+                hasTools = true;
+            }
+        }
+
+        return new StringBuilder(5)
+            .append(hasValuableItems ? '1' : '0')
+            .append(hasFoodItems ? '1' : '0')
+            .append(hasMagicalItems ? '1' : '0')
+            .append(hasWeapons ? '1' : '0')
+            .append(hasTools ? '1' : '0')
+            .toString();
+    }
+
+    public static void handleHungerLevelChanged(ServerPlayerEntity player, int previousLevel, int currentLevel) {
+        ServerWorld world = player.getWorld();
+        PlayerEnvState state = PLAYER_ENV.computeIfAbsent(player,
+            p -> new PlayerEnvState(null, world.getRegistryKey(), player.getPos(), world.getTime()));
+
+        if (currentLevel <= 4) {
+            if (!state.lowHungerNotified || previousLevel > 4) {
+                pushToNearbyOwnedPets(player, 32, pc -> {
+                    pc.pushEmotion(PetComponent.Emotion.UBUNTU, 0.12f);
+                    pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
+                });
+                EmotionContextCues.sendCue(player, "owner.low_hunger",
+                    Text.translatable("petsplus.emotion_cue.owner.low_hunger"), 600);
+                state.lowHungerNotified = true;
+            }
+        } else if (currentLevel > 6 && state.lowHungerNotified) {
+            state.lowHungerNotified = false;
+        }
+    }
+
+    public static void handlePlayerMovement(ServerPlayerEntity player) {
+        ServerWorld world = player.getWorld();
+        long now = world.getTime();
+        Vec3d pos = player.getPos();
+        RegistryEntry<Biome> biomeEntry = null;
+        RegistryKey<Biome> biomeKey = null;
+        try {
+            biomeEntry = world.getBiome(player.getBlockPos());
+            biomeKey = biomeEntry.getKey().orElse(null);
+        } catch (Throwable ignored) {}
+        RegistryKey<World> dimensionKey = world.getRegistryKey();
+
+        PlayerEnvState state = PLAYER_ENV.get(player);
+        if (state == null) {
+            state = new PlayerEnvState(biomeKey, dimensionKey, pos, now);
+            PLAYER_ENV.put(player, state);
+        }
+
+        if (biomeKey != null && (state.biomeKey == null || !biomeKey.equals(state.biomeKey))) {
+            state.biomeKey = biomeKey;
+            if (biomeEntry != null) {
+                if (biomeEntry.isIn(DESERT_LIKE_BIOMES)) {
+                    pushToNearbyOwnedPets(player, 48, pc -> pc.pushEmotion(PetComponent.Emotion.HANYAUKU, 0.12f), false);
+                }
+                if (biomeKey.equals(BiomeKeys.CHERRY_GROVE) || biomeKey.equals(BiomeKeys.FLOWER_FOREST)) {
+                    pushToNearbyOwnedPets(player, 32, pc -> {
+                        pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.10f);
+                        pc.pushEmotion(PetComponent.Emotion.BLISSFUL, 0.08f);
+                    }, false);
+                }
+                if (biomeKey.equals(BiomeKeys.MUSHROOM_FIELDS)) {
+                    pushToNearbyOwnedPets(player, 48, pc -> {
+                        pc.pushEmotion(PetComponent.Emotion.GLEE, 0.15f);
+                        pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.08f);
+                    }, false);
+                }
+                if (biomeKey.equals(BiomeKeys.DEEP_DARK)) {
+                    pushToNearbyOwnedPets(player, 48, pc -> {
+                        pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.18f);
+                        pc.pushEmotion(PetComponent.Emotion.ANGST, 0.12f);
+                    }, false);
+                }
+                if (biomeEntry.isIn(OCEANIC_BIOMES)) {
+                    pushToNearbyOwnedPets(player, 48, pc -> pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.08f), false);
+                }
+                if (biomeEntry.isIn(SNOWY_BIOMES)) {
+                    pushToNearbyOwnedPets(player, 48, pc -> pc.pushEmotion(PetComponent.Emotion.STOIC, 0.10f), false);
+                }
+            }
+            Identifier newBiomeId = biomeKey.getValue();
+            Text biomeName = Text.translatable("biome." + newBiomeId.getNamespace() + "." + newBiomeId.getPath());
+            pushToNearbyOwnedPets(player, 48, pc -> {
+                if (pc.hasRole(PetRoleType.SCOUT)) {
+                    MobEntity scoutPet = pc.getPet();
+                    if (scoutPet != null) {
+                        EmotionContextCues.sendCue(player,
+                            "role.scout.biome." + scoutPet.getUuidAsString(),
+                            Text.translatable("petsplus.emotion_cue.role.scout_biome",
+                                scoutPet.getDisplayName(), biomeName),
+                            600);
+                    }
+                }
+            });
+        }
+
+        if (state.dimensionKey == null || !dimensionKey.equals(state.dimensionKey)) {
+            RegistryKey<World> previous = state.dimensionKey;
+            state.dimensionKey = dimensionKey;
+            EmotionContextCues.clearForDimensionChange(player);
+            if (dimensionKey == World.OVERWORLD && previous != null && previous != World.OVERWORLD) {
+                pushToNearbyOwnedPets(player, 64, pc -> {
+                    pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.12f);
+                    pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.10f);
+                }, false);
+            } else if (dimensionKey == World.NETHER) {
+                pushToNearbyOwnedPets(player, 64, pc -> {
+                    pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f);
+                    pc.pushEmotion(PetComponent.Emotion.STOIC, 0.12f);
+                    pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
+                }, false);
+            } else if (dimensionKey == World.END) {
+                pushToNearbyOwnedPets(player, 64, pc -> {
+                    pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.14f);
+                    pc.pushEmotion(PetComponent.Emotion.STOIC, 0.12f);
+                    pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.08f);
+                }, false);
+            }
+        }
+
+        state.lastPos = pos;
+        state.lastMovementTick = now;
+        state.lastIdleCueTick = 0L;
+        state.lastRainyIdleCueTick = 0L;
+    }
+
+    private static void handlePlayerFall(ServerPlayerEntity player, double distance) {
+        float magnitude = (float) Math.min(0.12d, 0.02d * distance);
+        pushToNearbyOwnedPets(player, 24, pc -> {
+            pc.pushEmotion(PetComponent.Emotion.STARTLE, magnitude);
+            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.05f);
+        });
     }
 
     private static TimePhase computeTimePhase(long timeOfDay) {
@@ -547,11 +713,14 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 continue;
             }
             try {
-                Map<PetComponent.Mood, Float> before = snapshotMoodBlend(pc);
-                consumer.accept(pc);
-                pc.updateMood();
-                Map<PetComponent.Mood, Float> after = snapshotMoodBlend(pc);
-                builder.addSample(before, after);
+                MoodService.getInstance().getStimulusBus().queueStimulus(pet, component -> {
+                    Map<PetComponent.Mood, Float> before = snapshotMoodBlend(component);
+                    consumer.accept(component);
+                    component.updateMood();
+                    Map<PetComponent.Mood, Float> after = snapshotMoodBlend(component);
+                    builder.addSample(before, after);
+                });
+                MoodService.getInstance().getStimulusBus().dispatchStimuli(pet);
             } catch (Throwable ignored) {}
         }
         StimulusSummary summary = builder.build();
@@ -559,6 +728,23 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             EmotionContextCues.recordStimulus(owner, summary);
         }
         return summary;
+    }
+
+    private static void forEachOwnedPet(ServerPlayerEntity owner, double radius,
+                                        BiConsumer<MobEntity, PetComponent> consumer) {
+        List<MobEntity> pets = owner.getWorld().getEntitiesByClass(MobEntity.class,
+            owner.getBoundingBox().expand(radius),
+            mob -> {
+                PetComponent pc = PetComponent.get(mob);
+                return pc != null && pc.isOwnedBy(owner);
+            }
+        );
+        for (MobEntity pet : pets) {
+            PetComponent component = PetComponent.get(pet);
+            if (component != null) {
+                consumer.accept(pet, component);
+            }
+        }
     }
 
     private static Map<PetComponent.Mood, Float> snapshotMoodBlend(PetComponent pc) {
@@ -569,12 +755,15 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         if (owner == null || pc == null) {
             return StimulusSummary.empty(owner != null ? owner.getWorld().getTime() : 0L);
         }
-        Map<PetComponent.Mood, Float> before = snapshotMoodBlend(pc);
-        consumer.accept(pc);
-        pc.updateMood();
-        Map<PetComponent.Mood, Float> after = snapshotMoodBlend(pc);
         StimulusSummary.Builder builder = StimulusSummary.builder(owner.getWorld().getTime());
-        builder.addSample(before, after);
+        MoodService.getInstance().getStimulusBus().queueStimulus(pc.getPet(), component -> {
+            Map<PetComponent.Mood, Float> before = snapshotMoodBlend(component);
+            consumer.accept(component);
+            component.updateMood();
+            Map<PetComponent.Mood, Float> after = snapshotMoodBlend(component);
+            builder.addSample(before, after);
+        });
+        MoodService.getInstance().getStimulusBus().dispatchStimuli(pc.getPet());
         StimulusSummary summary = builder.build();
         EmotionContextCues.recordStimulus(owner, summary);
         return summary;
@@ -651,71 +840,57 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
     }
 
     // ==== 4th Wave: Nuanced Living System - Subtle Environmental & Social Awareness ====
-    private static void onWorldTickNuancedEmotions(ServerWorld world) {
-        // Staggered execution: Run every 3 seconds with load balancing
-        long currentTick = world.getTime();
-        if (currentTick % 60 != 0) return;
+    private static void handleNuancedEmotions(ServerPlayerEntity player, ServerWorld world, long currentTick) {
+        PetSwarmIndex swarm = StateManager.forWorld(world).getSwarmIndex();
+        List<PetSwarmIndex.SwarmEntry> nearbyPets = new ArrayList<>();
+        swarm.forEachPetInRange(player, player.getPos(), 32.0, nearbyPets::add);
 
-        // Performance optimization: Process players in batches to prevent server lag
-        List<ServerPlayerEntity> players = world.getPlayers();
-        if (players.isEmpty()) return;
-
-        // Load balancing: Only process a subset of players each tick for large servers
-        int maxPlayersPerTick = Math.max(1, Math.min(players.size(), 8));
-        int startIndex = (int) ((currentTick / 60) % players.size());
-        
-        for (int i = 0; i < maxPlayersPerTick; i++) {
-            ServerPlayerEntity player = players.get((startIndex + i) % players.size());
-            
-            // Pre-fetch pets with single query instead of multiple calls
-            List<MobEntity> pets = world.getEntitiesByClass(MobEntity.class,
-                player.getBoundingBox().expand(32),
-                mob -> {
-                    PetComponent pc = PetComponent.get(mob);
-                    return pc != null && pc.isOwnedBy(player);
-                }
-            );
-
-            // Early exit if no pets to process
-            if (pets.isEmpty()) continue;
-
-            // Batch processing with pre-computed data for efficiency
-            processPetBatch(pets, player, world, currentTick);
+        if (nearbyPets.isEmpty()) {
+            return;
         }
+
+        processPetBatch(nearbyPets, player, world, currentTick, swarm);
     }
-    
+
     // Optimized batch processing to reduce redundant calculations
-    private static void processPetBatch(List<MobEntity> pets, ServerPlayerEntity owner, ServerWorld world, long currentTick) {
-        // Pre-compute pet data once for all social interactions
-        Map<MobEntity, PetSocialData> petDataCache = new HashMap<>();
-        
-        // Single pass to build social data cache
-        for (MobEntity pet : pets) {
-            PetComponent pc = PetComponent.get(pet);
-            if (pc == null) continue;
-            
-            petDataCache.put(pet, new PetSocialData(pet, pc, currentTick));
+    private static void processPetBatch(List<PetSwarmIndex.SwarmEntry> pets,
+                                        ServerPlayerEntity owner,
+                                        ServerWorld world,
+                                        long currentTick,
+                                        PetSwarmIndex swarm) {
+        Map<MobEntity, PetSocialData> petDataCache = new HashMap<>(pets.size());
+
+        for (PetSwarmIndex.SwarmEntry entry : pets) {
+            MobEntity pet = entry.pet();
+            PetComponent pc = entry.component();
+            if (pc == null) {
+                continue;
+            }
+            petDataCache.put(pet, new PetSocialData(entry, currentTick));
         }
-        
-        // Process each pet with cached data
-        for (MobEntity pet : pets) {
-            PetComponent pc = PetComponent.get(pet);
-            if (pc == null) continue;
-            
+
+        for (PetSwarmIndex.SwarmEntry entry : pets) {
+            MobEntity pet = entry.pet();
+            PetComponent pc = entry.component();
+            if (pc == null) {
+                continue;
+            }
+
             PetSocialData petData = petDataCache.get(pet);
-            if (petData == null) continue;
+            if (petData == null) {
+                continue;
+            }
 
-            // Non-social triggers (low cost)
-            addSocialAwarenessTriggers(pet, pc, owner, world);
-            addEnvironmentalMicroTriggers(pet, pc, owner, world);
-            addMovementActivityTriggers(pet, pc, owner, world);
-            addRoleSpecificAmbientTriggers(pet, pc, owner, world);
-            addSpeciesSpecificTriggers(pet, pc, owner, world);
+            MoodService.getInstance().getStimulusBus().queueStimulus(pet, component -> {
+                addSocialAwarenessTriggers(pet, component, owner, world);
+                addEnvironmentalMicroTriggers(pet, component, owner, world);
+                addMovementActivityTriggers(pet, component, owner, world);
+                addRoleSpecificAmbientTriggers(pet, component, owner, world);
+                addSpeciesSpecificTriggers(pet, component, owner, world);
 
-            // Social triggers with cached data (high cost optimization)
-            processOptimizedSocialTriggers(pet, pc, petDataCache, owner, world, currentTick);
-
-            pc.updateMood();
+                processOptimizedSocialTriggers(pet, component, petDataCache, owner, world, currentTick, swarm);
+            });
+            MoodService.getInstance().getStimulusBus().dispatchStimuli(pet);
         }
     }
     
@@ -725,90 +900,98 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         final PetComponent component;
         final long age;
         final float bondStrength;
-        final BlockPos position;
+        final double x;
+        final double y;
+        final double z;
         final PetComponent.Mood currentMood;
-        
+
+        PetSocialData(PetSwarmIndex.SwarmEntry entry, long currentTick) {
+            this(entry.pet(), entry.component(), currentTick, entry.x(), entry.y(), entry.z());
+        }
+
         PetSocialData(MobEntity pet, PetComponent pc, long currentTick) {
+            this(pet, pc, currentTick, pet.getX(), pet.getY(), pet.getZ());
+        }
+
+        private PetSocialData(MobEntity pet, PetComponent pc, long currentTick,
+                              double x, double y, double z) {
             this.pet = pet;
             this.component = pc;
             this.age = calculatePetAge(pc, currentTick);
             this.bondStrength = pc.getBondStrength();
-            this.position = pet.getBlockPos();
+            this.x = x;
+            this.y = y;
+            this.z = z;
             this.currentMood = pc.getCurrentMood();
         }
-        
+
         double squaredDistanceTo(PetSocialData other) {
-            return this.position.getSquaredDistance(other.position);
+            double dx = this.x - other.x;
+            double dy = this.y - other.y;
+            double dz = this.z - other.z;
+            return (dx * dx) + (dy * dy) + (dz * dz);
         }
     }
-    
+
     // Optimized social processing using cached data
-    private static void processOptimizedSocialTriggers(MobEntity pet, PetComponent pc, 
-                                                      Map<MobEntity, PetSocialData> petDataCache, 
-                                                      ServerPlayerEntity owner, ServerWorld world, long currentTick) {
+    private static void processOptimizedSocialTriggers(MobEntity pet, PetComponent pc,
+                                                      Map<MobEntity, PetSocialData> petDataCache,
+                                                      ServerPlayerEntity owner, ServerWorld world, long currentTick,
+                                                      PetSwarmIndex swarm) {
         PetSocialData petData = petDataCache.get(pet);
         if (petData == null) return;
-        
-        // Quick collection of social metrics using cached data 
-        int nearbyPetCount = 0;
-        boolean hasOlderPet = false;
-        boolean hasYoungerPet = false;
-        boolean hasEldestPet = false;
-        boolean hasSimilarAge = false;
-        boolean hasNewbornPet = false;
-        float strongestBondResonance = 0f;
-        double closestDistance = Double.MAX_VALUE;
-        PetSocialData closestPetData = null;
-        
-        // Single optimized pass through all pets
-        for (Map.Entry<MobEntity, PetSocialData> entry : petDataCache.entrySet()) {
-            MobEntity otherPet = entry.getKey();
-            PetSocialData otherData = entry.getValue();
-            
-            if (otherPet == pet) continue;
-            
-            double distance = petData.squaredDistanceTo(otherData);
-            if (distance > 64) continue; // 8 block radius
-            
-            nearbyPetCount++;
-            
-            // Cached age comparisons
-            if (otherData.age > petData.age * 2) hasEldestPet = true;
-            else if (otherData.age > petData.age) hasOlderPet = true;
-            else if (otherData.age < petData.age / 2) hasYoungerPet = true;
-            
+
+        final int[] nearbyPetCount = {0};
+        final boolean[] hasOlderPet = {false};
+        final boolean[] hasYoungerPet = {false};
+        final boolean[] hasEldestPet = {false};
+        final boolean[] hasSimilarAge = {false};
+        final boolean[] hasNewbornPet = {false};
+        final float[] strongestBondResonance = {0f};
+        final double[] closestDistance = {Double.MAX_VALUE};
+        final PetSocialData[] closestPetData = {null};
+
+        swarm.forEachNeighbor(pet, pc, 8.0, (neighborEntry, distance) -> {
+            if (distance > 64) {
+                return;
+            }
+
+            PetSocialData otherData = petDataCache.computeIfAbsent(neighborEntry.pet(),
+                key -> new PetSocialData(neighborEntry, currentTick));
+
+            nearbyPetCount[0]++;
+
+            if (otherData.age > petData.age * 2) hasEldestPet[0] = true;
+            else if (otherData.age > petData.age) hasOlderPet[0] = true;
+            else if (otherData.age < petData.age / 2) hasYoungerPet[0] = true;
+
             double ageRatio = (double) otherData.age / Math.max(petData.age, 1);
-            if (Math.abs(ageRatio - 1.0) <= 0.2) hasSimilarAge = true;
-            if (otherData.age < 24000) hasNewbornPet = true;
-            
-            // Bond resonance using cached data
+            if (Math.abs(ageRatio - 1.0) <= 0.2) hasSimilarAge[0] = true;
+            if (otherData.age < 24000) hasNewbornPet[0] = true;
+
             float bondDiff = Math.abs(petData.bondStrength - otherData.bondStrength);
             if (bondDiff < 0.2f) {
-                strongestBondResonance = Math.max(strongestBondResonance, 
+                strongestBondResonance[0] = Math.max(strongestBondResonance[0],
                     Math.min(petData.bondStrength, otherData.bondStrength));
             }
-            
-            // Track closest pet
-            if (distance < closestDistance) {
-                closestDistance = distance;
-                closestPetData = otherData;
+
+            if (distance < closestDistance[0]) {
+                closestDistance[0] = distance;
+                closestPetData[0] = otherData;
             }
-            
-            // Optimized mood contagion with cached mood data
+
             if (otherData.currentMood != null) {
-                float contagionStrength = calculateContagionStrength(petData, otherData, 
-                    hasEldestPet, hasSimilarAge, strongestBondResonance);
+                float contagionStrength = calculateContagionStrength(petData, otherData,
+                    hasEldestPet[0], hasSimilarAge[0], strongestBondResonance[0]);
                 applyMoodContagion(pc, otherData.currentMood, contagionStrength);
             }
-        }
-        
-        // Apply social effects based on collected metrics
-        applySocialEffects(pet, pc, owner, nearbyPetCount, hasOlderPet, hasYoungerPet, 
-            hasEldestPet, hasSimilarAge, hasNewbornPet, strongestBondResonance, 
-            closestPetData, closestDistance, currentTick);
-        
-        // Advanced social dynamics with optimized data
-        processAdvancedSocialDynamics(pet, pc, petDataCache, owner, world, currentTick);
+        });
+
+        applySocialEffects(pet, pc, owner, nearbyPetCount[0], hasOlderPet[0], hasYoungerPet[0],
+            hasEldestPet[0], hasSimilarAge[0], hasNewbornPet[0], strongestBondResonance[0],
+            closestPetData[0], closestDistance[0], currentTick);
+
+        processAdvancedSocialDynamics(pet, pc, petDataCache, owner, world, currentTick, swarm);
     }
     
     // Efficient mood contagion calculation
@@ -916,106 +1099,151 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
     }
     
     // Optimized advanced social dynamics with throttling
-    private static void processAdvancedSocialDynamics(MobEntity pet, PetComponent pc, 
+    private static void processAdvancedSocialDynamics(MobEntity pet, PetComponent pc,
                                                      Map<MobEntity, PetSocialData> petDataCache,
-                                                     ServerPlayerEntity owner, ServerWorld world, long currentTick) {
+                                                     ServerPlayerEntity owner, ServerWorld world, long currentTick,
+                                                     PetSwarmIndex swarm) {
         // Throttle advanced processing to every 6 seconds instead of 3 for performance
         if (currentTick % 120 != 0) return;
-        
+
         PetSocialData petData = petDataCache.get(pet);
         if (petData == null) return;
-        
-        // Process only 3 nearest pets for advanced dynamics to limit computational cost
-        petDataCache.entrySet().stream()
-            .filter(entry -> entry.getKey() != pet)
-            .sorted((a, b) -> Double.compare(
-                petData.squaredDistanceTo(a.getValue()),
-                petData.squaredDistanceTo(b.getValue())
-            ))
-            .limit(3) // Process only 3 closest pets
-            .forEach(entry -> {
-                MobEntity otherPet = entry.getKey();
-                PetSocialData otherData = entry.getValue();
-                
-                double distance = petData.squaredDistanceTo(otherData);
-                if (distance > 144) return; // 12 blocks for advanced dynamics
-                
-                String otherPetId = otherPet.getUuidAsString();
-                String socialMemoryKey = "social_memory_" + otherPetId;
-                
-                // Social memory processing (throttled)
-                Long lastInteraction = pc.getStateData(socialMemoryKey, Long.class);
-                boolean isFirstMeeting = lastInteraction == null;
-                boolean isReunion = lastInteraction != null && (currentTick - lastInteraction) > 24000;
-                
-                if (isFirstMeeting) {
-                    // First meeting with performance-optimized emotion application
-                    pc.pushEmotion(PetComponent.Emotion.CURIOUS, 0.06f);
-                    if (petData.age < 72000) {
-                        pc.pushEmotion(PetComponent.Emotion.GLEE, 0.04f);
-                        pc.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.05f);
-                    } else {
-                        pc.pushEmotion(PetComponent.Emotion.VIGILANT, 0.03f);
-                    }
-                    pc.setStateData(socialMemoryKey, currentTick);
-                    
-                    // Throttled context cue
-                    if (tryMarkPetBeat(pc, "first_meeting_" + otherPetId, currentTick, 800)) {
-                        EmotionContextCues.sendCue(owner, "social.first_meeting." + pet.getUuidAsString(),
-                            Text.translatable("petsplus.emotion_cue.social.first_meeting", 
-                                pet.getDisplayName(), otherPet.getDisplayName()), 400);
-                    }
-                } else if (isReunion) {
-                    // Reunion processing
-                    long separationTime = currentTick - lastInteraction;
-                    float reunionStrength = Math.min(0.08f, separationTime / 120000f);
-                    
-                    pc.pushEmotion(PetComponent.Emotion.GLEE, reunionStrength);
-                    pc.pushEmotion(PetComponent.Emotion.LOYALTY, reunionStrength * 0.7f);
-                    pc.setStateData(socialMemoryKey, currentTick);
+
+        MobEntity[] nearestPets = new MobEntity[3];
+        PetSocialData[] nearestData = new PetSocialData[3];
+        double[] nearestDistances = new double[]{Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE};
+
+        swarm.forEachNeighbor(pet, pc, 12.0, (entry, distance) -> {
+            if (distance > 144) {
+                return;
+            }
+
+            PetSocialData otherData = petDataCache.computeIfAbsent(entry.pet(),
+                key -> new PetSocialData(entry, currentTick));
+
+            int emptySlot = -1;
+            for (int i = 0; i < 3; i++) {
+                if (nearestPets[i] == null) {
+                    emptySlot = i;
+                    break;
                 }
-                
-                // Simplified empathy system (only for strong negative emotions)
-                if (otherData.currentMood == PetComponent.Mood.AFRAID || otherData.currentMood == PetComponent.Mood.ANGRY) {
-                    float empathyStrength = petData.bondStrength * 0.04f;
-                    pc.pushEmotion(PetComponent.Emotion.EMPATHY, empathyStrength);
-                    if (tryMarkPetBeat(pc, "empathy_" + otherPetId, currentTick, 600)) {
-                        EmotionContextCues.sendCue(owner, "social.empathy." + pet.getUuidAsString(),
-                            Text.translatable("petsplus.emotion_cue.social.empathy",
-                                pet.getDisplayName(), otherPet.getDisplayName()), 300);
+            }
+
+            if (emptySlot != -1) {
+                nearestPets[emptySlot] = entry.pet();
+                nearestData[emptySlot] = otherData;
+                nearestDistances[emptySlot] = distance;
+            } else {
+                int worstIndex = 0;
+                for (int i = 1; i < 3; i++) {
+                    if (nearestDistances[i] > nearestDistances[worstIndex]) {
+                        worstIndex = i;
                     }
                 }
-            });
-        
+                if (distance < nearestDistances[worstIndex]) {
+                    nearestPets[worstIndex] = entry.pet();
+                    nearestData[worstIndex] = otherData;
+                    nearestDistances[worstIndex] = distance;
+                }
+            }
+        });
+
+        int[] order = {0, 1, 2};
+        for (int i = 0; i < 3; i++) {
+            for (int j = i + 1; j < 3; j++) {
+                if (nearestDistances[order[j]] < nearestDistances[order[i]]) {
+                    int tmp = order[i];
+                    order[i] = order[j];
+                    order[j] = tmp;
+                }
+            }
+        }
+
+        for (int index : order) {
+            MobEntity otherPet = nearestPets[index];
+            if (otherPet == null) {
+                continue;
+            }
+            PetSocialData otherData = nearestData[index];
+            double distance = nearestDistances[index];
+
+            String otherPetId = otherPet.getUuidAsString();
+            String socialMemoryKey = "social_memory_" + otherPetId;
+
+            Long lastInteraction = pc.getStateData(socialMemoryKey, Long.class);
+            boolean isFirstMeeting = lastInteraction == null;
+            boolean isReunion = lastInteraction != null && (currentTick - lastInteraction) > 24000;
+
+            if (isFirstMeeting) {
+                pc.pushEmotion(PetComponent.Emotion.CURIOUS, 0.06f);
+                if (petData.age < 72000) {
+                    pc.pushEmotion(PetComponent.Emotion.GLEE, 0.04f);
+                    pc.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.05f);
+                } else {
+                    pc.pushEmotion(PetComponent.Emotion.VIGILANT, 0.03f);
+                }
+                pc.setStateData(socialMemoryKey, currentTick);
+
+                if (tryMarkPetBeat(pc, "first_meeting_" + otherPetId, currentTick, 800)) {
+                    EmotionContextCues.sendCue(owner, "social.first_meeting." + pet.getUuidAsString(),
+                        Text.translatable("petsplus.emotion_cue.social.first_meeting",
+                            pet.getDisplayName(), otherPet.getDisplayName()), 400);
+                }
+            } else if (isReunion) {
+                long separationTime = currentTick - lastInteraction;
+                float reunionStrength = Math.min(0.08f, separationTime / 120000f);
+
+                pc.pushEmotion(PetComponent.Emotion.GLEE, reunionStrength);
+                pc.pushEmotion(PetComponent.Emotion.LOYALTY, reunionStrength * 0.7f);
+                pc.setStateData(socialMemoryKey, currentTick);
+            }
+
+            if (otherData.currentMood == PetComponent.Mood.AFRAID || otherData.currentMood == PetComponent.Mood.ANGRY) {
+                float empathyStrength = petData.bondStrength * 0.04f;
+                pc.pushEmotion(PetComponent.Emotion.EMPATHY, empathyStrength);
+                if (tryMarkPetBeat(pc, "empathy_" + otherPetId, currentTick, 600)) {
+                    EmotionContextCues.sendCue(owner, "social.empathy." + pet.getUuidAsString(),
+                        Text.translatable("petsplus.emotion_cue.social.empathy",
+                            pet.getDisplayName(), otherPet.getDisplayName()), 300);
+                }
+            }
+        }
+
         // Simplified hierarchy calculation (only when needed)
         if (tryMarkPetBeat(pc, "social_hierarchy", currentTick, 1200)) { // Every minute
-            calculateSimplifiedHierarchy(pet, pc, petDataCache, owner, currentTick);
+            calculateSimplifiedHierarchy(pet, pc, petDataCache, owner, currentTick, swarm);
         }
     }
-    
+
     // Simplified hierarchy system with reduced computational overhead
-    private static void calculateSimplifiedHierarchy(MobEntity pet, PetComponent pc, 
+    private static void calculateSimplifiedHierarchy(MobEntity pet, PetComponent pc,
                                                     Map<MobEntity, PetSocialData> petDataCache,
-                                                    ServerPlayerEntity owner, long currentTick) {
+                                                    ServerPlayerEntity owner, long currentTick,
+                                                    PetSwarmIndex swarm) {
         PetSocialData petData = petDataCache.get(pet);
         if (petData == null) return;
-        
-        int youngerPets = 0;
-        int totalNearby = 0;
-        
-        // Single pass to calculate hierarchy position
-        for (Map.Entry<MobEntity, PetSocialData> entry : petDataCache.entrySet()) {
-            if (entry.getKey() == pet) continue;
-            PetSocialData otherData = entry.getValue();
-            
-            if (petData.squaredDistanceTo(otherData) > 100) continue; // 10 blocks
-            
-            totalNearby++;
-            if (otherData.age < petData.age) youngerPets++;
-        }
-        
+
+        final int[] counts = new int[2];
+
+        swarm.forEachNeighbor(pet, pc, 10.0, (entry, distance) -> {
+            if (distance > 100) {
+                return;
+            }
+
+            PetSocialData otherData = petDataCache.computeIfAbsent(entry.pet(),
+                key -> new PetSocialData(entry, currentTick));
+
+            counts[0]++;
+            if (otherData.age < petData.age) {
+                counts[1]++;
+            }
+        });
+
+        int totalNearby = counts[0];
+        int youngerPets = counts[1];
+
         if (totalNearby == 0) return; // No social context
-        
+
         // Simplified rank calculation
         float hierarchyPosition = (float) youngerPets / totalNearby; // 0 = lowest, 1 = highest
         
@@ -1547,13 +1775,14 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 PetComponent pc = PetComponent.get(pet);
                 if (pc == null) continue;
 
-                // Enhanced weather awareness
-                addAdvancedWeatherTriggers(pet, pc, player, world);
+                MoodService.getInstance().getStimulusBus().queueStimulus(pet, component -> {
+                    // Enhanced weather awareness
+                    addAdvancedWeatherTriggers(pet, component, player, world);
 
-                // Tag-based item awareness
-                addTagBasedItemTriggers(pet, pc, player);
-
-                pc.updateMood();
+                    // Tag-based item awareness
+                    addTagBasedItemTriggers(pet, component, player);
+                });
+                MoodService.getInstance().getStimulusBus().dispatchStimuli(pet);
             }
         }
     }

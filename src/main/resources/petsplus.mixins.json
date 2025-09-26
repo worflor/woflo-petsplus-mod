@@ -3,7 +3,7 @@
 	"package": "woflo.petsplus.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"mixins": [
-		"PlayerDamageMixin",
+                "PlayerDamageMixin",
                 "PlayerAttackMixin",
                 "TameableEntityMixin",
                 "AnimalEntityMixin",
@@ -12,7 +12,20 @@
                 "EntitySneakMixin",
                 "RabbitEntityMixin",
                 "FrogEntityMixin",
-                "TurtleEntityMixin"
+                "TurtleEntityMixin",
+                "ServerWorldWeatherMixin",
+                "ServerWorldTickMixin",
+                "PlayerInventoryMixin",
+                "PlayerEntityHungerMixin",
+                "HungerManagerMixin",
+                "ServerPlayNetworkHandlerMixin",
+                "ServerCommonNetworkHandlerMixin",
+                "ServerPlayerEntitySleepMixin",
+                "ServerPlayerEntityTickMixin",
+                "MobEntityRemoveMixin",
+                "MobEntityTickMixin",
+                "ItemEntityMixin",
+                "ServerPlayerEntityXpMixin"
         ],
 	"client": [
 	],

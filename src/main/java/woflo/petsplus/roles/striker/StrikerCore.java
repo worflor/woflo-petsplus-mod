@@ -1,7 +1,6 @@
 package woflo.petsplus.roles.striker;
 
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
@@ -29,8 +28,6 @@ public class StrikerCore {
         // Register damage event handler for execution bonuses
         ServerLivingEntityEvents.AFTER_DAMAGE.register(StrikerCore::onEntityDamaged);
         
-        // Register world tick for cleanup and processing
-        ServerTickEvents.END_WORLD_TICK.register(StrikerCore::onWorldTick);
     }
     
     /**
@@ -77,14 +74,6 @@ public class StrikerCore {
                        entity.squaredDistanceTo(player) <= searchRadius * searchRadius;
             }
         ).size() > 0;
-    }
-    
-    /**
-     * World tick handler for cleanup and passive effects.
-     */
-    private static void onWorldTick(ServerWorld world) {
-        // Striker execution system handles its own cleanup internally
-        // No explicit cleanup needed here
     }
     
     /**

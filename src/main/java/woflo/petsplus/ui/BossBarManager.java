@@ -270,72 +270,57 @@ public class BossBarManager {
         removeBossBar(player);
     }
     
-    /**
-     * Tick all active boss bars.
-     * Call this from the main server tick handler.
-     */
-    public static void tickBossBars() {
-        if (activeBossBars.isEmpty()) {
-            return; // Early exit for performance
+    public static void handlePlayerTick(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
         }
 
-        // Use iterator for safe removal during iteration
-        activeBossBars.entrySet().removeIf(entry -> {
-            UUID playerId = entry.getKey();
-            BossBarInfo info = entry.getValue();
+        BossBarInfo info = activeBossBars.get(player.getUuid());
+        if (info == null) {
+            return;
+        }
 
-            if (info == null) {
-                return true; // Remove null entries
+        if (info.shouldFallbackToActionBar()) {
+            return;
+        }
+
+        info.remainingTicks--;
+        if (info.remainingTicks <= 0) {
+            detachBossBar(info);
+            activeBossBars.remove(player.getUuid());
+            return;
+        }
+
+        if (info.bossBar == null) {
+            return;
+        }
+
+        try {
+            if (info.fixedPercent) {
+                info.bossBar.setPercent(clamp01(info.percent));
+            } else {
+                float progress = info.totalTicks > 0 ? (float) info.remainingTicks / info.totalTicks : 1.0f;
+                info.bossBar.setPercent(clamp01(progress));
             }
 
-            info.remainingTicks--;
-
-            if (info.remainingTicks <= 0) {
-                // Boss bar expired - clean up
-                try {
-                    detachBossBar(info);
-                } catch (Exception e) {
-                    // Silent cleanup failure - still remove from map
-                }
-                return true;
+            if (info.failureCount > 0) {
+                info.resetFailures();
             }
-
-            // Update progress for active boss bars
+        } catch (Exception e) {
+            info.incrementFailure();
             if (info.shouldFallbackToActionBar()) {
-                // In fallback mode - no boss bar updates needed
-                return false;
+                detachBossBar(info);
             }
+        }
+    }
 
-            if (info.bossBar != null) {
-                try {
-                    if (info.fixedPercent) {
-                        info.bossBar.setPercent(clamp01(info.percent));
-                    } else {
-                        float progress = info.totalTicks > 0 ? (float) info.remainingTicks / info.totalTicks : 1.0f;
-                        info.bossBar.setPercent(clamp01(progress));
-                    }
-
-                    // Reset failure count on successful update
-                    if (info.failureCount > 0) {
-                        info.resetFailures();
-                    }
-                } catch (Exception e) {
-                    // Handle boss bar update failure
-                    info.incrementFailure();
-
-                    if (info.shouldFallbackToActionBar()) {
-                        // Switch to fallback mode but keep the entry for duration tracking
-                        detachBossBar(info);
-                    }
-                    // Continue to next tick for recovery attempt
-                }
-            }
-            return false;
-        });
-
-        // Memory management: if we have too many boss bars, clean up old ones
-        if (activeBossBars.size() > 100) {
-            cleanupStaleBossBars();
+    public static void onPlayerDisconnect(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+        BossBarInfo info = activeBossBars.remove(player.getUuid());
+        if (info != null) {
+            detachBossBar(info);
         }
     }
 
@@ -447,30 +432,6 @@ public class BossBarManager {
             // Even action bar failed - remove the boss bar entirely
             activeBossBars.remove(player.getUuid());
         }
-    }
-
-    /**
-     * Clean up stale boss bars to prevent memory leaks.
-     */
-    private static void cleanupStaleBossBars() {
-        final int maxBossBars = 50; // Reasonable limit
-        if (activeBossBars.size() <= maxBossBars) {
-            return;
-        }
-
-        // Find boss bars with the least remaining time and remove excess
-        activeBossBars.entrySet()
-            .stream()
-            .sorted((a, b) -> Integer.compare(a.getValue().remainingTicks, b.getValue().remainingTicks))
-            .limit(activeBossBars.size() - maxBossBars)
-            .forEach(entry -> {
-                try {
-                    detachBossBar(entry.getValue());
-                    activeBossBars.remove(entry.getKey());
-                } catch (Exception e) {
-                    // Silent cleanup failure
-                }
-            });
     }
 
     private static void detachBossBar(BossBarInfo info) {
