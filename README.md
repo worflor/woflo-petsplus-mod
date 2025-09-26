@@ -1,14 +1,5 @@
-# Pets+ dev-0.7 (Pets Plus)
+# Pets+ dev-0.75 (Pets Plus)
 A Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
-
-## New entities to tame / trust [unimplemented)
-### Tame
-Rabbits, 
-Frogs, 
-Tiny slimes / magma cubes
-### Trust
-Phantoms
-
 
 ## Pet Roles and Levelling
 Each role has a unique set of abilities, and can be applied to *any* tamable/trustable entity. *So MaNY wAcKy CoMbInAtiOnS*!
@@ -33,8 +24,19 @@ If your pet dies, it will drop all its items and be gone for good. Your tribute 
 
 Memorialize the trauma, a **Proof of Existence** drops on every pet death.
 
+## New Friends
+### Now Tamable
+You may now tame...
+1. Frogs with slimeballs
+2. Rabbits with carrots
+3. Turtles with seagrass
+
+### Unimplemented / being considered
+- Phantoms via Trust
+- tiny slimes and tiny magma cubes 
+
 ## Moods and Emotion
-Unfortunately, your pet has developed feelings too. 
+Unfortunately, your new friend has developed feelings too. 
 
 Behind the scenes, *30 emotions influence your pet's overall mood*. Various events and triggers cause these emotional weights to shift and combine, blending into your pet's current **mood state**.
 ### Core Moods
@@ -95,9 +97,8 @@ Mood intensity varies based on the strength of these emotional weights.
 ### uninplemented yet:
 - "Another one, thank you." (get your second pet to level 30)
 - "is that... THE BITE OF '87?!!" - credits, colours_c(jamie) (witniss your pet fox do 100% of the damage on a kill)
-- "its called, damage rei-duction" - credits, colours_c(jamie) (get your guardian role pet with the name "Rei" to level 10 and give them a tribute)
-- "this isnt vanilla, chocolate, or strawberry..." (tame an entity usually untamable in the vanilla game)
-
+- "Its called, damage rei-duction" - credits, colours_c(jamie) (get your guardian role pet with the name "Rei" to level 10 and give them a tribute)
+- "This isnt vanilla, chocolate, or strawberry..." (tame an entity usually untamable in the vanilla game)
 
 ## Configuration and Expandability
 Pets+ includes configuration files (`config/petsplus/...`) where you can customize various components. Explore it yourself.
