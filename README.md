@@ -35,6 +35,8 @@ Memorialize the trauma, a **Proof of Existence** drops on every pet death.
 ### Unimplemented / being considered
 - Phantoms via Trust
 - tiny slimes and tiny magma cubes 
+- Camels
+- Llamas
 
 
 ## Moods and Emotion
@@ -102,6 +104,8 @@ Mood intensity varies based on the strength of these emotional weights.
 - "is that... THE BITE OF '87?!!" - credits, colours_c(jamie) (witniss your pet fox do 100% of the damage on a kill)
 - "Its called, damage rei-duction" - credits, colours_c(jamie) (get your guardian role pet with the name "Rei" to level 10 and give them a tribute)
 - "This isnt vanilla, chocolate, or strawberry..." (tame an entity usually untamable in the vanilla game)
+- "Pack Mentality" (Engage in combat with: a pack of 3 pets of at least 2 unique roles and 2 unique entity types)
+- "It's not nice to do that!!" (punch a pet into a void - killing it)
 
 
 ## Configuration and Expandability
