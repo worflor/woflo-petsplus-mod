@@ -124,6 +124,10 @@ public final class PetBreedEvent {
         private final boolean thundering;
         private final int nearbyPlayerCount;
         private final int nearbyPetCount;
+        private final boolean fullMoon;
+        private final boolean primaryParentOwned;
+        private final boolean partnerParentOwned;
+        private final Environment environment;
 
         public BirthContext(long worldTime,
                             long timeOfDay,
@@ -133,7 +137,11 @@ public final class PetBreedEvent {
                             boolean raining,
                             boolean thundering,
                             int nearbyPlayerCount,
-                            int nearbyPetCount) {
+                            int nearbyPetCount,
+                            boolean fullMoon,
+                            boolean primaryParentOwned,
+                            boolean partnerParentOwned,
+                            Environment environment) {
             this.worldTime = worldTime;
             this.timeOfDay = timeOfDay;
             this.dimensionId = dimensionId;
@@ -143,6 +151,10 @@ public final class PetBreedEvent {
             this.thundering = thundering;
             this.nearbyPlayerCount = nearbyPlayerCount;
             this.nearbyPetCount = nearbyPetCount;
+            this.fullMoon = fullMoon;
+            this.primaryParentOwned = primaryParentOwned;
+            this.partnerParentOwned = partnerParentOwned;
+            this.environment = environment;
         }
 
         public long getWorldTime() {
@@ -179,6 +191,163 @@ public final class PetBreedEvent {
 
         public int getNearbyPetCount() {
             return nearbyPetCount;
+        }
+
+        public boolean isFullMoon() {
+            return fullMoon;
+        }
+
+        public boolean isPrimaryParentOwned() {
+            return primaryParentOwned;
+        }
+
+        public boolean isPartnerParentOwned() {
+            return partnerParentOwned;
+        }
+
+        public Environment getEnvironment() {
+            return environment;
+        }
+
+        /**
+         * Immutable snapshot describing the biome and nearby block make-up where a pet was born.
+         */
+        public static final class Environment {
+            private final net.minecraft.util.math.BlockPos position;
+            private final Identifier biomeId;
+            private final float biomeTemperature;
+            private final boolean deepDarkBiome;
+            private final boolean mushroomFieldsBiome;
+            private final boolean oceanBiome;
+            private final boolean swampBiome;
+            private final boolean snowyPrecipitation;
+            private final int skyLightLevel;
+            private final int height;
+            private final boolean hasOpenSky;
+            private final boolean hasCozyBlocks;
+            private final boolean hasValuableOres;
+            private final boolean hasLushFoliage;
+            private final boolean fullySubmerged;
+            private final boolean nearLavaOrMagma;
+            private final boolean nearPowderSnow;
+            private final boolean nearMudOrMangrove;
+            private final boolean nearMajorStructure;
+
+            public Environment(net.minecraft.util.math.BlockPos position,
+                               Identifier biomeId,
+                               float biomeTemperature,
+                               boolean deepDarkBiome,
+                               boolean mushroomFieldsBiome,
+                               boolean oceanBiome,
+                               boolean swampBiome,
+                               boolean snowyPrecipitation,
+                               int skyLightLevel,
+                               int height,
+                               boolean hasOpenSky,
+                               boolean hasCozyBlocks,
+                               boolean hasValuableOres,
+                               boolean hasLushFoliage,
+                               boolean fullySubmerged,
+                               boolean nearLavaOrMagma,
+                               boolean nearPowderSnow,
+                               boolean nearMudOrMangrove,
+                               boolean nearMajorStructure) {
+                this.position = position;
+                this.biomeId = biomeId;
+                this.biomeTemperature = biomeTemperature;
+                this.deepDarkBiome = deepDarkBiome;
+                this.mushroomFieldsBiome = mushroomFieldsBiome;
+                this.oceanBiome = oceanBiome;
+                this.swampBiome = swampBiome;
+                this.snowyPrecipitation = snowyPrecipitation;
+                this.skyLightLevel = skyLightLevel;
+                this.height = height;
+                this.hasOpenSky = hasOpenSky;
+                this.hasCozyBlocks = hasCozyBlocks;
+                this.hasValuableOres = hasValuableOres;
+                this.hasLushFoliage = hasLushFoliage;
+                this.fullySubmerged = fullySubmerged;
+                this.nearLavaOrMagma = nearLavaOrMagma;
+                this.nearPowderSnow = nearPowderSnow;
+                this.nearMudOrMangrove = nearMudOrMangrove;
+                this.nearMajorStructure = nearMajorStructure;
+            }
+
+            public net.minecraft.util.math.BlockPos getPosition() {
+                return position;
+            }
+
+            public Identifier getBiomeId() {
+                return biomeId;
+            }
+
+            public float getBiomeTemperature() {
+                return biomeTemperature;
+            }
+
+            public boolean isDeepDarkBiome() {
+                return deepDarkBiome;
+            }
+
+            public boolean isMushroomFieldsBiome() {
+                return mushroomFieldsBiome;
+            }
+
+            public boolean isOceanBiome() {
+                return oceanBiome;
+            }
+
+            public boolean isSwampBiome() {
+                return swampBiome;
+            }
+
+            public boolean hasSnowyPrecipitation() {
+                return snowyPrecipitation;
+            }
+
+            public int getSkyLightLevel() {
+                return skyLightLevel;
+            }
+
+            public int getHeight() {
+                return height;
+            }
+
+            public boolean hasOpenSky() {
+                return hasOpenSky;
+            }
+
+            public boolean hasCozyBlocks() {
+                return hasCozyBlocks;
+            }
+
+            public boolean hasValuableOres() {
+                return hasValuableOres;
+            }
+
+            public boolean hasLushFoliage() {
+                return hasLushFoliage;
+            }
+
+            public boolean isFullySubmerged() {
+                return fullySubmerged;
+            }
+
+            public boolean isNearLavaOrMagma() {
+                return nearLavaOrMagma;
+            }
+
+            public boolean isNearPowderSnow() {
+                return nearPowderSnow;
+            }
+
+            public boolean isNearMudOrMangrove() {
+                return nearMudOrMangrove;
+            }
+
+            public boolean isNearMajorStructure() {
+                return nearMajorStructure;
+            }
         }
     }
 }

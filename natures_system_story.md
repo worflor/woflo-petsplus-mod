@@ -13,10 +13,13 @@ Every newborn pet already records a rich snapshot when the breeding handler fire
 These hooks give the nature picker deterministic access to when, where, and how a pet entered the world.
 
 ## Nature selection flow
-1. **Evaluate candidates:** Each registered nature supplies a predicate over the stored birth context (and any lightweight extensions such as moon phase or local block tags). During the newborn’s post-birth tick, the handler evaluates natures in priority order until one claims the child.
+1. **Evaluate candidates:** Each registered nature supplies a predicate over the stored birth context (and any lightweight extensions such as moon phase or local block tags). During the newborn’s post-birth tick, the handler evaluates natures in priority order until one claims the child.【F:src/main/java/woflo/petsplus/events/PetBreedingHandler.java†L54-L132】【F:src/main/java/woflo/petsplus/stats/nature/PetNatureSelector.java†L31-L136】
 2. **Apply stat lean:** Each claimed nature supplies a major (≈6%) and minor (≈2–3%) multiplier within the existing ±15% characteristic envelope so that long-term breeding still respects vanilla balance while letting dedicated players bias a lineage.
 3. **Stamp flavor cues:** The chosen nature sets a quirk tag for the mood engine, enabling cosmetic emotes, sound barks, or idle preferences that reinforce the personality without imposing penalties or active abilities.
-4. **Persist & broadcast:** The selected nature id is written to the child’s component, surfaced through the breed event payload, and available for UI, lore books, or advancement triggers.
+4. **Persist & broadcast:** The selected nature id is written to the child’s component, surfaced through the breed event payload, and available for UI, lore books, or advancement triggers.【F:src/main/java/woflo/petsplus/events/PetBreedingHandler.java†L74-L118】
+
+### Wild capture parity
+Taming a wild companion reuses the same rule table so a player’s environment at the moment of bonding can also grant a nature. When a pet is converted, the tame handler gathers a `TameContext` snapshot—dimension, weather, moon phase, indoor/outdoor state, nearby witnesses, and the pre-sampled block flags—and then rolls the roster against that data.【F:src/main/java/woflo/petsplus/stats/nature/PetNatureSelector.java†L108-L200】 The selector keeps wild assignments opt-in by flagging specific entries that shouldn’t appear on freshly tamed pets (e.g., `unnatural` only comes from unowned parentage).【F:src/main/java/woflo/petsplus/stats/nature/PetNatureSelector.java†L58-L104】 Any nature chosen during taming is stored as `WILD_ASSIGNED_NATURE` on the component so admin tools and lore hooks can show how a stray’s personality emerged.【F:src/main/java/woflo/petsplus/state/PetComponent.java†L103-L135】
 
 ## Nature roster (20 one-word archetypes)
 | Nature | Trigger concept | Major buff | Minor buff | Quirk |
