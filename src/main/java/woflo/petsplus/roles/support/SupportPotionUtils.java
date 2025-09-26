@@ -2,8 +2,14 @@ package woflo.petsplus.roles.support;
 
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.PotionContentsComponent;
+import net.minecraft.entity.effect.StatusEffect;
+import net.minecraft.entity.effect.StatusEffectCategory;
 import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.ItemEntity;
+import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.registry.Registries;
 import net.minecraft.util.Identifier;
 
@@ -31,6 +37,12 @@ public final class SupportPotionUtils {
      */
     public static final int SUPPORT_POTION_PULSE_INTERVAL_TICKS = 140;
 
+    private static final double TOP_UP_THRESHOLD_FRACTION = 0.5;
+    private static final int FIRST_BONUS_LEVEL = 23;
+    private static final int SECOND_BONUS_LEVEL = 27;
+    private static final double BASE_AUTO_PICKUP_RADIUS = 1.75;
+    private static final double MAX_AUTO_PICKUP_RADIUS = 4.0;
+
     private static final int DEFAULT_BASE_POTION_DURATION_TICKS = 3600;
     private static final double MIN_INITIAL_CHARGES = 1.0;
     private static final double EPSILON = 1.0E-4;
@@ -46,19 +58,95 @@ public final class SupportPotionUtils {
         PotionContentsComponent contents = stack.get(DataComponentTypes.POTION_CONTENTS);
         if (contents == null) return Collections.emptyList();
 
-        List<StatusEffectInstance> out = new ArrayList<>();
-        for (StatusEffectInstance inst : contents.getEffects()) {
+        List<StatusEffectInstance> rawEffects = collectEffects(contents);
+        return buildAuraEffects(rawEffects, petLevel);
+    }
+
+    static List<StatusEffectInstance> buildAuraEffects(List<StatusEffectInstance> source, int petLevel) {
+        if (source == null || source.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<StatusEffectInstance> out = new ArrayList<>(source.size());
+        for (StatusEffectInstance inst : source) {
             if (inst == null || inst.getEffectType() == null) continue;
 
-            // Calculate duration: base potion duration + level-based modifier
             int baseDuration = inst.getDuration();
             int levelBonus = petLevel * 20; // 1 second (20 ticks) per pet level
             int finalDuration = Math.max(60, baseDuration + levelBonus); // Minimum 3 seconds
 
-            // Recreate with calculated duration, preserve amplifier
             out.add(new StatusEffectInstance(inst.getEffectType(), finalDuration, inst.getAmplifier(), false, true, true));
         }
+
         return out;
+    }
+
+    private static List<StatusEffectInstance> collectEffects(PotionContentsComponent contents) {
+        if (contents == null) {
+            return Collections.emptyList();
+        }
+
+        List<StatusEffectInstance> collected = new ArrayList<>();
+        for (StatusEffectInstance instance : contents.getEffects()) {
+            collected.add(instance);
+        }
+        return collected;
+    }
+
+    static boolean isAuraEffectAllowed(StatusEffectInstance instance) {
+        if (instance == null || instance.getEffectType() == null) {
+            return false;
+        }
+
+        StatusEffect effect = instance.getEffectType().value();
+        if (effect == null) {
+            return false;
+        }
+
+        return isAuraEffectCategoryAllowed(effect.getCategory());
+    }
+
+    static boolean isAuraEffectCategoryAllowed(StatusEffectCategory category) {
+        if (category == null) {
+            return false;
+        }
+        return category != StatusEffectCategory.HARMFUL;
+    }
+
+    static boolean hasAnyAllowedAuraEffect(List<StatusEffectInstance> effects) {
+        if (effects == null || effects.isEmpty()) {
+            return false;
+        }
+
+        List<StatusEffectCategory> categories = new ArrayList<>(effects.size());
+        for (StatusEffectInstance instance : effects) {
+            if (instance == null || instance.getEffectType() == null) {
+                continue;
+            }
+
+            StatusEffect effect = instance.getEffectType().value();
+            if (effect == null) {
+                continue;
+            }
+
+            categories.add(effect.getCategory());
+        }
+
+        return hasAnyAllowedAuraCategory(categories);
+    }
+
+    static boolean hasAnyAllowedAuraCategory(Iterable<StatusEffectCategory> categories) {
+        if (categories == null) {
+            return false;
+        }
+
+        for (StatusEffectCategory category : categories) {
+            if (isAuraEffectCategoryAllowed(category)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -92,6 +180,73 @@ public final class SupportPotionUtils {
         int sanitizedDuration = Math.max(20, basePotionDuration);
         int levelBonus = petLevel * 10; // 0.5 seconds (10 ticks) per level for aura pulses
         return Math.max(40, Math.min(sanitizedDuration / 3, 80) + levelBonus); // Between 2-4+ seconds
+    }
+
+    /**
+     * Result wrapper describing whether a stored potion merge operation was accepted.
+     */
+    public enum RejectionReason {
+        NONE,
+        INVALID,
+        TOO_FULL,
+        INCOMPATIBLE
+    }
+
+    public record MergeOutcome(
+        boolean accepted,
+        boolean replaced,
+        boolean toppedUp,
+        SupportPotionState result,
+        RejectionReason rejectionReason
+    ) {
+        public MergeOutcome {
+            result = result != null ? result : EMPTY_STATE;
+            rejectionReason = rejectionReason == null ? RejectionReason.INVALID : rejectionReason;
+        }
+
+        public static MergeOutcome rejected(SupportPotionState current, RejectionReason reason) {
+            return new MergeOutcome(false, false, false, current, reason == null ? RejectionReason.INVALID : reason);
+        }
+    }
+
+    /**
+     * Merge an incoming potion payload into the current stored state.
+     *
+     * @param allowReplacement whether to accept the incoming payload when it differs from the stored potion effects
+     */
+    public static MergeOutcome mergePotionStates(
+        PetComponent component,
+        SupportPotionState current,
+        SupportPotionState incoming,
+        boolean allowReplacement
+    ) {
+        if (component == null || incoming == null || !incoming.isValid()) {
+            return MergeOutcome.rejected(current, RejectionReason.INVALID);
+        }
+
+        if (current == null || !current.isValid()) {
+            return new MergeOutcome(true, false, false, incoming, RejectionReason.NONE);
+        }
+
+        if (current.serializedEffects().equals(incoming.serializedEffects())) {
+            ChargeState existing = current.chargeState();
+            if (existing.total() > EPSILON &&
+                existing.remaining() > existing.total() * TOP_UP_THRESHOLD_FRACTION + EPSILON) {
+                return MergeOutcome.rejected(current, RejectionReason.TOO_FULL);
+            }
+
+            SupportPotionState stacked = stackPotions(component, current, incoming);
+            if (stacked.chargeState().remaining() <= current.chargeState().remaining() + EPSILON) {
+                return MergeOutcome.rejected(current, RejectionReason.TOO_FULL);
+            }
+            return new MergeOutcome(true, false, true, stacked, RejectionReason.NONE);
+        }
+
+        if (!allowReplacement) {
+            return MergeOutcome.rejected(current, RejectionReason.INCOMPATIBLE);
+        }
+
+        return new MergeOutcome(true, true, false, incoming, RejectionReason.NONE);
     }
 
     /**
@@ -138,12 +293,132 @@ public final class SupportPotionUtils {
         return Math.max(MIN_INITIAL_CHARGES, totalCharges);
     }
 
+    private static SupportPotionState stackPotions(
+        PetComponent component,
+        SupportPotionState current,
+        SupportPotionState incoming
+    ) {
+        ChargeState existing = current.chargeState();
+        ChargeState addition = incoming.chargeState();
+
+        double combinedTotal = existing.total() + addition.total();
+        double combinedRemaining = existing.remaining() + addition.remaining();
+        if (combinedRemaining > combinedTotal) {
+            combinedRemaining = combinedTotal;
+        }
+
+        double efficiency = getAuraEfficiencyMultiplier(component);
+        int auraDuration = Math.max(current.auraDurationTicks(), incoming.auraDurationTicks());
+        int sourceDuration = Math.max(existing.sourceDurationTicks(), addition.sourceDurationTicks());
+
+        List<String> canonicalEffects = canonicalizeSerializedEffects(current.serializedEffects());
+
+        return new SupportPotionState(
+            canonicalEffects,
+            auraDuration,
+            new ChargeState(combinedTotal, combinedRemaining, efficiency, sourceDuration)
+        );
+    }
+
+    /**
+     * Calculate the scaled aura pulse interval for the supplied component.
+     */
+    public static int getScaledPulseInterval(
+        PetComponent component,
+        PetRoleType.SupportPotionBehavior behavior,
+        int configuredInterval
+    ) {
+        if (behavior == null) {
+            return Math.max(20, configuredInterval);
+        }
+        int level = component != null ? component.getLevel() : 1;
+        int baseInterval = Math.max(20, configuredInterval);
+        int aboveMin = Math.max(0, level - behavior.minLevel());
+
+        int interval = baseInterval - aboveMin * 2;
+        if (level >= FIRST_BONUS_LEVEL) {
+            interval = Math.min(interval, (int) Math.round(baseInterval * 0.85));
+        }
+        if (level >= SECOND_BONUS_LEVEL) {
+            interval = Math.min(interval, (int) Math.round(baseInterval * 0.7));
+        }
+        return Math.max(40, interval);
+    }
+
+    /**
+     * Calculate the scaled aura radius for the supplied component.
+     */
+    public static double getScaledAuraRadius(
+        PetComponent component,
+        PetRoleType.SupportPotionBehavior behavior,
+        double configuredRadius
+    ) {
+        if (behavior == null) {
+            return Math.max(0.0, configuredRadius);
+        }
+        int level = component != null ? component.getLevel() : 1;
+        double baseRadius = Math.max(0.0, configuredRadius);
+        int aboveMin = Math.max(0, level - behavior.minLevel());
+
+        double radius = baseRadius + aboveMin * 0.05;
+        if (level >= FIRST_BONUS_LEVEL) {
+            radius += 0.75;
+        }
+        if (level >= SECOND_BONUS_LEVEL) {
+            radius += 0.75;
+        }
+        return Math.min(baseRadius + 3.0, radius);
+    }
+
+    /**
+     * Calculate the scaled aura duration applied to each pulse.
+     */
+    public static int getScaledAuraDuration(
+        PetComponent component,
+        PetRoleType.SupportPotionBehavior behavior,
+        SupportPotionState state,
+        int configuredDuration
+    ) {
+        int storedDuration = state != null ? state.auraDurationTicks() : 0;
+        int baseDuration = Math.max(20, configuredDuration);
+        int level = component != null ? component.getLevel() : 1;
+        int aboveMin = behavior != null ? Math.max(0, level - behavior.minLevel()) : level;
+
+        int duration = Math.max(baseDuration, storedDuration);
+        duration += aboveMin * 4; // Add 0.2 seconds per level over the unlock requirement
+        if (level >= FIRST_BONUS_LEVEL) {
+            duration += 40;
+        }
+        if (level >= SECOND_BONUS_LEVEL) {
+            duration += 80;
+        }
+        return Math.min(400, Math.max(40, duration));
+    }
+
+    /**
+     * Calculate the auto-pickup radius for loose potions around the support pet.
+     */
+    public static double getAutoPickupRadius(PetComponent component, PetRoleType.SupportPotionBehavior behavior) {
+        int level = component != null ? component.getLevel() : 1;
+        int minLevel = behavior != null ? behavior.minLevel() : 1;
+        int aboveMin = Math.max(0, level - minLevel);
+
+        double radius = BASE_AUTO_PICKUP_RADIUS + aboveMin * 0.07;
+        if (level >= FIRST_BONUS_LEVEL) {
+            radius += 0.5;
+        }
+        if (level >= SECOND_BONUS_LEVEL) {
+            radius += 0.5;
+        }
+        return Math.min(MAX_AUTO_PICKUP_RADIUS, radius);
+    }
+
     /**
      * Lightweight snapshot of stored potion data for reuse across helpers.
      */
     public record SupportPotionState(List<String> serializedEffects, int auraDurationTicks, ChargeState chargeState) {
         public SupportPotionState {
-            serializedEffects = serializedEffects == null ? List.of() : List.copyOf(serializedEffects);
+            serializedEffects = canonicalizeSerializedEffects(serializedEffects);
             auraDurationTicks = Math.max(0, auraDurationTicks);
             chargeState = chargeState == null ? ChargeState.EMPTY : chargeState;
         }
@@ -198,7 +473,17 @@ public final class SupportPotionUtils {
             return EMPTY_STATE;
         }
 
-        List<StatusEffectInstance> effects = getAuraEffects(stack, component.getLevel());
+        PotionContentsComponent contents = stack.get(DataComponentTypes.POTION_CONTENTS);
+        List<StatusEffectInstance> rawEffects = collectEffects(contents);
+        if (rawEffects.isEmpty()) {
+            return EMPTY_STATE;
+        }
+
+        if (!hasAnyAllowedAuraEffect(rawEffects)) {
+            return EMPTY_STATE;
+        }
+
+        List<StatusEffectInstance> effects = buildAuraEffects(rawEffects, component.getLevel());
         if (effects.isEmpty()) {
             return EMPTY_STATE;
         }
@@ -240,10 +525,11 @@ public final class SupportPotionUtils {
 
         boolean valid = state != null && state.isValid();
         SupportPotionState toStore = valid ? state : EMPTY_STATE;
+        List<String> serializedEffects = canonicalizeSerializedEffects(toStore.serializedEffects());
         ChargeState charges = toStore.chargeState();
 
         component.setStateData("support_potion_present", valid);
-        component.setStateData("support_potion_effects", toStore.serializedEffects());
+        component.setStateData("support_potion_effects", serializedEffects);
         component.setStateData("support_potion_aura_duration", toStore.auraDurationTicks());
         component.setStateData("support_potion_total_charges", charges.total());
         component.setStateData("support_potion_charges_remaining", Math.max(0.0, charges.remaining()));
@@ -261,9 +547,37 @@ public final class SupportPotionUtils {
 
         ChargeState updated = state.chargeState().consume(amount);
         if (!updated.hasCharges()) {
+            dropEmptyBottle(component);
             clearStoredPotion(component);
         } else {
             writeStoredState(component, state.withChargeState(updated));
+        }
+    }
+
+    private static void dropEmptyBottle(PetComponent component) {
+        if (component == null) {
+            return;
+        }
+
+        MobEntity pet = component.getPet();
+        if (pet == null || pet.getWorld().isClient) {
+            return;
+        }
+
+        ItemStack bottle = new ItemStack(Items.GLASS_BOTTLE);
+
+        if (pet.getWorld() instanceof ServerWorld serverWorld) {
+            ItemEntity bottleEntity = new ItemEntity(
+                serverWorld,
+                pet.getX(),
+                pet.getBodyY(0.7),
+                pet.getZ(),
+                bottle
+            );
+            double xVelocity = pet.getRandom().nextTriangular(0.0, 0.08);
+            double zVelocity = pet.getRandom().nextTriangular(0.0, 0.08);
+            bottleEntity.setVelocity(xVelocity, 0.2, zVelocity);
+            serverWorld.spawnEntity(bottleEntity);
         }
     }
 
@@ -329,9 +643,7 @@ public final class SupportPotionUtils {
     private static SupportPotionState readStoredStateInternal(PetComponent component) {
         @SuppressWarnings("unchecked")
         List<String> serialized = component.getStateData("support_potion_effects", List.class);
-        if (serialized == null) {
-            serialized = Collections.emptyList();
-        }
+        serialized = canonicalizeSerializedEffects(serialized);
 
         Integer auraDuration = component.getStateData("support_potion_aura_duration", Integer.class);
         int sanitizedAuraDuration = auraDuration != null ? Math.max(20, auraDuration) : 80;
@@ -353,11 +665,10 @@ public final class SupportPotionUtils {
         double chargesRemaining = remaining == null ? totalCharges : Math.min(remaining, totalCharges);
         double efficiencySnapshot = storedEfficiency != null ? storedEfficiency : currentEfficiency;
 
-        if (Math.abs(currentEfficiency - efficiencySnapshot) > EPSILON) {
-            double recalculated = getInitialChargePoolFromDuration(sanitizedSourceDuration, component);
-            double ratio = totalCharges > EPSILON ? recalculated / totalCharges : 1.0;
+        if (Math.abs(currentEfficiency - efficiencySnapshot) > EPSILON && efficiencySnapshot > EPSILON) {
+            double ratio = currentEfficiency / efficiencySnapshot;
+            totalCharges *= ratio;
             chargesRemaining *= ratio;
-            totalCharges = recalculated;
             efficiencySnapshot = currentEfficiency;
         }
 
@@ -365,6 +676,27 @@ public final class SupportPotionUtils {
         ChargeState charges = new ChargeState(totalCharges, chargesRemaining, efficiencySnapshot, sanitizedSourceDuration);
 
         return new SupportPotionState(serialized, sanitizedAuraDuration, charges);
+    }
+
+    static List<String> canonicalizeSerializedEffects(List<String> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> sanitized = new ArrayList<>(entries.size());
+        for (String entry : entries) {
+            if (entry == null || entry.isEmpty()) {
+                continue;
+            }
+            sanitized.add(entry);
+        }
+
+        if (sanitized.isEmpty()) {
+            return List.of();
+        }
+
+        sanitized.sort(String::compareTo);
+        return List.copyOf(sanitized);
     }
 
     private static List<String> serializeEffects(List<StatusEffectInstance> effects) {
@@ -379,6 +711,6 @@ public final class SupportPotionUtils {
             if (id == null) continue;
             serialized.add(id.toString() + "|" + Math.max(0, effect.getAmplifier()));
         }
-        return serialized.isEmpty() ? List.of() : List.copyOf(serialized);
+        return canonicalizeSerializedEffects(serialized);
     }
 }

@@ -2,12 +2,15 @@ package woflo.petsplus.state;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.effects.PetsplusEffectManager;
+import woflo.petsplus.events.EmotionContextCues;
+import woflo.petsplus.roles.support.SupportPotionUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -176,8 +179,11 @@ public class StateManager {
                 }
 
                 PetRoleType roleType = comp.getRoleType(false);
-                if (roleType != null && roleType.supportPotionBehavior() != null) {
-                    pickupNearbyPotionsForSupport(pet, owner);
+                if (roleType != null) {
+                    PetRoleType.SupportPotionBehavior behavior = roleType.supportPotionBehavior();
+                    if (behavior != null) {
+                        pickupNearbyPotionsForSupport(pet, owner, behavior);
+                    }
                 }
 
                 // Emit role-specific particle effects
@@ -231,35 +237,87 @@ public class StateManager {
         return new HashMap<>(ownerStates);
     }
 
-    private void pickupNearbyPotionsForSupport(MobEntity pet, PlayerEntity owner) {
+    private void pickupNearbyPotionsForSupport(MobEntity pet, PlayerEntity owner, PetRoleType.SupportPotionBehavior behavior) {
         // Allow giving potions: if player Q-drops or throws a potion item near the pet, "store" it by tagging comp state
         // This is a simple pickup: find ItemEntity with potion item in small radius and consume one
         if (!(world instanceof net.minecraft.server.world.ServerWorld serverWorld)) return;
-        var box = pet.getBoundingBox().expand(1.5);
+        PetComponent comp = petComponents.get(pet);
+        if (comp == null || comp.getLevel() < behavior.minLevel()) return;
+
+        double pickupRadius = SupportPotionUtils.getAutoPickupRadius(comp, behavior);
+        var box = pet.getBoundingBox().expand(pickupRadius);
         var items = serverWorld.getEntitiesByClass(net.minecraft.entity.ItemEntity.class, box,
             ie -> !ie.getStack().isEmpty() && (ie.getStack().isOf(net.minecraft.item.Items.POTION)
                 || ie.getStack().isOf(net.minecraft.item.Items.SPLASH_POTION)
                 || ie.getStack().isOf(net.minecraft.item.Items.LINGERING_POTION)));
         if (items.isEmpty()) return;
-        PetComponent comp = petComponents.get(pet);
-        if (comp == null) return;
-        // Enforce single-slot storage
-        if (Boolean.TRUE.equals(comp.getStateData("support_potion_present", Boolean.class))) return;
 
-        // Remove one from the world stack
-        net.minecraft.entity.ItemEntity picked = items.get(0);
-        var stack = picked.getStack();
-        var storedState = woflo.petsplus.roles.support.SupportPotionUtils.createStateFromStack(stack, comp);
-        if (!storedState.isValid()) return;
-        woflo.petsplus.roles.support.SupportPotionUtils.writeStoredState(comp, storedState);
+        var currentState = SupportPotionUtils.getStoredState(comp);
 
-        stack.decrement(1);
-        if (stack.isEmpty()) picked.discard();
+        for (net.minecraft.entity.ItemEntity picked : items) {
+            var stack = picked.getStack();
+            var incoming = SupportPotionUtils.createStateFromStack(stack, comp);
+            if (!incoming.isValid()) continue;
 
-        // Small feedback: brief particles around pet
-        serverWorld.spawnParticles(net.minecraft.particle.ParticleTypes.HAPPY_VILLAGER,
-            pet.getX(), pet.getY() + pet.getHeight() * 0.5, pet.getZ(),
-            5, 0.2, 0.2, 0.2, 0.01);
+            var outcome = SupportPotionUtils.mergePotionStates(
+                comp,
+                currentState,
+                incoming,
+                false
+            );
+            if (!outcome.accepted()) {
+                if (owner instanceof ServerPlayerEntity serverOwner) {
+                    SupportPotionUtils.RejectionReason reason = outcome.rejectionReason();
+                    String cueId = "support.potion.reject." + reason.name().toLowerCase() + "." + pet.getUuidAsString();
+                    net.minecraft.text.Text message = switch (reason) {
+                        case INCOMPATIBLE -> net.minecraft.text.Text.translatable(
+                            "petsplus.emotion_cue.support.potion_incompatible",
+                            pet.getDisplayName()
+                        );
+                        case TOO_FULL, INVALID, NONE -> net.minecraft.text.Text.translatable(
+                            "petsplus.emotion_cue.support.potion_full",
+                            pet.getDisplayName()
+                        );
+                    };
+                    EmotionContextCues.sendCue(serverOwner, cueId, message, 160);
+                }
+                continue;
+            }
+
+            SupportPotionUtils.writeStoredState(comp, outcome.result());
+            currentState = outcome.result();
+
+            stack.decrement(1);
+            if (stack.isEmpty()) picked.discard();
+
+            serverWorld.spawnParticles(net.minecraft.particle.ParticleTypes.HAPPY_VILLAGER,
+                pet.getX(), pet.getY() + pet.getHeight() * 0.5, pet.getZ(),
+                7, 0.25, 0.25, 0.25, 0.02);
+
+            if (owner instanceof ServerPlayerEntity serverOwner) {
+                net.minecraft.text.Text message = net.minecraft.text.Text.translatable(
+                    "petsplus.emotion_cue.support.potion_stored",
+                    pet.getDisplayName()
+                );
+                String cueId = "support.potion.stored." + pet.getUuidAsString();
+                if (outcome.toppedUp()) {
+                    message = net.minecraft.text.Text.translatable(
+                        "petsplus.emotion_cue.support.potion_topped_up",
+                        pet.getDisplayName()
+                    );
+                    cueId = "support.potion.topped." + pet.getUuidAsString();
+                }
+                EmotionContextCues.sendCue(serverOwner, cueId, message, 160);
+            }
+
+            serverWorld.playSound(null, pet.getBlockPos(),
+                net.minecraft.sound.SoundEvents.BLOCK_BREWING_STAND_BREW,
+                net.minecraft.sound.SoundCategory.NEUTRAL,
+                0.4f,
+                1.6f);
+
+            break;
+        }
     }
 
 }
