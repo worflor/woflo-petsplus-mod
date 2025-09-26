@@ -10,6 +10,7 @@ import net.minecraft.util.Formatting;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.config.PetsPlusConfig;
+import woflo.petsplus.ui.UIStyle;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -53,6 +54,10 @@ final class PetMoodEngine {
     private static final float CARE_PULSE_HALF_LIFE = 720f;
     private static final float DANGER_HALF_LIFE = 260f;
 
+    private static final int[] BASE_BREATHING_SPEEDS = {300, 200, 120};
+    private static final int[] BASE_GRADIENT_SPEEDS = {280, 180, 100};
+    private static final int[] BASE_SHIMMER_SPEEDS = {240, 150, 80};
+
     /**
      * Authored default emotion-to-mood mapping derived from the narrative clusters described in the
      * impact-weighted mood story. Each entry intentionally highlights the moods that should dominate
@@ -72,6 +77,17 @@ final class PetMoodEngine {
     private final EnumMap<PetComponent.Mood, Float> lastNormalizedWeights =
             new EnumMap<>(PetComponent.Mood.class);
     private final ArrayDeque<Float> dominantHistory = new ArrayDeque<>();
+
+    private final EnumMap<PetComponent.Emotion, Float> paletteBlend =
+            new EnumMap<>(PetComponent.Emotion.class);
+    private List<PetComponent.WeightedEmotionColor> currentPaletteStops = Collections.emptyList();
+    private List<PetComponent.WeightedEmotionColor> stagedPaletteStops = Collections.emptyList();
+    private boolean hasPendingPalette = false;
+    private boolean paletteCommittedOnce = false;
+    private long lastPaletteCommitTime = 0L;
+    private int paletteGeneration = 0;
+    private int lastRenderedPaletteGeneration = -1;
+    private float animationIntensity = 0f;
 
     private PetComponent.Mood currentMood = PetComponent.Mood.CALM;
     private int moodLevel = 0;
@@ -263,6 +279,16 @@ final class PetMoodEngine {
         return getCachedMoodText(true);
     }
 
+    List<PetComponent.WeightedEmotionColor> getCurrentEmotionPalette() {
+        update();
+        return currentPaletteStops;
+    }
+
+    float getAnimationIntensity() {
+        update();
+        return animationIntensity;
+    }
+
     void writeToNbt(NbtCompound nbt) {
         NbtCompound emotions = new NbtCompound();
         for (EmotionRecord record : emotionRecords.values()) {
@@ -385,6 +411,13 @@ final class PetMoodEngine {
                 }
             });
         }
+        paletteBlend.clear();
+        currentPaletteStops = Collections.emptyList();
+        stagedPaletteStops = Collections.emptyList();
+        hasPendingPalette = false;
+        paletteCommittedOnce = false;
+        lastPaletteCommitTime = 0L;
+        paletteGeneration++;
     }
 
     // --------------------------------------------------------------------------------------------
@@ -541,6 +574,9 @@ final class PetMoodEngine {
 
         normalizeBlend(moodBlend);
 
+        updateEmotionPalette(weighted);
+        updateAnimationIntensity(weighted);
+
         PetComponent.Mood previousMood = currentMood;
         float previousStrength = moodBlend.getOrDefault(previousMood, 0f);
         PetComponent.Mood bestMood = moodBlend.entrySet().stream()
@@ -588,6 +624,11 @@ final class PetMoodEngine {
         for (PetComponent.Mood mood : PetComponent.Mood.values()) {
             lastNormalizedWeights.put(mood, moodBlend.getOrDefault(mood, 0f));
         }
+        if (!paletteBlend.isEmpty() || !currentPaletteStops.isEmpty()) {
+            paletteBlend.clear();
+            currentPaletteStops = Collections.emptyList();
+            paletteGeneration++;
+        }
     }
 
     private void updateMoodLevel(float currentStrength) {
@@ -632,6 +673,227 @@ final class PetMoodEngine {
         for (Map.Entry<PetComponent.Mood, Float> entry : blend.entrySet()) {
             entry.setValue(Math.max(0f, entry.getValue()) / total);
         }
+    }
+
+    private void normalizePalette(EnumMap<PetComponent.Emotion, Float> blend) {
+        float total = 0f;
+        for (float value : blend.values()) {
+            total += Math.max(0f, value);
+        }
+        if (total <= EPSILON) {
+            blend.clear();
+            return;
+        }
+        for (Map.Entry<PetComponent.Emotion, Float> entry : blend.entrySet()) {
+            entry.setValue(Math.max(0f, entry.getValue()) / total);
+        }
+    }
+
+    private float computePaletteDelta(List<PetComponent.WeightedEmotionColor> previous,
+            List<PetComponent.WeightedEmotionColor> next) {
+        EnumMap<PetComponent.Emotion, Float> previousMap = new EnumMap<>(PetComponent.Emotion.class);
+        if (previous != null) {
+            for (PetComponent.WeightedEmotionColor stop : previous) {
+                previousMap.put(stop.emotion(), stop.weight());
+            }
+        }
+        EnumMap<PetComponent.Emotion, Float> nextMap = new EnumMap<>(PetComponent.Emotion.class);
+        if (next != null) {
+            for (PetComponent.WeightedEmotionColor stop : next) {
+                nextMap.put(stop.emotion(), stop.weight());
+            }
+        }
+        float delta = 0f;
+        for (Map.Entry<PetComponent.Emotion, Float> entry : nextMap.entrySet()) {
+            float previousValue = previousMap.getOrDefault(entry.getKey(), 0f);
+            delta += Math.abs(entry.getValue() - previousValue);
+        }
+        for (Map.Entry<PetComponent.Emotion, Float> entry : previousMap.entrySet()) {
+            if (!nextMap.containsKey(entry.getKey())) {
+                delta += Math.abs(entry.getValue());
+            }
+        }
+        return delta;
+    }
+
+    private void updateEmotionPalette(List<Candidate> weighted) {
+        if (weighted == null || weighted.isEmpty()) {
+            if (!paletteBlend.isEmpty()) {
+                paletteBlend.clear();
+            }
+            stagePalette(Collections.emptyList());
+            return;
+        }
+
+        EnumMap<PetComponent.Emotion, Float> target = new EnumMap<>(PetComponent.Emotion.class);
+        float total = 0f;
+        for (Candidate candidate : weighted) {
+            float weight = Math.max(0f, candidate.signal);
+            if (weight <= EPSILON) {
+                continue;
+            }
+            target.merge(candidate.record.emotion, weight, Float::sum);
+            total += weight;
+        }
+
+        if (total <= EPSILON) {
+            paletteBlend.clear();
+            stagePalette(Collections.emptyList());
+            return;
+        }
+
+        for (Map.Entry<PetComponent.Emotion, Float> entry : target.entrySet()) {
+            entry.setValue(entry.getValue() / total);
+        }
+
+        double momentum = MathHelper.clamp((float) cachedMomentum, 0f, 1f);
+        EnumMap<PetComponent.Emotion, Float> blended = new EnumMap<>(PetComponent.Emotion.class);
+        for (PetComponent.Emotion emotion : PetComponent.Emotion.values()) {
+            float previous = paletteBlend.getOrDefault(emotion, 0f);
+            float targetWeight = target.getOrDefault(emotion, 0f);
+            float updated = previous + (targetWeight - previous) * (float) momentum;
+            if (updated > EPSILON * 0.25f) {
+                blended.put(emotion, updated);
+            }
+        }
+
+        paletteBlend.clear();
+        paletteBlend.putAll(blended);
+        normalizePalette(paletteBlend);
+
+        if (paletteBlend.isEmpty()) {
+            stagePalette(Collections.emptyList());
+            return;
+        }
+
+        List<Map.Entry<PetComponent.Emotion, Float>> entries = new ArrayList<>(paletteBlend.entrySet());
+        entries.sort((a, b) -> Float.compare(b.getValue(), a.getValue()));
+        int limit = Math.min(entries.size(), 4);
+        List<PetComponent.WeightedEmotionColor> stops = new ArrayList<>(limit);
+        float stopsTotal = 0f;
+        for (int i = 0; i < limit; i++) {
+            Map.Entry<PetComponent.Emotion, Float> entry = entries.get(i);
+            float weight = Math.max(0f, entry.getValue());
+            stopsTotal += weight;
+            TextColor color = PetComponent.getEmotionColor(entry.getKey());
+            stops.add(new PetComponent.WeightedEmotionColor(entry.getKey(), weight, color));
+        }
+
+        if (stops.isEmpty() || stopsTotal <= EPSILON) {
+            stagePalette(Collections.emptyList());
+            return;
+        }
+
+        float invTotal = 1f / stopsTotal;
+        List<PetComponent.WeightedEmotionColor> normalized = new ArrayList<>(stops.size());
+        for (PetComponent.WeightedEmotionColor stop : stops) {
+            normalized.add(new PetComponent.WeightedEmotionColor(stop.emotion(), stop.weight() * invTotal, stop.color()));
+        }
+
+        List<PetComponent.WeightedEmotionColor> finalStops = List.copyOf(normalized);
+        stagePalette(finalStops);
+    }
+
+    private void stagePalette(List<PetComponent.WeightedEmotionColor> palette) {
+        List<PetComponent.WeightedEmotionColor> target = palette == null
+                ? Collections.emptyList()
+                : palette;
+        boolean matchesCurrent = computePaletteDelta(currentPaletteStops, target) <= 0.01f
+                && target.size() == currentPaletteStops.size()
+                && target.equals(currentPaletteStops);
+        if (matchesCurrent) {
+            stagedPaletteStops = target;
+            hasPendingPalette = false;
+            return;
+        }
+
+        boolean matchesStaged = computePaletteDelta(stagedPaletteStops, target) <= 0.0005f
+                && target.size() == stagedPaletteStops.size()
+                && target.equals(stagedPaletteStops);
+        if (matchesStaged && hasPendingPalette) {
+            return;
+        }
+
+        stagedPaletteStops = target;
+        hasPendingPalette = true;
+    }
+
+    private void commitPendingPaletteIfReady(int level, int updateInterval, long currentTime) {
+        if (!hasPendingPalette) {
+            return;
+        }
+        if (!paletteCommittedOnce || currentTime < lastPaletteCommitTime) {
+            applyPendingPalette(currentTime);
+            return;
+        }
+
+        int breathingCycle = getBreathingCycleLength(level);
+        if (breathingCycle <= 0) {
+            applyPendingPalette(currentTime);
+            return;
+        }
+
+        long elapsed = currentTime - lastPaletteCommitTime;
+        if (elapsed < 0) {
+            applyPendingPalette(currentTime);
+            return;
+        }
+
+        long animationTime = updateInterval > 0 ? (currentTime / updateInterval) * updateInterval : currentTime;
+        long phase = breathingCycle > 0 ? animationTime % breathingCycle : 0L;
+        boolean atCycleBoundary = phase < updateInterval;
+
+        if ((elapsed >= breathingCycle && atCycleBoundary) || elapsed >= (long) breathingCycle * 3L) {
+            applyPendingPalette(currentTime);
+        }
+    }
+
+    private void applyPendingPalette(long currentTime) {
+        currentPaletteStops = stagedPaletteStops;
+        hasPendingPalette = false;
+        paletteGeneration++;
+        paletteCommittedOnce = true;
+        lastPaletteCommitTime = currentTime;
+    }
+
+    private void updateAnimationIntensity(List<Candidate> weighted) {
+        float total = 0f;
+        float accum = 0f;
+        for (Candidate candidate : weighted) {
+            float weight = Math.max(0f, candidate.signal);
+            if (weight <= EPSILON) {
+                continue;
+            }
+            total += weight;
+            accum += weight * MathHelper.clamp(candidate.record.intensity, 0f, 1f);
+        }
+        float target = total > EPSILON ? accum / total : 0f;
+        target = MathHelper.clamp(target, 0f, 1f);
+        animationIntensity = MathHelper.lerp(0.35f, animationIntensity, target);
+    }
+
+    private int getBreathingCycleLength(int level) {
+        return computeBreathingDuration(level, BASE_BREATHING_SPEEDS);
+    }
+
+    private int computeBreathingDuration(int level, int[] baseDurations) {
+        if (level <= 0 || baseDurations.length == 0) {
+            return 0;
+        }
+        int index = Math.min(level - 1, baseDurations.length - 1);
+        int base = baseDurations[index];
+        float intensity = MathHelper.clamp(animationIntensity, 0f, 1f);
+        float minScale;
+        if (index == 0) {
+            minScale = 0.8f;
+        } else if (index == 1) {
+            minScale = 0.66f;
+        } else {
+            minScale = 0.55f;
+        }
+        float scale = MathHelper.lerp(intensity, 1f, minScale);
+        int scaled = Math.round(base * scale);
+        return Math.max(40, scaled);
     }
 
     private void applyOpponentTransfers(List<Candidate> weighted, float weightCap) {
@@ -1116,17 +1378,21 @@ final class PetMoodEngine {
         long currentTime = parent.getPet().getWorld().getTime();
         int level = getMoodLevel();
         int updateInterval = getAnimationUpdateInterval(level);
+        commitPendingPaletteIfReady(level, updateInterval, currentTime);
         boolean levelChanged = (cachedMoodText != null || cachedMoodTextWithDebug != null)
                 && !isCurrentLevelMatchingCache(level);
+        boolean paletteChanged = lastRenderedPaletteGeneration != paletteGeneration;
         boolean needsUpdate = cachedMoodText == null
                 || cachedMoodTextWithDebug == null
                 || levelChanged
+                || paletteChanged
                 || (currentTime - lastTextUpdateTime) >= updateInterval;
         if (needsUpdate) {
             lastTextUpdateTime = currentTime;
             cachedMoodText = generateMoodText(false, level);
             cachedMoodTextWithDebug = generateMoodText(true, level);
             cachedLastLevel = level;
+            lastRenderedPaletteGeneration = paletteGeneration;
         }
         return withDebug ? cachedMoodTextWithDebug : cachedMoodText;
     }
@@ -1139,32 +1405,38 @@ final class PetMoodEngine {
         PetComponent.Mood mood = getCurrentMood();
         boolean showEmotion = getMoodsBoolean("showDominantEmotion", false);
         String label = showEmotion ? getDominantEmotionName() : capitalize(mood.name());
-        Formatting primary = mood.primaryFormatting;
-        Formatting secondary = mood.secondaryFormatting;
+        TextColor primaryColor = TextColor.fromFormatting(mood.primaryFormatting);
+        TextColor secondaryColor = TextColor.fromFormatting(mood.secondaryFormatting);
+        List<PetComponent.WeightedEmotionColor> palette = currentPaletteStops;
 
-        Text baseText = switch (level) {
-            case 0 -> Text.literal(label).styled(s -> s.withColor(TextColor.fromFormatting(primary)));
-            case 1 -> createBreathingText(label, primary, secondary, 1);
-            case 2 -> createBreathingGradient(label, primary, secondary, 2);
-            case 3 -> createBreathingMovingGradient(label, primary, secondary, 3);
-            default -> Text.literal(label).styled(s -> s.withColor(TextColor.fromFormatting(primary)));
+        Text baseText = switch (Math.max(level, 0)) {
+            case 0 -> createStaticPaletteText(label, palette, primaryColor);
+            case 1 -> createBreathingText(label, palette, primaryColor, secondaryColor, 1);
+            case 2 -> createBreathingGradient(label, palette, primaryColor, secondaryColor, 2);
+            case 3 -> createBreathingMovingGradient(label, palette, primaryColor, secondaryColor, 3);
+            default -> createBreathingMovingGradient(label, palette, primaryColor, secondaryColor, level);
         };
 
         if (!withDebug) {
             return baseText;
         }
-        if (level == 0) {
-            return Text.literal(label + " [" + level + "]").styled(s -> s.withColor(TextColor.fromFormatting(primary)));
-        }
-        MutableText debug = (MutableText) baseText;
-        debug.append(Text.literal(" [" + level + "]").styled(s -> s.withColor(TextColor.fromFormatting(Formatting.GRAY))));
-        return debug;
+        MutableText debugText = baseText.copy();
+        debugText.append(Text.literal(" [" + level + "]").styled(s -> s.withColor(TextColor.fromFormatting(Formatting.GRAY))));
+        return debugText;
     }
 
-    private MutableText createBreathingText(String text, Formatting primary, Formatting secondary, int level) {
+    private Text createStaticPaletteText(String text, List<PetComponent.WeightedEmotionColor> palette, TextColor fallbackPrimary) {
+        TextColor paletteColor = (palette == null || palette.isEmpty()) ? fallbackPrimary : palette.get(0).color();
+        float emphasis = (palette == null || palette.isEmpty()) ? 0f : 0.85f;
+        TextColor finalColor = blendWithFallback(fallbackPrimary, paletteColor, emphasis);
+        return Text.literal(text).styled(s -> s.withColor(finalColor));
+    }
+
+    private MutableText createBreathingText(String text,
+            List<PetComponent.WeightedEmotionColor> palette,
+            TextColor fallbackPrimary, TextColor fallbackSecondary, int level) {
         long worldTime = parent.getPet().getWorld().getTime();
-        int[] breathingSpeeds = {300, 200, 120};
-        int breathingSpeed = breathingSpeeds[Math.min(level - 1, breathingSpeeds.length - 1)];
+        int breathingSpeed = computeBreathingDuration(level, BASE_BREATHING_SPEEDS);
         int updateInterval = getAnimationUpdateInterval(level);
         long animationTime = (worldTime / updateInterval) * updateInterval;
         double breathingPhase = (animationTime % breathingSpeed) / (double) breathingSpeed;
@@ -1181,17 +1453,24 @@ final class PetMoodEngine {
             double charPhase = (i * 0.4) + (breathingPhase * 1.5);
             double charBreathing = (Math.sin(charPhase) + 1) / 2;
             double finalIntensity = (scaledIntensity + charBreathing * 0.3) / 1.3;
-            boolean useSecondary = finalIntensity > 0.5;
-            Formatting formatting = useSecondary ? secondary : primary;
-            out.append(Text.literal(String.valueOf(chars[i])).styled(s -> s.withColor(TextColor.fromFormatting(formatting))));
+            TextColor base = finalIntensity > 0.5 ? fallbackSecondary : fallbackPrimary;
+            float gradientAnchor = MathHelper.clamp(
+                    (float) ((breathingPhase * 0.45) + (i / (float) Math.max(1, chars.length - 1)) * 0.55
+                            + charBreathing * 0.1),
+                    0f, 1f);
+            TextColor paletteColor = PetComponent.sampleEmotionPalette(palette, gradientAnchor, base);
+            float emphasis = MathHelper.clamp(0.55f + (float) finalIntensity * 0.35f, 0f, 1f);
+            TextColor finalColor = blendWithFallback(base, paletteColor, emphasis);
+            out.append(Text.literal(String.valueOf(chars[i])).styled(s -> s.withColor(finalColor)));
         }
         return out;
     }
 
-    private MutableText createBreathingGradient(String text, Formatting primary, Formatting secondary, int level) {
+    private MutableText createBreathingGradient(String text,
+            List<PetComponent.WeightedEmotionColor> palette,
+            TextColor fallbackPrimary, TextColor fallbackSecondary, int level) {
         long worldTime = parent.getPet().getWorld().getTime();
-        int[] breathingSpeeds = {280, 180, 100};
-        int breathingSpeed = breathingSpeeds[Math.min(level - 1, breathingSpeeds.length - 1)];
+        int breathingSpeed = computeBreathingDuration(level, BASE_GRADIENT_SPEEDS);
         int updateInterval = getAnimationUpdateInterval(level);
         long animationTime = (worldTime / updateInterval) * updateInterval;
         double breathingPhase = (animationTime % breathingSpeed) / (double) breathingSpeed;
@@ -1202,16 +1481,23 @@ final class PetMoodEngine {
             double charPhase = (i * 0.45) + breathingPhase * 1.1;
             double charBreathing = (Math.sin(charPhase) + 1) / 2;
             double blend = (breathingIntensity * 0.6 + charBreathing * 0.4);
-            Formatting formatting = blend > 0.55 ? secondary : primary;
-            out.append(Text.literal(String.valueOf(chars[i])).styled(s -> s.withColor(TextColor.fromFormatting(formatting))));
+            TextColor base = UIStyle.interpolateColor(fallbackPrimary, fallbackSecondary, MathHelper.clamp((float) blend, 0f, 1f));
+            float gradientAnchor = MathHelper.clamp(
+                    (float) (breathingPhase * 0.35 + (i / (float) Math.max(1, chars.length - 1)) * 0.65),
+                    0f, 1f);
+            TextColor paletteColor = PetComponent.sampleEmotionPalette(palette, gradientAnchor, base);
+            float emphasis = MathHelper.clamp(0.6f + (float) blend * 0.35f, 0f, 1f);
+            TextColor finalColor = blendWithFallback(base, paletteColor, emphasis);
+            out.append(Text.literal(String.valueOf(chars[i])).styled(s -> s.withColor(finalColor)));
         }
         return out;
     }
 
-    private MutableText createBreathingMovingGradient(String text, Formatting primary, Formatting secondary, int level) {
+    private MutableText createBreathingMovingGradient(String text,
+            List<PetComponent.WeightedEmotionColor> palette,
+            TextColor fallbackPrimary, TextColor fallbackSecondary, int level) {
         long worldTime = parent.getPet().getWorld().getTime();
-        int[] breathingSpeeds = {240, 150, 80};
-        int breathingSpeed = breathingSpeeds[Math.min(level - 1, breathingSpeeds.length - 1)];
+        int breathingSpeed = computeBreathingDuration(level, BASE_SHIMMER_SPEEDS);
         int updateInterval = getAnimationUpdateInterval(level);
         long animationTime = (worldTime / updateInterval) * updateInterval;
         double breathingPhase = (animationTime % breathingSpeed) / (double) breathingSpeed;
@@ -1220,10 +1506,23 @@ final class PetMoodEngine {
         for (int i = 0; i < chars.length; i++) {
             double wave = Math.sin((i * 0.6) + (breathingPhase * 2 * Math.PI));
             double mix = (wave + 1) / 2;
-            Formatting formatting = mix > 0.5 ? secondary : primary;
-            out.append(Text.literal(String.valueOf(chars[i])).styled(s -> s.withColor(TextColor.fromFormatting(formatting))));
+            double shimmer = (Math.sin((breathingPhase * 2 * Math.PI) + i * 0.25) + 1) / 2;
+            TextColor base = UIStyle.interpolateColor(fallbackPrimary, fallbackSecondary, MathHelper.clamp((float) mix, 0f, 1f));
+            float gradientAnchor = MathHelper.clamp((float) (mix * 0.5 + shimmer * 0.5), 0f, 1f);
+            TextColor paletteColor = PetComponent.sampleEmotionPalette(palette, gradientAnchor, base);
+            float emphasis = MathHelper.clamp(0.65f + (float) shimmer * 0.3f, 0f, 1f);
+            TextColor finalColor = blendWithFallback(base, paletteColor, emphasis);
+            out.append(Text.literal(String.valueOf(chars[i])).styled(s -> s.withColor(finalColor)));
         }
         return out;
+    }
+
+    private TextColor blendWithFallback(TextColor fallback, TextColor paletteColor, float emphasis) {
+        if (paletteColor == null) {
+            return fallback;
+        }
+        emphasis = MathHelper.clamp(emphasis, 0f, 1f);
+        return UIStyle.interpolateColor(fallback, paletteColor, emphasis);
     }
 
     private int getAnimationUpdateInterval(int level) {

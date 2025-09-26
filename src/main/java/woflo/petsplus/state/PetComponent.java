@@ -14,6 +14,7 @@ import net.minecraft.registry.Registry;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.registry.tag.TagKey;
 import net.minecraft.text.Text;
+import net.minecraft.text.TextColor;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
@@ -31,6 +32,7 @@ import woflo.petsplus.tags.PetsplusEntityTypeTags;
 
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -110,11 +112,93 @@ public class PetComponent {
 
     /** Hidden, reactive emotions (de-duplicated list from spec) */
     public enum Emotion {
-        CHEERFUL, QUERECIA, GLEE, BLISSFUL, UBUNTU, KEFI, ANGST, FOREBODING,
-        PROTECTIVENESS, FRUSTRATION, STARTLE, DISGUST, REGRET, MONO_NO_AWARE, FERNWEH, SOBREMESA,
-        HANYAUKU, WABI_SABI, LAGOM, ENNUI, YUGEN, SAUDADE, HIRAETH, STOIC, HOPEFUL, RELIEF, GAMAN,
-        CURIOUS, SISU, FOCUSED, PRIDE, VIGILANT, WORRIED, PROTECTIVE, MELANCHOLY, CONTENT, RESTLESS,
-        EMPATHY, NOSTALGIA, PLAYFULNESS, LOYALTY
+        CHEERFUL(0xFFD166),
+        QUERECIA(0x3CC8C8),
+        GLEE(0xFFF275),
+        BLISSFUL(0xFFB3C6),
+        UBUNTU(0xFF9E40),
+        KEFI(0xFF5DA2),
+        ANGST(0x4A2C8C),
+        FOREBODING(0x1F3A5F),
+        PROTECTIVENESS(0x3D6FA6),
+        FRUSTRATION(0xE63946),
+        STARTLE(0xFF5F5F),
+        DISGUST(0x5B8C2A),
+        REGRET(0x4B6F8C),
+        MONO_NO_AWARE(0x9C6FB6),
+        FERNWEH(0x5EC8FF),
+        SOBREMESA(0xDFA86C),
+        HANYAUKU(0xFF99AA),
+        WABI_SABI(0x6B8F71),
+        LAGOM(0x5FA08F),
+        ENNUI(0x8A8D8F),
+        YUGEN(0x2F3B73),
+        SAUDADE(0x2E6F95),
+        HIRAETH(0x2B8C7F),
+        STOIC(0x5E6066),
+        HOPEFUL(0x69D37A),
+        RELIEF(0x66E0C6),
+        GAMAN(0xA26F4B),
+        CURIOUS(0x40C4FF),
+        SISU(0x2A4D8F),
+        FOCUSED(0xF2B03D),
+        PRIDE(0x8C3BBF),
+        VIGILANT(0x5470A6),
+        WORRIED(0x765A8C),
+        PROTECTIVE(0x2F577D),
+        MELANCHOLY(0x445B8C),
+        CONTENT(0x9CD08F),
+        RESTLESS(0xFF7F3F),
+        EMPATHY(0xC38DFF),
+        NOSTALGIA(0xCCAA7D),
+        PLAYFULNESS(0x42E6A4),
+        LOYALTY(0x244C7A);
+
+        private final EmotionColorProfile palette;
+
+        Emotion(int baseRgb) {
+            this.palette = new EmotionColorProfile(baseRgb);
+        }
+
+        Emotion(int baseRgb, int accentRgb) {
+            this.palette = new EmotionColorProfile(baseRgb, accentRgb);
+        }
+
+        public EmotionColorProfile palette() {
+            return palette;
+        }
+
+        public TextColor baseColor() {
+            return palette.baseColor();
+        }
+
+        public TextColor accentColor() {
+            return palette.accentColor();
+        }
+    }
+
+    /** Structured color metadata for authored emotions. */
+    public record EmotionColorProfile(TextColor baseColor, TextColor accentColor) {
+        private static final float DEFAULT_ACCENT_LIGHTEN = 0.18f;
+
+        public EmotionColorProfile(int baseRgb) {
+            this(TextColor.fromRgb(baseRgb), lighten(baseRgb, DEFAULT_ACCENT_LIGHTEN));
+        }
+
+        public EmotionColorProfile(int baseRgb, int accentRgb) {
+            this(TextColor.fromRgb(baseRgb), TextColor.fromRgb(accentRgb));
+        }
+
+        private static TextColor lighten(int rgb, float factor) {
+            factor = MathHelper.clamp(factor, 0f, 1f);
+            int r = (rgb >> 16) & 0xFF;
+            int g = (rgb >> 8) & 0xFF;
+            int b = rgb & 0xFF;
+            r = Math.min(255, Math.round(r + (255 - r) * factor));
+            g = Math.min(255, Math.round(g + (255 - g) * factor));
+            b = Math.min(255, Math.round(b + (255 - b) * factor));
+            return TextColor.fromRgb((r << 16) | (g << 8) | b);
+        }
     }
 
     public enum FlightCapabilitySource {
@@ -938,6 +1022,18 @@ public class PetComponent {
     public Text getMoodText() { return moodEngine.getMoodText(); }
 
     /**
+     * Get the current weighted emotion palette driving mood presentation.
+     */
+    public java.util.List<WeightedEmotionColor> getEmotionPalette() {
+        return moodEngine.getCurrentEmotionPalette();
+    }
+
+    /**
+     * Get the smoothed animation intensity that drives mood breathing speed.
+     */
+    public float getMoodBreathingIntensity() { return moodEngine.getAnimationIntensity(); }
+
+    /**
      * Get mood display text with debug information showing power level.
      */
     public Text getMoodTextWithDebug() { return moodEngine.getMoodTextWithDebug(); }
@@ -1017,6 +1113,74 @@ public class PetComponent {
 
     /** Debug record for emotion information */
     public record EmotionDebugInfo(Emotion emotion, float weight, boolean parked) {}
+
+    /** Weighted color stop derived from the live emotion palette. */
+    public record WeightedEmotionColor(Emotion emotion, float weight, TextColor color) {}
+
+    /** Quick access to the authored base color for an emotion. */
+    public static TextColor getEmotionColor(Emotion emotion) {
+        return emotion.baseColor();
+    }
+
+    /** Quick access to the authored accent color for an emotion. */
+    public static TextColor getEmotionAccentColor(Emotion emotion) {
+        return emotion.accentColor();
+    }
+
+    /**
+     * Sample a palette of weighted emotion colors, returning the interpolated stop at the provided
+     * position. The weights are normalized before interpolation so callers can pass raw weights.
+     */
+    public static TextColor sampleEmotionPalette(List<WeightedEmotionColor> palette, float position,
+            TextColor fallback) {
+        if (palette == null || palette.isEmpty()) {
+            return fallback;
+        }
+        float total = 0f;
+        for (WeightedEmotionColor stop : palette) {
+            total += Math.max(0f, stop.weight());
+        }
+        if (total <= 0f) {
+            return fallback;
+        }
+
+        position = MathHelper.clamp(position, 0f, 1f);
+        float prevEdge = 0f;
+        WeightedEmotionColor prevStop = palette.get(0);
+        for (int i = 0; i < palette.size(); i++) {
+            WeightedEmotionColor stop = palette.get(i);
+            float weight = Math.max(0f, stop.weight());
+            float normalized = weight / total;
+            float nextEdge = Math.min(1f, prevEdge + normalized);
+            if (position <= nextEdge || i == palette.size() - 1) {
+                if (i == 0) {
+                    return stop.color();
+                }
+                float span = Math.max(1.0e-6f, nextEdge - prevEdge);
+                float local = MathHelper.clamp((position - prevEdge) / span, 0f, 1f);
+                return interpolateColor(prevStop.color(), stop.color(), local);
+            }
+            prevEdge = nextEdge;
+            prevStop = stop;
+        }
+        return palette.get(palette.size() - 1).color();
+    }
+
+    private static TextColor interpolateColor(TextColor from, TextColor to, float percent) {
+        percent = MathHelper.clamp(percent, 0f, 1f);
+        int fromRgb = from.getRgb();
+        int toRgb = to.getRgb();
+        int fromR = (fromRgb >> 16) & 0xFF;
+        int fromG = (fromRgb >> 8) & 0xFF;
+        int fromB = fromRgb & 0xFF;
+        int toR = (toRgb >> 16) & 0xFF;
+        int toG = (toRgb >> 8) & 0xFF;
+        int toB = toRgb & 0xFF;
+        int r = Math.round(fromR + (toR - fromR) * percent);
+        int g = Math.round(fromG + (toG - fromG) * percent);
+        int b = Math.round(fromB + (toB - fromB) * percent);
+        return TextColor.fromRgb((r << 16) | (g << 8) | b);
+    }
 
     // capitalize/prettify handled by engine
     
