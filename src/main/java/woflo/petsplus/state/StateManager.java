@@ -45,6 +45,7 @@ public class StateManager {
     private long nextMaintenanceTick;
     private final PetSwarmIndex swarmIndex = new PetSwarmIndex();
     private final AuraTargetResolver auraTargetResolver = new AuraTargetResolver(swarmIndex);
+    private final PetWorkScheduler workScheduler = new PetWorkScheduler();
     
     private StateManager(ServerWorld world) {
         this.world = world;
@@ -68,6 +69,7 @@ public class StateManager {
             return created;
         });
 
+        component.attachStateManager(this);
         if (world instanceof ServerWorld serverWorld) {
             MoodService.getInstance().trackPet(serverWorld, pet);
         }
@@ -162,7 +164,11 @@ public class StateManager {
     }
     
     public void removePet(MobEntity pet) {
-        petComponents.remove(pet);
+        PetComponent component = petComponents.remove(pet);
+        if (component != null) {
+            workScheduler.unscheduleAll(component);
+            component.markSchedulingUninitialized();
+        }
         if (world instanceof ServerWorld) {
             MoodService.getInstance().untrackPet(pet);
         }
@@ -215,73 +221,148 @@ public class StateManager {
         if (component == null) {
             return;
         }
+        component.attachStateManager(this);
+
         if (!pet.isAlive()) {
+            cancelScheduledWork(component, pet);
+            return;
+        }
+
+        PlayerEntity owner = component.getOwner();
+        if (!(owner instanceof ServerPlayerEntity) || owner.isRemoved()) {
+            cancelScheduledWork(component, pet);
+            return;
+        }
+
+        long time = world.getTime();
+        component.ensureSchedulingInitialized(time);
+        component.updateSwarmTrackingIfMoved(swarmIndex);
+    }
+
+    public void schedulePetTask(PetComponent component, PetWorkScheduler.TaskType type, long tick) {
+        workScheduler.schedule(component, type, tick);
+    }
+
+    public void unscheduleAllTasks(PetComponent component) {
+        workScheduler.unscheduleAll(component);
+    }
+
+    public void processScheduledPetTasks(long currentTick) {
+        workScheduler.processDue(currentTick, task -> runScheduledTask(task, currentTick));
+    }
+
+    private void cancelScheduledWork(PetComponent component, MobEntity pet) {
+        workScheduler.unscheduleAll(component);
+        component.markSchedulingUninitialized();
+        component.invalidateSwarmTracking();
+        swarmIndex.untrackPet(pet);
+    }
+
+    private void runScheduledTask(PetWorkScheduler.ScheduledTask task, long currentTick) {
+        PetComponent component = task.component();
+        MobEntity pet = task.pet();
+        if (component == null || pet == null) {
+            return;
+        }
+
+        PetComponent tracked = petComponents.get(pet);
+        if (tracked == null) {
+            return;
+        }
+
+        if (tracked != component) {
+            cancelScheduledWork(component, pet);
+            return;
+        }
+
+        if (!pet.isAlive()) {
+            cancelScheduledWork(component, pet);
             return;
         }
 
         PlayerEntity owner = component.getOwner();
         if (!(owner instanceof ServerPlayerEntity serverOwner) || owner.isRemoved()) {
+            cancelScheduledWork(component, pet);
             return;
         }
 
-        long time = world.getTime();
-        component.ensureTickSchedulingInitialized(time);
+        component.attachStateManager(this);
 
-        swarmIndex.updatePet(pet, component);
+        switch (task.type()) {
+            case INTERVAL -> runIntervalAbility(pet, component, serverOwner, currentTick);
+            case AURA -> runAuraPulse(pet, component, serverOwner, currentTick);
+            case SUPPORT_POTION -> runSupportScan(pet, component, serverOwner, currentTick);
+            case PARTICLE -> runParticlePass(pet, component, currentTick);
+        }
+    }
+
+    private void runIntervalAbility(MobEntity pet, PetComponent component, ServerPlayerEntity owner, long currentTick) {
         component.updateCooldowns();
+        TriggerContext ctx = new TriggerContext(world, pet, owner, "interval_tick");
+        woflo.petsplus.abilities.AbilityManager.triggerAbilities(pet, ctx);
+        component.scheduleNextIntervalTick(currentTick + INTERVAL_TICK_SPACING);
+    }
 
-        if (component.isIntervalTickDue(time)) {
-            TriggerContext ctx = new TriggerContext(world, pet, serverOwner, "interval_tick");
-            woflo.petsplus.abilities.AbilityManager.triggerAbilities(pet, ctx);
-            component.scheduleNextIntervalTick(time + INTERVAL_TICK_SPACING);
-        }
-
+    private void runAuraPulse(MobEntity pet, PetComponent component, ServerPlayerEntity owner, long currentTick) {
         PetRoleType roleType = component.getRoleType(false);
-        PetRoleType.SupportPotionBehavior supportBehavior = null;
-        boolean hasAuraContent = false;
-        if (roleType != null) {
-            supportBehavior = roleType.supportPotionBehavior();
-            hasAuraContent = !roleType.passiveAuras().isEmpty() || supportBehavior != null;
-        }
-
-        if (hasAuraContent && component.isAuraCheckDue(time)) {
-            try {
-                long nextTick = PetsplusEffectManager.applyRoleAuraEffects(
-                    world,
-                    pet,
-                    component,
-                    serverOwner,
-                    auraTargetResolver,
-                    time
-                );
-                if (nextTick == Long.MAX_VALUE) {
-                    component.scheduleNextAuraCheck(time + DEFAULT_AURA_RECHECK);
-                } else {
-                    component.scheduleNextAuraCheck(Math.max(time + 1, nextTick));
-                }
-            } catch (Exception e) {
-                Petsplus.LOGGER.warn("Failed to apply aura effects for pet {}", pet.getUuid(), e);
-                component.scheduleNextAuraCheck(time + DEFAULT_AURA_RECHECK);
-            }
-        } else if (!hasAuraContent) {
+        if (roleType == null) {
             component.scheduleNextAuraCheck(Long.MAX_VALUE);
+            return;
         }
 
-        if (supportBehavior != null && component.isSupportPotionScanDue(time)) {
-            boolean processed = pickupNearbyPotionsForSupport(pet, serverOwner, component, supportBehavior);
-            long delay = processed ? SUPPORT_POTION_ACTIVE_RECHECK : SUPPORT_POTION_IDLE_RECHECK;
-            component.scheduleNextSupportPotionScan(time + delay);
+        boolean hasAuraContent = !roleType.passiveAuras().isEmpty() || roleType.supportPotionBehavior() != null;
+        if (!hasAuraContent) {
+            component.scheduleNextAuraCheck(Long.MAX_VALUE);
+            return;
         }
 
-        if (component.isParticleCheckDue(time)) {
-            boolean emitted = false;
-            if (woflo.petsplus.ui.ParticleEffectManager.shouldEmitParticles(pet, world)) {
-                woflo.petsplus.ui.ParticleEffectManager.emitRoleParticles(pet, world, time);
-                emitted = true;
+        try {
+            long nextTick = PetsplusEffectManager.applyRoleAuraEffects(
+                world,
+                pet,
+                component,
+                owner,
+                auraTargetResolver,
+                currentTick
+            );
+            if (nextTick == Long.MAX_VALUE) {
+                component.scheduleNextAuraCheck(currentTick + DEFAULT_AURA_RECHECK);
+            } else {
+                component.scheduleNextAuraCheck(Math.max(currentTick + 1, nextTick));
             }
-            long delay = emitted ? PARTICLE_RECHECK_INTERVAL : PARTICLE_RECHECK_INTERVAL * 2;
-            component.scheduleNextParticleCheck(time + delay);
+        } catch (Exception e) {
+            Petsplus.LOGGER.warn("Failed to apply aura effects for pet {}", pet.getUuid(), e);
+            component.scheduleNextAuraCheck(currentTick + DEFAULT_AURA_RECHECK);
         }
+    }
+
+    private void runSupportScan(MobEntity pet, PetComponent component, ServerPlayerEntity owner, long currentTick) {
+        PetRoleType roleType = component.getRoleType(false);
+        if (roleType == null) {
+            component.scheduleNextSupportPotionScan(Long.MAX_VALUE);
+            return;
+        }
+
+        PetRoleType.SupportPotionBehavior behavior = roleType.supportPotionBehavior();
+        if (behavior == null) {
+            component.scheduleNextSupportPotionScan(Long.MAX_VALUE);
+            return;
+        }
+
+        boolean processed = pickupNearbyPotionsForSupport(pet, owner, component, behavior);
+        long delay = processed ? SUPPORT_POTION_ACTIVE_RECHECK : SUPPORT_POTION_IDLE_RECHECK;
+        component.scheduleNextSupportPotionScan(currentTick + delay);
+    }
+
+    private void runParticlePass(MobEntity pet, PetComponent component, long currentTick) {
+        boolean emitted = false;
+        if (woflo.petsplus.ui.ParticleEffectManager.shouldEmitParticles(pet, world)) {
+            woflo.petsplus.ui.ParticleEffectManager.emitRoleParticles(pet, world, currentTick);
+            emitted = true;
+        }
+        component.updateCooldowns();
+        long delay = emitted ? PARTICLE_RECHECK_INTERVAL : PARTICLE_RECHECK_INTERVAL * 2;
+        component.scheduleNextParticleCheck(currentTick + delay);
     }
 
     /**

@@ -14,6 +14,7 @@
                 "FrogEntityMixin",
                 "TurtleEntityMixin",
                 "ServerWorldWeatherMixin",
+                "ServerWorldTickMixin",
                 "PlayerInventoryMixin",
                 "PlayerEntityHungerMixin",
                 "HungerManagerMixin",
