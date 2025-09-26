@@ -1,7 +1,6 @@
 package woflo.petsplus.roles.eepyeeper;
 
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
@@ -36,14 +35,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public class EepyEeperCore {
 
     private static final Map<UUID, Integer> sleepCyclesRemaining = new ConcurrentHashMap<>();
-
     private static final Map<UUID, Long> lastSleepTime = new ConcurrentHashMap<>();
+    private static final Map<UUID, Long> nextNapAuraTick = new ConcurrentHashMap<>();
 
     public static void initialize() {
 
         ServerLivingEntityEvents.ALLOW_DAMAGE.register(EepyEeperCore::onEntityDamage);
 
-        ServerTickEvents.END_WORLD_TICK.register(EepyEeperCore::onWorldTick);
 
     }
 
@@ -452,6 +450,61 @@ public class EepyEeperCore {
 
         lastSleepTime.put(player.getUuid(), world.getTime());
 
+    }
+
+    public static void handlePlayerTick(ServerPlayerEntity player) {
+        ServerWorld world = (ServerWorld) player.getWorld();
+        long currentTick = world.getTime();
+        long nextTick = nextNapAuraTick.getOrDefault(player.getUuid(), 0L);
+        if (currentTick < nextTick) {
+            return;
+        }
+
+        nextNapAuraTick.put(player.getUuid(), currentTick + 100);
+        emitNapAuraForPlayer(world, player);
+    }
+
+    private static void emitNapAuraForPlayer(ServerWorld world, ServerPlayerEntity player) {
+        List<MobEntity> eepyPets = findNearbyEepyEepers(player, 16.0);
+        for (MobEntity pet : eepyPets) {
+            PetComponent petComp = PetComponent.get(pet);
+            if (petComp == null || petComp.getLevel() < 10) {
+                continue;
+            }
+
+            boolean isSitting = false;
+            if (pet instanceof PetsplusTameable tameable) {
+                isSitting = tameable.petsplus$isSitting();
+            }
+
+            if (!isSitting) {
+                continue;
+            }
+
+            double radius = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.EEPY_EEPER.id(), "napRegenRadius", 4.0);
+            List<LivingEntity> nearbyEntities = world.getEntitiesByClass(
+                LivingEntity.class,
+                pet.getBoundingBox().expand(radius),
+                entity -> entity != pet &&
+                         (entity instanceof PlayerEntity ||
+                          (entity instanceof MobEntity mob && PetComponent.get(mob) != null))
+            );
+
+            for (LivingEntity entity : nearbyEntities) {
+                entity.addStatusEffect(new StatusEffectInstance(StatusEffects.REGENERATION, 120, 0));
+            }
+
+            if (world.getTime() % 200 == 0) {
+                player.sendMessage(Text.of("§aYour Eepy Eeper's cozy presence expands"), true);
+            }
+
+            if (world.getTime() % 20 == 0) {
+                Vec3d petPos = pet.getPos();
+                world.spawnParticles(net.minecraft.particle.ParticleTypes.END_ROD,
+                    petPos.x, petPos.y + 1, petPos.z,
+                    3, 0.5, 0.3, 0.5, 0.02);
+            }
+        }
     }
 
     /**

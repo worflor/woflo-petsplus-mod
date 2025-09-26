@@ -1,6 +1,5 @@
 package woflo.petsplus.interaction;
 
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -36,10 +35,9 @@ public final class OwnerAbilitySignalTracker {
     }
 
     /**
-     * Registers tick hooks used to process active proximity channels.
+     * Registers tracker state. All runtime callbacks are driven by mixins.
      */
     public static void register() {
-        ServerTickEvents.END_WORLD_TICK.register(OwnerAbilitySignalTracker::tickWorld);
         Petsplus.LOGGER.info("Owner ability signal tracker registered");
     }
 
@@ -203,18 +201,28 @@ public final class OwnerAbilitySignalTracker {
         }
     }
 
-    private static void tickWorld(ServerWorld world) {
+    public static void handlePlayerTick(ServerPlayerEntity player) {
+        if (player == null || player.getWorld().isClient()) {
+            return;
+        }
+
+        ServerWorld world = (ServerWorld) player.getWorld();
         Map<MobEntity, ProximityChannel> worldChannels = ACTIVE_CHANNELS.get(world);
         if (worldChannels == null || worldChannels.isEmpty()) {
             return;
         }
 
         long now = world.getTime();
+        UUID ownerId = player.getUuid();
         Iterator<Map.Entry<MobEntity, ProximityChannel>> iterator = worldChannels.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<MobEntity, ProximityChannel> entry = iterator.next();
             MobEntity pet = entry.getKey();
             ProximityChannel channel = entry.getValue();
+
+            if (!channel.ownerId.equals(ownerId)) {
+                continue;
+            }
 
             if (pet == null || !pet.isAlive() || pet.isRemoved()) {
                 PetComponent component = pet != null ? PetComponent.get(pet) : null;
@@ -225,44 +233,40 @@ public final class OwnerAbilitySignalTracker {
                 continue;
             }
 
-            ServerPlayerEntity owner = world.getServer().getPlayerManager().getPlayer(channel.ownerId);
             PetComponent component = PetComponent.get(pet);
-            if (component == null) {
+            if (component == null || component.isPerched()) {
+                if (component != null) {
+                    component.endCrouchCuddle(channel.ownerId);
+                }
                 iterator.remove();
                 continue;
             }
 
-            if (component.isPerched()) {
+            if (player.isRemoved() || player.isSpectator() || player.getWorld() != world) {
                 component.endCrouchCuddle(channel.ownerId);
                 iterator.remove();
                 continue;
             }
 
-            if (owner == null || owner.isRemoved() || owner.isSpectator() || owner.getWorld() != world) {
+            if (!player.isSneaking()) {
                 component.endCrouchCuddle(channel.ownerId);
                 iterator.remove();
                 continue;
             }
 
-            if (!owner.isSneaking()) {
+            if (!component.isOwnedBy(player)) {
                 component.endCrouchCuddle(channel.ownerId);
                 iterator.remove();
                 continue;
             }
 
-            if (!component.isOwnedBy(owner)) {
+            if (!component.isCrouchCuddleActiveWith(player, now)) {
                 component.endCrouchCuddle(channel.ownerId);
                 iterator.remove();
                 continue;
             }
 
-            if (!component.isCrouchCuddleActiveWith(owner, now)) {
-                component.endCrouchCuddle(channel.ownerId);
-                iterator.remove();
-                continue;
-            }
-
-            if (owner.squaredDistanceTo(pet) > PROXIMITY_RANGE_SQ) {
+            if (player.squaredDistanceTo(pet) > PROXIMITY_RANGE_SQ) {
                 component.endCrouchCuddle(channel.ownerId);
                 iterator.remove();
                 continue;
@@ -271,7 +275,43 @@ public final class OwnerAbilitySignalTracker {
             if (now >= channel.completionTick) {
                 iterator.remove();
                 component.endCrouchCuddle(channel.ownerId);
-                OwnerAbilitySignalEvent.fire(OwnerAbilitySignalEvent.Type.PROXIMITY_CHANNEL, owner, pet);
+                OwnerAbilitySignalEvent.fire(OwnerAbilitySignalEvent.Type.PROXIMITY_CHANNEL, player, pet);
+            }
+        }
+
+        if (worldChannels.isEmpty()) {
+            ACTIVE_CHANNELS.remove(world);
+        }
+    }
+
+    public static void handlePlayerDisconnect(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+
+        SNEAK_STATES.remove(player);
+        cancelProximityChannels(player);
+    }
+
+    public static void handlePetRemoved(MobEntity pet) {
+        if (pet == null) {
+            return;
+        }
+
+        if (!(pet.getWorld() instanceof ServerWorld world)) {
+            return;
+        }
+
+        Map<MobEntity, ProximityChannel> worldChannels = ACTIVE_CHANNELS.get(world);
+        if (worldChannels == null) {
+            return;
+        }
+
+        ProximityChannel removed = worldChannels.remove(pet);
+        if (removed != null) {
+            PetComponent component = PetComponent.get(pet);
+            if (component != null) {
+                component.endCrouchCuddle(removed.ownerId);
             }
         }
 

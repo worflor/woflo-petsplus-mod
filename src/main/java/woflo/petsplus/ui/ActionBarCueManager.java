@@ -9,7 +9,6 @@ import net.minecraft.util.math.Vec3d;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -132,47 +131,62 @@ public final class ActionBarCueManager {
         state.noteLookAway(currentTick, recentPetLimit);
     }
 
-    /**
-     * Server tick hook to evaluate cue eligibility and send action bar messages.
-     */
-    public static void tick(MinecraftServer server) {
+    public static void handlePlayerTick(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+
+        MinecraftServer server = player.getServer();
         if (server == null) {
             return;
         }
 
-        long currentTick = server.getTicks();
-        List<ServerPlayerEntity> players = server.getPlayerManager().getPlayerList();
-        int recentPetLimit = resolveRecentPetLimit();
-
-        for (ServerPlayerEntity player : players) {
-            PlayerCueState state = PLAYER_STATES.computeIfAbsent(player.getUuid(), id -> new PlayerCueState());
-            state.removeExpired(currentTick);
-            state.pruneFocuses(currentTick, recentPetLimit);
-
-            QueuedCue selected = null;
-            for (QueuedCue cue : state.cues) {
-                if (!isEligible(player, state, cue, currentTick, recentPetLimit)) {
-                    continue;
-                }
-
-                if (selected == null || cue.priority().compareTo(selected.priority()) > 0) {
-                    selected = cue;
-                    continue;
-                }
-
-                if (cue.priority() == selected.priority() && cue.createdTick() < selected.createdTick()) {
-                    selected = cue;
-                }
-            }
-
-            if (selected != null) {
-                sendCue(player, state, selected, currentTick);
-            }
-
-            state.cleanupCooldowns(currentTick);
+        PlayerCueState state = PLAYER_STATES.get(player.getUuid());
+        if (state == null) {
+            return;
         }
 
-        pruneOfflinePlayers(players);
+        long currentTick = server.getTicks();
+        int recentPetLimit = resolveRecentPetLimit();
+
+        state.removeExpired(currentTick);
+        state.pruneFocuses(currentTick, recentPetLimit);
+
+        if (state.isDormant()) {
+            PLAYER_STATES.remove(player.getUuid());
+            return;
+        }
+
+        QueuedCue selected = null;
+        for (QueuedCue cue : state.cues) {
+            if (!isEligible(player, state, cue, currentTick, recentPetLimit)) {
+                continue;
+            }
+
+            if (selected == null || cue.priority().compareTo(selected.priority()) > 0) {
+                selected = cue;
+                continue;
+            }
+
+            if (cue.priority() == selected.priority() && cue.createdTick() < selected.createdTick()) {
+                selected = cue;
+            }
+        }
+
+        if (selected != null) {
+            sendCue(player, state, selected, currentTick);
+        }
+
+        state.cleanupCooldowns(currentTick);
+        if (state.isDormant()) {
+            PLAYER_STATES.remove(player.getUuid());
+        }
+    }
+
+    public static void onPlayerDisconnect(ServerPlayerEntity player) {
+        if (player != null) {
+            PLAYER_STATES.remove(player.getUuid());
+        }
     }
 
     /**
@@ -227,34 +241,14 @@ public final class ActionBarCueManager {
         return true;
     }
 
-    private static void pruneOfflinePlayers(List<ServerPlayerEntity> activePlayers) {
-        if (PLAYER_STATES.isEmpty()) {
-            return;
-        }
-
-        if (activePlayers.isEmpty()) {
-            PLAYER_STATES.clear();
-            return;
-        }
-
-        java.util.Set<UUID> activeIds = new java.util.HashSet<>();
-        for (ServerPlayerEntity player : activePlayers) {
-            activeIds.add(player.getUuid());
-        }
-
-        Iterator<Map.Entry<UUID, PlayerCueState>> iterator = PLAYER_STATES.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<UUID, PlayerCueState> entry = iterator.next();
-            if (!activeIds.contains(entry.getKey())) {
-                iterator.remove();
-            }
-        }
-    }
-
     private static final class PlayerCueState {
         private final List<QueuedCue> cues = new ArrayList<>();
         private final Map<String, Long> cooldowns = new HashMap<>();
         private final List<RecentPetFocus> recentPets = new ArrayList<>();
+
+        boolean isDormant() {
+            return cues.isEmpty() && cooldowns.isEmpty() && recentPets.isEmpty();
+        }
 
         void removeExpired(long currentTick) {
             cues.removeIf(cue -> cue.isExpired(currentTick));

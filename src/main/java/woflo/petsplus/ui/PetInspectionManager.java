@@ -2,7 +2,6 @@ package woflo.petsplus.ui;
 
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.text.MutableText;
@@ -33,15 +32,20 @@ public final class PetInspectionManager {
     private static final Map<UUID, InspectionState> inspecting = new HashMap<>();
     private static final int LINGER_TICKS = 40; // 2s linger after looking away
 
-    public static void tick(MinecraftServer server) {
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            updateForPlayer(player);
+    public static void handlePlayerTick(ServerPlayerEntity player) {
+        if (player == null || player.isRemoved()) {
+            return;
         }
-        
-        // Clean up inspection states for disconnected players every 30 seconds
-        if (server.getTicks() % 600 == 0) {
-            cleanupDisconnectedPlayers(server);
+        updateForPlayer(player);
+    }
+
+    public static void onPlayerDisconnect(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
         }
+        inspecting.remove(player.getUuid());
+        BossBarManager.removeBossBar(player);
+        clearEmotionScoreboard(player);
     }
 
     private static void updateForPlayer(ServerPlayerEntity player) {
@@ -308,19 +312,6 @@ public final class PetInspectionManager {
     }
 
     
-    /**
-     * Clean up inspection states for players who are no longer online
-     */
-    private static void cleanupDisconnectedPlayers(MinecraftServer server) {
-        java.util.Set<UUID> onlinePlayerIds = new java.util.HashSet<>();
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            onlinePlayerIds.add(player.getUuid());
-        }
-        
-        // Remove inspection states for offline players
-        inspecting.entrySet().removeIf(entry -> !onlinePlayerIds.contains(entry.getKey()));
-    }
-
     /**
      * Show emotion pool debug information in the scoreboard panel
      */

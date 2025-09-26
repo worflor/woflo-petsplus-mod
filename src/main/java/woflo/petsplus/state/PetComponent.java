@@ -72,6 +72,13 @@ public class PetComponent {
     // New: encapsulated mood/emotion engine
     private final PetMoodEngine moodEngine;
 
+    // Runtime scheduling guards so per-tick upkeep can short-circuit quickly.
+    private boolean tickSchedulingInitialized;
+    private long nextIntervalAbilityTick;
+    private long nextAuraCheckTick;
+    private long nextSupportPotionScanTick;
+    private long nextParticleCheckTick;
+
     // BossBar UI enhancements
     private long xpFlashStartTick = -1;
     private static final int XP_FLASH_DURATION = 40; // 2 seconds
@@ -550,10 +557,14 @@ public class PetComponent {
 
         // Apply attribute modifiers when role changes
         woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
-        
+
         // Apply AI enhancements when role changes
         if (!this.pet.getWorld().isClient) {
             woflo.petsplus.ai.PetAIEnhancements.enhancePetAI(this.pet, this);
+        }
+
+        if (this.pet.getWorld() instanceof ServerWorld serverWorld) {
+            resetTickScheduling(serverWorld.getTime());
         }
     }
 
@@ -637,6 +648,58 @@ public class PetComponent {
         }
     }
 
+    public void ensureTickSchedulingInitialized(long currentTick) {
+        if (tickSchedulingInitialized) {
+            return;
+        }
+        tickSchedulingInitialized = true;
+        nextIntervalAbilityTick = currentTick;
+        nextAuraCheckTick = currentTick;
+        nextSupportPotionScanTick = currentTick;
+        nextParticleCheckTick = currentTick;
+    }
+
+    public void resetTickScheduling(long currentTick) {
+        tickSchedulingInitialized = false;
+        ensureTickSchedulingInitialized(currentTick);
+    }
+
+    public boolean isIntervalTickDue(long currentTick) {
+        ensureTickSchedulingInitialized(currentTick);
+        return currentTick >= nextIntervalAbilityTick;
+    }
+
+    public void scheduleNextIntervalTick(long nextTick) {
+        nextIntervalAbilityTick = Math.max(nextTick, 0L);
+    }
+
+    public boolean isAuraCheckDue(long currentTick) {
+        ensureTickSchedulingInitialized(currentTick);
+        return currentTick >= nextAuraCheckTick;
+    }
+
+    public void scheduleNextAuraCheck(long nextTick) {
+        nextAuraCheckTick = Math.max(nextTick, 0L);
+    }
+
+    public boolean isSupportPotionScanDue(long currentTick) {
+        ensureTickSchedulingInitialized(currentTick);
+        return currentTick >= nextSupportPotionScanTick;
+    }
+
+    public void scheduleNextSupportPotionScan(long nextTick) {
+        nextSupportPotionScanTick = Math.max(nextTick, 0L);
+    }
+
+    public boolean isParticleCheckDue(long currentTick) {
+        ensureTickSchedulingInitialized(currentTick);
+        return currentTick >= nextParticleCheckTick;
+    }
+
+    public void scheduleNextParticleCheck(long nextTick) {
+        nextParticleCheckTick = Math.max(nextTick, 0L);
+    }
+
     @Nullable
     public UUID getOwnerUuid() {
         return this.ownerUuid;
@@ -667,10 +730,14 @@ public class PetComponent {
         if (!(pet.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld)) {
             return;
         }
-        
+
+        if (cooldowns.isEmpty()) {
+            return;
+        }
+
         long currentTime = pet.getWorld().getTime();
         boolean anyExpired = false;
-        
+
         // Check for expired cooldowns
         Iterator<Map.Entry<String, Long>> iterator = cooldowns.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -1046,12 +1113,22 @@ public class PetComponent {
     // ===== EMOTION–MOOD SYSTEM (delegated) =====
     public Mood getCurrentMood() { return moodEngine.getCurrentMood(); }
     public int getMoodLevel() { return moodEngine.getMoodLevel(); }
-    public void updateMood() { moodEngine.update(); }
+    public void updateMood() {
+        long now = pet.getWorld() instanceof ServerWorld sw ? sw.getTime() : System.currentTimeMillis();
+        moodEngine.ensureFresh(now);
+    }
+
+    public long estimateNextEmotionUpdate(long now) { return moodEngine.estimateNextWakeUp(now); }
 
     // ===== Emotions API =====
 
+    public record EmotionDelta(Emotion emotion, float amount) {}
+
     /** Push an emotion with additive weight; creates or refreshes a slot. */
-    public void pushEmotion(Emotion emotion, float amount) { moodEngine.pushEmotion(emotion, amount); }
+    public void pushEmotion(Emotion emotion, float amount) {
+        long now = pet.getWorld() instanceof ServerWorld sw ? sw.getTime() : 0L;
+        moodEngine.applyStimulus(new EmotionDelta(emotion, amount), now);
+    }
 
     /** Apply mirrored pack contagion influence for an emotion. */
     public void addContagionShare(Emotion emotion, float amount) { moodEngine.addContagionShare(emotion, amount); }

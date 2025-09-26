@@ -8,6 +8,9 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.api.mood.EmotionProvider;
 import woflo.petsplus.api.mood.MoodAPI;
+import woflo.petsplus.api.mood.ReactiveEmotionProvider;
+import woflo.petsplus.mood.EmotionStimulusBus;
+import woflo.petsplus.mood.MoodService;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
 
@@ -17,9 +20,32 @@ import woflo.petsplus.state.PetComponent;
  * - Owner recently damaged → PROTECTIVENESS
  * - Pet recently damaged → STARTLE/FRUSTRATION
  */
-public class CombatThreatProvider implements EmotionProvider {
+public class CombatThreatProvider implements EmotionProvider, ReactiveEmotionProvider {
+    private EmotionStimulusBus.DispatchListener dispatchListener;
     @Override public String id() { return "combat_threat"; }
     @Override public int periodHintTicks() { return 20; } // ~1s
+
+    @Override
+    public void register(EmotionStimulusBus bus) {
+        if (dispatchListener != null) {
+            return;
+        }
+        dispatchListener = (pet, component, time) -> {
+            if (!(pet.getWorld() instanceof ServerWorld world)) {
+                return;
+            }
+            contribute(world, pet, component, time, MoodService.getInstance());
+        };
+        bus.addDispatchListener(dispatchListener);
+    }
+
+    @Override
+    public void unregister(EmotionStimulusBus bus) {
+        if (dispatchListener != null) {
+            bus.removeDispatchListener(dispatchListener);
+            dispatchListener = null;
+        }
+    }
 
     private static final int HABITUATION_WINDOW = 200; // 10s of shared context
     private static final int MEMORY_FADE_TICKS = 400;   // 20s before streaks soften

@@ -7,6 +7,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import woflo.petsplus.interaction.OwnerAbilitySignalTracker;
+import woflo.petsplus.mechanics.StargazeMechanic;
 
 /**
  * Hooks into sneaking state changes to detect manual trigger inputs without per-tick polling.
@@ -18,6 +19,7 @@ public abstract class EntitySneakMixin {
         Entity self = (Entity) (Object) this;
         if (self instanceof ServerPlayerEntity serverPlayer) {
             OwnerAbilitySignalTracker.handleSneakToggle(serverPlayer, sneaking);
+            StargazeMechanic.handleSneakToggle(serverPlayer, sneaking);
         }
     }
 }

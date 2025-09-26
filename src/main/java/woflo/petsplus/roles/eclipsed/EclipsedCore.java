@@ -1,7 +1,6 @@
 package woflo.petsplus.roles.eclipsed;
 
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.MobEntity;
@@ -11,27 +10,63 @@ import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * Implements Eclipsed role mechanics: shadow manipulation and eclipse powers.
- * 
+ *
  * Core Features:
  * - Baseline: Shadow stealth, darkness vision, eclipse energy
  * - L7 Umbral Mastery: Eclipse field, shadow stepping, void damage
  * - Darkness and shadow-based abilities
- * 
+ *
  * Design Philosophy:
  * - Shadow manipulation archetype
  * - Provides stealth and darkness-based advantages
  * - Eclipse-themed abilities with day/night cycles
  */
 public class EclipsedCore {
+
+    private static final double NEARBY_RADIUS = 16.0;
+    private static final long FIELD_INTERVAL_TICKS = 5L;
+    private static final Map<UUID, Long> NEXT_FIELD_TICK = new ConcurrentHashMap<>();
     
     public static void initialize() {
         // Register damage events for shadow protection
         ServerLivingEntityEvents.ALLOW_DAMAGE.register(EclipsedCore::onEntityDamage);
         
-        // Register world tick for eclipse effects processing
-        ServerTickEvents.END_WORLD_TICK.register(EclipsedCore::onWorldTick);
+    }
+
+    public static void handlePlayerTick(ServerPlayerEntity player) {
+        if (player.isRemoved() || player.isSpectator()) {
+            return;
+        }
+
+        if (!(player.getWorld() instanceof ServerWorld world)) {
+            return;
+        }
+
+        List<MobEntity> eclipsedPets = getNearbyEclipsedPets(player, NEARBY_RADIUS);
+        if (eclipsedPets.isEmpty()) {
+            NEXT_FIELD_TICK.remove(player.getUuid());
+            return;
+        }
+
+        long now = world.getTime();
+        long nextTick = NEXT_FIELD_TICK.getOrDefault(player.getUuid(), 0L);
+        if (now < nextTick) {
+            return;
+        }
+
+        NEXT_FIELD_TICK.put(player.getUuid(), now + FIELD_INTERVAL_TICKS);
+        processEclipseEffects(player, eclipsedPets);
+    }
+
+    public static void handlePlayerDisconnect(ServerPlayerEntity player) {
+        NEXT_FIELD_TICK.remove(player.getUuid());
     }
     
     /**
@@ -66,43 +101,16 @@ public class EclipsedCore {
         return true; // Allow damage
     }
     
-    /**
-     * World tick handler for eclipse effects and shadow abilities.
-     */
-    private static void onWorldTick(ServerWorld world) {
-        // Process eclipse effects for all Eclipsed pets
-        processEclipseEffects(world);
-    }
-    
-    /**
-     * Process eclipse effects for Eclipsed pets.
-     */
-    private static void processEclipseEffects(ServerWorld world) {
-        for (ServerPlayerEntity player : world.getPlayers()) {
-            if (hasNearbyEclipsed(player)) {
-                // Apply eclipse field and shadow abilities
-                world.getEntitiesByClass(
-                    MobEntity.class,
-                    player.getBoundingBox().expand(16.0),
-                    entity -> {
-                        PetComponent component = PetComponent.get(entity);
-                        return component != null && 
-                               component.hasRole(PetRoleType.ECLIPSED) &&
-                               entity.isAlive() &&
-                               component.isOwnedBy(player);
-                    }
-                ).forEach(eclipsedPet -> {
-                    PetComponent petComp = PetComponent.get(eclipsedPet);
-                    if (petComp != null && eclipsedPet instanceof PetsplusTameable) {
-                        // Process eclipse field using existing void mechanics
-                        EclipsedVoid.onServerTick(eclipsedPet, player);
-                        
-                        // Apply advanced abilities for high-level pets
-                        if (petComp.getLevel() >= 7) {
-                            EclipsedAdvancedAbilities.createEventHorizon(player, eclipsedPet.getPos());
-                        }
-                    }
-                });
+    private static void processEclipseEffects(ServerPlayerEntity player, List<MobEntity> eclipsedPets) {
+        for (MobEntity eclipsedPet : eclipsedPets) {
+            PetComponent petComp = PetComponent.get(eclipsedPet);
+            if (petComp == null || !(eclipsedPet instanceof PetsplusTameable)) {
+                continue;
+            }
+
+            EclipsedVoid.onServerTick(eclipsedPet, player);
+            if (petComp.getLevel() >= 7) {
+                EclipsedAdvancedAbilities.createEventHorizon(player, eclipsedPet.getPos());
             }
         }
     }
@@ -111,23 +119,26 @@ public class EclipsedCore {
      * Check if player has a nearby Eclipsed pet.
      */
     private static boolean hasNearbyEclipsed(ServerPlayerEntity player) {
+        return !getNearbyEclipsedPets(player, NEARBY_RADIUS).isEmpty();
+    }
+
+    private static List<MobEntity> getNearbyEclipsedPets(ServerPlayerEntity player, double radius) {
         if (!(player.getWorld() instanceof ServerWorld world)) {
-            return false;
+            return java.util.Collections.emptyList();
         }
-        
-        double searchRadius = 16.0;
+
         return world.getEntitiesByClass(
             MobEntity.class,
-            player.getBoundingBox().expand(searchRadius),
+            player.getBoundingBox().expand(radius),
             entity -> {
                 PetComponent component = PetComponent.get(entity);
-                return component != null && 
+                return component != null &&
                        component.hasRole(PetRoleType.ECLIPSED) &&
                        entity.isAlive() &&
                        component.isOwnedBy(player) &&
-                       entity.squaredDistanceTo(player) <= searchRadius * searchRadius;
+                       entity.squaredDistanceTo(player) <= radius * radius;
             }
-        ).size() > 0;
+        );
     }
     
     /**

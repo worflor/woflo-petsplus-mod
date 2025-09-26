@@ -1,7 +1,6 @@
 package woflo.petsplus.events;
 
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import woflo.petsplus.Petsplus;
@@ -22,10 +21,6 @@ public class PlayerStateTracker {
     public static void register() {
         // Register for player tick events to track sprint changes
         ServerPlayerEvents.AFTER_RESPAWN.register(PlayerStateTracker::onPlayerRespawn);
-        ServerTickEvents.END_WORLD_TICK.register(world ->
-            world.getPlayers().forEach(PlayerStateTracker::onPlayerTick)
-        );
-
         Petsplus.LOGGER.info("Player state tracker registered");
     }
 
@@ -35,7 +30,7 @@ public class PlayerStateTracker {
     /**
      * Monitor players each tick to detect when they cross fall thresholds.
      */
-    private static void onPlayerTick(ServerPlayerEntity player) {
+    public static void handlePlayerTick(ServerPlayerEntity player) {
         if (player == null || player.isRemoved()) {
             return;
         }
@@ -57,6 +52,14 @@ public class PlayerStateTracker {
             LAST_FALL_DISTANCE.remove(player);
             FALL_TRIGGERED.remove(player);
         }
+    }
+
+    public static void handlePlayerDisconnect(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+        LAST_FALL_DISTANCE.remove(player);
+        FALL_TRIGGERED.remove(player);
     }
     
     /**

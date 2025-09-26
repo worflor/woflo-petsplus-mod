@@ -1,7 +1,6 @@
 package woflo.petsplus.roles.scout;
 
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
@@ -9,6 +8,10 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
+
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Implements Scout role mechanics: detection pings and loot attraction.
@@ -28,9 +31,6 @@ public class ScoutCore {
     public static void initialize() {
         // Register combat events for loot wisp and detection
         ServerLivingEntityEvents.AFTER_DEATH.register(ScoutCore::onEntityDeath);
-        
-        // Register world tick for detection pings and loot processing
-        ServerTickEvents.END_WORLD_TICK.register(ScoutCore::onWorldTick);
     }
     
     /**
@@ -54,20 +54,22 @@ public class ScoutCore {
     /**
      * World tick handler for detection pings and passive effects.
      */
-    private static void onWorldTick(ServerWorld world) {
-        // Process detection pings for all Scout pets
-        processScoutDetection(world);
-    }
-    
-    /**
-     * Process detection pings for Scout pets.
-     */
-    private static void processScoutDetection(ServerWorld world) {
-        // Find all Scout pets and process their detection abilities
-        for (ServerPlayerEntity player : world.getPlayers()) {
-            if (hasActiveScoutDetection(player)) {
-                ScoutBehaviors.checkSpotterFallback(player);
-            }
+    private static final Map<UUID, Long> nextDetectionTick = new ConcurrentHashMap<>();
+
+    public static void handlePlayerTick(ServerPlayerEntity player) {
+        if (!(player.getWorld() instanceof ServerWorld world)) {
+            return;
+        }
+
+        long currentTick = world.getTime();
+        long nextTick = nextDetectionTick.getOrDefault(player.getUuid(), 0L);
+        if (currentTick < nextTick) {
+            return;
+        }
+
+        nextDetectionTick.put(player.getUuid(), currentTick + 60);
+        if (hasActiveScoutDetection(player)) {
+            ScoutBehaviors.checkSpotterFallback(player);
         }
     }
     

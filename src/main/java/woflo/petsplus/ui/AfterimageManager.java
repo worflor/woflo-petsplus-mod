@@ -2,7 +2,6 @@ package woflo.petsplus.ui;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.mob.MobEntity;
@@ -36,7 +35,6 @@ public final class AfterimageManager {
     private static final Map<String, EncasementStyle> STYLES = new HashMap<>();
     private static final Map<UUID, EncasementInstance> ACTIVE_INSTANCES = new ConcurrentHashMap<>();
     private static EncasementStyle fallbackStyle = EncasementStyle.createFallback();
-    private static boolean tickRegistered;
 
     private AfterimageManager() {
     }
@@ -46,7 +44,6 @@ public final class AfterimageManager {
      */
     public static void initialize() {
         reloadStyles();
-        registerTickHandler();
     }
 
     /**
@@ -118,31 +115,24 @@ public final class AfterimageManager {
         }
     }
 
-    private static void registerTickHandler() {
-        if (tickRegistered) {
-            return;
-        }
-
-        ServerTickEvents.END_WORLD_TICK.register(AfterimageManager::tickWorld);
-        tickRegistered = true;
-    }
-
-    /**
-     * Tick active encasements for the supplied world.
-     */
-    private static void tickWorld(ServerWorld world) {
+    public static void handleMobTick(MobEntity entity, ServerWorld world) {
         if (ACTIVE_INSTANCES.isEmpty()) {
             return;
         }
 
-        long worldTime = world.getTime();
-        ACTIVE_INSTANCES.entrySet().removeIf(entry -> {
-            EncasementInstance instance = entry.getValue();
-            if (!instance.isInWorld(world)) {
-                return false;
-            }
-            return instance.tick(world, worldTime);
-        });
+        EncasementInstance instance = ACTIVE_INSTANCES.get(entity.getUuid());
+        if (instance == null) {
+            return;
+        }
+
+        if (!instance.isInWorld(world)) {
+            ACTIVE_INSTANCES.remove(entity.getUuid());
+            return;
+        }
+
+        if (instance.tick(world, world.getTime())) {
+            ACTIVE_INSTANCES.remove(entity.getUuid());
+        }
     }
 
     private static EncasementStyle getStyle(String key) {

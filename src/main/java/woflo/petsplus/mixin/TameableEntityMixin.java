@@ -12,6 +12,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.events.PetDetectionHandler;
+import woflo.petsplus.mechanics.StargazeMechanic;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.UUID;
@@ -115,5 +116,8 @@ public abstract class TameableEntityMixin implements PetsplusTameable {
     public void petsplus$setSitting(boolean sitting) {
         petsplus$self().setSitting(sitting);
         petsplus$getComponent().setStateData("petsplus:sitting", sitting);
+        if (petsplus$self().getWorld() instanceof ServerWorld) {
+            StargazeMechanic.handlePetSittingChange((net.minecraft.entity.mob.MobEntity) (Object) this, sitting);
+        }
     }
 }

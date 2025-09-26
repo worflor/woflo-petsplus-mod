@@ -1,7 +1,6 @@
 package woflo.petsplus.roles.guardian;
 
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.effect.StatusEffectInstance;
@@ -55,7 +54,6 @@ public final class GuardianCore {
 
     public static void initialize() {
         ServerLivingEntityEvents.AFTER_DAMAGE.register(GuardianCore::handleAfterDamage);
-        ServerTickEvents.END_WORLD_TICK.register(GuardianCore::onWorldTick);
     }
 
     /**
@@ -279,23 +277,17 @@ public final class GuardianCore {
         }
     }
 
-    private static void onWorldTick(ServerWorld world) {
-        guardianCooldowns.entrySet().removeIf(entry -> entry.getValue().isExpired(world));
+    public static void handlePlayerTick(ServerPlayerEntity player) {
+        GuardianPrimeState primeState = primedOwners.get(player.getUuid());
+        if (primeState == null) {
+            return;
+        }
 
-        primedOwners.entrySet().removeIf(entry -> {
-            GuardianPrimeState primeState = entry.getValue();
-            if (!primeState.matches(world)) {
-                return false;
-            }
-            if (primeState.isExpired(world)) {
-                ServerPlayerEntity player = world.getServer().getPlayerManager().getPlayer(entry.getKey());
-                if (player != null) {
-                    clearOwnerPrimedState(player);
-                }
-                return true;
-            }
-            return false;
-        });
+        ServerWorld world = (ServerWorld) player.getWorld();
+        if (!primeState.matches(world) || primeState.isExpired(world)) {
+            primedOwners.remove(player.getUuid());
+            clearOwnerPrimedState(player);
+        }
     }
 
     public static boolean hasActiveGuardianProtection(ServerPlayerEntity player) {

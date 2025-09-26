@@ -1,7 +1,6 @@
 package woflo.petsplus.mechanics;
 
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.effect.StatusEffectInstance;
@@ -50,8 +49,6 @@ public class CursedOneResurrection {
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, damageSource) ->
             CursedOneResurrection.onOwnerActualDeath(entity, damageSource));
         
-        // Register world tick handler for reanimation state management
-        ServerTickEvents.END_WORLD_TICK.register(CursedOneResurrection::onWorldTick);
     }
     
     /**
@@ -71,31 +68,26 @@ public class CursedOneResurrection {
         return true; // Allow damage normally
     }
     
-    /**
-     * World tick handler for managing reanimation states
-     */
-    private static void onWorldTick(ServerWorld world) {
+    public static void handleMobTick(MobEntity mob, ServerWorld world) {
         if (reanimatingPets.isEmpty()) {
-            return; // No pets reanimating
+            return;
         }
-        
+
+        Long reanimationEndTime = reanimatingPets.get(mob.getUuid());
+        if (reanimationEndTime == null) {
+            return;
+        }
+
         long currentTime = world.getTime();
-        reanimatingPets.entrySet().removeIf(entry -> {
-            UUID petUuid = entry.getKey();
-            long reanimationEndTime = entry.getValue();
-            
-            if (currentTime >= reanimationEndTime) {
-                // Reanimation complete - resurrect the pet
-                completeReanimation(world, petUuid);
-                return true; // Remove from map
-            } else {
-                // Still reanimating - create progressive visual effects
-                long reanimationStartTime = reanimationEndTime - 300; // 15 seconds ago
-                long timeInReanimation = currentTime - reanimationStartTime;
-                createProgressiveReanimationEffects(world, petUuid, timeInReanimation);
-                return false; // Keep in map
-            }
-        });
+        if (currentTime >= reanimationEndTime) {
+            completeReanimation(world, mob.getUuid());
+            reanimatingPets.remove(mob.getUuid());
+            return;
+        }
+
+        long reanimationStartTime = reanimationEndTime - 300;
+        long timeInReanimation = currentTime - reanimationStartTime;
+        createProgressiveReanimationEffects(world, mob.getUuid(), timeInReanimation);
     }
     
     /**

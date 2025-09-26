@@ -1,13 +1,18 @@
 package woflo.petsplus.roles.enchantmentbound;
 
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Implements Enchantment-Bound role mechanics: magical enhancement and enchantment synergy.
@@ -23,16 +28,46 @@ import woflo.petsplus.state.PetComponent;
  * - Provides unique magical bonuses and interactions
  */
 public class EnchantmentBoundCore {
+
+    private static final double NEARBY_RADIUS = 16.0;
+    private static final long ENCHANTMENT_INTERVAL_TICKS = 10L;
+    private static final Map<UUID, Long> NEXT_ENCHANTMENT_TICK = new ConcurrentHashMap<>();
     
     public static void initialize() {
         // Register damage events for magical damage handling
         ServerLivingEntityEvents.ALLOW_DAMAGE.register(EnchantmentBoundCore::onEntityDamage);
-        
-        // Register world tick for enchantment effect processing
-        ServerTickEvents.END_WORLD_TICK.register(EnchantmentBoundCore::onWorldTick);
-        
+
         // Initialize the existing enchantment-bound handler
         EnchantmentBoundHandler.initialize();
+    }
+
+    public static void handlePlayerTick(ServerPlayerEntity player) {
+        if (player.isRemoved() || player.isSpectator()) {
+            return;
+        }
+
+        if (!(player.getWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+
+        List<MobEntity> enchantmentPets = getNearbyEnchantmentBoundPets(player, NEARBY_RADIUS);
+        if (enchantmentPets.isEmpty()) {
+            NEXT_ENCHANTMENT_TICK.remove(player.getUuid());
+            return;
+        }
+
+        long now = serverWorld.getTime();
+        long nextTick = NEXT_ENCHANTMENT_TICK.getOrDefault(player.getUuid(), 0L);
+        if (now < nextTick) {
+            return;
+        }
+
+        NEXT_ENCHANTMENT_TICK.put(player.getUuid(), now + ENCHANTMENT_INTERVAL_TICKS);
+        processEnchantmentEffects(player, enchantmentPets);
+    }
+
+    public static void handlePlayerDisconnect(ServerPlayerEntity player) {
+        NEXT_ENCHANTMENT_TICK.remove(player.getUuid());
     }
     
     /**
@@ -53,38 +88,11 @@ public class EnchantmentBoundCore {
         return true; // Allow damage
     }
     
-    /**
-     * World tick handler for enchantment effects and mystic bond.
-     */
-    private static void onWorldTick(ServerWorld world) {
-        // Process enchantment effects for all Enchantment-Bound pets
-        processEnchantmentEffects(world);
-    }
-    
-    /**
-     * Process enchantment effects for Enchantment-Bound pets.
-     */
-    private static void processEnchantmentEffects(ServerWorld world) {
-        for (ServerPlayerEntity player : world.getPlayers()) {
-            if (hasNearbyEnchantmentBound(player)) {
-                // Apply mystic bond effects for high-level pets
-                world.getEntitiesByClass(
-                    MobEntity.class,
-                    player.getBoundingBox().expand(16.0),
-                    entity -> {
-                        PetComponent component = PetComponent.get(entity);
-                        return component != null &&
-                               component.hasRole(PetRoleType.ENCHANTMENT_BOUND) &&
-                               entity.isAlive() &&
-                               component.isOwnedBy(player);
-                    }
-                ).forEach(enchantedPet -> {
-                    PetComponent petComp = PetComponent.get(enchantedPet);
-                    if (petComp != null && petComp.getLevel() >= 7) {
-                        // Apply mystic bond effects for high-level pets
-                        EnchantmentBoundEchoes.applyEnhancedHaste(player, EnchantmentBoundEchoes.getPerchedHasteBonusTicks(player));
-                    }
-                });
+    private static void processEnchantmentEffects(ServerPlayerEntity player, List<MobEntity> enchantmentPets) {
+        for (MobEntity enchantedPet : enchantmentPets) {
+            PetComponent petComp = PetComponent.get(enchantedPet);
+            if (petComp != null && petComp.getLevel() >= 7) {
+                EnchantmentBoundEchoes.applyEnhancedHaste(player, EnchantmentBoundEchoes.getPerchedHasteBonusTicks(player));
             }
         }
     }
@@ -93,23 +101,26 @@ public class EnchantmentBoundCore {
      * Check if player has a nearby Enchantment-Bound pet.
      */
     private static boolean hasNearbyEnchantmentBound(ServerPlayerEntity player) {
+        return !getNearbyEnchantmentBoundPets(player, NEARBY_RADIUS).isEmpty();
+    }
+
+    private static List<MobEntity> getNearbyEnchantmentBoundPets(ServerPlayerEntity player, double radius) {
         if (!(player.getWorld() instanceof ServerWorld world)) {
-            return false;
+            return java.util.Collections.emptyList();
         }
-        
-        double searchRadius = 16.0;
+
         return world.getEntitiesByClass(
             MobEntity.class,
-            player.getBoundingBox().expand(searchRadius),
+            player.getBoundingBox().expand(radius),
             entity -> {
                 PetComponent component = PetComponent.get(entity);
-                return component != null && 
+                return component != null &&
                        component.hasRole(PetRoleType.ENCHANTMENT_BOUND) &&
                        entity.isAlive() &&
                        component.isOwnedBy(player) &&
-                       entity.squaredDistanceTo(player) <= searchRadius * searchRadius;
+                       entity.squaredDistanceTo(player) <= radius * radius;
             }
-        ).size() > 0;
+        );
     }
     
     /**
@@ -131,28 +142,16 @@ public class EnchantmentBoundCore {
             return 0.0f;
         }
         
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getWorld() instanceof ServerWorld)) {
             return 0.0f;
         }
-        
-        // Calculate bonus based on highest level Enchantment-Bound pet
-        int maxLevel = world.getEntitiesByClass(
-            MobEntity.class,
-            player.getBoundingBox().expand(16.0),
-            entity -> {
-                PetComponent component = PetComponent.get(entity);
-                return component != null && 
-                       component.hasRole(PetRoleType.ENCHANTMENT_BOUND) &&
-                       entity.isAlive() &&
-                       component.isOwnedBy(player);
-            }
-        ).stream()
-        .mapToInt(entity -> {
-            PetComponent component = PetComponent.get(entity);
-            return component != null ? component.getLevel() : 0;
-        })
-        .max()
-        .orElse(0);
+
+        int maxLevel = getNearbyEnchantmentBoundPets(player, NEARBY_RADIUS).stream()
+            .map(PetComponent::get)
+            .filter(Objects::nonNull)
+            .mapToInt(PetComponent::getLevel)
+            .max()
+            .orElse(0);
         
         // Base enchantment bonus scaling with level
         return Math.min(maxLevel * 0.5f, 5.0f); // Max +5 damage from enchantment resonance
@@ -162,22 +161,14 @@ public class EnchantmentBoundCore {
      * Check if player has active Mystic Bond (L7+ Enchantment-Bound).
      */
     public static boolean hasActiveMysticBond(ServerPlayerEntity player) {
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getWorld() instanceof ServerWorld)) {
             return false;
         }
-        
-        return world.getEntitiesByClass(
-            MobEntity.class,
-            player.getBoundingBox().expand(16.0),
-            entity -> {
-                PetComponent component = PetComponent.get(entity);
-                return component != null && 
-                       component.hasRole(PetRoleType.ENCHANTMENT_BOUND) &&
-                       component.getLevel() >= 7 && // L7+ for Mystic Bond
-                       entity.isAlive() &&
-                       component.isOwnedBy(player);
-            }
-        ).size() > 0;
+
+        return getNearbyEnchantmentBoundPets(player, NEARBY_RADIUS).stream()
+            .map(PetComponent::get)
+            .filter(Objects::nonNull)
+            .anyMatch(component -> component.getLevel() >= 7);
     }
     
     /**
@@ -191,19 +182,9 @@ public class EnchantmentBoundCore {
         if (!(player.getWorld() instanceof ServerWorld world)) {
             return;
         }
-        
+
         // Find nearby Enchantment-Bound pets and apply resonance
-        world.getEntitiesByClass(
-            MobEntity.class,
-            player.getBoundingBox().expand(16.0),
-            entity -> {
-                PetComponent component = PetComponent.get(entity);
-                return component != null && 
-                       component.hasRole(PetRoleType.ENCHANTMENT_BOUND) &&
-                       entity.isAlive() &&
-                       component.isOwnedBy(player);
-            }
-        ).forEach(enchantedPet -> {
+        getNearbyEnchantmentBoundPets(player, NEARBY_RADIUS).forEach(enchantedPet -> {
             PetComponent petComp = PetComponent.get(enchantedPet);
             if (petComp != null && item.hasEnchantments()) {
                 // Apply enchantment resonance effects using existing mechanics

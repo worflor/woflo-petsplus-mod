@@ -1,7 +1,6 @@
 package woflo.petsplus.events;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
@@ -15,28 +14,10 @@ import woflo.petsplus.ui.ActionBarCueManager;
 public class ServerEventHandler {
     
     public static void register() {
-        ServerTickEvents.END_SERVER_TICK.register(ServerEventHandler::onServerTick);
         ServerLifecycleEvents.SERVER_STARTING.register(ServerEventHandler::onServerStarting);
         ServerLifecycleEvents.SERVER_STOPPING.register(ServerEventHandler::onServerStopping);
         ServerWorldEvents.LOAD.register(ServerEventHandler::onWorldLoad);
         ServerWorldEvents.UNLOAD.register(ServerEventHandler::onWorldUnload);
-    }
-    
-    private static void onServerTick(MinecraftServer server) {
-        // Tick state managers for all worlds
-        for (ServerWorld world : server.getWorlds()) {
-            StateManager stateManager = StateManager.forWorld(world);
-            stateManager.tick();
-        }
-
-        // Update pet inspection boss bars
-        woflo.petsplus.ui.PetInspectionManager.tick(server);
-
-        // Update action bar cues with contextual gating
-        ActionBarCueManager.tick(server);
-
-        // Tick boss bars for cleanup and updates
-        woflo.petsplus.ui.BossBarManager.tickBossBars();
     }
     
     private static void onServerStarting(MinecraftServer server) {

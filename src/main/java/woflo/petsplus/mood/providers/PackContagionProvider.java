@@ -8,6 +8,9 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.api.mood.EmotionProvider;
 import woflo.petsplus.api.mood.MoodAPI;
+import woflo.petsplus.api.mood.ReactiveEmotionProvider;
+import woflo.petsplus.mood.EmotionStimulusBus;
+import woflo.petsplus.mood.MoodService;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
 
@@ -17,8 +20,9 @@ import java.util.UUID;
 /**
  * Mirrors the emotional state of nearby bonded companions and the owner so pets feel like a pack.
  */
-public class PackContagionProvider implements EmotionProvider {
+public class PackContagionProvider implements EmotionProvider, ReactiveEmotionProvider {
     private static final double SCAN_RADIUS = 10.0;
+    private EmotionStimulusBus.DispatchListener dispatchListener;
 
     @Override
     public String id() {
@@ -28,6 +32,28 @@ public class PackContagionProvider implements EmotionProvider {
     @Override
     public int periodHintTicks() {
         return 120;
+    }
+
+    @Override
+    public void register(EmotionStimulusBus bus) {
+        if (dispatchListener != null) {
+            return;
+        }
+        dispatchListener = (pet, component, time) -> {
+            if (!(pet.getWorld() instanceof ServerWorld world)) {
+                return;
+            }
+            contribute(world, pet, component, time, MoodService.getInstance());
+        };
+        bus.addDispatchListener(dispatchListener);
+    }
+
+    @Override
+    public void unregister(EmotionStimulusBus bus) {
+        if (dispatchListener != null) {
+            bus.removeDispatchListener(dispatchListener);
+            dispatchListener = null;
+        }
     }
 
     @Override
