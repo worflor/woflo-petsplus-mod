@@ -118,6 +118,24 @@ public class PetComponent {
         public static final String THREAT_LAST_RECOVERY_TICK = "threat_last_recovery_tick";
         public static final String HEALTH_LAST_LOW_TICK = "health_last_low_tick";
         public static final String HEALTH_RECOVERY_COOLDOWN = "health_recovery_cooldown";
+        public static final String BREEDING_BIRTH_TICK = "breeding_birth_tick";
+        public static final String BREEDING_PARENT_A_UUID = "breeding_parent_a_uuid";
+        public static final String BREEDING_PARENT_B_UUID = "breeding_parent_b_uuid";
+        public static final String BREEDING_OWNER_UUID = "breeding_owner_uuid";
+        public static final String BREEDING_PRIMARY_ROLE = "breeding_primary_role";
+        public static final String BREEDING_PARTNER_ROLE = "breeding_partner_role";
+        public static final String BREEDING_INHERITED_ROLE = "breeding_inherited_role";
+        public static final String BREEDING_INHERITED_STATS = "breeding_inherited_stats";
+        public static final String BREEDING_SOURCE = "breeding_source";
+        public static final String BREEDING_BIRTH_TIME_OF_DAY = "breeding_birth_time_of_day";
+        public static final String BREEDING_BIRTH_IS_DAYTIME = "breeding_birth_is_daytime";
+        public static final String BREEDING_BIRTH_IS_INDOORS = "breeding_birth_is_indoors";
+        public static final String BREEDING_BIRTH_IS_RAINING = "breeding_birth_is_raining";
+        public static final String BREEDING_BIRTH_IS_THUNDERING = "breeding_birth_is_thundering";
+        public static final String BREEDING_BIRTH_NEARBY_PLAYER_COUNT = "breeding_birth_nearby_player_count";
+        public static final String BREEDING_BIRTH_NEARBY_PET_COUNT = "breeding_birth_nearby_pet_count";
+        public static final String BREEDING_BIRTH_DIMENSION = "breeding_birth_dimension";
+        public static final String BREEDING_ASSIGNED_NATURE = "breeding_assigned_nature";
 
         private StateKeys() {}
     }

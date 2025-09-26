@@ -6,6 +6,7 @@ import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.entity.passive.FoxEntity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
@@ -53,40 +54,76 @@ public class PetDetectionHandler {
      * Detect if a mob should be registered as a pet and assign appropriate role.
      */
     private static void detectAndRegisterPet(MobEntity mob) {
-        // Determine owner: prefer true tamed owner, but optionally allow trusted/leashed via config
+        PlayerEntity owner = resolveOwner(mob);
+        if (owner == null) {
+            return;
+        }
+
+        MinecraftServer server = mob.getServer();
+        if (server == null) {
+            return;
+        }
+
+        server.execute(() -> {
+            if (!mob.isAlive()) {
+                pendingRoleSelection.remove(mob);
+                return;
+            }
+
+            PlayerEntity resolvedOwner = resolveOwner(mob);
+            PlayerEntity promptOwner = resolvedOwner != null ? resolvedOwner : owner;
+            if (promptOwner == null) {
+                return;
+            }
+
+            PetComponent existingComponent = PetComponent.get(mob);
+            if (existingComponent != null) {
+                if (clearPendingForInheritedRole(mob, existingComponent)) {
+                    return;
+                }
+
+                Identifier existingRole = existingComponent.getRoleId();
+                if (existingRole != null && PetsPlusRegistries.petRoleTypeRegistry().get(existingRole) != null) {
+                    pendingRoleSelection.remove(mob);
+                    return;
+                }
+            }
+
+            if (pendingRoleSelection.containsKey(mob)) {
+                return;
+            }
+
+            promptRoleSelection(mob, promptOwner);
+        });
+    }
+
+    private static PlayerEntity resolveOwner(MobEntity mob) {
         PlayerEntity owner = null;
         if (mob instanceof TameableEntity tameable) {
             if (tameable.isTamed() && tameable.getOwner() instanceof PlayerEntity player) {
                 owner = player;
             }
         }
-        // Ocelots (trusted): they don't set an owner but can trust players; use a proximity heuristic
         if (owner == null && mob.getType().toString().contains("ocelot")) {
             PlayerEntity nearest = mob.getWorld().getClosestPlayer(mob, 8.0);
             if (nearest != null && nearest.isAlive()) owner = nearest;
         }
-        // Foxes: only treat as pet if actually trusted to the player or leashed by the player
         if (owner == null && mob instanceof FoxEntity fox) {
             PlayerEntity nearest = mob.getWorld().getClosestPlayer(mob, 8.0);
             if (nearest != null && nearest.isAlive()) {
                 boolean trusted = false;
-                // Prefer API methods if available across mappings, fallback via reflection for safety
                 try {
-                    // Yarn often exposes: boolean isTrusted(LivingEntity)
                     java.lang.reflect.Method m = FoxEntity.class.getMethod("isTrusted", LivingEntity.class);
                     Object res = m.invoke(fox, (LivingEntity) nearest);
                     if (res instanceof Boolean b) trusted = b.booleanValue();
                 } catch (NoSuchMethodException ignored) {
                     try {
-                        // Alternate mapping: boolean isTrustedUuid(java.util.UUID)
                         java.lang.reflect.Method m2 = FoxEntity.class.getMethod("isTrustedUuid", java.util.UUID.class);
                         Object res2 = m2.invoke(fox, nearest.getUuid());
                         if (res2 instanceof Boolean b2) trusted = b2.booleanValue();
                     } catch (ReflectiveOperationException ignored2) {
-                        // As a last resort, leave trusted = false
                     }
                 } catch (ReflectiveOperationException ignored) {
-                    // Leave trusted = false
                 }
 
                 boolean leashedToPlayer = fox.isLeashed() && fox.getLeashHolder() == nearest;
@@ -95,24 +132,19 @@ public class PetDetectionHandler {
                 }
             }
         }
-        // Tamed mounts (horses, donkeys, llamas) are handled through TameableEntity above in current versions
-        
-        // If no owner found, skip registration
-        if (owner == null) {
-            return;
+
+        return owner;
+    }
+
+    private static boolean clearPendingForInheritedRole(MobEntity mob, PetComponent component) {
+        String inheritedRole = component.getStateData(PetComponent.StateKeys.BREEDING_INHERITED_ROLE, String.class);
+        if (inheritedRole == null || inheritedRole.isBlank()) {
+            return false;
         }
-        
-        // Check if this pet already has a role assigned
-        PetComponent existingComponent = PetComponent.get(mob);
-        if (existingComponent != null && !pendingRoleSelection.containsKey(mob)) {
-            Identifier existingRole = existingComponent.getRoleId();
-            if (PetsPlusRegistries.petRoleTypeRegistry().get(existingRole) != null) {
-                return; // Already registered with a known role
-            }
-        }
-        
-        // Prompt player for role selection
-        promptRoleSelection(mob, owner);
+
+        pendingRoleSelection.remove(mob);
+        Petsplus.LOGGER.info("Skipping manual role prompt for pet {} due to inherited role {}", mob.getUuid(), inheritedRole);
+        return true;
     }
     
     /**
