@@ -73,10 +73,14 @@ public class PetAIEnhancements {
         float followDistance = getFollowDistance(petComponent);
         float teleportDistance = getTeleportDistance(petComponent);
 
-        accessor.getGoalSelector().add(5, new EnhancedFollowOwnerGoal(tameable, petComponent, 1.0,
-        
-        accessor.getGoalSelector().add(5, new EnhancedFollowOwnerGoal(pet, tameable, 1.0,
-            followDistance, teleportDistance, false));
+        accessor.getGoalSelector().add(5, new EnhancedFollowOwnerGoal(
+            pet,
+            tameable,
+            petComponent,
+            1.0,
+            followDistance,
+            teleportDistance
+        ));
     }
 
     private static void addOwnerAssistGoal(MobEntity pet, PetComponent petComponent) {

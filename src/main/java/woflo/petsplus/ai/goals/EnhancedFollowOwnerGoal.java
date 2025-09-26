@@ -7,24 +7,25 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldView;
-import java.util.EnumSet;
-import woflo.petsplus.api.entity.PetsplusTameable;
 
+import java.util.EnumSet;
+
+import woflo.petsplus.ai.goals.OwnerAssistAttackGoal;
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.state.PetComponent;
 
 /**
  * Enhanced follow owner goal with better pathfinding and role-specific behavior.
  */
 public class EnhancedFollowOwnerGoal extends Goal {
-    private static final double HESITATION_LOOK_YAW = 20.0f;
+    private static final float HESITATION_LOOK_YAW = 20.0f;
     private static final double HESITATION_SPEED_BOOST = 0.2d;
     private static final float HESITATION_DISTANCE_FACTOR = 0.6f;
     private static final float HESITATION_CLEAR_DISTANCE = 2.5f;
 
-    private final TameableEntity tameable;
-    private final PetComponent petComponent;
     private final MobEntity mob;
     private final PetsplusTameable tameable;
+    private final PetComponent petComponent;
     private final double speed;
     private final float baseFollowDistance;
     private final float teleportDistance;
@@ -32,9 +33,8 @@ public class EnhancedFollowOwnerGoal extends Goal {
     private boolean scoutMode = false;
     private int stuckCounter = 0;
     private BlockPos lastOwnerPos = BlockPos.ORIGIN;
-    
-    public EnhancedFollowOwnerGoal(TameableEntity tameable, PetComponent petComponent, double speed, float followDistance, float teleportDistance, boolean leavesAllowed) {
-    public EnhancedFollowOwnerGoal(MobEntity mob, PetsplusTameable tameable, double speed, float followDistance, float teleportDistance, boolean leavesAllowed) {
+
+    public EnhancedFollowOwnerGoal(MobEntity mob, PetsplusTameable tameable, PetComponent petComponent, double speed, float followDistance, float teleportDistance) {
         this.mob = mob;
         this.tameable = tameable;
         this.petComponent = petComponent;
@@ -44,28 +44,31 @@ public class EnhancedFollowOwnerGoal extends Goal {
         this.activeFollowDistance = followDistance;
         this.setControls(EnumSet.of(Control.MOVE, Control.LOOK));
     }
-    
+
     public void setScoutMode(boolean scoutMode) {
         this.scoutMode = scoutMode;
     }
-    
+
     @Override
     public boolean canStart() {
-        if (!this.tameable.petsplus$isTamed()) return false;
+        if (!this.tameable.petsplus$isTamed()) {
+            return false;
+        }
 
         LivingEntity livingOwner = this.tameable.petsplus$getOwner();
-        if (!(livingOwner instanceof PlayerEntity owner)) return false;
-        
+        if (!(livingOwner instanceof PlayerEntity owner)) {
+            return false;
+        }
+
         long now = owner.getWorld().getTime();
         boolean hesitating = OwnerAssistAttackGoal.isPetHesitating(petComponent, now);
 
-        // Scout mode: only follow if owner is moving or far away
         if (scoutMode) {
             BlockPos currentOwnerPos = owner.getBlockPos();
             boolean ownerMoved = !currentOwnerPos.equals(lastOwnerPos);
             lastOwnerPos = currentOwnerPos;
 
-            double distance = this.tameable.squaredDistanceTo(owner);
+            double distance = this.mob.squaredDistanceTo(owner);
             if (hesitating) {
                 return true;
             }
@@ -76,20 +79,46 @@ public class EnhancedFollowOwnerGoal extends Goal {
             return true;
         }
 
-        double distance = this.tameable.squaredDistanceTo(owner);
+        double distance = this.mob.squaredDistanceTo(owner);
         return distance > (baseFollowDistance * baseFollowDistance);
-            double distance = this.mob.squaredDistanceTo(owner);
-            return ownerMoved || distance > (followDistance * followDistance);
+    }
+
+    @Override
+    public boolean shouldContinue() {
+        LivingEntity livingOwner = this.tameable.petsplus$getOwner();
+        if (!(livingOwner instanceof PlayerEntity owner)) {
+            return false;
         }
 
         double distance = this.mob.squaredDistanceTo(owner);
-        return distance > (followDistance * followDistance);
+        if (distance > (this.teleportDistance * this.teleportDistance)) {
+            return true;
+        }
+
+        long now = owner.getWorld().getTime();
+        if (OwnerAssistAttackGoal.isPetHesitating(petComponent, now)) {
+            return true;
+        }
+
+        return distance > (this.activeFollowDistance * this.activeFollowDistance);
+    }
+
+    @Override
+    public void start() {
+        this.stuckCounter = 0;
+    }
+
+    @Override
+    public void stop() {
+        this.mob.getNavigation().stop();
     }
 
     @Override
     public void tick() {
         LivingEntity livingOwner = this.tameable.petsplus$getOwner();
-        if (!(livingOwner instanceof PlayerEntity owner)) return;
+        if (!(livingOwner instanceof PlayerEntity owner)) {
+            return;
+        }
 
         long now = owner.getWorld().getTime();
         boolean hesitating = OwnerAssistAttackGoal.isPetHesitating(petComponent, now);
@@ -97,35 +126,26 @@ public class EnhancedFollowOwnerGoal extends Goal {
             ? Math.max(HESITATION_CLEAR_DISTANCE, baseFollowDistance * HESITATION_DISTANCE_FACTOR)
             : baseFollowDistance;
 
-        float lookYaw = hesitating ? (float) HESITATION_LOOK_YAW : 10.0f;
-        this.tameable.getLookControl().lookAt(owner, lookYaw, this.tameable.getMaxLookPitchChange());
-
-        if (this.tameable.squaredDistanceTo(owner) > (teleportDistance * teleportDistance)) {
-        this.mob.getLookControl().lookAt(owner, 10.0f, this.mob.getMaxLookPitchChange());
+        float lookYaw = hesitating ? HESITATION_LOOK_YAW : 10.0f;
+        this.mob.getLookControl().lookAt(owner, lookYaw, this.mob.getMaxLookPitchChange());
 
         if (this.mob.squaredDistanceTo(owner) > (teleportDistance * teleportDistance)) {
-            // Try to teleport if too far
             this.mob.teleport(owner.getX(), owner.getY(), owner.getZ(), false);
             return;
         }
 
-        if (hesitating && this.tameable.squaredDistanceTo(owner) <= (HESITATION_CLEAR_DISTANCE * HESITATION_CLEAR_DISTANCE)) {
+        if (hesitating && this.mob.squaredDistanceTo(owner) <= (HESITATION_CLEAR_DISTANCE * HESITATION_CLEAR_DISTANCE)) {
             OwnerAssistAttackGoal.clearAssistHesitation(petComponent);
         }
 
-        if (this.tameable.getNavigation().isIdle()) {
-            double adjustedSpeed = hesitating ? this.speed + HESITATION_SPEED_BOOST : this.speed;
-            this.tameable.getNavigation().startMovingTo(owner, adjustedSpeed);
         if (this.mob.getNavigation().isIdle()) {
-            this.mob.getNavigation().startMovingTo(owner, this.speed);
+            double adjustedSpeed = hesitating ? this.speed + HESITATION_SPEED_BOOST : this.speed;
+            this.mob.getNavigation().startMovingTo(owner, adjustedSpeed);
         }
 
-        // Check if pet is stuck
         if (!this.mob.getNavigation().isFollowingPath()) {
             stuckCounter++;
-
-            // If stuck for too long, try alternative pathfinding
-            if (stuckCounter > 60) {  // 3 seconds
+            if (stuckCounter > 60) {
                 tryAlternativePathfinding(owner);
                 stuckCounter = 0;
             }
@@ -133,12 +153,11 @@ public class EnhancedFollowOwnerGoal extends Goal {
             stuckCounter = 0;
         }
     }
-    
+
     /**
      * Try alternative pathfinding when pet gets stuck.
      */
     private void tryAlternativePathfinding(PlayerEntity owner) {
-        // Temporarily reduce pathfinding penalties for emergency navigation
         float oldWaterPenalty = this.mob.getPathfindingPenalty(PathNodeType.WATER);
         float oldFencePenalty = this.mob.getPathfindingPenalty(PathNodeType.FENCE);
 
@@ -146,28 +165,24 @@ public class EnhancedFollowOwnerGoal extends Goal {
         this.mob.setPathfindingPenalty(PathNodeType.FENCE, -2.0f);
         this.mob.setPathfindingPenalty(PathNodeType.DOOR_WOOD_CLOSED, -1.0f);
 
-        // Try pathfinding with reduced penalties
         boolean success = this.mob.getNavigation().startMovingTo(owner, this.speed);
 
-        // Restore original penalties after a short delay
-        this.mob.getWorld().getServer().execute(() -> {
-            this.mob.setPathfindingPenalty(PathNodeType.WATER, oldWaterPenalty);
-            this.mob.setPathfindingPenalty(PathNodeType.FENCE, oldFencePenalty);
-            this.mob.setPathfindingPenalty(PathNodeType.DOOR_WOOD_CLOSED, 0.0f);
-        });
+        if (this.mob.getWorld().getServer() != null) {
+            this.mob.getWorld().getServer().execute(() -> {
+                this.mob.setPathfindingPenalty(PathNodeType.WATER, oldWaterPenalty);
+                this.mob.setPathfindingPenalty(PathNodeType.FENCE, oldFencePenalty);
+                this.mob.setPathfindingPenalty(PathNodeType.DOOR_WOOD_CLOSED, 0.0f);
+            });
+        }
 
-        // If still can't path, consider teleporting if distance is reasonable
         if (!success) {
-            double distance = this.tameable.squaredDistanceTo(owner);
-            if (distance > (activeFollowDistance * activeFollowDistance) && distance < (teleportDistance * teleportDistance)) {
             double distance = this.mob.squaredDistanceTo(owner);
-            if (distance > (followDistance * followDistance) && distance < (teleportDistance * teleportDistance)) {
-                // Try to find a safe teleport location
+            if (distance > (activeFollowDistance * activeFollowDistance) && distance < (teleportDistance * teleportDistance)) {
                 tryEmergencyTeleport(owner);
             }
         }
     }
-    
+
     /**
      * Emergency teleport when normal pathfinding fails.
      */
@@ -175,15 +190,12 @@ public class EnhancedFollowOwnerGoal extends Goal {
         WorldView world = this.mob.getWorld();
         BlockPos ownerPos = owner.getBlockPos();
 
-        // Try positions around the owner
         for (int i = 0; i < 10; i++) {
             int x = ownerPos.getX() + this.mob.getRandom().nextInt(7) - 3;
             int z = ownerPos.getZ() + this.mob.getRandom().nextInt(7) - 3;
             int y = ownerPos.getY();
 
             BlockPos teleportPos = new BlockPos(x, y, z);
-
-            // Check if the position is safe for teleportation
             if (isSafeTeleportLocation(world, teleportPos)) {
                 this.mob.teleport(x + 0.5, y, z + 0.5, false);
                 this.mob.getNavigation().stop();
@@ -191,12 +203,11 @@ public class EnhancedFollowOwnerGoal extends Goal {
             }
         }
     }
-    
+
     /**
      * Check if a position is safe for pet teleportation.
      */
     private boolean isSafeTeleportLocation(WorldView world, BlockPos pos) {
-        // Check if there's solid ground and space for the pet
         return world.getBlockState(pos.down()).isSolidBlock(world, pos.down()) &&
                world.getBlockState(pos).isAir() &&
                world.getBlockState(pos.up()).isAir() &&

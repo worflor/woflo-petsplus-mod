@@ -757,6 +757,8 @@ public class PetComponent {
         }
 
         return null;
+    }
+
     /**
      * Retrieve a persistent inventory for this pet, resizing as needed.
      *
