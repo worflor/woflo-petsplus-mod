@@ -43,6 +43,7 @@ public class PetComponent {
     private final MobEntity pet;
     private Identifier roleId;
     private PlayerEntity owner;
+    private UUID ownerUuid;
     private final Map<String, Long> cooldowns;
     private final Map<String, Object> stateData;
     private final Map<String, DefaultedList<ItemStack>> inventories;
@@ -255,11 +256,42 @@ public class PetComponent {
 
     @Nullable
     public PlayerEntity getOwner() {
+        if (owner != null && owner.isRemoved()) {
+            owner = null;
+        }
+        if (owner == null && ownerUuid != null && pet.getWorld() instanceof ServerWorld serverWorld) {
+            PlayerEntity resolved = serverWorld.getPlayerByUuid(ownerUuid);
+            if (resolved != null) {
+                owner = resolved;
+            }
+        }
         return owner;
     }
-    
+
     public void setOwner(@Nullable PlayerEntity owner) {
         this.owner = owner;
+        this.ownerUuid = owner != null ? owner.getUuid() : null;
+        setStateData("petsplus:owner_uuid", owner != null ? owner.getUuidAsString() : "");
+    }
+
+    public void setOwnerUuid(@Nullable UUID ownerUuid) {
+        this.ownerUuid = ownerUuid;
+        setStateData("petsplus:owner_uuid", ownerUuid != null ? ownerUuid.toString() : "");
+        if (ownerUuid == null) {
+            this.owner = null;
+            return;
+        }
+        if (pet.getWorld() instanceof ServerWorld serverWorld) {
+            PlayerEntity player = serverWorld.getPlayerByUuid(ownerUuid);
+            if (player != null) {
+                this.owner = player;
+            }
+        }
+    }
+
+    @Nullable
+    public UUID getOwnerUuid() {
+        return this.ownerUuid;
     }
     
     public boolean isOwnedBy(@Nullable PlayerEntity player) {
@@ -1049,6 +1081,17 @@ public class PetComponent {
                     stateDataNbt.getBoolean(key).ifPresent(value -> stateData.put(key, value));
                 }
             });
+        }
+
+        String ownerId = getStateData("petsplus:owner_uuid", String.class, "");
+        if (ownerId != null && !ownerId.isEmpty()) {
+            try {
+                setOwnerUuid(UUID.fromString(ownerId));
+            } catch (IllegalArgumentException ignored) {
+                setOwnerUuid(null);
+            }
+        } else {
+            setOwnerUuid(null);
         }
         
         

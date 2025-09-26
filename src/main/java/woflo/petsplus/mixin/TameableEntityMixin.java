@@ -70,11 +70,13 @@ public abstract class TameableEntityMixin implements PetsplusTameable {
             petsplus$self().setOwner((LivingEntity) null);
             PetComponent component = petsplus$getComponent();
             component.setOwner(null);
+            component.setOwnerUuid(null);
             component.setStateData("petsplus:owner_uuid", "");
             return;
         }
         PetComponent component = petsplus$getComponent();
         component.setStateData("petsplus:owner_uuid", ownerUuid.toString());
+        component.setOwnerUuid(ownerUuid);
         if (petsplus$self().getWorld() instanceof ServerWorld serverWorld) {
             PlayerEntity player = serverWorld.getPlayerByUuid(ownerUuid);
             if (player != null) {
@@ -95,9 +97,11 @@ public abstract class TameableEntityMixin implements PetsplusTameable {
         PetComponent component = petsplus$getComponent();
         if (owner instanceof PlayerEntity player) {
             component.setOwner(player);
+            component.setOwnerUuid(player.getUuid());
             component.setStateData("petsplus:owner_uuid", player.getUuidAsString());
         } else {
             component.setOwner(null);
+            component.setOwnerUuid(null);
             component.setStateData("petsplus:owner_uuid", "");
         }
     }

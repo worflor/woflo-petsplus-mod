@@ -67,9 +67,8 @@ public final class ComponentBackedTameableBridge {
         boolean changed = ownerUuid == null ? this.ownerUuid != null : !ownerUuid.equals(this.ownerUuid);
         this.ownerUuid = ownerUuid;
         PetComponent component = PetComponent.getOrCreate(this.mob);
-        if (ownerUuid == null) {
-            component.setOwner(null);
-        } else if (this.mob.getWorld() instanceof ServerWorld serverWorld) {
+        component.setOwnerUuid(ownerUuid);
+        if (ownerUuid != null && this.mob.getWorld() instanceof ServerWorld serverWorld) {
             PlayerEntity player = serverWorld.getPlayerByUuid(ownerUuid);
             if (player != null) {
                 component.setOwner(player);
@@ -100,6 +99,11 @@ public final class ComponentBackedTameableBridge {
         PetComponent component = PetComponent.getOrCreate(this.mob);
         if (owner instanceof PlayerEntity player) {
             component.setOwner(player);
+            component.setOwnerUuid(player.getUuid());
+        }
+        if (!(owner instanceof PlayerEntity)) {
+            component.setOwner(null);
+            component.setOwnerUuid(null);
         }
         this.sync();
         return changed;
