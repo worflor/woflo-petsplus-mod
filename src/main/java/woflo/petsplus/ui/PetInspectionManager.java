@@ -6,6 +6,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.text.MutableText;
+import net.minecraft.text.TextColor;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.state.PetComponent;
 import net.minecraft.entity.boss.BossBar;
@@ -325,6 +326,13 @@ public final class PetInspectionManager {
      */
     private static void showEmotionPoolScoreboard(ServerPlayerEntity player, PetComponent comp, String petName) {
         var emotions = comp.getEmotionPoolDebug();
+        var paletteStops = comp.getEmotionPalette();
+        TextColor headerColor = paletteStops.isEmpty()
+                ? TextColor.fromFormatting(Formatting.YELLOW)
+                : paletteStops.get(0).color();
+        TextColor accentColor = paletteStops.size() > 1
+                ? paletteStops.get(1).color()
+                : headerColor;
 
         // Create or update scoreboard objective
         var scoreboard = player.getServer().getScoreboard();
@@ -347,12 +355,14 @@ public final class PetInspectionManager {
         }
 
         // Add pet name header
-        String header = "§e" + petName + " [" + comp.getMoodLevel() + "]";
+        String header = toSectionColor(headerColor, "§e") + petName + " [" + comp.getMoodLevel() + "]";
         ScoreHolder headerHolder = ScoreHolder.fromName(header);
         scoreboard.getOrCreateScore(headerHolder, objective).setScore(15);
 
         // Add current mood
-        String moodLine = "§7Mood: " + comp.getCurrentMood().name().toLowerCase();
+        String moodLine = "§7Mood: "
+                + toSectionColor(accentColor, "§f")
+                + comp.getCurrentMood().name().toLowerCase();
         ScoreHolder moodHolder = ScoreHolder.fromName(moodLine);
         scoreboard.getOrCreateScore(moodHolder, objective).setScore(14);
 
@@ -370,14 +380,11 @@ public final class PetInspectionManager {
             for (var emotionInfo : emotions) {
                 if (score < 1) break; // Scoreboard limit
 
-                // Color by weight intensity
-                String color = emotionInfo.weight() > 2.0f ? "§c" : // Red
-                              emotionInfo.weight() > 1.0f ? "§e" : // Yellow
-                              "§f"; // White
-
-                String parkedMarker = emotionInfo.parked() ? "§b*" : "";
-                String line = color + emotionInfo.emotion().name().toLowerCase() +
-                             " §7(" + String.format("%.2f", emotionInfo.weight()) + ")" + parkedMarker;
+                TextColor emotionColor = PetComponent.getEmotionColor(emotionInfo.emotion());
+                String color = toSectionColor(emotionColor, "§f");
+                String parkedMarker = emotionInfo.parked() ? toSectionColor(PetComponent.getEmotionAccentColor(emotionInfo.emotion()), "§b") + "*" : "";
+                String line = color + emotionInfo.emotion().name().toLowerCase()
+                             + " §7(" + String.format("%.2f", emotionInfo.weight()) + ")" + parkedMarker;
 
                 ScoreHolder emotionHolder = ScoreHolder.fromName(line);
                 scoreboard.getOrCreateScore(emotionHolder, objective).setScore(score--);
@@ -405,5 +412,18 @@ public final class PetInspectionManager {
      */
     public static void shutdown() {
         inspecting.clear();
+    }
+
+    private static String toSectionColor(TextColor color, String fallback) {
+        if (color == null) {
+            return fallback;
+        }
+        int rgb = color.getRgb() & 0xFFFFFF;
+        String hex = String.format("%06X", rgb);
+        StringBuilder builder = new StringBuilder("§x");
+        for (char c : hex.toCharArray()) {
+            builder.append('§').append(c);
+        }
+        return builder.toString();
     }
 }
