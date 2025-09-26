@@ -72,6 +72,35 @@ Mood intensity varies based on the strength of these emotional weights.
 - longing / resilient / aspiration 
 
 
+## Natures
+Pets come with distinct natures based on the conditions found when being tamed or born.
+### Wild Natures
+1. Frozen
+2. Feral
+3. Fierce
+### Bred Natures
+4. Radiant
+5. Festival
+6. Infernal
+7. Otherworldly
+8. Hearth
+9. Nocturne
+10. Tempest
+11. Solace
+12. Echoed
+13. Mycelial
+14. Gilded
+15. Gloom
+16. Verdant
+17. Summit
+18. Tidal 
+19. Molten
+20. Frosty
+21. Mire
+22. Relic
+23. Unnatural
+
+
 ## Advancements
 - "Best Friends Forever++"
 - "Trial-Ready"
