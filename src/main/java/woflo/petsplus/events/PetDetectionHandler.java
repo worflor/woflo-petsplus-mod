@@ -6,6 +6,7 @@ import net.minecraft.entity.passive.FoxEntity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
@@ -14,6 +15,7 @@ import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.stats.nature.PetNatureSelector;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
@@ -286,15 +288,28 @@ public class PetDetectionHandler {
 
         // Check if this pet already has a role assigned
         PetComponent existingComponent = PetComponent.get(mob);
+        boolean hasRegisteredRole = false;
         if (existingComponent != null && !pendingRoleSelection.containsKey(mob)) {
             Identifier roleId = existingComponent.getRoleId();
-            if (PetsPlusRegistries.petRoleTypeRegistry().get(roleId) != null) {
-                return; // Already registered
-            }
+            hasRegisteredRole = PetsPlusRegistries.petRoleTypeRegistry().get(roleId) != null;
         }
 
-        // Prompt player for role selection
-        promptRoleSelection(mob, owner);
+        if (!hasRegisteredRole) {
+            // Prompt player for role selection
+            promptRoleSelection(mob, owner);
+        }
+
+        if (mob.getWorld() instanceof ServerWorld serverWorld) {
+            PetComponent component = existingComponent != null ? existingComponent : PetComponent.getOrCreate(mob);
+            if (component.getNatureId() == null) {
+                PetNatureSelector.TameContext context = PetNatureSelector.captureTameContext(serverWorld, mob);
+                Identifier wildNature = PetNatureSelector.selectTameNature(mob, context);
+                if (wildNature != null) {
+                    component.setNatureId(wildNature);
+                    component.setStateData(PetComponent.StateKeys.WILD_ASSIGNED_NATURE, wildNature.toString());
+                }
+            }
+        }
     }
     
     /**

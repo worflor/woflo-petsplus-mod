@@ -189,6 +189,8 @@ public class PetComponent {
         public static final String BREEDING_BIRTH_NEARBY_PET_COUNT = "breeding_birth_nearby_pet_count";
         public static final String BREEDING_BIRTH_DIMENSION = "breeding_birth_dimension";
         public static final String BREEDING_ASSIGNED_NATURE = "breeding_assigned_nature";
+        public static final String ASSIGNED_NATURE = "assigned_nature";
+        public static final String WILD_ASSIGNED_NATURE = "wild_assigned_nature";
 
         private StateKeys() {}
     }
@@ -651,6 +653,21 @@ public class PetComponent {
         setStateDataInternal(key, value, true);
     }
 
+    public void clearStateData(String key) {
+        if (!stateData.containsKey(key)) {
+            return;
+        }
+
+        stateData.remove(key);
+
+        if (shouldInvalidateSpeciesDescriptor(key)) {
+            refreshSpeciesDescriptor();
+        }
+        if (shouldInvalidateFlightCapability(key)) {
+            this.flightCapabilityDirty = true;
+        }
+    }
+
     private void setStateDataSilently(String key, Object value) {
         setStateDataInternal(key, value, false);
     }
@@ -709,6 +726,35 @@ public class PetComponent {
             return (T) value;
         }
         return defaultValue;
+    }
+
+    /**
+     * Returns the currently assigned pet nature, if any.
+     */
+    public @Nullable Identifier getNatureId() {
+        Identifier direct = getStateData(StateKeys.ASSIGNED_NATURE, Identifier.class);
+        if (direct != null) {
+            return direct;
+        }
+
+        String stored = getStateData(StateKeys.ASSIGNED_NATURE, String.class);
+        if (stored == null || stored.isBlank()) {
+            return null;
+        }
+
+        return Identifier.tryParse(stored);
+    }
+
+    /**
+     * Persist a nature identifier for the pet. Passing {@code null} clears the nature.
+     */
+    public void setNatureId(@Nullable Identifier natureId) {
+        if (natureId == null) {
+            clearStateData(StateKeys.ASSIGNED_NATURE);
+            return;
+        }
+
+        setStateData(StateKeys.ASSIGNED_NATURE, natureId.toString());
     }
 
     private Identifier computeSpeciesDescriptor() {
