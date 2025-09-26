@@ -37,10 +37,10 @@ These hooks give the nature picker deterministic access to when, where, and how 
 | **Summit** | Birth height ≥ Y=100 with open sky | +6% speed | +3% agility | Performs short skyline hops and radiates Exultant moods atop high perches. |
 | **Tidal** | Fully submerged ocean-biome birth | +6% swim speed | +3% health | Trails bubble rings when content and inspires Buoyant mood ripples underwater. |
 | **Molten** | Lava or magma blocks within range | +6% attack | +2% defense | Shakes off sparks and keeps Tempered mood embers glowing near magma. |
-| **Frost** | Snowing biome or powder snow contact | +6% defense | +3% speed | Exhales frosty breath plumes and stirs Crisp mood breezes in wintry zones. |
+| **Frosty** | Snowing biome or powder snow contact | +6% defense | +3% speed | Exhales frosty breath plumes and stirs Crisp mood breezes in wintry zones. |
 | **Mire** | Mud, mangrove, or swamp tags nearby | +5% health | +3% vitality | Splashes through muck with delight, spreading Mirthful mood ripples across wetlands. |
 | **Relic** | Generated over a major structure (e.g., Stronghold) | +5% focus | +2% defense | Chimes softly near carved stonework and kindles Insightful mood sparks when secrets lurk. |
-| **Untamed** | Neither parent had an owner at birth | +6% speed | +3% agility | Ranges wide before circling back and shares Adventurous mood surges during long treks. |
+| **Unnatural** | Neither parent had an owner at birth | +6% speed | +3% agility | Ranges wide before circling back and shares Adventurous mood surges during long treks. |
 
 ### Tuning guidelines
 - Keep multipliers modest and positive; natures should feel like flavorful lean-ins rather than mandatory power picks.
