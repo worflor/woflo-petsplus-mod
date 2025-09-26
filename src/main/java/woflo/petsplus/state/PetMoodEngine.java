@@ -203,6 +203,25 @@ final class PetMoodEngine {
         refreshContextGuards(record, now, delta);
     }
 
+    void addContagionShare(PetComponent.Emotion emotion, float amount) {
+        long now = parent.getPet().getWorld().getTime();
+        float bondFactor = parent.computeBondResilience(now);
+        addContagionShare(emotion, amount, now, bondFactor);
+    }
+
+    void addContagionShare(PetComponent.Emotion emotion, float amount, long now, float bondFactor) {
+        if (amount == 0f) {
+            return;
+        }
+        EmotionRecord record = emotionRecords.computeIfAbsent(emotion, e -> new EmotionRecord(e, now));
+        record.applyDecay(now);
+
+        float cap = computeContagionCap(MathHelper.clamp(bondFactor, 0.35f, 1.0f));
+        float updated = MathHelper.clamp(record.contagionShare + amount, -cap, cap);
+        record.contagionShare = updated;
+        record.lastUpdateTime = now;
+    }
+
     float getMoodStrength(PetComponent.Mood mood) {
         update();
         return MathHelper.clamp(moodBlend.getOrDefault(mood, 0f), 0f, 1f);
@@ -684,11 +703,11 @@ final class PetMoodEngine {
                 MathHelper.clamp(bondMultiplier * careMultiplier, 0.75f, 1.25f));
 
         // Danger guard from stored threat telemetry
-        Long lastDanger = parent.getStateData(PetComponent.StateKeys.THREAT_LAST_DANGER, Long.class);
+        long lastDangerTick = parent.getStateData(PetComponent.StateKeys.THREAT_LAST_DANGER, Long.class, Long.MIN_VALUE);
         int dangerStreak = parent.getStateData(PetComponent.StateKeys.THREAT_SENSITIZED_STREAK, Integer.class, 0);
         float dangerMultiplier = 1.0f;
-        if (lastDanger != null && lastDanger > 0) {
-            float dangerAge = Math.max(0f, now - lastDanger);
+        if (lastDangerTick > Long.MIN_VALUE && lastDangerTick <= now) {
+            float dangerAge = Math.max(0f, now - lastDangerTick);
             float streakBias = Math.min(0.35f, dangerStreak * 0.05f);
             float decay = (float) Math.exp(-dangerAge / DANGER_HALF_LIFE);
             dangerMultiplier = 0.85f + streakBias + 0.2f * decay;
@@ -733,6 +752,12 @@ final class PetMoodEngine {
 
     private float getImpactCap() {
         return computeImpactCap(new ArrayList<>(emotionRecords.values()));
+    }
+
+    private float computeContagionCap(float bondFactor) {
+        float impactCap = getImpactCap();
+        float scaled = impactCap * 0.1f * bondFactor;
+        return MathHelper.clamp(scaled, 0.05f, 0.6f);
     }
 
     private float[] getLevelThresholds() {

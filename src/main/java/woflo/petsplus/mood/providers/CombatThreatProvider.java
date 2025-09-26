@@ -43,7 +43,10 @@ public class CombatThreatProvider implements EmotionProvider {
         long lastThreatTick = comp.getStateData(PetComponent.StateKeys.THREAT_LAST_TICK, Long.class, Long.MIN_VALUE);
         int safeStreak = comp.getStateData(PetComponent.StateKeys.THREAT_SAFE_STREAK, Integer.class, 0);
         int sensitizedStreak = comp.getStateData(PetComponent.StateKeys.THREAT_SENSITIZED_STREAK, Integer.class, 0);
-        boolean lastEncounterDanger = comp.getStateData(PetComponent.StateKeys.THREAT_LAST_DANGER, Boolean.class, Boolean.FALSE);
+        long lastDangerTick = comp.getStateData(PetComponent.StateKeys.THREAT_LAST_DANGER, Long.class, Long.MIN_VALUE);
+        boolean lastEncounterDanger = lastThreatTick != Long.MIN_VALUE
+                && lastDangerTick != Long.MIN_VALUE
+                && lastDangerTick >= lastThreatTick;
         long lastRecoveryTick = comp.getStateData(PetComponent.StateKeys.THREAT_LAST_RECOVERY_TICK, Long.class, 0L);
 
         var owner = comp.getOwner();
@@ -93,7 +96,9 @@ public class CombatThreatProvider implements EmotionProvider {
             comp.setStateData(PetComponent.StateKeys.THREAT_SAFE_STREAK, safeStreak);
             comp.setStateData(PetComponent.StateKeys.THREAT_SENSITIZED_STREAK, sensitizedStreak);
             comp.setStateData(PetComponent.StateKeys.THREAT_LAST_TICK, time);
-            comp.setStateData(PetComponent.StateKeys.THREAT_LAST_DANGER, danger);
+            if (danger) {
+                comp.setStateData(PetComponent.StateKeys.THREAT_LAST_DANGER, time);
+            }
         } else {
             if (lastThreatTick != Long.MIN_VALUE) {
                 long sinceLast = time - lastThreatTick;
@@ -123,7 +128,7 @@ public class CombatThreatProvider implements EmotionProvider {
                     
                     if (sinceLast > MEMORY_FADE_TICKS * 2L) {
                         comp.setStateData(PetComponent.StateKeys.THREAT_LAST_TICK, Long.MIN_VALUE);
-                        comp.setStateData(PetComponent.StateKeys.THREAT_LAST_DANGER, false);
+                        comp.setStateData(PetComponent.StateKeys.THREAT_LAST_DANGER, Long.MIN_VALUE);
                     }
                 }
             }

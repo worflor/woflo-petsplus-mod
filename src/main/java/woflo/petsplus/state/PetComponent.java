@@ -592,6 +592,9 @@ public class PetComponent {
     /** Push an emotion with additive weight; creates or refreshes a slot. */
     public void pushEmotion(Emotion emotion, float amount) { moodEngine.pushEmotion(emotion, amount); }
 
+    /** Apply mirrored pack contagion influence for an emotion. */
+    public void addContagionShare(Emotion emotion, float amount) { moodEngine.addContagionShare(emotion, amount); }
+
     // All slot management lives in PetMoodEngine
 
     // Removed legacy per-tick direct mood scoring methods in favor of emotion aggregation
