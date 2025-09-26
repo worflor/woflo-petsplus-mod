@@ -3,29 +3,54 @@ package woflo.petsplus.events;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.damage.DamageSource;
+import net.minecraft.entity.mob.BlazeEntity;
+import net.minecraft.entity.mob.CreeperEntity;
+import net.minecraft.entity.mob.GhastEntity;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.mob.PhantomEntity;
+import net.minecraft.entity.mob.VexEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.projectile.PersistentProjectileEntity;
+import net.minecraft.entity.passive.TameableEntity;
+import net.minecraft.registry.Registries;
+import net.minecraft.registry.RegistryKeys;
+import net.minecraft.registry.tag.TagKey;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.abilities.AbilityManager;
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.ai.goals.OwnerAssistAttackGoal;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.tags.PetsplusEntityTypeTags;
+
+import java.util.Comparator;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Handles combat-related events and triggers pet abilities accordingly.
  */
 public class CombatEventHandler {
+
+    private static final Map<EntityType<?>, Boolean> FLYER_TYPE_CACHE = new ConcurrentHashMap<>();
 
     private static final String CHIP_DAMAGE_ACCUM_KEY = "restless_chip_accum";
     private static final String CHIP_DAMAGE_LAST_TICK_KEY = "restless_chip_last_tick";
@@ -37,7 +62,13 @@ public class CombatEventHandler {
     private static final float CHIP_DAMAGE_DECAY_STEP = 0.18f;     // Amount removed per decay interval
     private static final float CHIP_DAMAGE_BASE_STARTLE = 0.03f;
     private static final float CHIP_DAMAGE_STARTLE_SCALE = 0.50f;
-    
+    private static final int OWNER_ASSIST_TARGET_TTL = 160;
+    private static final int OWNER_ASSIST_CHAIN_LIMIT = 3;
+    private static final double OWNER_ASSIST_BROADCAST_RADIUS = 24.0;
+    private static final double OWNER_ASSIST_CHAIN_RADIUS = 5.0;
+    private static final int OWNER_INTERCEPT_COOLDOWN_TICKS = 40;
+    private static final TagKey<EntityType<?>> VANILLA_CREEPER_SOOTHER_TAG = TagKey.of(RegistryKeys.ENTITY_TYPE, Identifier.of("minecraft", "scares_creepers"));
+
     public static void register() {
         // Register damage events
         ServerLivingEntityEvents.ALLOW_DAMAGE.register(CombatEventHandler::onDamageReceived);
@@ -104,7 +135,8 @@ public class CombatEventHandler {
     private static void handleOwnerDamageReceived(PlayerEntity owner, DamageSource damageSource, float amount) {
         OwnerCombatState combatState = OwnerCombatState.getOrCreate(owner);
         combatState.onHitTaken();
-        
+        long now = owner.getWorld().getTime();
+
         // Trigger low health events if needed
         float healthAfter = owner.getHealth() - amount;
         float maxHealth = Math.max(1f, owner.getMaxHealth());
@@ -121,7 +153,6 @@ public class CombatEventHandler {
         float ownerDangerFactor = missingHealthFactor((float) healthPct, 0.6f);
 
         // Push emotions to nearby owned pets: threat/aversion and protectiveness
-        long now = owner.getWorld().getTime();
         owner.getWorld().getEntitiesByClass(MobEntity.class,
             owner.getBoundingBox().expand(32),
             mob -> {
@@ -159,12 +190,16 @@ public class CombatEventHandler {
                 pc.pushEmotion(PetComponent.Emotion.FOREBODING, forebodingWeight);
             }
         });
+
+        maybeCommandIntercept(owner, combatState, damageSource, now);
     }
     
     private static void handleOwnerDealtDamage(PlayerEntity owner, LivingEntity victim, float damage) {
         OwnerCombatState combatState = OwnerCombatState.getOrCreate(owner);
         combatState.enterCombat();
-        
+        long now = owner.getWorld().getTime();
+        combatState.markOwnerInterference(now);
+
         // Apply Striker execution fallback
         float modifiedDamage = woflo.petsplus.roles.striker.StrikerExecutionFallback.applyOwnerExecuteBonus(owner, victim, damage);
         
@@ -175,7 +210,15 @@ public class CombatEventHandler {
         float victimHealthAfter = victim.getHealth() - modifiedDamage;
         float victimMaxHealth = Math.max(1f, victim.getMaxHealth());
         double victimHealthPct = victimHealthAfter / victimMaxHealth;
-        
+        float intensity = damageIntensity(modifiedDamage, victimMaxHealth);
+        float finishFactor = missingHealthFactor((float) victimHealthPct, 0.35f);
+        boolean victimIsHostile = victim instanceof HostileEntity;
+        float ownerHealthRatio = owner.getMaxHealth() <= 0f ? 1f : owner.getHealth() / owner.getMaxHealth();
+        float ownerPeril = MathHelper.clamp(1f - ownerHealthRatio, 0f, 1f);
+        boolean ownerRecentlyHit = combatState.recentlyDamaged(now, 80);
+        float aggressionSignal = MathHelper.clamp(0.38f + 0.45f * intensity + 0.20f * (victimIsHostile ? 1f : 0f) + 0.15f * finishFactor, 0f, 1f);
+        float urgencySignal = MathHelper.clamp((victimIsHostile ? 0.25f : 0.10f) + 0.30f * finishFactor + 0.35f * ownerPeril + (ownerRecentlyHit ? 0.20f : 0f), 0f, 1f);
+
         // Create trigger context
         TriggerContext context = new TriggerContext(
             (net.minecraft.server.world.ServerWorld) owner.getWorld(),
@@ -189,17 +232,29 @@ public class CombatEventHandler {
         // Trigger abilities for nearby pets
         triggerNearbyPetAbilities(owner, context);
 
+        if (owner.getWorld() instanceof ServerWorld) {
+            if (victim instanceof MobEntity victimMob) {
+                PetComponent victimComponent = PetComponent.get(victimMob);
+                if (victimComponent != null && victimComponent.isOwnedBy(owner)) {
+                    combatState.clearAggroTarget();
+                } else {
+                    combatState.rememberAggroTarget(victim, now, OWNER_ASSIST_TARGET_TTL, true, aggressionSignal, urgencySignal, victimIsHostile);
+                    notifyPetsOfOwnerTarget(owner, victim, now);
+                }
+            } else {
+                combatState.rememberAggroTarget(victim, now, OWNER_ASSIST_TARGET_TTL, true, aggressionSignal, urgencySignal, victimIsHostile);
+                notifyPetsOfOwnerTarget(owner, victim, now);
+            }
+        }
+
         // Emotions: combat engagement for nearby owned pets
-        float intensity = damageIntensity(modifiedDamage, victimMaxHealth);
-        float finishFactor = missingHealthFactor((float) victimHealthPct, 0.35f);
-        boolean victimIsHostile = victim instanceof HostileEntity;
+        
 
         // Check if victim is one of the owner's pets
         final boolean victimIsOwnersPet = victim instanceof MobEntity victimMob &&
             PetComponent.get(victimMob) != null &&
             PetComponent.get(victimMob).isOwnedBy(owner);
 
-        long now = owner.getWorld().getTime();
         owner.getWorld().getEntitiesByClass(MobEntity.class,
             owner.getBoundingBox().expand(32),
             mob -> {
@@ -728,6 +783,473 @@ public class CombatEventHandler {
             Petsplus.LOGGER.debug("Pet {} killed {}, pushed triumphant emotions",
                 pet.getName().getString(), victim.getType().toString());
         }
+
+        attemptOwnerAssistChain(pet, petComponent, victim);
+    }
+
+    private static void notifyPetsOfOwnerTarget(PlayerEntity owner, LivingEntity target, long now) {
+        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+
+        serverWorld.getEntitiesByClass(MobEntity.class,
+            owner.getBoundingBox().expand(OWNER_ASSIST_BROADCAST_RADIUS),
+            mob -> {
+                if (mob == null || mob.equals(target) || mob.isRemoved() || !mob.isAlive()) {
+                    return false;
+                }
+                PetComponent pc = PetComponent.get(mob);
+                if (pc == null || !pc.isOwnedBy(owner)) {
+                    return false;
+                }
+                if (mob instanceof net.minecraft.entity.passive.TameableEntity tameable && tameable.isSitting()) {
+                    return false;
+                }
+                return true;
+            }
+        ).forEach(pet -> {
+            PetComponent pc = PetComponent.get(pet);
+            if (pc != null) {
+                if (OwnerAssistAttackGoal.isPetHesitating(pc, now) || OwnerAssistAttackGoal.isPetRegrouping(pc, now)) {
+                    OwnerAssistAttackGoal.clearAssistHesitation(pc);
+                    OwnerAssistAttackGoal.clearAssistRegroup(pc);
+                }
+                if (pc.getMoodStrength(PetComponent.Mood.AFRAID) > 0.96f) {
+                    OwnerAssistAttackGoal.markAssistHesitation(pc, now);
+                    return;
+                }
+                pc.setLastAttackTick(now);
+            }
+
+            if (pet.getTarget() != target) {
+                pet.setTarget(target);
+            }
+
+            double distanceSq = pet.squaredDistanceTo(target);
+            if (distanceSq > 9.0d || !pet.getNavigation().isFollowingPath()) {
+                OwnerAssistAttackGoal.primeNavigationForAssist(pet, target);
+            }
+        });
+    }
+
+    private static void attemptOwnerAssistChain(MobEntity pet, PetComponent petComponent, LivingEntity defeatedTarget) {
+        PlayerEntity owner = petComponent.getOwner();
+        if (owner == null || !(owner.getWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+
+        OwnerCombatState combatState = OwnerCombatState.get(owner);
+        if (combatState == null) {
+            return;
+        }
+
+        long now = serverWorld.getTime();
+
+        if (!combatState.isAggroTarget(defeatedTarget.getUuid())) {
+            // The pet finished off something other than the active owner target; ignore and keep the snapshot.
+            return;
+        }
+
+        if (!combatState.canChainAssist(OWNER_ASSIST_CHAIN_LIMIT)) {
+            handleAssistChainFinished(pet, petComponent, owner, combatState, now, true, true);
+            return;
+        }
+
+        if (OwnerAssistAttackGoal.isPetRegrouping(petComponent, now)) {
+            handleAssistChainFinished(pet, petComponent, owner, combatState, now, false, true);
+            return;
+        }
+
+        if (pet instanceof net.minecraft.entity.passive.TameableEntity tameable && tameable.isSitting()) {
+            handleAssistChainFinished(pet, petComponent, owner, combatState, now, false, false);
+            return;
+        }
+
+        boolean petCanFly = canPetEngageAirborneTarget(pet, petComponent);
+        double attackAttribute = pet.getAttributeValue(EntityAttributes.ATTACK_DAMAGE);
+        double petAttackDamage = Double.isNaN(attackAttribute) ? 0.0 : Math.max(0.0, attackAttribute);
+
+        float fear = petComponent.getMoodStrength(PetComponent.Mood.AFRAID);
+        float protective = petComponent.getMoodStrength(PetComponent.Mood.PROTECTIVE);
+        float angry = petComponent.getMoodStrength(PetComponent.Mood.ANGRY);
+        float restless = petComponent.getMoodStrength(PetComponent.Mood.RESTLESS);
+        float passionate = petComponent.getMoodStrength(PetComponent.Mood.PASSIONATE);
+        float focused = petComponent.getMoodStrength(PetComponent.Mood.FOCUSED);
+        float sisu = petComponent.getMoodStrength(PetComponent.Mood.SISU);
+        float calm = petComponent.getMoodStrength(PetComponent.Mood.CALM);
+        float saudade = petComponent.getMoodStrength(PetComponent.Mood.SAUDADE);
+        float yugen = petComponent.getMoodStrength(PetComponent.Mood.YUGEN);
+        float bonded = petComponent.getMoodStrength(PetComponent.Mood.BONDED);
+        if (fear > 0.90f) {
+            OwnerAssistAttackGoal.markAssistHesitation(petComponent, now);
+            handleAssistChainFinished(pet, petComponent, owner, combatState, now, false, true);
+            if (owner != null) {
+                pet.getNavigation().startMovingTo(owner, 1.05d);
+            }
+            return;
+        }
+
+        float ownerAggro = combatState.getActiveAggroAggression();
+        float ownerUrgency = combatState.getActiveAggroUrgency();
+        float positive = 0.45f * protective + 0.40f * angry + 0.30f * restless + 0.25f * passionate + 0.20f * sisu + 0.15f * focused + 0.15f * bonded;
+        float negative = 0.55f * fear + 0.35f * calm + 0.25f * saudade + 0.20f * yugen;
+        float baseDesire = MathHelper.clamp(positive + 0.35f * ownerAggro + 0.25f * ownerUrgency - negative + 0.12f, 0f, 1f);
+        if (baseDesire < 0.35f) {
+            handleAssistChainFinished(pet, petComponent, owner, combatState, now, false, false);
+            return;
+        }
+
+        double range = Math.max(OWNER_ASSIST_CHAIN_RADIUS, pet.getWidth() + 2.0);
+        var candidates = serverWorld.getEntitiesByClass(MobEntity.class,
+            defeatedTarget.getBoundingBox().expand(range),
+            mob -> {
+                if (mob == null || mob.equals(pet) || mob.equals(defeatedTarget) || !mob.isAlive() || mob.isRemoved()) {
+                    return false;
+                }
+                PetComponent candidateComponent = PetComponent.get(mob);
+                if (candidateComponent != null && candidateComponent.isOwnedBy(owner)) {
+                    return false;
+                }
+                return mob.isAttackable()
+                    && isChainTargetViable(pet, mob, petComponent, owner, petCanFly, petAttackDamage);
+            }
+        );
+
+        if (candidates.isEmpty()) {
+            handleAssistChainFinished(pet, petComponent, owner, combatState, now, false, false);
+            return;
+        }
+
+        MobEntity nextTarget = candidates.stream()
+            .min(Comparator.comparingDouble(mob -> mob.squaredDistanceTo(defeatedTarget)))
+            .orElse(null);
+
+        if (nextTarget == null) {
+            handleAssistChainFinished(pet, petComponent, owner, combatState, now, false, false);
+            return;
+        }
+
+        boolean nextHostile = nextTarget instanceof HostileEntity;
+        float aggression = MathHelper.clamp(baseDesire * 0.45f + ownerAggro * 0.55f + (nextHostile ? 0.10f : -0.08f), 0f, 1f);
+        float urgency = MathHelper.clamp(ownerUrgency * 0.65f + baseDesire * 0.30f + (nextHostile ? 0.12f : 0.05f), 0f, 1f);
+        combatState.rememberAggroTarget(nextTarget, now, OWNER_ASSIST_TARGET_TTL, false, aggression, urgency, nextHostile);
+        combatState.incrementAssistChain(now);
+        pet.setTarget(nextTarget);
+        notifyPetsOfOwnerTarget(owner, nextTarget, now);
+    }
+
+    private static void handleAssistChainFinished(MobEntity pet, PetComponent petComponent, PlayerEntity owner,
+        OwnerCombatState combatState, long now, boolean reachedLimit, boolean applyRegroup) {
+        if (combatState != null) {
+            combatState.clearAggroTarget();
+            if (reachedLimit) {
+                combatState.resetAssistChain(now);
+            }
+        }
+
+        if (petComponent != null) {
+            float closeness = owner != null ? 0.35f + 0.65f * proximityFactor(owner, pet, 16.0) : 0.7f;
+            petComponent.pushEmotion(PetComponent.Emotion.RELIEF, scaledAmount(0.08f, 0.24f, closeness));
+            petComponent.pushEmotion(PetComponent.Emotion.LOYALTY, scaledAmount(0.10f, 0.26f, closeness));
+            if (applyRegroup) {
+                OwnerAssistAttackGoal.markAssistRegroup(petComponent, now);
+            } else {
+                OwnerAssistAttackGoal.clearAssistRegroup(petComponent);
+                OwnerAssistAttackGoal.clearAssistHesitation(petComponent);
+            }
+        }
+
+        if (owner != null && pet.isAlive()) {
+            double distSq = pet.squaredDistanceTo(owner);
+            if (distSq > 3.5d) {
+                pet.getNavigation().startMovingTo(owner, 1.1d);
+            }
+        }
+    }
+
+    private static void maybeCommandIntercept(PlayerEntity owner, OwnerCombatState combatState, DamageSource damageSource, long now) {
+        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+
+        LivingEntity attacker = null;
+        Entity source = damageSource.getSource();
+        Entity directAttacker = damageSource.getAttacker();
+        boolean rangedThreat = false;
+
+        if (source instanceof PersistentProjectileEntity projectile) {
+            rangedThreat = true;
+            if (projectile.getOwner() instanceof LivingEntity shooter) {
+                attacker = shooter;
+            }
+        }
+
+        if (attacker == null && directAttacker instanceof LivingEntity living) {
+            attacker = living;
+            rangedThreat = rangedThreat || owner.squaredDistanceTo(living) > 36.0d;
+        }
+
+        if (attacker == null || attacker.equals(owner)) {
+            return;
+        }
+
+        double attackerDistanceSq = owner.squaredDistanceTo(attacker);
+        if (!rangedThreat) {
+            rangedThreat = attackerDistanceSq > 36.0d;
+        }
+
+        if (owner.isTeammate(attacker)) {
+            return;
+        }
+
+        boolean attackerHostile = attacker instanceof HostileEntity;
+
+        if (attacker instanceof MobEntity mobAttacker) {
+            PetComponent attackerComponent = PetComponent.get(mobAttacker);
+            if (attackerComponent != null && attackerComponent.isOwnedBy(owner)) {
+                return;
+            }
+
+            if (mobAttacker instanceof TameableEntity tameable) {
+                LivingEntity tameOwner = tameable.getOwner();
+                if (tameOwner != null && tameOwner.equals(owner)) {
+                    return;
+                }
+            }
+
+            LivingEntity mobTarget = mobAttacker.getTarget();
+            if (!rangedThreat && mobTarget != null && mobTarget.equals(owner)) {
+                attackerHostile = true;
+            }
+        }
+
+        if (!rangedThreat && !attackerHostile) {
+            if (attacker instanceof PlayerEntity player) {
+                if (player.isSpectator() || owner.isSpectator()) {
+                    return;
+                }
+            } else if (attacker instanceof MobEntity mob) {
+                LivingEntity mobTarget = mob.getTarget();
+                if (mobTarget == null || !mobTarget.equals(owner)) {
+                    return;
+                }
+            } else {
+                return;
+            }
+        }
+
+        LivingEntity finalAttacker = attacker;
+        final boolean interceptAttackerHostile = attackerHostile;
+        serverWorld.getEntitiesByClass(MobEntity.class,
+            owner.getBoundingBox().expand(16.0),
+            mob -> {
+                if (mob == null || mob.equals(finalAttacker) || !mob.isAlive() || mob.isRemoved()) {
+                    return false;
+                }
+                PetComponent pc = PetComponent.get(mob);
+                if (pc == null || !pc.isOwnedBy(owner)) {
+                    return false;
+                }
+                if (mob instanceof TameableEntity tameable && tameable.isSitting()) {
+                    return false;
+                }
+                long cooldownUntil = pc.getStateData("assist_intercept_cooldown", Long.class, 0L);
+                return cooldownUntil <= now;
+            }
+        ).forEach(pet -> {
+            PetComponent pc = PetComponent.get(pet);
+            if (pc == null) {
+                return;
+            }
+
+            float protective = pc.getMoodStrength(PetComponent.Mood.PROTECTIVE);
+            float focused = pc.getMoodStrength(PetComponent.Mood.FOCUSED);
+            float afraid = pc.getMoodStrength(PetComponent.Mood.AFRAID);
+            if (afraid > 0.7f) {
+                return;
+            }
+            if (protective < 0.2f && focused < 0.2f) {
+                return;
+            }
+
+            Vec3d intercept = computeInterceptPoint(owner, finalAttacker);
+            double speed = MathHelper.clamp(1.0d + 0.3d * (protective + focused), 1.0d, 1.8d);
+            pet.getNavigation().startMovingTo(intercept.x, intercept.y, intercept.z, speed);
+
+            pc.setStateData("assist_intercept_cooldown", now + OWNER_INTERCEPT_COOLDOWN_TICKS);
+            pc.pushEmotion(PetComponent.Emotion.FOCUSED, scaledAmount(0.06f, 0.24f, protective + focused));
+            pc.pushEmotion(PetComponent.Emotion.VIGILANT, scaledAmount(0.05f, 0.22f, Math.max(0f, 1f - afraid)));
+
+            if (combatState != null) {
+                float aggression = MathHelper.clamp(0.48f + 0.25f * protective, 0f, 1f);
+                float urgency = MathHelper.clamp(0.35f + 0.20f * focused + (interceptAttackerHostile ? 0.12f : 0f), 0f, 1f);
+                combatState.rememberAggroTarget(finalAttacker, now, OWNER_ASSIST_TARGET_TTL, false, aggression, urgency, interceptAttackerHostile);
+            }
+        });
+    }
+
+    private static Vec3d computeInterceptPoint(PlayerEntity owner, LivingEntity attacker) {
+        Vec3d ownerPos = owner.getPos();
+        Vec3d attackerPos = attacker.getPos();
+        Vec3d direction = attackerPos.subtract(ownerPos);
+        double distance = direction.length();
+        if (distance < 1.0E-3) {
+            return ownerPos;
+        }
+        double step = MathHelper.clamp(distance * 0.5d, 1.5d, 3.5d);
+        return ownerPos.add(direction.normalize().multiply(step));
+    }
+
+    private static boolean isChainTargetViable(MobEntity pet, MobEntity candidate, PetComponent petComponent,
+        @Nullable PlayerEntity owner, boolean petCanFly, double petAttackDamage) {
+        if (candidate instanceof CreeperEntity creeper) {
+            if (!canPetSafelyChainToCreeper(creeper, petAttackDamage)
+                && !isPetOrPackCreeperProof(pet, petComponent, owner)) {
+                return false;
+            }
+        }
+
+        if (!petCanFly && isLikelyAirborne(candidate)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static boolean isPetOrPackCreeperProof(MobEntity pet, PetComponent petComponent, @Nullable PlayerEntity owner) {
+        if (isCatContext(pet, petComponent)) {
+            return true;
+        }
+
+        return hasNearbyCreeperProofAlly(pet, owner);
+    }
+
+    private static boolean hasNearbyCreeperProofAlly(MobEntity pet, @Nullable PlayerEntity owner) {
+        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
+            return false;
+        }
+
+        double radius = Math.max(4.0, pet.getWidth() + 3.0);
+        Box searchBox = pet.getBoundingBox().expand(radius);
+        return !serverWorld.getEntitiesByClass(MobEntity.class, searchBox, other -> {
+            if (other == null || other.equals(pet) || !other.isAlive() || other.isRemoved()) {
+                return false;
+            }
+
+            PetComponent otherComponent = PetComponent.get(other);
+            if (otherComponent != null) {
+                if (!otherComponent.isOwnedBy(owner)) {
+                    return false;
+                }
+                return isCatContext(other, otherComponent);
+            }
+
+            return isCatEntity(other);
+        }).isEmpty();
+    }
+
+    private static boolean isCatContext(MobEntity entity, @Nullable PetComponent component) {
+        if (isCatEntity(entity)) {
+            return true;
+        }
+
+        if (component != null) {
+            if (component.hasSpeciesTag(VANILLA_CREEPER_SOOTHER_TAG)) {
+                return true;
+            }
+
+            if (component.matchesSpeciesKeyword("cat", "ocelot", "feline")) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean isCatEntity(MobEntity entity) {
+        EntityType<?> type = entity.getType();
+        if (type.isIn(VANILLA_CREEPER_SOOTHER_TAG) || type == EntityType.OCELOT) {
+            return true;
+        }
+
+        Identifier typeId = Registries.ENTITY_TYPE.getId(type);
+        if (typeId != null) {
+            String path = typeId.getPath();
+            if (path != null) {
+                String lowered = path.toLowerCase(Locale.ROOT);
+                if (lowered.contains("cat") || lowered.contains("ocelot") || lowered.contains("feline")) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean canPetSafelyChainToCreeper(CreeperEntity creeper, double petAttackDamage) {
+        if (petAttackDamage <= 0.0d) {
+            return false;
+        }
+
+        float creeperHealth = creeper.getHealth();
+        if (creeperHealth <= 0f) {
+            creeperHealth = creeper.getMaxHealth();
+        }
+
+        return petAttackDamage + 0.5d >= creeperHealth;
+    }
+
+    private static boolean canPetEngageAirborneTarget(MobEntity pet, PetComponent petComponent) {
+        if (petComponent != null) {
+            PetComponent.FlightCapability capability = petComponent.getFlightCapability();
+            if (capability.canFly()) {
+                if (capability.source().isMetadataDerived()) {
+                    Petsplus.LOGGER.debug(
+                        "Treating pet {} as flight-capable via {} context metadata",
+                        pet.getName().getString(),
+                        capability.source()
+                    );
+                }
+                return true;
+            }
+        }
+
+        if (pet.hasNoGravity()) {
+            return true;
+        }
+
+        String navName = pet.getNavigation().getClass().getSimpleName().toLowerCase(Locale.ROOT);
+        return navName.contains("bird") || navName.contains("fly");
+    }
+
+    private static boolean isLikelyAirborne(LivingEntity entity) {
+        PetComponent component = entity instanceof MobEntity mob ? PetComponent.get(mob) : null;
+        if (component != null && component.isFlightCapable()) {
+            return true;
+        }
+
+        if (isTaggedFlyer(entity.getType())) {
+            return true;
+        }
+
+        if (entity instanceof GhastEntity || entity instanceof PhantomEntity || entity instanceof VexEntity || entity instanceof BlazeEntity) {
+            return true;
+        }
+        if (entity.hasNoGravity()) {
+            return true;
+        }
+        if (entity instanceof MobEntity mob) {
+            String navName = mob.getNavigation().getClass().getSimpleName().toLowerCase(Locale.ROOT);
+            return navName.contains("bird") || navName.contains("fly");
+        }
+        return false;
+    }
+
+    private static boolean isTaggedFlyer(EntityType<?> type) {
+        if (type == null) {
+            return false;
+        }
+        return FLYER_TYPE_CACHE.computeIfAbsent(type, key -> key.isIn(PetsplusEntityTypeTags.FLYERS));
     }
 
     private static float scaledAmount(float base, float scale, float intensity) {

@@ -7,6 +7,7 @@ import woflo.petsplus.Petsplus;
 import woflo.petsplus.mixin.MobEntityAccessor;
 import woflo.petsplus.ai.goals.CrouchCuddleGoal;
 import woflo.petsplus.ai.goals.EnhancedFollowOwnerGoal;
+import woflo.petsplus.ai.goals.OwnerAssistAttackGoal;
 import woflo.petsplus.api.entity.PetsplusTameable;
 
 /**
@@ -25,6 +26,9 @@ public class PetAIEnhancements {
         try {
             // Enhanced follow behavior for all pets
             addEnhancedFollowGoal(pet, petComponent);
+
+            // Owner assist targeting to mirror vanilla wolf combat
+            addOwnerAssistGoal(pet, petComponent);
 
             // Crouch cuddle handshake keeps pets cozy near crouching owners
             addCrouchCuddleGoal(pet, petComponent);
@@ -57,16 +61,32 @@ public class PetAIEnhancements {
 
         MobEntityAccessor accessor = (MobEntityAccessor) pet;
         
+        // Reset temporary assist flags each time AI is re-applied
+        OwnerAssistAttackGoal.clearAssistHesitation(petComponent);
+        OwnerAssistAttackGoal.clearAssistRegroup(petComponent);
+
         // Remove existing follow goals to replace with enhanced version
-        accessor.getGoalSelector().getGoals().removeIf(goal -> 
+        accessor.getGoalSelector().getGoals().removeIf(goal ->
             goal.getGoal() instanceof FollowOwnerGoal);
-        
+
         // Add enhanced follow goal with role-based parameters
         float followDistance = getFollowDistance(petComponent);
         float teleportDistance = getTeleportDistance(petComponent);
-        
-        accessor.getGoalSelector().add(5, new EnhancedFollowOwnerGoal(pet, tameable, 1.0,
-            followDistance, teleportDistance, false));
+
+        accessor.getGoalSelector().add(5, new EnhancedFollowOwnerGoal(
+            pet,
+            tameable,
+            petComponent,
+            1.0,
+            followDistance,
+            teleportDistance
+        ));
+    }
+
+    private static void addOwnerAssistGoal(MobEntity pet, PetComponent petComponent) {
+        MobEntityAccessor accessor = (MobEntityAccessor) pet;
+        accessor.getTargetSelector().getGoals().removeIf(entry -> entry.getGoal() instanceof OwnerAssistAttackGoal);
+        accessor.getTargetSelector().add(2, new OwnerAssistAttackGoal(pet, petComponent));
     }
 
     private static void addCrouchCuddleGoal(MobEntity pet, PetComponent petComponent) {

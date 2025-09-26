@@ -1,15 +1,18 @@
 package woflo.petsplus.state;
+import net.minecraft.entity.EntityType;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import com.mojang.serialization.DataResult;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.registry.Registries;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.registry.tag.TagKey;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
@@ -24,9 +27,11 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.component.PetsplusComponents;
 import woflo.petsplus.stats.PetCharacteristics;
+import woflo.petsplus.tags.PetsplusEntityTypeTags;
 
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
@@ -37,6 +42,9 @@ import java.util.WeakHashMap;
 public class PetComponent {
     private static final Map<MobEntity, PetComponent> COMPONENTS = new WeakHashMap<>();
     private static final Identifier DEFAULT_ROLE_ID = PetRoleType.GUARDIAN_ID;
+    private static final String[] SPECIES_STATE_KEYS = {
+        "context_species", "context_type", "tag_species", "tag_type", "context_entity"
+    };
     
     // (legacy mood keys removed)
 
@@ -55,6 +63,10 @@ public class PetComponent {
     private PetCharacteristics characteristics;
     private UUID crouchCuddleOwnerId;
     private long crouchCuddleExpiryTick;
+    private Identifier cachedSpeciesDescriptor;
+    private boolean speciesDescriptorDirty = true;
+    private FlightCapability cachedFlightCapability = FlightCapability.none();
+    private boolean flightCapabilityDirty = true;
     // New: encapsulated mood/emotion engine
     private final PetMoodEngine moodEngine;
 
@@ -105,6 +117,46 @@ public class PetComponent {
         EMPATHY, NOSTALGIA, PLAYFULNESS, LOYALTY
     }
 
+    public enum FlightCapabilitySource {
+        SPECIES_TAG(true),
+        STATE_METADATA(true),
+        SPECIES_KEYWORD(false),
+        ROLE_OVERRIDE(false),
+        NONE(false);
+
+        private final boolean metadataDerived;
+
+        FlightCapabilitySource(boolean metadataDerived) {
+            this.metadataDerived = metadataDerived;
+        }
+
+        public boolean isMetadataDerived() {
+            return metadataDerived;
+        }
+    }
+
+    public record FlightCapability(boolean canFly, FlightCapabilitySource source) {
+        private static final FlightCapability NONE = new FlightCapability(false, FlightCapabilitySource.NONE);
+        private static final FlightCapability SPECIES_TAG = new FlightCapability(true, FlightCapabilitySource.SPECIES_TAG);
+        private static final FlightCapability STATE_METADATA = new FlightCapability(true, FlightCapabilitySource.STATE_METADATA);
+        private static final FlightCapability SPECIES_KEYWORD = new FlightCapability(true, FlightCapabilitySource.SPECIES_KEYWORD);
+        private static final FlightCapability ROLE_OVERRIDE = new FlightCapability(true, FlightCapabilitySource.ROLE_OVERRIDE);
+
+        public static FlightCapability none() {
+            return NONE;
+        }
+
+        public static FlightCapability fromSource(FlightCapabilitySource source) {
+            return switch (source) {
+                case SPECIES_TAG -> SPECIES_TAG;
+                case STATE_METADATA -> STATE_METADATA;
+                case SPECIES_KEYWORD -> SPECIES_KEYWORD;
+                case ROLE_OVERRIDE -> ROLE_OVERRIDE;
+                case NONE -> NONE;
+            };
+        }
+    }
+
     // Emotion slots are fully managed by PetMoodEngine
     
     public static final class StateKeys {
@@ -152,11 +204,12 @@ public class PetComponent {
         this.level = 1; // Start at level 1
         this.experience = 0;
         this.unlockedMilestones = new HashMap<>();
-    this.characteristics = null; // Will be generated when pet is first tamed
-        
-    // Initialize mood/emotion engine
-    this.moodEngine = new PetMoodEngine(this);
-        
+        this.characteristics = null; // Will be generated when pet is first tamed
+        this.cachedSpeciesDescriptor = null;
+
+        // Initialize mood/emotion engine
+        this.moodEngine = new PetMoodEngine(this);
+
 
         // Mood/emotion state is managed by moodEngine
     }
@@ -194,7 +247,197 @@ public class PetComponent {
     public MobEntity getPet() {
         return pet;
     }
-    
+
+    public void refreshSpeciesDescriptor() {
+        this.speciesDescriptorDirty = true;
+        this.flightCapabilityDirty = true;
+    }
+
+    public void ensureSpeciesDescriptorInitialized() {
+        if (this.speciesDescriptorDirty || this.cachedSpeciesDescriptor == null) {
+            refreshSpeciesDescriptor();
+            getSpeciesDescriptor();
+        }
+    }
+
+    public Identifier getSpeciesDescriptor() {
+        if (this.speciesDescriptorDirty || this.cachedSpeciesDescriptor == null) {
+            this.cachedSpeciesDescriptor = computeSpeciesDescriptor();
+            this.speciesDescriptorDirty = false;
+        }
+        return this.cachedSpeciesDescriptor;
+    }
+
+    public boolean matchesSpeciesKeyword(String... keywords) {
+        if (keywords == null || keywords.length == 0) {
+            return false;
+        }
+
+        for (String keyword : keywords) {
+            if (keyword == null || keyword.isBlank()) {
+                continue;
+            }
+            String normalized = keyword.trim().toLowerCase(Locale.ROOT);
+            if (normalized.isEmpty()) {
+                continue;
+            }
+
+            if (matchesSpeciesKeywordInternal(normalized)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public FlightCapability getFlightCapability() {
+        if (this.flightCapabilityDirty || this.cachedFlightCapability == null) {
+            this.cachedFlightCapability = computeFlightCapability();
+            this.flightCapabilityDirty = false;
+        }
+        return this.cachedFlightCapability;
+    }
+
+    public boolean isFlightCapable() {
+        return getFlightCapability().canFly();
+    }
+
+    private FlightCapability computeFlightCapability() {
+        if (hasSpeciesTag(PetsplusEntityTypeTags.FLYERS)) {
+            return FlightCapability.fromSource(FlightCapabilitySource.SPECIES_TAG);
+        }
+
+        if (stateDataIndicatesFlight()) {
+            return FlightCapability.fromSource(FlightCapabilitySource.STATE_METADATA);
+        }
+
+        if (matchesSpeciesKeyword("fly", "flying", "avian", "bird", "winged", "sky", "airborne")) {
+            return FlightCapability.fromSource(FlightCapabilitySource.SPECIES_KEYWORD);
+        }
+
+        if (PetRoleType.SKYRIDER_ID.equals(getRoleId())) {
+            return FlightCapability.fromSource(FlightCapabilitySource.ROLE_OVERRIDE);
+        }
+
+        return FlightCapability.none();
+    }
+
+    private boolean stateDataIndicatesFlight() {
+        if (stateData.isEmpty()) {
+            return false;
+        }
+
+        for (Map.Entry<String, Object> entry : stateData.entrySet()) {
+            if (entry.getKey() == null) {
+                continue;
+            }
+
+            String key = entry.getKey().toLowerCase(Locale.ROOT);
+            if (!(key.startsWith("tag_") || key.startsWith("context_"))) {
+                continue;
+            }
+
+            Object value = entry.getValue();
+            if (key.contains("flight") || key.contains("fly") || key.contains("air")) {
+                if (valueIndicatesFlight(value)) {
+                    return true;
+                }
+            }
+
+            if (key.contains("movement") || key.contains("capability") || key.contains("ability")) {
+                if (valueIndicatesFlight(value)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private boolean valueIndicatesFlight(@Nullable Object value) {
+        if (value == null) {
+            return false;
+        }
+
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+
+        if (value instanceof String str) {
+            String normalized = str.trim().toLowerCase(Locale.ROOT);
+            if (normalized.isEmpty()) {
+                return false;
+            }
+            return normalized.contains("fly") || normalized.contains("wing") || normalized.contains("airborne");
+        }
+
+        if (value instanceof Identifier id) {
+            return identifierContains(id, "fly") || identifierContains(id, "wing") || identifierContains(id, "air");
+        }
+
+        return false;
+    }
+
+    private boolean matchesSpeciesKeywordInternal(String keyword) {
+        if (keyword.isEmpty()) {
+            return false;
+        }
+
+        if (identifierContains(getSpeciesDescriptor(), keyword)) {
+            return true;
+        }
+
+        Identifier typeId = Registries.ENTITY_TYPE.getId(pet.getType());
+        if (identifierContains(typeId, keyword)) {
+            return true;
+        }
+
+        for (String key : SPECIES_STATE_KEYS) {
+            Identifier storedId = getStateData(key, Identifier.class);
+            if (identifierContains(storedId, keyword)) {
+                return true;
+            }
+
+            String storedString = getStateData(key, String.class);
+            if (storedString != null && storedString.toLowerCase(Locale.ROOT).contains(keyword)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean identifierContains(@Nullable Identifier identifier, String keyword) {
+        if (identifier == null) {
+            return false;
+        }
+        String path = identifier.getPath();
+        return path != null && path.toLowerCase(Locale.ROOT).contains(keyword);
+    }
+
+    public boolean hasSpeciesTag(TagKey<EntityType<?>> tag) {
+        if (tag == null) {
+            return false;
+        }
+
+        EntityType<?> type = pet.getType();
+        if (type.isIn(tag)) {
+            return true;
+        }
+
+        Identifier descriptor = getSpeciesDescriptor();
+        if (descriptor == null || descriptor.equals(Registries.ENTITY_TYPE.getId(type))) {
+            return false;
+        }
+
+        if (!Registries.ENTITY_TYPE.containsId(descriptor)) {
+            return false;
+        }
+
+        EntityType<?> descriptorType = Registries.ENTITY_TYPE.get(descriptor);
+        return descriptorType.isIn(tag);
+    }
+
     public Identifier getRoleId() {
         return roleId != null ? roleId : DEFAULT_ROLE_ID;
     }
@@ -217,6 +460,7 @@ public class PetComponent {
     public void setRoleId(@Nullable Identifier id) {
         Identifier newId = id != null ? id : DEFAULT_ROLE_ID;
         this.roleId = newId;
+        this.flightCapabilityDirty = true;
 
         // Apply attribute modifiers when role changes
         woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
@@ -404,7 +648,46 @@ public class PetComponent {
     }
     
     public void setStateData(String key, Object value) {
+        setStateDataInternal(key, value, true);
+    }
+
+    private void setStateDataSilently(String key, Object value) {
+        setStateDataInternal(key, value, false);
+    }
+
+    private void setStateDataInternal(String key, Object value, boolean invalidateCaches) {
         stateData.put(key, value);
+        if (!invalidateCaches) {
+            return;
+        }
+
+        if (shouldInvalidateSpeciesDescriptor(key)) {
+            refreshSpeciesDescriptor();
+        }
+        if (shouldInvalidateFlightCapability(key)) {
+            this.flightCapabilityDirty = true;
+        }
+    }
+
+    private boolean shouldInvalidateSpeciesDescriptor(@Nullable String key) {
+        if (key == null) {
+            return false;
+        }
+
+        String normalized = key.toLowerCase(Locale.ROOT);
+        return normalized.startsWith("context_") || normalized.startsWith("tag_");
+    }
+
+    private boolean shouldInvalidateFlightCapability(@Nullable String key) {
+        if (key == null) {
+            return false;
+        }
+
+        String normalized = key.toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("context_") || normalized.startsWith("tag_")) {
+            return true;
+        }
+        return normalized.contains("flight") || normalized.contains("fly");
     }
 
     @SuppressWarnings("unchecked")
@@ -426,6 +709,54 @@ public class PetComponent {
             return (T) value;
         }
         return defaultValue;
+    }
+
+    private Identifier computeSpeciesDescriptor() {
+        Identifier fromState = resolveDescriptorFromStateData();
+        if (fromState != null) {
+            return fromState;
+        }
+
+        return Registries.ENTITY_TYPE.getId(pet.getType());
+    }
+
+    @Nullable
+    private Identifier resolveDescriptorFromStateData() {
+        for (String key : SPECIES_STATE_KEYS) {
+            Identifier storedId = getStateData(key, Identifier.class);
+            if (storedId != null) {
+                return storedId;
+            }
+
+            String value = getStateData(key, String.class);
+            Identifier parsed = parseSpeciesIdentifier(value);
+            if (parsed != null) {
+                return parsed;
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private Identifier parseSpeciesIdentifier(@Nullable String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+
+        Identifier parsed = Identifier.tryParse(raw);
+        if (parsed != null) {
+            return parsed;
+        }
+
+        if (!raw.contains(":")) {
+            String normalized = raw.trim().toLowerCase(Locale.ROOT);
+            Identifier fallback = Identifier.of("minecraft", normalized);
+            if (Registries.ENTITY_TYPE.containsId(fallback)) {
+                return fallback;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -843,6 +1174,8 @@ public class PetComponent {
         if (metadata.isSpecial()) {
             setStateData("isSpecial", true);
         }
+
+        refreshSpeciesDescriptor();
     }
     
     /**
@@ -911,7 +1244,8 @@ public class PetComponent {
         
         // Clear all state data and restore preserved items
         stateData.clear();
-        stateData.putAll(preservedData);
+        preservedData.forEach((key, value) -> setStateDataInternal(key, value, false));
+        refreshSpeciesDescriptor();
         
         // Reset attributes to base values
         woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
@@ -1089,20 +1423,21 @@ public class PetComponent {
                             for (int i = 0; i < size; i++) {
                                 listNbt.getString(String.valueOf(i)).ifPresent(list::add);
                             }
-                            stateData.put(key, list);
+                            setStateDataSilently(key, list);
                         });
                         continue;
                     }
 
-                    stateDataNbt.getString(key).ifPresent(value -> stateData.put(key, value));
-                    stateDataNbt.getInt(key).ifPresent(value -> stateData.put(key, value));
-                    stateDataNbt.getLong(key).ifPresent(value -> stateData.put(key, value));
-                    stateDataNbt.getDouble(key).ifPresent(value -> stateData.put(key, value));
-                    stateDataNbt.getFloat(key).ifPresent(value -> stateData.put(key, value));
-                    stateDataNbt.getBoolean(key).ifPresent(value -> stateData.put(key, value));
+                    stateDataNbt.getString(key).ifPresent(value -> setStateDataSilently(key, value));
+                    stateDataNbt.getInt(key).ifPresent(value -> setStateDataSilently(key, value));
+                    stateDataNbt.getLong(key).ifPresent(value -> setStateDataSilently(key, value));
+                    stateDataNbt.getDouble(key).ifPresent(value -> setStateDataSilently(key, value));
+                    stateDataNbt.getFloat(key).ifPresent(value -> setStateDataSilently(key, value));
+                    stateDataNbt.getBoolean(key).ifPresent(value -> setStateDataSilently(key, value));
                 }
             });
         }
+        refreshSpeciesDescriptor();
 
         String ownerId = getStateData("petsplus:owner_uuid", String.class, "");
         if (ownerId != null && !ownerId.isEmpty()) {
