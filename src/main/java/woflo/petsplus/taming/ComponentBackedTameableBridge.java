@@ -29,7 +29,10 @@ public final class ComponentBackedTameableBridge {
         return this.tamed;
     }
 
-    public void setTamed(boolean tamed) {
+    public boolean setTamed(boolean tamed) {
+        if (this.tamed == tamed) {
+            return false;
+        }
         this.tamed = tamed;
         if (tamed) {
             this.mob.setPersistent();
@@ -39,15 +42,20 @@ public final class ComponentBackedTameableBridge {
             PetComponent.getOrCreate(this.mob).setOwner(null);
         }
         this.sync();
+        return true;
     }
 
     public boolean isSitting() {
         return this.sitting;
     }
 
-    public void setSitting(boolean sitting) {
+    public boolean setSitting(boolean sitting) {
+        if (this.sitting == sitting) {
+            return false;
+        }
         this.sitting = sitting;
         this.sync();
+        return true;
     }
 
     @Nullable
@@ -55,7 +63,8 @@ public final class ComponentBackedTameableBridge {
         return this.ownerUuid;
     }
 
-    public void setOwnerUuid(@Nullable UUID ownerUuid) {
+    public boolean setOwnerUuid(@Nullable UUID ownerUuid) {
+        boolean changed = ownerUuid == null ? this.ownerUuid != null : !ownerUuid.equals(this.ownerUuid);
         this.ownerUuid = ownerUuid;
         PetComponent component = PetComponent.getOrCreate(this.mob);
         if (ownerUuid == null) {
@@ -67,6 +76,7 @@ public final class ComponentBackedTameableBridge {
             }
         }
         this.sync();
+        return changed;
     }
 
     @Nullable
@@ -80,18 +90,19 @@ public final class ComponentBackedTameableBridge {
         return null;
     }
 
-    public void setOwner(@Nullable LivingEntity owner) {
+    public boolean setOwner(@Nullable LivingEntity owner) {
         if (owner == null) {
-            this.setOwnerUuid(null);
-            return;
+            return this.setOwnerUuid(null);
         }
 
+        boolean changed = this.ownerUuid == null || !this.ownerUuid.equals(owner.getUuid());
         this.ownerUuid = owner.getUuid();
         PetComponent component = PetComponent.getOrCreate(this.mob);
         if (owner instanceof PlayerEntity player) {
             component.setOwner(player);
         }
         this.sync();
+        return changed;
     }
 
     private void sync() {

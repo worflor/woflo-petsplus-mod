@@ -15,7 +15,6 @@ import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.world.World;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.entity.PetsplusTameable;
-import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.taming.CustomTameables;
 
 /**
@@ -69,12 +68,6 @@ public final class TamingHandler {
         tameable.petsplus$setSitting(false);
         mob.setPersistent();
 
-        PetComponent component = PetComponent.getOrCreate(mob);
-        component.setOwner(player);
-        component.setStateData("petsplus:tamed", true);
-        component.setStateData("petsplus:sitting", false);
-        component.setStateData("petsplus:owner_uuid", player.getUuidAsString());
-
         spawnHearts(world, mob);
         world.playSound(null, mob.getBlockPos(), definition.tameSound(), SoundCategory.NEUTRAL, 0.8f, 1.0f);
 
@@ -104,7 +97,6 @@ public final class TamingHandler {
 
         boolean newState = !tameable.petsplus$isSitting();
         tameable.petsplus$setSitting(newState);
-        PetComponent.getOrCreate(mob).setStateData("petsplus:sitting", newState);
         world.playSound(null, mob.getBlockPos(), definition.sitSound(), SoundCategory.NEUTRAL, 0.6f, newState ? 0.8f : 1.1f);
         player.swingHand(hand, true);
         return ActionResult.SUCCESS;
