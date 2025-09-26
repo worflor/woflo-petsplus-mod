@@ -1,6 +1,15 @@
 # Pets+ dev-0.7 (Pets Plus)
 A Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
 
+## New entities to tame / trust [unimplemented)
+### Tame
+Rabbits, 
+Frogs, 
+Tiny slimes / magma cubes
+### Trust
+Phantoms
+
+
 ## Pet Roles and Levelling
 Each role has a unique set of abilities, and can be applied to *any* tamable/trustable entity. *So MaNY wAcKy CoMbInAtiOnS*!
 
