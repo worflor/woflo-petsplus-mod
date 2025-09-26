@@ -115,7 +115,11 @@ public final class PetsplusEffectManager {
         }
 
         PetsPlusConfig config = PetsPlusConfig.getInstance();
-        int interval = config.getSupportPotionInterval(roleType, behavior);
+        int interval = woflo.petsplus.roles.support.SupportPotionUtils.getScaledPulseInterval(
+            petComp,
+            behavior,
+            config.getSupportPotionInterval(roleType, behavior)
+        );
         String auraKey = pet.getUuidAsString() + "|support_potion";
         if (!shouldTriggerAura(auraKey, world.getTime(), interval)) {
             return;
@@ -126,7 +130,12 @@ public final class PetsplusEffectManager {
             return;
         }
 
-        int pulseDuration = config.getSupportPotionDuration(roleType, behavior);
+        int pulseDuration = woflo.petsplus.roles.support.SupportPotionUtils.getScaledAuraDuration(
+            petComp,
+            behavior,
+            state,
+            config.getSupportPotionDuration(roleType, behavior)
+        );
         List<StatusEffectInstance> storedEffects = SupportPotionUtils.deserializeEffects(state.serializedEffects(), pulseDuration);
         if (storedEffects.isEmpty() && behavior.fallbackEffect() != null) {
             RegistryEntry<StatusEffect> fallback = Registries.STATUS_EFFECT.getEntry(behavior.fallbackEffect()).orElse(null);
@@ -139,7 +148,11 @@ public final class PetsplusEffectManager {
             return;
         }
 
-        double radius = config.getSupportPotionRadius(roleType, behavior);
+        double radius = woflo.petsplus.roles.support.SupportPotionUtils.getScaledAuraRadius(
+            petComp,
+            behavior,
+            config.getSupportPotionRadius(roleType, behavior)
+        );
         Set<LivingEntity> recipients = new LinkedHashSet<>(resolveTargets(world, pet, owner, radius, PetRoleType.AuraTarget.OWNER_AND_ALLIES));
         if (config.isSupportPotionAppliedToPet(roleType, behavior)) {
             recipients.add(pet);
