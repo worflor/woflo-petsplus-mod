@@ -61,26 +61,26 @@ Pets come with distinct natures based on the conditions found when being tamed o
 2. Feral
 3. Fierce
 ### Bred Natures
-4. Radiant
-5. Festival
-6. Infernal
-7. Otherworldly
+4. Radiant [ Daytime - Open sky - No weather ]
+5. Festival [ 3+ nearby players or pets ]
+6. Infernal [ In the Nether ]
+7. Otherworldly [ Any dimension; Besides Overworld and Nether ]
 8. Hearth
-9. Nocturne
-10. Tempest
-11. Solace
+9. Nocturne [ Nighttime - Full moon - Open sky ]
+10. Tempest [ Rain or thunder weather ]
+11. Solace 
 12. Echoed
 13. Mycelial
-14. Gilded
+14. Gilded [ Valuable blocks present ]
 15. Gloom
-16. Verdant
+16. Verdant [ Lush conditions present ]
 17. Summit
-18. Tidal 
-19. Molten
+18. Tidal [ Fully submerged in water - Ocean biome ]
+19. Molten [ Near fiery blocks ]
 20. Frosty
 21. Mire
-22. Relic
-23. Unnatural
+22. Relic [ Near strongholds / Ruins ]
+23. Unnatural [ Neither parent owned by breeder ]
 
 
 ## New Friends
