@@ -148,7 +148,8 @@ public final class MoodService implements MoodAPI {
     }
 
     public void trackPet(ServerWorld world, MobEntity pet) {
-        PetComponent.getOrCreate(pet);
+        // Pet component creation is handled by StateManager to avoid circular dependency
+        // This method is called by StateManager after the component is created
     }
 
     public void untrackPet(MobEntity pet) {
