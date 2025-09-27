@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -47,14 +48,17 @@ public class AbilityDataLoader implements SimpleSynchronousResourceReloadListene
         Map<Identifier, JsonElement> prepared = new LinkedHashMap<>();
         Map<Identifier, Resource> resources = manager.findResources(ROOT_PATH, id -> id.getPath().endsWith(".json"));
         for (Identifier resourceId : resources.keySet()) {
-            List<Resource> stack = manager.getAllResources(resourceId);
-            for (Resource resource : stack) {
-                try (Reader reader = resource.getReader()) {
-                    JsonElement json = JsonParser.parseReader(reader);
-                    prepared.put(toAbilityId(resourceId), json);
-                } catch (IOException | JsonParseException e) {
-                    Petsplus.LOGGER.error("Failed to parse ability data from {}", resourceId, e);
-                }
+            Optional<Resource> resource = manager.getResource(resourceId);
+            if (resource.isEmpty()) {
+                Petsplus.LOGGER.warn("No primary resource found for ability definition {}", resourceId);
+                continue;
+            }
+
+            try (Reader reader = resource.get().getReader()) {
+                JsonElement json = JsonParser.parseReader(reader);
+                prepared.put(toAbilityId(resourceId), json);
+            } catch (IOException | JsonParseException e) {
+                Petsplus.LOGGER.error("Failed to parse ability data from {}", resourceId, e);
             }
         }
 
@@ -145,12 +149,13 @@ public class AbilityDataLoader implements SimpleSynchronousResourceReloadListene
             baseDefinition.remove("role");
             baseDefinition.remove("description");
 
-            if (AbilityFactory.fromJson(baseDefinition.deepCopy()) == null) {
+            Ability parsedAbility = AbilityFactory.fromJson(baseDefinition);
+            if (parsedAbility == null) {
                 Petsplus.LOGGER.error("Ability {} in {} could not be instantiated; skipping", abilityId, source);
                 continue;
             }
 
-            Supplier<Ability> factory = () -> AbilityFactory.fromJson(baseDefinition.deepCopy());
+            Supplier<Ability> factory = () -> duplicateAbility(parsedAbility);
             definitions.put(abilityId, new LoadedAbility(abilityId, description, factory));
             String previousSource = abilitySources.put(abilityId, source);
             if (previousSource != null && !previousSource.equals(source)) {
@@ -222,6 +227,12 @@ public class AbilityDataLoader implements SimpleSynchronousResourceReloadListene
             path = path.substring(0, path.length() - 5);
         }
         return Identifier.of(resourceId.getNamespace(), path);
+    }
+
+    private static Ability duplicateAbility(Ability template) {
+        JsonObject config = template.getConfig();
+        JsonObject configCopy = config == null ? null : config.deepCopy();
+        return new Ability(template.getId(), template.getTrigger(), List.copyOf(template.getEffects()), configCopy);
     }
 
     private record LoadedAbility(Identifier id, String description, Supplier<Ability> factory) {
