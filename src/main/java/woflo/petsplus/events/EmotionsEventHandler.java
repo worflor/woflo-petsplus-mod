@@ -1406,6 +1406,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                     200);
             }
         }
+
     }
 
     private static void addMovementActivityTriggers(MobEntity pet, PetComponent pc, ServerPlayerEntity owner, ServerWorld world) {

@@ -301,6 +301,7 @@ public class PetDetectionHandler {
 
         if (mob.getWorld() instanceof ServerWorld serverWorld) {
             PetComponent component = existingComponent != null ? existingComponent : PetComponent.getOrCreate(mob);
+            component.ensureCharacteristics();
             if (component.getNatureId() == null) {
                 PetNatureSelector.TameContext context = PetNatureSelector.captureTameContext(serverWorld, mob);
                 Identifier wildNature = PetNatureSelector.selectTameNature(mob, context);

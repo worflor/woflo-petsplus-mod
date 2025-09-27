@@ -6,6 +6,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.command.argument.EntityArgumentType;
+import net.minecraft.command.argument.IdentifierArgumentType;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
@@ -24,6 +25,7 @@ import woflo.petsplus.component.PetsplusComponents;
 import woflo.petsplus.items.PetsplusItemUtils;
 import woflo.petsplus.datagen.PetsplusLootHandler;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.stats.nature.PetNatureSelector;
 
 /**
  * Admin commands for testing and debugging pet features.
@@ -79,6 +81,21 @@ public class PetsplusAdminCommands {
                     .executes(PetsplusAdminCommands::resetPet))
                 .then(CommandManager.literal("info")
                     .executes(PetsplusAdminCommands::showPetInfo))
+                .then(CommandManager.literal("nature")
+                    .then(CommandManager.literal("info")
+                        .executes(PetsplusAdminCommands::showPetNature))
+                    .then(CommandManager.literal("set")
+                        .then(CommandManager.argument("nature", IdentifierArgumentType.identifier())
+                            .suggests((context, builder) -> {
+                                for (Identifier id : PetNatureSelector.getRegisteredNatureIds()) {
+                                    builder.suggest(id.toString());
+                                }
+                                builder.suggest("petsplus:custom");
+                                return builder.buildFuture();
+                            })
+                            .executes(PetsplusAdminCommands::setPetNature)))
+                    .then(CommandManager.literal("clear")
+                        .executes(PetsplusAdminCommands::clearPetNature)))
                 .then(CommandManager.literal("emotions")
                     .then(CommandManager.literal("set")
                         .then(CommandManager.argument("emotion", StringArgumentType.string())
@@ -323,7 +340,7 @@ public class PetsplusAdminCommands {
     
     private static int showPetInfo(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-        
+
         MobEntity targetPet = findNearestPet(player);
         if (targetPet == null) {
             player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
@@ -354,9 +371,90 @@ public class PetsplusAdminCommands {
         player.sendMessage(Text.literal("Role: " + roleLabel), false);
         player.sendMessage(Text.literal("Level: " + petComp.getLevel() + " (" + petComp.getExperience() + " XP)"), false);
         player.sendMessage(Text.literal("Bond Strength: " + petComp.getBondStrength()), false);
+        Identifier natureId = petComp.getNatureId();
+        String natureSource = describeNatureSource(petComp);
+        player.sendMessage(Text.literal("Nature: ")
+            .append((natureId != null ? Text.literal(natureId.toString()).formatted(Formatting.AQUA)
+                : Text.literal("None").formatted(Formatting.GRAY)))
+            .append(Text.literal(" (" + natureSource + ")").formatted(Formatting.DARK_GRAY)), false);
         player.sendMessage(Text.literal("Owner: " + (petComp.getOwner() != null ? petComp.getOwner().getName().getString() : "None")), false);
         player.sendMessage(Text.literal("Waiting for Tribute: " + petComp.isWaitingForTribute()), false);
-        
+
+        return 1;
+    }
+
+    private static int showPetNature(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+
+        MobEntity targetPet = findNearestPet(player);
+        if (targetPet == null) {
+            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            return 0;
+        }
+
+        PetComponent petComp = PetComponent.get(targetPet);
+        if (petComp == null) {
+            player.sendMessage(Text.literal("Target entity is not a pet!").formatted(Formatting.RED), false);
+            return 0;
+        }
+
+        Identifier natureId = petComp.getNatureId();
+        String source = describeNatureSource(petComp);
+        Text natureText = natureId != null
+            ? Text.literal(natureId.toString()).formatted(Formatting.AQUA)
+            : Text.literal("None").formatted(Formatting.GRAY);
+        player.sendMessage(Text.literal("Current nature: ").formatted(Formatting.GOLD)
+            .append(natureText)
+            .append(Text.literal(" (" + source + ")").formatted(Formatting.DARK_GRAY)), false);
+        return 1;
+    }
+
+    private static int setPetNature(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+
+        MobEntity targetPet = findNearestPet(player);
+        if (targetPet == null) {
+            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            return 0;
+        }
+
+        PetComponent petComp = PetComponent.get(targetPet);
+        if (petComp == null) {
+            player.sendMessage(Text.literal("Target entity is not a pet!").formatted(Formatting.RED), false);
+            return 0;
+        }
+
+        Identifier natureId = IdentifierArgumentType.getIdentifier(context, "nature");
+        petComp.setNatureId(natureId);
+        petComp.clearStateData(PetComponent.StateKeys.BREEDING_ASSIGNED_NATURE);
+        petComp.clearStateData(PetComponent.StateKeys.WILD_ASSIGNED_NATURE);
+
+        player.sendMessage(Text.literal("Set pet nature to ")
+            .formatted(Formatting.GREEN)
+            .append(Text.literal(natureId.toString()).formatted(Formatting.AQUA)), false);
+        return 1;
+    }
+
+    private static int clearPetNature(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+
+        MobEntity targetPet = findNearestPet(player);
+        if (targetPet == null) {
+            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            return 0;
+        }
+
+        PetComponent petComp = PetComponent.get(targetPet);
+        if (petComp == null) {
+            player.sendMessage(Text.literal("Target entity is not a pet!").formatted(Formatting.RED), false);
+            return 0;
+        }
+
+        petComp.setNatureId(null);
+        petComp.clearStateData(PetComponent.StateKeys.BREEDING_ASSIGNED_NATURE);
+        petComp.clearStateData(PetComponent.StateKeys.WILD_ASSIGNED_NATURE);
+
+        player.sendMessage(Text.literal("Cleared pet nature.").formatted(Formatting.GREEN), false);
         return 1;
     }
     
@@ -654,19 +752,32 @@ public class PetsplusAdminCommands {
         
         return 1;
     }
-    
+
     private static class EmotionWeight {
         final PetComponent.Emotion emotion;
         final float weight;
-        
+
         EmotionWeight(PetComponent.Emotion emotion, float weight) {
             this.emotion = emotion;
             this.weight = weight;
         }
     }
-    
+
     // ============ UTILITY METHODS ============
-    
+
+    private static String describeNatureSource(PetComponent component) {
+        if (component == null || component.getNatureId() == null) {
+            return "unset";
+        }
+        if (component.getStateData(PetComponent.StateKeys.BREEDING_ASSIGNED_NATURE, String.class) != null) {
+            return "breeding";
+        }
+        if (component.getStateData(PetComponent.StateKeys.WILD_ASSIGNED_NATURE, String.class) != null) {
+            return "taming";
+        }
+        return "manual";
+    }
+
     private static MobEntity findNearestPet(PlayerEntity player) {
         return player.getWorld().getEntitiesByClass(MobEntity.class,
             player.getBoundingBox().expand(10.0),

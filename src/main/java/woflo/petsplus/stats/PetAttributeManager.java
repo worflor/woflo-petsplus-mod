@@ -6,6 +6,7 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.stats.nature.NatureModifierSampler;
 
 /**
  * Manages attribute modifiers for pets based on level and characteristics.
@@ -17,10 +18,14 @@ public class PetAttributeManager {
     private static final Identifier LEVEL_HEALTH_ID = Identifier.of("petsplus", "level_health");
     private static final Identifier LEVEL_SPEED_ID = Identifier.of("petsplus", "level_speed");
     private static final Identifier LEVEL_ATTACK_ID = Identifier.of("petsplus", "level_attack");
-    
+
     private static final Identifier CHAR_HEALTH_ID = Identifier.of("petsplus", "char_health");
     private static final Identifier CHAR_SPEED_ID = Identifier.of("petsplus", "char_speed");
     private static final Identifier CHAR_ATTACK_ID = Identifier.of("petsplus", "char_attack");
+
+    private static final Identifier NATURE_HEALTH_ID = Identifier.of("petsplus", "nature_health");
+    private static final Identifier NATURE_SPEED_ID = Identifier.of("petsplus", "nature_speed");
+    private static final Identifier NATURE_ATTACK_ID = Identifier.of("petsplus", "nature_attack");
 
     private static final float BASE_HEALTH_PER_LEVEL = 0.05f;
     private static final float BASE_HEALTH_POST_SOFTCAP_PER_LEVEL = 0.02f;
@@ -53,7 +58,9 @@ public class PetAttributeManager {
         if (characteristics != null) {
             applyCharacteristicModifiers(pet, characteristics, roleType);
         }
-        
+
+        applyNatureModifiers(pet, petComponent);
+
         // Ensure pet is at full health after modifiers
         pet.setHealth(pet.getMaxHealth());
     }
@@ -82,6 +89,16 @@ public class PetAttributeManager {
         }
         if (pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE) != null) {
             pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).removeModifier(CHAR_ATTACK_ID);
+        }
+
+        if (pet.getAttributeInstance(EntityAttributes.MAX_HEALTH) != null) {
+            pet.getAttributeInstance(EntityAttributes.MAX_HEALTH).removeModifier(NATURE_HEALTH_ID);
+        }
+        if (pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED) != null) {
+            pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED).removeModifier(NATURE_SPEED_ID);
+        }
+        if (pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE) != null) {
+            pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).removeModifier(NATURE_ATTACK_ID);
         }
     }
     
@@ -118,14 +135,57 @@ public class PetAttributeManager {
             if (attackMultiplier > 0) {
                 EntityAttributeModifier attackMod = new EntityAttributeModifier(
                     LEVEL_ATTACK_ID,
-                    attackMultiplier, 
+                    attackMultiplier,
                     EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
                 );
                 pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).addPersistentModifier(attackMod);
             }
         }
     }
-    
+
+    private static void applyNatureModifiers(MobEntity pet, PetComponent component) {
+        NatureModifierSampler.NatureAdjustment adjustment = NatureModifierSampler.sample(component);
+        if (adjustment.isEmpty()) {
+            return;
+        }
+
+        if (pet.getAttributeInstance(EntityAttributes.MAX_HEALTH) != null) {
+            float healthBonus = adjustment.valueFor(NatureModifierSampler.NatureStat.HEALTH);
+            if (Math.abs(healthBonus) > 0.0001f) {
+                EntityAttributeModifier modifier = new EntityAttributeModifier(
+                    NATURE_HEALTH_ID,
+                    healthBonus,
+                    EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
+                );
+                pet.getAttributeInstance(EntityAttributes.MAX_HEALTH).addPersistentModifier(modifier);
+            }
+        }
+
+        if (pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED) != null) {
+            float speedBonus = adjustment.valueFor(NatureModifierSampler.NatureStat.SPEED);
+            if (Math.abs(speedBonus) > 0.0001f) {
+                EntityAttributeModifier modifier = new EntityAttributeModifier(
+                    NATURE_SPEED_ID,
+                    speedBonus,
+                    EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
+                );
+                pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED).addPersistentModifier(modifier);
+            }
+        }
+
+        if (pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE) != null) {
+            float attackBonus = adjustment.valueFor(NatureModifierSampler.NatureStat.ATTACK);
+            if (Math.abs(attackBonus) > 0.0001f) {
+                EntityAttributeModifier modifier = new EntityAttributeModifier(
+                    NATURE_ATTACK_ID,
+                    attackBonus,
+                    EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
+                );
+                pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).addPersistentModifier(modifier);
+            }
+        }
+    }
+
     /**
      * Apply characteristic-based modifiers - the uniqueness system.
      * Provides individual variance that makes each pet special.
