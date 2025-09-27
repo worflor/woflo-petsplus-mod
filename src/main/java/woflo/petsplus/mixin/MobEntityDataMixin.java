@@ -11,6 +11,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.taming.SittingOffsetTracker;
 
 import java.util.UUID;
 
@@ -47,6 +48,11 @@ public class MobEntityDataMixin {
 
             // Ensure the component is properly registered
             PetComponent.set(entity, component);
+
+            boolean sittingOffsetApplied = component.getStateData("petsplus:sitting_offset", Boolean.class, false);
+            if (entity instanceof SittingOffsetTracker tracker) {
+                tracker.petsplus$setSittingOffsetApplied(sittingOffsetApplied);
+            }
 
             if (entity instanceof PetsplusTameable tameable && !(entity instanceof TameableEntity)) {
                 boolean tamed = component.getStateData("petsplus:tamed", Boolean.class, false);
