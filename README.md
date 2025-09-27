@@ -21,7 +21,8 @@ Your pet shares your experience and grows alongside you. Feature levels (3, 7, 1
 - **Level 30 →** Netherite Ingot
 
 
-## Moods and Emotion
+## Social
+### Moods and Emotion
 Unfortunately, your new friend has developed feelings too. 
 
 Behind the scenes, *30 emotions influence your pet's overall mood*. Various events and triggers cause these emotional weights to shift and combine, blending into your pet's current **mood state**.
@@ -41,7 +42,7 @@ Behind the scenes, *30 emotions influence your pet's overall mood*. Various even
 13. **Afraid** [ scared ]
 14. **Angry** [ mad ]
 
-### Ultra-Rare Moods
+#### Ultra-Rare Moods
 15. **Sankofa Resonance** [ Akan ] — ancestral pride awakens, fear fades.
 16. **Náttvörðr Vigil** [ Old Norse ] — silent guardian in dark hours
 17. **Chandralekha Reverie** [ Sanskrit ] — stargazing in perfect peace
@@ -58,7 +59,7 @@ Watch, in real time, as beating your pet make them upset - or happy if they're i
 And uh.. I also heard a rumour pets take note of... **gossip**... for later..
 
 
-## Natures
+### Natures
 Pets come with distinct natures based on the conditions found when being tamed or born.
 ### Wild Natures
 1. Frisky [ Colder climates ]
@@ -66,7 +67,7 @@ Pets come with distinct natures based on the conditions found when being tamed o
 3. Fierce [ Hotter climates ]
 
 Born natures do not role for tames; tamed natures do not role for born pets.
-### Born Natures
+#### Born Natures
 4. Radiant [ Daytime - Open sky - No weather ]
 5. Festival [ 3+ pets or players nearby ]
 6. Infernal [ In the Nether ]
