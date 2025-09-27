@@ -5,6 +5,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.Heightmap;
+import net.minecraft.world.World;
 import woflo.petsplus.ai.MoodBasedGoal;
 import woflo.petsplus.state.PetComponent;
 
@@ -103,9 +104,15 @@ public class SaudadeWanderGoal extends MoodBasedGoal {
         double x = sentimentalAnchor.getX() + 0.5 + Math.cos(angle) * radius;
         double z = sentimentalAnchor.getZ() + 0.5 + Math.sin(angle) * radius;
 
-        BlockPos ground = BlockPos.ofFloored(x, sentimentalAnchor.getY(), z);
-        ground = mob.getWorld().getTopPosition(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, ground);
-        if (!mob.getWorld().getBlockState(ground).isAir()) {
+        World world = mob.getWorld();
+        BlockPos groundReference = BlockPos.ofFloored(x, sentimentalAnchor.getY(), z);
+        if (!world.getWorldBorder().contains(groundReference) || !isChunkLoaded(world, groundReference)) {
+            orbitTarget = Vec3d.ofCenter(sentimentalAnchor);
+            return;
+        }
+
+        BlockPos ground = world.getTopPosition(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, groundReference);
+        if (!world.getBlockState(ground).isAir()) {
             ground = ground.up();
         }
 
@@ -115,7 +122,7 @@ public class SaudadeWanderGoal extends MoodBasedGoal {
     private BlockPos findSentimentalAnchor() {
         List<BlockPos> anchors = new ArrayList<>();
         var owner = petComponent.getOwner();
-        if (owner != null) {
+        if (owner != null && owner.getWorld() == mob.getWorld()) {
             anchors.add(owner.getBlockPos());
         }
 
@@ -128,8 +135,15 @@ public class SaudadeWanderGoal extends MoodBasedGoal {
         BlockPos closest = null;
         double closestDistance = Double.MAX_VALUE;
         Vec3d petPos = mob.getPos();
+        World world = mob.getWorld();
         for (BlockPos candidate : anchors) {
             if (candidate == null) {
+                continue;
+            }
+            if (!world.getWorldBorder().contains(candidate)) {
+                continue;
+            }
+            if (!isChunkLoaded(world, candidate)) {
                 continue;
             }
             double distance = candidate.getSquaredDistance(petPos);
@@ -139,6 +153,13 @@ public class SaudadeWanderGoal extends MoodBasedGoal {
             }
         }
 
-        return closest;
+        return closest != null ? closest : mob.getBlockPos();
+    }
+
+    private boolean isChunkLoaded(World world, BlockPos pos) {
+        if (world instanceof ServerWorld serverWorld) {
+            return serverWorld.isChunkLoaded(pos);
+        }
+        return true;
     }
 }

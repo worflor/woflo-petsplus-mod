@@ -1,6 +1,7 @@
 package woflo.petsplus.ai.mood;
 
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
@@ -106,6 +107,14 @@ public class YugenStargazeGoal extends MoodBasedGoal {
             int dz = mob.getRandom().nextInt(11) - 5;
             BlockPos candidate = origin.add(dx, 0, dz);
 
+            if (!world.getWorldBorder().contains(candidate)) {
+                continue;
+            }
+
+            if (!isChunkLoaded(world, candidate)) {
+                continue;
+            }
+
             // adjust to top-most solid ground within a small vertical range
             candidate = world.getTopPosition(net.minecraft.world.Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, candidate);
             if (!world.getBlockState(candidate).isAir()) {
@@ -121,5 +130,12 @@ public class YugenStargazeGoal extends MoodBasedGoal {
             return candidate;
         }
         return null;
+    }
+
+    private boolean isChunkLoaded(World world, BlockPos pos) {
+        if (world instanceof ServerWorld serverWorld) {
+            return serverWorld.isChunkLoaded(pos);
+        }
+        return true;
     }
 }
