@@ -1,12 +1,15 @@
 {
   "replace": false,
   "values": [
+    "#minecraft:shulker_boxes",
     "minecraft:chest",
     "minecraft:trapped_chest",
     "minecraft:barrel",
-    "minecraft:composter",
+    "minecraft:ender_chest",
     "minecraft:hopper",
-    "minecraft:campfire",
-    "minecraft:soul_campfire"
+    "minecraft:dropper",
+    "minecraft:dispenser",
+    "minecraft:composter",
+    "minecraft:chiseled_bookshelf"
   ]
 }

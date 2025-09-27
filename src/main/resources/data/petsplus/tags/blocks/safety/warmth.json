@@ -2,6 +2,8 @@
   "replace": false,
   "values": [
     "#minecraft:campfires",
+    "#minecraft:candles",
+    "#minecraft:candle_cakes",
     "minecraft:torch",
     "minecraft:soul_torch",
     "minecraft:lantern",
@@ -10,6 +12,7 @@
     "minecraft:glowstone",
     "minecraft:shroomlight",
     "minecraft:redstone_lamp",
-    "#minecraft:candles"
+    "minecraft:magma_block",
+    "minecraft:lava_cauldron"
   ]
 }

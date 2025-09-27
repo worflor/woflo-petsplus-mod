@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
+    "#minecraft:guarded_by_piglins",
     "minecraft:suspicious_sand",
     "minecraft:suspicious_gravel",
     "minecraft:decorated_pot",

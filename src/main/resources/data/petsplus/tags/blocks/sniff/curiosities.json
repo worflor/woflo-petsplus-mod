@@ -1,7 +1,9 @@
 {
   "replace": false,
   "values": [
-    "#minecraft:hanging_signs",
+    "#minecraft:all_hanging_signs",
+    "#minecraft:all_signs",
+    "#minecraft:guarded_by_piglins",
     "minecraft:suspicious_sand",
     "minecraft:suspicious_gravel",
     "minecraft:decorated_pot",

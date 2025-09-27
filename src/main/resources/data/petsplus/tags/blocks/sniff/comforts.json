@@ -4,6 +4,7 @@
     "#minecraft:flowers",
     "#minecraft:small_flowers",
     "#minecraft:tall_flowers",
+    "#minecraft:potted_plants",
     "minecraft:flowering_azalea",
     "minecraft:flowering_azalea_leaves",
     "minecraft:pink_petals",
@@ -15,10 +16,10 @@
     "#minecraft:wool_carpets",
     "#minecraft:beds",
     "#minecraft:candles",
+    "#minecraft:candle_cakes",
     "minecraft:lantern",
     "minecraft:soul_lantern",
-    "minecraft:campfire",
-    "minecraft:soul_campfire",
+    "#minecraft:campfires",
     "minecraft:flower_pot"
   ]
 }

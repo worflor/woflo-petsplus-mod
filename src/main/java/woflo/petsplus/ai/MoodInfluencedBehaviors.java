@@ -22,9 +22,10 @@ import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.tags.PetsplusBlockTags;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -74,6 +75,8 @@ public class MoodInfluencedBehaviors {
         private float cachedAgilityModifier = 0.0f;
         private float cachedVitalityModifier = 0.0f;
         private List<SniffPreference> sniffPreferences = List.of();
+        private PetComponent.Mood cachedPreferenceMood;
+        private int cachedPreferenceStrengthBucket = -1;
 
         private static final float SNIFF_WEIGHT_EPSILON = 1.0e-4f;
 
@@ -437,9 +440,17 @@ public class MoodInfluencedBehaviors {
         }
 
         private void updateSniffPreferences(PetComponent pc) {
-            Map<TagKey<Block>, Float> weights = new HashMap<>();
             PetComponent.Mood mood = pc.getCurrentMood();
             float moodStrength = mood != null ? MathHelper.clamp(pc.getMoodStrength(mood), 0f, 1f) : 0f;
+            int strengthBucket = MathHelper.clamp(Math.round(moodStrength * 10f), 0, 10);
+
+            if (!sniffPreferences.isEmpty()
+                && cachedPreferenceMood == mood
+                && cachedPreferenceStrengthBucket == strengthBucket) {
+                return;
+            }
+
+            Map<TagKey<Block>, Float> weights = new LinkedHashMap<>();
 
             addSniffWeight(weights, PetsplusBlockTags.SNIFF_COMFORTS, 0.35f);
             addSniffWeight(weights, PetsplusBlockTags.SNIFF_CURIOSITIES, 0.32f);
@@ -471,12 +482,17 @@ public class MoodInfluencedBehaviors {
             }
 
             List<Map.Entry<TagKey<Block>, Float>> entries = new ArrayList<>(weights.entrySet());
-            entries.sort((a, b) -> Float.compare(b.getValue(), a.getValue()));
+            entries.sort(Comparator
+                .comparing(Map.Entry<TagKey<Block>, Float>::getValue)
+                .reversed()
+                .thenComparing(entry -> entry.getKey().id()));
             List<SniffPreference> sorted = new ArrayList<>(entries.size());
             for (Map.Entry<TagKey<Block>, Float> entry : entries) {
                 sorted.add(new SniffPreference(entry.getKey(), entry.getValue()));
             }
-            sniffPreferences = sorted;
+            sniffPreferences = List.copyOf(sorted);
+            cachedPreferenceMood = mood;
+            cachedPreferenceStrengthBucket = strengthBucket;
         }
 
         private void addSniffWeight(Map<TagKey<Block>, Float> weights, TagKey<Block> tag, float weight) {
@@ -484,10 +500,7 @@ public class MoodInfluencedBehaviors {
                 return;
             }
 
-            Float existing = weights.get(tag);
-            if (existing == null || weight > existing) {
-                weights.put(tag, weight);
-            }
+            weights.merge(tag, weight, (existing, replacement) -> Math.max(existing, replacement));
         }
 
         private boolean isCuriousAligned(PetComponent.Mood mood) {

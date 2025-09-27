@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
+    "#minecraft:villager_job_sites",
     "minecraft:crafting_table",
     "minecraft:smithing_table",
     "minecraft:cartography_table",
