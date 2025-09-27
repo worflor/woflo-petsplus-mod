@@ -16,10 +16,10 @@ import woflo.petsplus.api.registry.PetsPlusRegistries;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Optional;
 
 /**
  * Loads role definitions from datapacks so that ability loadouts, XP curves, and
@@ -39,15 +39,17 @@ public final class PetRoleDataLoader implements SimpleSynchronousResourceReloadL
         Map<Identifier, JsonElement> prepared = new LinkedHashMap<>();
         Map<Identifier, Resource> located = manager.findResources(ROOT_PATH, id -> id.getPath().endsWith(".json"));
         for (Identifier resourceId : located.keySet()) {
-            List<Resource> stack = manager.getAllResources(resourceId);
+            Optional<Resource> resource = manager.getResource(resourceId);
+            if (resource.isEmpty()) {
+                Petsplus.LOGGER.warn("No primary resource found for role definition {}", resourceId);
+                continue;
+            }
 
-            for (Resource resource : stack) {
-                try (Reader reader = resource.getReader()) {
-                    JsonElement json = JsonParser.parseReader(reader);
-                    prepared.put(toRoleId(resourceId), json);
-                } catch (IOException | JsonParseException e) {
-                    Petsplus.LOGGER.error("Failed to parse role data from {}", resourceId, e);
-                }
+            try (Reader reader = resource.get().getReader()) {
+                JsonElement json = JsonParser.parseReader(reader);
+                prepared.put(toRoleId(resourceId), json);
+            } catch (IOException | JsonParseException e) {
+                Petsplus.LOGGER.error("Failed to parse role data from {}", resourceId, e);
             }
         }
 
