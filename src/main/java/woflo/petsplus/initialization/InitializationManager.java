@@ -84,6 +84,8 @@ public class InitializationManager {
         woflo.petsplus.events.XpEventHandler.initialize();
         woflo.petsplus.events.PetDeathHandler.initialize();
         woflo.petsplus.events.SleepEventHandler.initialize();
+
+        woflo.petsplus.state.PlayerTickListeners.registerAll();
     }
     
     /**

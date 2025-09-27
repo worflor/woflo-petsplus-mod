@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.Petsplus;
+import woflo.petsplus.state.PlayerTickDispatcher;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.ui.ActionBarCueManager;
 
@@ -44,7 +45,11 @@ public class ServerEventHandler {
         ActionBarCueManager.shutdown();
         woflo.petsplus.ui.CooldownParticleManager.shutdown();
         woflo.petsplus.util.EntityTagUtil.shutdown();
-        
+
+        // Ensure all dispatcher-managed listeners release their per-player state.
+        server.getPlayerManager().getPlayerList().forEach(PlayerTickDispatcher::clearPlayer);
+        PlayerTickDispatcher.clearAll();
+
         Petsplus.LOGGER.info("PetsPlus: All pet data persisted successfully");
     }
     

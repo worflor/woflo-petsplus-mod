@@ -2,6 +2,7 @@ package woflo.petsplus.ui;
 
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.boss.ServerBossBar;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -11,12 +12,46 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import woflo.petsplus.state.PlayerTickDispatcher;
+import woflo.petsplus.state.PlayerTickListener;
+
 /**
  * Manages boss bar displays for ability feedback and cooldowns.
  */
-public class BossBarManager {
+public final class BossBarManager implements PlayerTickListener {
+    private static final BossBarManager INSTANCE = new BossBarManager();
+
+    private BossBarManager() {}
+
+    public static BossBarManager getInstance() {
+        return INSTANCE;
+    }
     // Thread-safe map for concurrent access from multiple threads
     private static final Map<UUID, BossBarInfo> activeBossBars = new ConcurrentHashMap<>();
+
+    private static void scheduleBossBar(ServerPlayerEntity player, BossBarInfo info, long tick, boolean immediate) {
+        if (player == null || info == null) {
+            return;
+        }
+
+        info.scheduleAt(tick);
+        if (immediate) {
+            PlayerTickDispatcher.requestImmediateRun(player, INSTANCE);
+        }
+    }
+
+    private static long resolveServerTick(ServerPlayerEntity player) {
+        if (player == null) {
+            return 0L;
+        }
+
+        MinecraftServer server = player.getServer();
+        if (server != null) {
+            return server.getTicks();
+        }
+
+        return getCurrentTick(player);
+    }
     
     /**
      * Show a temporary boss bar for ability feedback.
@@ -31,7 +66,8 @@ public class BossBarManager {
     Text message = Text.translatable(messageKey, args).formatted(Formatting.GRAY).formatted(Formatting.BOLD);
         BossBarInfo info = new BossBarInfo(message, durationTicks, color);
         activeBossBars.put(playerId, info);
-        
+        scheduleBossBar(player, info, resolveServerTick(player), false);
+
         // Create and show boss bar
         info.bossBar = new ServerBossBar(message, color, BossBar.Style.PROGRESS);
         try {
@@ -51,6 +87,7 @@ public class BossBarManager {
         Text styled = message.copy().formatted(Formatting.GRAY);
         BossBarInfo info = new BossBarInfo(styled, durationTicks, BossBar.Color.PURPLE);
         activeBossBars.put(playerId, info);
+        scheduleBossBar(player, info, resolveServerTick(player), false);
         info.bossBar = new ServerBossBar(styled, BossBar.Color.PURPLE, BossBar.Style.PROGRESS);
         try {
             info.bossBar.addPlayer(player);
@@ -87,6 +124,7 @@ public class BossBarManager {
             return; // Invalid player state
         }
 
+        long scheduleTick = resolveServerTick(player);
         BossBarInfo info = activeBossBars.get(playerId);
         if (info == null) {
             // Create new boss bar info
@@ -104,6 +142,7 @@ public class BossBarManager {
             info.forceUpdates = forceUpdate;
             info.lastUpdateTick = getCurrentTick(player);
             activeBossBars.put(playerId, info);
+            scheduleBossBar(player, info, scheduleTick, false);
 
             try {
                 info.bossBar = new ServerBossBar(info.message, color, BossBar.Style.NOTCHED_20);
@@ -126,6 +165,7 @@ public class BossBarManager {
                 // Update duration but skip visual update to prevent spam
                 info.remainingTicks = Math.max(info.remainingTicks, durationTicks);
                 info.totalTicks = Math.max(info.totalTicks, durationTicks);
+                scheduleBossBar(player, info, scheduleTick, false);
                 return;
             }
 
@@ -173,6 +213,8 @@ public class BossBarManager {
                     handleBossBarFailure(player, info, e);
                 }
             }
+
+            scheduleBossBar(player, info, scheduleTick, false);
         }
     }
 
@@ -181,6 +223,7 @@ public class BossBarManager {
      */
     public static void showOrUpdateInfoBar(ServerPlayerEntity player, Text message, BossBar.Color color, int durationTicks) {
         UUID playerId = player.getUuid();
+        long scheduleTick = resolveServerTick(player);
         BossBarInfo info = activeBossBars.get(playerId);
         if (info == null) {
             info = new BossBarInfo(message.copy().formatted(Formatting.GRAY), durationTicks, color);
@@ -218,6 +261,9 @@ public class BossBarManager {
                     player.sendMessage(info.message, true);
                 }
             }
+        }
+        if (info != null) {
+            scheduleBossBar(player, info, scheduleTick, false);
         }
     }
     
@@ -259,6 +305,7 @@ public class BossBarManager {
 
         BossBarInfo info = activeBossBars.remove(playerId);
         if (info != null) {
+            info.clearSchedule();
             detachBossBar(info);
         }
     }
@@ -270,7 +317,22 @@ public class BossBarManager {
         removeBossBar(player);
     }
     
-    public static void handlePlayerTick(ServerPlayerEntity player) {
+    @Override
+    public long nextRunTick(ServerPlayerEntity player) {
+        if (player == null) {
+            return Long.MAX_VALUE;
+        }
+
+        BossBarInfo info = activeBossBars.get(player.getUuid());
+        if (info == null) {
+            return Long.MAX_VALUE;
+        }
+
+        return info.nextRunTick();
+    }
+
+    @Override
+    public void run(ServerPlayerEntity player, long currentTick) {
         if (player == null) {
             return;
         }
@@ -280,18 +342,29 @@ public class BossBarManager {
             return;
         }
 
+        info.clearSchedule();
+
         if (info.shouldFallbackToActionBar()) {
+            if (activeBossBars.remove(player.getUuid(), info)) {
+                info.clearSchedule();
+                detachBossBar(info);
+            }
             return;
         }
 
         info.remainingTicks--;
         if (info.remainingTicks <= 0) {
-            detachBossBar(info);
-            activeBossBars.remove(player.getUuid());
+            if (activeBossBars.remove(player.getUuid(), info)) {
+                info.clearSchedule();
+                detachBossBar(info);
+            }
             return;
         }
 
         if (info.bossBar == null) {
+            if (activeBossBars.remove(player.getUuid(), info)) {
+                info.clearSchedule();
+            }
             return;
         }
 
@@ -309,9 +382,20 @@ public class BossBarManager {
         } catch (Exception e) {
             info.incrementFailure();
             if (info.shouldFallbackToActionBar()) {
-                detachBossBar(info);
+                if (activeBossBars.remove(player.getUuid(), info)) {
+                    info.clearSchedule();
+                    detachBossBar(info);
+                }
+                return;
             }
         }
+
+        info.scheduleAt(currentTick + 1);
+    }
+
+    @Override
+    public void onPlayerRemoved(ServerPlayerEntity player) {
+        onPlayerDisconnect(player);
     }
 
     public static void onPlayerDisconnect(ServerPlayerEntity player) {
@@ -320,6 +404,7 @@ public class BossBarManager {
         }
         BossBarInfo info = activeBossBars.remove(player.getUuid());
         if (info != null) {
+            info.clearSchedule();
             detachBossBar(info);
         }
     }
@@ -342,6 +427,7 @@ public class BossBarManager {
                 info.remainingTicks = Math.max(info.remainingTicks, extraTicks);
                 info.totalTicks = Math.max(info.totalTicks, extraTicks);
             }
+            scheduleBossBar(player, info, resolveServerTick(player), false);
         }
     }
     
@@ -357,6 +443,24 @@ public class BossBarManager {
         long lastUpdateTick = 0;
         int failureCount = 0;
         boolean isFallbackMode = false;
+        private long nextRunTick = Long.MAX_VALUE;
+
+        long nextRunTick() {
+            return nextRunTick;
+        }
+
+        void scheduleAt(long tick) {
+            if (tick < 0) {
+                tick = 0;
+            }
+            if (tick < nextRunTick) {
+                nextRunTick = tick;
+            }
+        }
+
+        void clearSchedule() {
+            nextRunTick = Long.MAX_VALUE;
+        }
 
         BossBarInfo(Text message, int ticks, BossBar.Color color) {
             this.totalTicks = Math.max(1, Math.min(72000, ticks)); // Clamp between 1 tick and 1 hour
@@ -459,6 +563,7 @@ public class BossBarManager {
     public static void shutdown() {
         for (Map.Entry<UUID, BossBarInfo> entry : activeBossBars.entrySet()) {
             try {
+                entry.getValue().clearSchedule();
                 detachBossBar(entry.getValue());
             } catch (Exception e) {
                 // Ignore cleanup failures during shutdown

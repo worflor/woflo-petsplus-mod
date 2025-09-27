@@ -7,6 +7,7 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PlayerTickListener;
 
 import java.util.List;
 import java.util.Map;
@@ -27,11 +28,20 @@ import java.util.concurrent.ConcurrentHashMap;
  * - Enhances enchanted items and magical effects
  * - Provides unique magical bonuses and interactions
  */
-public class EnchantmentBoundCore {
+public class EnchantmentBoundCore implements PlayerTickListener {
 
     private static final double NEARBY_RADIUS = 16.0;
     private static final long ENCHANTMENT_INTERVAL_TICKS = 10L;
+    private static final long IDLE_RECHECK_TICKS = 40L;
     private static final Map<UUID, Long> NEXT_ENCHANTMENT_TICK = new ConcurrentHashMap<>();
+
+    private static final EnchantmentBoundCore INSTANCE = new EnchantmentBoundCore();
+
+    private EnchantmentBoundCore() {}
+
+    public static EnchantmentBoundCore getInstance() {
+        return INSTANCE;
+    }
     
     public static void initialize() {
         // Register damage events for magical damage handling
@@ -41,10 +51,25 @@ public class EnchantmentBoundCore {
         EnchantmentBoundHandler.initialize();
     }
 
-    public static void handlePlayerTick(ServerPlayerEntity player) {
-        if (player.isRemoved() || player.isSpectator()) {
+    @Override
+    public long nextRunTick(ServerPlayerEntity player) {
+        if (player == null) {
+            return Long.MAX_VALUE;
+        }
+        return NEXT_ENCHANTMENT_TICK.getOrDefault(player.getUuid(), 0L);
+    }
+
+    @Override
+    public void run(ServerPlayerEntity player, long currentTick) {
+        if (player == null || player.isRemoved() || player.isSpectator()) {
+            if (player != null) {
+                NEXT_ENCHANTMENT_TICK.remove(player.getUuid());
+            }
             return;
         }
+
+        UUID playerId = player.getUuid();
+        NEXT_ENCHANTMENT_TICK.put(playerId, currentTick + IDLE_RECHECK_TICKS);
 
         if (!(player.getWorld() instanceof ServerWorld serverWorld)) {
             return;
@@ -52,22 +77,18 @@ public class EnchantmentBoundCore {
 
         List<MobEntity> enchantmentPets = getNearbyEnchantmentBoundPets(player, NEARBY_RADIUS);
         if (enchantmentPets.isEmpty()) {
-            NEXT_ENCHANTMENT_TICK.remove(player.getUuid());
             return;
         }
 
-        long now = serverWorld.getTime();
-        long nextTick = NEXT_ENCHANTMENT_TICK.getOrDefault(player.getUuid(), 0L);
-        if (now < nextTick) {
-            return;
-        }
-
-        NEXT_ENCHANTMENT_TICK.put(player.getUuid(), now + ENCHANTMENT_INTERVAL_TICKS);
+        NEXT_ENCHANTMENT_TICK.put(playerId, currentTick + ENCHANTMENT_INTERVAL_TICKS);
         processEnchantmentEffects(player, enchantmentPets);
     }
 
-    public static void handlePlayerDisconnect(ServerPlayerEntity player) {
-        NEXT_ENCHANTMENT_TICK.remove(player.getUuid());
+    @Override
+    public void onPlayerRemoved(ServerPlayerEntity player) {
+        if (player != null) {
+            NEXT_ENCHANTMENT_TICK.remove(player.getUuid());
+        }
     }
     
     /**

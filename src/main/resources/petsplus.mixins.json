@@ -21,6 +21,7 @@
                 "ServerPlayNetworkHandlerMixin",
                 "ServerCommonNetworkHandlerMixin",
                 "ServerPlayerEntitySleepMixin",
+                "ServerPlayerEntityDimensionMixin",
                 "ServerPlayerEntityTickMixin",
                 "MobEntityRemoveMixin",
                 "MobEntityTickMixin",

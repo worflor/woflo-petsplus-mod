@@ -17,6 +17,8 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.roles.scout.ScoutBackpack;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PlayerTickDispatcher;
+import woflo.petsplus.state.PlayerTickListener;
 
 import net.minecraft.server.network.ServerPlayerEntity;
 import java.util.HashMap;
@@ -24,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
+
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -34,6 +38,7 @@ public class MagnetizeDropsAndXpEffect implements Effect {
     private static final Identifier ID = Identifier.of("petsplus", "magnetize_drops_and_xp");
 
     private static final Map<ServerWorld, Map<UUID, MagnetizationState>> ACTIVE_MAGNETIZATIONS = new WeakHashMap<>();
+    private static final MagnetizationTicker PLAYER_TICKER = new MagnetizationTicker();
 
     private final double radius;
     private final int durationTicks;
@@ -45,8 +50,8 @@ public class MagnetizeDropsAndXpEffect implements Effect {
     
     public MagnetizeDropsAndXpEffect(JsonObject config) {
         this.radius = config.has("radius") ? config.get("radius").getAsDouble() : 12.0;
-        this.durationTicks = config.has("duration_ticks") ? 
-            config.get("duration_ticks").getAsInt() : 
+        this.durationTicks = config.has("duration_ticks") ?
+            config.get("duration_ticks").getAsInt() :
             PetsPlusConfig.getInstance().getRoleInt(PetRoleType.SCOUT.id(), "lootWispDurationTicks", 80);
     }
     
@@ -65,6 +70,10 @@ public class MagnetizeDropsAndXpEffect implements Effect {
         // Start magnetization effect for the specified duration
         scheduleMagnetization(serverWorld, owner, context.getPet(), radius, durationTicks);
         return true;
+    }
+
+    public static PlayerTickListener listener() {
+        return PLAYER_TICKER;
     }
     
     @Override
@@ -104,38 +113,10 @@ public class MagnetizeDropsAndXpEffect implements Effect {
         });
 
         if (owner instanceof ServerPlayerEntity serverOwner) {
-            magnetizeNearbyItems(world, serverOwner, worldStates.get(ownerId));
+            MagnetizationState state = worldStates.get(ownerId);
+            magnetizeNearbyItems(world, serverOwner, state);
+            PLAYER_TICKER.schedule(serverOwner, world.getServer().getTicks());
         }
-    }
-
-    public static void handlePlayerTick(ServerPlayerEntity player) {
-        if (player == null) {
-            return;
-        }
-
-        ServerWorld world = (ServerWorld) player.getWorld();
-        Map<UUID, MagnetizationState> worldStates = ACTIVE_MAGNETIZATIONS.get(world);
-        if (worldStates == null || worldStates.isEmpty()) {
-            return;
-        }
-
-        MagnetizationState state = worldStates.get(player.getUuid());
-        if (state == null) {
-            return;
-        }
-
-        long currentTick = world.getTime();
-        if (currentTick >= state.getExpirationTick()
-            || player.getPos().squaredDistanceTo(state.getAnchor()) > state.getRadius() * state.getRadius()
-            || !player.isAlive()) {
-            worldStates.remove(player.getUuid());
-            if (worldStates.isEmpty()) {
-                ACTIVE_MAGNETIZATIONS.remove(world);
-            }
-            return;
-        }
-
-        magnetizeNearbyItems(world, player, state);
     }
 
     public static void handleMobTick(MobEntity mob, ServerWorld world) {
@@ -164,6 +145,7 @@ public class MagnetizeDropsAndXpEffect implements Effect {
                 ACTIVE_MAGNETIZATIONS.remove(world);
             }
         }
+        PLAYER_TICKER.cancel(player);
     }
 
     private static void magnetizeNearbyItems(ServerWorld world, ServerPlayerEntity owner, MagnetizationState state) {
@@ -312,6 +294,73 @@ public class MagnetizeDropsAndXpEffect implements Effect {
             }
 
             return ScoutBackpack.tryStoreItem(world, owner, pet, component, backing, item);
+        }
+    }
+
+    private static final class MagnetizationTicker implements PlayerTickListener {
+        private final Map<UUID, Long> nextRunTicks = new ConcurrentHashMap<>();
+
+        @Override
+        public long nextRunTick(ServerPlayerEntity player) {
+            if (player == null) {
+                return Long.MAX_VALUE;
+            }
+            return nextRunTicks.getOrDefault(player.getUuid(), Long.MAX_VALUE);
+        }
+
+        @Override
+        public void run(ServerPlayerEntity player, long currentTick) {
+            if (player == null) {
+                return;
+            }
+
+            ServerWorld world = (ServerWorld) player.getWorld();
+            Map<UUID, MagnetizationState> worldStates = ACTIVE_MAGNETIZATIONS.get(world);
+            if (worldStates == null || worldStates.isEmpty()) {
+                nextRunTicks.remove(player.getUuid());
+                return;
+            }
+
+            MagnetizationState state = worldStates.get(player.getUuid());
+            if (state == null) {
+                nextRunTicks.remove(player.getUuid());
+                return;
+            }
+
+            long worldTick = world.getTime();
+            if (worldTick >= state.getExpirationTick()
+                || player.getPos().squaredDistanceTo(state.getAnchor()) > state.getRadius() * state.getRadius()
+                || !player.isAlive()) {
+                worldStates.remove(player.getUuid());
+                if (worldStates.isEmpty()) {
+                    ACTIVE_MAGNETIZATIONS.remove(world);
+                }
+                nextRunTicks.remove(player.getUuid());
+                return;
+            }
+
+            magnetizeNearbyItems(world, player, state);
+            nextRunTicks.put(player.getUuid(), currentTick + 1L);
+        }
+
+        @Override
+        public void onPlayerRemoved(ServerPlayerEntity player) {
+            onPlayerDisconnect(player);
+        }
+
+        void schedule(ServerPlayerEntity player, long tick) {
+            if (player == null) {
+                return;
+            }
+            nextRunTicks.put(player.getUuid(), Math.max(0L, tick));
+            PlayerTickDispatcher.requestImmediateRun(player, this);
+        }
+
+        void cancel(ServerPlayerEntity player) {
+            if (player == null) {
+                return;
+            }
+            nextRunTicks.remove(player.getUuid());
         }
     }
 }

@@ -2,6 +2,7 @@ package woflo.petsplus.mechanics;
 
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
@@ -10,6 +11,8 @@ import woflo.petsplus.advancement.AdvancementManager;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PlayerTickDispatcher;
+import woflo.petsplus.state.PlayerTickListener;
 
 import java.util.Map;
 import java.util.UUID;
@@ -19,13 +22,25 @@ import java.util.concurrent.ConcurrentHashMap;
  * Implements the hidden stargaze mechanic for "I love you and me" advancement.
  * Triggers when player crouches near sitting pet for 30s at night within 2 minutes of tribute.
  */
-public class StargazeMechanic {
+public final class StargazeMechanic implements PlayerTickListener {
+
+    private static final StargazeMechanic INSTANCE = new StargazeMechanic();
 
     // Track players in stargaze window (2 minutes after tribute)
     private static final Map<UUID, Long> stargazeWindows = new ConcurrentHashMap<>();
 
     // Track active stargaze sessions
     private static final Map<UUID, StargazeSession> activeSessions = new ConcurrentHashMap<>();
+
+    // Track scheduled wake ticks for active players
+    private static final Map<UUID, Long> NEXT_WAKE_TICKS = new ConcurrentHashMap<>();
+
+    private StargazeMechanic() {
+    }
+
+    public static StargazeMechanic getInstance() {
+        return INSTANCE;
+    }
 
     private static class StargazeSession {
         final UUID petUuid;
@@ -38,6 +53,40 @@ public class StargazeMechanic {
             this.petUuid = petUuid;
             this.startPosition = startPosition;
             this.startTime = startTime;
+        }
+    }
+
+    private static long resolveServerTick(ServerPlayerEntity player) {
+        if (player == null) {
+            return 0L;
+        }
+
+        MinecraftServer server = player.getServer();
+        if (server != null) {
+            return server.getTicks();
+        }
+
+        return player.getWorld().getTime();
+    }
+
+    private static void scheduleTick(ServerPlayerEntity player, long desiredTick) {
+        if (player == null) {
+            return;
+        }
+
+        long normalizedTick = Math.max(0L, desiredTick);
+        UUID playerId = player.getUuid();
+        NEXT_WAKE_TICKS.merge(playerId, normalizedTick, Math::min);
+
+        MinecraftServer server = player.getServer();
+        if (server != null && normalizedTick <= server.getTicks()) {
+            PlayerTickDispatcher.requestImmediateRun(player, INSTANCE);
+        }
+    }
+
+    private static void cancelScheduledRuns(ServerPlayerEntity player) {
+        if (player != null) {
+            NEXT_WAKE_TICKS.remove(player.getUuid());
         }
     }
 
@@ -76,6 +125,7 @@ public class StargazeMechanic {
             if (session != null && !session.completed) {
                 player.sendMessage(Text.of("§7The moment was broken..."), true);
             }
+            cancelScheduledRuns(player);
             return;
         }
 
@@ -100,6 +150,8 @@ public class StargazeMechanic {
             activeSessions.put(playerId, session);
             player.sendMessage(Text.of("§dYou begin to share a quiet moment under the stars..."), true);
         }
+
+        scheduleTick(player, resolveServerTick(player));
     }
 
     /**
@@ -110,25 +162,31 @@ public class StargazeMechanic {
             return;
         }
 
-        StargazeSession session = activeSessions.get(player.getUuid());
-        if (session == null) {
+        if (!activeSessions.containsKey(player.getUuid())) {
             return;
         }
 
-        tickSession(player, session, player.getWorld().getTime(), false);
+        scheduleTick(player, resolveServerTick(player));
     }
 
-    /**
-     * Called from a player tick mixin to advance any active stargaze session.
-     */
-    public static void handlePlayerTick(ServerPlayerEntity player) {
+    @Override
+    public long nextRunTick(ServerPlayerEntity player) {
+        if (player == null) {
+            return Long.MAX_VALUE;
+        }
+        return NEXT_WAKE_TICKS.getOrDefault(player.getUuid(), Long.MAX_VALUE);
+    }
+
+    @Override
+    public void run(ServerPlayerEntity player, long currentTick) {
         if (player == null || player.getWorld().isClient()) {
             return;
         }
 
         UUID playerId = player.getUuid();
-        long now = player.getWorld().getTime();
+        NEXT_WAKE_TICKS.remove(playerId);
 
+        long now = player.getWorld().getTime();
         // Drop expired windows when players stay idle beyond the grace period.
         isWindowActive(player, now);
 
@@ -138,12 +196,24 @@ public class StargazeMechanic {
         }
 
         tickSession(player, session, now, true);
+
+        if (activeSessions.get(playerId) == session && !session.completed) {
+            scheduleTick(player, currentTick + 1L);
+        } else {
+            cancelScheduledRuns(player);
+        }
+    }
+
+    @Override
+    public void onPlayerRemoved(ServerPlayerEntity player) {
+        handlePlayerDisconnect(player);
     }
 
     private static void tickSession(ServerPlayerEntity player, StargazeSession session, long now, boolean allowReminders) {
         if (!isWindowActive(player, now)) {
             activeSessions.remove(player.getUuid());
             player.sendMessage(Text.of("§7The moment has passed..."), true);
+            cancelScheduledRuns(player);
             return;
         }
 
@@ -152,6 +222,7 @@ public class StargazeMechanic {
             if (!session.completed) {
                 player.sendMessage(Text.of("§7You must stay close to your companion..."), true);
             }
+            cancelScheduledRuns(player);
             return;
         }
 
@@ -159,6 +230,7 @@ public class StargazeMechanic {
         if (!isNightTime(world)) {
             activeSessions.remove(player.getUuid());
             player.sendMessage(Text.of("§7Wait for nightfall..."), true);
+            cancelScheduledRuns(player);
             return;
         }
 
@@ -166,12 +238,14 @@ public class StargazeMechanic {
         if (pet == null) {
             activeSessions.remove(player.getUuid());
             player.sendMessage(Text.of("§7Your pet must be sitting nearby..."), true);
+            cancelScheduledRuns(player);
             return;
         }
 
         if (!pet.isAlive()) {
             activeSessions.remove(player.getUuid());
             player.sendMessage(Text.of("§7The moment was broken..."), true);
+            cancelScheduledRuns(player);
             return;
         }
 
@@ -180,12 +254,14 @@ public class StargazeMechanic {
             || pet.getPos().distanceTo(session.startPosition) > range) {
             activeSessions.remove(player.getUuid());
             player.sendMessage(Text.of("§7You must stay close to your companion..."), true);
+            cancelScheduledRuns(player);
             return;
         }
 
         if (pet instanceof PetsplusTameable tameable && !tameable.petsplus$isSitting()) {
             activeSessions.remove(player.getUuid());
             player.sendMessage(Text.of("§7Your pet must be sitting nearby..."), true);
+            cancelScheduledRuns(player);
             return;
         }
 
@@ -223,6 +299,7 @@ public class StargazeMechanic {
         // Remove from tracking
         activeSessions.remove(player.getUuid());
         stargazeWindows.remove(player.getUuid());
+        cancelScheduledRuns(player);
 
         // Success feedback
         player.sendMessage(Text.of("§5✦ §d" + petName + " gazes at you with pure love... You know they've got your back. §5✦"), false);
@@ -300,8 +377,13 @@ public class StargazeMechanic {
      * Clean up expired stargaze windows
      */
     public static void handlePlayerDisconnect(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+
         stargazeWindows.remove(player.getUuid());
         activeSessions.remove(player.getUuid());
+        cancelScheduledRuns(player);
     }
 
     /**
@@ -340,16 +422,19 @@ public class StargazeMechanic {
         }
 
         UUID petId = pet.getUuid();
-        activeSessions.entrySet().removeIf(entry -> {
+        java.util.Iterator<Map.Entry<UUID, StargazeSession>> iterator = activeSessions.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<UUID, StargazeSession> entry = iterator.next();
             if (!entry.getValue().petUuid.equals(petId)) {
-                return false;
+                continue;
             }
 
+            iterator.remove();
             ServerPlayerEntity player = world.getServer().getPlayerManager().getPlayer(entry.getKey());
             if (player != null) {
                 player.sendMessage(Text.of("§7Your pet must be sitting nearby..."), true);
+                cancelScheduledRuns(player);
             }
-            return true;
-        });
+        }
     }
 }

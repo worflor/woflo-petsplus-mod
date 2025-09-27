@@ -22,6 +22,7 @@ import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PlayerTickListener;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -32,11 +33,22 @@ import java.util.concurrent.ConcurrentHashMap;
 
  */
 
-public class EepyEeperCore {
+public class EepyEeperCore implements PlayerTickListener {
 
     private static final Map<UUID, Integer> sleepCyclesRemaining = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> lastSleepTime = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> nextNapAuraTick = new ConcurrentHashMap<>();
+
+    private static final long NAP_AURA_INTERVAL_TICKS = 100L;
+    private static final long IDLE_RECHECK_TICKS = 200L;
+
+    private static final EepyEeperCore INSTANCE = new EepyEeperCore();
+
+    private EepyEeperCore() {}
+
+    public static EepyEeperCore getInstance() {
+        return INSTANCE;
+    }
 
     public static void initialize() {
 
@@ -452,16 +464,36 @@ public class EepyEeperCore {
 
     }
 
-    public static void handlePlayerTick(ServerPlayerEntity player) {
-        ServerWorld world = (ServerWorld) player.getWorld();
-        long currentTick = world.getTime();
-        long nextTick = nextNapAuraTick.getOrDefault(player.getUuid(), 0L);
-        if (currentTick < nextTick) {
+    @Override
+    public long nextRunTick(ServerPlayerEntity player) {
+        if (player == null) {
+            return Long.MAX_VALUE;
+        }
+        return nextNapAuraTick.getOrDefault(player.getUuid(), 0L);
+    }
+
+    @Override
+    public void run(ServerPlayerEntity player, long currentTick) {
+        if (player == null) {
             return;
         }
 
-        nextNapAuraTick.put(player.getUuid(), currentTick + 100);
+        UUID playerId = player.getUuid();
+        nextNapAuraTick.put(playerId, currentTick + IDLE_RECHECK_TICKS);
+
+        if (!(player.getWorld() instanceof ServerWorld world)) {
+            return;
+        }
+
+        nextNapAuraTick.put(playerId, currentTick + NAP_AURA_INTERVAL_TICKS);
         emitNapAuraForPlayer(world, player);
+    }
+
+    @Override
+    public void onPlayerRemoved(ServerPlayerEntity player) {
+        if (player != null) {
+            nextNapAuraTick.remove(player.getUuid());
+        }
     }
 
     private static void emitNapAuraForPlayer(ServerWorld world, ServerPlayerEntity player) {
