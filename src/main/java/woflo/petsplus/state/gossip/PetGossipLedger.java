@@ -219,7 +219,11 @@ public final class PetGossipLedger {
         for (LongIterator iterator = shareQueue.iterator(); iterator.hasNext(); ) {
             long topicId = iterator.nextLong();
             RumorEntry entry = rumors.get(topicId);
-            if (entry != null && entry.shouldShare(currentTick, SHARE_COOLDOWN_TICKS,
+            if (entry == null) {
+                iterator.remove();
+                continue;
+            }
+            if (entry.shouldShare(currentTick, SHARE_COOLDOWN_TICKS,
                 MIN_SHARE_INTENSITY, MIN_SHARE_CONFIDENCE)) {
                 return true;
             }
@@ -257,6 +261,7 @@ public final class PetGossipLedger {
             long topicId = iterator.nextLong();
             RumorEntry entry = rumors.get(topicId);
             if (entry == null) {
+                iterator.remove();
                 continue;
             }
             if (!entry.shouldShare(currentTick, SHARE_COOLDOWN_TICKS, MIN_SHARE_INTENSITY, MIN_SHARE_CONFIDENCE)) {
@@ -268,20 +273,17 @@ public final class PetGossipLedger {
     }
 
     public RumorEntry pollForSharing(long currentTick) {
-        while (!shareQueue.isEmpty()) {
-            LongIterator iterator = shareQueue.iterator();
-            if (!iterator.hasNext()) {
-                break;
-            }
+        for (LongIterator iterator = shareQueue.iterator(); iterator.hasNext(); ) {
             long topicId = iterator.nextLong();
-            iterator.remove();
             RumorEntry entry = rumors.get(topicId);
             if (entry == null) {
+                iterator.remove();
                 continue;
             }
             if (!entry.shouldShare(currentTick, SHARE_COOLDOWN_TICKS, MIN_SHARE_INTENSITY, MIN_SHARE_CONFIDENCE)) {
                 continue;
             }
+            iterator.remove();
             return entry.copy();
         }
         return null;
