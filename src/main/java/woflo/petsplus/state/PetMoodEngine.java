@@ -15,6 +15,7 @@ import woflo.petsplus.ui.UIStyle;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -89,6 +90,18 @@ final class PetMoodEngine {
     private int paletteGeneration = 0;
     private int lastRenderedPaletteGeneration = -1;
     private float animationIntensity = 0f;
+
+    private float[] scratchCadences = new float[16];
+    private int scratchCadenceCount = 0;
+    private float[] scratchIntensities = new float[16];
+    private int scratchIntensityCount = 0;
+    private float[] scratchSignals = new float[16];
+    private int scratchSignalCount = 0;
+    private float[] scratchFrequencies = new float[16];
+    private int scratchFrequencyCount = 0;
+    private float[] scratchBudgets = new float[16];
+    private int scratchBudgetCount = 0;
+    private final ArrayList<Candidate> scratchSurvivors = new ArrayList<>();
 
     private PetComponent.Mood currentMood = PetComponent.Mood.CALM;
     private int moodLevel = 0;
@@ -481,39 +494,61 @@ final class PetMoodEngine {
             return;
         }
 
-        // Candidate screening
-        List<Float> cadences = active.stream().map(r -> r.cadenceEMA > 0f ? r.cadenceEMA : HABITUATION_BASE).collect(Collectors.toList());
-        float cadenceMedian = percentile(cadences, 0.5f, HABITUATION_BASE);
-        List<Float> intensities = active.stream().map(r -> r.intensity).collect(Collectors.toList());
-        float quietFloor = percentile(intensities, 0.2f, 0.12f);
-        float quietCeil = percentile(intensities, 0.65f, 0.6f);
+        int activeSize = active.size();
 
-        List<Candidate> candidates = new ArrayList<>();
-        List<Float> signals = new ArrayList<>();
-        for (EmotionRecord record : active) {
+        scratchCadences = ensureCapacity(scratchCadences, activeSize);
+        scratchCadenceCount = activeSize;
+        for (int i = 0; i < activeSize; i++) {
+            EmotionRecord record = active.get(i);
+            scratchCadences[i] = record.cadenceEMA > 0f ? record.cadenceEMA : HABITUATION_BASE;
+        }
+        float cadenceMedian = selectQuantile(scratchCadences, scratchCadenceCount, 0.5f, HABITUATION_BASE);
+
+        scratchIntensities = ensureCapacity(scratchIntensities, activeSize);
+        scratchIntensityCount = activeSize;
+        for (int i = 0; i < activeSize; i++) {
+            scratchIntensities[i] = active.get(i).intensity;
+        }
+        float quietFloor = selectQuantile(scratchIntensities, scratchIntensityCount, 0.2f, 0.12f);
+        float quietCeil = selectQuantile(scratchIntensities, scratchIntensityCount, 0.65f, 0.6f);
+
+        ArrayList<Candidate> candidates = new ArrayList<>(activeSize);
+        scratchSignals = ensureCapacity(scratchSignals, activeSize);
+        scratchSignalCount = activeSize;
+        for (int i = 0; i < activeSize; i++) {
+            EmotionRecord record = active.get(i);
             float freshness = computeFreshness(record, now);
             float freq = record.cadenceEMA > 0f ? MathHelper.clamp(cadenceMedian / record.cadenceEMA, 0f, 3.5f) : 0f;
             float signal = (record.intensity * (0.35f + 0.65f * freshness))
                     + (0.3f * (float) Math.sqrt(Math.max(0f, freq * record.impactBudget)));
-            signals.add(signal);
+            scratchSignals[i] = signal;
             candidates.add(new Candidate(record, freshness, freq, signal));
         }
 
-        float medianSignal = percentile(signals, 0.5f, 0f);
+        float medianSignal = selectQuantile(scratchSignals, scratchSignalCount, 0.5f, 0f);
         float threshold = medianSignal * 0.6f;
-        List<Candidate> survivors = candidates.stream()
-                .filter(c -> c.signal >= threshold)
-                .collect(Collectors.toCollection(ArrayList::new));
-        if (survivors.isEmpty()) {
+        ArrayList<Candidate> survivors = scratchSurvivors;
+        survivors.clear();
+        for (Candidate candidate : candidates) {
+            if (candidate.signal >= threshold) {
+                survivors.add(candidate);
+            }
+        }
+        if (survivors.isEmpty() && !candidates.isEmpty()) {
             Candidate best = Collections.max(candidates, Comparator.comparingDouble(c -> c.signal));
             survivors.add(best);
         }
 
         // Derived stats for weighting
-        List<Float> freqValues = survivors.stream().map(c -> c.frequency).collect(Collectors.toList());
-        float freqMedian = percentile(freqValues, 0.5f, 1f);
-        float freqHigh = percentile(freqValues, 0.9f, Math.max(1.2f, freqMedian + 0.5f));
-        float recencyScale = percentile(cadences, 0.7f, 160f);
+        scratchFrequencies = ensureCapacity(scratchFrequencies, survivors.size());
+        scratchFrequencyCount = survivors.size();
+        for (int i = 0; i < scratchFrequencyCount; i++) {
+            scratchFrequencies[i] = survivors.get(i).frequency;
+        }
+        float freqMedian = selectQuantile(scratchFrequencies, scratchFrequencyCount, 0.5f, 1f);
+        float freqHigh = selectQuantile(scratchFrequencies, scratchFrequencyCount, 0.9f,
+                Math.max(1.2f, freqMedian + 0.5f));
+        float recencyScale = selectQuantile(scratchCadences, scratchCadenceCount, 0.7f, 160f);
         float impactCap = computeImpactCap(active);
         float weightCap = Math.max(impactCap * 1.5f, DEFAULT_WEIGHT_CAP);
 
@@ -1034,14 +1069,66 @@ final class PetMoodEngine {
         record.contagionShare *= contagionDecay;
     }
 
-    private float percentile(List<Float> values, float quantile, float fallback) {
-        if (values.isEmpty()) {
+    private float selectQuantile(float[] data, int length, float quantile, float fallback) {
+        if (length <= 0) {
             return fallback;
         }
-        List<Float> copy = new ArrayList<>(values);
-        copy.sort(Float::compareTo);
-        int index = (int) MathHelper.clamp(Math.round((copy.size() - 1) * quantile), 0, copy.size() - 1);
-        return copy.get(index);
+        int targetIndex = (int) MathHelper.clamp(Math.round((length - 1) * quantile), 0, length - 1);
+        int left = 0;
+        int right = length - 1;
+        while (left < right) {
+            int pivotIndex = partition(data, left, right, left + (right - left) / 2);
+            if (targetIndex == pivotIndex) {
+                return data[targetIndex];
+            }
+            if (targetIndex < pivotIndex) {
+                right = pivotIndex - 1;
+            } else {
+                left = pivotIndex + 1;
+            }
+        }
+        return data[left];
+    }
+
+    private int partition(float[] data, int left, int right, int pivotIndex) {
+        float pivotValue = data[pivotIndex];
+        swap(data, pivotIndex, right);
+        int storeIndex = left;
+        for (int i = left; i < right; i++) {
+            if (data[i] < pivotValue) {
+                swap(data, storeIndex, i);
+                storeIndex++;
+            }
+        }
+        swap(data, right, storeIndex);
+        return storeIndex;
+    }
+
+    private void swap(float[] data, int i, int j) {
+        if (i == j) {
+            return;
+        }
+        float temp = data[i];
+        data[i] = data[j];
+        data[j] = temp;
+    }
+
+    private float[] ensureCapacity(float[] data, int required) {
+        if (required <= data.length) {
+            return data;
+        }
+        int newSize = data.length > 0 ? data.length : 1;
+        while (newSize < required) {
+            newSize <<= 1;
+            if (newSize <= 0) {
+                newSize = required;
+                break;
+            }
+        }
+        if (newSize < required) {
+            newSize = required;
+        }
+        return Arrays.copyOf(data, newSize);
     }
 
     private float smoothstep(float edge0, float edge1, float x) {
@@ -1053,8 +1140,12 @@ final class PetMoodEngine {
     }
 
     private float computeImpactCap(List<EmotionRecord> active) {
-        List<Float> budgets = active.stream().map(r -> r.impactBudget).collect(Collectors.toList());
-        float dynamic = percentile(budgets, 0.95f, DEFAULT_IMPACT_CAP);
+        scratchBudgets = ensureCapacity(scratchBudgets, active.size());
+        scratchBudgetCount = active.size();
+        for (int i = 0; i < scratchBudgetCount; i++) {
+            scratchBudgets[i] = active.get(i).impactBudget;
+        }
+        float dynamic = selectQuantile(scratchBudgets, scratchBudgetCount, 0.95f, DEFAULT_IMPACT_CAP);
         return Math.max(DEFAULT_IMPACT_CAP, dynamic);
     }
 
