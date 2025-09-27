@@ -11,6 +11,7 @@ import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongLinkedOpenHashSet;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtOps;
+import net.minecraft.text.Text;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -175,7 +176,7 @@ public final class PetGossipLedger {
     }
 
     public void recordRumor(long topicId, float intensity, float confidence, long currentTick,
-                            @Nullable java.util.UUID sourceUuid, @Nullable String paraphrased) {
+                            @Nullable java.util.UUID sourceUuid, @Nullable Text paraphrased) {
         RumorEntry existing = rumors.get(topicId);
         if (existing == null) {
             enforceCapacity();
@@ -198,11 +199,11 @@ public final class PetGossipLedger {
             enforceCapacity();
             existing = shared.copy();
             existing.reinforce(shared.intensity(), shared.confidence(), currentTick,
-                shared.sourceUuid(), shared.paraphrased(), corroborated);
+                shared.sourceUuid(), shared.paraphrasedCopy(), corroborated);
             rumors.put(existing.topicId(), existing);
         } else {
             existing.reinforce(shared.intensity(), shared.confidence(), currentTick,
-                shared.sourceUuid(), shared.paraphrased(), corroborated);
+                shared.sourceUuid(), shared.paraphrasedCopy(), corroborated);
         }
         enqueueForSharing(shared.topicId());
         markHeard(shared.topicId(), currentTick);

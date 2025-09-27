@@ -107,7 +107,6 @@ public final class EmotionsEventHandler {
     );
     private static final TagKey<Item> MUSIC_DISC_ITEMS = TagKey.of(RegistryKeys.ITEM,
         Identifier.of("minecraft", "music_discs"));
-    private static final int RUMOR_TEXT_LIMIT = 180;
 
     private EmotionsEventHandler() {}
 
@@ -1217,27 +1216,9 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             return;
         }
         long currentTick = owner.getWorld().getTime();
-        String paraphrased = encodeRumorText(message);
+        Text payload = message == null ? null : message.copy();
         forEachOwnedPet(owner, radius, (pet, component) ->
-            component.recordRumor(topicId, intensity, confidence, currentTick, owner.getUuid(), paraphrased));
-    }
-
-    private static @Nullable String encodeRumorText(@Nullable Text message) {
-        if (message == null) {
-            return null;
-        }
-        String raw = message.getString();
-        if (raw == null) {
-            return null;
-        }
-        String trimmed = raw.strip();
-        if (trimmed.isEmpty()) {
-            return null;
-        }
-        if (trimmed.length() > RUMOR_TEXT_LIMIT) {
-            return trimmed.substring(0, RUMOR_TEXT_LIMIT);
-        }
-        return trimmed;
+            component.recordRumor(topicId, intensity, confidence, currentTick, owner.getUuid(), payload));
     }
 
     private static Map<PetComponent.Mood, Float> snapshotMoodBlend(PetComponent pc) {

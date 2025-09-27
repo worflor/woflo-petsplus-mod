@@ -2,6 +2,8 @@ package woflo.petsplus.state.gossip;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.text.Text;
+import net.minecraft.text.TextCodecs;
 import net.minecraft.util.Uuids;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
@@ -25,7 +27,8 @@ public final class RumorEntry {
         Codec.INT.optionalFieldOf("shares").forGetter(entry -> entry.shareCount() == 0
             ? Optional.empty() : Optional.of(entry.shareCount())),
         Uuids.CODEC.optionalFieldOf("source").forGetter(entry -> Optional.ofNullable(entry.sourceUuid)),
-        Codec.STRING.optionalFieldOf("paraphrase").forGetter(entry -> Optional.ofNullable(entry.paraphrased))
+        TextCodecs.CODEC.optionalFieldOf("paraphrase")
+            .forGetter(entry -> Optional.ofNullable(entry.paraphrased))
     ).apply(instance, (topic, intensity, confidence, lastHeard, lastShared, shares, source, paraphrase) ->
         new RumorEntry(topic, intensity, confidence, lastHeard, lastShared, shares.orElse(0),
             source.orElse(null), paraphrase.orElse(null))));
@@ -39,11 +42,11 @@ public final class RumorEntry {
     @Nullable
     private UUID sourceUuid;
     @Nullable
-    private String paraphrased;
+    private Text paraphrased;
 
     RumorEntry(long topicId, float intensity, float confidence, long lastHeardTick,
                long lastSharedTick, int shareCount, @Nullable UUID sourceUuid,
-               @Nullable String paraphrased) {
+               @Nullable Text paraphrased) {
         this.topicId = topicId;
         this.intensity = clamp(intensity);
         this.confidence = clamp(confidence);
@@ -55,13 +58,13 @@ public final class RumorEntry {
     }
 
     public static RumorEntry create(long topicId, float intensity, float confidence, long heardTick,
-                                    @Nullable UUID sourceUuid, @Nullable String paraphrased) {
+                                    @Nullable UUID sourceUuid, @Nullable Text paraphrased) {
         return new RumorEntry(topicId, intensity, confidence, heardTick, 0L, 0, sourceUuid, paraphrased);
     }
 
     public RumorEntry copy() {
         return new RumorEntry(topicId, intensity, confidence, lastHeardTick,
-            lastSharedTick, shareCount, sourceUuid, paraphrased);
+            lastSharedTick, shareCount, sourceUuid, paraphrased == null ? null : paraphrased.copy());
     }
 
     public long topicId() {
@@ -93,13 +96,16 @@ public final class RumorEntry {
         return sourceUuid;
     }
 
-    @Nullable
-    public String paraphrased() {
+    public @Nullable Text paraphrased() {
         return paraphrased;
     }
 
+    public @Nullable Text paraphrasedCopy() {
+        return paraphrased == null ? null : paraphrased.copy();
+    }
+
     void reinforce(float addedIntensity, float addedConfidence, long heardTick,
-                   @Nullable UUID sourceUuid, @Nullable String paraphrase,
+                   @Nullable UUID sourceUuid, @Nullable Text paraphrase,
                    boolean corroborated) {
         float intensitySample = clamp(addedIntensity);
         float confidenceSample = clamp(addedConfidence);
@@ -118,7 +124,7 @@ public final class RumorEntry {
         if (sourceUuid != null) {
             this.sourceUuid = sourceUuid;
         }
-        if (paraphrase != null && !paraphrase.isEmpty()) {
+        if (paraphrase != null) {
             this.paraphrased = sanitizeParaphrased(paraphrase);
         }
     }
@@ -175,17 +181,14 @@ public final class RumorEntry {
         return MathHelper.clamp(value, 0f, 1f);
     }
 
-    private static String sanitizeParaphrased(@Nullable String paraphrased) {
+    private static @Nullable Text sanitizeParaphrased(@Nullable Text paraphrased) {
         if (paraphrased == null) {
             return null;
         }
-        String trimmed = paraphrased.strip();
-        if (trimmed.isEmpty()) {
+        String raw = paraphrased.getString();
+        if (raw == null || raw.strip().isEmpty()) {
             return null;
         }
-        if (trimmed.length() > 200) {
-            return trimmed.substring(0, 200);
-        }
-        return trimmed;
+        return paraphrased.copy();
     }
 }

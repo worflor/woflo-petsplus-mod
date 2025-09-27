@@ -56,15 +56,12 @@ final class GossipNarration {
     }
 
     private static Text buildStoryText(RumorEntry rumor, long currentTick) {
-        Text base = GossipTopics.findAbstract(rumor.topicId())
-            .map(topic -> Text.translatable(topic.translationKey()))
-            .orElseGet(() -> {
-                String paraphrased = rumor.paraphrased();
-                if (paraphrased != null && !paraphrased.isEmpty()) {
-                    return Text.literal(paraphrased);
-                }
-                return Text.translatable("petsplus.gossip.topic.generic");
-            });
+        Text base = rumor.paraphrasedCopy();
+        if (base == null) {
+            base = GossipTopics.findAbstract(rumor.topicId())
+                .map(topic -> Text.translatable(topic.translationKey()))
+                .orElseGet(() -> Text.translatable("petsplus.gossip.topic.generic"));
+        }
         RumorTone tone = RumorTone.classify(rumor, currentTick);
         Text toneDescriptor = Text.translatable("petsplus.gossip.tone." + tone.key());
         String templateKey = selectTemplateKey(tone, rumor, currentTick);

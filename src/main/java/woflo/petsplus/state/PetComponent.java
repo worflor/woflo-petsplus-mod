@@ -22,6 +22,7 @@ import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.registry.RegistryOps;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.text.Text;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
@@ -368,7 +369,7 @@ public class PetComponent {
     }
 
     public void recordRumor(long topicId, float intensity, float confidence, long currentTick,
-                            @Nullable UUID sourceUuid, @Nullable String paraphrased) {
+                            @Nullable UUID sourceUuid, @Nullable Text paraphrased) {
         gossipLedger.recordRumor(topicId, intensity, confidence, currentTick, sourceUuid, paraphrased);
         scheduleNextGossipDecay(currentTick + Math.max(MIN_GOSSIP_DECAY_DELAY, gossipLedger.scheduleNextDecayDelay()));
     }
