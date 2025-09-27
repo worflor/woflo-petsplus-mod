@@ -19,6 +19,8 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PlayerTickDispatcher;
+import woflo.petsplus.state.PlayerTickListener;
 import woflo.petsplus.ui.FeedbackManager;
 import woflo.petsplus.ui.UIFeedbackManager;
 
@@ -33,7 +35,7 @@ import java.util.stream.Stream;
 /**
  * Core Guardian role systems for coordinating Bulwark redirection and blessing management.
  */
-public final class GuardianCore {
+public final class GuardianCore implements PlayerTickListener {
     private static final double GUARDIAN_SEARCH_RANGE = 16.0;
     private static final int BULWARK_COOLDOWN_TICKS = 200;
     private static final int PRIMED_WINDOW_TICKS = 80;
@@ -48,8 +50,12 @@ public final class GuardianCore {
 
     private static final Map<UUID, TimedEntry> guardianCooldowns = new ConcurrentHashMap<>();
     private static final Map<UUID, GuardianPrimeState> primedOwners = new ConcurrentHashMap<>();
+    private static final Map<UUID, Long> NEXT_PRIME_CHECK_TICK = new ConcurrentHashMap<>();
 
-    private GuardianCore() {
+    private static final GuardianCore INSTANCE = new GuardianCore();
+
+    public static GuardianCore getInstance() {
+        return INSTANCE;
     }
 
     public static void initialize() {
@@ -204,6 +210,12 @@ public final class GuardianCore {
         GuardianPrimeState primeState = new GuardianPrimeState(guardian.getUuid(), world.getRegistryKey(), currentTick + PRIMED_WINDOW_TICKS);
         primedOwners.put(owner.getUuid(), primeState);
 
+        if (world.getServer() != null) {
+            long serverTick = world.getServer().getTicks();
+            NEXT_PRIME_CHECK_TICK.put(owner.getUuid(), serverTick);
+            PlayerTickDispatcher.requestImmediateRun(owner, INSTANCE);
+        }
+
         OwnerCombatState ownerState = OwnerCombatState.getOrCreate(owner);
         ownerState.setTempState(PRIMED_STATE_KEY, currentTick + PRIMED_WINDOW_TICKS);
         ownerState.onHitTaken();
@@ -253,11 +265,13 @@ public final class GuardianCore {
         ServerWorld world = (ServerWorld) owner.getWorld();
         if (!primeState.isActive(world)) {
             primedOwners.remove(owner.getUuid());
+            NEXT_PRIME_CHECK_TICK.remove(owner.getUuid());
             clearOwnerPrimedState(owner);
             return;
         }
 
         primedOwners.remove(owner.getUuid());
+        NEXT_PRIME_CHECK_TICK.remove(owner.getUuid());
         applyPrimedEffects(owner, victim);
         clearOwnerPrimedState(owner);
     }
@@ -277,17 +291,54 @@ public final class GuardianCore {
         }
     }
 
-    public static void handlePlayerTick(ServerPlayerEntity player) {
-        GuardianPrimeState primeState = primedOwners.get(player.getUuid());
-        if (primeState == null) {
+    @Override
+    public long nextRunTick(ServerPlayerEntity player) {
+        if (player == null) {
+            return Long.MAX_VALUE;
+        }
+        return NEXT_PRIME_CHECK_TICK.getOrDefault(player.getUuid(), Long.MAX_VALUE);
+    }
+
+    @Override
+    public void run(ServerPlayerEntity player, long currentTick) {
+        if (player == null) {
             return;
         }
 
-        ServerWorld world = (ServerWorld) player.getWorld();
-        if (!primeState.matches(world) || primeState.isExpired(world)) {
-            primedOwners.remove(player.getUuid());
-            clearOwnerPrimedState(player);
+        UUID playerId = player.getUuid();
+        GuardianPrimeState primeState = primedOwners.get(playerId);
+        if (primeState == null) {
+            NEXT_PRIME_CHECK_TICK.remove(playerId);
+            return;
         }
+
+        if (!(player.getWorld() instanceof ServerWorld world)) {
+            NEXT_PRIME_CHECK_TICK.put(playerId, currentTick + 20L);
+            return;
+        }
+
+        if (!primeState.matches(world) || primeState.isExpired(world)) {
+            primedOwners.remove(playerId);
+            NEXT_PRIME_CHECK_TICK.remove(playerId);
+            clearOwnerPrimedState(player);
+            return;
+        }
+
+        long worldNow = world.getTime();
+        long ticksRemaining = Math.max(1L, primeState.expiryTick() - worldNow);
+        long recheckDelay = Math.min(20L, ticksRemaining);
+        NEXT_PRIME_CHECK_TICK.put(playerId, currentTick + recheckDelay);
+    }
+
+    @Override
+    public void onPlayerRemoved(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+
+        primedOwners.remove(player.getUuid());
+        NEXT_PRIME_CHECK_TICK.remove(player.getUuid());
+        clearOwnerPrimedState(player);
     }
 
     public static boolean hasActiveGuardianProtection(ServerPlayerEntity player) {
@@ -349,6 +400,10 @@ public final class GuardianCore {
 
         boolean isExpired(ServerWorld world) {
             return window.isExpired(world);
+        }
+
+        long expiryTick() {
+            return window.expiryTick;
         }
 
         @SuppressWarnings("unused")

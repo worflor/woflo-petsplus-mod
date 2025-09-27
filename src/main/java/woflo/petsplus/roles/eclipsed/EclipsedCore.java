@@ -9,6 +9,7 @@ import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PlayerTickListener;
 
 import java.util.List;
 import java.util.Map;
@@ -28,22 +29,46 @@ import java.util.concurrent.ConcurrentHashMap;
  * - Provides stealth and darkness-based advantages
  * - Eclipse-themed abilities with day/night cycles
  */
-public class EclipsedCore {
+public class EclipsedCore implements PlayerTickListener {
 
     private static final double NEARBY_RADIUS = 16.0;
     private static final long FIELD_INTERVAL_TICKS = 5L;
+    private static final long IDLE_RECHECK_TICKS = 40L;
     private static final Map<UUID, Long> NEXT_FIELD_TICK = new ConcurrentHashMap<>();
-    
+
+    private static final EclipsedCore INSTANCE = new EclipsedCore();
+
+    private EclipsedCore() {}
+
+    public static EclipsedCore getInstance() {
+        return INSTANCE;
+    }
+
     public static void initialize() {
         // Register damage events for shadow protection
         ServerLivingEntityEvents.ALLOW_DAMAGE.register(EclipsedCore::onEntityDamage);
-        
+
     }
 
-    public static void handlePlayerTick(ServerPlayerEntity player) {
-        if (player.isRemoved() || player.isSpectator()) {
+    @Override
+    public long nextRunTick(ServerPlayerEntity player) {
+        if (player == null) {
+            return Long.MAX_VALUE;
+        }
+        return NEXT_FIELD_TICK.getOrDefault(player.getUuid(), 0L);
+    }
+
+    @Override
+    public void run(ServerPlayerEntity player, long currentTick) {
+        if (player == null || player.isRemoved() || player.isSpectator()) {
+            if (player != null) {
+                NEXT_FIELD_TICK.remove(player.getUuid());
+            }
             return;
         }
+
+        UUID playerId = player.getUuid();
+        NEXT_FIELD_TICK.put(playerId, currentTick + IDLE_RECHECK_TICKS);
 
         if (!(player.getWorld() instanceof ServerWorld world)) {
             return;
@@ -51,22 +76,18 @@ public class EclipsedCore {
 
         List<MobEntity> eclipsedPets = getNearbyEclipsedPets(player, NEARBY_RADIUS);
         if (eclipsedPets.isEmpty()) {
-            NEXT_FIELD_TICK.remove(player.getUuid());
             return;
         }
 
-        long now = world.getTime();
-        long nextTick = NEXT_FIELD_TICK.getOrDefault(player.getUuid(), 0L);
-        if (now < nextTick) {
-            return;
-        }
-
-        NEXT_FIELD_TICK.put(player.getUuid(), now + FIELD_INTERVAL_TICKS);
+        NEXT_FIELD_TICK.put(playerId, currentTick + FIELD_INTERVAL_TICKS);
         processEclipseEffects(player, eclipsedPets);
     }
 
-    public static void handlePlayerDisconnect(ServerPlayerEntity player) {
-        NEXT_FIELD_TICK.remove(player.getUuid());
+    @Override
+    public void onPlayerRemoved(ServerPlayerEntity player) {
+        if (player != null) {
+            NEXT_FIELD_TICK.remove(player.getUuid());
+        }
     }
     
     /**

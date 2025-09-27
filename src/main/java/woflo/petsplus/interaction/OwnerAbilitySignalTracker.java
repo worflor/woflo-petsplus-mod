@@ -10,6 +10,8 @@ import net.minecraft.world.World;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.event.OwnerAbilitySignalEvent;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PlayerTickDispatcher;
+import woflo.petsplus.state.PlayerTickListener;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -20,7 +22,7 @@ import java.util.WeakHashMap;
  * Detects owner initiated trigger signals (double crouch and proximity channel)
  * and surfaces them via {@link OwnerAbilitySignalEvent}.
  */
-public final class OwnerAbilitySignalTracker {
+public final class OwnerAbilitySignalTracker implements PlayerTickListener {
     private static final long DOUBLE_CROUCH_WINDOW_TICKS = 12;
     private static final double DOUBLE_CROUCH_MAX_DISTANCE = 16.0;
     private static final double DOUBLE_CROUCH_ALIGNMENT_THRESHOLD = 0.97;
@@ -31,7 +33,13 @@ public final class OwnerAbilitySignalTracker {
     private static final Map<ServerPlayerEntity, SneakState> SNEAK_STATES = new WeakHashMap<>();
     private static final Map<ServerWorld, Map<MobEntity, ProximityChannel>> ACTIVE_CHANNELS = new WeakHashMap<>();
 
+    private static final OwnerAbilitySignalTracker INSTANCE = new OwnerAbilitySignalTracker();
+
     private OwnerAbilitySignalTracker() {
+    }
+
+    public static OwnerAbilitySignalTracker getInstance() {
+        return INSTANCE;
     }
 
     /**
@@ -56,6 +64,7 @@ public final class OwnerAbilitySignalTracker {
 
         state.sneaking = sneaking;
         long now = player.getWorld().getTime();
+        long serverTick = player.getServer() != null ? player.getServer().getTicks() : now;
 
         if (sneaking) {
             boolean triggeredDouble = false;
@@ -71,11 +80,12 @@ public final class OwnerAbilitySignalTracker {
             state.lastPressTick = now;
 
             if (!triggeredDouble) {
-                startProximityChannels(player);
+                startProximityChannels(player, state, serverTick);
             }
         } else {
             state.lastReleaseTick = now;
             cancelProximityChannels(player);
+            scheduleIdle(state);
         }
     }
 
@@ -141,7 +151,7 @@ public final class OwnerAbilitySignalTracker {
         return true;
     }
 
-    private static void startProximityChannels(ServerPlayerEntity player) {
+    private static void startProximityChannels(ServerPlayerEntity player, SneakState state, long serverTick) {
         ServerWorld world = (ServerWorld) player.getWorld();
         Box search = player.getBoundingBox().expand(PROXIMITY_RANGE, PROXIMITY_RANGE / 2.0, PROXIMITY_RANGE);
         java.util.List<MobEntity> nearbyPets = world.getEntitiesByClass(
@@ -174,6 +184,8 @@ public final class OwnerAbilitySignalTracker {
             worldChannels.put(pet, new ProximityChannel(ownerId, completionTick));
             component.beginCrouchCuddle(ownerId, completionTick);
         }
+
+        requestRun(player, state, serverTick);
     }
 
     private static void cancelProximityChannels(ServerPlayerEntity player) {
@@ -201,20 +213,44 @@ public final class OwnerAbilitySignalTracker {
         }
     }
 
-    public static void handlePlayerTick(ServerPlayerEntity player) {
+    @Override
+    public long nextRunTick(ServerPlayerEntity player) {
+        SneakState state = SNEAK_STATES.get(player);
+        if (state == null) {
+            return Long.MAX_VALUE;
+        }
+        return state.nextTick;
+    }
+
+    @Override
+    public void run(ServerPlayerEntity player, long currentTick) {
         if (player == null || player.getWorld().isClient()) {
             return;
         }
 
-        ServerWorld world = (ServerWorld) player.getWorld();
+        SneakState state = SNEAK_STATES.get(player);
+        if (state == null) {
+            return;
+        }
+
+        state.nextTick = Long.MAX_VALUE;
+
+        if (!(player.getWorld() instanceof ServerWorld world)) {
+            cancelProximityChannels(player);
+            return;
+        }
+
         Map<MobEntity, ProximityChannel> worldChannels = ACTIVE_CHANNELS.get(world);
         if (worldChannels == null || worldChannels.isEmpty()) {
+            scheduleIdle(state);
             return;
         }
 
         long now = world.getTime();
         UUID ownerId = player.getUuid();
         Iterator<Map.Entry<MobEntity, ProximityChannel>> iterator = worldChannels.entrySet().iterator();
+        boolean hasActive = false;
+
         while (iterator.hasNext()) {
             Map.Entry<MobEntity, ProximityChannel> entry = iterator.next();
             MobEntity pet = entry.getKey();
@@ -272,24 +308,37 @@ public final class OwnerAbilitySignalTracker {
                 continue;
             }
 
+            hasActive = true;
+
             if (now >= channel.completionTick) {
                 iterator.remove();
                 component.endCrouchCuddle(channel.ownerId);
                 OwnerAbilitySignalEvent.fire(OwnerAbilitySignalEvent.Type.PROXIMITY_CHANNEL, player, pet);
+                continue;
             }
         }
 
         if (worldChannels.isEmpty()) {
             ACTIVE_CHANNELS.remove(world);
         }
+
+        if (hasActive) {
+            state.nextTick = currentTick + 1L;
+        } else {
+            scheduleIdle(state);
+        }
     }
 
-    public static void handlePlayerDisconnect(ServerPlayerEntity player) {
+    @Override
+    public void onPlayerRemoved(ServerPlayerEntity player) {
         if (player == null) {
             return;
         }
 
-        SNEAK_STATES.remove(player);
+        SneakState state = SNEAK_STATES.remove(player);
+        if (state != null) {
+            state.nextTick = Long.MAX_VALUE;
+        }
         cancelProximityChannels(player);
     }
 
@@ -320,10 +369,33 @@ public final class OwnerAbilitySignalTracker {
         }
     }
 
+    private static void requestRun(ServerPlayerEntity player, SneakState state, long tick) {
+        if (state == null) {
+            return;
+        }
+
+        state.nextTick = tick;
+        if (player != null && player.getServer() != null) {
+            if (tick <= player.getServer().getTicks()) {
+                PlayerTickDispatcher.requestImmediateRun(player, INSTANCE);
+            }
+        }
+    }
+
+    private static void scheduleIdle(SneakState state) {
+        if (state == null) {
+            return;
+        }
+
+        long idleTick = Long.MAX_VALUE;
+        state.nextTick = idleTick;
+    }
+
     private static final class SneakState {
         private boolean sneaking;
         private long lastPressTick = -1;
         private long lastReleaseTick = -1;
+        private long nextTick = Long.MAX_VALUE;
     }
 
     private static final class ProximityChannel {

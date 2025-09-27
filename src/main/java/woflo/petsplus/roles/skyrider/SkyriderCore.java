@@ -11,6 +11,7 @@ import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PlayerTickListener;
 
 import java.util.List;
 import java.util.Map;
@@ -30,11 +31,20 @@ import java.util.concurrent.ConcurrentHashMap;
  * - Enhances vertical mobility and aerial combat
  * - Provides fall safety and positioning advantages
  */
-public class SkyriderCore {
+public class SkyriderCore implements PlayerTickListener {
 
     private static final double NEARBY_RADIUS = 16.0;
     private static final long WIND_INTERVAL_TICKS = 5L;
+    private static final long IDLE_RECHECK_TICKS = 40L;
     private static final Map<UUID, Long> NEXT_WIND_TICK = new ConcurrentHashMap<>();
+
+    private static final SkyriderCore INSTANCE = new SkyriderCore();
+
+    private SkyriderCore() {}
+
+    public static SkyriderCore getInstance() {
+        return INSTANCE;
+    }
     
     public static void initialize() {
         // Register damage events for fall damage reduction
@@ -42,33 +52,44 @@ public class SkyriderCore {
         
     }
 
-    public static void handlePlayerTick(ServerPlayerEntity player) {
-        if (player.isRemoved() || player.isSpectator()) {
+    @Override
+    public long nextRunTick(ServerPlayerEntity player) {
+        if (player == null) {
+            return Long.MAX_VALUE;
+        }
+        return NEXT_WIND_TICK.getOrDefault(player.getUuid(), 0L);
+    }
+
+    @Override
+    public void run(ServerPlayerEntity player, long currentTick) {
+        if (player == null || player.isRemoved() || player.isSpectator()) {
+            if (player != null) {
+                NEXT_WIND_TICK.remove(player.getUuid());
+            }
             return;
         }
 
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        UUID playerId = player.getUuid();
+        NEXT_WIND_TICK.put(playerId, currentTick + IDLE_RECHECK_TICKS);
+
+        if (!(player.getWorld() instanceof ServerWorld)) {
             return;
         }
 
         List<MobEntity> skyriderPets = getNearbySkyriderPets(player, NEARBY_RADIUS);
         if (skyriderPets.isEmpty()) {
-            NEXT_WIND_TICK.remove(player.getUuid());
             return;
         }
 
-        long now = world.getTime();
-        long nextTick = NEXT_WIND_TICK.getOrDefault(player.getUuid(), 0L);
-        if (now < nextTick) {
-            return;
-        }
-
-        NEXT_WIND_TICK.put(player.getUuid(), now + WIND_INTERVAL_TICKS);
+        NEXT_WIND_TICK.put(playerId, currentTick + WIND_INTERVAL_TICKS);
         processSkyriderWindEffects(player, skyriderPets);
     }
 
-    public static void handlePlayerDisconnect(ServerPlayerEntity player) {
-        NEXT_WIND_TICK.remove(player.getUuid());
+    @Override
+    public void onPlayerRemoved(ServerPlayerEntity player) {
+        if (player != null) {
+            NEXT_WIND_TICK.remove(player.getUuid());
+        }
     }
     
     /**

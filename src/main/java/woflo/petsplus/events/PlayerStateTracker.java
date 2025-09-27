@@ -7,59 +7,97 @@ import woflo.petsplus.Petsplus;
 import woflo.petsplus.roles.skyrider.SkyriderCore;
 import woflo.petsplus.roles.skyrider.SkyriderWinds;
 import woflo.petsplus.state.OwnerCombatState;
+import woflo.petsplus.state.PlayerTickDispatcher;
+import woflo.petsplus.state.PlayerTickListener;
 
-import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 import java.util.WeakHashMap;
 
 /**
  * Handles player movement and state tracking events.
  */
-public class PlayerStateTracker {
-    
+public final class PlayerStateTracker implements PlayerTickListener {
+
+    private static final PlayerStateTracker INSTANCE = new PlayerStateTracker();
+    private static final Map<ServerPlayerEntity, FallState> FALL_STATES = new WeakHashMap<>();
+
+    private PlayerStateTracker() {
+    }
+
+    public static PlayerStateTracker getInstance() {
+        return INSTANCE;
+    }
+
     public static void register() {
         // Register for player tick events to track sprint changes
         ServerPlayerEvents.AFTER_RESPAWN.register(PlayerStateTracker::onPlayerRespawn);
         Petsplus.LOGGER.info("Player state tracker registered");
     }
 
-    private static final Map<ServerPlayerEntity, Double> LAST_FALL_DISTANCE = new WeakHashMap<>();
-    private static final Set<ServerPlayerEntity> FALL_TRIGGERED = Collections.newSetFromMap(new WeakHashMap<>());
+    @Override
+    public long nextRunTick(ServerPlayerEntity player) {
+        if (player == null) {
+            return Long.MAX_VALUE;
+        }
 
-    /**
-     * Monitor players each tick to detect when they cross fall thresholds.
-     */
-    public static void handlePlayerTick(ServerPlayerEntity player) {
+        boolean shouldRequestImmediateRun = false;
+        long nextTick;
+        synchronized (FALL_STATES) {
+            FallState state = FALL_STATES.computeIfAbsent(player, ignored -> new FallState());
+
+            if (state.nextTick == Long.MAX_VALUE && isFalling(player)) {
+                if (player.getServer() != null) {
+                    state.nextTick = player.getServer().getTicks();
+                    shouldRequestImmediateRun = true;
+                }
+            }
+            nextTick = state.nextTick;
+        }
+
+        if (shouldRequestImmediateRun) {
+            PlayerTickDispatcher.requestImmediateRun(player, INSTANCE);
+        }
+
+        return nextTick;
+    }
+
+    @Override
+    public void run(ServerPlayerEntity player, long currentTick) {
         if (player == null || player.isRemoved()) {
             return;
         }
 
+        FallState state;
+        synchronized (FALL_STATES) {
+            state = FALL_STATES.computeIfAbsent(player, ignored -> new FallState());
+        }
+
         double currentFallDistance = player.fallDistance;
-        boolean isFalling = !player.isOnGround() && player.getVelocity().y < 0 && currentFallDistance > 0.0;
+        boolean isFalling = isFalling(player);
 
         if (isFalling) {
-            double previousFallDistance = LAST_FALL_DISTANCE.getOrDefault(player, 0.0);
             double threshold = SkyriderWinds.getWindlashMinFallBlocks();
-
-            if (!FALL_TRIGGERED.contains(player) && currentFallDistance >= threshold && previousFallDistance < threshold) {
-                FALL_TRIGGERED.add(player);
+            if (!state.triggered && currentFallDistance >= threshold && state.lastFallDistance < threshold) {
+                state.triggered = true;
                 trackFallStart(player, currentFallDistance);
             }
-
-            LAST_FALL_DISTANCE.put(player, currentFallDistance);
+            state.lastFallDistance = currentFallDistance;
+            state.nextTick = currentTick + 1L;
         } else {
-            LAST_FALL_DISTANCE.remove(player);
-            FALL_TRIGGERED.remove(player);
+            state.lastFallDistance = 0.0D;
+            state.triggered = false;
+            state.nextTick = Long.MAX_VALUE;
         }
     }
 
-    public static void handlePlayerDisconnect(ServerPlayerEntity player) {
+    @Override
+    public void onPlayerRemoved(ServerPlayerEntity player) {
         if (player == null) {
             return;
         }
-        LAST_FALL_DISTANCE.remove(player);
-        FALL_TRIGGERED.remove(player);
+        synchronized (FALL_STATES) {
+            FALL_STATES.remove(player);
+        }
     }
     
     /**
@@ -115,6 +153,7 @@ public class PlayerStateTracker {
             CombatEventHandler.triggerAbilitiesForOwner(player, "owner_begin_fall", data);
 
             if (player instanceof ServerPlayerEntity serverPlayer) {
+                resumeMonitoring(serverPlayer);
                 boolean mounted = serverPlayer.getVehicle() != null;
                 Petsplus.LOGGER.debug(
                     "Owner {} began falling {} blocks ({})",
@@ -124,6 +163,42 @@ public class PlayerStateTracker {
                 );
                 SkyriderCore.onOwnerStartFalling(serverPlayer);
             }
+        }
+    }
+
+    private static final class FallState {
+        double lastFallDistance;
+        boolean triggered;
+        long nextTick;
+
+        private FallState() {
+            this.nextTick = Long.MAX_VALUE;
+        }
+    }
+
+    private static boolean isFalling(ServerPlayerEntity player) {
+        if (player == null) {
+            return false;
+        }
+        return !player.isOnGround() && player.getVelocity().y < 0 && player.fallDistance > 0.0F;
+    }
+
+    private static void resumeMonitoring(ServerPlayerEntity player) {
+        if (player == null || player.getServer() == null) {
+            return;
+        }
+
+        boolean shouldRequestImmediateRun = false;
+        synchronized (FALL_STATES) {
+            FallState state = FALL_STATES.computeIfAbsent(player, ignored -> new FallState());
+            if (state.nextTick == Long.MAX_VALUE) {
+                state.nextTick = player.getServer().getTicks();
+                shouldRequestImmediateRun = true;
+            }
+        }
+
+        if (shouldRequestImmediateRun) {
+            PlayerTickDispatcher.requestImmediateRun(player, INSTANCE);
         }
     }
 }

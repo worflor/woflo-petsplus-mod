@@ -8,6 +8,7 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PlayerTickListener;
 
 import java.util.Map;
 import java.util.UUID;
@@ -26,8 +27,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * - Reveals threats and improves resource collection
  * - Enhances exploration and situational awareness
  */
-public class ScoutCore {
-    
+public class ScoutCore implements PlayerTickListener {
+
     public static void initialize() {
         // Register combat events for loot wisp and detection
         ServerLivingEntityEvents.AFTER_DEATH.register(ScoutCore::onEntityDeath);
@@ -55,21 +56,48 @@ public class ScoutCore {
      * World tick handler for detection pings and passive effects.
      */
     private static final Map<UUID, Long> nextDetectionTick = new ConcurrentHashMap<>();
+    private static final long DETECTION_INTERVAL_TICKS = 60L;
+    private static final long IDLE_RECHECK_TICKS = 120L;
 
-    public static void handlePlayerTick(ServerPlayerEntity player) {
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+    private static final ScoutCore INSTANCE = new ScoutCore();
+
+    private ScoutCore() {}
+
+    public static ScoutCore getInstance() {
+        return INSTANCE;
+    }
+
+    @Override
+    public long nextRunTick(ServerPlayerEntity player) {
+        if (player == null) {
+            return Long.MAX_VALUE;
+        }
+        return nextDetectionTick.getOrDefault(player.getUuid(), 0L);
+    }
+
+    @Override
+    public void run(ServerPlayerEntity player, long currentTick) {
+        if (player == null) {
             return;
         }
 
-        long currentTick = world.getTime();
-        long nextTick = nextDetectionTick.getOrDefault(player.getUuid(), 0L);
-        if (currentTick < nextTick) {
+        UUID playerId = player.getUuid();
+        nextDetectionTick.put(playerId, currentTick + IDLE_RECHECK_TICKS);
+
+        if (!(player.getWorld() instanceof ServerWorld)) {
             return;
         }
 
-        nextDetectionTick.put(player.getUuid(), currentTick + 60);
         if (hasActiveScoutDetection(player)) {
+            nextDetectionTick.put(playerId, currentTick + DETECTION_INTERVAL_TICKS);
             ScoutBehaviors.checkSpotterFallback(player);
+        }
+    }
+
+    @Override
+    public void onPlayerRemoved(ServerPlayerEntity player) {
+        if (player != null) {
+            nextDetectionTick.remove(player.getUuid());
         }
     }
     

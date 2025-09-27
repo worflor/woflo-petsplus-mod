@@ -20,24 +20,26 @@ import net.minecraft.scoreboard.ScoreHolder;
 
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+import woflo.petsplus.state.PlayerTickListener;
 
 /**
  * Enhanced pet inspection system with dynamic, contextual boss bar display.
  * Shows smart, prioritized information that adapts to pet state and context.
  */
 public final class PetInspectionManager {
+    private static final PlayerTicker PLAYER_TICKER = new PlayerTicker();
+
     private PetInspectionManager() {}
+
+    public static PlayerTickListener listener() {
+        return PLAYER_TICKER;
+    }
 
     private static final int VIEW_DIST = 12;
     private static final Map<UUID, InspectionState> inspecting = new HashMap<>();
     private static final int LINGER_TICKS = 40; // 2s linger after looking away
-
-    public static void handlePlayerTick(ServerPlayerEntity player) {
-        if (player == null || player.isRemoved()) {
-            return;
-        }
-        updateForPlayer(player);
-    }
 
     public static void onPlayerDisconnect(ServerPlayerEntity player) {
         if (player == null) {
@@ -416,5 +418,39 @@ public final class PetInspectionManager {
             builder.append('§').append(c);
         }
         return builder.toString();
+    }
+
+    private static final class PlayerTicker implements PlayerTickListener {
+        private final Map<UUID, Long> nextRunTicks = new ConcurrentHashMap<>();
+
+        @Override
+        public long nextRunTick(ServerPlayerEntity player) {
+            if (player == null) {
+                return Long.MAX_VALUE;
+            }
+            return nextRunTicks.getOrDefault(player.getUuid(), 0L);
+        }
+
+        @Override
+        public void run(ServerPlayerEntity player, long currentTick) {
+            if (player == null || player.isRemoved()) {
+                onPlayerDisconnect(player);
+                if (player != null) {
+                    nextRunTicks.remove(player.getUuid());
+                }
+                return;
+            }
+
+            updateForPlayer(player);
+            nextRunTicks.put(player.getUuid(), currentTick + 1L);
+        }
+
+        @Override
+        public void onPlayerRemoved(ServerPlayerEntity player) {
+            onPlayerDisconnect(player);
+            if (player != null) {
+                nextRunTicks.remove(player.getUuid());
+            }
+        }
     }
 }

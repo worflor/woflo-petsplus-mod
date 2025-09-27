@@ -20,6 +20,12 @@ Your pet shares your experience and grows alongside you. Feature levels (3, 7, 1
 - **Level 20 →** Diamond  
 - **Level 30 →** Netherite Ingot
 
+## Player Tick Dispatcher
+All of that personality still needs to run somewhere. Pets+ now routes every per-player system through a single dispatcher instead of hammering each listener every tick.
+
+- `PlayerTickDispatcher.dispatch` fans out to registered `PlayerTickListener` implementations only when their `nextRunTick` is due, keeping the server from busy-looping.【F:src/main/java/woflo/petsplus/state/PlayerTickDispatcher.java†L18-L72】
+- Subsystems such as the action bar cues, boss bar upkeep, pet inspection HUD, owner ability tracker, role cores, magnetize effect, stargazing sessions, and the emotion handlers all expose singleton listeners that self-schedule and clean up when a player leaves.【F:src/main/java/woflo/petsplus/state/PlayerTickListeners.java†L17-L53】
+- The player tick mixin now performs one dispatch call per player tick; disconnects and dimension changes clear any queued work so fresh state rebuilds naturally.【F:src/main/java/woflo/petsplus/mixin/ServerPlayerEntityTickMixin.java†L15-L24】【F:src/main/java/woflo/petsplus/mixin/ServerCommonNetworkHandlerMixin.java†L17-L28】【F:src/main/java/woflo/petsplus/mixin/ServerPlayerEntityDimensionMixin.java†L13-L36】
 
 ## Moods and Emotion
 Unfortunately, your new friend has developed feelings too. 

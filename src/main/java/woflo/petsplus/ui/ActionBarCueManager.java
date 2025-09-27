@@ -15,12 +15,16 @@ import java.util.Objects;
 import java.util.UUID;
 
 import woflo.petsplus.config.PetsPlusConfig;
+import woflo.petsplus.state.PlayerTickDispatcher;
+import woflo.petsplus.state.PlayerTickListener;
 
 /**
  * Central manager for action-bar feedback cues. Provides lightweight, event-driven
  * gating so only the most relevant cue for the pet a player recently inspected is shown.
  */
-public final class ActionBarCueManager {
+public final class ActionBarCueManager implements PlayerTickListener {
+
+    private static final ActionBarCueManager INSTANCE = new ActionBarCueManager();
 
     private static final int DEFAULT_TTL_TICKS = 40; // 2 seconds
     private static final int DEFAULT_REPEAT_COOLDOWN_TICKS = 200; // 10 seconds
@@ -36,8 +40,21 @@ public final class ActionBarCueManager {
 
     private ActionBarCueManager() {}
 
+    public static ActionBarCueManager getInstance() {
+        return INSTANCE;
+    }
+
     private static int resolveRecentPetLimit() {
         return Math.max(1, PetsPlusConfig.getInstance().getActionBarRecentPetLimit());
+    }
+
+    private static void requestImmediateRun(ServerPlayerEntity player, PlayerCueState state, long tick) {
+        if (player == null || state == null) {
+            return;
+        }
+
+        state.scheduleAt(tick);
+        PlayerTickDispatcher.requestImmediateRun(player, INSTANCE);
     }
 
     /**
@@ -80,6 +97,7 @@ public final class ActionBarCueManager {
         );
 
         state.cues.add(queued);
+        requestImmediateRun(player, state, currentTick);
     }
 
     /**
@@ -106,6 +124,7 @@ public final class ActionBarCueManager {
         PlayerCueState state = PLAYER_STATES.computeIfAbsent(player.getUuid(), id -> new PlayerCueState());
         int recentPetLimit = resolveRecentPetLimit();
         state.recordFocus(pet, currentTick, recentPetLimit);
+        requestImmediateRun(player, state, currentTick);
     }
 
     /**
@@ -129,15 +148,26 @@ public final class ActionBarCueManager {
         long currentTick = server.getTicks();
         int recentPetLimit = resolveRecentPetLimit();
         state.noteLookAway(currentTick, recentPetLimit);
+        requestImmediateRun(player, state, currentTick);
     }
 
-    public static void handlePlayerTick(ServerPlayerEntity player) {
+    @Override
+    public long nextRunTick(ServerPlayerEntity player) {
         if (player == null) {
-            return;
+            return Long.MAX_VALUE;
         }
 
-        MinecraftServer server = player.getServer();
-        if (server == null) {
+        PlayerCueState state = PLAYER_STATES.get(player.getUuid());
+        if (state == null) {
+            return Long.MAX_VALUE;
+        }
+
+        return state.nextRunTick();
+    }
+
+    @Override
+    public void run(ServerPlayerEntity player, long currentTick) {
+        if (player == null) {
             return;
         }
 
@@ -146,7 +176,8 @@ public final class ActionBarCueManager {
             return;
         }
 
-        long currentTick = server.getTicks();
+        state.clearSchedule();
+
         int recentPetLimit = resolveRecentPetLimit();
 
         state.removeExpired(currentTick);
@@ -178,14 +209,30 @@ public final class ActionBarCueManager {
         }
 
         state.cleanupCooldowns(currentTick);
+
         if (state.isDormant()) {
             PLAYER_STATES.remove(player.getUuid());
+            return;
         }
+
+        long nextTick = state.computeNextWakeTick(currentTick, recentPetLimit);
+        if (nextTick == Long.MAX_VALUE) {
+            nextTick = currentTick + 1;
+        }
+        state.scheduleAt(nextTick);
+    }
+
+    @Override
+    public void onPlayerRemoved(ServerPlayerEntity player) {
+        onPlayerDisconnect(player);
     }
 
     public static void onPlayerDisconnect(ServerPlayerEntity player) {
         if (player != null) {
-            PLAYER_STATES.remove(player.getUuid());
+            PlayerCueState state = PLAYER_STATES.remove(player.getUuid());
+            if (state != null) {
+                state.clearSchedule();
+            }
         }
     }
 
@@ -245,6 +292,55 @@ public final class ActionBarCueManager {
         private final List<QueuedCue> cues = new ArrayList<>();
         private final Map<String, Long> cooldowns = new HashMap<>();
         private final List<RecentPetFocus> recentPets = new ArrayList<>();
+        private long nextRunTick = Long.MAX_VALUE;
+
+        long nextRunTick() {
+            return nextRunTick;
+        }
+
+        void scheduleAt(long tick) {
+            if (tick < 0) {
+                tick = 0;
+            }
+            if (tick < nextRunTick) {
+                nextRunTick = tick;
+            }
+        }
+
+        void clearSchedule() {
+            nextRunTick = Long.MAX_VALUE;
+        }
+
+        long computeNextWakeTick(long currentTick, int recentPetLimit) {
+            long candidate = Long.MAX_VALUE;
+
+            if (!cues.isEmpty()) {
+                candidate = Math.min(candidate, currentTick + 1);
+                for (QueuedCue cue : cues) {
+                    long expiry = cue.createdTick() + cue.ttlTicks();
+                    if (expiry > currentTick) {
+                        candidate = Math.min(candidate, expiry);
+                    }
+                }
+            }
+
+            for (Long cooldownEnd : cooldowns.values()) {
+                if (cooldownEnd > currentTick) {
+                    candidate = Math.min(candidate, cooldownEnd);
+                }
+            }
+
+            int limit = Math.min(recentPets.size(), Math.max(1, recentPetLimit));
+            for (int i = 0; i < limit; i++) {
+                RecentPetFocus focus = recentPets.get(i);
+                long expiry = focus.lastSeenTick() + FOCUS_MEMORY_TICKS;
+                if (expiry > currentTick) {
+                    candidate = Math.min(candidate, expiry);
+                }
+            }
+
+            return candidate;
+        }
 
         boolean isDormant() {
             return cues.isEmpty() && cooldowns.isEmpty() && recentPets.isEmpty();

@@ -62,12 +62,14 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.WeakHashMap;
 import java.util.UUID;
+import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 
 import woflo.petsplus.events.EmotionCueConfig.EmotionCueDefinition;
 import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.PlayerTickListener;
 import woflo.petsplus.state.StateManager;
 
 /**
@@ -76,7 +78,13 @@ import woflo.petsplus.state.StateManager;
  */
 public final class EmotionsEventHandler {
 
+    private static final PlayerTicker PLAYER_TICKER = new PlayerTicker();
+
     private EmotionsEventHandler() {}
+
+    public static PlayerTickListener ticker() {
+        return PLAYER_TICKER;
+    }
 
     public static void register() {
         // After a block is broken (server): mining satisfaction, discovery moments
@@ -274,6 +282,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
     // Lightweight per-player environment state for biome/dimension/idle tracking
     private static final Map<ServerPlayerEntity, PlayerEnvState> PLAYER_ENV = new WeakHashMap<>();
+    private static final Map<UUID, RegistryKey<World>> PENDING_DIMENSION_CHANGES = new ConcurrentHashMap<>();
     private static class PlayerEnvState {
         RegistryKey<Biome> biomeKey;
         RegistryKey<World> dimensionKey;
@@ -300,7 +309,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         }
     }
 
-    public static void handlePlayerTick(ServerPlayerEntity player) {
+    private static void handlePlayerTick(ServerPlayerEntity player, long serverTick) {
         if (player == null || player.isRemoved()) {
             return;
         }
@@ -314,6 +323,14 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         long now = world.getTime();
         PlayerEnvState state = PLAYER_ENV.computeIfAbsent(player,
             p -> createEnvState(player, world, now));
+
+        RegistryKey<World> pendingPrevious = PENDING_DIMENSION_CHANGES.remove(player.getUuid());
+        if (pendingPrevious != null) {
+            RegistryKey<World> currentDimension = world.getRegistryKey();
+            if (!currentDimension.equals(pendingPrevious)) {
+                handleDimensionChange(player, state, pendingPrevious, currentDimension);
+            }
+        }
 
         if (player.isSpectator() || player.isSleeping()) {
             state.nextIdleCheckTick = Math.max(state.nextIdleCheckTick, now + 20L);
@@ -632,26 +649,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
         if (state.dimensionKey == null || !dimensionKey.equals(state.dimensionKey)) {
             RegistryKey<World> previous = state.dimensionKey;
-            state.dimensionKey = dimensionKey;
-            EmotionContextCues.clearForDimensionChange(player);
-            if (dimensionKey == World.OVERWORLD && previous != null && previous != World.OVERWORLD) {
-                pushToNearbyOwnedPets(player, 64, pc -> {
-                    pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.12f);
-                    pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.10f);
-                }, false);
-            } else if (dimensionKey == World.NETHER) {
-                pushToNearbyOwnedPets(player, 64, pc -> {
-                    pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f);
-                    pc.pushEmotion(PetComponent.Emotion.STOIC, 0.12f);
-                    pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
-                }, false);
-            } else if (dimensionKey == World.END) {
-                pushToNearbyOwnedPets(player, 64, pc -> {
-                    pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.14f);
-                    pc.pushEmotion(PetComponent.Emotion.STOIC, 0.12f);
-                    pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.08f);
-                }, false);
-            }
+            handleDimensionChange(player, state, previous, dimensionKey);
         }
 
         state.lastPos = pos;
@@ -2034,4 +2032,76 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         // If average distance between mobs is very small, they're likely in a farm
         return avgDistance < 3.0; // Less than 3 blocks average distance = clustered
     }
+
+    private static void handleDimensionChange(ServerPlayerEntity player, PlayerEnvState state,
+                                              @Nullable RegistryKey<World> previous,
+                                              RegistryKey<World> current) {
+        state.dimensionKey = current;
+        EmotionContextCues.clearForDimensionChange(player);
+        if (current == World.OVERWORLD && previous != null && previous != World.OVERWORLD) {
+            pushToNearbyOwnedPets(player, 64, pc -> {
+                pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.12f);
+                pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.10f);
+            }, false);
+        } else if (current == World.NETHER) {
+            pushToNearbyOwnedPets(player, 64, pc -> {
+                pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f);
+                pc.pushEmotion(PetComponent.Emotion.STOIC, 0.12f);
+                pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
+            }, false);
+        } else if (current == World.END) {
+            pushToNearbyOwnedPets(player, 64, pc -> {
+                pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.14f);
+                pc.pushEmotion(PetComponent.Emotion.STOIC, 0.12f);
+                pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.08f);
+            }, false);
+        }
+    }
+
+    private static final class PlayerTicker implements PlayerTickListener {
+        private final Map<UUID, Long> nextRunTicks = new ConcurrentHashMap<>();
+
+        @Override
+        public long nextRunTick(ServerPlayerEntity player) {
+            if (player == null) {
+                return Long.MAX_VALUE;
+            }
+            return nextRunTicks.getOrDefault(player.getUuid(), 0L);
+        }
+
+        @Override
+        public void run(ServerPlayerEntity player, long currentTick) {
+            if (player == null) {
+                return;
+            }
+
+            nextRunTicks.remove(player.getUuid());
+            handlePlayerTick(player, currentTick);
+
+            PlayerEnvState state = PLAYER_ENV.get(player);
+            if (state == null) {
+                nextRunTicks.put(player.getUuid(), currentTick + 20L);
+                return;
+            }
+
+            long worldTick = player.getWorld().getTime();
+            long nextIdleDelta = Math.max(1L, state.nextIdleCheckTick - worldTick);
+            long nextNuancedDelta = Math.max(1L, state.nextNuancedTick - worldTick);
+            long nextTick = currentTick + Math.min(nextIdleDelta, nextNuancedDelta);
+            nextRunTicks.put(player.getUuid(), nextTick);
+        }
+
+        @Override
+        public void onPlayerRemoved(ServerPlayerEntity player) {
+            if (player == null) {
+                return;
+            }
+            nextRunTicks.remove(player.getUuid());
+            PlayerEnvState removed = PLAYER_ENV.remove(player);
+            if (removed != null && removed.dimensionKey != null) {
+                PENDING_DIMENSION_CHANGES.put(player.getUuid(), removed.dimensionKey);
+            }
+        }
+    }
 }
+

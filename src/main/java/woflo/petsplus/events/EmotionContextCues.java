@@ -10,6 +10,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.MutableText;
@@ -17,6 +18,8 @@ import net.minecraft.text.Text;
 import net.minecraft.text.Texts;
 import woflo.petsplus.events.EmotionCueConfig.EmotionCueDefinition;
 import woflo.petsplus.ui.BossBarManager;
+import woflo.petsplus.state.PlayerTickDispatcher;
+import woflo.petsplus.state.PlayerTickListener;
 
 /**
  * Enhanced manager for delivering contextual action-bar cues tied to emotion events.
@@ -24,7 +27,9 @@ import woflo.petsplus.ui.BossBarManager;
  * cue journals so that the action bar stays readable while still teaching players why
  * their pets' moods are shifting.
  */
-public final class EmotionContextCues {
+public final class EmotionContextCues implements PlayerTickListener {
+
+    private static final EmotionContextCues INSTANCE = new EmotionContextCues();
 
     private static final Map<ServerPlayerEntity, Map<String, Long>> LAST_CUES = new WeakHashMap<>();
     private static final Map<ServerPlayerEntity, Map<String, Long>> CATEGORY_COOLDOWNS = new WeakHashMap<>();
@@ -32,12 +37,17 @@ public final class EmotionContextCues {
     private static final Map<ServerPlayerEntity, CueDigest> DIGESTS = new WeakHashMap<>();
     private static final Map<ServerPlayerEntity, Map<String, StimulusHistory>> HISTORY = new WeakHashMap<>();
     private static final Map<UUID, Deque<Text>> JOURNALS = new HashMap<>();
+    private static final Map<UUID, Long> NEXT_WAKE_TICKS = new ConcurrentHashMap<>();
 
     private static final int JOURNAL_LIMIT = 24;
     private static final int STIMULUS_RETENTION_TICKS = 200;
     private static final long MAX_STIMULUS_GAP_TICKS = 4L;
 
     private EmotionContextCues() {}
+
+    public static EmotionContextCues getInstance() {
+        return INSTANCE;
+    }
 
     /** Records the mood delta that resulted from pushing an emotion stimulus. */
     public static void recordStimulus(ServerPlayerEntity player, StimulusSummary summary) {
@@ -50,6 +60,7 @@ public final class EmotionContextCues {
         while (queue.size() > 6) {
             queue.pollFirst();
         }
+        scheduleImmediate(player);
     }
 
     /**
@@ -109,21 +120,6 @@ public final class EmotionContextCues {
         sendCue(player, cueId, text, 100);
     }
 
-    /** Flush digest queues and prune stale stimulus entries for a specific player. */
-    public static void handlePlayerTick(ServerPlayerEntity player) {
-        if (player == null) {
-            return;
-        }
-
-        if (!PENDING_STIMULI.containsKey(player) && !DIGESTS.containsKey(player)) {
-            return;
-        }
-
-        long now = player.getWorld().getTime();
-        pruneStimuli(player, now);
-        flushDigest(player, now);
-    }
-
     /** Clear cached cue state when a player disconnects. */
     public static void onPlayerDisconnect(ServerPlayerEntity player) {
         if (player == null) {
@@ -136,6 +132,7 @@ public final class EmotionContextCues {
         DIGESTS.remove(player);
         HISTORY.remove(player);
         JOURNALS.remove(player.getUuid());
+        NEXT_WAKE_TICKS.remove(player.getUuid());
     }
 
     /** Clear all cue state for a player (e.g., on respawn). */
@@ -148,6 +145,7 @@ public final class EmotionContextCues {
         PENDING_STIMULI.remove(player);
         DIGESTS.remove(player);
         HISTORY.remove(player);
+        NEXT_WAKE_TICKS.remove(player.getUuid());
     }
 
     /** Clear throttles when a player changes dimension to avoid stale cooldowns. */
@@ -156,6 +154,126 @@ public final class EmotionContextCues {
         // Clear boss bars to avoid cross-dimensional display issues
         woflo.petsplus.ui.BossBarManager.clearForDimensionChange(player);
         // Preserve journal entries so players can still review missed cues after travelling.
+    }
+
+    @Override
+    public long nextRunTick(ServerPlayerEntity player) {
+        if (player == null) {
+            return Long.MAX_VALUE;
+        }
+        return NEXT_WAKE_TICKS.getOrDefault(player.getUuid(), Long.MAX_VALUE);
+    }
+
+    @Override
+    public void run(ServerPlayerEntity player, long currentTick) {
+        if (player == null) {
+            return;
+        }
+
+        UUID playerId = player.getUuid();
+        NEXT_WAKE_TICKS.remove(playerId);
+
+        if (player.getServer() == null) {
+            clear(player);
+            return;
+        }
+
+        if (!PENDING_STIMULI.containsKey(player) && !DIGESTS.containsKey(player)) {
+            return;
+        }
+
+        long worldTick = player.getWorld().getTime();
+        pruneStimuli(player, worldTick);
+        flushDigest(player, worldTick);
+
+        long nextTick = computeNextWakeTick(player, currentTick, worldTick);
+        if (nextTick != Long.MAX_VALUE) {
+            scheduleAt(player, nextTick);
+        }
+    }
+
+    @Override
+    public void onPlayerRemoved(ServerPlayerEntity player) {
+        onPlayerDisconnect(player);
+    }
+
+    private static void scheduleImmediate(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+        long tick = resolveServerTick(player);
+        if (tick == Long.MIN_VALUE) {
+            return;
+        }
+        scheduleAt(player, tick);
+        PlayerTickDispatcher.requestImmediateRun(player, INSTANCE);
+    }
+
+    private static void scheduleDigest(ServerPlayerEntity player, CueDigest digest, long worldNow) {
+        if (player == null || digest == null) {
+            return;
+        }
+        long flushTick = digest.flushTick();
+        if (flushTick <= 0L) {
+            return;
+        }
+        long serverTick = convertWorldTickToServer(player, flushTick, worldNow);
+        if (serverTick != Long.MAX_VALUE) {
+            scheduleAt(player, serverTick);
+        }
+    }
+
+    private static void scheduleAt(ServerPlayerEntity player, long tick) {
+        if (player == null) {
+            return;
+        }
+        if (tick < 0L) {
+            tick = 0L;
+        }
+        UUID playerId = player.getUuid();
+        NEXT_WAKE_TICKS.merge(playerId, tick, Math::min);
+        if (player.getServer() != null && tick <= player.getServer().getTicks()) {
+            PlayerTickDispatcher.requestImmediateRun(player, INSTANCE);
+        }
+    }
+
+    private static long computeNextWakeTick(ServerPlayerEntity player, long serverNow, long worldNow) {
+        long nextTick = Long.MAX_VALUE;
+
+        if (PENDING_STIMULI.containsKey(player)) {
+            nextTick = Math.min(nextTick, serverNow + 1L);
+        }
+
+        CueDigest digest = DIGESTS.get(player);
+        if (digest != null) {
+            if (!digest.entries().isEmpty()) {
+                long flushTick = digest.flushTick();
+                if (flushTick > worldNow) {
+                    long candidate = convertWorldTickToServer(player, flushTick, worldNow);
+                    nextTick = Math.min(nextTick, candidate);
+                }
+            } else if (digest.flushTick() <= worldNow) {
+                DIGESTS.remove(player);
+            }
+        }
+
+        return nextTick;
+    }
+
+    private static long resolveServerTick(ServerPlayerEntity player) {
+        if (player == null || player.getServer() == null) {
+            return Long.MIN_VALUE;
+        }
+        return player.getServer().getTicks();
+    }
+
+    private static long convertWorldTickToServer(ServerPlayerEntity player, long targetWorldTick, long worldNow) {
+        if (player == null || player.getServer() == null) {
+            return Long.MAX_VALUE;
+        }
+        long delta = Math.max(0L, targetWorldTick - worldNow);
+        long serverNow = player.getServer().getTicks();
+        return serverNow + Math.max(1L, delta);
     }
 
     /** Dump suppressed cue history to the player and clear the backlog. */
@@ -256,6 +374,7 @@ public final class EmotionContextCues {
         long window = Math.max(1L, definition.digestWindowTicks());
         digest.add(definitionId, definition, impact, now + window);
         addJournalEntry(player, text, SuppressionReason.LOW_IMPACT);
+        scheduleDigest(player, digest, now);
     }
 
     private static void flushDigest(ServerPlayerEntity player, long now) {
@@ -414,6 +533,10 @@ public final class EmotionContextCues {
         void reset() {
             entries.clear();
             flushTick = -1L;
+        }
+
+        long flushTick() {
+            return flushTick;
         }
 
         private record Entry(String definitionId, int count, float impactSum) {

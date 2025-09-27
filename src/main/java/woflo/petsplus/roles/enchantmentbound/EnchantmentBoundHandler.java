@@ -24,6 +24,7 @@ import net.minecraft.util.Identifier;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PlayerTickListener;
 
 import java.util.Map;
 import java.util.UUID;
@@ -33,11 +34,19 @@ import java.util.concurrent.ConcurrentHashMap;
  * Enchantment-Bound: owner-centric echoes and Arcane Focus surge.
  * Pet-attack agnostic, driven by owner events.
  */
-public final class EnchantmentBoundHandler {
+public final class EnchantmentBoundHandler implements PlayerTickListener {
     private EnchantmentBoundHandler() {}
 
     private static final long SWIM_INTERVAL_TICKS = 10L;
     private static final Map<UUID, Long> NEXT_SWIM_TICK = new ConcurrentHashMap<>();
+
+    private static final long IDLE_RECHECK_TICKS = 40L;
+
+    private static final EnchantmentBoundHandler INSTANCE = new EnchantmentBoundHandler();
+
+    public static EnchantmentBoundHandler getInstance() {
+        return INSTANCE;
+    }
 
     public static void initialize() {
         // Mining streaks -> brief Haste pulse
@@ -126,23 +135,35 @@ public final class EnchantmentBoundHandler {
 
     }
 
-    public static void handlePlayerTick(ServerPlayerEntity player) {
-        if (player.isRemoved() || player.isSpectator()) {
-            return;
+    @Override
+    public long nextRunTick(ServerPlayerEntity player) {
+        if (player == null) {
+            return Long.MAX_VALUE;
         }
-
-        long now = player.getWorld().getTime();
-        long next = NEXT_SWIM_TICK.getOrDefault(player.getUuid(), 0L);
-        if (now < next) {
-            return;
-        }
-
-        NEXT_SWIM_TICK.put(player.getUuid(), now + SWIM_INTERVAL_TICKS);
-        onOwnerSwimTick(player);
+        return NEXT_SWIM_TICK.getOrDefault(player.getUuid(), 0L);
     }
 
-    public static void handlePlayerDisconnect(ServerPlayerEntity player) {
-        NEXT_SWIM_TICK.remove(player.getUuid());
+    @Override
+    public void run(ServerPlayerEntity player, long currentTick) {
+        if (player == null || player.isRemoved() || player.isSpectator()) {
+            if (player != null) {
+                NEXT_SWIM_TICK.remove(player.getUuid());
+            }
+            return;
+        }
+
+        UUID playerId = player.getUuid();
+        NEXT_SWIM_TICK.put(playerId, currentTick + IDLE_RECHECK_TICKS);
+
+        onOwnerSwimTick(player);
+        NEXT_SWIM_TICK.put(playerId, currentTick + SWIM_INTERVAL_TICKS);
+    }
+
+    @Override
+    public void onPlayerRemoved(ServerPlayerEntity player) {
+        if (player != null) {
+            NEXT_SWIM_TICK.remove(player.getUuid());
+        }
     }
 
     /**
