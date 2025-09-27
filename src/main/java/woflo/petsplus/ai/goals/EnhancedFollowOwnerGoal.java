@@ -40,6 +40,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
     private static final int SPACING_MAX_SAMPLES = 3;
     private static final long FOLLOW_SAMPLE_INTERVAL = 5L;
     private static final double LATERAL_PUSH_SCALE = 1.1;
+    private static final double MOVE_TARGET_REFRESH_EPSILON = 0.0625 * 0.0625;
 
     private final MobEntity mob;
     private final PetsplusTameable tameable;
@@ -53,6 +54,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
     private BlockPos lastOwnerPos = BlockPos.ORIGIN;
     private MobEntity spacingFocus;
     private long spacingFocusExpiryTick;
+    private Vec3d lastMoveTarget;
 
     public EnhancedFollowOwnerGoal(MobEntity mob, PetsplusTameable tameable, PetComponent petComponent, double speed, float followDistance, float teleportDistance) {
         this.mob = mob;
@@ -126,11 +128,13 @@ public class EnhancedFollowOwnerGoal extends Goal {
     @Override
     public void start() {
         this.stuckCounter = 0;
+        this.lastMoveTarget = null;
     }
 
     @Override
     public void stop() {
         this.mob.getNavigation().stop();
+        this.lastMoveTarget = null;
     }
 
     @Override
@@ -183,6 +187,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
 
         if (this.mob.squaredDistanceTo(owner) > (teleportDistance * teleportDistance)) {
             this.mob.teleport(owner.getX(), owner.getY(), owner.getZ(), false);
+            this.lastMoveTarget = null;
             return;
         }
 
@@ -190,10 +195,15 @@ public class EnhancedFollowOwnerGoal extends Goal {
             OwnerAssistAttackGoal.clearAssistHesitation(petComponent);
         }
 
-        if (this.mob.getNavigation().isIdle()) {
-            double adjustedSpeed = hesitating ? this.speed + HESITATION_SPEED_BOOST : this.speed;
+        double adjustedSpeed = hesitating ? this.speed + HESITATION_SPEED_BOOST : this.speed;
+        boolean navigationIdle = this.mob.getNavigation().isIdle();
+        boolean targetChanged = this.lastMoveTarget == null
+            || this.lastMoveTarget.squaredDistanceTo(moveTarget) > MOVE_TARGET_REFRESH_EPSILON;
+
+        if (navigationIdle || targetChanged) {
             this.mob.getNavigation().startMovingTo(moveTarget.x, moveTarget.y, moveTarget.z, adjustedSpeed);
         }
+        this.lastMoveTarget = moveTarget;
 
         if (!this.mob.getNavigation().isFollowingPath()) {
             stuckCounter++;
