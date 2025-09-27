@@ -313,28 +313,22 @@ public class SocialContextSnapshot {
             List<NeighborSample> allSamples = new ArrayList<>();
             List<NeighborSample> packSamples = new ArrayList<>();
             double packRadiusSq = packRadius > 0 ? packRadius * packRadius : 0;
-            int sampleCap = maxSamples > 0 ? maxSamples : 0;
             int packCap = maxSamples > 0 ? Math.min(maxSamples, MAX_PACK_SAMPLE) : MAX_PACK_SAMPLE;
 
-            swarm.forEachNeighbor(pet, component, sampleRadius, sampleCap, (entry, distSq) -> {
+            swarm.forEachNeighbor(pet, component, sampleRadius, 0, (entry, distSq) -> {
                 PetSocialData neighbor = cache.computeIfAbsent(entry.pet(),
                     key -> new PetSocialData(entry, currentTick));
                 NeighborSample sample = new NeighborSample(entry.pet(), neighbor, distSq);
-                allSamples.add(sample);
+                insertSortedWithLimit(allSamples, sample, maxSamples);
                 if (packRadiusSq <= 0 || distSq > packRadiusSq) {
                     return;
                 }
-                insertSorted(packSamples, sample);
-                if (packSamples.size() > packCap) {
-                    packSamples.remove(packSamples.size() - 1);
-                }
+                insertSortedWithLimit(packSamples, sample, packCap);
             });
 
             if (allSamples.isEmpty()) {
                 return EMPTY;
             }
-
-            allSamples.sort(Comparator.comparingDouble(NeighborSample::squaredDistance));
 
             List<PetSocialData> packNeighbors = new ArrayList<>(packSamples.size());
             List<PetSocialData> packMoodNeighbors = new ArrayList<>(packSamples.size());
@@ -363,13 +357,22 @@ public class SocialContextSnapshot {
                 List.copyOf(packMoodNeighbors), strongestBond, closestPack, closestPackDistanceSq);
         }
 
-        private static void insertSorted(List<NeighborSample> samples, NeighborSample sample) {
+        private static void insertSortedWithLimit(List<NeighborSample> samples, NeighborSample sample, int limit) {
+            int capacity = limit > 0 ? limit : Integer.MAX_VALUE;
+            if (!samples.isEmpty() && samples.size() >= capacity
+                && sample.squaredDistance() >= samples.get(samples.size() - 1).squaredDistance()) {
+                return;
+            }
+
             int index = Collections.binarySearch(samples, sample,
                 Comparator.comparingDouble(NeighborSample::squaredDistance));
             if (index < 0) {
                 index = -index - 1;
             }
             samples.add(index, sample);
+            if (samples.size() > capacity) {
+                samples.remove(samples.size() - 1);
+            }
         }
 
         public List<NeighborSample> samples() {
