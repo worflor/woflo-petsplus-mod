@@ -24,6 +24,7 @@ import net.minecraft.entity.passive.OcelotEntity;
 import net.minecraft.entity.passive.ParrotEntity;
 import net.minecraft.entity.passive.WolfEntity;
 import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.village.TradeOffer;
 import net.minecraft.village.VillagerProfession;
 import net.minecraft.block.BarrelBlock;
 import net.minecraft.block.BedBlock;
@@ -33,17 +34,19 @@ import net.minecraft.block.Blocks;
 import net.minecraft.block.ChestBlock;
 import net.minecraft.block.JukeboxBlock;
 import net.minecraft.block.CampfireBlock;
+import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.item.BlockItem;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.world.World;
 import net.minecraft.registry.RegistryKey;
@@ -76,6 +79,8 @@ import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 
+import woflo.petsplus.behavior.social.GossipCircleRoutine;
+import woflo.petsplus.behavior.social.GossipWhisperRoutine;
 import woflo.petsplus.behavior.social.PackCircleRoutine;
 import woflo.petsplus.behavior.social.PetSocialData;
 import woflo.petsplus.behavior.social.SocialBehaviorRoutine;
@@ -85,6 +90,7 @@ import woflo.petsplus.events.EmotionCueConfig.EmotionCueDefinition;
 import woflo.petsplus.state.PetSwarmIndex;
 import woflo.petsplus.state.PlayerTickListener;
 import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.gossip.GossipTopics;
 
 /**
  * Central, low-cost, event-driven emotion hooks.
@@ -95,6 +101,8 @@ public final class EmotionsEventHandler {
     private static final PlayerTicker PLAYER_TICKER = new PlayerTicker();
     private static final List<SocialBehaviorRoutine> SOCIAL_ROUTINES = List.of(
         new PackCircleRoutine(),
+        new GossipCircleRoutine(),
+        new GossipWhisperRoutine(),
         new WhisperRoutine()
     );
     private static final TagKey<Item> MUSIC_DISC_ITEMS = TagKey.of(RegistryKeys.ITEM,
@@ -178,6 +186,9 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             float healthPct = Math.max(0f, sp.getHealth() / sp.getMaxHealth());
             float reliefBonus = healthPct < 0.35f ? 0.2f : 0f;
             long now = world.getTime();
+            OwnerKillStreak streak = OWNER_KILL_STREAKS.computeIfAbsent(sp.getUuid(), uuid -> new OwnerKillStreak());
+            boolean lowHealthFinish = healthPct < 0.35f;
+            streak.recordKill(now, healthPct, lowHealthFinish);
             applyConfiguredStimulus(sp, "combat.owner_kill", 32, pc -> {
                 if (reliefBonus > 0f) {
                     pc.pushEmotion(PetComponent.Emotion.RELIEF, reliefBonus);
@@ -213,6 +224,13 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                     "petsplus.emotion_cue.combat.owner_kill_" + suffix,
                     killed.getDisplayName());
                 EmotionContextCues.sendCue(sp, "combat.owner_kill." + suffix, cueText, 200);
+            }
+
+            Text killedName = killed.getDisplayName();
+            float noteworthiness = calculateKillNoteworthiness(context, streak, killed);
+            if (noteworthiness >= 0.55f) {
+                KillRumorPayload payload = buildKillRumorPayload(context, streak, noteworthiness, killedName);
+                shareOwnerRumor(sp, payload.radius(), payload.topicId(), payload.intensity(), payload.confidence(), payload.text());
             }
         }
 
@@ -292,6 +310,10 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         String useDefinition = config.findBlockUseDefinition(state);
         ItemStack held = player.getStackInHand(hand);
         PetConsumer stateConsumer = pc -> {};
+        long gossipTopicId = 0L;
+        Text gossipText = null;
+        float gossipIntensity = 0.32f;
+        float gossipConfidence = 0.44f;
 
         if (state.isIn(BlockTags.CAMPFIRES) && state.contains(CampfireBlock.LIT)) {
             boolean lit = state.get(CampfireBlock.LIT);
@@ -301,18 +323,30 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                     pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.05f);
                     pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.04f);
                 };
+                gossipTopicId = GossipTopics.SOCIAL_CAMPFIRE;
+                gossipText = Text.translatable("petsplus.gossip.social.campfire");
+                gossipIntensity = 0.3f;
+                gossipConfidence = 0.46f;
             } else if (!lit && (held.isOf(Items.FLINT_AND_STEEL) || held.isOf(Items.FIRE_CHARGE))) {
                 useDefinition = "block_use.campfire.ignite";
                 stateConsumer = pc -> {
                     pc.pushEmotion(PetComponent.Emotion.HOPEFUL, 0.05f);
                     pc.pushEmotion(PetComponent.Emotion.GLEE, 0.04f);
                 };
+                gossipTopicId = GossipTopics.SOCIAL_CAMPFIRE;
+                gossipText = Text.translatable("petsplus.gossip.social.campfire");
+                gossipIntensity = 0.36f;
+                gossipConfidence = 0.48f;
             } else if (lit) {
                 useDefinition = "block_use.campfire.stoke";
                 stateConsumer = pc -> {
                     pc.pushEmotion(PetComponent.Emotion.CONTENT, 0.05f);
                     pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.04f);
                 };
+                gossipTopicId = GossipTopics.SOCIAL_CAMPFIRE;
+                gossipText = Text.translatable("petsplus.gossip.social.campfire");
+                gossipIntensity = 0.34f;
+                gossipConfidence = 0.47f;
             }
         } else if (state.getBlock() instanceof JukeboxBlock && state.contains(JukeboxBlock.HAS_RECORD)) {
             boolean hasRecord = state.get(JukeboxBlock.HAS_RECORD);
@@ -353,6 +387,9 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
         if (useDefinition != null) {
             triggerConfiguredCue(sp, useDefinition, config.fallbackRadius(), stateConsumer, null);
+            if (gossipTopicId != 0L && gossipText != null) {
+                shareOwnerRumor(sp, 24, gossipTopicId, gossipIntensity, gossipConfidence, gossipText);
+            }
         }
 
         if (held.getItem() instanceof BlockItem blockItem) {
@@ -468,6 +505,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
     private static final Map<ServerWorld, Long> LAST_WET_WEATHER_TICK = new WeakHashMap<>();
     private static final Map<UUID, Long> LAST_CLEAR_WEATHER_TRIGGER = new HashMap<>();
     private static final Map<UUID, ConcurrentHashMap<UUID, Long>> LAST_OWNER_ATTACK_TARGET = new ConcurrentHashMap<>();
+    private static final Map<UUID, OwnerKillStreak> OWNER_KILL_STREAKS = new ConcurrentHashMap<>();
     private static final Map<ServerPlayerEntity, String> INVENTORY_SIGNATURES = new WeakHashMap<>();
     private record WeatherState(boolean raining, boolean thundering) {}
 
@@ -493,6 +531,123 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
     // Time of day phases for subtle transitions
     private enum TimePhase { DAWN, DAY, DUSK, NIGHT }
     private static final Map<ServerWorld, TimePhase> TIME_PHASES = new WeakHashMap<>();
+
+    private static final long OWNER_KILL_STREAK_WINDOW = 200L;
+
+    private static final class OwnerKillStreak {
+        private int streakCount;
+        private long lastKillTick = Long.MIN_VALUE;
+        private boolean sawLowHealthFinish;
+        private float lowestHealthPct = 1f;
+
+        void recordKill(long tick, float healthPct, boolean lowHealthFinish) {
+            if (tick - lastKillTick > OWNER_KILL_STREAK_WINDOW) {
+                streakCount = 0;
+                sawLowHealthFinish = false;
+                lowestHealthPct = 1f;
+            }
+            streakCount++;
+            lastKillTick = tick;
+            if (streakCount == 1) {
+                lowestHealthPct = healthPct;
+                sawLowHealthFinish = lowHealthFinish;
+            } else {
+                lowestHealthPct = Math.min(lowestHealthPct, healthPct);
+                sawLowHealthFinish = sawLowHealthFinish || lowHealthFinish;
+            }
+        }
+
+        int streakCount() {
+            return streakCount;
+        }
+
+        boolean sawLowHealthFinish() {
+            return sawLowHealthFinish;
+        }
+
+        float lowestHealthPct() {
+            return lowestHealthPct;
+        }
+    }
+
+    private record KillRumorPayload(double radius, long topicId, float intensity, float confidence, Text text) {}
+
+    private static float calculateKillNoteworthiness(KillContext context, OwnerKillStreak streak, LivingEntity killed) {
+        float score = switch (context) {
+            case PASSIVE -> 0.2f;
+            case HOSTILE -> 0.45f;
+            case BOSS -> 0.8f;
+        };
+
+        int streakCount = streak.streakCount();
+        if (streakCount >= 2) {
+            float streakBoost = 0.18f + 0.08f * Math.min(3, streakCount - 1);
+            score += streakBoost;
+        }
+
+        if (streak.sawLowHealthFinish()) {
+            float clutchFactor = MathHelper.clamp((0.35f - streak.lowestHealthPct()) / 0.35f, 0f, 1f);
+            score += 0.22f + clutchFactor * 0.18f;
+        }
+
+        float targetDifficulty = MathHelper.clamp(killed.getMaxHealth() / 40f, 0f, 1f);
+        if (targetDifficulty > 0f) {
+            score += targetDifficulty * 0.1f;
+        }
+
+        return MathHelper.clamp(score, 0f, 1.4f);
+    }
+
+    private static KillRumorPayload buildKillRumorPayload(KillContext context, OwnerKillStreak streak, float score, Text killedName) {
+        long topicId;
+        double radius;
+        float baseIntensity;
+        float baseConfidence;
+        MutableText text;
+        switch (context) {
+            case HOSTILE -> {
+                topicId = GossipTopics.OWNER_KILL_HOSTILE;
+                radius = 48;
+                baseIntensity = 0.65f;
+                baseConfidence = 0.55f;
+                text = Text.translatable("petsplus.gossip.combat.owner_kill.hostile", killedName).copy();
+            }
+            case PASSIVE -> {
+                topicId = GossipTopics.OWNER_KILL_PASSIVE;
+                radius = 32;
+                baseIntensity = 0.45f;
+                baseConfidence = 0.4f;
+                text = Text.translatable("petsplus.gossip.combat.owner_kill.passive", killedName).copy();
+            }
+            case BOSS -> {
+                topicId = GossipTopics.OWNER_KILL_BOSS;
+                radius = 64;
+                baseIntensity = 0.85f;
+                baseConfidence = 0.7f;
+                text = Text.translatable("petsplus.gossip.combat.owner_kill.boss", killedName).copy();
+            }
+            default -> throw new IllegalStateException("Unexpected value: " + context);
+        }
+
+        if (streak.streakCount() >= 2) {
+            text.append(Text.literal(" "))
+                .append(Text.translatable("petsplus.gossip.combat.owner_kill.extra.streak", streak.streakCount()));
+        }
+
+        if (streak.sawLowHealthFinish()) {
+            int pct = MathHelper.clamp(Math.round(streak.lowestHealthPct() * 100f), 0, 100);
+            text.append(Text.literal(" "))
+                .append(Text.translatable("petsplus.gossip.combat.owner_kill.extra.clutch", pct));
+        }
+
+        float intensityScale = MathHelper.clamp(0.65f + score * 0.4f, 0.65f, 1.3f);
+        float confidenceScale = MathHelper.clamp(0.7f + score * 0.35f, 0.7f, 1.25f);
+
+        float intensity = MathHelper.clamp(baseIntensity * intensityScale, 0f, 1f);
+        float confidence = MathHelper.clamp(baseConfidence * confidenceScale, 0f, 1f);
+
+        return new KillRumorPayload(radius, topicId, intensity, confidence, text);
+    }
 
     // Lightweight per-player environment state for biome/dimension/idle tracking
     private static final Map<ServerPlayerEntity, PlayerEnvState> PLAYER_ENV = new WeakHashMap<>();
@@ -867,6 +1022,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             }
             Identifier newBiomeId = biomeKey.getValue();
             Text biomeName = Text.translatable("biome." + newBiomeId.getNamespace() + "." + newBiomeId.getPath());
+            shareOwnerRumor(player, 48, GossipTopics.EXPLORE_NEW_BIOME, 0.5f, 0.4f,
+                Text.translatable("petsplus.gossip.exploration.new_biome", biomeName));
             pushToNearbyOwnedPets(player, 48, pc -> {
                 if (pc.hasRole(PetRoleType.SCOUT)) {
                     MobEntity scoutPet = pc.getPet();
@@ -1051,6 +1208,17 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 consumer.accept(pet, component);
             }
         }
+    }
+
+    private static void shareOwnerRumor(ServerPlayerEntity owner, double radius, long topicId,
+                                        float intensity, float confidence, @Nullable Text message) {
+        if (owner == null) {
+            return;
+        }
+        long currentTick = owner.getWorld().getTime();
+        Text payload = message == null ? null : message.copy();
+        forEachOwnedPet(owner, radius, (pet, component) ->
+            component.recordRumor(topicId, intensity, confidence, currentTick, owner.getUuid(), payload, true));
     }
 
     private static Map<PetComponent.Mood, Float> snapshotMoodBlend(PetComponent pc) {
@@ -1752,6 +1920,48 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         return ActionResult.PASS;
     }
 
+    public static void onVillagerTradeCompleted(ServerPlayerEntity player, VillagerEntity villager, TradeOffer tradeOffer) {
+        if (player.getWorld().isClient()) {
+            return;
+        }
+
+        RegistryEntry<VillagerProfession> profession = villager.getVillagerData().profession();
+        boolean isFoodTrader = profession.matchesKey(VillagerProfession.BUTCHER)
+            || profession.matchesKey(VillagerProfession.FARMER);
+        boolean isMystic = profession.matchesKey(VillagerProfession.CLERIC);
+        boolean isGuard = profession.matchesKey(VillagerProfession.WEAPONSMITH)
+            || profession.matchesKey(VillagerProfession.ARMORER);
+
+        ItemStack sellStack = tradeOffer.getSellItem();
+        boolean sellsCombatGear = sellStack.isIn(ItemTags.TRIMMABLE_ARMOR)
+            || sellStack.isIn(ItemTags.SWORDS)
+            || sellStack.isIn(ItemTags.AXES)
+            || sellStack.isOf(Items.SHIELD)
+            || sellStack.isOf(Items.BOW)
+            || sellStack.isOf(Items.CROSSBOW);
+
+        long topicId = GossipTopics.TRADE_GENERIC;
+        Text gossipText = Text.translatable("petsplus.gossip.life.trade.generic");
+        float intensity = 0.35f;
+        float confidence = 0.42f;
+
+        if (isFoodTrader || sellStack.contains(DataComponentTypes.FOOD)) {
+            topicId = GossipTopics.TRADE_FOOD;
+            gossipText = Text.translatable("petsplus.gossip.life.trade.food");
+            intensity = 0.38f;
+        } else if (isMystic) {
+            topicId = GossipTopics.TRADE_MYSTIC;
+            gossipText = Text.translatable("petsplus.gossip.life.trade.mystic");
+            confidence = 0.46f;
+        } else if (isGuard || sellsCombatGear) {
+            topicId = GossipTopics.TRADE_GUARD;
+            gossipText = Text.translatable("petsplus.gossip.life.trade.guard");
+            intensity = 0.4f;
+        }
+
+        shareOwnerRumor(player, 32, topicId, intensity, confidence, gossipText);
+    }
+
     /**
      * Advanced weather and item awareness using tags and component data
      */
@@ -2080,18 +2290,24 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.12f);
                 pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.10f);
             }, false);
+            shareOwnerRumor(player, 64, GossipTopics.RETURN_FROM_DIMENSION, 0.5f, 0.55f,
+                Text.translatable("petsplus.gossip.exploration.dimension.return"));
         } else if (current == World.NETHER) {
             pushToNearbyOwnedPets(player, 64, pc -> {
                 pc.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f);
                 pc.pushEmotion(PetComponent.Emotion.STOIC, 0.12f);
                 pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
             }, false);
+            shareOwnerRumor(player, 64, GossipTopics.ENTER_NETHER, 0.6f, 0.5f,
+                Text.translatable("petsplus.gossip.exploration.dimension.nether"));
         } else if (current == World.END) {
             pushToNearbyOwnedPets(player, 64, pc -> {
                 pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.14f);
                 pc.pushEmotion(PetComponent.Emotion.STOIC, 0.12f);
                 pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.08f);
             }, false);
+            shareOwnerRumor(player, 64, GossipTopics.ENTER_END, 0.65f, 0.55f,
+                Text.translatable("petsplus.gossip.exploration.dimension.end"));
         }
     }
 

@@ -21,7 +21,8 @@ public final class PetWorkScheduler {
         INTERVAL,
         AURA,
         SUPPORT_POTION,
-        PARTICLE
+        PARTICLE,
+        GOSSIP_DECAY
     }
 
     public static final class ScheduledTask {

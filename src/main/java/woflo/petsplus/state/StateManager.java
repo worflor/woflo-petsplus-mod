@@ -293,6 +293,7 @@ public class StateManager {
             case AURA -> runAuraPulse(pet, component, serverOwner, currentTick);
             case SUPPORT_POTION -> runSupportScan(pet, component, serverOwner, currentTick);
             case PARTICLE -> runParticlePass(pet, component, currentTick);
+            case GOSSIP_DECAY -> component.tickGossipLedger(currentTick);
         }
     }
 
