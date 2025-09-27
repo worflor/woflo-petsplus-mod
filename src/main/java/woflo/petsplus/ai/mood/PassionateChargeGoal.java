@@ -1,6 +1,7 @@
 package woflo.petsplus.ai.mood;
 
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
@@ -21,6 +22,7 @@ public class PassionateChargeGoal extends MoodBasedGoal {
     private BlockPos sparkPos;
     private BlockPos resonancePos;
     private Vec3d currentTarget;
+    private Vec3d lastNavigationTarget;
     private int chargeTicks;
     private boolean headingToResonance;
 
@@ -71,6 +73,7 @@ public class PassionateChargeGoal extends MoodBasedGoal {
     public void start() {
         chargeTicks = 0;
         headingToResonance = mob.getRandom().nextBoolean();
+        lastNavigationTarget = null;
         pickNextTarget();
     }
 
@@ -93,7 +96,10 @@ public class PassionateChargeGoal extends MoodBasedGoal {
         }
 
         if (currentTarget != null) {
-            mob.getNavigation().startMovingTo(currentTarget.x, currentTarget.y, currentTarget.z, 1.2);
+            if (shouldIssuePath(currentTarget)) {
+                mob.getNavigation().startMovingTo(currentTarget.x, currentTarget.y, currentTarget.z, 1.2);
+                lastNavigationTarget = currentTarget;
+            }
             mob.getLookControl().lookAt(currentTarget.x, currentTarget.y + 0.5, currentTarget.z);
         }
     }
@@ -103,12 +109,14 @@ public class PassionateChargeGoal extends MoodBasedGoal {
         sparkPos = null;
         resonancePos = null;
         currentTarget = null;
+        lastNavigationTarget = null;
         mob.getNavigation().stop();
     }
 
     private void pickNextTarget() {
         if (sparkPos == null && resonancePos == null) {
             currentTarget = null;
+            lastNavigationTarget = null;
             return;
         }
 
@@ -116,6 +124,7 @@ public class PassionateChargeGoal extends MoodBasedGoal {
             headingToResonance = !headingToResonance;
             BlockPos destination = headingToResonance ? resonancePos : sparkPos;
             currentTarget = Vec3d.ofCenter(destination);
+            lastNavigationTarget = null;
             return;
         }
 
@@ -125,6 +134,7 @@ public class PassionateChargeGoal extends MoodBasedGoal {
             double offsetAngle = mob.getRandom().nextDouble() * Math.PI * 2;
             double radius = 1.4 + mob.getRandom().nextDouble();
             currentTarget = center.add(Math.cos(offsetAngle) * radius, 0.1, Math.sin(offsetAngle) * radius);
+            lastNavigationTarget = null;
         }
     }
 
@@ -140,6 +150,10 @@ public class PassionateChargeGoal extends MoodBasedGoal {
             }
 
             if (!world.getWorldBorder().contains(pos)) {
+                continue;
+            }
+
+            if (!isChunkLoaded(world, pos)) {
                 continue;
             }
 
@@ -159,6 +173,33 @@ public class PassionateChargeGoal extends MoodBasedGoal {
 
     private boolean isAffinityValid(BlockPos pos, Predicate<net.minecraft.block.BlockState> predicate) {
         World world = mob.getWorld();
-        return world.getWorldBorder().contains(pos) && predicate.test(world.getBlockState(pos));
+        if (!world.getWorldBorder().contains(pos)) {
+            return false;
+        }
+
+        if (!isChunkLoaded(world, pos)) {
+            return false;
+        }
+
+        return predicate.test(world.getBlockState(pos));
+    }
+
+    private boolean shouldIssuePath(Vec3d target) {
+        if (!mob.getNavigation().isFollowingPath()) {
+            return true;
+        }
+
+        if (lastNavigationTarget == null) {
+            return true;
+        }
+
+        return lastNavigationTarget.squaredDistanceTo(target) > 0.25;
+    }
+
+    private boolean isChunkLoaded(World world, BlockPos pos) {
+        if (world instanceof ServerWorld serverWorld) {
+            return serverWorld.isChunkLoaded(pos);
+        }
+        return true;
     }
 }

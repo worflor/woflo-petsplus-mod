@@ -1,9 +1,10 @@
 package woflo.petsplus.ai.mood;
 
+import net.minecraft.block.BlockState;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.block.BlockState;
 import woflo.petsplus.ai.MoodBasedGoal;
 import woflo.petsplus.state.PetComponent;
 
@@ -111,12 +112,27 @@ public class FocusedStudyGoal extends MoodBasedGoal {
             return false;
         }
 
+        if (!isChunkLoaded(world, pos)) {
+            return false;
+        }
+
         BlockState state = world.getBlockState(pos);
         if (!MoodEnvironmentAffinities.isFocusedStudyBlock(state)) {
             return false;
         }
 
         BlockPos above = pos.up();
+        if (!isChunkLoaded(world, above)) {
+            return false;
+        }
+
         return world.getBlockState(above).isAir() || world.getBlockState(above).getCollisionShape(world, above).isEmpty();
+    }
+
+    private boolean isChunkLoaded(net.minecraft.world.World world, BlockPos pos) {
+        if (world instanceof ServerWorld serverWorld) {
+            return serverWorld.isChunkLoaded(pos);
+        }
+        return true;
     }
 }

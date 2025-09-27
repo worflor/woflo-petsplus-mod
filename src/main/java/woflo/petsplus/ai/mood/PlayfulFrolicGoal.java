@@ -1,6 +1,7 @@
 package woflo.petsplus.ai.mood;
 
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
@@ -19,6 +20,7 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
 
     private BlockPos toyPos;
     private Vec3d orbitTarget;
+    private Vec3d lastNavigationTarget;
     private int frolicTicks;
     private boolean clockwise;
 
@@ -49,6 +51,7 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
     public void start() {
         frolicTicks = 0;
         clockwise = mob.getRandom().nextBoolean();
+        lastNavigationTarget = null;
         chooseNextOrbitTarget();
     }
 
@@ -75,8 +78,9 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
 
         Vec3d toyCenter = Vec3d.ofCenter(toyPos);
         double distance = mob.squaredDistanceTo(toyCenter);
-        if (distance > 16.0 && !mob.getNavigation().isFollowingPath()) {
+        if (distance > 16.0 && shouldIssuePath(toyCenter)) {
             mob.getNavigation().startMovingTo(toyCenter.x, toyCenter.y, toyCenter.z, 1.05);
+            lastNavigationTarget = toyCenter;
         }
 
         if (orbitTarget == null || mob.squaredDistanceTo(orbitTarget) < 1.0 || frolicTicks % 25 == 0) {
@@ -84,7 +88,10 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
         }
 
         if (orbitTarget != null) {
-            mob.getNavigation().startMovingTo(orbitTarget.x, orbitTarget.y, orbitTarget.z, 1.1);
+            if (shouldIssuePath(orbitTarget)) {
+                mob.getNavigation().startMovingTo(orbitTarget.x, orbitTarget.y, orbitTarget.z, 1.1);
+                lastNavigationTarget = orbitTarget;
+            }
         }
 
         mob.getLookControl().lookAt(toyCenter.x, toyCenter.y, toyCenter.z);
@@ -98,6 +105,7 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
     public void stop() {
         toyPos = null;
         orbitTarget = null;
+        lastNavigationTarget = null;
         frolicTicks = 0;
         mob.getNavigation().stop();
     }
@@ -133,6 +141,10 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
             return false;
         }
 
+        if (!isChunkLoaded(world, pos)) {
+            return false;
+        }
+
         return MoodEnvironmentAffinities.isPlayfulToy(world.getBlockState(pos));
     }
 
@@ -151,5 +163,29 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
         double z = toyPos.getZ() + 0.5 + Math.sin(angle) * radius;
         double y = toyPos.getY() + 0.2;
         orbitTarget = new Vec3d(x, y, z);
+        lastNavigationTarget = null;
+    }
+
+    private boolean shouldIssuePath(Vec3d target) {
+        if (target == null) {
+            return false;
+        }
+
+        if (!mob.getNavigation().isFollowingPath()) {
+            return true;
+        }
+
+        if (lastNavigationTarget == null) {
+            return true;
+        }
+
+        return lastNavigationTarget.squaredDistanceTo(target) > 0.25;
+    }
+
+    private boolean isChunkLoaded(World world, BlockPos pos) {
+        if (world instanceof ServerWorld serverWorld) {
+            return serverWorld.isChunkLoaded(pos);
+        }
+        return true;
     }
 }
