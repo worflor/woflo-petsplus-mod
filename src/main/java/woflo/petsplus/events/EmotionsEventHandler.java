@@ -73,6 +73,11 @@ import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 
+import woflo.petsplus.behavior.social.PackCircleRoutine;
+import woflo.petsplus.behavior.social.PetSocialData;
+import woflo.petsplus.behavior.social.SocialBehaviorRoutine;
+import woflo.petsplus.behavior.social.SocialContextSnapshot;
+import woflo.petsplus.behavior.social.WhisperRoutine;
 import woflo.petsplus.events.EmotionCueConfig.EmotionCueDefinition;
 import woflo.petsplus.state.PetSwarmIndex;
 import woflo.petsplus.state.PlayerTickListener;
@@ -85,6 +90,10 @@ import woflo.petsplus.state.StateManager;
 public final class EmotionsEventHandler {
 
     private static final PlayerTicker PLAYER_TICKER = new PlayerTicker();
+    private static final List<SocialBehaviorRoutine> SOCIAL_ROUTINES = List.of(
+        new PackCircleRoutine(),
+        new WhisperRoutine()
+    );
     private static final TagKey<Item> MUSIC_DISC_ITEMS = TagKey.of(RegistryKeys.ITEM,
         Identifier.of("minecraft", "music_discs"));
 
@@ -1100,329 +1109,27 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 addRoleSpecificAmbientTriggers(pet, component, owner, world);
                 addSpeciesSpecificTriggers(pet, component, owner, world);
 
-                processOptimizedSocialTriggers(pet, component, petDataCache, owner, world, currentTick, swarm);
+                processSocialRoutines(pet, component, petDataCache, owner, world, currentTick, swarm);
             });
             MoodService.getInstance().getStimulusBus().dispatchStimuli(pet);
         }
     }
     
-    // Cached pet social data to avoid redundant calculations
-    private static class PetSocialData {
-        final MobEntity pet;
-        final PetComponent component;
-        final long age;
-        final float bondStrength;
-        final double x;
-        final double y;
-        final double z;
-        final PetComponent.Mood currentMood;
-
-        PetSocialData(PetSwarmIndex.SwarmEntry entry, long currentTick) {
-            this(entry.pet(), entry.component(), currentTick, entry.x(), entry.y(), entry.z());
-        }
-
-        PetSocialData(MobEntity pet, PetComponent pc, long currentTick) {
-            this(pet, pc, currentTick, pet.getX(), pet.getY(), pet.getZ());
-        }
-
-        private PetSocialData(MobEntity pet, PetComponent pc, long currentTick,
-                              double x, double y, double z) {
-            this.pet = pet;
-            this.component = pc;
-            this.age = calculatePetAge(pc, currentTick);
-            this.bondStrength = pc.getBondStrength();
-            this.x = x;
-            this.y = y;
-            this.z = z;
-            this.currentMood = pc.getCurrentMood();
-        }
-
-        double squaredDistanceTo(PetSocialData other) {
-            double dx = this.x - other.x;
-            double dy = this.y - other.y;
-            double dz = this.z - other.z;
-            return (dx * dx) + (dy * dy) + (dz * dz);
-        }
-    }
-
-    // Optimized social processing using cached data
-    private static void processOptimizedSocialTriggers(MobEntity pet, PetComponent pc,
-                                                      Map<MobEntity, PetSocialData> petDataCache,
-                                                      ServerPlayerEntity owner, ServerWorld world, long currentTick,
-                                                      PetSwarmIndex swarm) {
-        PetSocialData petData = petDataCache.get(pet);
-        if (petData == null) return;
-
-        final int[] nearbyPetCount = {0};
-        final boolean[] hasOlderPet = {false};
-        final boolean[] hasYoungerPet = {false};
-        final boolean[] hasEldestPet = {false};
-        final boolean[] hasSimilarAge = {false};
-        final boolean[] hasNewbornPet = {false};
-        final float[] strongestBondResonance = {0f};
-        final double[] closestDistance = {Double.MAX_VALUE};
-        final PetSocialData[] closestPetData = {null};
-
-        swarm.forEachNeighbor(pet, pc, 8.0, (neighborEntry, distance) -> {
-            if (distance > 64) {
-                return;
-            }
-
-            PetSocialData otherData = petDataCache.computeIfAbsent(neighborEntry.pet(),
-                key -> new PetSocialData(neighborEntry, currentTick));
-
-            nearbyPetCount[0]++;
-
-            if (otherData.age > petData.age * 2) hasEldestPet[0] = true;
-            else if (otherData.age > petData.age) hasOlderPet[0] = true;
-            else if (otherData.age < petData.age / 2) hasYoungerPet[0] = true;
-
-            double ageRatio = (double) otherData.age / Math.max(petData.age, 1);
-            if (Math.abs(ageRatio - 1.0) <= 0.2) hasSimilarAge[0] = true;
-            if (otherData.age < 24000) hasNewbornPet[0] = true;
-
-            float bondDiff = Math.abs(petData.bondStrength - otherData.bondStrength);
-            if (bondDiff < 0.2f) {
-                strongestBondResonance[0] = Math.max(strongestBondResonance[0],
-                    Math.min(petData.bondStrength, otherData.bondStrength));
-            }
-
-            if (distance < closestDistance[0]) {
-                closestDistance[0] = distance;
-                closestPetData[0] = otherData;
-            }
-
-            if (otherData.currentMood != null) {
-                float contagionStrength = calculateContagionStrength(petData, otherData,
-                    hasEldestPet[0], hasSimilarAge[0], strongestBondResonance[0]);
-                applyMoodContagion(pc, otherData.currentMood, contagionStrength);
-            }
-        });
-
-        applySocialEffects(pet, pc, owner, nearbyPetCount[0], hasOlderPet[0], hasYoungerPet[0],
-            hasEldestPet[0], hasSimilarAge[0], hasNewbornPet[0], strongestBondResonance[0],
-            closestPetData[0], closestDistance[0], currentTick);
-
-        processAdvancedSocialDynamics(pet, pc, petDataCache, owner, world, currentTick, swarm);
-    }
-    
-    // Efficient mood contagion calculation
-    private static float calculateContagionStrength(PetSocialData petData, PetSocialData otherData,
-                                                   boolean hasEldestPet, boolean hasSimilarAge, 
-                                                   float strongestBondResonance) {
-        float strength = 0.02f;
-        
-        // Age modifiers (cached age data)
-        if (petData.age < 72000) strength += 0.01f; // Young pets more impressionable
-        if (hasEldestPet && otherData.age > petData.age * 2) strength += 0.015f; // Respect for elders
-        if (hasSimilarAge) strength += 0.005f; // Peer influence
-        if (strongestBondResonance > 0.8f) strength += 0.01f; // Bond resonance
-        
-        return strength;
-    }
-    
-    // Optimized mood contagion application
-    private static void applyMoodContagion(PetComponent pc, PetComponent.Mood otherMood, float strength) {
-        switch (otherMood) {
-            case HAPPY -> pc.pushEmotion(PetComponent.Emotion.CHEERFUL, strength);
-            case PLAYFUL -> pc.pushEmotion(PetComponent.Emotion.GLEE, strength);
-            case CURIOUS -> pc.pushEmotion(PetComponent.Emotion.CURIOUS, strength);
-            case BONDED -> pc.pushEmotion(PetComponent.Emotion.UBUNTU, strength);
-            case CALM -> pc.pushEmotion(PetComponent.Emotion.LAGOM, strength + 0.01f);
-            case PASSIONATE -> pc.pushEmotion(PetComponent.Emotion.KEFI, strength);
-            case YUGEN -> pc.pushEmotion(PetComponent.Emotion.YUGEN, strength);
-            case FOCUSED -> pc.pushEmotion(PetComponent.Emotion.FOCUSED, strength);
-            case SISU -> pc.pushEmotion(PetComponent.Emotion.SISU, strength);
-            case SAUDADE -> pc.pushEmotion(PetComponent.Emotion.SAUDADE, strength);
-            case PROTECTIVE -> pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, strength);
-            case RESTLESS -> pc.pushEmotion(PetComponent.Emotion.RESTLESS, strength);
-            case AFRAID -> pc.pushEmotion(PetComponent.Emotion.ANGST, strength + 0.01f);
-            case ANGRY -> pc.pushEmotion(PetComponent.Emotion.FRUSTRATION, strength);
-        }
-    }
-    
-    // Consolidated social effects application
-    private static void applySocialEffects(MobEntity pet, PetComponent pc, ServerPlayerEntity owner,
-                                         int nearbyPetCount, boolean hasOlderPet, boolean hasYoungerPet,
-                                         boolean hasEldestPet, boolean hasSimilarAge, boolean hasNewbornPet,
-                                         float strongestBondResonance, PetSocialData closestPetData, 
-                                         double closestDistance, long currentTick) {
-        
-        // Pack size effects (optimized single switch instead of multiple if-else)
-        switch (nearbyPetCount) {
-            case 0 -> {
-                PetComponent.Mood currentMood = pc.getCurrentMood();
-                if (currentMood != PetComponent.Mood.CALM && calculatePetAge(pc, currentTick) > 48000) {
-                    float lonelinessStrength = calculatePetAge(pc, currentTick) > 168000 ? 0.05f : 0.03f;
-                    pc.pushEmotion(PetComponent.Emotion.FERNWEH, lonelinessStrength);
-                    pc.pushEmotion(PetComponent.Emotion.SAUDADE, lonelinessStrength * 0.6f);
-                    if (tryMarkPetBeat(pc, "social_lonely", currentTick, 300)) {
-                        EmotionContextCues.sendCue(owner, "social.lonely." + pet.getUuidAsString(),
-                            Text.translatable("petsplus.emotion_cue.social.lonely", pet.getDisplayName()), 300);
-                    }
-                }
-            }
-            case 1 -> {
-                pc.pushEmotion(PetComponent.Emotion.UBUNTU, 0.04f);
-                pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.03f);
-                if (strongestBondResonance > 0.7f) {
-                    pc.pushEmotion(PetComponent.Emotion.HIRAETH, 0.02f);
-                }
-                if (tryMarkPetBeat(pc, "social_pair", currentTick, 400)) {
-                    EmotionContextCues.sendCue(owner, "social.pair." + pet.getUuidAsString(),
-                        Text.translatable("petsplus.emotion_cue.social.pair", pet.getDisplayName()), 400);
-                }
-            }
-            default -> {
-                if (nearbyPetCount <= 3) {
-                    // Small pack
-                    pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.06f);
-                    pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.04f);
-                    if (hasSimilarAge) {
-                        pc.pushEmotion(PetComponent.Emotion.GLEE, 0.03f);
-                    }
-                } else {
-                    // Large pack
-                    pc.pushEmotion(PetComponent.Emotion.KEFI, 0.05f);
-                    pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.07f);
-                    pc.pushEmotion(PetComponent.Emotion.PRIDE, 0.04f);
-                }
-            }
-        }
-        
-        // Age-based social effects (optimized with early returns)
-        if (hasEldestPet && tryMarkPetBeat(pc, "social_eldest", currentTick, 400)) {
-            pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.05f);
-            pc.pushEmotion(PetComponent.Emotion.HIRAETH, 0.03f);
-            EmotionContextCues.sendCue(owner, "social.eldest." + pet.getUuidAsString(),
-                Text.translatable("petsplus.emotion_cue.social.eldest", pet.getDisplayName()), 400);
-        } else if (hasOlderPet && tryMarkPetBeat(pc, "social_elder", currentTick, 350)) {
-            pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.03f);
-            pc.pushEmotion(PetComponent.Emotion.FOCUSED, 0.02f);
-            EmotionContextCues.sendCue(owner, "social.elder." + pet.getUuidAsString(),
-                Text.translatable("petsplus.emotion_cue.social.elder", pet.getDisplayName()), 350);
-        }
-        
-        // Close proximity effects
-        if (closestPetData != null && closestDistance <= 4 && tryMarkPetBeat(pc, "social_intimate", currentTick, 200)) {
-            pc.pushEmotion(PetComponent.Emotion.UBUNTU, 0.02f);
-            // Behavioral mimicry would require checking pet states, but we optimize by skipping for now
-        }
-    }
-    
-    // Optimized advanced social dynamics with throttling
-    private static void processAdvancedSocialDynamics(MobEntity pet, PetComponent pc,
-                                                     Map<MobEntity, PetSocialData> petDataCache,
-                                                     ServerPlayerEntity owner, ServerWorld world, long currentTick,
-                                                     PetSwarmIndex swarm) {
-        // Throttle advanced processing to every 6 seconds instead of 3 for performance
-        if (currentTick % 120 != 0) return;
-
-        PetSocialData petData = petDataCache.get(pet);
-        if (petData == null) return;
-
-        MobEntity[] nearestPets = new MobEntity[3];
-        PetSocialData[] nearestData = new PetSocialData[3];
-        double[] nearestDistances = new double[]{Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE};
-
-        swarm.forEachNeighbor(pet, pc, 12.0, (entry, distance) -> {
-            if (distance > 144) {
-                return;
-            }
-
-            PetSocialData otherData = petDataCache.computeIfAbsent(entry.pet(),
-                key -> new PetSocialData(entry, currentTick));
-
-            int emptySlot = -1;
-            for (int i = 0; i < 3; i++) {
-                if (nearestPets[i] == null) {
-                    emptySlot = i;
-                    break;
-                }
-            }
-
-            if (emptySlot != -1) {
-                nearestPets[emptySlot] = entry.pet();
-                nearestData[emptySlot] = otherData;
-                nearestDistances[emptySlot] = distance;
-            } else {
-                int worstIndex = 0;
-                for (int i = 1; i < 3; i++) {
-                    if (nearestDistances[i] > nearestDistances[worstIndex]) {
-                        worstIndex = i;
-                    }
-                }
-                if (distance < nearestDistances[worstIndex]) {
-                    nearestPets[worstIndex] = entry.pet();
-                    nearestData[worstIndex] = otherData;
-                    nearestDistances[worstIndex] = distance;
-                }
-            }
-        });
-
-        int[] order = {0, 1, 2};
-        for (int i = 0; i < 3; i++) {
-            for (int j = i + 1; j < 3; j++) {
-                if (nearestDistances[order[j]] < nearestDistances[order[i]]) {
-                    int tmp = order[i];
-                    order[i] = order[j];
-                    order[j] = tmp;
-                }
-            }
-        }
-
-        for (int index : order) {
-            MobEntity otherPet = nearestPets[index];
-            if (otherPet == null) {
+    private static void processSocialRoutines(MobEntity pet, PetComponent pc,
+                                              Map<MobEntity, PetSocialData> petDataCache,
+                                              ServerPlayerEntity owner, ServerWorld world, long currentTick,
+                                              PetSwarmIndex swarm) {
+        PetSocialData petData = petDataCache.computeIfAbsent(pet, key -> new PetSocialData(pet, pc, currentTick));
+        SocialContextSnapshot context = new SocialContextSnapshot(pet, pc, owner, world, currentTick, petData, petDataCache);
+        for (SocialBehaviorRoutine routine : SOCIAL_ROUTINES) {
+            context.resetTransientState();
+            if (!routine.shouldRun(context)) {
                 continue;
             }
-            PetSocialData otherData = nearestData[index];
-            double distance = nearestDistances[index];
-
-            String otherPetId = otherPet.getUuidAsString();
-            String socialMemoryKey = "social_memory_" + otherPetId;
-
-            Long lastInteraction = pc.getStateData(socialMemoryKey, Long.class);
-            boolean isFirstMeeting = lastInteraction == null;
-            boolean isReunion = lastInteraction != null && (currentTick - lastInteraction) > 24000;
-
-            if (isFirstMeeting) {
-                pc.pushEmotion(PetComponent.Emotion.CURIOUS, 0.06f);
-                if (petData.age < 72000) {
-                    pc.pushEmotion(PetComponent.Emotion.GLEE, 0.04f);
-                    pc.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.05f);
-                } else {
-                    pc.pushEmotion(PetComponent.Emotion.VIGILANT, 0.03f);
-                }
-                pc.setStateData(socialMemoryKey, currentTick);
-
-                if (tryMarkPetBeat(pc, "first_meeting_" + otherPetId, currentTick, 800)) {
-                    EmotionContextCues.sendCue(owner, "social.first_meeting." + pet.getUuidAsString(),
-                        Text.translatable("petsplus.emotion_cue.social.first_meeting",
-                            pet.getDisplayName(), otherPet.getDisplayName()), 400);
-                }
-            } else if (isReunion) {
-                long separationTime = currentTick - lastInteraction;
-                float reunionStrength = Math.min(0.08f, separationTime / 120000f);
-
-                pc.pushEmotion(PetComponent.Emotion.GLEE, reunionStrength);
-                pc.pushEmotion(PetComponent.Emotion.LOYALTY, reunionStrength * 0.7f);
-                pc.setStateData(socialMemoryKey, currentTick);
-            }
-
-            if (otherData.currentMood == PetComponent.Mood.AFRAID || otherData.currentMood == PetComponent.Mood.ANGRY) {
-                float empathyStrength = petData.bondStrength * 0.04f;
-                pc.pushEmotion(PetComponent.Emotion.EMPATHY, empathyStrength);
-                if (tryMarkPetBeat(pc, "empathy_" + otherPetId, currentTick, 600)) {
-                    EmotionContextCues.sendCue(owner, "social.empathy." + pet.getUuidAsString(),
-                        Text.translatable("petsplus.emotion_cue.social.empathy",
-                            pet.getDisplayName(), otherPet.getDisplayName()), 300);
-                }
-            }
+            routine.gatherContext(context, swarm, currentTick);
+            routine.applyEffects(context);
         }
-
-        // Simplified hierarchy calculation (only when needed)
-        if (tryMarkPetBeat(pc, "social_hierarchy", currentTick, 1200)) { // Every minute
+        if (tryMarkPetBeat(pc, "social_hierarchy", currentTick, 1200)) {
             calculateSimplifiedHierarchy(pet, pc, petDataCache, owner, currentTick, swarm);
         }
     }
@@ -1432,8 +1139,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                                                     Map<MobEntity, PetSocialData> petDataCache,
                                                     ServerPlayerEntity owner, long currentTick,
                                                     PetSwarmIndex swarm) {
-        PetSocialData petData = petDataCache.get(pet);
-        if (petData == null) return;
+        PetSocialData petData = petDataCache.computeIfAbsent(pet, key -> new PetSocialData(pet, pc, currentTick));
 
         final int[] counts = new int[2];
 
@@ -1446,7 +1152,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 key -> new PetSocialData(entry, currentTick));
 
             counts[0]++;
-            if (otherData.age < petData.age) {
+            if (otherData.age() < petData.age()) {
                 counts[1]++;
             }
         });
@@ -1666,15 +1372,6 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             }
         }
     }
-
-
-
-    // Helper method to calculate pet age in ticks since taming
-    private static long calculatePetAge(PetComponent pc, long currentTick) {
-        long tamedTick = pc.getTamedTick();
-        return Math.max(0, currentTick - tamedTick);
-    }
-
     private static void addRoleSpecificAmbientTriggers(MobEntity pet, PetComponent pc, ServerPlayerEntity owner, ServerWorld world) {
         PetRoleType roleType = pc.getRoleType(false);
         if (roleType == null) {
