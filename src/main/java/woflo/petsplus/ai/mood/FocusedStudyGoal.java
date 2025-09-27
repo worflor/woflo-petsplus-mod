@@ -3,6 +3,7 @@ package woflo.petsplus.ai.mood;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.block.BlockState;
 import woflo.petsplus.ai.MoodBasedGoal;
 import woflo.petsplus.state.PetComponent;
 
@@ -110,13 +111,8 @@ public class FocusedStudyGoal extends MoodBasedGoal {
             return false;
         }
 
-        String blockName = world.getBlockState(pos).getBlock().toString().toLowerCase();
-        if (!(blockName.contains("book")
-            || blockName.contains("lectern")
-            || blockName.contains("table")
-            || blockName.contains("map")
-            || blockName.contains("loom")
-            || blockName.contains("enchant"))) {
+        BlockState state = world.getBlockState(pos);
+        if (!MoodEnvironmentAffinities.isFocusedStudyBlock(state)) {
             return false;
         }
 

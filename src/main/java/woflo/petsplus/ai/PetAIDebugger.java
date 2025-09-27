@@ -33,9 +33,13 @@ public class PetAIDebugger {
         float focusedStrength = petComponent.getMoodStrength(PetComponent.Mood.FOCUSED);
         float yugenStrength = petComponent.getMoodStrength(PetComponent.Mood.YUGEN);
         float saudadeStrength = petComponent.getMoodStrength(PetComponent.Mood.SAUDADE);
+        float passionateStrength = petComponent.getMoodStrength(PetComponent.Mood.PASSIONATE);
+        float playfulStrength = petComponent.getMoodStrength(PetComponent.Mood.PLAYFUL);
         Petsplus.LOGGER.info(
-            "Mood Strengths - Focused: {}, Yugen: {}, Saudade: {}",
+            "Mood Strengths - Focused: {}, Passionate: {}, Playful: {}, Yugen: {}, Saudade: {}",
             Math.round(focusedStrength * 100f) / 100f,
+            Math.round(passionateStrength * 100f) / 100f,
+            Math.round(playfulStrength * 100f) / 100f,
             Math.round(yugenStrength * 100f) / 100f,
             Math.round(saudadeStrength * 100f) / 100f
         );
