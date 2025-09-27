@@ -53,7 +53,9 @@ Mood intensity varies based on the strength of these emotional weights.
 - reflective / neutral
 - longing / resilient / aspiration
 
-Watch, in real time, as beating your pet make them upset - or happy if they're into it. I heard a rumour pet's take note of... **gossip** worthy events for later...
+Watch, in real time, as beating your pet make them upset - or happy if they're into it. 
+
+I also heard a rumour pets take note of... **gossip**... for later...
 
 
 ## Natures
