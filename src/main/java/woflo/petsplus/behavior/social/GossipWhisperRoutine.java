@@ -25,7 +25,6 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
     private static final double WHISPER_RADIUS = 6.0;
     private static final long CADENCE = 80L;
     private static final float KNOWLEDGE_EPSILON = 0.05f;
-    private static final float REPEAT_FUZZ = 0.02f;
 
     @Override
     public boolean shouldRun(SocialContextSnapshot context) {
@@ -167,6 +166,9 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
 
         PetGossipLedger whispererLedger = whisperer.getGossipLedger();
         PetGossipLedger listenerLedger = listener.getGossipLedger();
+        float whispererKnowledge = whispererLedger.knowledgeScore(context.currentTick());
+        float listenerKnowledge = listenerLedger.knowledgeScore(context.currentTick());
+        float knowledgeGap = Math.max(0f, whispererKnowledge - listenerKnowledge);
         boolean alreadyKnows = listenerLedger.hasRumor(rumor.topicId());
         boolean witnessed = alreadyKnows && listenerLedger.witnessedRecently(rumor.topicId(), context.currentTick());
 
@@ -175,12 +177,14 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
 
         if (witnessed) {
             listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), true);
-            listener.pushEmotion(PetComponent.Emotion.LOYALTY, 0.02f);
+            listener.pushEmotion(PetComponent.Emotion.LOYALTY,
+                GossipSocialHelper.loyaltyDelta(rumor, knowledgeGap, true));
             sharedAny = true;
         } else {
             if (listenerLedger.hasHeardRecently(rumor.topicId(), context.currentTick())) {
                 listenerLedger.registerDuplicateHeard(rumor.topicId(), context.currentTick());
-                listener.pushEmotion(PetComponent.Emotion.FRUSTRATION, REPEAT_FUZZ);
+                listener.pushEmotion(PetComponent.Emotion.FRUSTRATION,
+                    GossipSocialHelper.frustrationDelta(rumor));
                 listener.optOutOfGossip(context.currentTick());
                 return;
             }
@@ -189,16 +193,19 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
                 && GossipTopics.isAbstract(rumor.topicId());
             if (isAbstract) {
                 listenerLedger.registerAbstractHeard(rumor.topicId(), context.currentTick());
-                listener.pushEmotion(PetComponent.Emotion.CURIOUS, 0.02f);
+                listener.pushEmotion(PetComponent.Emotion.CURIOUS,
+                    GossipSocialHelper.curiosityDelta(rumor, knowledgeGap, false, true));
                 newListener = true;
                 sharedAny = true;
             } else if (alreadyKnows) {
                 listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), true);
-                listener.pushEmotion(PetComponent.Emotion.LOYALTY, 0.02f);
+                listener.pushEmotion(PetComponent.Emotion.LOYALTY,
+                    GossipSocialHelper.loyaltyDelta(rumor, knowledgeGap, false));
                 sharedAny = true;
             } else {
                 listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), false);
-                listener.pushEmotion(PetComponent.Emotion.CURIOUS, 0.025f);
+                listener.pushEmotion(PetComponent.Emotion.CURIOUS,
+                    GossipSocialHelper.curiosityDelta(rumor, knowledgeGap, false, false));
                 newListener = true;
                 sharedAny = true;
             }
@@ -212,7 +219,8 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
             return;
         }
 
-        whisperer.pushEmotion(PetComponent.Emotion.EMPATHY, 0.02f);
+        whisperer.pushEmotion(PetComponent.Emotion.EMPATHY,
+            GossipSocialHelper.empathyDelta(rumor, knowledgeGap));
 
         if (context.tryMarkBeat("gossip_whisper", 200)) {
             Text cueText = GossipNarration.buildWhisperCue(whisperer, listener, rumor, context.currentTick());
