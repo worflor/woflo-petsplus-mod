@@ -371,6 +371,29 @@
       "text": "petsplus.emotion_cue.combat.owner_kill",
       "digest_label": "petsplus.emotion_cue.combat.owner_kill"
     },
+    "combat.owner_kill_hostile": {
+      "category": "combat",
+      "profile": "combat_owner_kill",
+      "text": "petsplus.emotion_cue.combat.owner_kill_hostile",
+      "digest_label": "petsplus.emotion_cue.combat.owner_kill_hostile"
+    },
+    "combat.owner_kill_passive": {
+      "category": "combat",
+      "profile": "combat_owner_kill",
+      "text": "petsplus.emotion_cue.combat.owner_kill_passive",
+      "digest_label": "petsplus.emotion_cue.combat.owner_kill_passive"
+    },
+    "combat.owner_kill_boss": {
+      "category": "combat",
+      "profile": "combat_owner_kill",
+      "text": "petsplus.emotion_cue.combat.owner_kill_boss",
+      "digest_label": "petsplus.emotion_cue.combat.owner_kill_boss"
+    },
+    "combat.owner_swing": {
+      "category": "combat",
+      "radius": 28.0,
+      "text": "petsplus.emotion_cue.combat.owner_swing"
+    },
     "combat.pet_kill": {
       "category": "combat",
       "profile": "combat_pet_kill",
@@ -581,12 +604,57 @@
         "BLISSFUL": 0.22
       }
     },
+    "block_use.jukebox.start": {
+      "category": "block_use",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.block_use.jukebox_start",
+      "emotions": {
+        "GLEE": 0.16,
+        "PLAYFULNESS": 0.12
+      }
+    },
+    "block_use.jukebox.stop": {
+      "category": "block_use",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.block_use.jukebox_stop",
+      "emotions": {
+        "MONO_NO_AWARE": 0.12,
+        "NOSTALGIA": 0.10
+      }
+    },
     "block_use.cooking": {
       "category": "block_use",
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.cooking",
       "emotions": {
         "SOBREMESA": 0.22
+      }
+    },
+    "block_use.campfire.stoke": {
+      "category": "block_use",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.block_use.campfire_stoke",
+      "emotions": {
+        "SOBREMESA": 0.16,
+        "CONTENT": 0.10
+      }
+    },
+    "block_use.campfire.ignite": {
+      "category": "block_use",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.block_use.campfire_ignite",
+      "emotions": {
+        "HOPEFUL": 0.14,
+        "KEFI": 0.10
+      }
+    },
+    "block_use.campfire.douse": {
+      "category": "block_use",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.block_use.campfire_douse",
+      "emotions": {
+        "RELIEF": 0.12,
+        "PROTECTIVENESS": 0.08
       }
     },
     "block_use.home": {
@@ -597,6 +665,25 @@
         "QUERECIA": 0.22,
         "SOBREMESA": 0.15,
         "LAGOM": 0.08
+      }
+    },
+    "block_use.bed.rest": {
+      "category": "block_use",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.block_use.bed_rest",
+      "emotions": {
+        "RELIEF": 0.16,
+        "CONTENT": 0.14,
+        "LAGOM": 0.08
+      }
+    },
+    "block_use.bed.occupied": {
+      "category": "block_use",
+      "radius": 24.0,
+      "text": "petsplus.emotion_cue.block_use.bed_occupied",
+      "emotions": {
+        "FRUSTRATION": 0.10,
+        "REGRET": 0.08
       }
     },
     "block_use.crafting": {
