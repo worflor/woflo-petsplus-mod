@@ -56,6 +56,10 @@ class PetMoodEngineTest {
                 .thenReturn(Long.MIN_VALUE);
         when(parent.getStateData(PetComponent.StateKeys.THREAT_SENSITIZED_STREAK, Integer.class, 0))
                 .thenReturn(0);
+        when(parent.getNatureVolatilityMultiplier()).thenReturn(1f);
+        when(parent.getNatureResilienceMultiplier()).thenReturn(1f);
+        when(parent.getNatureContagionModifier()).thenReturn(1f);
+        when(parent.getNatureGuardModifier()).thenReturn(1f);
 
         PetMoodEngine engine = new PetMoodEngine(parent);
         engine.addContagionShare(PetComponent.Emotion.UBUNTU, 1.0f, 1200L, 0.8f);
@@ -76,6 +80,10 @@ class PetMoodEngineTest {
                 .thenReturn(Long.MIN_VALUE);
         when(parent.getStateData(PetComponent.StateKeys.THREAT_SENSITIZED_STREAK, Integer.class, 0))
                 .thenReturn(0);
+        when(parent.getNatureVolatilityMultiplier()).thenReturn(1f);
+        when(parent.getNatureResilienceMultiplier()).thenReturn(1f);
+        when(parent.getNatureContagionModifier()).thenReturn(1f);
+        when(parent.getNatureGuardModifier()).thenReturn(1f);
 
         PetMoodEngine engine = new PetMoodEngine(parent);
         engine.addContagionShare(PetComponent.Emotion.CHEERFUL, 0.2f, 2000L, 0.7f);
@@ -94,7 +102,12 @@ class PetMoodEngineTest {
 
     @Test
     void cleanupPreservesContagionOnlyEmotions() throws Exception {
-        PetMoodEngine engine = new PetMoodEngine(mock(PetComponent.class));
+        PetComponent parent = mock(PetComponent.class);
+        when(parent.getNatureVolatilityMultiplier()).thenReturn(1f);
+        when(parent.getNatureResilienceMultiplier()).thenReturn(1f);
+        when(parent.getNatureContagionModifier()).thenReturn(1f);
+        when(parent.getNatureGuardModifier()).thenReturn(1f);
+        PetMoodEngine engine = new PetMoodEngine(parent);
         engine.addContagionShare(PetComponent.Emotion.UBUNTU, 0.3f, 1000L, 0.9f);
 
         var cachedEpsilonField = PetMoodEngine.class.getDeclaredField("cachedEpsilon");
@@ -115,6 +128,76 @@ class PetMoodEngineTest {
                 "Contagion share should persist through cleanup when it is the only contribution");
     }
 
+    @Test
+    void majorEmotionReceivesStimulusBias() throws Exception {
+        PetComponent parent = mock(PetComponent.class);
+        when(parent.getBondStrength()).thenReturn(2600L);
+        when(parent.getStateData(PetComponent.StateKeys.LAST_PET_TIME, Long.class)).thenReturn(null);
+        when(parent.getStateData(PetComponent.StateKeys.THREAT_LAST_DANGER, Long.class, Long.MIN_VALUE))
+                .thenReturn(Long.MIN_VALUE);
+        when(parent.getStateData(PetComponent.StateKeys.THREAT_SENSITIZED_STREAK, Integer.class, 0))
+                .thenReturn(0);
+        when(parent.getNatureVolatilityMultiplier()).thenReturn(1f);
+        when(parent.getNatureResilienceMultiplier()).thenReturn(1f);
+        when(parent.getNatureContagionModifier()).thenReturn(1f);
+        when(parent.getNatureGuardModifier()).thenReturn(1f);
+
+        PetMoodEngine engine = new PetMoodEngine(parent);
+        engine.onNatureEmotionProfileChanged(new PetComponent.NatureEmotionProfile(
+                PetComponent.Emotion.CHEERFUL, 0.4f,
+                PetComponent.Emotion.RELIEF, 0.3f,
+                PetComponent.Emotion.GLEE, 0.2f));
+
+        engine.applyStimulus(new PetComponent.EmotionDelta(PetComponent.Emotion.CHEERFUL, 0.6f), 100L);
+        engine.applyStimulus(new PetComponent.EmotionDelta(PetComponent.Emotion.ANGST, 0.6f), 100L);
+
+        Object majorRecord = getEmotionRecord(engine, PetComponent.Emotion.CHEERFUL);
+        Object neutralRecord = getEmotionRecord(engine, PetComponent.Emotion.ANGST);
+
+        float majorIntensity = getIntensity(majorRecord);
+        float neutralIntensity = getIntensity(neutralRecord);
+
+        assertTrue(majorIntensity > neutralIntensity,
+                "Major emotion should accumulate more intensity than neutral emotions when profile bias is applied");
+
+        var weightBiasMethod = PetMoodEngine.class.getDeclaredMethod("getNatureWeightBias", PetComponent.Emotion.class);
+        weightBiasMethod.setAccessible(true);
+
+        float majorWeightBias = (float) weightBiasMethod.invoke(engine, PetComponent.Emotion.CHEERFUL);
+        float neutralWeightBias = (float) weightBiasMethod.invoke(engine, PetComponent.Emotion.ANGST);
+
+        assertTrue(majorWeightBias > neutralWeightBias,
+                "Major emotion weight bias should exceed neutral emotion bias");
+    }
+
+    @Test
+    void majorEmotionBoostsContagionSpread() throws Exception {
+        PetComponent parent = mock(PetComponent.class);
+        when(parent.getBondStrength()).thenReturn(2400L);
+        when(parent.getNatureVolatilityMultiplier()).thenReturn(1f);
+        when(parent.getNatureResilienceMultiplier()).thenReturn(1f);
+        when(parent.getNatureContagionModifier()).thenReturn(1f);
+        when(parent.getNatureGuardModifier()).thenReturn(1f);
+
+        PetMoodEngine engine = new PetMoodEngine(parent);
+        engine.onNatureEmotionProfileChanged(new PetComponent.NatureEmotionProfile(
+                PetComponent.Emotion.CHEERFUL, 0.35f,
+                PetComponent.Emotion.RELIEF, 0.25f,
+                PetComponent.Emotion.GLEE, 0.2f));
+
+        engine.addContagionShare(PetComponent.Emotion.CHEERFUL, 0.25f, 1200L, 0.9f);
+        engine.addContagionShare(PetComponent.Emotion.ANGST, 0.25f, 1200L, 0.9f);
+
+        Object majorRecord = getEmotionRecord(engine, PetComponent.Emotion.CHEERFUL);
+        Object neutralRecord = getEmotionRecord(engine, PetComponent.Emotion.ANGST);
+
+        float majorShare = getContagionShare(majorRecord);
+        float neutralShare = getContagionShare(neutralRecord);
+
+        assertTrue(majorShare > neutralShare,
+                "Major emotion contagion should accumulate faster than neutral emotions when profile bias is active");
+    }
+
     private static Object getEmotionRecord(PetMoodEngine engine, PetComponent.Emotion emotion) throws Exception {
         var field = PetMoodEngine.class.getDeclaredField("emotionRecords");
         field.setAccessible(true);
@@ -128,6 +211,12 @@ class PetMoodEngineTest {
         var contagionField = record.getClass().getDeclaredField("contagionShare");
         contagionField.setAccessible(true);
         return contagionField.getFloat(record);
+    }
+
+    private static float getIntensity(Object record) throws Exception {
+        var intensityField = record.getClass().getDeclaredField("intensity");
+        intensityField.setAccessible(true);
+        return intensityField.getFloat(record);
     }
 
     private static float invokeContagionCap(PetMoodEngine engine, float bondFactor) throws Exception {

@@ -1,12 +1,19 @@
 package woflo.petsplus.stats;
 
+import net.minecraft.entity.attribute.EntityAttribute;
 import net.minecraft.entity.attribute.EntityAttributeModifier;
+import net.minecraft.entity.attribute.EntityAttributeInstance;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.util.Identifier;
+import net.minecraft.registry.Registries;
+import net.minecraft.registry.entry.RegistryEntry;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.stats.nature.NatureModifierSampler;
+
+import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Manages attribute modifiers for pets based on level and characteristics.
@@ -24,8 +31,19 @@ public class PetAttributeManager {
     private static final Identifier CHAR_ATTACK_ID = Identifier.of("petsplus", "char_attack");
 
     private static final Identifier NATURE_HEALTH_ID = Identifier.of("petsplus", "nature_health");
+    private static final Identifier NATURE_VITALITY_ID = Identifier.of("petsplus", "nature_vitality");
     private static final Identifier NATURE_SPEED_ID = Identifier.of("petsplus", "nature_speed");
+    private static final Identifier NATURE_SWIM_SPEED_ID = Identifier.of("petsplus", "nature_swim_speed");
     private static final Identifier NATURE_ATTACK_ID = Identifier.of("petsplus", "nature_attack");
+    private static final Identifier NATURE_DEFENSE_ID = Identifier.of("petsplus", "nature_defense");
+    private static final Identifier NATURE_AGILITY_ID = Identifier.of("petsplus", "nature_agility");
+    private static final Identifier NATURE_FOCUS_ID = Identifier.of("petsplus", "nature_focus");
+    private static final Identifier NATURE_LOYALTY_ID = Identifier.of("petsplus", "nature_loyalty");
+
+    private static final Map<NatureModifierSampler.NatureStat, NatureAttributeBinding> NATURE_ATTRIBUTE_BINDINGS =
+        createNatureAttributeBindings();
+    private static final Identifier VANILLA_SWIM_SPEED_ID = Identifier.of("minecraft", "generic.swim_speed");
+    private static RegistryEntry<EntityAttribute> cachedSwimSpeedAttribute;
 
     private static final float BASE_HEALTH_PER_LEVEL = 0.05f;
     private static final float BASE_HEALTH_POST_SOFTCAP_PER_LEVEL = 0.02f;
@@ -93,12 +111,31 @@ public class PetAttributeManager {
 
         if (pet.getAttributeInstance(EntityAttributes.MAX_HEALTH) != null) {
             pet.getAttributeInstance(EntityAttributes.MAX_HEALTH).removeModifier(NATURE_HEALTH_ID);
+            pet.getAttributeInstance(EntityAttributes.MAX_HEALTH).removeModifier(NATURE_VITALITY_ID);
         }
         if (pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED) != null) {
             pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED).removeModifier(NATURE_SPEED_ID);
+            pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED).removeModifier(NATURE_SWIM_SPEED_ID);
+        }
+        RegistryEntry<EntityAttribute> swimAttribute = resolveSwimSpeedAttribute();
+        if (swimAttribute != null) {
+            EntityAttributeInstance instance = pet.getAttributeInstance(swimAttribute);
+            if (instance != null) {
+                instance.removeModifier(NATURE_SWIM_SPEED_ID);
+            }
         }
         if (pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE) != null) {
             pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).removeModifier(NATURE_ATTACK_ID);
+        }
+        if (pet.getAttributeInstance(EntityAttributes.ARMOR) != null) {
+            pet.getAttributeInstance(EntityAttributes.ARMOR).removeModifier(NATURE_DEFENSE_ID);
+        }
+        if (pet.getAttributeInstance(EntityAttributes.KNOCKBACK_RESISTANCE) != null) {
+            pet.getAttributeInstance(EntityAttributes.KNOCKBACK_RESISTANCE).removeModifier(NATURE_AGILITY_ID);
+        }
+        if (pet.getAttributeInstance(EntityAttributes.FOLLOW_RANGE) != null) {
+            pet.getAttributeInstance(EntityAttributes.FOLLOW_RANGE).removeModifier(NATURE_FOCUS_ID);
+            pet.getAttributeInstance(EntityAttributes.FOLLOW_RANGE).removeModifier(NATURE_LOYALTY_ID);
         }
     }
     
@@ -145,44 +182,35 @@ public class PetAttributeManager {
 
     private static void applyNatureModifiers(MobEntity pet, PetComponent component) {
         NatureModifierSampler.NatureAdjustment adjustment = NatureModifierSampler.sample(component);
+        component.setNatureEmotionTuning(adjustment.volatilityMultiplier(),
+            adjustment.resilienceMultiplier(), adjustment.contagionModifier(),
+            adjustment.guardModifier());
+        component.setNatureEmotionProfile(adjustment.emotionProfile());
         if (adjustment.isEmpty()) {
             return;
         }
 
-        if (pet.getAttributeInstance(EntityAttributes.MAX_HEALTH) != null) {
-            float healthBonus = adjustment.valueFor(NatureModifierSampler.NatureStat.HEALTH);
-            if (Math.abs(healthBonus) > 0.0001f) {
-                EntityAttributeModifier modifier = new EntityAttributeModifier(
-                    NATURE_HEALTH_ID,
-                    healthBonus,
-                    EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
-                );
-                pet.getAttributeInstance(EntityAttributes.MAX_HEALTH).addPersistentModifier(modifier);
-            }
-        }
+        applyNatureAdjustment(pet::getAttributeInstance, adjustment, null);
+    }
 
-        if (pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED) != null) {
-            float speedBonus = adjustment.valueFor(NatureModifierSampler.NatureStat.SPEED);
-            if (Math.abs(speedBonus) > 0.0001f) {
-                EntityAttributeModifier modifier = new EntityAttributeModifier(
-                    NATURE_SPEED_ID,
-                    speedBonus,
-                    EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
-                );
-                pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED).addPersistentModifier(modifier);
-            }
-        }
+    static void applyNatureAdjustment(Function<RegistryEntry<EntityAttribute>, EntityAttributeInstance> lookup,
+                                      NatureModifierSampler.NatureAdjustment adjustment) {
+        applyNatureAdjustment(lookup, adjustment, null);
+    }
 
-        if (pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE) != null) {
-            float attackBonus = adjustment.valueFor(NatureModifierSampler.NatureStat.ATTACK);
-            if (Math.abs(attackBonus) > 0.0001f) {
-                EntityAttributeModifier modifier = new EntityAttributeModifier(
-                    NATURE_ATTACK_ID,
-                    attackBonus,
-                    EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
-                );
-                pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).addPersistentModifier(modifier);
+    static void applyNatureAdjustment(Function<RegistryEntry<EntityAttribute>, EntityAttributeInstance> lookup,
+                                      NatureModifierSampler.NatureAdjustment adjustment,
+                                      Map<NatureModifierSampler.NatureStat, RegistryEntry<EntityAttribute>> attributeOverrides) {
+        for (Map.Entry<NatureModifierSampler.NatureStat, NatureAttributeBinding> entry
+            : NATURE_ATTRIBUTE_BINDINGS.entrySet()) {
+            float bonus = adjustment.valueFor(entry.getKey());
+            if (Math.abs(bonus) <= 0.0001f) {
+                continue;
             }
+            RegistryEntry<EntityAttribute> attribute = resolveAttribute(entry.getKey(), attributeOverrides);
+            RegistryEntry<EntityAttribute> fallbackAttribute =
+                fallbackAttributeFor(entry.getKey(), attributeOverrides);
+            applyNatureModifier(lookup, entry.getKey(), attribute, fallbackAttribute, entry.getValue(), bonus);
         }
     }
 
@@ -218,15 +246,166 @@ public class PetAttributeManager {
             float attackCharMod = characteristics.getAttackModifier(roleType) * 0.10f; // ±10% max
             if (Math.abs(attackCharMod) > 0.01f) {
                 EntityAttributeModifier modifier = new EntityAttributeModifier(
-                    CHAR_ATTACK_ID, 
-                    attackCharMod, 
+                    CHAR_ATTACK_ID,
+                    attackCharMod,
                     EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
                 );
                 pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).addPersistentModifier(modifier);
             }
         }
     }
-    
+
+    private static void applyNatureModifier(
+        Function<RegistryEntry<EntityAttribute>, EntityAttributeInstance> lookup,
+        NatureModifierSampler.NatureStat stat,
+        RegistryEntry<EntityAttribute> attribute,
+        RegistryEntry<EntityAttribute> fallbackAttribute,
+        NatureAttributeBinding binding,
+        float bonus
+    ) {
+        if (binding == null || attribute == null) {
+            if (binding == null || fallbackAttribute == null) {
+                return;
+            }
+            attribute = fallbackAttribute;
+        }
+
+        EntityAttributeInstance instance = lookup.apply(attribute);
+        if (instance == null && fallbackAttribute != null && attribute != fallbackAttribute) {
+            instance = lookup.apply(fallbackAttribute);
+        }
+        if (instance == null && stat == NatureModifierSampler.NatureStat.SWIM_SPEED) {
+            RegistryEntry<EntityAttribute> resolvedFallback = resolveSwimFallbackAttribute();
+            if (resolvedFallback != null) {
+                instance = lookup.apply(resolvedFallback);
+            }
+        }
+        if (instance == null) {
+            return;
+        }
+
+        if (binding.type() == NatureModifierType.MULTIPLICATIVE) {
+            EntityAttributeModifier modifier = new EntityAttributeModifier(
+                binding.id(),
+                bonus,
+                EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
+            );
+            instance.addPersistentModifier(modifier);
+            return;
+        }
+
+        double base = instance.getBaseValue();
+        double scaleBase = base != 0.0 ? base : binding.fallbackBase();
+        if (scaleBase == 0.0) {
+            return;
+        }
+
+        double amount = scaleBase * bonus;
+        if (Math.abs(amount) <= 0.0001) {
+            return;
+        }
+
+        EntityAttributeModifier modifier = new EntityAttributeModifier(
+            binding.id(),
+            amount,
+            EntityAttributeModifier.Operation.ADD_VALUE
+        );
+        instance.addPersistentModifier(modifier);
+    }
+
+    private static RegistryEntry<EntityAttribute> resolveAttribute(
+        NatureModifierSampler.NatureStat stat,
+        Map<NatureModifierSampler.NatureStat, RegistryEntry<EntityAttribute>> attributeOverrides
+    ) {
+        if (attributeOverrides != null) {
+            RegistryEntry<EntityAttribute> override = attributeOverrides.get(stat);
+            if (override != null) {
+                return override;
+            }
+        }
+
+        return switch (stat) {
+            case HEALTH, VITALITY -> EntityAttributes.MAX_HEALTH;
+            case SPEED -> EntityAttributes.MOVEMENT_SPEED;
+            case SWIM_SPEED -> resolveSwimSpeedAttribute();
+            case ATTACK -> EntityAttributes.ATTACK_DAMAGE;
+            case DEFENSE -> EntityAttributes.ARMOR;
+            case AGILITY -> EntityAttributes.KNOCKBACK_RESISTANCE;
+            case FOCUS, LOYALTY -> EntityAttributes.FOLLOW_RANGE;
+            case NONE -> null;
+        };
+    }
+
+    private static RegistryEntry<EntityAttribute> fallbackAttributeFor(
+        NatureModifierSampler.NatureStat stat,
+        Map<NatureModifierSampler.NatureStat, RegistryEntry<EntityAttribute>> attributeOverrides
+    ) {
+        if (stat != NatureModifierSampler.NatureStat.SWIM_SPEED) {
+            return null;
+        }
+
+        if (attributeOverrides != null) {
+            RegistryEntry<EntityAttribute> movementOverride = attributeOverrides.get(NatureModifierSampler.NatureStat.SPEED);
+            if (movementOverride != null) {
+                return movementOverride;
+            }
+        }
+
+        return resolveSwimFallbackAttribute();
+    }
+
+    private static Map<NatureModifierSampler.NatureStat, NatureAttributeBinding> createNatureAttributeBindings() {
+        Map<NatureModifierSampler.NatureStat, NatureAttributeBinding> map =
+            new java.util.EnumMap<>(NatureModifierSampler.NatureStat.class);
+        map.put(NatureModifierSampler.NatureStat.HEALTH,
+            NatureAttributeBinding.multiplicative(NATURE_HEALTH_ID));
+        map.put(NatureModifierSampler.NatureStat.VITALITY,
+            NatureAttributeBinding.multiplicative(NATURE_VITALITY_ID));
+        map.put(NatureModifierSampler.NatureStat.SPEED,
+            NatureAttributeBinding.multiplicative(NATURE_SPEED_ID));
+        map.put(NatureModifierSampler.NatureStat.SWIM_SPEED,
+            NatureAttributeBinding.multiplicative(NATURE_SWIM_SPEED_ID));
+        map.put(NatureModifierSampler.NatureStat.ATTACK,
+            NatureAttributeBinding.multiplicative(NATURE_ATTACK_ID));
+        map.put(NatureModifierSampler.NatureStat.DEFENSE,
+            NatureAttributeBinding.scaledAdditive(NATURE_DEFENSE_ID, 8.0));
+        map.put(NatureModifierSampler.NatureStat.AGILITY,
+            NatureAttributeBinding.scaledAdditive(NATURE_AGILITY_ID, 1.0));
+        map.put(NatureModifierSampler.NatureStat.FOCUS,
+            NatureAttributeBinding.multiplicative(NATURE_FOCUS_ID));
+        map.put(NatureModifierSampler.NatureStat.LOYALTY,
+            NatureAttributeBinding.multiplicative(NATURE_LOYALTY_ID));
+        return java.util.Collections.unmodifiableMap(map);
+    }
+
+    private static RegistryEntry<EntityAttribute> resolveSwimSpeedAttribute() {
+        if (cachedSwimSpeedAttribute == null) {
+            cachedSwimSpeedAttribute = Registries.ATTRIBUTE.getEntry(VANILLA_SWIM_SPEED_ID).orElse(null);
+        }
+        return cachedSwimSpeedAttribute;
+    }
+
+    private static RegistryEntry<EntityAttribute> resolveSwimFallbackAttribute() {
+        return EntityAttributes.MOVEMENT_SPEED;
+    }
+
+    private record NatureAttributeBinding(Identifier id,
+                                          NatureModifierType type,
+                                          double fallbackBase) {
+        static NatureAttributeBinding multiplicative(Identifier id) {
+            return new NatureAttributeBinding(id, NatureModifierType.MULTIPLICATIVE, 0.0);
+        }
+
+        static NatureAttributeBinding scaledAdditive(Identifier id, double fallbackBase) {
+            return new NatureAttributeBinding(id, NatureModifierType.SCALED_ADDITIVE, fallbackBase);
+        }
+    }
+
+    private enum NatureModifierType {
+        MULTIPLICATIVE,
+        SCALED_ADDITIVE
+    }
+
     /**
      * Calculate health multiplier based on level and role.
      * Guardian pets get extra health scaling to emphasize their tanky nature.

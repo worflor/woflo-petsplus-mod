@@ -31,7 +31,6 @@ import woflo.petsplus.stats.PetCharacteristics;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
 
 import net.minecraft.util.math.ChunkSectionPos;
-import net.minecraft.util.math.MathHelper;
 
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -40,6 +39,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.WeakHashMap;
 
@@ -76,6 +76,12 @@ public class PetComponent {
     private boolean flightCapabilityDirty = true;
     // New: encapsulated mood/emotion engine
     private final PetMoodEngine moodEngine;
+
+    private float natureVolatilityMultiplier = 1.0f;
+    private float natureResilienceMultiplier = 1.0f;
+    private float natureContagionModifier = 1.0f;
+    private float natureGuardModifier = 1.0f;
+    private NatureEmotionProfile natureEmotionProfile = NatureEmotionProfile.EMPTY;
 
     private StateManager stateManager;
 
@@ -217,6 +223,22 @@ public class PetComponent {
             b = Math.min(255, Math.round(b + (255 - b) * factor));
             return TextColor.fromRgb((r << 16) | (g << 8) | b);
         }
+    }
+
+    public record NatureEmotionProfile(@Nullable Emotion majorEmotion, float majorStrength,
+                                        @Nullable Emotion minorEmotion, float minorStrength,
+                                        @Nullable Emotion quirkEmotion, float quirkStrength) {
+        public static final NatureEmotionProfile EMPTY = new NatureEmotionProfile(null, 0f, null, 0f, null, 0f);
+
+        public boolean isEmpty() {
+            return (majorEmotion == null || majorStrength <= 0f)
+                && (minorEmotion == null || minorStrength <= 0f)
+                && (quirkEmotion == null || quirkStrength <= 0f);
+        }
+    }
+
+    public record NatureGuardTelemetry(float relationshipGuard, float dangerWindow,
+                                        float contagionCap) {
     }
 
     public enum FlightCapabilitySource {
@@ -805,7 +827,29 @@ public class PetComponent {
     }
     
     public boolean isOwnedBy(@Nullable PlayerEntity player) {
-        return owner != null && owner.equals(player);
+        if (player == null) {
+            return false;
+        }
+
+        if (owner != null) {
+            if (owner.isRemoved()) {
+                owner = null;
+            } else if (owner == player) {
+                return true;
+            } else if (owner.getUuid().equals(player.getUuid())) {
+                owner = player;
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        if (ownerUuid != null && ownerUuid.equals(player.getUuid())) {
+            this.owner = player;
+            return true;
+        }
+
+        return false;
     }
     
     public boolean isOnCooldown(String key) {
@@ -1164,6 +1208,110 @@ public class PetComponent {
         float careFactor = (depthFactor * 0.5f) + (recentCare * 0.5f);
         float resilience = 0.25f + ageFactor * 0.4f + careFactor * 0.6f;
         return MathHelper.clamp(resilience, 0.25f, 1.0f);
+    }
+
+    public void setNatureEmotionTuning(float volatilityMultiplier, float resilienceMultiplier,
+                                       float contagionModifier, float guardModifier) {
+        float clampedVolatility = MathHelper.clamp(volatilityMultiplier, 0.3f, 1.75f);
+        float clampedResilience = MathHelper.clamp(resilienceMultiplier, 0.5f, 1.5f);
+        float clampedContagion = MathHelper.clamp(contagionModifier, 0.5f, 1.5f);
+        float clampedGuard = MathHelper.clamp(guardModifier, 0.5f, 1.5f);
+
+        if (this.natureVolatilityMultiplier == clampedVolatility
+            && this.natureResilienceMultiplier == clampedResilience
+            && this.natureContagionModifier == clampedContagion
+            && this.natureGuardModifier == clampedGuard) {
+            return;
+        }
+
+        this.natureVolatilityMultiplier = clampedVolatility;
+        this.natureResilienceMultiplier = clampedResilience;
+        this.natureContagionModifier = clampedContagion;
+        this.natureGuardModifier = clampedGuard;
+        moodEngine.onNatureTuningChanged();
+    }
+
+    public void setNatureEmotionProfile(@Nullable NatureEmotionProfile profile) {
+        NatureEmotionProfile sanitized = sanitizeNatureEmotionProfile(profile);
+        if (Objects.equals(this.natureEmotionProfile, sanitized)) {
+            return;
+        }
+
+        this.natureEmotionProfile = sanitized;
+        moodEngine.onNatureEmotionProfileChanged(sanitized);
+    }
+
+    public NatureEmotionProfile getNatureEmotionProfile() {
+        return natureEmotionProfile;
+    }
+
+    private NatureEmotionProfile sanitizeNatureEmotionProfile(@Nullable NatureEmotionProfile profile) {
+        if (profile == null) {
+            return NatureEmotionProfile.EMPTY;
+        }
+
+        Emotion major = profile.majorEmotion();
+        float majorStrength = clampEmotionStrength(profile.majorStrength());
+        if (major == null || majorStrength <= 0f) {
+            major = null;
+            majorStrength = 0f;
+        }
+
+        Emotion minor = profile.minorEmotion();
+        float minorStrength = clampEmotionStrength(profile.minorStrength());
+        if (minor == null || minorStrength <= 0f) {
+            minor = null;
+            minorStrength = 0f;
+        }
+
+        Emotion quirk = profile.quirkEmotion();
+        float quirkStrength = clampEmotionStrength(profile.quirkStrength());
+        if (quirk == null || quirkStrength <= 0f) {
+            quirk = null;
+            quirkStrength = 0f;
+        }
+
+        if (major == null && minor == null && quirk == null) {
+            return NatureEmotionProfile.EMPTY;
+        }
+
+        return new NatureEmotionProfile(major, majorStrength, minor, minorStrength, quirk, quirkStrength);
+    }
+
+    private static float clampEmotionStrength(float value) {
+        return MathHelper.clamp(value, 0f, 1f);
+    }
+
+    private static Optional<Emotion> parseEmotionOptional(@Nullable String value) {
+        if (value == null || value.isBlank()) {
+            return Optional.empty();
+        }
+
+        try {
+            return Optional.of(Emotion.valueOf(value));
+        } catch (IllegalArgumentException ignored) {
+            return Optional.empty();
+        }
+    }
+
+    public float getNatureVolatilityMultiplier() {
+        return natureVolatilityMultiplier;
+    }
+
+    public float getNatureResilienceMultiplier() {
+        return natureResilienceMultiplier;
+    }
+
+    public float getNatureContagionModifier() {
+        return natureContagionModifier;
+    }
+
+    public float getNatureGuardModifier() {
+        return natureGuardModifier;
+    }
+
+    public NatureGuardTelemetry getNatureGuardTelemetry() {
+        return moodEngine.getNatureGuardTelemetry();
     }
     
     public long getLastAttackTick() {
@@ -1654,6 +1802,30 @@ public class PetComponent {
         nbt.putInt("experience", experience);
         nbt.putLong("xpFlashStartTick", xpFlashStartTick);
 
+        NbtCompound tuningNbt = new NbtCompound();
+        tuningNbt.putFloat("volatility", natureVolatilityMultiplier);
+        tuningNbt.putFloat("resilience", natureResilienceMultiplier);
+        tuningNbt.putFloat("contagion", natureContagionModifier);
+        tuningNbt.putFloat("guard", natureGuardModifier);
+        nbt.put("natureTuning", tuningNbt);
+
+        if (!natureEmotionProfile.isEmpty()) {
+            NbtCompound emotionNbt = new NbtCompound();
+            if (natureEmotionProfile.majorEmotion() != null) {
+                emotionNbt.putString("major", natureEmotionProfile.majorEmotion().name());
+                emotionNbt.putFloat("majorStrength", natureEmotionProfile.majorStrength());
+            }
+            if (natureEmotionProfile.minorEmotion() != null) {
+                emotionNbt.putString("minor", natureEmotionProfile.minorEmotion().name());
+                emotionNbt.putFloat("minorStrength", natureEmotionProfile.minorStrength());
+            }
+            if (natureEmotionProfile.quirkEmotion() != null) {
+                emotionNbt.putString("quirk", natureEmotionProfile.quirkEmotion().name());
+                emotionNbt.putFloat("quirkStrength", natureEmotionProfile.quirkStrength());
+            }
+            nbt.put("natureEmotions", emotionNbt);
+        }
+
         // Mood system persistence handled by engine
         moodEngine.writeToNbt(nbt);
 
@@ -1775,6 +1947,39 @@ public class PetComponent {
         }
         if (nbt.contains("xpFlashStartTick")) {
             nbt.getLong("xpFlashStartTick").ifPresent(tick -> this.xpFlashStartTick = tick);
+        }
+
+        if (nbt.contains("natureTuning")) {
+            nbt.getCompound("natureTuning").ifPresent(tuning -> {
+                float volatility = tuning.getFloat("volatility").orElse(1.0f);
+                float resilience = tuning.getFloat("resilience").orElse(1.0f);
+                float contagion = tuning.getFloat("contagion").orElse(1.0f);
+                float guard = tuning.getFloat("guard").orElse(1.0f);
+                setNatureEmotionTuning(volatility, resilience, contagion, guard);
+            });
+        } else {
+            setNatureEmotionTuning(1.0f, 1.0f, 1.0f, 1.0f);
+        }
+
+        if (nbt.contains("natureEmotions")) {
+            nbt.getCompound("natureEmotions").ifPresent(emotions -> {
+                Emotion major = emotions.getString("major")
+                    .flatMap(PetComponent::parseEmotionOptional)
+                    .orElse(null);
+                float majorStrength = emotions.getFloat("majorStrength").orElse(0f);
+                Emotion minor = emotions.getString("minor")
+                    .flatMap(PetComponent::parseEmotionOptional)
+                    .orElse(null);
+                float minorStrength = emotions.getFloat("minorStrength").orElse(0f);
+                Emotion quirk = emotions.getString("quirk")
+                    .flatMap(PetComponent::parseEmotionOptional)
+                    .orElse(null);
+                float quirkStrength = emotions.getFloat("quirkStrength").orElse(0f);
+                setNatureEmotionProfile(new NatureEmotionProfile(major, majorStrength, minor, minorStrength,
+                    quirk, quirkStrength));
+            });
+        } else {
+            setNatureEmotionProfile(NatureEmotionProfile.EMPTY);
         }
 
         // Mood system persistence handled by engine

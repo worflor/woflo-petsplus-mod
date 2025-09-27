@@ -89,6 +89,11 @@ final class PetMoodEngine {
     private int paletteGeneration = 0;
     private int lastRenderedPaletteGeneration = -1;
     private float animationIntensity = 0f;
+    private PetComponent.NatureEmotionProfile natureEmotionProfile = PetComponent.NatureEmotionProfile.EMPTY;
+
+    private float lastRelationshipGuardObserved = RELATIONSHIP_BASE;
+    private float lastDangerWindowObserved = DANGER_BASE;
+    private float lastContagionCap = MathHelper.clamp(DEFAULT_IMPACT_CAP * 0.1f, 0.05f, 0.6f);
 
     private PetComponent.Mood currentMood = PetComponent.Mood.CALM;
     private int moodLevel = 0;
@@ -194,6 +199,22 @@ final class PetMoodEngine {
         dirty = true;
     }
 
+    void onNatureTuningChanged() {
+        dirty = true;
+    }
+
+    void onNatureEmotionProfileChanged(PetComponent.NatureEmotionProfile profile) {
+        natureEmotionProfile = profile != null ? profile : PetComponent.NatureEmotionProfile.EMPTY;
+        dirty = true;
+    }
+
+    PetComponent.NatureGuardTelemetry getNatureGuardTelemetry() {
+        return new PetComponent.NatureGuardTelemetry(
+            lastRelationshipGuardObserved,
+            lastDangerWindowObserved,
+            lastContagionCap);
+    }
+
     private void pushEmotion(PetComponent.Emotion emotion, float amount, long now) {
         if (amount == 0f) {
             emotionRecords.remove(emotion);
@@ -213,6 +234,10 @@ final class PetMoodEngine {
         }
 
         float sample = MathHelper.clamp(amount, 0f, 1f);
+        sample *= getNatureStimulusBias(emotion);
+        sample = MathHelper.clamp(sample, 0f, 1f);
+        float volatilityMultiplier = parent.getNatureVolatilityMultiplier();
+        float resilienceMultiplier = parent.getNatureResilienceMultiplier();
         if (record.startTime <= 0) {
             record.startTime = now;
         }
@@ -227,8 +252,10 @@ final class PetMoodEngine {
         } else {
             record.cadenceEMA = MathHelper.lerp(CADENCE_ALPHA, record.cadenceEMA, delta);
         }
-        float volatilitySample = Math.abs(sample - record.intensity);
-        record.volatilityEMA = MathHelper.lerp(VOLATILITY_ALPHA, record.volatilityEMA, volatilitySample);
+        float volatilitySample = Math.abs(sample - record.intensity) * volatilityMultiplier;
+        volatilitySample = MathHelper.clamp(volatilitySample, 0f, 1f);
+        record.volatilityEMA = MathHelper.clamp(
+            MathHelper.lerp(VOLATILITY_ALPHA, record.volatilityEMA, volatilitySample), 0f, 1f);
         record.peakEMA = MathHelper.lerp(PEAK_ALPHA, record.peakEMA, Math.max(record.peakEMA, sample));
 
         // Rekindle boost: bring intensity toward new sample with spike bias
@@ -237,11 +264,15 @@ final class PetMoodEngine {
 
         // Impact budget accrues using rekindle-aware boost
         float rekindleBoost = 1.0f + Math.min(0.6f, record.sensitisationGain - 1.0f);
-        record.impactBudget = Math.min(getImpactCap(), record.impactBudget + sample * rekindleBoost);
+        float impactGain = sample * rekindleBoost * resilienceMultiplier;
+        record.impactBudget = Math.min(getImpactCap(), record.impactBudget + impactGain);
 
         // Sensitisation grows when spikes arrive faster than cadence EMA
         float cadenceRatio = record.cadenceEMA > 0f ? MathHelper.clamp(delta / record.cadenceEMA, 0f, 2.5f) : 1f;
-        float sensitisationDelta = cadenceRatio < 0.8f ? (0.15f * (0.8f - cadenceRatio)) : -0.08f * (cadenceRatio - 1f);
+        float sensitisationDelta = cadenceRatio < 0.8f
+            ? (0.15f * (0.8f - cadenceRatio))
+            : -0.08f * (cadenceRatio - 1f);
+        sensitisationDelta *= resilienceMultiplier;
         record.sensitisationGain = MathHelper.clamp(record.sensitisationGain + sensitisationDelta, 0.7f, 1.6f);
 
         // Habituation slope adapts slowly toward cadence
@@ -254,7 +285,9 @@ final class PetMoodEngine {
 
         // Homeostasis bias trends back toward baseline when intensity decreases
         float towardBaseline = record.intensity < record.homeostasisBias ? 0.12f : -0.06f;
-        record.homeostasisBias = MathHelper.clamp(record.homeostasisBias + towardBaseline, 0.75f, 1.35f);
+        float tunedTowardBaseline = towardBaseline * resilienceMultiplier
+                * getNatureQuirkReboundModifier(emotion);
+        record.homeostasisBias = MathHelper.clamp(record.homeostasisBias + tunedTowardBaseline, 0.75f, 1.35f);
 
         refreshContextGuards(record, now, delta);
     }
@@ -272,8 +305,15 @@ final class PetMoodEngine {
         EmotionRecord record = emotionRecords.computeIfAbsent(emotion, e -> new EmotionRecord(e, now));
         record.applyDecay(now);
 
+        float spreadBias = getNatureContagionSpreadBias(emotion);
+        float tunedAmount = amount * spreadBias;
         float cap = computeContagionCap(MathHelper.clamp(bondFactor, 0.35f, 1.0f));
-        float updated = MathHelper.clamp(record.contagionShare + amount, -cap, cap);
+        float tunedCap = cap * MathHelper.clamp(spreadBias, 0.7f, 1.35f);
+        float minCap = Math.min(cap, 0.05f);
+        float maxCap = Math.max(cap, 0.6f);
+        tunedCap = MathHelper.clamp(tunedCap, minCap, maxCap);
+        lastContagionCap = tunedCap;
+        float updated = MathHelper.clamp(record.contagionShare + tunedAmount, -tunedCap, tunedCap);
         record.contagionShare = updated;
         record.lastUpdateTime = now;
     }
@@ -472,6 +512,14 @@ final class PetMoodEngine {
 
         ensureConfigCache();
         float epsilon = Math.max(EPSILON, cachedEpsilon);
+        float guardModifier = parent.getNatureGuardModifier();
+        float contagionModifier = parent.getNatureContagionModifier();
+        lastRelationshipGuardObserved = MathHelper.clamp(RELATIONSHIP_BASE * guardModifier, 0.6f, 1.6f);
+        lastDangerWindowObserved = MathHelper.clamp(DANGER_BASE * guardModifier, 0.6f, 1.7f);
+        float baseCap = DEFAULT_IMPACT_CAP * 0.1f * contagionModifier;
+        float minCap = 0.05f * Math.min(1f, contagionModifier);
+        float maxCap = 0.6f * Math.max(1f, contagionModifier);
+        lastContagionCap = MathHelper.clamp(baseCap, minCap, maxCap);
 
         // Decay + cleanup pass
         List<EmotionRecord> active = collectActiveRecords(now, epsilon);
@@ -551,7 +599,9 @@ final class PetMoodEngine {
             float noveltyGate = (float) Math.exp(-lastAge / noveltyHalfLife);
             float noveltyPulse = MathHelper.lerp(intensity, NOVELTY_MIN, NOVELTY_MAX) * noveltyGate;
 
-            float rawWeight = (punch * frequencyLift * quietDampener * recencyFade * persistenceCredit * adaptationBalance * contextGuards)
+            float profileWeightBias = getNatureWeightBias(record.emotion);
+
+            float rawWeight = (punch * frequencyLift * quietDampener * recencyFade * persistenceCredit * adaptationBalance * contextGuards * profileWeightBias)
                     + noveltyPulse + record.contagionShare;
             rawWeight = Math.min(weightCap, Math.max(0f, rawWeight));
 
@@ -998,6 +1048,7 @@ final class PetMoodEngine {
     private void refreshContextGuards(EmotionRecord record, long now, long delta) {
         // Relationship guard uses bond strength and recent care pulse.
         long bond = parent.getBondStrength();
+        float guardModifier = parent.getNatureGuardModifier();
         double bondZ = (bond - 2000.0) / RELATIONSHIP_VARIANCE;
         float bondMultiplier = (float) MathHelper.clamp(1.0 + bondZ * 0.35, 0.75, 1.25);
         Long lastPet = parent.getStateData(PetComponent.StateKeys.LAST_PET_TIME, Long.class);
@@ -1007,8 +1058,12 @@ final class PetMoodEngine {
             carePulse = (float) Math.exp(-age / CARE_PULSE_HALF_LIFE);
         }
         float careMultiplier = 0.85f + 0.3f * carePulse;
-        record.relationshipGuard = MathHelper.lerp(0.25f, record.relationshipGuard <= 0f ? RELATIONSHIP_BASE : record.relationshipGuard,
-                MathHelper.clamp(bondMultiplier * careMultiplier, 0.75f, 1.25f));
+        float relationshipTarget = MathHelper.clamp(bondMultiplier * careMultiplier, 0.75f, 1.25f);
+        float guardBias = getNatureGuardBias(record.emotion);
+        float tunedRelationship = MathHelper.clamp(relationshipTarget * guardModifier * guardBias, 0.6f, 1.6f);
+        record.relationshipGuard = MathHelper.lerp(0.25f,
+            record.relationshipGuard <= 0f ? RELATIONSHIP_BASE : record.relationshipGuard,
+            tunedRelationship);
 
         // Danger guard from stored threat telemetry
         long lastDangerTick = parent.getStateData(PetComponent.StateKeys.THREAT_LAST_DANGER, Long.class, Long.MIN_VALUE);
@@ -1020,8 +1075,11 @@ final class PetMoodEngine {
             float decay = (float) Math.exp(-dangerAge / DANGER_HALF_LIFE);
             dangerMultiplier = 0.85f + streakBias + 0.2f * decay;
         }
-        record.dangerWindow = MathHelper.lerp(0.25f, record.dangerWindow <= 0f ? DANGER_BASE : record.dangerWindow,
-                MathHelper.clamp(dangerMultiplier, 0.75f, 1.35f));
+        float dangerTarget = MathHelper.clamp(dangerMultiplier, 0.75f, 1.35f);
+        float tunedDanger = MathHelper.clamp(dangerTarget * guardModifier * guardBias, 0.6f, 1.7f);
+        record.dangerWindow = MathHelper.lerp(0.25f,
+            record.dangerWindow <= 0f ? DANGER_BASE : record.dangerWindow,
+            tunedDanger);
 
         // Appraisal confidence trends toward baseline with volatility awareness
         float volatility = record.volatilityEMA;
@@ -1030,8 +1088,12 @@ final class PetMoodEngine {
         record.appraisalConfidence = MathHelper.lerp(0.1f, record.appraisalConfidence <= 0f ? APPRAISAL_BASE : record.appraisalConfidence, confidenceTarget);
 
         // Contagion share decays naturally
-        float contagionDecay = (float) Math.exp(-delta / 240f);
+        float decayStretch = getNatureQuirkContagionDecayModifier(record.emotion);
+        float contagionDecay = (float) Math.exp(-delta / Math.max(60f, 240f * decayStretch));
         record.contagionShare *= contagionDecay;
+
+        lastRelationshipGuardObserved = Math.max(lastRelationshipGuardObserved, record.relationshipGuard);
+        lastDangerWindowObserved = Math.max(lastDangerWindowObserved, record.dangerWindow);
     }
 
     private float percentile(List<Float> values, float quantile, float fallback) {
@@ -1064,13 +1126,60 @@ final class PetMoodEngine {
 
     private float computeContagionCap(float bondFactor) {
         float impactCap = getImpactCap();
-        float scaled = impactCap * 0.1f * bondFactor;
-        return MathHelper.clamp(scaled, 0.05f, 0.6f);
+        float contagionModifier = parent.getNatureContagionModifier();
+        float scaled = impactCap * 0.1f * bondFactor * contagionModifier;
+        float min = 0.05f * Math.min(1f, contagionModifier);
+        float max = 0.6f * Math.max(1f, contagionModifier);
+        return MathHelper.clamp(scaled, min, max);
     }
 
     private float[] getLevelThresholds() {
         ensureConfigCache();
         return cachedLevelThresholds;
+    }
+
+    private float getNatureStimulusBias(PetComponent.Emotion emotion) {
+        return getProfileScale(emotion, 0.55f, 0.35f, 0f, 0.65f, 1.75f);
+    }
+
+    private float getNatureWeightBias(PetComponent.Emotion emotion) {
+        return getProfileScale(emotion, 0.5f, 0.3f, 0.15f, 0.6f, 1.65f);
+    }
+
+    private float getNatureContagionSpreadBias(PetComponent.Emotion emotion) {
+        return getProfileScale(emotion, 0.45f, 0.25f, 0.2f, 0.6f, 1.6f);
+    }
+
+    private float getNatureGuardBias(PetComponent.Emotion emotion) {
+        return getProfileScale(emotion, 0.25f, 0.15f, 0.1f, 0.7f, 1.4f);
+    }
+
+    private float getNatureQuirkReboundModifier(PetComponent.Emotion emotion) {
+        return getProfileScale(emotion, 0f, 0f, -0.45f, 0.55f, 1.1f);
+    }
+
+    private float getNatureQuirkContagionDecayModifier(PetComponent.Emotion emotion) {
+        return getProfileScale(emotion, 0f, 0f, 0.6f, 0.6f, 1.6f);
+    }
+
+    private float getProfileScale(PetComponent.Emotion emotion,
+                                  float majorScale,
+                                  float minorScale,
+                                  float quirkScale,
+                                  float min,
+                                  float max) {
+        if (natureEmotionProfile == null || natureEmotionProfile.isEmpty() || emotion == null) {
+            return 1f;
+        }
+        float factor = 1f;
+        if (emotion == natureEmotionProfile.majorEmotion()) {
+            factor += natureEmotionProfile.majorStrength() * majorScale;
+        } else if (emotion == natureEmotionProfile.minorEmotion()) {
+            factor += natureEmotionProfile.minorStrength() * minorScale;
+        } else if (emotion == natureEmotionProfile.quirkEmotion()) {
+            factor += natureEmotionProfile.quirkStrength() * quirkScale;
+        }
+        return MathHelper.clamp(factor, min, max);
     }
 
     private Map<PetComponent.Mood, Float> getEmotionToMoodWeights(PetComponent.Emotion emotion) {
