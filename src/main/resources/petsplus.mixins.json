@@ -26,7 +26,8 @@
                 "MobEntityRemoveMixin",
                 "MobEntityTickMixin",
                 "ItemEntityMixin",
-                "ServerPlayerEntityXpMixin"
+                "ServerPlayerEntityXpMixin",
+                "VillagerEntityTradeMixin"
         ],
 	"client": [
 	],

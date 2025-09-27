@@ -11,6 +11,7 @@ import net.minecraft.server.world.ServerWorld;
 
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.gossip.RumorEntry;
 
 /**
  * Simple data carrier passed to social behaviour routines so they can pull the
@@ -40,6 +41,8 @@ public class SocialContextSnapshot {
 
     private List<PetSocialData> moodNeighbors = Collections.emptyList();
     private List<NeighborSample> nearestNeighbors = Collections.emptyList();
+    private List<NeighborSample> gossipNeighbors = Collections.emptyList();
+    private List<RumorEntry> sharedRumors = Collections.emptyList();
 
     public SocialContextSnapshot(MobEntity pet, PetComponent component,
                                  ServerPlayerEntity owner, ServerWorld world,
@@ -158,6 +161,22 @@ public class SocialContextSnapshot {
         return nearestNeighbors;
     }
 
+    public void setGossipNeighbors(List<NeighborSample> neighbors) {
+        this.gossipNeighbors = List.copyOf(neighbors);
+    }
+
+    public List<NeighborSample> gossipNeighbors() {
+        return gossipNeighbors;
+    }
+
+    public void setSharedRumors(List<RumorEntry> rumors) {
+        this.sharedRumors = List.copyOf(rumors);
+    }
+
+    public List<RumorEntry> sharedRumors() {
+        return sharedRumors;
+    }
+
     public boolean tryMarkBeat(String key, long interval) {
         String stateKey = "species_" + key;
         Long last = component.getStateData(stateKey, Long.class);
@@ -181,6 +200,8 @@ public class SocialContextSnapshot {
         this.packContextComputed = false;
         this.moodNeighbors = Collections.emptyList();
         this.nearestNeighbors = Collections.emptyList();
+        this.gossipNeighbors = Collections.emptyList();
+        this.sharedRumors = Collections.emptyList();
     }
 
     public static final class NeighborSample {

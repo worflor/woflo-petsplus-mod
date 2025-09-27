@@ -28,6 +28,8 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.component.PetsplusComponents;
 import woflo.petsplus.stats.PetCharacteristics;
+import woflo.petsplus.state.gossip.PetGossipLedger;
+import woflo.petsplus.state.gossip.RumorEntry;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
 
 import net.minecraft.util.math.ChunkSectionPos;
@@ -42,6 +44,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.WeakHashMap;
+import java.util.stream.Stream;
 
 /**
  * Component that tracks pet-specific state including role and cooldowns.
@@ -52,7 +55,8 @@ public class PetComponent {
     private static final String[] SPECIES_STATE_KEYS = {
         "context_species", "context_type", "tag_species", "tag_type", "context_entity"
     };
-    
+    private static final long MIN_GOSSIP_DECAY_DELAY = 40L;
+
     // (legacy mood keys removed)
 
     private final MobEntity pet;
@@ -76,6 +80,8 @@ public class PetComponent {
     private boolean flightCapabilityDirty = true;
     // New: encapsulated mood/emotion engine
     private final PetMoodEngine moodEngine;
+
+    private final PetGossipLedger gossipLedger;
 
     private float natureVolatilityMultiplier = 1.0f;
     private float natureResilienceMultiplier = 1.0f;
@@ -336,6 +342,8 @@ public class PetComponent {
         // Initialize mood/emotion engine
         this.moodEngine = new PetMoodEngine(this);
 
+        this.gossipLedger = new PetGossipLedger();
+
 
         // Mood/emotion state is managed by moodEngine
     }
@@ -350,7 +358,34 @@ public class PetComponent {
     public MobEntity getPetEntity() {
         return pet;
     }
-    
+
+    public PetGossipLedger getGossipLedger() {
+        return gossipLedger;
+    }
+
+    public void recordRumor(long topicId, float intensity, float confidence, long currentTick) {
+        recordRumor(topicId, intensity, confidence, currentTick, null, null);
+    }
+
+    public void recordRumor(long topicId, float intensity, float confidence, long currentTick,
+                            @Nullable UUID sourceUuid, @Nullable String paraphrased) {
+        gossipLedger.recordRumor(topicId, intensity, confidence, currentTick, sourceUuid, paraphrased);
+        scheduleNextGossipDecay(currentTick + Math.max(MIN_GOSSIP_DECAY_DELAY, gossipLedger.scheduleNextDecayDelay()));
+    }
+
+    public void decayRumors(long currentTick) {
+        gossipLedger.tickDecay(currentTick);
+    }
+
+    public boolean hasShareableRumors(long currentTick) {
+        return gossipLedger.hasShareableRumors(currentTick)
+            || gossipLedger.hasAbstractTopicsReady(currentTick);
+    }
+
+    public Stream<RumorEntry> streamRumors() {
+        return gossipLedger.stream();
+    }
+
     public static PetComponent getOrCreate(MobEntity pet) {
         if (pet.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
             return StateManager.forWorld(serverWorld).getPetComponent(pet);
@@ -720,6 +755,7 @@ public class PetComponent {
         scheduleNextAuraCheck(currentTick);
         scheduleNextSupportPotionScan(currentTick);
         scheduleNextParticleCheck(currentTick);
+        scheduleNextGossipDecay(currentTick + Math.max(MIN_GOSSIP_DECAY_DELAY, gossipLedger.scheduleNextDecayDelay()));
     }
 
     public void resetTickScheduling(long currentTick) {
@@ -746,6 +782,10 @@ public class PetComponent {
         submitScheduledTask(PetWorkScheduler.TaskType.PARTICLE, nextTick);
     }
 
+    public void scheduleNextGossipDecay(long nextTick) {
+        submitScheduledTask(PetWorkScheduler.TaskType.GOSSIP_DECAY, nextTick);
+    }
+
     private void submitScheduledTask(PetWorkScheduler.TaskType type, long nextTick) {
         if (!(pet.getWorld() instanceof ServerWorld) || stateManager == null) {
             return;
@@ -762,6 +802,12 @@ public class PetComponent {
     void onTaskUnschedule(PetWorkScheduler.TaskType type) {
         scheduledTaskTicks.remove(type);
         recomputeEarliestScheduledTick();
+    }
+
+    public void tickGossipLedger(long currentTick) {
+        gossipLedger.tickDecay(currentTick);
+        long nextDelay = Math.max(MIN_GOSSIP_DECAY_DELAY, gossipLedger.scheduleNextDecayDelay());
+        scheduleNextGossipDecay(currentTick + nextDelay);
     }
 
     private void recomputeEarliestScheduledTick() {
@@ -1829,6 +1875,12 @@ public class PetComponent {
         // Mood system persistence handled by engine
         moodEngine.writeToNbt(nbt);
 
+        gossipLedger.encodeToNbt().result().ifPresent(element -> {
+            if (element instanceof NbtCompound compound) {
+                nbt.put("gossipLedger", compound);
+            }
+        });
+
         // Save unlocked milestones
         NbtCompound milestonesNbt = new NbtCompound();
         for (Map.Entry<Integer, Boolean> entry : unlockedMilestones.entrySet()) {
@@ -1984,6 +2036,13 @@ public class PetComponent {
 
         // Mood system persistence handled by engine
         moodEngine.readFromNbt(nbt);
+
+        gossipLedger.clear();
+        if (nbt.contains("gossipLedger")) {
+            nbt.getCompound("gossipLedger").ifPresent(ledgerNbt ->
+                PetGossipLedger.CODEC.parse(NbtOps.INSTANCE, ledgerNbt).result().ifPresent(gossipLedger::copyFrom)
+            );
+        }
 
         if (nbt.contains("milestones")) {
             nbt.getCompound("milestones").ifPresent(milestonesNbt -> {
