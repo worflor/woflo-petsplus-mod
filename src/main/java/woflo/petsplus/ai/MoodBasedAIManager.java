@@ -37,6 +37,9 @@ public class MoodBasedAIManager {
             // Combat/aggressive goals (medium-high priority)
             goalSelector.add(7, new AngryAttackGoal(pet));        // ANGRY - attack threats
 
+            // Purposeful focus goals (medium priority)
+            goalSelector.add(8, new FocusedStudyGoal(pet));       // FOCUSED - inspect scholarly blocks
+
             // Exploration/activity goals (medium priority)
             goalSelector.add(10, new CuriousExploreGoal(pet));    // CURIOUS - investigate objects
             goalSelector.add(11, new HappyPlayGoal(pet));         // HAPPY - playful behavior
@@ -44,12 +47,14 @@ public class MoodBasedAIManager {
             // Social/movement goals (medium priority)
             goalSelector.add(12, new BondedStayCloseGoal(pet));   // BONDED - stay close to owner
             goalSelector.add(13, new RestlessWanderGoal(pet));    // RESTLESS - constant movement
+            goalSelector.add(14, new SaudadeWanderGoal(pet));     // SAUDADE - circle sentimental anchors
 
             // Rest/passive goals (lower priority)
             goalSelector.add(15, new CalmRestGoal(pet));          // CALM - find peaceful rest spots
+            goalSelector.add(16, new YugenStargazeGoal(pet));     // YUGEN - appreciate the night sky
 
             // Note: Each mood should have exactly one associated goal
-            // Current coverage: AFRAID, PROTECTIVE, ANGRY, CURIOUS, HAPPY, BONDED, RESTLESS, CALM
+            // Current coverage: AFRAID, PROTECTIVE, ANGRY, FOCUSED, CURIOUS, HAPPY, BONDED, RESTLESS, SAUDADE, CALM, YUGEN
 
         } catch (Exception e) {
             woflo.petsplus.Petsplus.LOGGER.warn("Failed to initialize mood-based AI for pet {}: {}",

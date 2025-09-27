@@ -29,7 +29,17 @@ public class PetAIDebugger {
         Petsplus.LOGGER.info("Pet Type: {}", pet.getType());
         Petsplus.LOGGER.info("Role: {}", roleId);
         Petsplus.LOGGER.info("Is Tamed: {}", pet instanceof PetsplusTameable tameable ? tameable.petsplus$isTamed() : "N/A");
-        
+        Petsplus.LOGGER.info("Current Mood: {} (level {})", petComponent.getCurrentMood(), petComponent.getMoodLevel());
+        float focusedStrength = petComponent.getMoodStrength(PetComponent.Mood.FOCUSED);
+        float yugenStrength = petComponent.getMoodStrength(PetComponent.Mood.YUGEN);
+        float saudadeStrength = petComponent.getMoodStrength(PetComponent.Mood.SAUDADE);
+        Petsplus.LOGGER.info(
+            "Mood Strengths - Focused: {}, Yugen: {}, Saudade: {}",
+            Math.round(focusedStrength * 100f) / 100f,
+            Math.round(yugenStrength * 100f) / 100f,
+            Math.round(saudadeStrength * 100f) / 100f
+        );
+
         // Log pathfinding penalties
         Petsplus.LOGGER.info("Pathfinding Penalties:");
         logPathfindingPenalty(pet, PathNodeType.WATER, "Water");
