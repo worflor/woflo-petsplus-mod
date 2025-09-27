@@ -225,7 +225,7 @@ public class GossipCircleRoutine implements SocialBehaviorRoutine {
                                      PetGossipLedger storytellerLedger,
                                      List<SocialContextSnapshot.NeighborSample> cluster,
                                      RumorEntry rumor) {
-        boolean sharedWithAny = false;
+        boolean sharedWithNewListener = false;
         boolean isAbstract = !storytellerLedger.hasRumor(rumor.topicId())
             && GossipTopics.isAbstract(rumor.topicId());
         for (SocialContextSnapshot.NeighborSample sample : cluster) {
@@ -249,6 +249,13 @@ public class GossipCircleRoutine implements SocialBehaviorRoutine {
                 continue;
             }
             PetGossipLedger listenerLedger = listener.getGossipLedger();
+            boolean alreadyKnows = listenerLedger.hasRumor(rumor.topicId());
+            boolean witnessed = alreadyKnows && listenerLedger.witnessedRecently(rumor.topicId(), context.currentTick());
+            if (witnessed) {
+                listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), true);
+                listener.pushEmotion(PetComponent.Emotion.LOYALTY, 0.015f);
+                continue;
+            }
             if (listenerLedger.hasHeardRecently(rumor.topicId(), context.currentTick())) {
                 listenerLedger.registerDuplicateHeard(rumor.topicId(), context.currentTick());
                 listener.pushEmotion(PetComponent.Emotion.FRUSTRATION, REPEAT_FUZZ);
@@ -258,18 +265,21 @@ public class GossipCircleRoutine implements SocialBehaviorRoutine {
             if (isAbstract) {
                 listenerLedger.registerAbstractHeard(rumor.topicId(), context.currentTick());
                 listener.pushEmotion(PetComponent.Emotion.CURIOUS, 0.015f);
+                sharedWithNewListener = true;
             } else {
-                boolean corroborated = listenerLedger.hasRumor(rumor.topicId());
-                listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), corroborated);
-                listener.pushEmotion(corroborated ? PetComponent.Emotion.LOYALTY : PetComponent.Emotion.CURIOUS,
-                    corroborated ? 0.015f : 0.02f);
+                listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), alreadyKnows);
+                if (alreadyKnows) {
+                    listener.pushEmotion(PetComponent.Emotion.LOYALTY, 0.015f);
+                } else {
+                    listener.pushEmotion(PetComponent.Emotion.CURIOUS, 0.02f);
+                    sharedWithNewListener = true;
+                }
             }
-            sharedWithAny = true;
         }
-        if (sharedWithAny) {
+        if (sharedWithNewListener) {
             storytellerLedger.markShared(rumor.topicId(), context.currentTick());
         }
-        return sharedWithAny;
+        return sharedWithNewListener;
     }
 
     private List<List<SocialContextSnapshot.NeighborSample>> partitionClusters(

@@ -377,7 +377,12 @@ public class PetComponent {
 
     public void recordRumor(long topicId, float intensity, float confidence, long currentTick,
                             @Nullable UUID sourceUuid, @Nullable Text paraphrased) {
-        gossipLedger.recordRumor(topicId, intensity, confidence, currentTick, sourceUuid, paraphrased);
+        recordRumor(topicId, intensity, confidence, currentTick, sourceUuid, paraphrased, false);
+    }
+
+    public void recordRumor(long topicId, float intensity, float confidence, long currentTick,
+                            @Nullable UUID sourceUuid, @Nullable Text paraphrased, boolean witnessed) {
+        gossipLedger.recordRumor(topicId, intensity, confidence, currentTick, sourceUuid, paraphrased, witnessed);
         scheduleNextGossipDecay(currentTick + Math.max(MIN_GOSSIP_DECAY_DELAY, gossipLedger.scheduleNextDecayDelay()));
     }
 

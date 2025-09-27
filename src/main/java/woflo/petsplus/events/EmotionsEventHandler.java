@@ -1218,7 +1218,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         long currentTick = owner.getWorld().getTime();
         Text payload = message == null ? null : message.copy();
         forEachOwnedPet(owner, radius, (pet, component) ->
-            component.recordRumor(topicId, intensity, confidence, currentTick, owner.getUuid(), payload));
+            component.recordRumor(topicId, intensity, confidence, currentTick, owner.getUuid(), payload, true));
     }
 
     private static Map<PetComponent.Mood, Float> snapshotMoodBlend(PetComponent pc) {

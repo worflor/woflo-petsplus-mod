@@ -165,26 +165,53 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
             return;
         }
 
+        PetGossipLedger whispererLedger = whisperer.getGossipLedger();
         PetGossipLedger listenerLedger = listener.getGossipLedger();
-        if (listenerLedger.hasHeardRecently(rumor.topicId(), context.currentTick())) {
-            listenerLedger.registerDuplicateHeard(rumor.topicId(), context.currentTick());
-            listener.pushEmotion(PetComponent.Emotion.FRUSTRATION, REPEAT_FUZZ);
-            listener.optOutOfGossip(context.currentTick());
+        boolean alreadyKnows = listenerLedger.hasRumor(rumor.topicId());
+        boolean witnessed = alreadyKnows && listenerLedger.witnessedRecently(rumor.topicId(), context.currentTick());
+
+        boolean sharedAny = false;
+        boolean newListener = false;
+
+        if (witnessed) {
+            listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), true);
+            listener.pushEmotion(PetComponent.Emotion.LOYALTY, 0.02f);
+            sharedAny = true;
+        } else {
+            if (listenerLedger.hasHeardRecently(rumor.topicId(), context.currentTick())) {
+                listenerLedger.registerDuplicateHeard(rumor.topicId(), context.currentTick());
+                listener.pushEmotion(PetComponent.Emotion.FRUSTRATION, REPEAT_FUZZ);
+                listener.optOutOfGossip(context.currentTick());
+                return;
+            }
+
+            boolean isAbstract = !whispererLedger.hasRumor(rumor.topicId())
+                && GossipTopics.isAbstract(rumor.topicId());
+            if (isAbstract) {
+                listenerLedger.registerAbstractHeard(rumor.topicId(), context.currentTick());
+                listener.pushEmotion(PetComponent.Emotion.CURIOUS, 0.02f);
+                newListener = true;
+                sharedAny = true;
+            } else if (alreadyKnows) {
+                listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), true);
+                listener.pushEmotion(PetComponent.Emotion.LOYALTY, 0.02f);
+                sharedAny = true;
+            } else {
+                listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), false);
+                listener.pushEmotion(PetComponent.Emotion.CURIOUS, 0.025f);
+                newListener = true;
+                sharedAny = true;
+            }
+
+            if (newListener) {
+                whispererLedger.markShared(rumor.topicId(), context.currentTick());
+            }
+        }
+
+        if (!sharedAny) {
             return;
         }
 
-        PetGossipLedger whispererLedger = whisperer.getGossipLedger();
-        boolean isAbstract = !whispererLedger.hasRumor(rumor.topicId())
-            && GossipTopics.isAbstract(rumor.topicId());
-        if (isAbstract) {
-            listenerLedger.registerAbstractHeard(rumor.topicId(), context.currentTick());
-            listener.pushEmotion(PetComponent.Emotion.CURIOUS, 0.02f);
-        } else {
-            boolean corroborated = listenerLedger.hasRumor(rumor.topicId());
-            listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), corroborated);
-            listener.pushEmotion(corroborated ? PetComponent.Emotion.LOYALTY : PetComponent.Emotion.CURIOUS, 0.025f);
-        }
-        whispererLedger.markShared(rumor.topicId(), context.currentTick());
         whisperer.pushEmotion(PetComponent.Emotion.EMPATHY, 0.02f);
 
         if (context.tryMarkBeat("gossip_whisper", 200)) {

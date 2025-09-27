@@ -39,6 +39,7 @@ public final class PetGossipLedger {
     private static final float MIN_SHARE_INTENSITY = 0.08f;
     private static final float MIN_SHARE_CONFIDENCE = 0.1f;
     private static final long ABSTRACT_COOLDOWN = 200L;
+    private static final long WITNESS_GRACE_WINDOW = 200L;
 
     public static final Codec<PetGossipLedger> CODEC = RecordCodecBuilder.create(instance -> instance.group(
         RumorEntry.CODEC.listOf().fieldOf("rumors").forGetter(PetGossipLedger::serializeRumors),
@@ -167,7 +168,10 @@ public final class PetGossipLedger {
         for (int i = 0; i < abstractTopics.length; i++) {
             int index = (abstractCursor + i) % abstractTopics.length;
             GossipTopics.AbstractTopic topic = abstractTopics[index];
-            long lastShared = abstractLastShared.getOrDefault(topic.topicId(), Long.MIN_VALUE);
+            if (!abstractLastShared.containsKey(topic.topicId())) {
+                return true;
+            }
+            long lastShared = abstractLastShared.get(topic.topicId());
             if (currentTick - lastShared >= ABSTRACT_COOLDOWN) {
                 return true;
             }
@@ -177,14 +181,26 @@ public final class PetGossipLedger {
 
     public void recordRumor(long topicId, float intensity, float confidence, long currentTick,
                             @Nullable java.util.UUID sourceUuid, @Nullable Text paraphrased) {
+        recordRumor(topicId, intensity, confidence, currentTick, sourceUuid, paraphrased, false);
+    }
+
+    public void recordRumor(long topicId, float intensity, float confidence, long currentTick,
+                            @Nullable java.util.UUID sourceUuid, @Nullable Text paraphrased,
+                            boolean witnessed) {
         RumorEntry existing = rumors.get(topicId);
         if (existing == null) {
             enforceCapacity();
             RumorEntry entry = RumorEntry.create(topicId, intensity, confidence, currentTick, sourceUuid, paraphrased);
+            if (witnessed) {
+                entry.markWitness(currentTick);
+            }
             rumors.put(topicId, entry);
             enqueueForSharing(topicId);
         } else {
             existing.reinforce(intensity, confidence, currentTick, sourceUuid, paraphrased, false);
+            if (witnessed) {
+                existing.markWitness(currentTick);
+            }
             enqueueForSharing(topicId);
         }
         markHeard(topicId, currentTick);
@@ -215,7 +231,7 @@ public final class PetGossipLedger {
 
     public boolean hasShareableRumors(long currentTick) {
         if (shareQueue.isEmpty()) {
-            return false;
+            return hasAbstractTopicsReady(currentTick);
         }
         for (LongIterator iterator = shareQueue.iterator(); iterator.hasNext(); ) {
             long topicId = iterator.nextLong();
@@ -229,7 +245,7 @@ public final class PetGossipLedger {
                 return true;
             }
         }
-        return false;
+        return hasAbstractTopicsReady(currentTick);
     }
 
     public List<RumorEntry> peekAbstractRumors(int limit, long currentTick) {
@@ -242,15 +258,22 @@ public final class PetGossipLedger {
         for (int offset = 0; offset < abstractTopics.length && found < requested; offset++) {
             int index = (abstractCursor + offset) % abstractTopics.length;
             GossipTopics.AbstractTopic topic = abstractTopics[index];
-            long lastShared = abstractLastShared.getOrDefault(topic.topicId(), Long.MIN_VALUE);
+            long lastShared = lastSharedTick(topic.topicId(), currentTick);
             if (currentTick - lastShared < ABSTRACT_COOLDOWN) {
                 continue;
             }
             list.add(new RumorEntry(topic.topicId(), topic.baseIntensity(), topic.baseConfidence(),
-                Math.max(0L, currentTick), Math.max(0L, lastShared), 0, null, null));
+                Math.max(0L, currentTick), Math.max(0L, lastShared), 0, null, null, 0L));
             found++;
         }
         return list;
+    }
+
+    private long lastSharedTick(long topicId, long currentTick) {
+        if (!abstractLastShared.containsKey(topicId)) {
+            return Math.max(0L, currentTick - ABSTRACT_COOLDOWN);
+        }
+        return abstractLastShared.get(topicId);
     }
 
     public List<RumorEntry> peekFreshRumors(int limit, long currentTick) {
@@ -434,6 +457,14 @@ public final class PetGossipLedger {
 
     public void registerAbstractHeard(long topicId, long currentTick) {
         markHeard(topicId, currentTick);
+    }
+
+    public boolean witnessedRecently(long topicId, long currentTick) {
+        RumorEntry rumor = rumors.get(topicId);
+        if (rumor == null) {
+            return false;
+        }
+        return rumor.witnessedRecently(currentTick, WITNESS_GRACE_WINDOW);
     }
 
     public float knowledgeScore(long currentTick) {

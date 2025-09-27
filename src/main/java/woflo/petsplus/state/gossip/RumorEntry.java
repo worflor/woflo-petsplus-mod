@@ -28,10 +28,12 @@ public final class RumorEntry {
             ? Optional.empty() : Optional.of(entry.shareCount())),
         Uuids.CODEC.optionalFieldOf("source").forGetter(entry -> Optional.ofNullable(entry.sourceUuid)),
         TextCodecs.CODEC.optionalFieldOf("paraphrase")
-            .forGetter(entry -> Optional.ofNullable(entry.paraphrased))
-    ).apply(instance, (topic, intensity, confidence, lastHeard, lastShared, shares, source, paraphrase) ->
+            .forGetter(entry -> Optional.ofNullable(entry.paraphrased)),
+        Codec.LONG.optionalFieldOf("lastWitness")
+            .forGetter(entry -> entry.lastWitnessTick <= 0L ? Optional.empty() : Optional.of(entry.lastWitnessTick))
+    ).apply(instance, (topic, intensity, confidence, lastHeard, lastShared, shares, source, paraphrase, witness) ->
         new RumorEntry(topic, intensity, confidence, lastHeard, lastShared, shares.orElse(0),
-            source.orElse(null), paraphrase.orElse(null))));
+            source.orElse(null), paraphrase.orElse(null), witness.orElse(0L))));
 
     private final long topicId;
     private float intensity;
@@ -39,6 +41,7 @@ public final class RumorEntry {
     private long lastHeardTick;
     private long lastSharedTick;
     private int shareCount;
+    private long lastWitnessTick;
     @Nullable
     private UUID sourceUuid;
     @Nullable
@@ -46,7 +49,7 @@ public final class RumorEntry {
 
     RumorEntry(long topicId, float intensity, float confidence, long lastHeardTick,
                long lastSharedTick, int shareCount, @Nullable UUID sourceUuid,
-               @Nullable Text paraphrased) {
+               @Nullable Text paraphrased, long lastWitnessTick) {
         this.topicId = topicId;
         this.intensity = clamp(intensity);
         this.confidence = clamp(confidence);
@@ -55,16 +58,18 @@ public final class RumorEntry {
         this.shareCount = Math.max(0, shareCount);
         this.sourceUuid = sourceUuid;
         this.paraphrased = sanitizeParaphrased(paraphrased);
+        this.lastWitnessTick = Math.max(0L, lastWitnessTick);
     }
 
     public static RumorEntry create(long topicId, float intensity, float confidence, long heardTick,
                                     @Nullable UUID sourceUuid, @Nullable Text paraphrased) {
-        return new RumorEntry(topicId, intensity, confidence, heardTick, 0L, 0, sourceUuid, paraphrased);
+        return new RumorEntry(topicId, intensity, confidence, heardTick, 0L, 0, sourceUuid, paraphrased, 0L);
     }
 
     public RumorEntry copy() {
         return new RumorEntry(topicId, intensity, confidence, lastHeardTick,
-            lastSharedTick, shareCount, sourceUuid, paraphrased == null ? null : paraphrased.copy());
+            lastSharedTick, shareCount, sourceUuid,
+            paraphrased == null ? null : paraphrased.copy(), lastWitnessTick);
     }
 
     public long topicId() {
@@ -89,6 +94,10 @@ public final class RumorEntry {
 
     public int shareCount() {
         return shareCount;
+    }
+
+    public long lastWitnessTick() {
+        return lastWitnessTick;
     }
 
     @Nullable
@@ -175,6 +184,22 @@ public final class RumorEntry {
         if (this.shareCount > 0) {
             this.shareCount = Math.max(0, this.shareCount - 1);
         }
+    }
+
+    void markWitness(long currentTick) {
+        long normalized = Math.max(0L, currentTick);
+        if (normalized <= 0L) {
+            return;
+        }
+        this.lastWitnessTick = Math.max(this.lastWitnessTick, normalized);
+        this.lastHeardTick = Math.max(this.lastHeardTick, this.lastWitnessTick);
+    }
+
+    boolean witnessedRecently(long currentTick, long window) {
+        if (window <= 0L || this.lastWitnessTick <= 0L) {
+            return false;
+        }
+        return currentTick - this.lastWitnessTick <= window;
     }
 
     private static float clamp(float value) {
