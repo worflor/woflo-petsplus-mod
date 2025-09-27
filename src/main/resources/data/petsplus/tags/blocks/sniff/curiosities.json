@@ -1,0 +1,26 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:all_hanging_signs",
+    "#minecraft:all_signs",
+    "#minecraft:guarded_by_piglins",
+    "minecraft:suspicious_sand",
+    "minecraft:suspicious_gravel",
+    "minecraft:decorated_pot",
+    "minecraft:crafter",
+    "minecraft:chiseled_bookshelf",
+    "minecraft:lectern",
+    "minecraft:enchanting_table",
+    "minecraft:smithing_table",
+    "minecraft:cartography_table",
+    "minecraft:loom",
+    "minecraft:stonecutter",
+    "minecraft:grindstone",
+    "minecraft:brewing_stand",
+    "minecraft:fletching_table",
+    "minecraft:trial_spawner",
+    "minecraft:vault",
+    "minecraft:conduit",
+    "minecraft:lodestone"
+  ]
+}
