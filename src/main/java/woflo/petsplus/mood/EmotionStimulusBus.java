@@ -13,7 +13,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.WeakHashMap;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
@@ -68,7 +67,7 @@ public final class EmotionStimulusBus {
             pending.computeIfAbsent(pet, ignored -> new ArrayList<>()).add(action);
         }
         MinecraftServer server = serverWorld.getServer();
-        CompletableFuture.runAsync(() -> dispatchStimuli(pet), server);
+        server.submit(() -> dispatchStimuli(pet));
     }
 
     public void dispatchStimuli(MobEntity pet) {
