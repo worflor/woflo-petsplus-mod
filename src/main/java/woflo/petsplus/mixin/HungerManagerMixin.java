@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import woflo.petsplus.events.EmotionsEventHandler;
-import woflo.petsplus.mixin.support.HungerManagerAccess;
+import woflo.petsplus.api.HungerManagerAccess;
 
 /**
  * Emits hunger change notifications whenever the food level mutates.
@@ -48,12 +48,12 @@ public abstract class HungerManagerMixin implements HungerManagerAccess {
     }
 
     @Inject(method = "eat", at = @At("HEAD"))
-    private void petsplus$captureEat(net.minecraft.item.Item item, net.minecraft.item.ItemStack stack, CallbackInfo ci) {
+    private void petsplus$captureEat(net.minecraft.component.type.FoodComponent foodComponent, CallbackInfo ci) {
         this.petsplus$previousFoodLevel = this.foodLevel;
     }
 
     @Inject(method = "eat", at = @At("TAIL"))
-    private void petsplus$onEat(net.minecraft.item.Item item, net.minecraft.item.ItemStack stack, CallbackInfo ci) {
+    private void petsplus$onEat(net.minecraft.component.type.FoodComponent foodComponent, CallbackInfo ci) {
         this.petsplus$fireHungerChange();
     }
 

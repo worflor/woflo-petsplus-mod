@@ -21,7 +21,8 @@ public final class PetWorkScheduler {
         INTERVAL,
         AURA,
         SUPPORT_POTION,
-        PARTICLE
+        PARTICLE,
+        GOSSIP_DECAY
     }
 
     public static final class ScheduledTask {
@@ -98,6 +99,9 @@ public final class PetWorkScheduler {
 
     public synchronized void processDue(long currentTick, Consumer<ScheduledTask> consumer) {
         var iterator = buckets.entrySet().iterator();
+        List<ScheduledTask> tasksToProcess = new ArrayList<>();
+
+        // First pass: collect all due tasks and remove buckets
         while (iterator.hasNext()) {
             var entry = iterator.next();
             if (entry.getKey() > currentTick) {
@@ -106,19 +110,27 @@ public final class PetWorkScheduler {
             iterator.remove();
             List<ScheduledTask> tasks = entry.getValue();
             for (ScheduledTask task : tasks) {
-                if (task.cancelled) {
-                    continue;
+                if (!task.cancelled) {
+                    tasksToProcess.add(task);
                 }
-                EnumMap<TaskType, ScheduledTask> map = tasksByComponent.get(task.component);
-                if (map != null) {
-                    map.remove(task.type);
-                    if (map.isEmpty()) {
-                        tasksByComponent.remove(task.component);
-                    }
-                }
-                task.component.onTaskUnschedule(task.type);
-                consumer.accept(task);
             }
+        }
+
+        // Second pass: clean up task mappings and notify
+        for (ScheduledTask task : tasksToProcess) {
+            EnumMap<TaskType, ScheduledTask> map = tasksByComponent.get(task.component);
+            if (map != null) {
+                map.remove(task.type);
+                if (map.isEmpty()) {
+                    tasksByComponent.remove(task.component);
+                }
+            }
+            task.component.onTaskUnschedule(task.type);
+        }
+
+        // Third pass: execute consumers outside of synchronized modification
+        for (ScheduledTask task : tasksToProcess) {
+            consumer.accept(task);
         }
     }
 }

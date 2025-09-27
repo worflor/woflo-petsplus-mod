@@ -39,7 +39,8 @@ public final class PetInspectionManager {
 
     private static final int VIEW_DIST = 12;
     private static final Map<UUID, InspectionState> inspecting = new HashMap<>();
-    private static final int LINGER_TICKS = 40; // 2s linger after looking away
+    private static final int LINGER_TICKS = 100; // 5s linger after looking away
+    private static final int DEBUG_LINGER_TICKS = 200; // 10s linger in debug mode
 
     public static void onPlayerDisconnect(ServerPlayerEntity player) {
         if (player == null) {
@@ -65,9 +66,11 @@ public final class PetInspectionManager {
     }
 
     private static void handleLookAway(ServerPlayerEntity player, InspectionState state) {
-        if (state.lingerTicks == LINGER_TICKS) {
+        int maxLinger = state.getLingerTicks();
+        if (state.lingerTicks == maxLinger) {
             // Just stopped looking: extend current bar duration for smooth transition
-            BossBarManager.extendDuration(player, LINGER_TICKS);
+            BossBarManager.extendDuration(player, maxLinger);
+            state.hasFocus = false;
         }
 
         if (state.lingerTicks > 0) {
@@ -83,9 +86,9 @@ public final class PetInspectionManager {
 
     private static void handleLookAt(ServerPlayerEntity player, MobEntity pet, InspectionState state) {
         // Reset linger and update pet tracking
-        state.lingerTicks = LINGER_TICKS;
+        state.lingerTicks = state.getLingerTicks();
         UUID newPetId = pet.getUuid();
-        
+
         if (state.lastPetId == null || !state.lastPetId.equals(newPetId)) {
             // New pet - reset all state
             state.reset(newPetId);
@@ -93,11 +96,19 @@ public final class PetInspectionManager {
 
         PetComponent comp = PetComponent.get(pet);
         if (comp == null || !comp.isOwnedBy(player)) {
-            BossBarManager.removeBossBar(player);
-            clearEmotionScoreboard(player);
-            inspecting.remove(player.getUuid());
+            // Increment ownership failure counter instead of immediately clearing
+            state.ownershipFailures++;
+            if (state.shouldClearUI()) {
+                BossBarManager.removeBossBar(player);
+                clearEmotionScoreboard(player);
+                inspecting.remove(player.getUuid());
+            }
             return;
         }
+
+        // Reset ownership failures on successful validation
+        state.resetOwnershipFailures();
+        state.hasFocus = true;
 
         ActionBarCueManager.onPlayerLookedAtPet(player, pet);
 
@@ -230,7 +241,9 @@ public final class PetInspectionManager {
         Vec3d start = player.getCameraPosVec(1f);
         Vec3d look = player.getRotationVec(1f);
 
-        double bestDot = 0.98; // Require tight alignment
+        // Hysteresis: stricter threshold for gaining focus, looser for maintaining
+        boolean currentlyHasFocus = inspecting.containsKey(player.getUuid());
+        double bestDot = currentlyHasFocus ? 0.94 : 0.96; // Looser when maintaining focus
         MobEntity best = null;
         for (Entity e : player.getWorld().getOtherEntities(player, player.getBoundingBox().expand(VIEW_DIST))) {
             if (!(e instanceof MobEntity mob)) continue;
@@ -249,14 +262,30 @@ public final class PetInspectionManager {
         int tickCounter = 0;
         int lingerTicks = 0;
         UUID lastPetId = null;
+        int ownershipFailures = 0;
+        boolean hasFocus = false;
 
-        void tick() { 
-            tickCounter++; 
+        void tick() {
+            tickCounter++;
         }
 
         void reset(UUID petId) {
             tickCounter = 0;
             lastPetId = petId;
+            ownershipFailures = 0;
+            hasFocus = true;
+        }
+
+        void resetOwnershipFailures() {
+            ownershipFailures = 0;
+        }
+
+        boolean shouldClearUI() {
+            return ownershipFailures >= 3;
+        }
+
+        int getLingerTicks() {
+            return woflo.petsplus.Petsplus.DEBUG_MODE ? DEBUG_LINGER_TICKS : LINGER_TICKS;
         }
     }
 
@@ -377,7 +406,7 @@ public final class PetInspectionManager {
                 String color = toSectionColor(emotionColor, "§f");
                 String parkedMarker = emotionInfo.parked() ? toSectionColor(PetComponent.getEmotionAccentColor(emotionInfo.emotion()), "§b") + "*" : "";
                 String line = color + emotionInfo.emotion().name().toLowerCase()
-                             + " §7(" + String.format("%.2f", emotionInfo.weight()) + ")" + parkedMarker;
+                             + " §7[" + Math.round(emotionInfo.weight() * 100) + "%]" + parkedMarker;
 
                 ScoreHolder emotionHolder = ScoreHolder.fromName(line);
                 scoreboard.getOrCreateScore(emotionHolder, objective).setScore(score--);
@@ -442,7 +471,8 @@ public final class PetInspectionManager {
             }
 
             updateForPlayer(player);
-            nextRunTicks.put(player.getUuid(), currentTick + 1L);
+            // Update every 3 ticks instead of every tick for better performance
+            nextRunTicks.put(player.getUuid(), currentTick + 3L);
         }
 
         @Override

@@ -1,4 +1,4 @@
-package woflo.petsplus.mixin.support;
+package woflo.petsplus.api;
 
 import net.minecraft.entity.player.PlayerEntity;
 

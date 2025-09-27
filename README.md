@@ -1,4 +1,4 @@
-# Pets+ dev-0.80-backend_overhauls (Pets Plus)
+# Pets+ dev-0.81-immersive_engine_ears_ring (Pets Plus)
 A Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
 
 
@@ -47,7 +47,7 @@ Behind the scenes, *30 emotions influence your pet's overall mood*. Various even
 17. **Chandralekha Reverie** [ Sanskrit ] — stargazing in perfect peace
 
 Mood intensity varies based on the strength of these emotional weights.
-### Core Emotion Groups
+## Core Emotion Groups
 - afflicted / positive
 - threat / aversion
 - reflective / neutral
@@ -55,7 +55,7 @@ Mood intensity varies based on the strength of these emotional weights.
 
 Watch, in real time, as beating your pet make them upset - or happy if they're into it. 
 
-And uh.. I also heard a rumour pets take note of... **gossip**... for later..
+I also heard a rumour pets take note of... **gossip**... for later use..
 
 
 ## Natures
@@ -86,7 +86,7 @@ Born natures do not role for tames; tamed natures do not role for born pets.
 20. Frosty
 21. Mire
 22. Relic [ Near strongholds / Ruins ]
-23. Unnatural [ Neither parent owned by breeder ]
+23. Unnatural [ Breeder owns neither parents ]
 
 
 ## New Friends
@@ -147,6 +147,8 @@ Hey, memorialize the trauma, a **Proof of Existence** drops on every pet death.
 - "This isnt vanilla, chocolate, or strawberry..." (tame an entity usually untamable in the vanilla game)
 - "Pack Mentality" (Engage in combat with: a pack of 3 pets of at least 2 unique roles and 2 unique entity types)
 - "It's not nice to do that!!" (punch a pet into a void - killing it)
+- "Hold on a moment..." (notice a gossip cue)
+- "Size matters" (have a pack large enough for two social circles)
 
 
 ## Configuration and Expandability
