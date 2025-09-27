@@ -66,6 +66,8 @@ public class MoodInfluencedBehaviors {
         private long lastFidgetTick = -200;
         private long nextGlobalStartTick = 0;
         private Vec3d sniffFocus;
+        private float cachedAgilityModifier = 0.0f;
+        private float cachedVitalityModifier = 0.0f;
 
         private enum FidgetType {
             HEAD_TILT,      // Curious, playful
@@ -107,6 +109,8 @@ public class MoodInfluencedBehaviors {
             baseChance -= Math.round(moodStrength * 30f);
             baseChance -= Math.round(pressure * 20f);
 
+            float agilityScaling = MathHelper.clamp(1.0f - cachedAgilityModifier * 0.45f, 0.85f, 1.15f);
+            baseChance = Math.round(baseChance * agilityScaling);
             baseChance = MathHelper.clamp(baseChance, 12, 140);
 
             return pet.getRandom().nextInt(baseChance) == 0;
@@ -121,6 +125,8 @@ public class MoodInfluencedBehaviors {
         public void start() {
             PetComponent pc = PetComponent.get(pet);
             if (pc == null) return;
+
+            refreshCharacteristicModifiers(pc);
 
             nextGlobalStartTick = pet.getWorld().getTime() + 20;
             sniffFocus = null;
@@ -261,7 +267,7 @@ public class MoodInfluencedBehaviors {
                     addFidgetOption(weighted, FidgetType.HEAD_TILT, 1.2f);
                 }
                 case CALM, BONDED -> {
-                    addFidgetOption(weighted, FidgetType.STRETCH, 1.8f);
+                    addFidgetOption(weighted, FidgetType.STRETCH, adjustStretchWeight(1.8f));
                     addFidgetOption(weighted, FidgetType.YAWN, 1.6f);
                 }
                 case FOCUSED -> {
@@ -274,7 +280,7 @@ public class MoodInfluencedBehaviors {
                 }
                 case YUGEN, SAUDADE -> addFidgetOption(weighted, FidgetType.YAWN, 2.2f);
                 case SISU -> {
-                    addFidgetOption(weighted, FidgetType.STRETCH, 2.3f);
+                    addFidgetOption(weighted, FidgetType.STRETCH, adjustStretchWeight(2.3f));
                     addFidgetOption(weighted, FidgetType.HEAD_TILT, 1.0f);
                 }
                 case ANGRY -> {
@@ -323,14 +329,36 @@ public class MoodInfluencedBehaviors {
         private int scaleDuration(int base, int variance, PetComponent pc) {
             PetComponent.Mood mood = pc.getCurrentMood();
             float strength = mood != null ? MathHelper.clamp(pc.getMoodStrength(mood), 0f, 1f) : 0f;
-            int scaled = base + Math.round(strength * 10f);
-            return scaled + pet.getRandom().nextInt(Math.max(1, variance));
+            int randomComponent = pet.getRandom().nextInt(Math.max(1, variance));
+            int moodBonus = Math.round(strength * 10f);
+            float agilityFactor = MathHelper.clamp(1.0f + cachedAgilityModifier * 0.6f, 0.75f, 1.25f);
+            int scaledMoodBonus = MathHelper.clamp(Math.round(moodBonus * agilityFactor), 0, 10);
+            int duration = base + scaledMoodBonus + randomComponent;
+            int maxDuration = base + Math.max(0, variance - 1) + 10;
+            return MathHelper.clamp(duration, base, maxDuration);
         }
 
         private void addFidgetOption(List<FidgetType> pool, FidgetType type, float weight) {
             int count = Math.max(1, Math.round(weight * 2));
             for (int i = 0; i < count; i++) {
                 pool.add(type);
+            }
+        }
+
+        private float adjustStretchWeight(float baseWeight) {
+            float factor = MathHelper.clamp(1.0f + cachedVitalityModifier * 0.6f, 0.85f, 1.15f);
+            return Math.max(0.2f, baseWeight * factor);
+        }
+
+        private void refreshCharacteristicModifiers(PetComponent pc) {
+            cachedAgilityModifier = 0.0f;
+            cachedVitalityModifier = 0.0f;
+
+            var characteristics = pc.getCharacteristics();
+            if (characteristics != null) {
+                var roleType = pc.getRoleType(false);
+                cachedAgilityModifier = characteristics.getAgilityModifier(roleType);
+                cachedVitalityModifier = characteristics.getVitalityModifier(roleType);
             }
         }
 
@@ -390,6 +418,8 @@ public class MoodInfluencedBehaviors {
         private Vec3d cachedItemInterest;
         private long lastItemInterestTick = Long.MIN_VALUE;
         private static final int ITEM_INTEREST_REFRESH_TICKS = 30;
+        private float cachedAgilityModifier = 0.0f;
+        private float cachedVitalityModifier = 0.0f;
 
         public MoodMovementVariationGoal(MobEntity pet) {
             this.pet = pet;
@@ -416,6 +446,9 @@ public class MoodInfluencedBehaviors {
             contextTimer = 0;
             cachedItemInterest = null;
             lastItemInterestTick = Long.MIN_VALUE;
+
+            PetComponent pc = PetComponent.get(pet);
+            cacheCharacteristicModifiers(pc);
         }
 
         @Override
@@ -458,54 +491,102 @@ public class MoodInfluencedBehaviors {
             switch (mood) {
                 case HAPPY, PLAYFUL -> {
                     // Bouncy, energetic movement
-                    speedMultiplier = 1.05f + (pet.getRandom().nextFloat() * 0.1f);
+                    float min = 1.05f;
+                    float max = 1.15f;
+                    float base = min + (pet.getRandom().nextFloat() * (max - min));
+                    float agilityFactor = MathHelper.clamp(1.0f + cachedAgilityModifier * 0.25f, 0.9f, 1.1f);
+                    speedMultiplier = clampToRange(base * agilityFactor, min, max);
                     if (pet.isOnGround() && pet.getRandom().nextInt(20) == 0) {
                         pet.jump(); // Occasional happy hops
                     }
                 }
                 case CURIOUS -> {
                     // Variable speed - stopping and starting
-                    speedMultiplier = pet.getRandom().nextBoolean() ? 1.1f : 0.9f;
+                    float bias = MathHelper.clamp(0.5f + cachedAgilityModifier * 0.5f, 0.2f, 0.8f);
+                    boolean goFast = pet.getRandom().nextFloat() < bias;
+                    float base = goFast ? 1.1f : 0.9f;
+                    float focusFactor = MathHelper.clamp(1.0f + cachedVitalityModifier * 0.2f, 0.9f, 1.1f);
+                    speedMultiplier = clampToRange(base * focusFactor, 0.9f, 1.1f);
                 }
                 case RESTLESS -> {
                     // Erratic speed changes
-                    speedMultiplier = 0.8f + (pet.getRandom().nextFloat() * 0.6f); // 0.8 to 1.4
+                    float min = 0.8f;
+                    float max = 1.4f;
+                    float base = min + (pet.getRandom().nextFloat() * (max - min));
+                    float agilityFactor = MathHelper.clamp(1.0f + cachedAgilityModifier * 0.3f, 0.85f, 1.15f);
+                    float stabilityFactor = MathHelper.clamp(1.0f - Math.max(0.0f, cachedVitalityModifier) * 0.25f, 0.85f, 1.0f);
+                    speedMultiplier = clampToRange(base * agilityFactor * stabilityFactor, min, max);
                 }
                 case AFRAID -> {
                     // Quick, nervous movements
-                    speedMultiplier = pet.getRandom().nextBoolean() ? 1.2f : 0.7f;
+                    float dashBias = MathHelper.clamp(0.5f + cachedAgilityModifier * 0.6f, 0.2f, 0.85f);
+                    boolean dash = pet.getRandom().nextFloat() < dashBias;
+                    float base = dash ? 1.2f : 0.7f;
+                    float vitalityFactor = dash
+                        ? MathHelper.clamp(1.0f - cachedVitalityModifier * 0.35f, 0.85f, 1.0f)
+                        : MathHelper.clamp(1.0f + cachedVitalityModifier * 0.35f, 0.85f, 1.15f);
+                    speedMultiplier = clampToRange(base * vitalityFactor, 0.7f, 1.2f);
                 }
                 case CALM, BONDED -> {
                     // Steady, relaxed movement
-                    speedMultiplier = 0.95f + (pet.getRandom().nextFloat() * 0.1f); // 0.95 to 1.05
+                    float min = 0.95f;
+                    float max = 1.05f;
+                    float base = min + (pet.getRandom().nextFloat() * (max - min));
+                    float steadiness = MathHelper.clamp(0.5f + cachedVitalityModifier * 1.2f, 0.0f, 1.0f);
+                    speedMultiplier = clampToRange(MathHelper.lerp(steadiness, base, 1.0f), min, max);
                 }
                 case FOCUSED -> {
                     // Deliberate, measured movement
-                    speedMultiplier = 1.0f; // Consistent speed
+                    float focusFactor = MathHelper.clamp(1.0f + (cachedAgilityModifier + cachedVitalityModifier) * 0.15f, 0.9f, 1.1f);
+                    speedMultiplier = clampToRange(1.0f * focusFactor, 0.95f, 1.05f);
                 }
                 case PROTECTIVE -> {
                     // Alert, ready-to-respond movement
-                    speedMultiplier = 1.02f + (pet.getRandom().nextFloat() * 0.06f);
+                    float min = 1.02f;
+                    float max = 1.08f;
+                    float base = min + (pet.getRandom().nextFloat() * (max - min));
+                    float agilityFactor = MathHelper.clamp(1.0f + cachedAgilityModifier * 0.2f, 0.9f, 1.1f);
+                    speedMultiplier = clampToRange(base * agilityFactor, min, max);
                 }
                 case ANGRY -> {
                     // Aggressive, purposeful movement
-                    speedMultiplier = 1.1f + (pet.getRandom().nextFloat() * 0.1f);
+                    float min = 1.1f;
+                    float max = 1.2f;
+                    float base = min + (pet.getRandom().nextFloat() * (max - min));
+                    float agilityFactor = MathHelper.clamp(1.0f + cachedAgilityModifier * 0.3f, 0.85f, 1.15f);
+                    speedMultiplier = clampToRange(base * agilityFactor, min, max);
                 }
                 case PASSIONATE -> {
                     // Intense, driven movement
-                    speedMultiplier = 1.08f + (pet.getRandom().nextFloat() * 0.12f);
+                    float min = 1.08f;
+                    float max = 1.2f;
+                    float base = min + (pet.getRandom().nextFloat() * (max - min));
+                    float agilityFactor = MathHelper.clamp(1.0f + cachedAgilityModifier * 0.28f, 0.85f, 1.15f);
+                    speedMultiplier = clampToRange(base * agilityFactor, min, max);
                 }
                 case YUGEN -> {
                     // Contemplative, measured movement
-                    speedMultiplier = 0.9f + (pet.getRandom().nextFloat() * 0.1f);
+                    float min = 0.9f;
+                    float max = 1.0f;
+                    float base = min + (pet.getRandom().nextFloat() * (max - min));
+                    float vitalityFactor = MathHelper.clamp(1.0f - cachedVitalityModifier * 0.3f, 0.9f, 1.1f);
+                    speedMultiplier = clampToRange(base * vitalityFactor, min, max);
                 }
                 case SAUDADE -> {
                     // Melancholy, slower movement
-                    speedMultiplier = 0.85f + (pet.getRandom().nextFloat() * 0.1f);
+                    float min = 0.85f;
+                    float max = 0.95f;
+                    float base = min + (pet.getRandom().nextFloat() * (max - min));
+                    float vitalityFactor = MathHelper.clamp(1.0f - cachedVitalityModifier * 0.25f, 0.9f, 1.1f);
+                    speedMultiplier = clampToRange(base * vitalityFactor, min, max);
                 }
                 case SISU -> {
                     // Determined, steady movement
-                    speedMultiplier = 1.0f + (pet.getRandom().nextFloat() * 0.05f);
+                    float min = 1.0f;
+                    float max = 1.05f;
+                    float base = min + (pet.getRandom().nextFloat() * (max - min));
+                    float agilityFactor = MathHelper.clamp(1.0f + cachedAgilityModifier * 0.2f, 0.9f, 1.1f);
+                    speedMultiplier = clampToRange(base * agilityFactor, min, max);
                 }
             }
 
@@ -524,6 +605,26 @@ public class MoodInfluencedBehaviors {
                 );
                 currentSpeedMultiplier = speedMultiplier;
             }
+        }
+
+        private void cacheCharacteristicModifiers(PetComponent pc) {
+            cachedAgilityModifier = 0.0f;
+            cachedVitalityModifier = 0.0f;
+
+            if (pc == null) {
+                return;
+            }
+
+            var characteristics = pc.getCharacteristics();
+            if (characteristics != null) {
+                var roleType = pc.getRoleType(false);
+                cachedAgilityModifier = characteristics.getAgilityModifier(roleType);
+                cachedVitalityModifier = characteristics.getVitalityModifier(roleType);
+            }
+        }
+
+        private float clampToRange(float value, float min, float max) {
+            return MathHelper.clamp(value, min, max);
         }
 
         private void applyStrideVariations(PetComponent pc) {
@@ -689,6 +790,16 @@ public class MoodInfluencedBehaviors {
         private static final int EXPLORATION_SCAN_INTERVAL_TICKS = 40;
         private static final int SAFETY_SCAN_INTERVAL_TICKS = 40;
         private static final int INSPECTION_SCAN_INTERVAL_TICKS = 30;
+        private float cachedAgilityModifier = 0.0f;
+        private float cachedVitalityModifier = 0.0f;
+        private float cachedFocusBlend = 0.0f;
+        private float focusIntervalScale = 1.0f;
+        private int lookUpdateInterval = 10;
+        private int threatScanInterval = THREAT_SCAN_INTERVAL_TICKS;
+        private int movingTargetScanInterval = MOVING_TARGET_SCAN_INTERVAL_TICKS;
+        private int explorationScanInterval = EXPLORATION_SCAN_INTERVAL_TICKS;
+        private int safetyScanInterval = SAFETY_SCAN_INTERVAL_TICKS;
+        private int inspectionScanInterval = INSPECTION_SCAN_INTERVAL_TICKS;
 
         public MoodLookBehaviorGoal(MobEntity pet) {
             this.pet = pet;
@@ -720,9 +831,11 @@ public class MoodInfluencedBehaviors {
             PetComponent pc = PetComponent.get(pet);
             if (pc == null) return;
 
+            cacheCharacteristicModifiers(pc);
             resetLookCaches();
             currentLookTarget = selectLookTarget(pc);
-            lookDuration = calculateLookDuration(pc);
+            int baseDuration = calculateLookDuration(pc);
+            lookDuration = applyFocusToDuration(baseDuration);
             scanTimer = 0;
         }
 
@@ -743,7 +856,7 @@ public class MoodInfluencedBehaviors {
             if (pc == null) return;
 
             // Dynamic look target updates based on mood
-            if (scanTimer % 10 == 0) {
+            if (scanTimer % lookUpdateInterval == 0) {
                 updateLookBehavior(pc);
             }
         }
@@ -789,6 +902,13 @@ public class MoodInfluencedBehaviors {
             };
         }
 
+        private int applyFocusToDuration(int baseDuration) {
+            float focusScale = MathHelper.clamp(1.0f + cachedFocusBlend, 0.85f, 1.15f);
+            int min = Math.max(10, Math.round(baseDuration * 0.85f));
+            int max = Math.round(baseDuration * 1.15f);
+            return MathHelper.clamp(Math.round(baseDuration * focusScale), min, Math.max(min, max));
+        }
+
         private void updateLookBehavior(PetComponent pc) {
             PetComponent.Mood mood = pc.getCurrentMood();
             if (mood == null) return;
@@ -796,61 +916,61 @@ public class MoodInfluencedBehaviors {
             switch (mood) {
                 case CURIOUS -> {
                     // Scan around systematically
-                    if (scanTimer % 20 == 0) {
+                    if (scanTimer % scaledInterval(20) == 0) {
                         currentLookTarget = getExplorationTarget();
                     }
                 }
                 case RESTLESS -> {
                     // Constantly changing focus
-                    if (scanTimer % 8 == 0) {
+                    if (scanTimer % scaledInterval(8) == 0) {
                         currentLookTarget = getRandomMovingTarget().orElseGet(this::getRandomLookTarget);
                     }
                 }
                 case PROTECTIVE -> {
                     // Threat assessment scans
-                    if (scanTimer % 15 == 0) {
+                    if (scanTimer % scaledInterval(15) == 0) {
                         currentLookTarget = getThreatScanTarget().orElseGet(this::getRandomLookTarget);
                     }
                 }
                 case AFRAID -> {
                     // Quick safety checks
-                    if (scanTimer % 12 == 0) {
+                    if (scanTimer % scaledInterval(12) == 0) {
                         currentLookTarget = getOwnerOrSafetyTarget();
                     }
                 }
                 case PLAYFUL, HAPPY -> {
                     // Playful, bouncy looking
-                    if (scanTimer % 16 == 0) {
+                    if (scanTimer % scaledInterval(16) == 0) {
                         currentLookTarget = getPlayfulLookTarget();
                     }
                 }
                 case FOCUSED -> {
                     // Concentrated inspection
-                    if (scanTimer % 25 == 0) {
+                    if (scanTimer % scaledInterval(25) == 0) {
                         currentLookTarget = getDetailedInspectionTarget().orElseGet(this::getRandomLookTarget);
                     }
                 }
                 case ANGRY, PASSIONATE -> {
                     // Aggressive scanning
-                    if (scanTimer % 12 == 0) {
+                    if (scanTimer % scaledInterval(12) == 0) {
                         currentLookTarget = getThreatScanTarget().orElseGet(this::getRandomLookTarget);
                     }
                 }
                 case CALM, BONDED -> {
                     // Gentle, comfortable looking
-                    if (scanTimer % 30 == 0) {
+                    if (scanTimer % scaledInterval(30) == 0) {
                         currentLookTarget = getOwnerOrSafetyTarget();
                     }
                 }
                 case YUGEN, SAUDADE -> {
                     // Contemplative, distant looking
-                    if (scanTimer % 35 == 0) {
+                    if (scanTimer % scaledInterval(35) == 0) {
                         currentLookTarget = getDetailedInspectionTarget().orElseGet(this::getRandomLookTarget);
                     }
                 }
                 case SISU -> {
                     // Determined exploration
-                    if (scanTimer % 22 == 0) {
+                    if (scanTimer % scaledInterval(22) == 0) {
                         currentLookTarget = getExplorationTarget();
                     }
                 }
@@ -876,7 +996,7 @@ public class MoodInfluencedBehaviors {
 
         private Optional<Vec3d> getThreatScanTarget() {
             long now = pet.getWorld().getTime();
-            if (now - lastThreatScanTick <= THREAT_SCAN_INTERVAL_TICKS) {
+            if (now - lastThreatScanTick <= threatScanInterval) {
                 return Optional.ofNullable(cachedThreatTarget);
             }
 
@@ -934,7 +1054,7 @@ public class MoodInfluencedBehaviors {
 
         private Optional<Vec3d> getRandomMovingTarget() {
             long now = pet.getWorld().getTime();
-            if (now - lastMovingTargetScanTick <= MOVING_TARGET_SCAN_INTERVAL_TICKS) {
+            if (now - lastMovingTargetScanTick <= movingTargetScanInterval) {
                 return Optional.ofNullable(cachedMovingTarget);
             }
 
@@ -960,7 +1080,7 @@ public class MoodInfluencedBehaviors {
 
         private Vec3d refreshExplorationTarget() {
             long now = pet.getWorld().getTime();
-            if (cachedExplorationTarget == null || now - lastExplorationScanTick > EXPLORATION_SCAN_INTERVAL_TICKS) {
+            if (cachedExplorationTarget == null || now - lastExplorationScanTick > explorationScanInterval) {
                 lastExplorationScanTick = now;
                 cachedExplorationTarget = findInterestingBlock(pos ->
                     pos.isIn(BlockTags.CROPS)
@@ -975,7 +1095,7 @@ public class MoodInfluencedBehaviors {
 
         private Vec3d refreshSafetyTarget() {
             long now = pet.getWorld().getTime();
-            if (cachedSafetyTarget == null || now - lastSafetyScanTick > SAFETY_SCAN_INTERVAL_TICKS) {
+            if (cachedSafetyTarget == null || now - lastSafetyScanTick > safetyScanInterval) {
                 lastSafetyScanTick = now;
                 cachedSafetyTarget = findInterestingBlock(state -> state.isOf(Blocks.TORCH) || state.isIn(BlockTags.BEDS))
                     .orElse(null);
@@ -985,7 +1105,7 @@ public class MoodInfluencedBehaviors {
 
         private Vec3d refreshInspectionTarget() {
             long now = pet.getWorld().getTime();
-            if (cachedInspectionTarget == null || now - lastInspectionScanTick > INSPECTION_SCAN_INTERVAL_TICKS) {
+            if (cachedInspectionTarget == null || now - lastInspectionScanTick > inspectionScanInterval) {
                 lastInspectionScanTick = now;
                 cachedInspectionTarget = findInterestingBlock(state -> !state.isAir(), 3, 1.5)
                     .orElse(null);
@@ -1037,6 +1157,34 @@ public class MoodInfluencedBehaviors {
             lastExplorationScanTick = Long.MIN_VALUE;
             lastSafetyScanTick = Long.MIN_VALUE;
             lastInspectionScanTick = Long.MIN_VALUE;
+        }
+
+        private void cacheCharacteristicModifiers(PetComponent pc) {
+            cachedAgilityModifier = 0.0f;
+            cachedVitalityModifier = 0.0f;
+
+            var characteristics = pc.getCharacteristics();
+            if (characteristics != null) {
+                var roleType = pc.getRoleType(false);
+                cachedAgilityModifier = characteristics.getAgilityModifier(roleType);
+                cachedVitalityModifier = characteristics.getVitalityModifier(roleType);
+            }
+
+            cachedFocusBlend = MathHelper.clamp((cachedAgilityModifier + cachedVitalityModifier) * 0.5f, -0.25f, 0.25f);
+            focusIntervalScale = MathHelper.clamp(1.0f - cachedFocusBlend * 0.6f, 0.75f, 1.25f);
+            lookUpdateInterval = MathHelper.clamp(Math.round(10 * focusIntervalScale), 6, 14);
+            threatScanInterval = scaledInterval(THREAT_SCAN_INTERVAL_TICKS);
+            movingTargetScanInterval = scaledInterval(MOVING_TARGET_SCAN_INTERVAL_TICKS);
+            explorationScanInterval = scaledInterval(EXPLORATION_SCAN_INTERVAL_TICKS);
+            safetyScanInterval = scaledInterval(SAFETY_SCAN_INTERVAL_TICKS);
+            inspectionScanInterval = scaledInterval(INSPECTION_SCAN_INTERVAL_TICKS);
+        }
+
+        private int scaledInterval(int baseTicks) {
+            int scaled = Math.round(baseTicks * focusIntervalScale);
+            int min = Math.max(4, baseTicks - 6);
+            int max = baseTicks + 6;
+            return MathHelper.clamp(scaled, min, max);
         }
     }
 }
