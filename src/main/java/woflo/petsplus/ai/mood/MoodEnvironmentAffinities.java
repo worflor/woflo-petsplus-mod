@@ -6,6 +6,7 @@ import net.minecraft.block.Blocks;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.tag.TagKey;
 import net.minecraft.util.Identifier;
+import net.minecraft.registry.tag.BlockTags;
 
 /**
  * Centralized registry of block tag affinities for mood-driven goals.
@@ -24,6 +25,8 @@ public final class MoodEnvironmentAffinities {
 
     public static boolean isFocusedStudyBlock(BlockState state) {
         return state.isIn(FOCUSED_CURATED)
+            || state.isIn(BlockTags.ENCHANTMENT_POWER_PROVIDER)
+            || state.isIn(BlockTags.ENCHANTMENT_POWER_TRANSMITTER)
             || state.isOf(Blocks.LECTERN)
             || state.isOf(Blocks.ENCHANTING_TABLE)
             || state.isOf(Blocks.CARTOGRAPHY_TABLE)
@@ -37,6 +40,10 @@ public final class MoodEnvironmentAffinities {
 
     public static boolean isPlayfulToy(BlockState state) {
         return state.isIn(PLAYFUL_TOYS)
+            || state.isIn(BlockTags.WOOL)
+            || state.isIn(BlockTags.WOOL_CARPETS)
+            || state.isIn(BlockTags.BEDS)
+            || state.isIn(BlockTags.CANDLES)
             || state.isOf(Blocks.TARGET)
             || state.isOf(Blocks.NOTE_BLOCK)
             || state.isOf(Blocks.JUKEBOX)
@@ -51,6 +58,7 @@ public final class MoodEnvironmentAffinities {
 
     public static boolean isPassionateSpark(BlockState state) {
         return state.isIn(PASSIONATE_SPARK_TRIGGERS)
+            || state.isIn(BlockTags.CAMPFIRES)
             || state.isOf(Blocks.FIRE)
             || state.isOf(Blocks.SOUL_FIRE)
             || state.isOf(Blocks.MAGMA_BLOCK)
@@ -62,6 +70,7 @@ public final class MoodEnvironmentAffinities {
 
     public static boolean isPassionateResonator(BlockState state) {
         return state.isIn(PASSIONATE_RESONATORS)
+            || state.isIn(BlockTags.WOOL)
             || state.isOf(Blocks.AMETHYST_BLOCK)
             || state.isOf(Blocks.COPPER_BLOCK)
             || state.isOf(Blocks.BELL)

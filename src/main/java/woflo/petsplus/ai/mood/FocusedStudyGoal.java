@@ -2,7 +2,6 @@ package woflo.petsplus.ai.mood;
 
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.MoodBasedGoal;
@@ -90,20 +89,18 @@ public class FocusedStudyGoal extends MoodBasedGoal {
     }
 
     private BlockPos findStudyTarget() {
-        BlockPos origin = mob.getBlockPos();
-
-        for (int attempts = 0; attempts < 12; attempts++) {
-            int dx = mob.getRandom().nextInt(17) - 8;
-            int dy = mob.getRandom().nextInt(5) - 2;
-            int dz = mob.getRandom().nextInt(17) - 8;
-
-            BlockPos candidate = origin.add(dx, dy, dz);
-            if (!isStudyTargetValid(candidate)) {
-                continue;
+        return MoodWorldUtil.findClosestMatch(mob, 8, 4, 220, (world, pos, state) -> {
+            if (!MoodEnvironmentAffinities.isFocusedStudyBlock(state)) {
+                return false;
             }
-            return candidate;
-        }
-        return null;
+
+            BlockPos above = pos.up();
+            if (!MoodWorldUtil.isChunkLoaded(world, above)) {
+                return false;
+            }
+
+            return world.getBlockState(above).getCollisionShape(world, above).isEmpty();
+        });
     }
 
     private boolean isStudyTargetValid(BlockPos pos) {
@@ -112,7 +109,7 @@ public class FocusedStudyGoal extends MoodBasedGoal {
             return false;
         }
 
-        if (!isChunkLoaded(world, pos)) {
+        if (!MoodWorldUtil.isChunkLoaded(world, pos)) {
             return false;
         }
 
@@ -122,17 +119,11 @@ public class FocusedStudyGoal extends MoodBasedGoal {
         }
 
         BlockPos above = pos.up();
-        if (!isChunkLoaded(world, above)) {
+        if (!MoodWorldUtil.isChunkLoaded(world, above)) {
             return false;
         }
 
-        return world.getBlockState(above).isAir() || world.getBlockState(above).getCollisionShape(world, above).isEmpty();
-    }
-
-    private boolean isChunkLoaded(net.minecraft.world.World world, BlockPos pos) {
-        if (world instanceof ServerWorld serverWorld) {
-            return serverWorld.isChunkLoaded(pos);
-        }
-        return true;
+        BlockState aboveState = world.getBlockState(above);
+        return aboveState.isAir() || aboveState.getCollisionShape(world, above).isEmpty();
     }
 }

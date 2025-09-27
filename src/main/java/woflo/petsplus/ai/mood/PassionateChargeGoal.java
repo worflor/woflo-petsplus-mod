@@ -1,7 +1,6 @@
 package woflo.petsplus.ai.mood;
 
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
@@ -37,8 +36,10 @@ public class PassionateChargeGoal extends MoodBasedGoal {
             return false;
         }
 
-        sparkPos = findClosest(MoodEnvironmentAffinities::isPassionateSpark);
-        resonancePos = findClosest(MoodEnvironmentAffinities::isPassionateResonator);
+        sparkPos = MoodWorldUtil.findClosestMatch(mob, 10, 3, 320,
+            (world, pos, state) -> MoodEnvironmentAffinities.isPassionateSpark(state));
+        resonancePos = MoodWorldUtil.findClosestMatch(mob, 10, 3, 320,
+            (world, pos, state) -> MoodEnvironmentAffinities.isPassionateResonator(state));
         return sparkPos != null || resonancePos != null;
     }
 
@@ -84,10 +85,12 @@ public class PassionateChargeGoal extends MoodBasedGoal {
         if (chargeTicks % 20 == 0) {
             // Refresh affinities occasionally to react to new blocks
             if (sparkPos == null) {
-                sparkPos = findClosest(MoodEnvironmentAffinities::isPassionateSpark);
+                sparkPos = MoodWorldUtil.findClosestMatch(mob, 10, 3, 160,
+                    (world, pos, state) -> MoodEnvironmentAffinities.isPassionateSpark(state));
             }
             if (resonancePos == null) {
-                resonancePos = findClosest(MoodEnvironmentAffinities::isPassionateResonator);
+                resonancePos = MoodWorldUtil.findClosestMatch(mob, 10, 3, 160,
+                    (world, pos, state) -> MoodEnvironmentAffinities.isPassionateResonator(state));
             }
         }
 
@@ -123,52 +126,16 @@ public class PassionateChargeGoal extends MoodBasedGoal {
         if (sparkPos != null && resonancePos != null) {
             headingToResonance = !headingToResonance;
             BlockPos destination = headingToResonance ? resonancePos : sparkPos;
-            currentTarget = Vec3d.ofCenter(destination);
+            currentTarget = createApproachTarget(destination, 1.2, 2.4);
             lastNavigationTarget = null;
             return;
         }
 
         BlockPos destination = sparkPos != null ? sparkPos : resonancePos;
         if (destination != null) {
-            Vec3d center = Vec3d.ofCenter(destination);
-            double offsetAngle = mob.getRandom().nextDouble() * Math.PI * 2;
-            double radius = 1.4 + mob.getRandom().nextDouble();
-            currentTarget = center.add(Math.cos(offsetAngle) * radius, 0.1, Math.sin(offsetAngle) * radius);
+            currentTarget = createApproachTarget(destination, 1.0, 2.0);
             lastNavigationTarget = null;
         }
-    }
-
-    private BlockPos findClosest(Predicate<net.minecraft.block.BlockState> predicate) {
-        World world = mob.getWorld();
-        BlockPos origin = mob.getBlockPos();
-        BlockPos closest = null;
-        double closestDistance = Double.MAX_VALUE;
-
-        for (BlockPos pos : BlockPos.iterateOutwards(origin, 10, 3, 10)) {
-            if (!origin.isWithinDistance(pos, 10)) {
-                continue;
-            }
-
-            if (!world.getWorldBorder().contains(pos)) {
-                continue;
-            }
-
-            if (!isChunkLoaded(world, pos)) {
-                continue;
-            }
-
-            if (!predicate.test(world.getBlockState(pos))) {
-                continue;
-            }
-
-            double distance = pos.getSquaredDistance(origin);
-            if (distance < closestDistance) {
-                closest = pos.toImmutable();
-                closestDistance = distance;
-            }
-        }
-
-        return closest;
     }
 
     private boolean isAffinityValid(BlockPos pos, Predicate<net.minecraft.block.BlockState> predicate) {
@@ -177,7 +144,7 @@ public class PassionateChargeGoal extends MoodBasedGoal {
             return false;
         }
 
-        if (!isChunkLoaded(world, pos)) {
+        if (!MoodWorldUtil.isChunkLoaded(world, pos)) {
             return false;
         }
 
@@ -185,7 +152,7 @@ public class PassionateChargeGoal extends MoodBasedGoal {
     }
 
     private boolean shouldIssuePath(Vec3d target) {
-        if (!mob.getNavigation().isFollowingPath()) {
+        if (mob.getNavigation().isIdle()) {
             return true;
         }
 
@@ -193,13 +160,45 @@ public class PassionateChargeGoal extends MoodBasedGoal {
             return true;
         }
 
-        return lastNavigationTarget.squaredDistanceTo(target) > 0.25;
+        return lastNavigationTarget.squaredDistanceTo(target) > 0.36;
     }
 
-    private boolean isChunkLoaded(World world, BlockPos pos) {
-        if (world instanceof ServerWorld serverWorld) {
-            return serverWorld.isChunkLoaded(pos);
+    private Vec3d createApproachTarget(BlockPos destination, double minRadius, double maxRadius) {
+        if (destination == null) {
+            return null;
         }
-        return true;
+
+        World world = mob.getWorld();
+        Vec3d center = Vec3d.ofCenter(destination);
+
+        for (int attempts = 0; attempts < 5; attempts++) {
+            double angle = mob.getRandom().nextDouble() * Math.PI * 2;
+            double radius = minRadius + mob.getRandom().nextDouble() * (maxRadius - minRadius);
+            double x = center.x + Math.cos(angle) * radius;
+            double z = center.z + Math.sin(angle) * radius;
+            BlockPos base = BlockPos.ofFloored(x, destination.getY(), z);
+            BlockPos stand = MoodWorldUtil.findStandablePosition(world, base, 3);
+            if (stand != null) {
+                return Vec3d.ofCenter(stand);
+            }
+        }
+
+        BlockPos.Mutable mutable = new BlockPos.Mutable();
+        for (int ring = 1; ring <= 2; ring++) {
+            for (int dx = -ring; dx <= ring; dx++) {
+                for (int dz = -ring; dz <= ring; dz++) {
+                    if (Math.abs(dx) != ring && Math.abs(dz) != ring) {
+                        continue;
+                    }
+                    mutable.set(destination.getX() + dx, destination.getY(), destination.getZ() + dz);
+                    BlockPos stand = MoodWorldUtil.findStandablePosition(world, mutable, 3);
+                    if (stand != null) {
+                        return Vec3d.ofCenter(stand);
+                    }
+                }
+            }
+        }
+
+        return mob.getPos();
     }
 }

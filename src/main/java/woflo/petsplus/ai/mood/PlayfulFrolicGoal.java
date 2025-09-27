@@ -1,7 +1,6 @@
 package woflo.petsplus.ai.mood;
 
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
@@ -111,28 +110,18 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
     }
 
     private BlockPos findToySpot() {
-        World world = mob.getWorld();
-        BlockPos origin = mob.getBlockPos();
-        BlockPos best = null;
-        double bestDistance = Double.MAX_VALUE;
-
-        for (BlockPos pos : BlockPos.iterateOutwards(origin, 8, 3, 8)) {
-            if (!origin.isWithinDistance(pos, 8)) {
-                continue;
+        return MoodWorldUtil.findClosestMatch(mob, 8, 3, 240, (world, pos, state) -> {
+            if (!MoodEnvironmentAffinities.isPlayfulToy(state)) {
+                return false;
             }
 
-            if (!isToyValid(pos)) {
-                continue;
+            BlockPos above = pos.up();
+            if (!MoodWorldUtil.isChunkLoaded(world, above)) {
+                return false;
             }
 
-            double distance = pos.getSquaredDistance(origin);
-            if (distance < bestDistance) {
-                best = pos.toImmutable();
-                bestDistance = distance;
-            }
-        }
-
-        return best;
+            return world.getBlockState(above).getCollisionShape(world, above).isEmpty();
+        });
     }
 
     private boolean isToyValid(BlockPos pos) {
@@ -141,11 +130,17 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
             return false;
         }
 
-        if (!isChunkLoaded(world, pos)) {
+        if (!MoodWorldUtil.isChunkLoaded(world, pos)) {
             return false;
         }
 
-        return MoodEnvironmentAffinities.isPlayfulToy(world.getBlockState(pos));
+        BlockPos above = pos.up();
+        if (!MoodWorldUtil.isChunkLoaded(world, above)) {
+            return false;
+        }
+
+        return MoodEnvironmentAffinities.isPlayfulToy(world.getBlockState(pos))
+            && world.getBlockState(above).getCollisionShape(world, above).isEmpty();
     }
 
     private void chooseNextOrbitTarget() {
@@ -158,11 +153,17 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
         double randomOffset = (mob.getRandom().nextDouble() - 0.5) * 0.8;
         double angle = baseAngle + randomOffset;
         double radius = 1.8 + mob.getRandom().nextDouble();
-
         double x = toyPos.getX() + 0.5 + Math.cos(angle) * radius;
         double z = toyPos.getZ() + 0.5 + Math.sin(angle) * radius;
-        double y = toyPos.getY() + 0.2;
-        orbitTarget = new Vec3d(x, y, z);
+
+        World world = mob.getWorld();
+        BlockPos base = BlockPos.ofFloored(x, toyPos.getY(), z);
+        BlockPos stand = MoodWorldUtil.findStandablePosition(world, base, 3);
+        if (stand != null) {
+            orbitTarget = Vec3d.ofCenter(stand);
+        } else {
+            orbitTarget = Vec3d.ofCenter(toyPos);
+        }
         lastNavigationTarget = null;
     }
 
@@ -171,7 +172,7 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
             return false;
         }
 
-        if (!mob.getNavigation().isFollowingPath()) {
+        if (mob.getNavigation().isIdle()) {
             return true;
         }
 
@@ -179,13 +180,6 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
             return true;
         }
 
-        return lastNavigationTarget.squaredDistanceTo(target) > 0.25;
-    }
-
-    private boolean isChunkLoaded(World world, BlockPos pos) {
-        if (world instanceof ServerWorld serverWorld) {
-            return serverWorld.isChunkLoaded(pos);
-        }
-        return true;
+        return lastNavigationTarget.squaredDistanceTo(target) > 0.36;
     }
 }

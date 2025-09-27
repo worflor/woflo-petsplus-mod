@@ -106,7 +106,7 @@ public class SaudadeWanderGoal extends MoodBasedGoal {
 
         World world = mob.getWorld();
         BlockPos groundReference = BlockPos.ofFloored(x, sentimentalAnchor.getY(), z);
-        if (!world.getWorldBorder().contains(groundReference) || !isChunkLoaded(world, groundReference)) {
+        if (!world.getWorldBorder().contains(groundReference) || !MoodWorldUtil.isChunkLoaded(world, groundReference)) {
             orbitTarget = Vec3d.ofCenter(sentimentalAnchor);
             return;
         }
@@ -116,7 +116,12 @@ public class SaudadeWanderGoal extends MoodBasedGoal {
             ground = ground.up();
         }
 
-        orbitTarget = new Vec3d(ground.getX() + 0.5, ground.getY(), ground.getZ() + 0.5);
+        BlockPos stand = MoodWorldUtil.findStandablePosition(world, ground, 3);
+        if (stand != null) {
+            orbitTarget = Vec3d.ofCenter(stand);
+        } else {
+            orbitTarget = Vec3d.ofCenter(sentimentalAnchor);
+        }
     }
 
     private BlockPos findSentimentalAnchor() {
@@ -127,7 +132,10 @@ public class SaudadeWanderGoal extends MoodBasedGoal {
         }
 
         if (mob.getWorld() instanceof ServerWorld serverWorld) {
-            anchors.add(serverWorld.getSpawnPos());
+            BlockPos spawn = serverWorld.getSpawnPos();
+            if (spawn != null && MoodWorldUtil.isChunkLoaded(serverWorld, spawn)) {
+                anchors.add(spawn);
+            }
         }
 
         anchors.add(mob.getBlockPos());
@@ -143,7 +151,7 @@ public class SaudadeWanderGoal extends MoodBasedGoal {
             if (!world.getWorldBorder().contains(candidate)) {
                 continue;
             }
-            if (!isChunkLoaded(world, candidate)) {
+            if (!MoodWorldUtil.isChunkLoaded(world, candidate)) {
                 continue;
             }
             double distance = candidate.getSquaredDistance(petPos);
@@ -154,12 +162,5 @@ public class SaudadeWanderGoal extends MoodBasedGoal {
         }
 
         return closest != null ? closest : mob.getBlockPos();
-    }
-
-    private boolean isChunkLoaded(World world, BlockPos pos) {
-        if (world instanceof ServerWorld serverWorld) {
-            return serverWorld.isChunkLoaded(pos);
-        }
-        return true;
     }
 }
