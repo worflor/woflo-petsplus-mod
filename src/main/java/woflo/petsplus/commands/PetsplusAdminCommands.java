@@ -25,7 +25,10 @@ import woflo.petsplus.component.PetsplusComponents;
 import woflo.petsplus.items.PetsplusItemUtils;
 import woflo.petsplus.datagen.PetsplusLootHandler;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.stats.nature.NatureModifierSampler;
 import woflo.petsplus.stats.nature.PetNatureSelector;
+
+import java.util.Locale;
 
 /**
  * Admin commands for testing and debugging pet features.
@@ -406,6 +409,12 @@ public class PetsplusAdminCommands {
         player.sendMessage(Text.literal("Current nature: ").formatted(Formatting.GOLD)
             .append(natureText)
             .append(Text.literal(" (" + source + ")").formatted(Formatting.DARK_GRAY)), false);
+
+        NatureModifierSampler.NatureAdjustment adjustment = NatureModifierSampler.sample(petComp);
+        if (!adjustment.isEmpty()) {
+            sendNatureRoll(player, "Major", adjustment.majorRoll());
+            sendNatureRoll(player, "Minor", adjustment.minorRoll());
+        }
         return 1;
     }
 
@@ -433,6 +442,23 @@ public class PetsplusAdminCommands {
             .formatted(Formatting.GREEN)
             .append(Text.literal(natureId.toString()).formatted(Formatting.AQUA)), false);
         return 1;
+    }
+
+    private static void sendNatureRoll(ServerPlayerEntity player, String label,
+                                       NatureModifierSampler.NatureRoll roll) {
+        if (roll == null || roll.isEmpty()) {
+            return;
+        }
+
+        String statName = roll.stat().name().toLowerCase(Locale.ROOT);
+        double base = roll.baseValue();
+        double modifier = roll.modifier();
+        double result = roll.value();
+
+        player.sendMessage(Text.literal(String.format(Locale.ROOT,
+                "%s %s ➜ base %.3f × %.3f = %.3f",
+                label, statName, base, modifier, result))
+            .formatted(Formatting.DARK_AQUA), false);
     }
 
     private static int clearPetNature(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
@@ -653,8 +679,41 @@ public class PetsplusAdminCommands {
                     .append(Text.literal(String.format("%.2f", strength)).formatted(Formatting.WHITE)), false);
             }
         }
-        
+
+        player.sendMessage(Text.literal(String.format(Locale.ROOT,
+                "Nature tuning: volatility ×%.2f, resilience ×%.2f, contagion ×%.2f, guard ×%.2f",
+                petComp.getNatureVolatilityMultiplier(),
+                petComp.getNatureResilienceMultiplier(),
+                petComp.getNatureContagionModifier(),
+                petComp.getNatureGuardModifier()))
+            .formatted(Formatting.DARK_AQUA), false);
+
+        PetComponent.NatureEmotionProfile profile = petComp.getNatureEmotionProfile();
+        if (profile != null && !profile.isEmpty()) {
+            player.sendMessage(Text.literal(formatNatureEmotionProfile(profile))
+                .formatted(Formatting.AQUA), false);
+        }
+
+        PetComponent.NatureGuardTelemetry guardTelemetry = petComp.getNatureGuardTelemetry();
+        player.sendMessage(Text.literal(String.format(Locale.ROOT,
+                "Guard telemetry ➜ relationship %.2f, danger %.2f, contagion cap %.2f",
+                guardTelemetry.relationshipGuard(),
+                guardTelemetry.dangerWindow(),
+                guardTelemetry.contagionCap()))
+            .formatted(Formatting.DARK_PURPLE), false);
+
         return 1;
+    }
+
+    private static String formatNatureEmotionProfile(PetComponent.NatureEmotionProfile profile) {
+        return String.format(Locale.ROOT,
+            "Nature emotions ➜ major %s ×%.2f, minor %s ×%.2f, quirk %s ×%.2f",
+            profile.majorEmotion() != null ? profile.majorEmotion().name().toLowerCase(Locale.ROOT) : "none",
+            profile.majorStrength(),
+            profile.minorEmotion() != null ? profile.minorEmotion().name().toLowerCase(Locale.ROOT) : "none",
+            profile.minorStrength(),
+            profile.quirkEmotion() != null ? profile.quirkEmotion().name().toLowerCase(Locale.ROOT) : "none",
+            profile.quirkStrength());
     }
     
     // Emotion presets for common moods

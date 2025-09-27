@@ -23,6 +23,7 @@ import net.minecraft.entity.passive.FoxEntity;
 import net.minecraft.entity.passive.OcelotEntity;
 import net.minecraft.entity.passive.ParrotEntity;
 import net.minecraft.entity.passive.WolfEntity;
+import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.village.VillagerProfession;
 import net.minecraft.block.BarrelBlock;
 import net.minecraft.block.BedBlock;
@@ -62,6 +63,8 @@ import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.mood.MoodService;
+import woflo.petsplus.stats.nature.NatureFlavorHandler;
+import woflo.petsplus.stats.nature.NatureFlavorHandler.Trigger;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -142,6 +145,19 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         if (definitionId != null) {
             triggerConfiguredCue(sp, definitionId, config.fallbackRadius(), null);
         }
+
+        if (state.isOf(Blocks.RED_MUSHROOM) || state.isOf(Blocks.BROWN_MUSHROOM)
+            || state.isOf(Blocks.RED_MUSHROOM_BLOCK) || state.isOf(Blocks.BROWN_MUSHROOM_BLOCK)
+            || state.isOf(Blocks.MUSHROOM_STEM) || state.isOf(Blocks.CRIMSON_FUNGUS)
+            || state.isOf(Blocks.WARPED_FUNGUS)) {
+            NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.BREAK_MUSHROOM);
+        }
+        if (state.isOf(Blocks.MUD) || state.isOf(Blocks.MUDDY_MANGROVE_ROOTS)) {
+            NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.BREAK_MUD);
+        }
+        if (state.isOf(Blocks.SNOW_BLOCK) || state.isOf(Blocks.SNOW) || state.isOf(Blocks.POWDER_SNOW)) {
+            NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.BREAK_SNOW);
+        }
     }
 
     // (Block place detour handled in onUseBlock based on held BlockItem)
@@ -218,6 +234,24 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             triggerConfiguredCue(sp, definitionId, config.fallbackRadius(), null);
         }
 
+        Item item = stack.getItem();
+        if (item == Items.FIREWORK_ROCKET) {
+            NatureFlavorHandler.triggerForOwner(sp, 32, Trigger.USE_FIREWORK);
+        }
+        if (item == Items.ENDER_PEARL || item == Items.ENDER_EYE || item == Items.CHORUS_FRUIT) {
+            NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.USE_ENDER_ARTIFACT);
+        }
+        if (item == Items.LAVA_BUCKET) {
+            NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.USE_LAVA_BUCKET);
+        }
+        if (item == Items.FLINT_AND_STEEL || item == Items.FIRE_CHARGE) {
+            NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.USE_FLINT_AND_STEEL);
+        }
+        if (item == Items.COD_BUCKET || item == Items.SALMON_BUCKET || item == Items.TROPICAL_FISH_BUCKET
+            || item == Items.PUFFERFISH_BUCKET || item == Items.AXOLOTL_BUCKET) {
+            NatureFlavorHandler.triggerForOwner(sp, 32, Trigger.BUCKET_FISH);
+        }
+
         return ActionResult.PASS;
     }
 
@@ -227,6 +261,24 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         BlockPos pos = hitResult.getBlockPos();
         var state = world.getBlockState(pos);
         EmotionCueConfig config = EmotionCueConfig.get();
+
+        if (state.isOf(Blocks.CAMPFIRE) || state.isOf(Blocks.SOUL_CAMPFIRE)) {
+            NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.CAMPFIRE_INTERACTION);
+        }
+        if (state.getBlock() instanceof BedBlock) {
+            NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.BED_INTERACTION);
+        }
+        if (state.getBlock() instanceof JukeboxBlock) {
+            NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.JUKEBOX_PLAY);
+        }
+        if (state.isIn(BlockTags.BUTTONS)
+            || state.isOf(Blocks.LEVER)
+            || state.isOf(Blocks.REDSTONE_BLOCK)
+            || state.isOf(Blocks.REPEATER)
+            || state.isOf(Blocks.COMPARATOR)
+            || state.isOf(Blocks.TRIPWIRE_HOOK)) {
+            NatureFlavorHandler.triggerForOwner(sp, 20, Trigger.REDSTONE_INTERACTION);
+        }
 
         String useDefinition = config.findBlockUseDefinition(state);
         ItemStack held = player.getStackInHand(hand);
@@ -295,7 +347,19 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         }
 
         if (held.getItem() instanceof BlockItem blockItem) {
-            String placeDefinition = config.findBlockPlaceDefinition(blockItem.getBlock().getDefaultState());
+            BlockState defaultState = blockItem.getBlock().getDefaultState();
+            if (defaultState.isIn(BlockTags.SAPLINGS)) {
+                NatureFlavorHandler.triggerForOwner(sp, 32, Trigger.PLACE_SAPLING);
+            }
+            if (defaultState.isIn(BlockTags.BUTTONS)
+                || defaultState.isOf(Blocks.LEVER)
+                || defaultState.isOf(Blocks.REDSTONE_BLOCK)
+                || defaultState.isOf(Blocks.REPEATER)
+                || defaultState.isOf(Blocks.COMPARATOR)
+                || defaultState.isOf(Blocks.TRIPWIRE_HOOK)) {
+                NatureFlavorHandler.triggerForOwner(sp, 20, Trigger.REDSTONE_INTERACTION);
+            }
+            String placeDefinition = config.findBlockPlaceDefinition(defaultState);
             if (placeDefinition != null) {
                 triggerConfiguredCue(sp, placeDefinition, config.fallbackRadius(), null);
             }
@@ -367,6 +431,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             pc.pushEmotion(PetComponent.Emotion.GAMAN, 0.08f);
         });
         EmotionContextCues.sendCue(newPlayer, "player.respawn", Text.translatable("petsplus.emotion_cue.player.respawn"), 200);
+        NatureFlavorHandler.triggerForOwner(newPlayer, 32, Trigger.OWNER_RESPAWN);
     }
 
     // ==== Owner Death → SAUDADE + HIRAETH + REGRET (nearby pets) ====
@@ -561,12 +626,14 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                     pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.06f);
                     pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.04f);
                 });
+                NatureFlavorHandler.triggerForOwner(sp, 48, Trigger.WEATHER_RAIN_START);
                 EmotionContextCues.sendCue(sp, "weather.rain_start", Text.translatable("petsplus.emotion_cue.weather.rain_start"), 600);
             } else if (!raining && wasRaining) {
                 pushToNearbyOwnedPets(sp, 48, pc -> {
                     pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.10f);
                     pc.pushEmotion(PetComponent.Emotion.GLEE, 0.06f);
                 });
+                NatureFlavorHandler.triggerForOwner(sp, 48, Trigger.WEATHER_CLEAR);
                 EmotionContextCues.sendCue(sp, "weather.rain_end", Text.translatable("petsplus.emotion_cue.weather.rain_end"), 600);
             }
 
@@ -576,6 +643,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                     pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
                     pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.06f);
                 });
+                NatureFlavorHandler.triggerForOwner(sp, 48, Trigger.WEATHER_THUNDER_START);
                 EmotionContextCues.sendCue(sp, "weather.thunder", Text.translatable("petsplus.emotion_cue.weather.thunder"), 600);
             }
         }
@@ -612,10 +680,12 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 }
                 case DAY -> {
                     pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.KEFI, 0.04f));
+                    NatureFlavorHandler.triggerForOwner(sp, 48, Trigger.DAYBREAK);
                     EmotionContextCues.sendCue(sp, "time.day", Text.translatable("petsplus.emotion_cue.time.day"), 2400);
                 }
                 case NIGHT -> {
                     pushToNearbyOwnedPets(sp, 48, pc -> pc.pushEmotion(PetComponent.Emotion.YUGEN, 0.04f));
+                    NatureFlavorHandler.triggerForOwner(sp, 48, Trigger.NIGHTFALL);
                     EmotionContextCues.sendCue(sp, "time.night", Text.translatable("petsplus.emotion_cue.time.night"), 2400);
                 }
             }
@@ -647,13 +717,17 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         });
     }
 
-    private static String computeInventorySignature(ServerPlayerEntity owner) {
-        var inventory = owner.getInventory();
+    static String computeInventorySignature(ServerPlayerEntity owner) {
+        return computeInventorySignature(owner.getInventory());
+    }
+
+    static String computeInventorySignature(PlayerInventory inventory) {
         boolean hasValuableItems = false;
         boolean hasFoodItems = false;
         boolean hasMagicalItems = false;
         boolean hasWeapons = false;
         boolean hasTools = false;
+        boolean hasArchaeology = false;
 
         for (int i = 0; i < inventory.size(); i++) {
             ItemStack stack = inventory.getStack(i);
@@ -693,12 +767,23 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             }
         }
 
-        return new StringBuilder(5)
+        return buildInventorySignature(hasValuableItems, hasFoodItems, hasMagicalItems,
+            hasWeapons, hasTools, hasArchaeology);
+    }
+
+    static String buildInventorySignature(boolean hasValuableItems,
+                                          boolean hasFoodItems,
+                                          boolean hasMagicalItems,
+                                          boolean hasWeapons,
+                                          boolean hasTools,
+                                          boolean hasArchaeology) {
+        return new StringBuilder(6)
             .append(hasValuableItems ? '1' : '0')
             .append(hasFoodItems ? '1' : '0')
             .append(hasMagicalItems ? '1' : '0')
             .append(hasWeapons ? '1' : '0')
             .append(hasTools ? '1' : '0')
+            .append(hasArchaeology ? '1' : '0')
             .toString();
     }
 
@@ -1963,6 +2048,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             } else if (isGuard) {
                 EmotionContextCues.sendCue(sp, "entity.trade.guard", Text.translatable("petsplus.emotion_cue.entity.trade_guard"), 400);
             }
+
+            NatureFlavorHandler.triggerForOwner(sp, 20, Trigger.VILLAGER_TRADE);
         }
 
         return ActionResult.PASS;
@@ -2109,6 +2196,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         boolean hasMagicalItems = false;
         boolean hasWeapons = false;
         boolean hasTools = false;
+        boolean hasArchaeology = false;
 
         for (int i = 0; i < inventory.size(); i++) {
             ItemStack stack = inventory.getStack(i);
@@ -2145,14 +2233,21 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 stack.isIn(SUPPORT_TOOLS)) {
                 hasTools = true;
             }
+
+            if (stack.isOf(Items.BRUSH) || stack.isIn(ItemTags.DECORATED_POT_SHERDS)) {
+                hasArchaeology = true;
+            }
         }
 
         // Emotional reactions based on inventory composition
+        long now = owner.getWorld().getTime();
         if (hasValuableItems) {
             pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.04f); // Security from wealth
             pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.06f); // Guarding valuable things
             EmotionContextCues.sendCue(owner, "inventory.valuables",
                 Text.translatable("petsplus.emotion_cue.inventory.valuables"), 1200);
+            NatureFlavorHandler.triggerForPet(pet, pc, (ServerWorld) owner.getWorld(), owner,
+                Trigger.INVENTORY_VALUABLE, now);
         }
 
         if (hasFoodItems) {
@@ -2167,6 +2262,11 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             pc.pushEmotion(PetComponent.Emotion.FOREBODING, 0.02f); // Slight wariness
             EmotionContextCues.sendCue(owner, "inventory.magic",
                 Text.translatable("petsplus.emotion_cue.inventory.magic"), 1200);
+        }
+
+        if (hasArchaeology) {
+            NatureFlavorHandler.triggerForPet(pet, pc, (ServerWorld) owner.getWorld(), owner,
+                Trigger.INVENTORY_RELIC, now);
         }
 
         if (hasWeapons) {

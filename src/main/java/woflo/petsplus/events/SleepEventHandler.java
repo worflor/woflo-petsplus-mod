@@ -7,6 +7,8 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.roles.eepyeeper.EepyEeperCore;
+import woflo.petsplus.stats.nature.NatureFlavorHandler;
+import woflo.petsplus.stats.nature.NatureFlavorHandler.Trigger;
 
 import java.util.Map;
 import java.util.UUID;
@@ -105,6 +107,8 @@ public class SleepEventHandler {
             "sleep.rested",
             Text.translatable("petsplus.emotion_cue.sleep.rested"),
             2400);
+
+        NatureFlavorHandler.triggerForOwner(player, 32, Trigger.OWNER_SLEEP);
     }
 
     /**
@@ -121,6 +125,8 @@ public class SleepEventHandler {
                     Text.translatable("petsplus.emotion_cue.sleep.anchor"),
                     2400);
             }
+
+            NatureFlavorHandler.triggerForOwner(newPlayer, 32, Trigger.OWNER_RESPAWN);
         }
     }
 
