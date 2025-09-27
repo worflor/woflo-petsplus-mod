@@ -328,12 +328,14 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         }
 
         UUID targetId = target.getUuid();
+        UUID playerId = sp.getUuid();
         long now = serverWorld.getTime();
-        Long last = LAST_OWNER_ATTACK_TARGET.get(targetId);
+        ConcurrentHashMap<UUID, Long> perTarget = LAST_OWNER_ATTACK_TARGET.computeIfAbsent(targetId, id -> new ConcurrentHashMap<>());
+        Long last = perTarget.get(playerId);
         if (last != null && now - last < 40L) {
             return ActionResult.PASS;
         }
-        LAST_OWNER_ATTACK_TARGET.put(targetId, now);
+        perTarget.put(playerId, now);
 
         float charge = sp.getAttackCooldownProgress(0.5f);
         float passionate = 0.04f + 0.04f * charge;
@@ -391,7 +393,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
     private static final java.util.Map<ServerWorld, WeatherState> WEATHER = new java.util.WeakHashMap<>();
     private static final Map<ServerWorld, Long> LAST_WET_WEATHER_TICK = new WeakHashMap<>();
     private static final Map<UUID, Long> LAST_CLEAR_WEATHER_TRIGGER = new HashMap<>();
-    private static final Map<UUID, Long> LAST_OWNER_ATTACK_TARGET = new ConcurrentHashMap<>();
+    private static final Map<UUID, ConcurrentHashMap<UUID, Long>> LAST_OWNER_ATTACK_TARGET = new ConcurrentHashMap<>();
     private static final Map<ServerPlayerEntity, String> INVENTORY_SIGNATURES = new WeakHashMap<>();
     private record WeatherState(boolean raining, boolean thundering) {}
 
