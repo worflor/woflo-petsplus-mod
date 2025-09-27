@@ -1,0 +1,15 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:amethyst_block",
+    "minecraft:amethyst_cluster",
+    "minecraft:bell",
+    "minecraft:note_block",
+    "minecraft:sculk_sensor",
+    "minecraft:calibrated_sculk_sensor",
+    "minecraft:conduit",
+    "minecraft:lightning_rod",
+    "minecraft:chiseled_bookshelf",
+    "minecraft:redstone_block"
+  ]
+}
