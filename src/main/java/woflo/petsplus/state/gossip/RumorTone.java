@@ -1,5 +1,7 @@
 package woflo.petsplus.state.gossip;
 
+import java.util.List;
+
 /**
  * Represents lightweight tone buckets inferred from a rumor's current
  * intensity, confidence, share history, and recency. The tones map directly to
@@ -7,27 +9,57 @@ package woflo.petsplus.state.gossip;
  * English strings in multiple places.
  */
 public enum RumorTone {
-    WHISPER("whisper"),
-    COZY("cozy"),
-    WONDER("wonder"),
-    BRAG("brag"),
-    WARNING("warning"),
-    SPOOKY("spooky"),
-    WEARY("weary"),
-    SARCASM("sarcasm");
+    WHISPER("whisper",
+        "petsplus.gossip.story.whisper.0",
+        "petsplus.gossip.story.whisper.1",
+        "petsplus.gossip.story.whisper.2"),
+    COZY("cozy",
+        "petsplus.gossip.story.cozy.0",
+        "petsplus.gossip.story.cozy.1",
+        "petsplus.gossip.story.cozy.2"),
+    WONDER("wonder",
+        "petsplus.gossip.story.wonder.0",
+        "petsplus.gossip.story.wonder.1",
+        "petsplus.gossip.story.wonder.2"),
+    BRAG("brag",
+        "petsplus.gossip.story.brag.0",
+        "petsplus.gossip.story.brag.1",
+        "petsplus.gossip.story.brag.2"),
+    WARNING("warning",
+        "petsplus.gossip.story.warning.0",
+        "petsplus.gossip.story.warning.1",
+        "petsplus.gossip.story.warning.2"),
+    SPOOKY("spooky",
+        "petsplus.gossip.story.spooky.0",
+        "petsplus.gossip.story.spooky.1",
+        "petsplus.gossip.story.spooky.2"),
+    WEARY("weary",
+        "petsplus.gossip.story.weary.0",
+        "petsplus.gossip.story.weary.1",
+        "petsplus.gossip.story.weary.2"),
+    SARCASM("sarcasm",
+        "petsplus.gossip.story.sarcasm.0",
+        "petsplus.gossip.story.sarcasm.1",
+        "petsplus.gossip.story.sarcasm.2");
 
     private static final long FRESH_WINDOW = 200L;
     private static final long RECENT_WINDOW = 600L;
     private static final long STALE_WINDOW = 1600L;
 
     private final String key;
+    private final List<String> templateKeys;
 
-    RumorTone(String key) {
+    RumorTone(String key, String... templateKeys) {
         this.key = key;
+        this.templateKeys = List.of(templateKeys);
     }
 
     public String key() {
         return key;
+    }
+
+    public List<String> templateKeys() {
+        return templateKeys;
     }
 
     public static RumorTone classify(RumorEntry rumor, long currentTick) {

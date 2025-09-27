@@ -67,6 +67,17 @@ final class GossipNarration {
             });
         RumorTone tone = RumorTone.classify(rumor, currentTick);
         Text toneDescriptor = Text.translatable("petsplus.gossip.tone." + tone.key());
-        return Text.translatable("petsplus.gossip.story_with_tone", base, toneDescriptor);
+        String templateKey = selectTemplateKey(tone, rumor, currentTick);
+        return Text.translatable(templateKey, base, toneDescriptor);
+    }
+
+    private static String selectTemplateKey(RumorTone tone, RumorEntry rumor, long currentTick) {
+        List<String> templates = tone.templateKeys();
+        if (templates.isEmpty()) {
+            return "petsplus.gossip.story_with_tone";
+        }
+        long seed = rumor.topicId() ^ (rumor.shareCount() * 31L) ^ currentTick;
+        int index = Math.floorMod(seed, templates.size());
+        return templates.get(index);
     }
 }
