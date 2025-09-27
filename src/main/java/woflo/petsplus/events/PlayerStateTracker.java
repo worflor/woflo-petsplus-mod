@@ -7,6 +7,7 @@ import woflo.petsplus.Petsplus;
 import woflo.petsplus.roles.skyrider.SkyriderCore;
 import woflo.petsplus.roles.skyrider.SkyriderWinds;
 import woflo.petsplus.state.OwnerCombatState;
+import woflo.petsplus.state.PlayerTickDispatcher;
 import woflo.petsplus.state.PlayerTickListener;
 
 import java.util.Map;
@@ -39,10 +40,25 @@ public final class PlayerStateTracker implements PlayerTickListener {
             return Long.MAX_VALUE;
         }
 
+        boolean shouldRequestImmediateRun = false;
+        long nextTick;
         synchronized (FALL_STATES) {
             FallState state = FALL_STATES.computeIfAbsent(player, ignored -> new FallState());
-            return state.nextTick;
+
+            if (state.nextTick == Long.MAX_VALUE && isFalling(player)) {
+                if (player.getServer() != null) {
+                    state.nextTick = player.getServer().getTicks();
+                    shouldRequestImmediateRun = true;
+                }
+            }
+            nextTick = state.nextTick;
         }
+
+        if (shouldRequestImmediateRun) {
+            PlayerTickDispatcher.requestImmediateRun(player, INSTANCE);
+        }
+
+        return nextTick;
     }
 
     @Override
@@ -57,7 +73,7 @@ public final class PlayerStateTracker implements PlayerTickListener {
         }
 
         double currentFallDistance = player.fallDistance;
-        boolean isFalling = !player.isOnGround() && player.getVelocity().y < 0 && currentFallDistance > 0.0;
+        boolean isFalling = isFalling(player);
 
         if (isFalling) {
             double threshold = SkyriderWinds.getWindlashMinFallBlocks();
@@ -70,7 +86,7 @@ public final class PlayerStateTracker implements PlayerTickListener {
         } else {
             state.lastFallDistance = 0.0D;
             state.triggered = false;
-            state.nextTick = currentTick + 1L;
+            state.nextTick = Long.MAX_VALUE;
         }
     }
 
@@ -137,6 +153,7 @@ public final class PlayerStateTracker implements PlayerTickListener {
             CombatEventHandler.triggerAbilitiesForOwner(player, "owner_begin_fall", data);
 
             if (player instanceof ServerPlayerEntity serverPlayer) {
+                resumeMonitoring(serverPlayer);
                 boolean mounted = serverPlayer.getVehicle() != null;
                 Petsplus.LOGGER.debug(
                     "Owner {} began falling {} blocks ({})",
@@ -155,7 +172,33 @@ public final class PlayerStateTracker implements PlayerTickListener {
         long nextTick;
 
         private FallState() {
-            this.nextTick = 0L;
+            this.nextTick = Long.MAX_VALUE;
+        }
+    }
+
+    private static boolean isFalling(ServerPlayerEntity player) {
+        if (player == null) {
+            return false;
+        }
+        return !player.isOnGround() && player.getVelocity().y < 0 && player.fallDistance > 0.0F;
+    }
+
+    private static void resumeMonitoring(ServerPlayerEntity player) {
+        if (player == null || player.getServer() == null) {
+            return;
+        }
+
+        boolean shouldRequestImmediateRun = false;
+        synchronized (FALL_STATES) {
+            FallState state = FALL_STATES.computeIfAbsent(player, ignored -> new FallState());
+            if (state.nextTick == Long.MAX_VALUE) {
+                state.nextTick = player.getServer().getTicks();
+                shouldRequestImmediateRun = true;
+            }
+        }
+
+        if (shouldRequestImmediateRun) {
+            PlayerTickDispatcher.requestImmediateRun(player, INSTANCE);
         }
     }
 }
