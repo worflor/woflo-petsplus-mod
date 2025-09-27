@@ -1,4 +1,4 @@
-# Pets+ dev-0.80-backend_overhauls (Pets Plus)
+# Pets+ dev-0.81-immersive_engine_ears_ring (Pets Plus)
 A Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
 
 
@@ -147,6 +147,8 @@ Hey, memorialize the trauma, a **Proof of Existence** drops on every pet death.
 - "This isnt vanilla, chocolate, or strawberry..." (tame an entity usually untamable in the vanilla game)
 - "Pack Mentality" (Engage in combat with: a pack of 3 pets of at least 2 unique roles and 2 unique entity types)
 - "It's not nice to do that!!" (punch a pet into a void - killing it)
+- "Hold on a moment..." (notice a gossip cue)
+- "Size matters" (have a pack large enough for two social circles)
 
 
 ## Configuration and Expandability
