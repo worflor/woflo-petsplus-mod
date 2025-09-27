@@ -3,14 +3,18 @@ package woflo.petsplus.events;
 import net.fabricmc.fabric.api.entity.event.v1.ServerEntityCombatEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
+import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.SpawnGroup;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.passive.VillagerEntity;
 import net.minecraft.entity.passive.AbstractHorseEntity;
@@ -27,6 +31,7 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.ChestBlock;
 import net.minecraft.block.JukeboxBlock;
+import net.minecraft.block.CampfireBlock;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -48,6 +53,7 @@ import net.minecraft.world.biome.BiomeKeys;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.registry.tag.BiomeTags;
+import net.minecraft.registry.tag.EntityTypeTags;
 import net.minecraft.registry.tag.ItemTags;
 import net.minecraft.registry.tag.TagKey;
 import net.minecraft.registry.tag.BlockTags;
@@ -79,6 +85,8 @@ import woflo.petsplus.state.StateManager;
 public final class EmotionsEventHandler {
 
     private static final PlayerTicker PLAYER_TICKER = new PlayerTicker();
+    private static final TagKey<Item> MUSIC_DISC_ITEMS = TagKey.of(RegistryKeys.ITEM,
+        Identifier.of("minecraft", "music_discs"));
 
     private EmotionsEventHandler() {}
 
@@ -105,6 +113,9 @@ public final class EmotionsEventHandler {
 
         // When interacting with entities: leads/mounting
         UseEntityCallback.EVENT.register(EmotionsEventHandler::onUseEntity);
+
+        // Before player attacks an entity: combat anticipation
+        AttackEntityCallback.EVENT.register(EmotionsEventHandler::onOwnerAttack);
 
         // After player respawn: relief and resilience
         ServerPlayerEvents.AFTER_RESPAWN.register(EmotionsEventHandler::onAfterRespawn);
@@ -138,22 +149,49 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
     // ==== Kill Events → PASSIONATE, PLAYFUL, HAPPY, FOCUSED ====
     private static void onAfterKilledOther(ServerWorld world, Entity killer, LivingEntity killed) {
         if (killer instanceof ServerPlayerEntity sp) {
+            KillContext context = classifyKillTarget(killed);
             float healthPct = Math.max(0f, sp.getHealth() / sp.getMaxHealth());
             float reliefBonus = healthPct < 0.35f ? 0.2f : 0f;
+            long now = world.getTime();
             applyConfiguredStimulus(sp, "combat.owner_kill", 32, pc -> {
                 if (reliefBonus > 0f) {
                     pc.pushEmotion(PetComponent.Emotion.RELIEF, reliefBonus);
                 }
+                switch (context) {
+                    case HOSTILE -> {
+                        if (tryMarkPetBeat(pc, "combat_owner_kill_hostile", now, 200L)) {
+                            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f + reliefBonus * 0.4f);
+                            pc.pushEmotion(PetComponent.Emotion.SISU, 0.06f);
+                        }
+                    }
+                    case PASSIVE -> {
+                        if (tryMarkPetBeat(pc, "combat_owner_kill_passive", now, 240L)) {
+                            pc.pushEmotion(PetComponent.Emotion.REGRET, 0.06f);
+                            pc.pushEmotion(PetComponent.Emotion.HIRAETH, 0.05f);
+                        }
+                    }
+                    case BOSS -> {
+                        if (tryMarkPetBeat(pc, "combat_owner_kill_boss", now, 360L)) {
+                            pc.pushEmotion(PetComponent.Emotion.PRIDE, 0.08f);
+                            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.06f + reliefBonus * 0.4f);
+                        }
+                    }
+                }
             });
 
             if (healthPct < 0.35f) {
-                EmotionContextCues.sendCue(sp, "combat.owner_kill",
+                EmotionContextCues.sendCue(sp, "combat.owner_kill.close",
                     Text.translatable("petsplus.emotion_cue.combat.owner_kill_close"), 200);
             } else {
-                EmotionContextCues.sendCue(sp, "combat.owner_kill",
-                    resolveCueText("combat.owner_kill", "petsplus.emotion_cue.combat.owner_kill"), 200);
+                String suffix = context.cueSuffix();
+                Text cueText = resolveCueText("combat.owner_kill_" + suffix,
+                    "petsplus.emotion_cue.combat.owner_kill_" + suffix,
+                    killed.getDisplayName());
+                EmotionContextCues.sendCue(sp, "combat.owner_kill." + suffix, cueText, 200);
             }
         }
+
+        LAST_OWNER_ATTACK_TARGET.remove(killed.getUuid());
 
         if (killer instanceof MobEntity mob) {
             PetComponent pc = PetComponent.get(mob);
@@ -191,11 +229,71 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         EmotionCueConfig config = EmotionCueConfig.get();
 
         String useDefinition = config.findBlockUseDefinition(state);
-        if (useDefinition != null) {
-            triggerConfiguredCue(sp, useDefinition, config.fallbackRadius(), null);
+        ItemStack held = player.getStackInHand(hand);
+        PetConsumer stateConsumer = pc -> {};
+
+        if (state.isIn(BlockTags.CAMPFIRES) && state.contains(CampfireBlock.LIT)) {
+            boolean lit = state.get(CampfireBlock.LIT);
+            if (lit && held.isIn(ItemTags.SHOVELS)) {
+                useDefinition = "block_use.campfire.douse";
+                stateConsumer = pc -> {
+                    pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.05f);
+                    pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.04f);
+                };
+            } else if (!lit && (held.isOf(Items.FLINT_AND_STEEL) || held.isOf(Items.FIRE_CHARGE))) {
+                useDefinition = "block_use.campfire.ignite";
+                stateConsumer = pc -> {
+                    pc.pushEmotion(PetComponent.Emotion.HOPEFUL, 0.05f);
+                    pc.pushEmotion(PetComponent.Emotion.GLEE, 0.04f);
+                };
+            } else if (lit) {
+                useDefinition = "block_use.campfire.stoke";
+                stateConsumer = pc -> {
+                    pc.pushEmotion(PetComponent.Emotion.CONTENT, 0.05f);
+                    pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.04f);
+                };
+            }
+        } else if (state.getBlock() instanceof JukeboxBlock && state.contains(JukeboxBlock.HAS_RECORD)) {
+            boolean hasRecord = state.get(JukeboxBlock.HAS_RECORD);
+            if (hasRecord) {
+                useDefinition = "block_use.jukebox.stop";
+                stateConsumer = pc -> {
+                    pc.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.05f);
+                    pc.pushEmotion(PetComponent.Emotion.NOSTALGIA, 0.04f);
+                };
+            } else if (held.isIn(MUSIC_DISC_ITEMS)) {
+                useDefinition = "block_use.jukebox.start";
+                stateConsumer = pc -> {
+                    pc.pushEmotion(PetComponent.Emotion.GLEE, 0.06f);
+                    pc.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.05f);
+                    if (pc.getPet() instanceof ParrotEntity) {
+                        pc.pushEmotion(PetComponent.Emotion.GLEE, 0.04f);
+                        pc.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.04f);
+                        pc.pushEmotion(PetComponent.Emotion.KEFI, 0.03f);
+                    }
+                };
+            }
+        } else if (state.getBlock() instanceof BedBlock && state.contains(BedBlock.OCCUPIED)) {
+            boolean occupied = state.get(BedBlock.OCCUPIED);
+            if (occupied) {
+                useDefinition = "block_use.bed.occupied";
+                stateConsumer = pc -> {
+                    pc.pushEmotion(PetComponent.Emotion.FRUSTRATION, 0.04f);
+                    pc.pushEmotion(PetComponent.Emotion.REGRET, 0.03f);
+                };
+            } else {
+                useDefinition = "block_use.bed.rest";
+                stateConsumer = pc -> {
+                    pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.05f);
+                    pc.pushEmotion(PetComponent.Emotion.CONTENT, 0.04f);
+                };
+            }
         }
 
-        ItemStack held = player.getStackInHand(hand);
+        if (useDefinition != null) {
+            triggerConfiguredCue(sp, useDefinition, config.fallbackRadius(), stateConsumer, null);
+        }
+
         if (held.getItem() instanceof BlockItem blockItem) {
             String placeDefinition = config.findBlockPlaceDefinition(blockItem.getBlock().getDefaultState());
             if (placeDefinition != null) {
@@ -214,6 +312,47 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         if (definitionId != null) {
             triggerConfiguredCue(sp, definitionId, config.fallbackRadius(), null);
         }
+        return ActionResult.PASS;
+    }
+
+    private static ActionResult onOwnerAttack(PlayerEntity player, World world, Hand hand,
+                                             Entity target, @Nullable EntityHitResult hitResult) {
+        if (world.isClient() || !(player instanceof ServerPlayerEntity sp) || !(world instanceof ServerWorld serverWorld)) {
+            return ActionResult.PASS;
+        }
+        if (sp.isSpectator() || sp.getAbilities().creativeMode) {
+            return ActionResult.PASS;
+        }
+        if (!(target instanceof LivingEntity)) {
+            return ActionResult.PASS;
+        }
+
+        UUID targetId = target.getUuid();
+        UUID playerId = sp.getUuid();
+        long now = serverWorld.getTime();
+        ConcurrentHashMap<UUID, Long> perTarget = LAST_OWNER_ATTACK_TARGET.computeIfAbsent(targetId, id -> new ConcurrentHashMap<>());
+        Long last = perTarget.get(playerId);
+        if (last != null && now - last < 40L) {
+            return ActionResult.PASS;
+        }
+        perTarget.put(playerId, now);
+
+        float charge = sp.getAttackCooldownProgress(0.5f);
+        float passionate = 0.04f + 0.04f * charge;
+        float focused = 0.03f + 0.03f * charge;
+        float startle = 0.015f + 0.02f * charge;
+
+        pushToNearbyOwnedPets(sp, 28, pc -> {
+            pc.pushEmotion(PetComponent.Emotion.KEFI, passionate);
+            pc.pushEmotion(PetComponent.Emotion.FOCUSED, focused);
+            pc.pushEmotion(PetComponent.Emotion.STARTLE, startle);
+        });
+
+        EmotionContextCues.sendCue(sp,
+            "combat.owner_swing." + targetId,
+            Text.translatable("petsplus.emotion_cue.combat.owner_swing", target.getDisplayName()),
+            160);
+
         return ActionResult.PASS;
     }
 
@@ -254,6 +393,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
     private static final java.util.Map<ServerWorld, WeatherState> WEATHER = new java.util.WeakHashMap<>();
     private static final Map<ServerWorld, Long> LAST_WET_WEATHER_TICK = new WeakHashMap<>();
     private static final Map<UUID, Long> LAST_CLEAR_WEATHER_TRIGGER = new HashMap<>();
+    private static final Map<UUID, ConcurrentHashMap<UUID, Long>> LAST_OWNER_ATTACK_TARGET = new ConcurrentHashMap<>();
     private static final Map<ServerPlayerEntity, String> INVENTORY_SIGNATURES = new WeakHashMap<>();
     private record WeatherState(boolean raining, boolean thundering) {}
 
@@ -660,10 +800,84 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
     private static void handlePlayerFall(ServerPlayerEntity player, double distance) {
         float magnitude = (float) Math.min(0.12d, 0.02d * distance);
-        pushToNearbyOwnedPets(player, 24, pc -> {
-            pc.pushEmotion(PetComponent.Emotion.STARTLE, magnitude);
-            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.05f);
+        if (distance < 1.5d) {
+            pushToNearbyOwnedPets(player, 16, pc -> {
+                long now = player.getWorld().getTime();
+                if (tryMarkPetBeat(pc, "owner_small_hop", now, 40L)) {
+                    pc.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.03f + magnitude * 0.6f);
+                    pc.pushEmotion(PetComponent.Emotion.GLEE, 0.02f + magnitude * 0.4f);
+                }
+            });
+            return;
+        }
+
+        if (distance < 6.0d) {
+            pushToNearbyOwnedPets(player, 24, pc -> {
+                pc.pushEmotion(PetComponent.Emotion.STARTLE, magnitude);
+                pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.05f + magnitude * 0.5f);
+            });
+            return;
+        }
+
+        pushToNearbyOwnedPets(player, 28, pc -> {
+            long now = player.getWorld().getTime();
+            if (tryMarkPetBeat(pc, "owner_big_fall", now, 160L)) {
+                pc.pushEmotion(PetComponent.Emotion.STARTLE, magnitude);
+                pc.pushEmotion(PetComponent.Emotion.ANGST, 0.06f + magnitude * 0.6f);
+                pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.07f + magnitude * 0.5f);
+                if (player.getHealth() > 0f) {
+                    pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.05f + magnitude * 0.4f);
+                }
+            } else {
+                pc.pushEmotion(PetComponent.Emotion.STARTLE, magnitude * 0.5f);
+            }
         });
+    }
+
+    private enum KillContext {
+        HOSTILE("hostile"),
+        PASSIVE("passive"),
+        BOSS("boss");
+
+        private final String cueSuffix;
+
+        KillContext(String cueSuffix) {
+            this.cueSuffix = cueSuffix;
+        }
+
+        String cueSuffix() {
+            return cueSuffix;
+        }
+    }
+
+    private static KillContext classifyKillTarget(@Nullable LivingEntity killed) {
+        if (killed == null) {
+            return KillContext.PASSIVE;
+        }
+        if (isBossTarget(killed)) {
+            return KillContext.BOSS;
+        }
+        if (isHostileTarget(killed)) {
+            return KillContext.HOSTILE;
+        }
+        return KillContext.PASSIVE;
+    }
+
+    private static boolean isHostileTarget(LivingEntity entity) {
+        if (entity instanceof PlayerEntity) {
+            return true;
+        }
+        SpawnGroup group = entity.getType().getSpawnGroup();
+        return entity instanceof HostileEntity || group == SpawnGroup.MONSTER;
+    }
+
+    private static boolean isBossTarget(LivingEntity entity) {
+        EntityType<?> type = entity.getType();
+        return type.isIn(EntityTypeTags.RAIDERS)
+            || type == EntityType.ELDER_GUARDIAN
+            || type == EntityType.WARDEN
+            || type == EntityType.ENDER_DRAGON
+            || type == EntityType.WITHER;
     }
 
     private static TimePhase computeTimePhase(long timeOfDay) {
@@ -1789,29 +2003,54 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
     private static void addAdvancedWeatherTriggers(MobEntity pet, PetComponent pc, ServerPlayerEntity owner, ServerWorld world) {
         boolean isCat = pet instanceof CatEntity;
         boolean isWolf = pet instanceof WolfEntity;
-        // Thunder detection - much more impactful than basic rain
+        BlockPos petPos = pet.getBlockPos();
+        boolean exposedToSky = world.isSkyVisible(petPos);
+        boolean soaked = pet.isTouchingWater() || ((world.isRaining() || world.isThundering()) && exposedToSky);
+        boolean shelteredAndDry = !exposedToSky && !soaked;
+        long now = world.getTime();
+
         if (world.isThundering()) {
-            pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.08f); // Thunder is startling but reasonable
-            pc.pushEmotion(PetComponent.Emotion.ANGST, 0.06f); // Weather anxiety
-            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.05f); // Protective of owner during storms
-            EmotionContextCues.sendCue(owner, "weather.thunder.pet." + pet.getUuidAsString(),
-                Text.translatable("petsplus.emotion_cue.weather.thunder_pet", pet.getDisplayName()), 400);
+            float exposure = (exposedToSky ? 1.0f : 0.5f) + (soaked ? 0.3f : 0f);
+            pc.pushEmotion(PetComponent.Emotion.STARTLE, 0.05f + 0.05f * exposure);
+            pc.pushEmotion(PetComponent.Emotion.ANGST, 0.04f + 0.04f * exposure);
+            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, shelteredAndDry ? 0.04f : 0.05f + 0.04f * exposure);
+
+            if (!shelteredAndDry) {
+                EmotionContextCues.sendCue(owner, "weather.thunder.pet." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.weather.thunder_pet", pet.getDisplayName()), 400);
+            } else if (tryMarkPetBeat(pc, "weather_shelter", now, 200L)) {
+                pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.04f);
+                pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.03f);
+                EmotionContextCues.sendCue(owner, "weather.shelter." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.weather.shelter", pet.getDisplayName()), 400);
+            }
         } else if (world.isRaining()) {
-            // Rain reactions based on pet type - data-driven approach
-            if (isCat) {
-                pc.pushEmotion(PetComponent.Emotion.DISGUST, 0.08f); // Cats dislike getting wet
-                pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.06f); // Seeking shelter
+            if (shelteredAndDry) {
+                if (tryMarkPetBeat(pc, "weather_shelter", now, 200L)) {
+                    pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.03f);
+                    pc.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.02f);
+                    EmotionContextCues.sendCue(owner, "weather.shelter." + pet.getUuidAsString(),
+                        Text.translatable("petsplus.emotion_cue.weather.shelter", pet.getDisplayName()), 400);
+                }
+            } else if (isCat) {
+                float discomfort = exposedToSky && soaked ? 0.10f : 0.08f;
+                pc.pushEmotion(PetComponent.Emotion.DISGUST, discomfort);
+                pc.pushEmotion(PetComponent.Emotion.QUERECIA, 0.06f + (soaked ? 0.02f : 0f));
                 EmotionContextCues.sendCue(owner, "weather.rain.cat." + pet.getUuidAsString(),
                     Text.translatable("petsplus.emotion_cue.weather.rain_cat", pet.getDisplayName()), 400);
             } else if (isWolf) {
-                pc.pushEmotion(PetComponent.Emotion.KEFI, 0.04f); // Dogs often enjoy rain
-                pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.05f); // Refreshing feeling
+                float delight = exposedToSky || soaked ? 0.05f : 0.03f;
+                pc.pushEmotion(PetComponent.Emotion.KEFI, delight);
+                pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.04f + (soaked ? 0.02f : 0f));
                 EmotionContextCues.sendCue(owner, "weather.rain.dog." + pet.getUuidAsString(),
                     Text.translatable("petsplus.emotion_cue.weather.rain_dog", pet.getDisplayName()), 400);
             } else {
-                pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.03f); // General refresh feeling
-                EmotionContextCues.sendCue(owner, "weather.rain.pet." + pet.getUuidAsString(),
-                    Text.translatable("petsplus.emotion_cue.weather.rain_pet", pet.getDisplayName()), 400);
+                float refresh = exposedToSky || soaked ? 0.03f : 0.015f;
+                pc.pushEmotion(PetComponent.Emotion.LAGOM, refresh);
+                if (exposedToSky || soaked) {
+                    EmotionContextCues.sendCue(owner, "weather.rain.pet." + pet.getUuidAsString(),
+                        Text.translatable("petsplus.emotion_cue.weather.rain_pet", pet.getDisplayName()), 400);
+                }
             }
         } else {
             if (shouldCelebrateClearWeather(pet, world)) {
