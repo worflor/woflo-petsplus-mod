@@ -43,6 +43,8 @@ public class SocialContextSnapshot {
     private List<NeighborSample> nearestNeighbors = Collections.emptyList();
     private List<NeighborSample> gossipNeighbors = Collections.emptyList();
     private List<RumorEntry> sharedRumors = Collections.emptyList();
+    private List<List<NeighborSample>> gossipClusters = Collections.emptyList();
+    private int gossipClusterCursor = 0;
 
     public SocialContextSnapshot(MobEntity pet, PetComponent component,
                                  ServerPlayerEntity owner, ServerWorld world,
@@ -169,6 +171,30 @@ public class SocialContextSnapshot {
         return gossipNeighbors;
     }
 
+    public void setGossipClusters(List<List<NeighborSample>> clusters) {
+        if (clusters.isEmpty()) {
+            this.gossipClusters = Collections.emptyList();
+            return;
+        }
+        List<List<NeighborSample>> frozen = new java.util.ArrayList<>(clusters.size());
+        for (List<NeighborSample> cluster : clusters) {
+            frozen.add(List.copyOf(cluster));
+        }
+        this.gossipClusters = List.copyOf(frozen);
+    }
+
+    public List<List<NeighborSample>> gossipClusters() {
+        return gossipClusters;
+    }
+
+    public void setGossipClusterCursor(int cursor) {
+        this.gossipClusterCursor = Math.max(0, cursor);
+    }
+
+    public int gossipClusterCursor() {
+        return gossipClusterCursor;
+    }
+
     public void setSharedRumors(List<RumorEntry> rumors) {
         this.sharedRumors = List.copyOf(rumors);
     }
@@ -202,6 +228,8 @@ public class SocialContextSnapshot {
         this.nearestNeighbors = Collections.emptyList();
         this.gossipNeighbors = Collections.emptyList();
         this.sharedRumors = Collections.emptyList();
+        this.gossipClusters = Collections.emptyList();
+        this.gossipClusterCursor = 0;
     }
 
     public static final class NeighborSample {

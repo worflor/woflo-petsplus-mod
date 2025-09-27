@@ -2,6 +2,7 @@ package woflo.petsplus.state;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.ai.NoPenaltyTargeting;
 import net.minecraft.entity.player.PlayerEntity;
 import com.mojang.serialization.DataResult;
 import net.minecraft.item.ItemStack;
@@ -17,7 +18,9 @@ import net.minecraft.text.Text;
 import net.minecraft.text.TextColor;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
+import net.minecraft.entity.mob.PathAwareEntity;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.registry.RegistryOps;
@@ -57,6 +60,8 @@ public class PetComponent {
         "context_species", "context_type", "tag_species", "tag_type", "context_entity"
     };
     private static final long MIN_GOSSIP_DECAY_DELAY = 40L;
+    private static final int GOSSIP_OPT_OUT_MIN_DURATION = 120;
+    private static final int GOSSIP_OPT_OUT_MAX_DURATION = 220;
 
     // (legacy mood keys removed)
 
@@ -295,6 +300,8 @@ public class PetComponent {
         public static final String LAST_PET_TIME = "last_pet_time";
         public static final String PET_COUNT = "pet_count";
         public static final String LAST_SOCIAL_BUFFER_TICK = "social_buffer_tick";
+        public static final String GOSSIP_OPT_OUT_UNTIL = "gossip_opt_out_until";
+        public static final String GOSSIP_CLUSTER_CURSOR = "gossip_cluster_cursor";
         public static final String THREAT_LAST_TICK = "threat_last_tick";
         public static final String THREAT_SAFE_STREAK = "threat_safe_streak";
         public static final String THREAT_SENSITIZED_STREAK = "threat_sensitized_streak";
@@ -372,6 +379,57 @@ public class PetComponent {
                             @Nullable UUID sourceUuid, @Nullable Text paraphrased) {
         gossipLedger.recordRumor(topicId, intensity, confidence, currentTick, sourceUuid, paraphrased);
         scheduleNextGossipDecay(currentTick + Math.max(MIN_GOSSIP_DECAY_DELAY, gossipLedger.scheduleNextDecayDelay()));
+    }
+
+    public boolean isGossipOptedOut(long currentTick) {
+        Long until = getStateData(StateKeys.GOSSIP_OPT_OUT_UNTIL, Long.class);
+        if (until == null) {
+            return false;
+        }
+        if (currentTick >= until) {
+            clearStateData(StateKeys.GOSSIP_OPT_OUT_UNTIL);
+            return false;
+        }
+        return true;
+    }
+
+    public void markGossipOptOut(long untilTick) {
+        setStateData(StateKeys.GOSSIP_OPT_OUT_UNTIL, Math.max(0L, untilTick));
+    }
+
+    public void optOutOfGossip(long currentTick) {
+        long duration = pickOptOutDuration();
+        long until = currentTick + duration;
+        Long existing = getStateData(StateKeys.GOSSIP_OPT_OUT_UNTIL, Long.class);
+        if (existing != null && existing > until) {
+            until = existing;
+        }
+        markGossipOptOut(until);
+        requestGossipOptOutWander();
+    }
+
+    private int pickOptOutDuration() {
+        if (GOSSIP_OPT_OUT_MAX_DURATION <= GOSSIP_OPT_OUT_MIN_DURATION) {
+            return GOSSIP_OPT_OUT_MIN_DURATION;
+        }
+        return GOSSIP_OPT_OUT_MIN_DURATION
+            + pet.getRandom().nextInt(GOSSIP_OPT_OUT_MAX_DURATION - GOSSIP_OPT_OUT_MIN_DURATION + 1);
+    }
+
+    public void requestGossipOptOutWander() {
+        if (pet == null || pet.getWorld() == null || pet.getWorld().isClient()) {
+            return;
+        }
+        if (pet.isAiDisabled() || pet.getNavigation() == null) {
+            return;
+        }
+        if (!(pet instanceof PathAwareEntity pathAware)) {
+            return;
+        }
+        Vec3d target = NoPenaltyTargeting.find(pathAware, 6, 3);
+        if (target != null) {
+            pet.getNavigation().startMovingTo(target.x, target.y, target.z, 1.05D);
+        }
     }
 
     public void decayRumors(long currentTick) {

@@ -32,6 +32,9 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
         if (context.currentTick() % CADENCE != 0) {
             return false;
         }
+        if (context.component().isGossipOptedOut(context.currentTick())) {
+            return false;
+        }
         if (!GossipSocialHelper.isDowntime(context, context.component(), context.pet())) {
             return false;
         }
@@ -40,7 +43,8 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
 
     @Override
     public void gatherContext(SocialContextSnapshot context, PetSwarmIndex swarm, long currentTick) {
-        if (!GossipSocialHelper.isDowntime(context, context.component(), context.pet())) {
+        if (context.component().isGossipOptedOut(currentTick)
+            || !GossipSocialHelper.isDowntime(context, context.component(), context.pet())) {
             context.setSharedRumors(Collections.emptyList());
             context.setGossipNeighbors(Collections.emptyList());
             return;
@@ -69,6 +73,14 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
             if (neighborComponent == null) {
                 return;
             }
+            if (neighborComponent.isGossipOptedOut(currentTick)) {
+                return;
+            }
+            if (neighborComponent.hasMoodAbove(PetComponent.Mood.ANGRY, 0.35f)
+                || neighborComponent.hasMoodAbove(PetComponent.Mood.RESTLESS, 0.35f)) {
+                neighborComponent.optOutOfGossip(currentTick);
+                return;
+            }
             if (!GossipSocialHelper.isDowntime(context, neighborComponent, entry.pet())) {
                 return;
             }
@@ -86,6 +98,18 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
             PetSocialData data = candidate.data();
             PetComponent neighborComponent = data != null ? data.component() : null;
             if (neighborComponent != null) {
+                if (neighborComponent.isGossipOptedOut(currentTick)) {
+                    context.setSharedRumors(Collections.emptyList());
+                    context.setGossipNeighbors(Collections.emptyList());
+                    return;
+                }
+                if (neighborComponent.hasMoodAbove(PetComponent.Mood.ANGRY, 0.35f)
+                    || neighborComponent.hasMoodAbove(PetComponent.Mood.RESTLESS, 0.35f)) {
+                    neighborComponent.optOutOfGossip(currentTick);
+                    context.setSharedRumors(Collections.emptyList());
+                    context.setGossipNeighbors(Collections.emptyList());
+                    return;
+                }
                 if (!GossipSocialHelper.isDowntime(context, neighborComponent, candidate.pet())) {
                     context.setSharedRumors(Collections.emptyList());
                     context.setGossipNeighbors(Collections.emptyList());
@@ -129,10 +153,23 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
             return;
         }
 
+        if (listener.isGossipOptedOut(context.currentTick())) {
+            return;
+        }
+        if (listener.hasMoodAbove(PetComponent.Mood.ANGRY, 0.35f)
+            || listener.hasMoodAbove(PetComponent.Mood.RESTLESS, 0.35f)) {
+            listener.optOutOfGossip(context.currentTick());
+            return;
+        }
+        if (!GossipSocialHelper.isDowntime(context, listener, otherPet)) {
+            return;
+        }
+
         PetGossipLedger listenerLedger = listener.getGossipLedger();
         if (listenerLedger.hasHeardRecently(rumor.topicId(), context.currentTick())) {
             listenerLedger.registerDuplicateHeard(rumor.topicId(), context.currentTick());
             listener.pushEmotion(PetComponent.Emotion.FRUSTRATION, REPEAT_FUZZ);
+            listener.optOutOfGossip(context.currentTick());
             return;
         }
 

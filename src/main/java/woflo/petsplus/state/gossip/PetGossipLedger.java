@@ -312,6 +312,13 @@ public final class PetGossipLedger {
         markHeard(topicId, currentTick);
     }
 
+    public void deferRumor(long topicId) {
+        if (!rumors.containsKey(topicId)) {
+            return;
+        }
+        enqueueForSharing(topicId);
+    }
+
     public void tickDecay(long currentTick) {
         if (rumors.isEmpty()) {
             return;
