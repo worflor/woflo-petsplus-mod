@@ -1,7 +1,5 @@
 package woflo.petsplus.behavior.social;
 
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 import net.minecraft.entity.mob.MobEntity;
@@ -29,18 +27,9 @@ public class WhisperRoutine implements SocialBehaviorRoutine {
 
     @Override
     public void gatherContext(SocialContextSnapshot context, PetSwarmIndex swarm, long currentTick) {
-        List<SocialContextSnapshot.NeighborSample> nearest = new ArrayList<>(3);
-        swarm.forEachNeighbor(context.pet(), context.component(), WHISPER_RADIUS, (entry, distance) -> {
-            if (distance > 144) {
-                return;
-            }
-            PetSocialData other = context.getOrCreateNeighborData(entry, currentTick);
-            nearest.add(new SocialContextSnapshot.NeighborSample(entry.pet(), other, distance));
-            nearest.sort(Comparator.comparingDouble(SocialContextSnapshot.NeighborSample::squaredDistance));
-            if (nearest.size() > 3) {
-                nearest.remove(nearest.size() - 1);
-            }
-        });
+        SocialContextSnapshot.NeighborSummary summary = context.ensureNeighborSample(swarm);
+        double maxDistanceSq = WHISPER_RADIUS * WHISPER_RADIUS;
+        List<SocialContextSnapshot.NeighborSample> nearest = summary.nearestWithin(maxDistanceSq, 3);
         context.setNearestNeighbors(nearest);
     }
 
@@ -90,6 +79,10 @@ public class WhisperRoutine implements SocialBehaviorRoutine {
             PetComponent.Mood mood = otherData.currentMood();
             if (mood == PetComponent.Mood.AFRAID || mood == PetComponent.Mood.ANGRY) {
                 float empathyStrength = context.petData().bondStrength() * 0.04f;
+                long sinceStress = context.currentTick() - otherData.lastThreatRecoveryTick();
+                if (sinceStress >= 0 && sinceStress < 200) {
+                    empathyStrength *= 0.5f;
+                }
                 component.pushEmotion(PetComponent.Emotion.EMPATHY, empathyStrength);
                 if (context.tryMarkBeat("empathy_" + otherPetId, 600)) {
                     EmotionContextCues.sendCue(context.owner(),

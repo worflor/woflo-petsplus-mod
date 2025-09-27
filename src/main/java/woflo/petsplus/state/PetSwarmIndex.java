@@ -79,6 +79,11 @@ public final class PetSwarmIndex {
 
     public void forEachNeighbor(MobEntity pet, PetComponent component, double radius,
                                 NeighborVisitor visitor) {
+        forEachNeighbor(pet, component, radius, 0, visitor);
+    }
+
+    public void forEachNeighbor(MobEntity pet, PetComponent component, double radius,
+                                int maxSamples, NeighborVisitor visitor) {
         OwnerSwarm swarm = swarmByPet.get(pet);
         if (swarm == null) {
             UUID ownerId = component.getOwnerUuid();
@@ -90,7 +95,7 @@ public final class PetSwarmIndex {
                 return;
             }
         }
-        swarm.forEachNeighbor(pet, component, radius, visitor);
+        swarm.forEachNeighbor(pet, component, radius, maxSamples, visitor);
     }
 
     public interface NeighborVisitor {
@@ -255,6 +260,11 @@ public final class PetSwarmIndex {
 
         void forEachNeighbor(MobEntity pet, PetComponent component, double radius,
                              NeighborVisitor visitor) {
+            forEachNeighbor(pet, component, radius, 0, visitor);
+        }
+
+        void forEachNeighbor(MobEntity pet, PetComponent component, double radius,
+                             int maxSamples, NeighborVisitor visitor) {
             TrackedEntry base = entries.get(pet);
             if (base == null) {
                 updateEntry(pet, component);
@@ -270,12 +280,18 @@ public final class PetSwarmIndex {
             int baseY = ChunkSectionPos.getSectionCoord(MathHelper.floor(base.y));
             int baseZ = ChunkSectionPos.getSectionCoord(MathHelper.floor(base.z));
 
+            int limit = maxSamples > 0 ? maxSamples : Integer.MAX_VALUE;
+            int visited = 0;
+
             for (int sx = baseX - sectionRadius; sx <= baseX + sectionRadius; sx++) {
                 for (int sy = baseY - sectionRadius; sy <= baseY + sectionRadius; sy++) {
                     for (int sz = baseZ - sectionRadius; sz <= baseZ + sectionRadius; sz++) {
                         OwnerCell cell = cells.get(ChunkSectionPos.asLong(sx, sy, sz));
                         if (cell == null) continue;
-                        cell.forEachNeighbor(base, radiusSq, visitor);
+                        visited = cell.forEachNeighbor(base, radiusSq, visitor, visited, limit);
+                        if (visited >= limit) {
+                            return;
+                        }
                     }
                 }
             }
@@ -330,7 +346,8 @@ public final class PetSwarmIndex {
             }
         }
 
-        void forEachNeighbor(TrackedEntry base, double radiusSq, NeighborVisitor visitor) {
+        int forEachNeighbor(TrackedEntry base, double radiusSq, NeighborVisitor visitor,
+                             int visited, int limit) {
             for (int i = 0; i < members.size();) {
                 TrackedEntry entry = members.get(i);
                 if (!entry.isValid()) {
@@ -348,9 +365,14 @@ public final class PetSwarmIndex {
                 double distSq = (dx * dx) + (dy * dy) + (dz * dz);
                 if (distSq <= radiusSq) {
                     visitor.accept(entry, distSq);
+                    visited++;
+                    if (visited >= limit) {
+                        return visited;
+                    }
                 }
                 i++;
             }
+            return visited;
         }
     }
 
