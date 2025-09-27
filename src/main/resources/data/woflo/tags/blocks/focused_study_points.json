@@ -1,0 +1,16 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:lectern",
+    "minecraft:cartography_table",
+    "minecraft:enchanting_table",
+    "minecraft:chiseled_bookshelf",
+    "minecraft:decorated_pot",
+    "minecraft:smithing_table",
+    "minecraft:loom",
+    "minecraft:fletching_table",
+    "minecraft:brewing_stand",
+    "minecraft:stonecutter",
+    "minecraft:composter"
+  ]
+}
