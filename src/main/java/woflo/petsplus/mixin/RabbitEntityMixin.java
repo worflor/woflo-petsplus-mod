@@ -10,16 +10,23 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import woflo.petsplus.taming.ComponentBackedTameable;
 import woflo.petsplus.taming.ComponentBackedTameableBridge;
+import woflo.petsplus.taming.SittingOffsetTracker;
 
 /**
  * Provides tameable state for rabbits using the shared Pets+ bridge helper.
  */
 @Mixin(RabbitEntity.class)
-public abstract class RabbitEntityMixin extends AnimalEntity implements ComponentBackedTameable {
+public abstract class RabbitEntityMixin extends AnimalEntity implements ComponentBackedTameable, SittingOffsetTracker {
+
+    @Unique
+    private static final double petsplus$SIT_OFFSET = 0.1D;
 
     @Unique
     private final ComponentBackedTameableBridge petsplus$bridge =
         new ComponentBackedTameableBridge((MobEntity) (Object) this);
+
+    @Unique
+    private boolean petsplus$sittingOffsetApplied;
 
     protected RabbitEntityMixin(EntityType<? extends AnimalEntity> entityType, World world) {
         super(entityType, world);
@@ -35,6 +42,7 @@ public abstract class RabbitEntityMixin extends AnimalEntity implements Componen
         if (!tamed) {
             this.setAiDisabled(false);
             this.jumping = false;
+            this.petsplus$resetGroundedSitting();
         }
     }
 
@@ -48,6 +56,22 @@ public abstract class RabbitEntityMixin extends AnimalEntity implements Componen
         } else {
             this.jumping = false;
         }
+        this.petsplus$syncGroundedSitting(sitting);
+    }
+
+    @Override
+    public double petsplus$getSittingOffset() {
+        return petsplus$SIT_OFFSET;
+    }
+
+    @Override
+    public void petsplus$setSittingOffsetApplied(boolean applied) {
+        this.petsplus$sittingOffsetApplied = applied;
+    }
+
+    @Override
+    public boolean petsplus$hasSittingOffsetApplied() {
+        return this.petsplus$sittingOffsetApplied;
     }
 }
 
