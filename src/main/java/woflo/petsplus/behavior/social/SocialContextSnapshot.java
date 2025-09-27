@@ -400,7 +400,13 @@ public class SocialContextSnapshot {
         }
 
         public double closestPackDistance() {
-            return closestPackDistanceSq;
+            if (closestPackDistanceSq == Double.MAX_VALUE) {
+                return Double.MAX_VALUE;
+            }
+            if (closestPackDistanceSq <= 0.0) {
+                return 0.0;
+            }
+            return Math.sqrt(closestPackDistanceSq);
         }
 
         public List<NeighborSample> nearestWithin(double maxDistanceSq, int limit) {
