@@ -1383,53 +1383,43 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             routine.applyEffects(context);
         }
         if (tryMarkPetBeat(pc, "social_hierarchy", currentTick, 1200)) {
-            calculateSimplifiedHierarchy(pet, pc, petDataCache, owner, currentTick, swarm);
+            calculateSimplifiedHierarchy(context, swarm);
         }
     }
 
     // Simplified hierarchy system with reduced computational overhead
-    private static void calculateSimplifiedHierarchy(MobEntity pet, PetComponent pc,
-                                                    Map<MobEntity, PetSocialData> petDataCache,
-                                                    ServerPlayerEntity owner, long currentTick,
-                                                    PetSwarmIndex swarm) {
-        PetSocialData petData = petDataCache.computeIfAbsent(pet, key -> new PetSocialData(pet, pc, currentTick));
+    private static void calculateSimplifiedHierarchy(SocialContextSnapshot context, PetSwarmIndex swarm) {
+        SocialContextSnapshot.NeighborSummary summary = context.ensureNeighborSample(swarm);
+        PetSocialData petData = context.petData();
 
-        final int[] counts = new int[2];
+        int totalNearby = 0;
+        int youngerPets = 0;
 
-        swarm.forEachNeighbor(pet, pc, 10.0, (entry, distance) -> {
-            if (distance > 100) {
-                return;
-            }
-
-            PetSocialData otherData = petDataCache.computeIfAbsent(entry.pet(),
-                key -> new PetSocialData(entry, currentTick));
-
-            counts[0]++;
+        for (SocialContextSnapshot.NeighborSample sample : summary.samplesWithin(100.0)) {
+            PetSocialData otherData = sample.data();
+            totalNearby++;
             if (otherData.age() < petData.age()) {
-                counts[1]++;
+                youngerPets++;
             }
-        });
-
-        int totalNearby = counts[0];
-        int youngerPets = counts[1];
+        }
 
         if (totalNearby == 0) return; // No social context
 
         // Simplified rank calculation
         float hierarchyPosition = (float) youngerPets / totalNearby; // 0 = lowest, 1 = highest
-        
+
         if (hierarchyPosition > 0.7f) {
             // High rank - leadership emotions
-            pc.pushEmotion(PetComponent.Emotion.PRIDE, 0.06f);
-            pc.pushEmotion(PetComponent.Emotion.PROTECTIVE, 0.04f);
-            EmotionContextCues.sendCue(owner, "social.alpha." + pet.getUuidAsString(),
-                Text.translatable("petsplus.emotion_cue.social.alpha", pet.getDisplayName()), 600);
+            context.component().pushEmotion(PetComponent.Emotion.PRIDE, 0.06f);
+            context.component().pushEmotion(PetComponent.Emotion.PROTECTIVE, 0.04f);
+            EmotionContextCues.sendCue(context.owner(), "social.alpha." + context.pet().getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.social.alpha", context.pet().getDisplayName()), 600);
         } else if (hierarchyPosition < 0.3f) {
             // Low rank - follower emotions
-            pc.pushEmotion(PetComponent.Emotion.LAGOM, 0.05f);
-            pc.pushEmotion(PetComponent.Emotion.LOYALTY, 0.04f);
-            EmotionContextCues.sendCue(owner, "social.follower." + pet.getUuidAsString(),
-                Text.translatable("petsplus.emotion_cue.social.follower", pet.getDisplayName()), 500);
+            context.component().pushEmotion(PetComponent.Emotion.LAGOM, 0.05f);
+            context.component().pushEmotion(PetComponent.Emotion.LOYALTY, 0.04f);
+            EmotionContextCues.sendCue(context.owner(), "social.follower." + context.pet().getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.social.follower", context.pet().getDisplayName()), 500);
         }
     }
 

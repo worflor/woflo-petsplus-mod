@@ -1,8 +1,5 @@
 package woflo.petsplus.behavior.social;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import net.minecraft.text.Text;
 
 import woflo.petsplus.state.PetComponent;
@@ -15,8 +12,6 @@ import woflo.petsplus.state.PetSwarmIndex;
  */
 public class PackCircleRoutine implements SocialBehaviorRoutine {
 
-    private static final double PACK_SCAN_RADIUS = 8.0;
-
     @Override
     public boolean shouldRun(SocialContextSnapshot context) {
         return true;
@@ -26,16 +21,14 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
     public void gatherContext(SocialContextSnapshot context, PetSwarmIndex swarm, long currentTick) {
         PetSocialData self = context.petData();
         final long selfAge = self.age();
+        SocialContextSnapshot.NeighborSummary summary = context.ensureNeighborSample(swarm);
         PackObservations observations = new PackObservations();
+        observations.nearbyCount = summary.packNeighborCount();
+        observations.strongestResonance = summary.packStrongestBondResonance();
+        observations.closestDistance = summary.closestPackDistance();
+        observations.closestData = summary.closestPackNeighbor();
 
-        swarm.forEachNeighbor(context.pet(), context.component(), PACK_SCAN_RADIUS, (entry, distance) -> {
-            if (distance > 64) {
-                return;
-            }
-
-            PetSocialData other = context.getOrCreateNeighborData(entry, currentTick);
-            observations.nearbyCount++;
-
+        for (PetSocialData other : summary.packNeighbors()) {
             long otherAge = other.age();
             if (otherAge > selfAge * 2) {
                 observations.hasEldest = true;
@@ -52,27 +45,12 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
             if (otherAge < 24000) {
                 observations.hasNewborn = true;
             }
-
-            float bondDiff = Math.abs(self.bondStrength() - other.bondStrength());
-            if (bondDiff < 0.2f) {
-                observations.strongestResonance = Math.max(observations.strongestResonance,
-                    Math.min(self.bondStrength(), other.bondStrength()));
-            }
-
-            if (distance < observations.closestDistance) {
-                observations.closestDistance = distance;
-                observations.closestData = other;
-            }
-
-            if (other.currentMood() != null) {
-                observations.moodNeighbors.add(other);
-            }
-        });
+        }
 
         context.setPackObservations(observations.nearbyCount, observations.hasOlder, observations.hasYounger,
             observations.hasEldest, observations.hasSimilarAge, observations.hasNewborn,
             observations.strongestResonance, observations.closestData, observations.closestDistance);
-        context.setMoodNeighbors(observations.moodNeighbors);
+        context.setMoodNeighbors(summary.packMoodNeighbors());
     }
 
     @Override
@@ -92,7 +70,7 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
             if (mood == null) {
                 continue;
             }
-            float strength = calculateContagionStrength(context.petData(), neighbor,
+            float strength = calculateContagionStrength(context, context.petData(), neighbor,
                 context.hasEldestPet(), context.hasSimilarAge(), context.strongestBondResonance());
             switch (mood) {
                 case HAPPY -> component.pushEmotion(PetComponent.Emotion.CHEERFUL, strength);
@@ -113,7 +91,7 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
         }
     }
 
-    private float calculateContagionStrength(PetSocialData self, PetSocialData other,
+    private float calculateContagionStrength(SocialContextSnapshot context, PetSocialData self, PetSocialData other,
                                              boolean hasEldestPet, boolean hasSimilarAge,
                                              float strongestBondResonance) {
         float strength = 0.02f;
@@ -128,6 +106,18 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
         }
         if (strongestBondResonance > 0.8f) {
             strength += 0.01f;
+        }
+        double relativeSpeed = self.relativeSpeedTo(other);
+        if (relativeSpeed < 0.05) {
+            strength += 0.005f;
+        } else if (relativeSpeed > 0.3) {
+            strength *= 0.75f;
+        }
+        if (context.areMutuallyFacing(other, 30.0)) {
+            strength += 0.004f;
+        }
+        if (!context.isNeighborCalm(other, 0.4)) {
+            strength *= 0.9f;
         }
         return strength;
     }
@@ -196,7 +186,11 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
                 350);
         }
 
-        if (context.closestPetData() != null && context.closestDistance() <= 4
+        PetSocialData closest = context.closestPetData();
+        if (closest != null && context.closestDistance() <= 4
+            && context.isNeighborCalm(closest, 0.05)
+            && context.relativeSpeedTo(closest) < 0.08
+            && context.areMutuallyFacing(closest, 25.0)
             && context.tryMarkBeat("social_intimate", 200)) {
             component.pushEmotion(PetComponent.Emotion.UBUNTU, 0.02f);
         }
@@ -212,6 +206,5 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
         float strongestResonance;
         double closestDistance = Double.MAX_VALUE;
         PetSocialData closestData;
-        final List<PetSocialData> moodNeighbors = new ArrayList<>();
     }
 }

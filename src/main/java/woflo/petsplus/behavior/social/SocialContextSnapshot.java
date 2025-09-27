@@ -1,6 +1,8 @@
 package woflo.petsplus.behavior.social;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -20,6 +22,10 @@ import woflo.petsplus.state.gossip.RumorEntry;
  */
 public class SocialContextSnapshot {
 
+    public static final double NEIGHBOR_SAMPLE_RADIUS = 12.0;
+    public static final double PACK_SAMPLE_RADIUS = 8.0;
+    public static final int MAX_PACK_SAMPLE = 8;
+
     private final MobEntity pet;
     private final PetComponent component;
     private final ServerPlayerEntity owner;
@@ -27,6 +33,8 @@ public class SocialContextSnapshot {
     private final long currentTick;
     private final PetSocialData petData;
     private final Map<MobEntity, PetSocialData> petDataCache;
+
+    private final NeighborSampleCache neighborSampleCache = new NeighborSampleCache();
 
     private int nearbyPetCount;
     private boolean hasOlderPet;
@@ -89,6 +97,53 @@ public class SocialContextSnapshot {
 
     public PetSocialData getOrCreateNeighborData(MobEntity neighbor, PetComponent neighborComponent, long tick) {
         return petDataCache.computeIfAbsent(neighbor, key -> new PetSocialData(neighbor, neighborComponent, tick));
+    }
+
+    public NeighborSummary ensureNeighborSample(PetSwarmIndex swarm) {
+        return ensureNeighborSample(swarm, NEIGHBOR_SAMPLE_RADIUS, MAX_PACK_SAMPLE, PACK_SAMPLE_RADIUS);
+    }
+
+    public NeighborSummary ensureNeighborSample(PetSwarmIndex swarm, double sampleRadius,
+                                                int maxSamples, double packRadius) {
+        return neighborSampleCache.ensure(this, swarm, sampleRadius, maxSamples, packRadius);
+    }
+
+    public boolean isNeighborLookingAtSelf(PetSocialData neighbor, double toleranceDegrees) {
+        return neighbor != null && neighbor.isFacingToward(petData, toleranceDegrees);
+    }
+
+    public boolean isSelfLookingAt(PetSocialData neighbor, double toleranceDegrees) {
+        return neighbor != null && petData.isFacingToward(neighbor, toleranceDegrees);
+    }
+
+    public boolean areMutuallyFacing(PetSocialData neighbor, double toleranceDegrees) {
+        return neighbor != null && petData.isFacingToward(neighbor, toleranceDegrees)
+            && neighbor.isFacingToward(petData, toleranceDegrees);
+    }
+
+    public double relativeSpeedTo(PetSocialData neighbor) {
+        return neighbor == null ? 0.0 : petData.relativeSpeedTo(neighbor);
+    }
+
+    public double headingAlignmentWith(PetSocialData neighbor) {
+        return neighbor == null ? 0.0 : petData.headingAlignmentWith(neighbor);
+    }
+
+    public boolean isNeighborCalm(PetSocialData neighbor, double speedThreshold) {
+        return neighbor != null && neighbor.speed() <= speedThreshold;
+    }
+
+    public boolean shareRecentCuddle(PetSocialData neighbor, long window) {
+        if (neighbor == null) {
+            return false;
+        }
+        long selfLast = petData.lastCrouchCuddleTick();
+        long otherLast = neighbor.lastCrouchCuddleTick();
+        if (selfLast <= 0 || otherLast <= 0) {
+            return false;
+        }
+        long current = currentTick;
+        return (current - selfLast) < window && (current - otherLast) < window;
     }
 
     public void setPackObservations(int nearbyPetCount, boolean hasOlderPet, boolean hasYoungerPet,
@@ -230,6 +285,211 @@ public class SocialContextSnapshot {
         this.sharedRumors = Collections.emptyList();
         this.gossipClusters = Collections.emptyList();
         this.gossipClusterCursor = 0;
+    }
+
+    private static final class NeighborSampleCache {
+        private long cachedTick = Long.MIN_VALUE;
+        private double cachedSampleRadius = -1.0;
+        private int cachedMaxSamples = -1;
+        private double cachedPackRadius = -1.0;
+        private NeighborSummary summary = NeighborSummary.empty();
+
+        NeighborSummary ensure(SocialContextSnapshot context, PetSwarmIndex swarm,
+                                double sampleRadius, int maxSamples, double packRadius) {
+            if (swarm == null) {
+                summary = NeighborSummary.empty();
+                cachedTick = context.currentTick;
+                cachedSampleRadius = sampleRadius;
+                cachedMaxSamples = maxSamples;
+                cachedPackRadius = packRadius;
+                return summary;
+            }
+
+            if (summary == null
+                || cachedTick != context.currentTick
+                || Double.compare(cachedSampleRadius, sampleRadius) != 0
+                || cachedMaxSamples != maxSamples
+                || Double.compare(cachedPackRadius, packRadius) != 0) {
+                summary = NeighborSummary.collect(swarm, context.pet, context.component,
+                    context.petData, context.petDataCache, context.currentTick,
+                    sampleRadius, maxSamples, packRadius);
+                cachedTick = context.currentTick;
+                cachedSampleRadius = sampleRadius;
+                cachedMaxSamples = maxSamples;
+                cachedPackRadius = packRadius;
+            }
+            return summary;
+        }
+    }
+
+    public static final class NeighborSummary {
+        private static final NeighborSummary EMPTY = new NeighborSummary(List.of(), List.of(),
+            List.of(), 0f, null, Double.MAX_VALUE);
+
+        private final List<NeighborSample> samples;
+        private final List<PetSocialData> packNeighbors;
+        private final List<PetSocialData> packMoodNeighbors;
+        private final float packStrongestBondResonance;
+        private final PetSocialData closestPackNeighbor;
+        private final double closestPackDistanceSq;
+
+        private NeighborSummary(List<NeighborSample> samples, List<PetSocialData> packNeighbors,
+                                List<PetSocialData> packMoodNeighbors,
+                                float packStrongestBondResonance,
+                                PetSocialData closestPackNeighbor,
+                                double closestPackDistanceSq) {
+            this.samples = samples;
+            this.packNeighbors = packNeighbors;
+            this.packMoodNeighbors = packMoodNeighbors;
+            this.packStrongestBondResonance = packStrongestBondResonance;
+            this.closestPackNeighbor = closestPackNeighbor;
+            this.closestPackDistanceSq = closestPackDistanceSq;
+        }
+
+        public static NeighborSummary empty() {
+            return EMPTY;
+        }
+
+        public static NeighborSummary collect(PetSwarmIndex swarm, MobEntity pet,
+                                              PetComponent component, PetSocialData selfData,
+                                              Map<MobEntity, PetSocialData> cache,
+                                              long currentTick, double sampleRadius,
+                                              int maxSamples, double packRadius) {
+            if (swarm == null || pet == null || component == null || selfData == null || cache == null) {
+                return EMPTY;
+            }
+
+            List<NeighborSample> allSamples = new ArrayList<>();
+            List<NeighborSample> packSamples = new ArrayList<>();
+            double packRadiusSq = packRadius > 0 ? packRadius * packRadius : 0;
+            int packCap = maxSamples > 0 ? Math.min(maxSamples, MAX_PACK_SAMPLE) : MAX_PACK_SAMPLE;
+
+            swarm.forEachNeighbor(pet, component, sampleRadius, 0, (entry, distSq) -> {
+                PetSocialData neighbor = cache.computeIfAbsent(entry.pet(),
+                    key -> new PetSocialData(entry, currentTick));
+                NeighborSample sample = new NeighborSample(entry.pet(), neighbor, distSq);
+                insertSortedWithLimit(allSamples, sample, maxSamples);
+                if (packRadiusSq <= 0 || distSq > packRadiusSq) {
+                    return;
+                }
+                insertSortedWithLimit(packSamples, sample, packCap);
+            });
+
+            if (allSamples.isEmpty()) {
+                return EMPTY;
+            }
+
+            List<PetSocialData> packNeighbors = new ArrayList<>(packSamples.size());
+            List<PetSocialData> packMoodNeighbors = new ArrayList<>(packSamples.size());
+            PetSocialData closestPack = null;
+            double closestPackDistanceSq = Double.MAX_VALUE;
+            float strongestBond = 0f;
+
+            for (NeighborSample sample : packSamples) {
+                PetSocialData data = sample.data();
+                packNeighbors.add(data);
+                if (data.currentMood() != null) {
+                    packMoodNeighbors.add(data);
+                }
+                if (sample.squaredDistance() < closestPackDistanceSq) {
+                    closestPackDistanceSq = sample.squaredDistance();
+                    closestPack = data;
+                }
+                float bondDiff = Math.abs(selfData.bondStrength() - data.bondStrength());
+                if (bondDiff < 0.2f) {
+                    strongestBond = Math.max(strongestBond,
+                        Math.min(selfData.bondStrength(), data.bondStrength()));
+                }
+            }
+
+            return new NeighborSummary(List.copyOf(allSamples), List.copyOf(packNeighbors),
+                List.copyOf(packMoodNeighbors), strongestBond, closestPack, closestPackDistanceSq);
+        }
+
+        private static void insertSortedWithLimit(List<NeighborSample> samples, NeighborSample sample, int limit) {
+            int capacity = limit > 0 ? limit : Integer.MAX_VALUE;
+            if (!samples.isEmpty() && samples.size() >= capacity
+                && sample.squaredDistance() >= samples.get(samples.size() - 1).squaredDistance()) {
+                return;
+            }
+
+            int index = Collections.binarySearch(samples, sample,
+                Comparator.comparingDouble(NeighborSample::squaredDistance));
+            if (index < 0) {
+                index = -index - 1;
+            }
+            samples.add(index, sample);
+            if (samples.size() > capacity) {
+                samples.remove(samples.size() - 1);
+            }
+        }
+
+        public List<NeighborSample> samples() {
+            return samples;
+        }
+
+        public List<PetSocialData> packNeighbors() {
+            return packNeighbors;
+        }
+
+        public List<PetSocialData> packMoodNeighbors() {
+            return packMoodNeighbors;
+        }
+
+        public int packNeighborCount() {
+            return packNeighbors.size();
+        }
+
+        public float packStrongestBondResonance() {
+            return packStrongestBondResonance;
+        }
+
+        public PetSocialData closestPackNeighbor() {
+            return closestPackNeighbor;
+        }
+
+        public double closestPackDistance() {
+            if (closestPackDistanceSq == Double.MAX_VALUE) {
+                return Double.MAX_VALUE;
+            }
+            if (closestPackDistanceSq <= 0.0) {
+                return 0.0;
+            }
+            return Math.sqrt(closestPackDistanceSq);
+        }
+
+        public List<NeighborSample> nearestWithin(double maxDistanceSq, int limit) {
+            if (samples.isEmpty() || limit <= 0) {
+                return List.of();
+            }
+            List<NeighborSample> nearest = new ArrayList<>(Math.min(limit, samples.size()));
+            for (NeighborSample sample : samples) {
+                if (maxDistanceSq > 0 && sample.squaredDistance() > maxDistanceSq) {
+                    continue;
+                }
+                nearest.add(sample);
+                if (nearest.size() >= limit) {
+                    break;
+                }
+            }
+            return nearest.isEmpty() ? List.of() : List.copyOf(nearest);
+        }
+
+        public List<NeighborSample> samplesWithin(double maxDistanceSq) {
+            if (samples.isEmpty()) {
+                return List.of();
+            }
+            if (maxDistanceSq <= 0) {
+                return samples;
+            }
+            List<NeighborSample> filtered = new ArrayList<>();
+            for (NeighborSample sample : samples) {
+                if (sample.squaredDistance() <= maxDistanceSq) {
+                    filtered.add(sample);
+                }
+            }
+            return filtered.isEmpty() ? List.of() : List.copyOf(filtered);
+        }
     }
 
     public static final class NeighborSample {

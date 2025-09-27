@@ -1,18 +1,31 @@
 package woflo.petsplus.ai.goals;
 
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.goal.Goal;
 import net.minecraft.entity.ai.pathing.PathNodeType;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.WorldView;
 
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
+import woflo.petsplus.Petsplus;
 import woflo.petsplus.ai.goals.OwnerAssistAttackGoal;
 import woflo.petsplus.api.entity.PetsplusTameable;
+import woflo.petsplus.behavior.social.PetSocialData;
+import woflo.petsplus.behavior.social.SocialContextSnapshot;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.StateManager;
 
 /**
  * Enhanced follow owner goal with better pathfinding and role-specific behavior.
@@ -22,6 +35,12 @@ public class EnhancedFollowOwnerGoal extends Goal {
     private static final double HESITATION_SPEED_BOOST = 0.2d;
     private static final float HESITATION_DISTANCE_FACTOR = 0.6f;
     private static final float HESITATION_CLEAR_DISTANCE = 2.5f;
+    private static final double SPACING_SAMPLE_RADIUS = 4.5;
+    private static final double SPACING_PACK_RADIUS = 4.0;
+    private static final int SPACING_MAX_SAMPLES = 3;
+    private static final long FOLLOW_SAMPLE_INTERVAL = 5L;
+    private static final double LATERAL_PUSH_SCALE = 1.1;
+    private static final double MOVE_TARGET_REFRESH_EPSILON = 0.0625 * 0.0625;
 
     private final MobEntity mob;
     private final PetsplusTameable tameable;
@@ -33,6 +52,9 @@ public class EnhancedFollowOwnerGoal extends Goal {
     private boolean scoutMode = false;
     private int stuckCounter = 0;
     private BlockPos lastOwnerPos = BlockPos.ORIGIN;
+    private MobEntity spacingFocus;
+    private long spacingFocusExpiryTick;
+    private Vec3d lastMoveTarget;
 
     public EnhancedFollowOwnerGoal(MobEntity mob, PetsplusTameable tameable, PetComponent petComponent, double speed, float followDistance, float teleportDistance) {
         this.mob = mob;
@@ -106,11 +128,13 @@ public class EnhancedFollowOwnerGoal extends Goal {
     @Override
     public void start() {
         this.stuckCounter = 0;
+        this.lastMoveTarget = null;
     }
 
     @Override
     public void stop() {
         this.mob.getNavigation().stop();
+        this.lastMoveTarget = null;
     }
 
     @Override
@@ -122,15 +146,48 @@ public class EnhancedFollowOwnerGoal extends Goal {
 
         long now = owner.getWorld().getTime();
         boolean hesitating = OwnerAssistAttackGoal.isPetHesitating(petComponent, now);
-        this.activeFollowDistance = hesitating
+        double offsetX = petComponent.getFollowSpacingOffsetX();
+        double offsetZ = petComponent.getFollowSpacingOffsetZ();
+        float spacingPadding = petComponent.getFollowSpacingPadding();
+
+        PetSwarmIndex swarmIndex = null;
+        if (owner.getWorld() instanceof ServerWorld serverWorld) {
+            swarmIndex = StateManager.forWorld(serverWorld).getSwarmIndex();
+        }
+        if (swarmIndex != null) {
+            long lastSampleTick = petComponent.getFollowSpacingSampleTick();
+            if (lastSampleTick == Long.MIN_VALUE || now - lastSampleTick >= FOLLOW_SAMPLE_INTERVAL) {
+                FollowSpacingResult spacing = computeSpacing(now, owner, swarmIndex);
+                offsetX = spacing.offsetX;
+                offsetZ = spacing.offsetZ;
+                spacingPadding = spacing.padding;
+                petComponent.setFollowSpacingSample(offsetX, offsetZ, spacingPadding, now);
+                this.spacingFocus = spacing.focus;
+                this.spacingFocusExpiryTick = now + FOLLOW_SAMPLE_INTERVAL;
+            } else if (this.spacingFocus != null && (this.spacingFocus.isRemoved() || now > this.spacingFocusExpiryTick)) {
+                this.spacingFocus = null;
+            }
+        } else {
+            this.spacingFocus = null;
+        }
+
+        float baseDistance = hesitating
             ? Math.max(HESITATION_CLEAR_DISTANCE, baseFollowDistance * HESITATION_DISTANCE_FACTOR)
             : baseFollowDistance;
+        this.activeFollowDistance = baseDistance + spacingPadding;
 
         float lookYaw = hesitating ? HESITATION_LOOK_YAW : 10.0f;
-        this.mob.getLookControl().lookAt(owner, lookYaw, this.mob.getMaxLookPitchChange());
+        if (this.spacingFocus != null && this.spacingFocus.isRemoved()) {
+            this.spacingFocus = null;
+        }
+        Entity lookTarget = (!hesitating && this.spacingFocus != null) ? this.spacingFocus : owner;
+        this.mob.getLookControl().lookAt(lookTarget, lookYaw, this.mob.getMaxLookPitchChange());
+
+        Vec3d moveTarget = owner.getPos().add(offsetX, 0.0, offsetZ);
 
         if (this.mob.squaredDistanceTo(owner) > (teleportDistance * teleportDistance)) {
             this.mob.teleport(owner.getX(), owner.getY(), owner.getZ(), false);
+            this.lastMoveTarget = null;
             return;
         }
 
@@ -138,15 +195,20 @@ public class EnhancedFollowOwnerGoal extends Goal {
             OwnerAssistAttackGoal.clearAssistHesitation(petComponent);
         }
 
-        if (this.mob.getNavigation().isIdle()) {
-            double adjustedSpeed = hesitating ? this.speed + HESITATION_SPEED_BOOST : this.speed;
-            this.mob.getNavigation().startMovingTo(owner, adjustedSpeed);
+        double adjustedSpeed = hesitating ? this.speed + HESITATION_SPEED_BOOST : this.speed;
+        boolean navigationIdle = this.mob.getNavigation().isIdle();
+        boolean targetChanged = this.lastMoveTarget == null
+            || this.lastMoveTarget.squaredDistanceTo(moveTarget) > MOVE_TARGET_REFRESH_EPSILON;
+
+        if (navigationIdle || targetChanged) {
+            this.mob.getNavigation().startMovingTo(moveTarget.x, moveTarget.y, moveTarget.z, adjustedSpeed);
         }
+        this.lastMoveTarget = moveTarget;
 
         if (!this.mob.getNavigation().isFollowingPath()) {
             stuckCounter++;
             if (stuckCounter > 60) {
-                tryAlternativePathfinding(owner);
+                tryAlternativePathfinding(owner, moveTarget);
                 stuckCounter = 0;
             }
         } else {
@@ -157,7 +219,137 @@ public class EnhancedFollowOwnerGoal extends Goal {
     /**
      * Try alternative pathfinding when pet gets stuck.
      */
-    private void tryAlternativePathfinding(PlayerEntity owner) {
+    private FollowSpacingResult computeSpacing(long now, PlayerEntity owner, PetSwarmIndex swarmIndex) {
+        Map<MobEntity, PetSocialData> cache = new HashMap<>();
+        PetSocialData selfData = new PetSocialData(this.mob, this.petComponent, now);
+        cache.put(this.mob, selfData);
+
+        SocialContextSnapshot.NeighborSummary summary = SocialContextSnapshot.NeighborSummary.collect(
+            swarmIndex, this.mob, this.petComponent, selfData, cache, now,
+            SPACING_SAMPLE_RADIUS, SPACING_MAX_SAMPLES, SPACING_PACK_RADIUS);
+
+        List<SocialContextSnapshot.NeighborSample> neighbors = summary.nearestWithin(
+            SPACING_PACK_RADIUS * SPACING_PACK_RADIUS, SPACING_MAX_SAMPLES);
+        if (neighbors.isEmpty()) {
+            return FollowSpacingResult.empty();
+        }
+
+        Vec3d ownerPos = owner.getPos();
+        Vec3d petPos = this.mob.getPos();
+        Vec3d ownerToPet = petPos.subtract(ownerPos);
+        double ownerDistanceSq = ownerToPet.lengthSquared();
+        Vec3d forward;
+        if (ownerDistanceSq < 1.0E-4) {
+            forward = Vec3d.fromPolar(0.0f, this.mob.getYaw());
+            if (forward.lengthSquared() < 1.0E-4) {
+                forward = new Vec3d(0.0, 0.0, 1.0);
+            } else {
+                forward = forward.normalize();
+            }
+        } else {
+            forward = ownerToPet.normalize();
+        }
+        Vec3d lateral = new Vec3d(-forward.z, 0.0, forward.x);
+
+        double extension = 0.0;
+        double lateralBias = 0.0;
+        MobEntity focus = null;
+        float bestBond = -1.0f;
+        boolean selfCuddle = petComponent.isCrouchCuddleActive(now);
+
+        for (SocialContextSnapshot.NeighborSample sample : neighbors) {
+            PetSocialData neighborData = sample.data();
+            if (neighborData.speed() > 0.3) {
+                continue;
+            }
+            Vec3d neighborPos = new Vec3d(neighborData.x(), neighborData.y(), neighborData.z());
+            Vec3d ownerToNeighbor = neighborPos.subtract(ownerPos);
+            double neighborDistanceSq = ownerToNeighbor.lengthSquared();
+            if (neighborDistanceSq < 1.0E-6) {
+                continue;
+            }
+            Vec3d neighborDir = ownerToNeighbor.normalize();
+            double closeness = Math.max(0.0, 1.0 - Math.sqrt(sample.squaredDistance()) / SPACING_PACK_RADIUS);
+
+            if (ownerDistanceSq > 1.0E-4 && neighborDistanceSq < ownerDistanceSq && forward.dotProduct(neighborDir) > 0.75) {
+                extension = Math.max(extension, closeness * 0.8);
+            }
+
+            lateralBias += (forward.x * neighborDir.z - forward.z * neighborDir.x) * closeness;
+
+            PetComponent neighborComponent = neighborData.component();
+            if (neighborComponent != null && selfCuddle && neighborComponent.isCrouchCuddleActive(now)) {
+                extension = Math.min(extension, 0.25);
+            }
+
+            if (neighborData.bondStrength() > bestBond) {
+                bestBond = neighborData.bondStrength();
+                focus = sample.pet();
+            }
+        }
+
+        float padding = (float) MathHelper.clamp(extension, 0.0, 1.5);
+        double lateralOffset = MathHelper.clamp(-lateralBias, -1.0, 1.0) * LATERAL_PUSH_SCALE;
+        Vec3d offset = forward.multiply(padding).add(lateral.multiply(lateralOffset));
+        FollowSpacingResult result = new FollowSpacingResult(offset.x, offset.z, padding, focus);
+
+        if (Petsplus.DEBUG_MODE) {
+            debugSpacingSample(owner, neighbors, result, Math.sqrt(ownerDistanceSq), extension, lateralOffset);
+        }
+
+        return result;
+    }
+
+    private void debugSpacingSample(PlayerEntity owner,
+                                    List<SocialContextSnapshot.NeighborSample> neighbors,
+                                    FollowSpacingResult result,
+                                    double ownerDistance,
+                                    double extension,
+                                    double lateralOffset) {
+        if (neighbors.isEmpty()) {
+            Petsplus.LOGGER.debug("[FollowSpacing] {} has no neighbours influencing spacing around {}",
+                mob.getName().getString(), owner.getName().getString());
+            return;
+        }
+
+        String focusName = result.focus != null ? result.focus.getName().getString() : "none";
+        StringBuilder builder = new StringBuilder();
+        for (SocialContextSnapshot.NeighborSample sample : neighbors) {
+            PetSocialData data = sample.data();
+            if (builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append("[")
+                .append(sample.pet().getName().getString())
+                .append(", d=")
+                .append(formatDouble(Math.sqrt(sample.squaredDistance())))
+                .append(", bond=")
+                .append(formatDouble(data.bondStrength()))
+                .append(", speed=")
+                .append(formatDouble(data.speed()))
+                .append("]");
+        }
+
+        String ownerDistanceStr = formatDouble(ownerDistance);
+        String offsetXStr = formatDouble(result.offsetX);
+        String offsetZStr = formatDouble(result.offsetZ);
+        String paddingStr = formatDouble(result.padding);
+        String extensionStr = formatDouble(extension);
+        String lateralStr = formatDouble(lateralOffset);
+
+        Petsplus.LOGGER.debug(
+            "[FollowSpacing] {} -> owner {} | dist={} offset=({}, {}) padding={} focus={} ext={} lat={} peers={}",
+            mob.getName().getString(), owner.getName().getString(), ownerDistanceStr,
+            offsetXStr, offsetZStr, paddingStr, focusName, extensionStr, lateralStr,
+            builder.toString()
+        );
+    }
+
+    private static String formatDouble(double value) {
+        return String.format(Locale.ROOT, "%.2f", value);
+    }
+
+    private void tryAlternativePathfinding(PlayerEntity owner, Vec3d moveTarget) {
         float oldWaterPenalty = this.mob.getPathfindingPenalty(PathNodeType.WATER);
         float oldFencePenalty = this.mob.getPathfindingPenalty(PathNodeType.FENCE);
         float oldDoorPenalty = this.mob.getPathfindingPenalty(PathNodeType.DOOR_WOOD_CLOSED);
@@ -166,17 +358,35 @@ public class EnhancedFollowOwnerGoal extends Goal {
         this.mob.setPathfindingPenalty(PathNodeType.FENCE, -2.0f);
         this.mob.setPathfindingPenalty(PathNodeType.DOOR_WOOD_CLOSED, -1.0f);
 
-        boolean success = this.mob.getNavigation().startMovingTo(owner, this.speed);
+        boolean success = this.mob.getNavigation().startMovingTo(moveTarget.x, moveTarget.y, moveTarget.z, this.speed);
 
         this.mob.setPathfindingPenalty(PathNodeType.WATER, oldWaterPenalty);
         this.mob.setPathfindingPenalty(PathNodeType.FENCE, oldFencePenalty);
         this.mob.setPathfindingPenalty(PathNodeType.DOOR_WOOD_CLOSED, oldDoorPenalty);
 
         if (!success) {
-            double distance = this.mob.squaredDistanceTo(owner);
+            double distance = this.mob.squaredDistanceTo(moveTarget.x, moveTarget.y, moveTarget.z);
             if (distance > (activeFollowDistance * activeFollowDistance) && distance < (teleportDistance * teleportDistance)) {
                 tryEmergencyTeleport(owner);
             }
+        }
+    }
+
+    private static final class FollowSpacingResult {
+        static FollowSpacingResult empty() {
+            return new FollowSpacingResult(0.0, 0.0, 0.0f, null);
+        }
+
+        final double offsetX;
+        final double offsetZ;
+        final float padding;
+        final MobEntity focus;
+
+        FollowSpacingResult(double offsetX, double offsetZ, float padding, MobEntity focus) {
+            this.offsetX = offsetX;
+            this.offsetZ = offsetZ;
+            this.padding = padding;
+            this.focus = focus;
         }
     }
 

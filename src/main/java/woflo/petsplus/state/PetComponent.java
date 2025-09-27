@@ -107,6 +107,10 @@ public class PetComponent {
     private double lastSwarmX;
     private double lastSwarmY;
     private double lastSwarmZ;
+    private double followSpacingOffsetX;
+    private double followSpacingOffsetZ;
+    private float followSpacingPadding;
+    private long followSpacingSampleTick = Long.MIN_VALUE;
 
     // BossBar UI enhancements
     private long xpFlashStartTick = -1;
@@ -300,6 +304,8 @@ public class PetComponent {
         public static final String LAST_PET_TIME = "last_pet_time";
         public static final String PET_COUNT = "pet_count";
         public static final String LAST_SOCIAL_BUFFER_TICK = "social_buffer_tick";
+        public static final String LAST_CROUCH_CUDDLE_TICK = "last_crouch_cuddle_tick";
+        public static final String SOCIAL_JITTER_SEED = "social_jitter_seed";
         public static final String GOSSIP_OPT_OUT_UNTIL = "gossip_opt_out_until";
         public static final String GOSSIP_CLUSTER_CURSOR = "gossip_cluster_cursor";
         public static final String THREAT_LAST_TICK = "threat_last_tick";
@@ -1014,14 +1020,53 @@ public class PetComponent {
         return Math.max(0, cooldownEnd - pet.getWorld().getTime());
     }
 
+    public void setFollowSpacingSample(double offsetX, double offsetZ, float padding, long sampleTick) {
+        this.followSpacingOffsetX = offsetX;
+        this.followSpacingOffsetZ = offsetZ;
+        this.followSpacingPadding = padding;
+        this.followSpacingSampleTick = sampleTick;
+    }
+
+    public double getFollowSpacingOffsetX() {
+        return followSpacingOffsetX;
+    }
+
+    public double getFollowSpacingOffsetZ() {
+        return followSpacingOffsetZ;
+    }
+
+    public float getFollowSpacingPadding() {
+        return followSpacingPadding;
+    }
+
+    public long getFollowSpacingSampleTick() {
+        return followSpacingSampleTick;
+    }
+
+    public int getOrCreateSocialJitterSeed() {
+        Integer stored = getStateData(StateKeys.SOCIAL_JITTER_SEED, Integer.class);
+        if (stored != null) {
+            return stored;
+        }
+        int seed = (int) (Math.abs(mixStableSeed(0x5EED5C1AL) & 0x7FFFFFFFL));
+        setStateData(StateKeys.SOCIAL_JITTER_SEED, seed);
+        return seed;
+    }
+
     public void beginCrouchCuddle(UUID ownerId, long expiryTick) {
         this.crouchCuddleOwnerId = ownerId;
         this.crouchCuddleExpiryTick = expiryTick;
+        if (pet.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+            setStateData(StateKeys.LAST_CROUCH_CUDDLE_TICK, serverWorld.getTime());
+        }
     }
 
     public void refreshCrouchCuddle(UUID ownerId, long expiryTick) {
         if (this.crouchCuddleOwnerId != null && this.crouchCuddleOwnerId.equals(ownerId)) {
             this.crouchCuddleExpiryTick = Math.max(this.crouchCuddleExpiryTick, expiryTick);
+            if (pet.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+                setStateData(StateKeys.LAST_CROUCH_CUDDLE_TICK, serverWorld.getTime());
+            }
         } else {
             beginCrouchCuddle(ownerId, expiryTick);
         }

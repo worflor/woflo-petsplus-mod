@@ -1,5 +1,7 @@
 package woflo.petsplus.ai;
 
+import java.util.Locale;
+
 import net.minecraft.entity.ai.pathing.PathNodeType;
 import net.minecraft.entity.mob.MobEntity;
 import woflo.petsplus.Petsplus;
@@ -52,7 +54,19 @@ public class PetAIDebugger {
         logPathfindingPenalty(pet, PathNodeType.DOOR_WOOD_CLOSED, "Wooden Door");
         logPathfindingPenalty(pet, PathNodeType.DANGER_OTHER, "Danger");
         logPathfindingPenalty(pet, PathNodeType.DAMAGE_OTHER, "Damage");
-        
+
+        double spacingOffsetX = petComponent.getFollowSpacingOffsetX();
+        double spacingOffsetZ = petComponent.getFollowSpacingOffsetZ();
+        float spacingPadding = petComponent.getFollowSpacingPadding();
+        long sampleTick = petComponent.getFollowSpacingSampleTick();
+        Petsplus.LOGGER.info(
+            "Follow Spacing Offset: ({}, {}) padding={} lastSampleTick={}",
+            formatDouble(spacingOffsetX),
+            formatDouble(spacingOffsetZ),
+            formatDouble(spacingPadding),
+            sampleTick == Long.MIN_VALUE ? "never" : Long.toString(sampleTick)
+        );
+
         // Log goal counts
         try {
             woflo.petsplus.mixin.MobEntityAccessor accessor = (woflo.petsplus.mixin.MobEntityAccessor) pet;
@@ -77,5 +91,9 @@ public class PetAIDebugger {
     private static void logPathfindingPenalty(MobEntity pet, PathNodeType nodeType, String name) {
         float penalty = pet.getPathfindingPenalty(nodeType);
         Petsplus.LOGGER.info("  {}: {}", name, penalty);
+    }
+
+    private static String formatDouble(double value) {
+        return String.format(Locale.ROOT, "%.2f", value);
     }
 }
