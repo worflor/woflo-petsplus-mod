@@ -55,13 +55,13 @@ Mood intensity varies based on the strength of these emotional weights.
 
 Watch, in real time, as beating your pet make them upset - or happy if they're into it. 
 
-I also heard a rumour pets take note of... **gossip**... for later...
+And uh.. I also heard a rumour pets take note of... **gossip**... for later..
 
 
 ## Natures
 Pets come with distinct natures based on the conditions found when being tamed or born.
 ### Wild Natures
-1. Frozen [ Colder climates ]
+1. Frisky [ Colder climates ]
 2. Feral [ Neutral climates ]
 3. Fierce [ Hotter climates ]
 
@@ -95,14 +95,16 @@ Born natures do not role for tames; tamed natures do not role for born pets.
 2. Rabbits with carrots
 3. Turtles with seagrass
 
-### Unimplemented / being considered
+### Being considered
 - Phantoms via Trust*
 - tiny slimes and tiny magma cubes 
 - Camels
 - Llamas
 - Fully taming foxes 
+- Every base passive mob via Trust* [ add emotions to all passive mobs ]
+
+### Unimplimented 
 - Sniffers via a special 'Courting' system
-- Every base passive mob via Trust* 
 
 
 ## Pet Death and Loss
@@ -141,7 +143,7 @@ Hey, memorialize the trauma, a **Proof of Existence** drops on every pet death.
 ### uninplemented yet:
 - "Another one, thank you." (get your second pet to level 30)
 - "is that... THE BITE OF '87?!!" - credits, colours_c(jamie) (witniss your pet fox do 100% of the damage on a kill)
-- "Its called, damage rei-duction" - credits, colours_c(jamie) (get your guardian role pet with the name "Rei" to level 10 and give them a tribute)
+- "Its called, damage rei-duction" - credits, colours_c(jamie) (give your guardian pet named 'Rei' the level 10 tribute item)
 - "This isnt vanilla, chocolate, or strawberry..." (tame an entity usually untamable in the vanilla game)
 - "Pack Mentality" (Engage in combat with: a pack of 3 pets of at least 2 unique roles and 2 unique entity types)
 - "It's not nice to do that!!" (punch a pet into a void - killing it)
