@@ -1573,12 +1573,88 @@ public class PetComponent {
                 setStateData(StateKeys.TAMED_TICK, tameTime);
             }
             characteristics = PetCharacteristics.generateForNewPet(pet, tameTime);
-            
+
             // Apply attribute modifiers with the new characteristics
             woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
         }
     }
-    
+
+    /**
+     * Deterministic per-pet seed for lightweight randomization.
+     * <p>
+     * Systems that need a stable random offset (idle mood refresh, ambient
+     * particles, etc.) should lean on this helper so variations align with the
+     * pet's characteristic rolls. The characteristic seed anchors the value
+     * once characteristics exist; before that we fold in the pet's UUID and
+     * stored tame tick so behavior stays deterministic until characteristics
+     * are generated.
+     */
+    public long getStablePerPetSeed() {
+        PetCharacteristics characteristics = this.characteristics;
+        if (characteristics != null) {
+            return characteristics.getCharacteristicSeed();
+        }
+
+        UUID uuid = pet.getUuid();
+        long seed = uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits();
+        Long tamedTick = getStateData(StateKeys.TAMED_TICK, Long.class);
+        if (tamedTick == null) {
+            tamedTick = cacheTamedTickFallback();
+        }
+        return tamedTick != null ? seed ^ tamedTick : seed;
+    }
+
+    /**
+     * When characteristics have not yet been generated we may still need a deterministic
+     * timestamp to stabilize the fallback seed. Persist one if it is currently absent so
+     * subsequent calls (and future loads) remain in lockstep.
+     */
+    private Long cacheTamedTickFallback() {
+        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
+            return null;
+        }
+        long tameTick = serverWorld.getTime();
+        setStateData(StateKeys.TAMED_TICK, tameTick);
+        return tameTick;
+    }
+
+    /**
+     * Produce a SplitMix64-style hash tied to this pet's stable seed.
+     * <p>
+     * The {@code salt} parameter allows independent systems to derive distinct
+     * yet deterministic streams (e.g., idle emotion jitter vs. ambient effects)
+     * without stepping on each other while still matching the pet's
+     * characteristic-driven identity.
+     */
+    public long mixStableSeed(long salt) {
+        return splitMix64(getStablePerPetSeed() ^ salt);
+    }
+
+    /**
+     * Deterministically pick an index within {@code bound} using the pet's stable seed.
+     * <p>
+     * This is a convenience wrapper over {@link #mixStableSeed(long)} for systems that
+     * only need a bounded selector (e.g., choosing from a short jitter table).
+     *
+     * @param salt  domain separator so callers can derive independent streams
+     * @param bound exclusive upper bound for the returned index; must be positive
+     * @return stable index in the range {@code [0, bound)}
+     */
+    public int pickStableIndex(long salt, int bound) {
+        if (bound <= 0) {
+            throw new IllegalArgumentException("bound must be positive");
+        }
+        long hashed = mixStableSeed(salt);
+        return (int) Math.floorMod(hashed, bound);
+    }
+
+    private static long splitMix64(long seed) {
+        long mixed = seed + 0x9E3779B97F4A7C15L;
+        mixed = (mixed ^ (mixed >>> 30)) * 0xBF58476D1CE4E5B9L;
+        mixed = (mixed ^ (mixed >>> 27)) * 0x94D049BB133111EBL;
+        return mixed ^ (mixed >>> 31);
+    }
+
     /**
      * Calculate XP required for a specific level.
      * Feature levels are: 3, 7, 12, 17, 23, 27

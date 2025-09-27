@@ -49,6 +49,9 @@ public final class EmotionStimulusBus {
         }
     });
 
+    private static final int[] IDLE_JITTER_CHOICES = {-10, -9, -8, 8, 9, 10};
+    private static final long IDLE_JITTER_SALT = 0x2D63A86C0E1F4AC3L;
+
     private final MoodService service;
     private final Map<MobEntity, List<StimulusAction>> pending = new WeakHashMap<>();
     private final Map<UUID, ScheduledFuture<?>> idleTasks = new ConcurrentHashMap<>();
@@ -128,11 +131,16 @@ public final class EmotionStimulusBus {
             existing.cancel(false);
         }
         long delayTicks = MathHelper.clamp(component.estimateNextEmotionUpdate(now), 20L, 400L);
-        long delayMillis = delayTicks * 50L;
+        // Deterministically select a small ±8–10 tick offset so each pet drifts on its own cadence.
+        int jitterIndex = component.pickStableIndex(IDLE_JITTER_SALT, IDLE_JITTER_CHOICES.length);
+        long jitter = IDLE_JITTER_CHOICES[jitterIndex];
+        long adjustedTicks = MathHelper.clamp(delayTicks + jitter, 20L, 400L);
+        long delayMillis = adjustedTicks * 50L;
         ScheduledFuture<?> future = IDLE_EXECUTOR.schedule(() -> {
             MinecraftServer server = world.getServer();
             server.submit(() -> service.ensureFresh(pet, component, world.getTime()));
         }, delayMillis, TimeUnit.MILLISECONDS);
         idleTasks.put(id, future);
     }
+
 }
