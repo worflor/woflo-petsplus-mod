@@ -1,6 +1,10 @@
 package woflo.petsplus.ui;
 
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.ClickEvent;
+import net.minecraft.text.ClickEvent.CopyToClipboard;
+import net.minecraft.text.HoverEvent;
+import net.minecraft.text.HoverEvent.ShowText;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
@@ -23,6 +27,11 @@ public class ChatLinks {
     public record RunCommand(String label, String command, String hover, String color, boolean bold) {}
 
     /**
+     * Container for a formatted text component that copies a payload to the clipboard when clicked.
+     */
+    public record Copy(String label, String payload, String hover, String color, boolean bold) {}
+
+    /**
      * Send a single formatted text component line to a player.
      */
     public static void sendSuggest(ServerPlayerEntity player, Suggest suggest) {
@@ -38,6 +47,27 @@ public class ChatLinks {
     public static void sendRunCommand(ServerPlayerEntity player, RunCommand command) {
         if (player == null || command == null) return;
         MutableText text = createFormattedText(command.label(), command.color(), command.bold());
+        player.sendMessage(text, false);
+    }
+
+    /**
+     * Send a formatted component that copies the supplied payload when clicked.
+     */
+    public static void sendCopy(ServerPlayerEntity player, Copy copy) {
+        if (player == null || copy == null) return;
+
+        MutableText text = createFormattedText(copy.label(), copy.color(), copy.bold());
+        Style style = text.getStyle();
+
+        if (copy.payload() != null && !copy.payload().isEmpty()) {
+            style = style.withClickEvent(new CopyToClipboard(copy.payload()));
+        }
+
+        if (copy.hover() != null && !copy.hover().isEmpty()) {
+            style = style.withHoverEvent(new ShowText(Text.literal(copy.hover())));
+        }
+
+        text.setStyle(style);
         player.sendMessage(text, false);
     }
 
