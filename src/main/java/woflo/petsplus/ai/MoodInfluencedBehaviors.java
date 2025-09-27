@@ -1,5 +1,6 @@
 package woflo.petsplus.ai;
 
+import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.ItemEntity;
@@ -9,6 +10,7 @@ import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.registry.tag.BlockTags;
+import net.minecraft.registry.tag.TagKey;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
@@ -17,11 +19,14 @@ import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.mixin.MobEntityAccessor;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.tags.PetsplusBlockTags;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
 
@@ -68,6 +73,9 @@ public class MoodInfluencedBehaviors {
         private Vec3d sniffFocus;
         private float cachedAgilityModifier = 0.0f;
         private float cachedVitalityModifier = 0.0f;
+        private List<SniffPreference> sniffPreferences = List.of();
+
+        private static final float SNIFF_WEIGHT_EPSILON = 1.0e-4f;
 
         private enum FidgetType {
             HEAD_TILT,      // Curious, playful
@@ -127,6 +135,7 @@ public class MoodInfluencedBehaviors {
             if (pc == null) return;
 
             refreshCharacteristicModifiers(pc);
+            updateSniffPreferences(pc);
 
             nextGlobalStartTick = pet.getWorld().getTime() + 20;
             sniffFocus = null;
@@ -376,11 +385,23 @@ public class MoodInfluencedBehaviors {
         }
 
         private Vec3d findSniffTarget() {
+            if (sniffPreferences.isEmpty()) {
+                PetComponent pc = PetComponent.get(pet);
+                if (pc != null) {
+                    updateSniffPreferences(pc);
+                }
+            }
+
+            if (sniffPreferences.isEmpty()) {
+                return null;
+            }
+
             BlockPos origin = pet.getBlockPos();
             int radius = 3;
             BlockPos.Mutable mutable = new BlockPos.Mutable();
-            Vec3d closest = null;
-            double closestDist = Double.MAX_VALUE;
+            Vec3d bestTarget = null;
+            float bestWeight = -Float.MAX_VALUE;
+            double closestDistance = Double.MAX_VALUE;
 
             for (int dx = -radius; dx <= radius; dx++) {
                 for (int dy = -1; dy <= 1; dy++) {
@@ -388,19 +409,109 @@ public class MoodInfluencedBehaviors {
                         mutable.set(origin.getX() + dx, origin.getY() + dy, origin.getZ() + dz);
                         BlockState state = pet.getWorld().getBlockState(mutable);
                         if (state.isAir()) continue;
-                        if (state.isIn(BlockTags.FLOWERS) || state.isIn(BlockTags.WOOL) || state.isIn(BlockTags.CROPS)
-                            || state.isOf(Blocks.CHEST) || state.isOf(Blocks.BARREL) || state.isOf(Blocks.COMPOSTER)) {
-                            double dist = mutable.getSquaredDistance(origin);
-                            if (dist < closestDist) {
-                                closestDist = dist;
-                                closest = Vec3d.ofCenter(mutable);
-                            }
+
+                        float weight = getSniffWeight(state);
+                        if (weight <= 0f) continue;
+
+                        double distance = mutable.getSquaredDistance(origin);
+                        if (weight > bestWeight + SNIFF_WEIGHT_EPSILON
+                            || (Math.abs(weight - bestWeight) <= SNIFF_WEIGHT_EPSILON && distance < closestDistance)) {
+                            bestWeight = weight;
+                            closestDistance = distance;
+                            bestTarget = Vec3d.ofCenter(mutable);
                         }
                     }
                 }
             }
 
-            return closest;
+            return bestTarget;
+        }
+
+        private float getSniffWeight(BlockState state) {
+            for (SniffPreference preference : sniffPreferences) {
+                if (state.isIn(preference.tag())) {
+                    return preference.weight();
+                }
+            }
+            return -1f;
+        }
+
+        private void updateSniffPreferences(PetComponent pc) {
+            Map<TagKey<Block>, Float> weights = new HashMap<>();
+            PetComponent.Mood mood = pc.getCurrentMood();
+            float moodStrength = mood != null ? MathHelper.clamp(pc.getMoodStrength(mood), 0f, 1f) : 0f;
+
+            addSniffWeight(weights, PetsplusBlockTags.SNIFF_COMFORTS, 0.35f);
+            addSniffWeight(weights, PetsplusBlockTags.SNIFF_CURIOSITIES, 0.32f);
+            addSniffWeight(weights, PetsplusBlockTags.SNIFF_WARDING, 0.3f);
+            addSniffWeight(weights, PetsplusBlockTags.SNIFF_STORAGE, 0.28f);
+            addSniffWeight(weights, BlockTags.CROPS, 0.25f);
+            addSniffWeight(weights, BlockTags.FLOWERS, 0.3f);
+            addSniffWeight(weights, BlockTags.WOOL, 0.25f);
+            addSniffWeight(weights, BlockTags.BEDS, 0.25f);
+
+            if (mood != null) {
+                if (isCuriousAligned(mood)) {
+                    float curiousWeight = 0.55f + (moodStrength * 0.45f);
+                    addSniffWeight(weights, PetsplusBlockTags.SNIFF_CURIOSITIES, curiousWeight);
+                    addSniffWeight(weights, BlockTags.CROPS, 0.25f + moodStrength * 0.2f);
+                }
+                if (isProtectiveAligned(mood)) {
+                    float protectiveWeight = 0.5f + (moodStrength * 0.4f);
+                    addSniffWeight(weights, PetsplusBlockTags.SNIFF_WARDING, protectiveWeight);
+                    addSniffWeight(weights, PetsplusBlockTags.SNIFF_STORAGE, 0.45f + moodStrength * 0.35f);
+                }
+                if (isCalmAligned(mood)) {
+                    float calmWeight = 0.6f + (moodStrength * 0.4f);
+                    addSniffWeight(weights, PetsplusBlockTags.SNIFF_COMFORTS, calmWeight);
+                    addSniffWeight(weights, BlockTags.FLOWERS, 0.45f + moodStrength * 0.25f);
+                    addSniffWeight(weights, BlockTags.WOOL, 0.35f + moodStrength * 0.2f);
+                    addSniffWeight(weights, BlockTags.BEDS, 0.35f + moodStrength * 0.2f);
+                }
+            }
+
+            List<Map.Entry<TagKey<Block>, Float>> entries = new ArrayList<>(weights.entrySet());
+            entries.sort((a, b) -> Float.compare(b.getValue(), a.getValue()));
+            List<SniffPreference> sorted = new ArrayList<>(entries.size());
+            for (Map.Entry<TagKey<Block>, Float> entry : entries) {
+                sorted.add(new SniffPreference(entry.getKey(), entry.getValue()));
+            }
+            sniffPreferences = sorted;
+        }
+
+        private void addSniffWeight(Map<TagKey<Block>, Float> weights, TagKey<Block> tag, float weight) {
+            if (tag == null || weight <= 0f) {
+                return;
+            }
+
+            Float existing = weights.get(tag);
+            if (existing == null || weight > existing) {
+                weights.put(tag, weight);
+            }
+        }
+
+        private boolean isCuriousAligned(PetComponent.Mood mood) {
+            return switch (mood) {
+                case CURIOUS, PLAYFUL, HAPPY, FOCUSED, SISU -> true;
+                default -> false;
+            };
+        }
+
+        private boolean isProtectiveAligned(PetComponent.Mood mood) {
+            return switch (mood) {
+                case PROTECTIVE, ANGRY, PASSIONATE, AFRAID, RESTLESS -> true;
+                default -> false;
+            };
+        }
+
+        private boolean isCalmAligned(PetComponent.Mood mood) {
+            return switch (mood) {
+                case CALM, BONDED, YUGEN, SAUDADE -> true;
+                default -> false;
+            };
+        }
+
+        private record SniffPreference(TagKey<Block> tag, float weight) {
         }
     }
 
@@ -636,7 +747,9 @@ public class MoodInfluencedBehaviors {
 
             if (speed < 0.01) return; // Not moving
 
-            boolean onIce = pet.getWorld().getBlockState(pet.getBlockPos().down()).isOf(Blocks.ICE);
+            BlockState groundState = pet.getWorld().getBlockState(pet.getBlockPos().down());
+            boolean onSlipperySurface = groundState.isIn(PetsplusBlockTags.SLIPPERY_SURFACES)
+                || groundState.isIn(BlockTags.ICE);
             switch (mood) {
                 case PLAYFUL, HAPPY -> {
                     // Zigzag movement occasionally
@@ -692,7 +805,7 @@ public class MoodInfluencedBehaviors {
                 }
             }
 
-            if (onIce && mood != PetComponent.Mood.CALM && mood != PetComponent.Mood.BONDED) {
+            if (onSlipperySurface && mood != PetComponent.Mood.CALM && mood != PetComponent.Mood.BONDED) {
                 pet.setVelocity(pet.getVelocity().multiply(0.92));
             }
         }
@@ -873,14 +986,19 @@ public class MoodInfluencedBehaviors {
             PetComponent.Mood mood = pc.getCurrentMood();
             if (mood == null) return getRandomLookTarget();
 
+            // Mood -> look pool mapping:
+            //   * Exploration (workstations, curiosities): CURIOUS, SISU
+            //   * Threat scanning with safety fallback: PROTECTIVE, ANGRY, PASSIONATE
+            //   * Safety (warmth, beacons, comforts): CALM, BONDED, AFRAID
+            //   * Dynamic scans: RESTLESS, PLAYFUL/HAPPY, FOCUSED, YUGEN/SAUDADE
             return switch (mood) {
                 case CURIOUS -> getExplorationTarget();
-                case PROTECTIVE -> getThreatScanTarget().orElseGet(this::getRandomLookTarget);
+                case PROTECTIVE -> getThreatScanTarget().orElseGet(this::getOwnerOrSafetyTarget);
                 case AFRAID -> getOwnerOrSafetyTarget();
                 case FOCUSED -> getDetailedInspectionTarget().orElseGet(this::getRandomLookTarget);
                 case PLAYFUL, HAPPY -> getPlayfulLookTarget();
                 case RESTLESS -> getRandomMovingTarget().orElseGet(this::getRandomLookTarget);
-                case ANGRY, PASSIONATE -> getThreatScanTarget().orElseGet(this::getRandomLookTarget); // Alert and aggressive
+                case ANGRY, PASSIONATE -> getThreatScanTarget().orElseGet(this::getOwnerOrSafetyTarget); // Alert with safety fallback
                 case CALM, BONDED -> getOwnerOrSafetyTarget(); // Look toward owner for comfort
                 case YUGEN, SAUDADE -> getDetailedInspectionTarget().orElseGet(this::getRandomLookTarget); // Contemplative inspection
                 case SISU -> getExplorationTarget(); // Determined exploration
@@ -1082,12 +1200,13 @@ public class MoodInfluencedBehaviors {
             long now = pet.getWorld().getTime();
             if (cachedExplorationTarget == null || now - lastExplorationScanTick > explorationScanInterval) {
                 lastExplorationScanTick = now;
-                cachedExplorationTarget = findInterestingBlock(pos ->
-                    pos.isIn(BlockTags.CROPS)
-                        || pos.isOf(Blocks.CRAFTING_TABLE)
-                        || pos.isOf(Blocks.CHEST)
-                        || pos.isOf(Blocks.FURNACE)
-                        || pos.isIn(BlockTags.FLOWERS)
+                cachedExplorationTarget = findInterestingBlock(state ->
+                    state.isIn(PetsplusBlockTags.EXPLORATION_WORKSTATIONS)
+                        || state.isIn(PetsplusBlockTags.EXPLORATION_CURIOSITIES)
+                        || state.isIn(PetsplusBlockTags.SNIFF_CURIOSITIES)
+                        || state.isIn(PetsplusBlockTags.SNIFF_STORAGE)
+                        || state.isIn(BlockTags.CROPS)
+                        || state.isIn(BlockTags.FLOWERS)
                 ).orElse(null);
             }
             return cachedExplorationTarget;
@@ -1097,8 +1216,13 @@ public class MoodInfluencedBehaviors {
             long now = pet.getWorld().getTime();
             if (cachedSafetyTarget == null || now - lastSafetyScanTick > safetyScanInterval) {
                 lastSafetyScanTick = now;
-                cachedSafetyTarget = findInterestingBlock(state -> state.isOf(Blocks.TORCH) || state.isIn(BlockTags.BEDS))
-                    .orElse(null);
+                cachedSafetyTarget = findInterestingBlock(state ->
+                    state.isIn(PetsplusBlockTags.SAFETY_WARMTH)
+                        || state.isIn(PetsplusBlockTags.SAFETY_BEACONS)
+                        || state.isIn(PetsplusBlockTags.SNIFF_COMFORTS)
+                        || state.isIn(BlockTags.BEDS)
+                        || state.isIn(BlockTags.WOOL)
+                ).orElse(null);
             }
             return cachedSafetyTarget;
         }

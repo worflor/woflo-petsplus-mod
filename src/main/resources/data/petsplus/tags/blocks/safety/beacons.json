@@ -1,0 +1,13 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:bell",
+    "minecraft:respawn_anchor",
+    "minecraft:lodestone",
+    "minecraft:beacon",
+    "minecraft:conduit",
+    "minecraft:trial_spawner",
+    "minecraft:vault",
+    "minecraft:target"
+  ]
+}

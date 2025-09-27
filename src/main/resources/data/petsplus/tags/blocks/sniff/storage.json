@@ -1,0 +1,12 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:chest",
+    "minecraft:trapped_chest",
+    "minecraft:barrel",
+    "minecraft:composter",
+    "minecraft:hopper",
+    "minecraft:campfire",
+    "minecraft:soul_campfire"
+  ]
+}

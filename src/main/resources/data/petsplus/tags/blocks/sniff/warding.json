@@ -1,0 +1,17 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:campfires",
+    "minecraft:bell",
+    "minecraft:respawn_anchor",
+    "minecraft:beacon",
+    "minecraft:conduit",
+    "minecraft:lodestone",
+    "minecraft:lightning_rod",
+    "minecraft:sculk_sensor",
+    "minecraft:sculk_shrieker",
+    "minecraft:lantern",
+    "minecraft:soul_lantern",
+    "minecraft:amethyst_block"
+  ]
+}

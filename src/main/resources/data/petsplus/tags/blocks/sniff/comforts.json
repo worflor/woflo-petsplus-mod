@@ -1,0 +1,24 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:flowers",
+    "#minecraft:small_flowers",
+    "#minecraft:tall_flowers",
+    "minecraft:flowering_azalea",
+    "minecraft:flowering_azalea_leaves",
+    "minecraft:pink_petals",
+    "minecraft:spore_blossom",
+    "minecraft:torchflower",
+    "minecraft:pitcher_plant",
+    "minecraft:moss_carpet",
+    "#minecraft:wool",
+    "#minecraft:wool_carpets",
+    "#minecraft:beds",
+    "#minecraft:candles",
+    "minecraft:lantern",
+    "minecraft:soul_lantern",
+    "minecraft:campfire",
+    "minecraft:soul_campfire",
+    "minecraft:flower_pot"
+  ]
+}

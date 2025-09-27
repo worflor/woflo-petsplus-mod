@@ -1,0 +1,17 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:suspicious_sand",
+    "minecraft:suspicious_gravel",
+    "minecraft:decorated_pot",
+    "minecraft:trial_spawner",
+    "minecraft:vault",
+    "minecraft:sniffer_egg",
+    "minecraft:reinforced_deepslate",
+    "minecraft:sculk_sensor",
+    "minecraft:sculk_shrieker",
+    "minecraft:conduit",
+    "minecraft:beacon",
+    "minecraft:lodestone"
+  ]
+}
