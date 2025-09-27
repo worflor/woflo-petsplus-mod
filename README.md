@@ -86,7 +86,7 @@ Born natures do not role for tames; tamed natures do not role for born pets.
 20. Frosty
 21. Mire
 22. Relic [ Near strongholds / Ruins ]
-23. Unnatural [ Neither parent owned by breeder ]
+23. Unnatural [ Breeder owns neither parents ]
 
 
 ## New Friends
