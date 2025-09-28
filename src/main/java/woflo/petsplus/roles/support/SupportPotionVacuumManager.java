@@ -71,14 +71,21 @@ public final class SupportPotionVacuumManager {
     }
 
     public List<ItemEntity> collectPotionsNearby(MobEntity pet, double radius) {
-        if (!(pet.getWorld() instanceof ServerWorld serverWorld) || radius <= 0) {
+        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
             return Collections.emptyList();
         }
-        WorldCache cache = worldCaches.get(serverWorld);
+        return collectPotionsNearby(serverWorld, pet.getPos(), radius);
+    }
+
+    public List<ItemEntity> collectPotionsNearby(ServerWorld world, Vec3d center, double radius) {
+        if (world == null || radius <= 0) {
+            return Collections.emptyList();
+        }
+        WorldCache cache = worldCaches.get(world);
         if (cache == null) {
             return Collections.emptyList();
         }
-        return cache.collect(pet.getPos(), radius);
+        return cache.collect(center, radius);
     }
 
     private static boolean isPotionStack(ItemEntity entity) {

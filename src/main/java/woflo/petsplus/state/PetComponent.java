@@ -38,6 +38,7 @@ import woflo.petsplus.tags.PetsplusEntityTypeTags;
 
 import net.minecraft.util.math.ChunkSectionPos;
 
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -877,6 +878,9 @@ public class PetComponent {
     public void tickGossipLedger(long currentTick) {
         gossipLedger.tickDecay(currentTick);
         long nextDelay = Math.max(MIN_GOSSIP_DECAY_DELAY, gossipLedger.scheduleNextDecayDelay());
+        if (stateManager != null) {
+            nextDelay = stateManager.scaleInterval(nextDelay);
+        }
         scheduleNextGossipDecay(currentTick + nextDelay);
     }
 
@@ -909,9 +913,15 @@ public class PetComponent {
         lastSwarmCellKey = Long.MIN_VALUE;
     }
 
-    public void updateSwarmTrackingIfMoved(PetSwarmIndex index) {
+    /**
+     * Updates the cached swarm tracking entry if the pet has moved a significant
+     * amount since the last update. Returns {@code true} when the underlying
+     * spatial index was refreshed so callers can trigger owner-scoped events
+     * only when necessary.
+     */
+    public boolean updateSwarmTrackingIfMoved(PetSwarmIndex index) {
         if (!(pet.getWorld() instanceof ServerWorld)) {
-            return;
+            return false;
         }
         double x = pet.getX();
         double y = pet.getY();
@@ -927,14 +937,18 @@ public class PetComponent {
         double dz = z - lastSwarmZ;
         double distanceSq = (dx * dx) + (dy * dy) + (dz * dz);
 
-        if (!swarmTrackingInitialized || cellKey != lastSwarmCellKey || distanceSq > 1.0E-4) {
+        final double movementThresholdSq = 0.0625; // ~0.25 blocks of travel
+
+        if (!swarmTrackingInitialized || cellKey != lastSwarmCellKey || distanceSq >= movementThresholdSq) {
             swarmTrackingInitialized = true;
             lastSwarmCellKey = cellKey;
             lastSwarmX = x;
             lastSwarmY = y;
             lastSwarmZ = z;
             index.updatePet(pet, this);
+            return true;
         }
+        return false;
     }
 
     @Nullable
@@ -979,6 +993,18 @@ public class PetComponent {
 
     public void clearCooldown(String key) {
         cooldowns.remove(key);
+    }
+
+    /**
+     * Produces an immutable snapshot of the pet's cooldown map for use in
+     * asynchronous processing. The snapshot is safe to share across threads as
+     * it does not retain references to the live mutable state.
+     */
+    public Map<String, Long> copyCooldownSnapshot() {
+        if (cooldowns.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return new HashMap<>(cooldowns);
     }
 
     /**

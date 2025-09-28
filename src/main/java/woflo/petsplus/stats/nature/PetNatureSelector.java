@@ -15,12 +15,15 @@ import net.minecraft.registry.tag.TagKey;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.Heightmap;
 import net.minecraft.world.LightType;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeKeys;
 import woflo.petsplus.api.event.PetBreedEvent;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.StateManager;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -119,8 +122,7 @@ public final class PetNatureSelector {
         double witnessRadius = 12.0D;
         double witnessRadiusSq = witnessRadius * witnessRadius;
         int nearbyPlayers = world.getPlayers(player -> !player.isSpectator() && player.squaredDistanceTo(pet) <= witnessRadiusSq).size();
-        int nearbyPets = world.getEntitiesByClass(MobEntity.class, pet.getBoundingBox().expand(witnessRadius),
-            entity -> entity != pet && PetComponent.get(entity) != null).size();
+        int nearbyPets = countNearbyPets(world, pet, witnessRadius);
 
         PetBreedEvent.BirthContext.Environment environment = captureEnvironment(world, pet);
 
@@ -194,6 +196,23 @@ public final class PetNatureSelector {
         }
 
         return chosen;
+    }
+
+    private static int countNearbyPets(ServerWorld world, MobEntity source, double radius) {
+        if (world == null || source == null || radius < 0.0D) {
+            return 0;
+        }
+        PetSwarmIndex swarmIndex = StateManager.forWorld(world).getSwarmIndex();
+        Vec3d center = source.getPos();
+        final int[] count = {0};
+        swarmIndex.forEachPetInRange(center, radius, entry -> {
+            MobEntity other = entry.pet();
+            if (other == null || other == source || !other.isAlive()) {
+                return;
+            }
+            count[0]++;
+        });
+        return count[0];
     }
 
     private static boolean matchesRadiant(NatureContext context) {

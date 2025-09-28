@@ -1,19 +1,19 @@
 package woflo.petsplus.interaction;
 
-import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.event.OwnerAbilitySignalEvent;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PlayerTickDispatcher;
 import woflo.petsplus.state.PlayerTickListener;
+import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.StateManager;
 
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
@@ -100,20 +100,29 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
     }
 
     private static MobEntity findLookTarget(ServerPlayerEntity player) {
-        World world = player.getWorld();
+        if (!(player.getWorld() instanceof ServerWorld world)) {
+            return null;
+        }
+
+        StateManager stateManager = StateManager.forWorld(world);
+        List<PetSwarmIndex.SwarmEntry> swarm = stateManager.getSwarmIndex().snapshotOwner(player.getUuid());
+        if (swarm.isEmpty()) {
+            return null;
+        }
+
         Vec3d eyePos = player.getCameraPosVec(1.0f);
         Vec3d lookVec = player.getRotationVec(1.0f);
-        Box searchBox = player.getBoundingBox().stretch(lookVec.multiply(DOUBLE_CROUCH_MAX_DISTANCE)).expand(1.0);
-        double closestDistanceSq = DOUBLE_CROUCH_MAX_DISTANCE * DOUBLE_CROUCH_MAX_DISTANCE;
+        double maxDistanceSq = DOUBLE_CROUCH_MAX_DISTANCE * DOUBLE_CROUCH_MAX_DISTANCE;
         MobEntity closest = null;
 
-        for (Entity entity : world.getOtherEntities(player, searchBox, e -> isOwnedPet(player, e))) {
-            if (!(entity instanceof MobEntity mob)) {
+        for (PetSwarmIndex.SwarmEntry entry : swarm) {
+            MobEntity mob = entry.pet();
+            if (mob == null || !mob.isAlive() || mob.isRemoved() || mob.getWorld() != world) {
                 continue;
             }
 
             double distanceSq = player.squaredDistanceTo(mob);
-            if (distanceSq > closestDistanceSq) {
+            if (distanceSq > maxDistanceSq) {
                 continue;
             }
 
@@ -133,44 +142,42 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
             }
 
             closest = mob;
-            closestDistanceSq = distanceSq;
+            maxDistanceSq = distanceSq;
         }
 
         return closest;
     }
 
-    private static boolean isOwnedPet(ServerPlayerEntity owner, Entity entity) {
-        if (!(entity instanceof MobEntity mob) || entity.isRemoved() || !entity.isAlive()) {
-            return false;
-        }
-
-        PetComponent component = PetComponent.get(mob);
-        if (component == null || !component.isOwnedBy(owner)) {
-            return false;
-        }
-        return true;
-    }
-
     private static void startProximityChannels(ServerPlayerEntity player, SneakState state, long serverTick) {
-        ServerWorld world = (ServerWorld) player.getWorld();
-        Box search = player.getBoundingBox().expand(PROXIMITY_RANGE, PROXIMITY_RANGE / 2.0, PROXIMITY_RANGE);
-        java.util.List<MobEntity> nearbyPets = world.getEntitiesByClass(
-            MobEntity.class,
-            search,
-            entity -> isOwnedPet(player, entity)
-        );
-
-        if (nearbyPets.isEmpty()) {
+        if (!(player.getWorld() instanceof ServerWorld world)) {
             return;
         }
 
+        StateManager stateManager = StateManager.forWorld(world);
+        List<PetSwarmIndex.SwarmEntry> swarm = stateManager.getSwarmIndex().snapshotOwner(player.getUuid());
+        if (swarm.isEmpty()) {
+            return;
+        }
+
+        double expandedRangeSq = PROXIMITY_RANGE_SQ;
         Map<MobEntity, ProximityChannel> worldChannels = ACTIVE_CHANNELS.computeIfAbsent(world, w -> new WeakHashMap<>());
         long completionTick = world.getTime() + PROXIMITY_DURATION_TICKS;
         UUID ownerId = player.getUuid();
 
-        for (MobEntity pet : nearbyPets) {
-            PetComponent component = PetComponent.get(pet);
-            if (component == null || component.isPerched()) {
+        boolean hasChannel = false;
+        for (PetSwarmIndex.SwarmEntry entry : swarm) {
+            MobEntity pet = entry.pet();
+            if (pet == null || pet.isRemoved() || !pet.isAlive() || pet.getWorld() != world) {
+                continue;
+            }
+
+            double distanceSq = player.squaredDistanceTo(pet);
+            if (distanceSq > expandedRangeSq) {
+                continue;
+            }
+
+            PetComponent component = entry.component();
+            if (component == null || !component.isOwnedBy(player) || component.isPerched()) {
                 continue;
             }
 
@@ -178,14 +185,18 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
             if (existing != null && existing.ownerId.equals(ownerId)) {
                 existing.refresh(completionTick);
                 component.refreshCrouchCuddle(ownerId, completionTick);
+                hasChannel = true;
                 continue;
             }
 
             worldChannels.put(pet, new ProximityChannel(ownerId, completionTick));
             component.beginCrouchCuddle(ownerId, completionTick);
+            hasChannel = true;
         }
 
-        requestRun(player, state, serverTick);
+        if (hasChannel) {
+            requestRun(player, state, serverTick);
+        }
     }
 
     private static void cancelProximityChannels(ServerPlayerEntity player) {

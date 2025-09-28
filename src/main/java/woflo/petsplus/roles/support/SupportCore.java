@@ -1,10 +1,11 @@
 package woflo.petsplus.roles.support;
 
-import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.StateManager;
 
 import java.util.List;
 
@@ -34,22 +35,25 @@ public class SupportCore {
         if (!(player.getWorld() instanceof ServerWorld world)) {
             return false;
         }
-        
+
         double auraRadius = 16.0; // Support aura range
-        List<MobEntity> supportPets = world.getEntitiesByClass(
-            MobEntity.class,
-            player.getBoundingBox().expand(auraRadius),
-            entity -> {
-                PetComponent component = PetComponent.get(entity);
-                return component != null &&
-                       component.hasRole(PetRoleType.SUPPORT) &&
-                       entity.isAlive() &&
-                       component.isOwnedBy(player) &&
-                       entity.squaredDistanceTo(player) <= auraRadius * auraRadius;
+        double radiusSq = auraRadius * auraRadius;
+        StateManager stateManager = StateManager.forWorld(world);
+        List<PetSwarmIndex.SwarmEntry> swarm = stateManager.getSwarmIndex().snapshotOwner(player.getUuid());
+        for (PetSwarmIndex.SwarmEntry entry : swarm) {
+            PetComponent component = entry.component();
+            if (component == null || !component.hasRole(PetRoleType.SUPPORT)) {
+                continue;
             }
-        );
-        
-        return !supportPets.isEmpty();
+            var pet = entry.pet();
+            if (pet == null || !pet.isAlive()) {
+                continue;
+            }
+            if (pet.squaredDistanceTo(player) <= radiusSq) {
+                return true;
+            }
+        }
+        return false;
     }
     
     /**

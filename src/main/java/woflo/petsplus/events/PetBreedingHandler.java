@@ -8,12 +8,15 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.event.PetBreedEvent;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.StateManager;
 import woflo.petsplus.stats.PetAttributeManager;
 import woflo.petsplus.stats.PetCharacteristics;
 import woflo.petsplus.stats.nature.PetNatureSelector;
@@ -164,8 +167,7 @@ public final class PetBreedingHandler {
         double witnessRadius = 12.0D;
         double witnessRadiusSq = witnessRadius * witnessRadius;
         int nearbyPlayers = world.getPlayers(player -> !player.isSpectator() && player.squaredDistanceTo(child) <= witnessRadiusSq).size();
-        int nearbyPets = world.getEntitiesByClass(MobEntity.class, child.getBoundingBox().expand(witnessRadius),
-            entity -> entity != child && PetComponent.get(entity) != null).size();
+        int nearbyPets = countNearbyPets(world, child, witnessRadius);
 
         PetBreedEvent.BirthContext.Environment environment = PetNatureSelector.captureEnvironment(world, child);
 
@@ -184,6 +186,23 @@ public final class PetBreedingHandler {
             partnerOwned,
             environment
         );
+    }
+
+    private static int countNearbyPets(ServerWorld world, MobEntity center, double radius) {
+        if (world == null || center == null || radius < 0.0D) {
+            return 0;
+        }
+        PetSwarmIndex swarmIndex = StateManager.forWorld(world).getSwarmIndex();
+        Vec3d position = center.getPos();
+        final int[] count = {0};
+        swarmIndex.forEachPetInRange(position, radius, entry -> {
+            MobEntity other = entry.pet();
+            if (other == null || other == center || !other.isAlive()) {
+                return;
+            }
+            count[0]++;
+        });
+        return count[0];
     }
 
     private static void recordBirthContext(PetComponent component, PetBreedEvent.BirthContext context) {

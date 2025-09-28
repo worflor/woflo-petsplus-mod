@@ -1,29 +1,37 @@
 package woflo.petsplus.events;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvent;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
-import woflo.petsplus.state.PetComponent;
+import net.minecraft.util.math.Vec3d;
+
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.api.event.PetLevelUpEvent;
 import woflo.petsplus.api.event.XpAwardEvent;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.advancement.AdvancementManager;
 import woflo.petsplus.Petsplus;
+import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.StateManager;
 import woflo.petsplus.stats.PetAttributeManager;
+import woflo.petsplus.state.processing.OwnerEventFrame;
+import woflo.petsplus.state.processing.OwnerEventType;
 
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
-import java.util.WeakHashMap;
 import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
  * Handles pet XP gain when owners gain XP.
@@ -48,88 +56,112 @@ public class XpEventHandler {
         handlePlayerXpGain(player, xpGained);
         LAST_PLAYER_ACTION.put(player, player.getWorld().getTime());
     }
-    
+
     private static void handlePlayerXpGain(ServerPlayerEntity player, int xpGained) {
-        // Find nearby pets owned by this player
-        List<MobEntity> nearbyPets = player.getWorld().getEntitiesByClass(
-            MobEntity.class,
-            player.getBoundingBox().expand(32), // 32 block radius
-            entity -> {
-                PetComponent petComp = PetComponent.get(entity);
-                return petComp != null && petComp.isOwnedBy(player);
-            }
-        );
-        
-        if (nearbyPets.isEmpty()) return;
-        
-        // Base 1:1 XP sharing - much more generous than the old 50%
+        ServerWorld world = (ServerWorld) player.getWorld();
+        StateManager stateManager = StateManager.forWorld(world);
+        EnumSet<OwnerEventType> eventTypes = EnumSet.of(OwnerEventType.XP_GAIN);
+        EnumMap<OwnerEventType, Object> payload = new EnumMap<>(OwnerEventType.class);
+        payload.put(OwnerEventType.XP_GAIN, new XpGainPayload(xpGained));
+        stateManager.dispatchOwnerEvents(player, eventTypes, payload);
+    }
+
+    public static void handleOwnerXpGainEvent(OwnerEventFrame frame) {
+        if (frame == null || frame.eventType() != OwnerEventType.XP_GAIN) {
+            return;
+        }
+        ServerPlayerEntity owner = frame.owner();
+        if (owner == null || owner.isRemoved()) {
+            return;
+        }
+        XpGainPayload payload = frame.payload(XpGainPayload.class);
+        if (payload == null || payload.xpAmount() <= 0) {
+            return;
+        }
+        distributeXpToSwarm(frame, owner, payload.xpAmount());
+    }
+
+    private static void distributeXpToSwarm(OwnerEventFrame frame, ServerPlayerEntity owner, int xpGained) {
+        List<PetSwarmIndex.SwarmEntry> swarmEntries = frame.swarmSnapshot();
+        if (swarmEntries.isEmpty()) {
+            return;
+        }
+
+        Vec3d center = owner.getPos();
+        double radius = 32.0;
+        double radiusSq = radius * radius;
+
         PetsPlusConfig config = PetsPlusConfig.getInstance();
-        double baseXpModifier = config.getSectionDouble("pet_leveling", "xp_modifier", 1.0); // Now defaults to 1:1
-        
-        // Give XP to all nearby pets with individual scaling
-        for (MobEntity pet : nearbyPets) {
-            PetComponent petComp = PetComponent.get(pet);
-            if (petComp != null) {
-                // Calculate level-scaled XP modifier - more generous early game
-                float levelScaleModifier = getLevelScaleModifier(petComp.getLevel());
-                
-                // Apply pet's unique learning characteristic (±15% variation)
-                float learningModifier = 1.0f;
-                if (petComp.getCharacteristics() != null) {
-                    learningModifier = petComp.getCharacteristics().getXpLearningModifier(petComp.getRoleType(false));
-                }
-                
-                // Apply participation bonuses/penalties
-                float participationModifier = getParticipationModifier(player, pet);
-                
-                // Calculate final XP: base * level_scaling * individual_learning * participation
-                int petXpGain = Math.max(1, (int)(xpGained * baseXpModifier * levelScaleModifier * learningModifier * participationModifier));
-                
-                // Check if this is the first time gaining pet XP (first bond)
-                boolean wasFirstBond = petComp.getLevel() == 1 && petComp.getExperience() == 0;
+        double baseXpModifier = config.getSectionDouble("pet_leveling", "xp_modifier", 1.0);
 
-                int previousLevel = petComp.getLevel();
+        for (PetSwarmIndex.SwarmEntry entry : swarmEntries) {
+            MobEntity pet = entry.pet();
+            PetComponent petComp = entry.component();
+            if (pet == null || petComp == null || !pet.isAlive()) {
+                continue;
+            }
 
-                XpAwardEvent.Context xpContext = new XpAwardEvent.Context(
-                    player,
+            double dx = entry.x() - center.x;
+            double dy = entry.y() - center.y;
+            double dz = entry.z() - center.z;
+            if ((dx * dx) + (dy * dy) + (dz * dz) > radiusSq) {
+                continue;
+            }
+
+            float levelScaleModifier = getLevelScaleModifier(petComp.getLevel());
+
+            float learningModifier = 1.0f;
+            if (petComp.getCharacteristics() != null) {
+                learningModifier = petComp.getCharacteristics().getXpLearningModifier(petComp.getRoleType(false));
+            }
+
+            float participationModifier = getParticipationModifier(owner, pet);
+
+            int petXpGain = Math.max(1, (int) (xpGained * baseXpModifier * levelScaleModifier * learningModifier * participationModifier));
+
+            boolean wasFirstBond = petComp.getLevel() == 1 && petComp.getExperience() == 0;
+            int previousLevel = petComp.getLevel();
+
+            XpAwardEvent.Context xpContext = new XpAwardEvent.Context(
+                owner,
+                pet,
+                petComp,
+                xpGained,
+                petXpGain,
+                XpAwardEvent.OWNER_XP_SHARE
+            );
+            XpAwardEvent.fire(xpContext);
+
+            if (xpContext.isCancelled() || xpContext.getAmount() <= 0) {
+                continue;
+            }
+
+            int awardedXp = xpContext.getAmount();
+            boolean leveledUp = petComp.addExperience(awardedXp);
+
+            if (wasFirstBond) {
+                AdvancementManager.triggerFirstPetBond(owner);
+            }
+
+            if (leveledUp) {
+                PetLevelUpEvent.Context levelContext = new PetLevelUpEvent.Context(
+                    owner,
                     pet,
                     petComp,
-                    xpGained,
-                    petXpGain,
-                    XpAwardEvent.OWNER_XP_SHARE
+                    previousLevel,
+                    petComp.getLevel(),
+                    awardedXp
                 );
-                XpAwardEvent.fire(xpContext);
+                PetLevelUpEvent.fire(levelContext);
 
-                if (xpContext.isCancelled() || xpContext.getAmount() <= 0) {
-                    continue;
-                }
-
-                int awardedXp = xpContext.getAmount();
-                boolean leveledUp = petComp.addExperience(awardedXp);
-
-                if (wasFirstBond) {
-                    // Trigger first pet bond advancement
-                    AdvancementManager.triggerFirstPetBond(player);
-                }
-
-                if (leveledUp) {
-                    PetLevelUpEvent.Context levelContext = new PetLevelUpEvent.Context(
-                        player,
-                        pet,
-                        petComp,
-                        previousLevel,
-                        petComp.getLevel(),
-                        awardedXp
-                    );
-                    PetLevelUpEvent.fire(levelContext);
-
-                    if (!levelContext.isDefaultCelebrationSuppressed()) {
-                        handlePetLevelUp(player, pet, petComp);
-                    }
+                if (!levelContext.isDefaultCelebrationSuppressed()) {
+                    handlePetLevelUp(owner, pet, petComp);
                 }
             }
         }
     }
+
+    private record XpGainPayload(int xpAmount) {}
     
     /**
      * Get level-scaled XP modifier for more engaging progression.

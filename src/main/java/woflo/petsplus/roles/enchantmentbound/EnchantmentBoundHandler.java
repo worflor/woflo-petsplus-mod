@@ -21,10 +21,13 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PlayerTickListener;
+import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.StateManager;
 
 import java.util.Map;
 import java.util.UUID;
@@ -282,15 +285,37 @@ public final class EnchantmentBoundHandler implements PlayerTickListener {
 
     private static boolean hasRoleNearby(PlayerEntity owner, Identifier roleId, double radius) {
         try {
-            if (!(owner.getWorld() instanceof ServerWorld serverWorld)) return false;
-            return serverWorld.getEntitiesByClass(MobEntity.class, owner.getBoundingBox().expand(radius), e -> {
-                try {
-                    PetComponent c = PetComponent.get(e);
-                    return c != null && c.hasRole(roleId) && c.isOwnedBy(owner) && e.isAlive();
-                } catch (Exception ex) {
-                    return false; // Skip entities that can't be checked safely
+            if (!(owner instanceof ServerPlayerEntity serverOwner)) return false;
+            if (!(serverOwner.getWorld() instanceof ServerWorld serverWorld)) return false;
+
+            StateManager stateManager = StateManager.forWorld(serverWorld);
+            PetSwarmIndex swarmIndex = stateManager.getSwarmIndex();
+            if (swarmIndex == null) {
+                return false;
+            }
+
+            Vec3d center = serverOwner.getPos();
+            boolean[] found = new boolean[1];
+            swarmIndex.forEachPetInRange(serverOwner, center, radius, entry -> {
+                if (found[0]) {
+                    return;
                 }
-            }).size() > 0;
+                PetComponent component = entry.component();
+                if (component == null) {
+                    return;
+                }
+                if (!entry.pet().isAlive()) {
+                    return;
+                }
+                if (!component.hasRole(roleId)) {
+                    return;
+                }
+                if (!component.isOwnedBy(owner)) {
+                    return;
+                }
+                found[0] = true;
+            });
+            return found[0];
         } catch (Exception e) {
             System.err.println("EnchantmentBound role check error: " + e.getMessage());
             return false;
@@ -299,19 +324,31 @@ public final class EnchantmentBoundHandler implements PlayerTickListener {
 
     private static int nearestRoleLevel(PlayerEntity owner, Identifier roleId, double radius) {
         try {
-            if (!(owner.getWorld() instanceof ServerWorld serverWorld)) return 0;
-            int best = 0;
-            for (MobEntity e : serverWorld.getEntitiesByClass(MobEntity.class, owner.getBoundingBox().expand(radius), ent -> true)) {
-                try {
-                    PetComponent c = PetComponent.get(e);
-                    if (c != null && c.hasRole(roleId) && c.isOwnedBy(owner) && e.isAlive()) {
-                        best = Math.max(best, c.getLevel());
-                    }
-                } catch (Exception ex) {
-                    // Skip entities that can't be checked safely
-                }
+            if (!(owner instanceof ServerPlayerEntity serverOwner)) return 0;
+            if (!(serverOwner.getWorld() instanceof ServerWorld serverWorld)) return 0;
+
+            StateManager stateManager = StateManager.forWorld(serverWorld);
+            PetSwarmIndex swarmIndex = stateManager.getSwarmIndex();
+            if (swarmIndex == null) {
+                return 0;
             }
-            return best;
+
+            Vec3d center = serverOwner.getPos();
+            int[] best = new int[1];
+            swarmIndex.forEachPetInRange(serverOwner, center, radius, entry -> {
+                PetComponent component = entry.component();
+                if (component == null || !entry.pet().isAlive()) {
+                    return;
+                }
+                if (!component.hasRole(roleId)) {
+                    return;
+                }
+                if (!component.isOwnedBy(owner)) {
+                    return;
+                }
+                best[0] = Math.max(best[0], component.getLevel());
+            });
+            return best[0];
         } catch (Exception e) {
             System.err.println("EnchantmentBound role level check error: " + e.getMessage());
             return 0;

@@ -4,9 +4,13 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Vec3d;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.mood.MoodService;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.StateManager;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -178,18 +182,34 @@ public final class NatureFlavorHandler {
         if (!(owner.getWorld() instanceof ServerWorld world)) {
             return;
         }
-        List<MobEntity> nearby = world.getEntitiesByClass(MobEntity.class, owner.getBoundingBox().expand(radius), mob -> true);
-        if (nearby.isEmpty()) {
+        StateManager stateManager = StateManager.forWorld(world);
+        PetSwarmIndex swarmIndex = stateManager.getSwarmIndex();
+        List<PetSwarmIndex.SwarmEntry> swarm = swarmIndex.snapshotOwner(owner.getUuid());
+        if (swarm.isEmpty()) {
             return;
         }
 
         MoodService moodService = MoodService.getInstance();
         long time = world.getTime();
-        for (MobEntity pet : nearby) {
-            PetComponent component = PetComponent.get(pet);
-            if (component == null || !component.isOwnedBy(owner)) {
+        Vec3d center = owner.getPos();
+        double normalizedRadius = Math.max(0.0D, radius);
+        double squaredRadius = normalizedRadius * normalizedRadius;
+        boolean limitByRadius = normalizedRadius > 0.0D;
+        Box ownerBounds = owner.getBoundingBox();
+
+        for (PetSwarmIndex.SwarmEntry entry : swarm) {
+            MobEntity pet = entry.pet();
+            if (pet == null || !pet.isAlive()) {
                 continue;
             }
+            if (limitByRadius) {
+                if (pet.squaredDistanceTo(center) > squaredRadius) {
+                    continue;
+                }
+            } else if (!ownerBounds.intersects(pet.getBoundingBox())) {
+                continue;
+            }
+            PetComponent component = entry.component();
             moodService.getStimulusBus().queueStimulus(pet,
                 comp -> applyAmbientFlavor(pet, comp, world, owner, trigger, time));
         }

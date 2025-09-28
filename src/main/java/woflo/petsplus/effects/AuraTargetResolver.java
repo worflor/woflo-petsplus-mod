@@ -6,6 +6,7 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetSwarmIndex;
@@ -46,6 +47,12 @@ public final class AuraTargetResolver {
 
     public List<LivingEntity> resolveTargets(ServerWorld world, MobEntity pet, PetComponent component,
                                              ServerPlayerEntity owner, double radius, PetRoleType.AuraTarget target) {
+        return resolveTargets(world, pet, component, owner, radius, target, null);
+    }
+
+    public List<LivingEntity> resolveTargets(ServerWorld world, MobEntity pet, PetComponent component,
+                                             ServerPlayerEntity owner, double radius, PetRoleType.AuraTarget target,
+                                             @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot) {
         if (target == null) {
             return List.of();
         }
@@ -63,10 +70,10 @@ public final class AuraTargetResolver {
             }
             case OWNER_AND_ALLIES -> {
                 addOwnerIfInRange(resolved, owner, center, squaredRadius);
-                resolved.addAll(collectNearbyAllies(world, pet, component, owner, center, radius, squaredRadius));
+                resolved.addAll(collectNearbyAllies(world, pet, component, owner, center, radius, squaredRadius, swarmSnapshot));
             }
             case NEARBY_PLAYERS -> resolved.addAll(collectNearbyPlayers(owner, center, radius, squaredRadius));
-            case NEARBY_ALLIES -> resolved.addAll(collectNearbyAllies(world, pet, component, owner, center, radius, squaredRadius));
+            case NEARBY_ALLIES -> resolved.addAll(collectNearbyAllies(world, pet, component, owner, center, radius, squaredRadius, swarmSnapshot));
         }
 
         resolved.remove(pet);
@@ -87,21 +94,40 @@ public final class AuraTargetResolver {
     }
 
     private List<LivingEntity> collectNearbyAllies(ServerWorld world, MobEntity pet, PetComponent component,
-                                                   ServerPlayerEntity owner, Vec3d center, double radius, double squaredRadius) {
-        List<LivingEntity> allies = new ArrayList<>();
+                                                   ServerPlayerEntity owner, Vec3d center, double radius, double squaredRadius,
+                                                   @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot) {
+        Set<LivingEntity> allies = new LinkedHashSet<>();
         if (owner != null && (squaredRadius == 0 || owner.getPos().squaredDistanceTo(center) <= squaredRadius)) {
             allies.add(owner);
         }
 
-        swarmIndex.forEachNeighbor(pet, component, radius, (entry, distSq) -> {
-            MobEntity other = entry.pet();
-            if (other != pet && other.isAlive() && distSq <= squaredRadius) {
-                allies.add(other);
+        if (swarmSnapshot != null && !swarmSnapshot.isEmpty()) {
+            for (PetSwarmIndex.SwarmEntry entry : swarmSnapshot) {
+                MobEntity other = entry.pet();
+                if (other == null || other == pet || !other.isAlive()) {
+                    continue;
+                }
+                double dx = entry.x() - center.x;
+                double dy = entry.y() - center.y;
+                double dz = entry.z() - center.z;
+                double distSq = (dx * dx) + (dy * dy) + (dz * dz);
+                if (squaredRadius == 0 || distSq <= squaredRadius) {
+                    allies.add(other);
+                }
             }
-        });
+        } else {
+            swarmIndex.forEachNeighbor(pet, component, radius, (entry, distSq) -> {
+                MobEntity other = entry.pet();
+                if (other != pet && other.isAlive() && (squaredRadius == 0 || distSq <= squaredRadius)) {
+                    allies.add(other);
+                }
+            });
+        }
 
-        allies.addAll(collectNearbyPlayers(owner, center, radius, squaredRadius));
-        return allies;
+        for (LivingEntity player : collectNearbyPlayers(owner, center, radius, squaredRadius)) {
+            allies.add(player);
+        }
+        return new ArrayList<>(allies);
     }
 
     private List<LivingEntity> collectNearbyPlayers(ServerPlayerEntity owner, Vec3d center, double radius, double squaredRadius) {

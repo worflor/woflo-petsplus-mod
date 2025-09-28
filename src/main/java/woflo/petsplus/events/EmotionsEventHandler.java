@@ -65,6 +65,8 @@ import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.StateManager;
 import woflo.petsplus.mood.MoodService;
 import woflo.petsplus.stats.nature.NatureFlavorHandler;
 import woflo.petsplus.stats.nature.NatureFlavorHandler.Trigger;
@@ -484,20 +486,24 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
     private static void onAfterDeath(LivingEntity entity, DamageSource damageSource) {
         if (!(entity instanceof ServerPlayerEntity sp)) return;
         ServerWorld world = (ServerWorld) sp.getWorld();
-        world.getEntitiesByClass(MobEntity.class, sp.getBoundingBox().expand(48), mob -> {
-            PetComponent pc = PetComponent.get(mob);
-            return pc != null && pc.isOwnedBy(sp);
-        }).forEach(pet -> {
-            PetComponent pc = PetComponent.get(pet);
-            if (pc != null) {
-                MoodService.getInstance().getStimulusBus().queueStimulus(pet, component -> {
-                    component.pushEmotion(PetComponent.Emotion.SAUDADE, 0.25f);
-                    component.pushEmotion(PetComponent.Emotion.HIRAETH, 0.20f);
-                    component.pushEmotion(PetComponent.Emotion.REGRET, 0.15f);
-                });
-                MoodService.getInstance().getStimulusBus().dispatchStimuli(pet);
+        StateManager stateManager = StateManager.forWorld(world);
+        PetSwarmIndex swarmIndex = stateManager.getSwarmIndex();
+        Vec3d center = sp.getPos();
+        List<PetSwarmIndex.SwarmEntry> pets = new ArrayList<>();
+        swarmIndex.forEachPetInRange(sp, center, 48.0, pets::add);
+        for (PetSwarmIndex.SwarmEntry entry : pets) {
+            MobEntity pet = entry.pet();
+            PetComponent pc = entry.component();
+            if (pet == null || pc == null) {
+                continue;
             }
-        });
+            MoodService.getInstance().getStimulusBus().queueSimpleStimulus(pet, collector -> {
+                collector.pushEmotion(PetComponent.Emotion.SAUDADE, 0.25f);
+                collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.20f);
+                collector.pushEmotion(PetComponent.Emotion.REGRET, 0.15f);
+            });
+            MoodService.getInstance().getStimulusBus().dispatchStimuli(pet);
+        }
     }
 
     // ==== Weather transitions (ultra-light) → SOBREMESA, YUGEN, FOREBODING, RELIEF ====
@@ -1145,12 +1151,18 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         // This could be enhanced with more sophisticated detection
         long time = world.getTime();
         // Check if any owned pets are nearby and actively engaged
-        return world.getEntitiesByClass(net.minecraft.entity.mob.MobEntity.class,
-            player.getBoundingBox().expand(16), mob -> {
-                var pc = PetComponent.get(mob);
-                return pc != null && pc.isOwnedBy(player) && 
-                       (time - pc.getLastAttackTick()) < 600; // Pet active in last 30s
-            }).size() > 0;
+        StateManager stateManager = StateManager.forWorld(world);
+        PetSwarmIndex swarmIndex = stateManager.getSwarmIndex();
+        Vec3d center = player.getPos();
+        List<PetSwarmIndex.SwarmEntry> pets = new ArrayList<>();
+        swarmIndex.forEachPetInRange(player, center, 16.0, pets::add);
+        for (PetSwarmIndex.SwarmEntry entry : pets) {
+            PetComponent component = entry.component();
+            if (component != null && (time - component.getLastAttackTick()) < 600) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ==== Utilities ====
@@ -1162,17 +1174,16 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
     private static StimulusSummary pushToNearbyOwnedPets(ServerPlayerEntity owner, double radius, PetConsumer consumer,
                                                          boolean recordStimulus) {
-        List<MobEntity> pets = owner.getWorld().getEntitiesByClass(MobEntity.class,
-            owner.getBoundingBox().expand(radius),
-            mob -> {
-                PetComponent pc = PetComponent.get(mob);
-                return pc != null && pc.isOwnedBy(owner);
-            }
-        );
+        StateManager stateManager = StateManager.forWorld((ServerWorld) owner.getWorld());
+        PetSwarmIndex swarmIndex = stateManager.getSwarmIndex();
+        Vec3d center = owner.getPos();
+        List<PetSwarmIndex.SwarmEntry> pets = new ArrayList<>();
+        swarmIndex.forEachPetInRange(owner, center, radius, pets::add);
         StimulusSummary.Builder builder = StimulusSummary.builder(owner.getWorld().getTime());
-        for (MobEntity pet : pets) {
-            PetComponent pc = PetComponent.get(pet);
-            if (pc == null) {
+        for (PetSwarmIndex.SwarmEntry entry : pets) {
+            MobEntity pet = entry.pet();
+            PetComponent pc = entry.component();
+            if (pet == null || pc == null) {
                 continue;
             }
             try {
@@ -1195,16 +1206,15 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
     private static void forEachOwnedPet(ServerPlayerEntity owner, double radius,
                                         BiConsumer<MobEntity, PetComponent> consumer) {
-        List<MobEntity> pets = owner.getWorld().getEntitiesByClass(MobEntity.class,
-            owner.getBoundingBox().expand(radius),
-            mob -> {
-                PetComponent pc = PetComponent.get(mob);
-                return pc != null && pc.isOwnedBy(owner);
-            }
-        );
-        for (MobEntity pet : pets) {
-            PetComponent component = PetComponent.get(pet);
-            if (component != null) {
+        StateManager stateManager = StateManager.forWorld((ServerWorld) owner.getWorld());
+        PetSwarmIndex swarmIndex = stateManager.getSwarmIndex();
+        Vec3d center = owner.getPos();
+        List<PetSwarmIndex.SwarmEntry> pets = new ArrayList<>();
+        swarmIndex.forEachPetInRange(owner, center, radius, pets::add);
+        for (PetSwarmIndex.SwarmEntry entry : pets) {
+            MobEntity pet = entry.pet();
+            PetComponent component = entry.component();
+            if (pet != null && component != null) {
                 consumer.accept(pet, component);
             }
         }
@@ -1959,18 +1969,17 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         // Run every 5 seconds to keep it lightweight
         if (world.getTime() % 100 != 0) return;
 
+        StateManager stateManager = StateManager.forWorld(world);
+        PetSwarmIndex swarmIndex = stateManager.getSwarmIndex();
         for (ServerPlayerEntity player : world.getPlayers()) {
-            List<MobEntity> pets = world.getEntitiesByClass(MobEntity.class,
-                player.getBoundingBox().expand(32),
-                mob -> {
-                    PetComponent pc = PetComponent.get(mob);
-                    return pc != null && pc.isOwnedBy(player);
-                }
-            );
+            Vec3d center = player.getPos();
+            List<PetSwarmIndex.SwarmEntry> pets = new ArrayList<>();
+            swarmIndex.forEachPetInRange(player, center, 32.0, pets::add);
 
-            for (MobEntity pet : pets) {
-                PetComponent pc = PetComponent.get(pet);
-                if (pc == null) continue;
+            for (PetSwarmIndex.SwarmEntry entry : pets) {
+                MobEntity pet = entry.pet();
+                PetComponent pc = entry.component();
+                if (pet == null || pc == null) continue;
 
                 MoodService.getInstance().getStimulusBus().queueStimulus(pet, component -> {
                     // Enhanced weather awareness
