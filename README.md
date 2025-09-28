@@ -1,4 +1,4 @@
-# Pets+ dev-0.85-gossiping (Pets Plus)
+# Pets+ dev-0.86-in-the-background (Pets Plus)
 A Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
 
 
@@ -156,6 +156,8 @@ Pets+ includes configuration files (`config/petsplus/...`) where you can customi
 - Roles, Abilities, Tributes, and Moods have configurations availible.
 - The backend API is extendable via Datapacks and Add-On Mods. Base roles, abilities, progression rewards, and emotional events can be tinkered, modified, or overwritten to your liking.
 
+## Performance
+All compute heavy tasks are done asynchronously using background threads. 
 
 ## Credits
 - woflo - (me)
