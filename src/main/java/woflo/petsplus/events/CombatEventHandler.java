@@ -20,6 +20,7 @@ import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.tag.TagKey;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
@@ -30,16 +31,18 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import woflo.petsplus.Petsplus;
-import woflo.petsplus.abilities.AbilityManager;
 import woflo.petsplus.api.TriggerContext;
-import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.ai.goals.OwnerAssistAttackGoal;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.StateManager;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
 
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -152,44 +155,50 @@ public class CombatEventHandler {
         float damageIntensity = damageIntensity(amount, maxHealth);
         float ownerDangerFactor = missingHealthFactor((float) healthPct, 0.6f);
 
-        // Push emotions to nearby owned pets: threat/aversion and protectiveness
-        owner.getWorld().getEntitiesByClass(MobEntity.class,
-            owner.getBoundingBox().expand(32),
-            mob -> {
-                PetComponent pc = PetComponent.get(mob);
-                return pc != null && pc.isOwnedBy(owner);
-            }
-        ).forEach(pet -> {
-            PetComponent pc = PetComponent.get(pet);
-            if (pc == null) return;
+        if (owner instanceof ServerPlayerEntity) {
+            List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(owner);
+            if (!swarm.isEmpty()) {
+                Vec3d ownerPos = owner.getPos();
+                double radiusSq = 32.0 * 32.0;
+                for (PetSwarmIndex.SwarmEntry entry : swarm) {
+                    MobEntity pet = entry.pet();
+                    PetComponent pc = entry.component();
+                    if (pet == null || pc == null || !pet.isAlive()) {
+                        continue;
+                    }
+                    if (!withinRadius(entry, ownerPos, radiusSq)) {
+                        continue;
+                    }
 
-            pc.setLastAttackTick(now);
+                    pc.setLastAttackTick(now);
 
-            float closeness = 0.35f + 0.65f * proximityFactor(owner, pet, 32.0);
-            float angstWeight = scaledAmount(0.16f, 0.50f, damageIntensity) * closeness;
-            float protectivenessWeight = scaledAmount(0.20f + (0.18f * ownerDangerFactor), 0.55f, damageIntensity) * closeness;
-            float startleWeight = scaledAmount(0.10f, 0.40f, damageIntensity);
-            float frustrationWeight = scaledAmount(0.04f, 0.30f, damageIntensity) * closeness;
-            float forebodingWeight = ownerDangerFactor > 0f
-                ? scaledAmount(0.05f, 0.40f, Math.max(ownerDangerFactor, damageIntensity)) * closeness
-                : 0f;
+                    float closeness = 0.35f + 0.65f * proximityFactor(owner, pet, 32.0);
+                    float angstWeight = scaledAmount(0.16f, 0.50f, damageIntensity) * closeness;
+                    float protectivenessWeight = scaledAmount(0.20f + (0.18f * ownerDangerFactor), 0.55f, damageIntensity) * closeness;
+                    float startleWeight = scaledAmount(0.10f, 0.40f, damageIntensity);
+                    float frustrationWeight = scaledAmount(0.04f, 0.30f, damageIntensity) * closeness;
+                    float forebodingWeight = ownerDangerFactor > 0f
+                        ? scaledAmount(0.05f, 0.40f, Math.max(ownerDangerFactor, damageIntensity)) * closeness
+                        : 0f;
 
-            if (angstWeight > 0f) {
-                pc.pushEmotion(PetComponent.Emotion.ANGST, angstWeight);
+                    if (angstWeight > 0f) {
+                        pc.pushEmotion(PetComponent.Emotion.ANGST, angstWeight);
+                    }
+                    if (protectivenessWeight > 0f) {
+                        pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protectivenessWeight);
+                    }
+                    if (startleWeight > 0f) {
+                        pc.pushEmotion(PetComponent.Emotion.STARTLE, startleWeight);
+                    }
+                    if (frustrationWeight > 0f) {
+                        pc.pushEmotion(PetComponent.Emotion.FRUSTRATION, frustrationWeight);
+                    }
+                    if (forebodingWeight > 0f) {
+                        pc.pushEmotion(PetComponent.Emotion.FOREBODING, forebodingWeight);
+                    }
+                }
             }
-            if (protectivenessWeight > 0f) {
-                pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protectivenessWeight);
-            }
-            if (startleWeight > 0f) {
-                pc.pushEmotion(PetComponent.Emotion.STARTLE, startleWeight);
-            }
-            if (frustrationWeight > 0f) {
-                pc.pushEmotion(PetComponent.Emotion.FRUSTRATION, frustrationWeight);
-            }
-            if (forebodingWeight > 0f) {
-                pc.pushEmotion(PetComponent.Emotion.FOREBODING, forebodingWeight);
-            }
-        });
+        }
 
         maybeCommandIntercept(owner, combatState, damageSource, now);
     }
@@ -255,72 +264,75 @@ public class CombatEventHandler {
             PetComponent.get(victimMob) != null &&
             PetComponent.get(victimMob).isOwnedBy(owner);
 
-        owner.getWorld().getEntitiesByClass(MobEntity.class,
-            owner.getBoundingBox().expand(32),
-            mob -> {
-                PetComponent pc = PetComponent.get(mob);
-                return pc != null && pc.isOwnedBy(owner) && !mob.equals(victim); // Exclude the victim from reactions
+        if (owner instanceof ServerPlayerEntity) {
+            List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(owner);
+            if (!swarm.isEmpty()) {
+                Vec3d ownerPos = owner.getPos();
+                double radiusSq = 32.0 * 32.0;
+                for (PetSwarmIndex.SwarmEntry entry : swarm) {
+                    MobEntity pet = entry.pet();
+                    PetComponent pc = entry.component();
+                    if (pet == null || pc == null || !pet.isAlive() || pet.equals(victim)) {
+                        continue;
+                    }
+                    if (!withinRadius(entry, ownerPos, radiusSq)) {
+                        continue;
+                    }
+
+                    pc.setLastAttackTick(now);
+
+                    float closeness = 0.35f + 0.65f * proximityFactor(owner, pet, 32.0);
+
+                    if (victimIsOwnersPet) {
+                        float distressWeight = scaledAmount(0.12f, 0.30f, intensity) * closeness;
+                        float uneasinessWeight = scaledAmount(0.08f, 0.25f, intensity) * closeness;
+                        float forebodingWeight = scaledAmount(0.06f, 0.18f, intensity) * closeness;
+
+                        pc.pushEmotion(PetComponent.Emotion.ANGST, distressWeight);
+                        pc.pushEmotion(PetComponent.Emotion.ENNUI, uneasinessWeight);
+                        pc.pushEmotion(PetComponent.Emotion.FOREBODING, forebodingWeight);
+                    } else {
+                        float protectivenessWeight = scaledAmount(0.18f, 0.45f, intensity) * closeness;
+                        float hopefulWeight = 0f;
+                        if (victimIsHostile) {
+                            float petHealthRatio = pet.getHealth() / pet.getMaxHealth();
+                            if (petHealthRatio > 0.75f) {
+                                hopefulWeight = scaledAmount(0.06f, 0.20f, Math.max(intensity, finishFactor)) * (0.75f + 0.25f * closeness) * petHealthRatio;
+                            }
+                        }
+                        float stoicWeight = finishFactor > 0f
+                            ? scaledAmount(0.05f, 0.30f, finishFactor) * (0.65f + 0.35f * closeness)
+                            : 0f;
+
+                        if (victimIsHostile) {
+                            float fervorWeight = scaledAmount(0.08f, 0.30f, intensity) * closeness;
+                            if (fervorWeight > 0f) {
+                                pc.pushEmotion(PetComponent.Emotion.KEFI, fervorWeight);
+                            }
+                        } else {
+                            float regretWeight = scaledAmount(0.08f, 0.30f, intensity);
+                            float wistfulWeight = scaledAmount(0.04f, 0.22f, Math.max(intensity, finishFactor)) * (0.6f + 0.4f * closeness);
+                            if (regretWeight > 0f) {
+                                pc.pushEmotion(PetComponent.Emotion.REGRET, regretWeight);
+                            }
+                            if (wistfulWeight > 0f) {
+                                pc.pushEmotion(PetComponent.Emotion.HIRAETH, wistfulWeight);
+                            }
+                        }
+
+                        if (protectivenessWeight > 0f) {
+                            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protectivenessWeight);
+                        }
+                        if (hopefulWeight > 0f) {
+                            pc.pushEmotion(PetComponent.Emotion.HOPEFUL, hopefulWeight);
+                        }
+                        if (stoicWeight > 0f) {
+                            pc.pushEmotion(PetComponent.Emotion.STOIC, stoicWeight);
+                        }
+                    }
+                }
             }
-        ).forEach(pet -> {
-            PetComponent pc = PetComponent.get(pet);
-            if (pc == null) return;
-
-            pc.setLastAttackTick(now);
-
-            float closeness = 0.35f + 0.65f * proximityFactor(owner, pet, 32.0);
-
-            if (victimIsOwnersPet) {
-                // Owner is hurting one of their own pets - witness pets react with unease and distress
-                float distressWeight = scaledAmount(0.12f, 0.30f, intensity) * closeness;
-                float uneasinessWeight = scaledAmount(0.08f, 0.25f, intensity) * closeness;
-                float forebodingWeight = scaledAmount(0.06f, 0.18f, intensity) * closeness;
-
-                pc.pushEmotion(PetComponent.Emotion.ANGST, distressWeight);
-                pc.pushEmotion(PetComponent.Emotion.ENNUI, uneasinessWeight);
-                pc.pushEmotion(PetComponent.Emotion.FOREBODING, forebodingWeight);
-            } else {
-                // Normal combat emotions when owner fights non-pets
-                float protectivenessWeight = scaledAmount(0.18f, 0.45f, intensity) * closeness;
-                float hopefulWeight = 0f;
-                if (victimIsHostile) {
-                    float petHealthRatio = pet.getHealth() / pet.getMaxHealth();
-                    if (petHealthRatio > 0.75f) {
-                        hopefulWeight = scaledAmount(0.06f, 0.20f, Math.max(intensity, finishFactor)) * (0.75f + 0.25f * closeness) * petHealthRatio;
-                    }
-                }
-                float stoicWeight = finishFactor > 0f
-                    ? scaledAmount(0.05f, 0.30f, finishFactor) * (0.65f + 0.35f * closeness)
-                    : 0f;
-
-                if (victimIsHostile) {
-                    float fervorWeight = scaledAmount(0.08f, 0.30f, intensity) * closeness;
-                    // Remove frustration when fighting hostiles - fervor and frustration are contradictory
-                    // Only apply frustration for prolonged/chip damage situations, not successful attacks
-                    if (fervorWeight > 0f) {
-                        pc.pushEmotion(PetComponent.Emotion.KEFI, fervorWeight);
-                    }
-                } else {
-                    float regretWeight = scaledAmount(0.08f, 0.30f, intensity);
-                    float wistfulWeight = scaledAmount(0.04f, 0.22f, Math.max(intensity, finishFactor)) * (0.6f + 0.4f * closeness);
-                    if (regretWeight > 0f) {
-                        pc.pushEmotion(PetComponent.Emotion.REGRET, regretWeight);
-                    }
-                    if (wistfulWeight > 0f) {
-                        pc.pushEmotion(PetComponent.Emotion.HIRAETH, wistfulWeight);
-                    }
-                }
-
-                if (protectivenessWeight > 0f) {
-                    pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protectivenessWeight);
-                }
-                if (hopefulWeight > 0f) {
-                    pc.pushEmotion(PetComponent.Emotion.HOPEFUL, hopefulWeight);
-                }
-                if (stoicWeight > 0f) {
-                    pc.pushEmotion(PetComponent.Emotion.STOIC, stoicWeight);
-                }
-            }
-        });
+        }
 
         Petsplus.LOGGER.debug("Owner {} dealt {} damage to {}, victim at {}% health",
             owner.getName().getString(), modifiedDamage, victim.getType().toString(), victimHealthPct * 100);
@@ -336,30 +348,35 @@ public class CombatEventHandler {
             float intensity = damageIntensity(damage, target.getMaxHealth());
             long now = shooter.getWorld().getTime();
 
-            shooter.getWorld().getEntitiesByClass(MobEntity.class,
-                shooter.getBoundingBox().expand(32),
-                mob -> {
-                    PetComponent pc = PetComponent.get(mob);
-                    return pc != null && pc.isOwnedBy(shooter);
-                }
-            ).forEach(pet -> {
-                PetComponent pc = PetComponent.get(pet);
-                if (pc != null) {
-                    pc.setLastAttackTick(now);
-                    float closeness = 0.40f + 0.60f * proximityFactor(shooter, pet, 32.0);
-                    float cheerfulWeight = scaledAmount(0.08f, 0.25f, intensity);
-                    float protectivenessWeight = scaledAmount(0.10f, 0.30f, intensity) * closeness;
+            if (shooter instanceof ServerPlayerEntity) {
+                List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(shooter);
+                if (!swarm.isEmpty()) {
+                    Vec3d shooterPos = shooter.getPos();
+                    double radiusSq = 32.0 * 32.0;
+                    for (PetSwarmIndex.SwarmEntry entry : swarm) {
+                        MobEntity pet = entry.pet();
+                        PetComponent pc = entry.component();
+                        if (pet == null || pc == null || !pet.isAlive()) {
+                            continue;
+                        }
+                        if (!withinRadius(entry, shooterPos, radiusSq)) {
+                            continue;
+                        }
+                        pc.setLastAttackTick(now);
+                        float closeness = 0.40f + 0.60f * proximityFactor(shooter, pet, 32.0);
+                        float cheerfulWeight = scaledAmount(0.08f, 0.25f, intensity);
+                        float protectivenessWeight = scaledAmount(0.10f, 0.30f, intensity) * closeness;
 
-                    // Health-based hopeful for ranged combat support
-                    float petHealthRatio = pet.getHealth() / pet.getMaxHealth();
-                    if (petHealthRatio > 0.8f) {
-                        float hopefulWeight = scaledAmount(0.08f, 0.25f, intensity) * closeness * petHealthRatio;
-                        pc.pushEmotion(PetComponent.Emotion.HOPEFUL, hopefulWeight);
+                        float petHealthRatio = pet.getHealth() / pet.getMaxHealth();
+                        if (petHealthRatio > 0.8f) {
+                            float hopefulWeight = scaledAmount(0.08f, 0.25f, intensity) * closeness * petHealthRatio;
+                            pc.pushEmotion(PetComponent.Emotion.HOPEFUL, hopefulWeight);
+                        }
+                        pc.pushEmotion(PetComponent.Emotion.CHEERFUL, cheerfulWeight);
+                        pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protectivenessWeight);
                     }
-                    pc.pushEmotion(PetComponent.Emotion.CHEERFUL, cheerfulWeight);
-                    pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protectivenessWeight);
                 }
-            });
+            }
         }
 
         // Handle as regular damage too
@@ -375,80 +392,46 @@ public class CombatEventHandler {
     }
     
     public static void triggerAbilitiesForOwner(PlayerEntity owner, String eventType) {
-        TriggerContext context = new TriggerContext(
-            (net.minecraft.server.world.ServerWorld) owner.getWorld(),
-            null,
-            owner,
-            eventType
-        );
-        
-        triggerNearbyPetAbilities(owner, context);
+        triggerNearbyPetAbilities(owner, eventType, null);
     }
 
     /**
      * Trigger abilities for an owner with additional context data.
      */
     public static void triggerAbilitiesForOwner(PlayerEntity owner, String eventType, java.util.Map<String, Object> data) {
-        TriggerContext context = new TriggerContext(
-            (net.minecraft.server.world.ServerWorld) owner.getWorld(),
-            null,
-            owner,
-            eventType
-        );
-        if (data != null) {
-            for (var e : data.entrySet()) {
-                context.withData(e.getKey(), e.getValue());
-            }
-        }
-        triggerNearbyPetAbilities(owner, context);
+        triggerNearbyPetAbilities(owner, eventType, data);
     }
-    
-    private static void triggerNearbyPetAbilities(PlayerEntity owner, String eventType) {
-        TriggerContext context = new TriggerContext(
-            (net.minecraft.server.world.ServerWorld) owner.getWorld(),
-            null,
-            owner,
-            eventType
-        );
-        
-        triggerNearbyPetAbilities(owner, context);
-    }
-    
-    private static void triggerNearbyPetAbilities(PlayerEntity owner, TriggerContext context) {
-        // Find nearby pets that belong to this owner
-        owner.getWorld().getEntitiesByClass(MobEntity.class, 
-            owner.getBoundingBox().expand(32), // 32 block radius
-            mob -> {
-                PetComponent petComponent = PetComponent.get(mob);
-                return petComponent != null && isPetOwnedBy(mob, owner);
-            }
-        ).forEach(pet -> {
-            if (pet == null) {
-                return; // Skip null pets
-            }
-            try {
-                AbilityManager.triggerAbilities(pet, context);
-            } catch (Exception e) {
-                Petsplus.LOGGER.error("Error triggering abilities for pet {}", pet.getType(), e);
-            }
-        });
-    }
-    
-    /**
-     * Check if a mob is owned by the given player.
-     */
-    private static boolean isPetOwnedBy(MobEntity pet, PlayerEntity owner) {
-        PetComponent component = PetComponent.get(pet);
-        if (component != null) {
-            return component.isOwnedBy(owner);
-        }
-        
-        // Fall back to checking tameable entities
-        if (pet instanceof PetsplusTameable tameable) {
-            return tameable.petsplus$getOwner() == owner;
-        }
 
-        return false;
+    private static void triggerNearbyPetAbilities(PlayerEntity owner, String eventType) {
+        triggerNearbyPetAbilities(owner, eventType, null);
+    }
+
+    private static void triggerNearbyPetAbilities(PlayerEntity owner, TriggerContext context) {
+        if (context == null) {
+            return;
+        }
+        Map<String, Object> data = context.getEventData().isEmpty()
+            ? null
+            : new HashMap<>(context.getEventData());
+        triggerNearbyPetAbilities(owner, context.getEventType(), data);
+    }
+
+    private static void triggerNearbyPetAbilities(PlayerEntity owner,
+                                                  String eventType,
+                                                  @Nullable Map<String, Object> data) {
+        if (!(owner instanceof ServerPlayerEntity serverOwner)) {
+            return;
+        }
+        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+        if (eventType == null || eventType.isEmpty()) {
+            return;
+        }
+        Map<String, Object> payload = (data == null || data.isEmpty())
+            ? null
+            : new HashMap<>(data);
+        StateManager.forWorld(serverWorld).dispatchAbilityTrigger(serverOwner, eventType, payload);
     }
 
     /**
@@ -792,34 +775,34 @@ public class CombatEventHandler {
             return;
         }
 
-        serverWorld.getEntitiesByClass(MobEntity.class,
-            owner.getBoundingBox().expand(OWNER_ASSIST_BROADCAST_RADIUS),
-            mob -> {
-                if (mob == null || mob.equals(target) || mob.isRemoved() || !mob.isAlive()) {
-                    return false;
-                }
-                PetComponent pc = PetComponent.get(mob);
-                if (pc == null || !pc.isOwnedBy(owner)) {
-                    return false;
-                }
-                if (mob instanceof net.minecraft.entity.passive.TameableEntity tameable && tameable.isSitting()) {
-                    return false;
-                }
-                return true;
+        List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(owner);
+        if (swarm.isEmpty()) {
+            return;
+        }
+        Vec3d ownerPos = owner.getPos();
+        double radiusSq = OWNER_ASSIST_BROADCAST_RADIUS * OWNER_ASSIST_BROADCAST_RADIUS;
+        for (PetSwarmIndex.SwarmEntry entry : swarm) {
+            MobEntity pet = entry.pet();
+            PetComponent pc = entry.component();
+            if (pet == null || pc == null || pet.equals(target) || pet.isRemoved() || !pet.isAlive()) {
+                continue;
             }
-        ).forEach(pet -> {
-            PetComponent pc = PetComponent.get(pet);
-            if (pc != null) {
-                if (OwnerAssistAttackGoal.isPetHesitating(pc, now) || OwnerAssistAttackGoal.isPetRegrouping(pc, now)) {
-                    OwnerAssistAttackGoal.clearAssistHesitation(pc);
-                    OwnerAssistAttackGoal.clearAssistRegroup(pc);
-                }
-                if (pc.getMoodStrength(PetComponent.Mood.AFRAID) > 0.96f) {
-                    OwnerAssistAttackGoal.markAssistHesitation(pc, now);
-                    return;
-                }
-                pc.setLastAttackTick(now);
+            if (!withinRadius(entry, ownerPos, radiusSq)) {
+                continue;
             }
+            if (pet instanceof TameableEntity tameable && tameable.isSitting()) {
+                continue;
+            }
+
+            if (OwnerAssistAttackGoal.isPetHesitating(pc, now) || OwnerAssistAttackGoal.isPetRegrouping(pc, now)) {
+                OwnerAssistAttackGoal.clearAssistHesitation(pc);
+                OwnerAssistAttackGoal.clearAssistRegroup(pc);
+            }
+            if (pc.getMoodStrength(PetComponent.Mood.AFRAID) > 0.96f) {
+                OwnerAssistAttackGoal.markAssistHesitation(pc, now);
+                continue;
+            }
+            pc.setLastAttackTick(now);
 
             if (pet.getTarget() != target) {
                 pet.setTarget(target);
@@ -829,7 +812,7 @@ public class CombatEventHandler {
             if (distanceSq > 9.0d || !pet.getNavigation().isFollowingPath()) {
                 OwnerAssistAttackGoal.primeNavigationForAssist(pet, target);
             }
-        });
+        }
     }
 
     private static void attemptOwnerAssistChain(MobEntity pet, PetComponent petComponent, LivingEntity defeatedTarget) {
@@ -1040,36 +1023,37 @@ public class CombatEventHandler {
 
         LivingEntity finalAttacker = attacker;
         final boolean interceptAttackerHostile = attackerHostile;
-        serverWorld.getEntitiesByClass(MobEntity.class,
-            owner.getBoundingBox().expand(16.0),
-            mob -> {
-                if (mob == null || mob.equals(finalAttacker) || !mob.isAlive() || mob.isRemoved()) {
-                    return false;
-                }
-                PetComponent pc = PetComponent.get(mob);
-                if (pc == null || !pc.isOwnedBy(owner)) {
-                    return false;
-                }
-                if (mob instanceof TameableEntity tameable && tameable.isSitting()) {
-                    return false;
-                }
-                long cooldownUntil = pc.getStateData("assist_intercept_cooldown", Long.class, 0L);
-                return cooldownUntil <= now;
+        List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(owner);
+        if (swarm.isEmpty()) {
+            return;
+        }
+        Vec3d ownerPos = owner.getPos();
+        double radiusSq = 16.0 * 16.0;
+        for (PetSwarmIndex.SwarmEntry entry : swarm) {
+            MobEntity pet = entry.pet();
+            PetComponent pc = entry.component();
+            if (pet == null || pc == null || pet.equals(finalAttacker) || !pet.isAlive() || pet.isRemoved()) {
+                continue;
             }
-        ).forEach(pet -> {
-            PetComponent pc = PetComponent.get(pet);
-            if (pc == null) {
-                return;
+            if (!withinRadius(entry, ownerPos, radiusSq)) {
+                continue;
+            }
+            if (pet instanceof TameableEntity tameable && tameable.isSitting()) {
+                continue;
+            }
+            long cooldownUntil = pc.getStateData("assist_intercept_cooldown", Long.class, 0L);
+            if (cooldownUntil > now) {
+                continue;
             }
 
             float protective = pc.getMoodStrength(PetComponent.Mood.PROTECTIVE);
             float focused = pc.getMoodStrength(PetComponent.Mood.FOCUSED);
             float afraid = pc.getMoodStrength(PetComponent.Mood.AFRAID);
             if (afraid > 0.7f) {
-                return;
+                continue;
             }
             if (protective < 0.2f && focused < 0.2f) {
-                return;
+                continue;
             }
 
             Vec3d intercept = computeInterceptPoint(owner, finalAttacker);
@@ -1085,7 +1069,7 @@ public class CombatEventHandler {
                 float urgency = MathHelper.clamp(0.35f + 0.20f * focused + (interceptAttackerHostile ? 0.12f : 0f), 0f, 1f);
                 combatState.rememberAggroTarget(finalAttacker, now, OWNER_ASSIST_TARGET_TTL, false, aggression, urgency, interceptAttackerHostile);
             }
-        });
+        }
     }
 
     private static Vec3d computeInterceptPoint(PlayerEntity owner, LivingEntity attacker) {
@@ -1130,6 +1114,34 @@ public class CombatEventHandler {
         }
 
         double radius = Math.max(4.0, pet.getWidth() + 3.0);
+        double radiusSq = radius * radius;
+        Vec3d petPos = pet.getPos();
+
+        boolean found = false;
+        if (owner instanceof ServerPlayerEntity) {
+            List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(owner);
+            if (!swarm.isEmpty()) {
+                for (PetSwarmIndex.SwarmEntry entry : swarm) {
+                    MobEntity other = entry.pet();
+                    PetComponent otherComponent = entry.component();
+                    if (other == null || other.equals(pet) || other.isRemoved() || !other.isAlive()) {
+                        continue;
+                    }
+                    if (!withinRadius(entry, petPos, radiusSq)) {
+                        continue;
+                    }
+                    if (otherComponent != null && otherComponent.isOwnedBy(owner) && isCatContext(other, otherComponent)) {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (found) {
+            return true;
+        }
+
         Box searchBox = pet.getBoundingBox().expand(radius);
         return !serverWorld.getEntitiesByClass(MobEntity.class, searchBox, other -> {
             if (other == null || other.equals(pet) || !other.isAlive() || other.isRemoved()) {
@@ -1184,6 +1196,24 @@ public class CombatEventHandler {
         }
 
         return false;
+    }
+
+    private static List<PetSwarmIndex.SwarmEntry> snapshotOwnedPets(PlayerEntity owner) {
+        if (!(owner instanceof ServerPlayerEntity serverOwner)) {
+            return List.of();
+        }
+        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+            return List.of();
+        }
+        StateManager stateManager = StateManager.forWorld(serverWorld);
+        return stateManager.getSwarmIndex().snapshotOwner(serverOwner.getUuid());
+    }
+
+    private static boolean withinRadius(PetSwarmIndex.SwarmEntry entry, Vec3d center, double radiusSq) {
+        double dx = entry.x() - center.x;
+        double dy = entry.y() - center.y;
+        double dz = entry.z() - center.z;
+        return (dx * dx) + (dy * dy) + (dz * dz) <= radiusSq;
     }
 
     private static boolean canPetSafelyChainToCreeper(CreeperEntity creeper, double petAttackDamage) {

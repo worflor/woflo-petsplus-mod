@@ -7,6 +7,8 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -68,6 +70,14 @@ public final class PetSwarmIndex {
         }
     }
 
+    public void clear() {
+        for (OwnerSwarm swarm : swarmsByOwner.values()) {
+            swarm.clear();
+        }
+        swarmsByOwner.clear();
+        swarmByPet.clear();
+    }
+
     public void forEachPetInRange(ServerPlayerEntity owner, Vec3d center, double radius,
                                   Consumer<SwarmEntry> consumer) {
         OwnerSwarm swarm = swarmsByOwner.get(owner.getUuid());
@@ -75,6 +85,19 @@ public final class PetSwarmIndex {
             return;
         }
         swarm.forEachInRange(center, radius, consumer);
+    }
+
+    public void forEachPetInRange(Vec3d center, double radius, Consumer<SwarmEntry> consumer) {
+        if (center == null || consumer == null) {
+            return;
+        }
+        double clampedRadius = Math.max(0.0D, radius);
+        if (swarmsByOwner.isEmpty()) {
+            return;
+        }
+        for (OwnerSwarm swarm : swarmsByOwner.values()) {
+            swarm.forEachInRange(center, clampedRadius, consumer);
+        }
     }
 
     public void forEachNeighbor(MobEntity pet, PetComponent component, double radius,
@@ -96,6 +119,17 @@ public final class PetSwarmIndex {
             }
         }
         swarm.forEachNeighbor(pet, component, radius, maxSamples, visitor);
+    }
+
+    public List<SwarmEntry> snapshotOwner(UUID ownerId) {
+        if (ownerId == null) {
+            return List.of();
+        }
+        OwnerSwarm swarm = swarmsByOwner.get(ownerId);
+        if (swarm == null) {
+            return List.of();
+        }
+        return swarm.snapshot();
     }
 
     public interface NeighborVisitor {
@@ -139,9 +173,17 @@ public final class PetSwarmIndex {
     }
 
     private final class OwnerSwarm {
+        private static final int CLUSTER_SHIFT = 2;
+        private static final double SECTION_SIZE = 16.0;
+        private static final double CLUSTER_SIZE = SECTION_SIZE * (1 << CLUSTER_SHIFT);
         private final UUID ownerId;
         private final Map<MobEntity, TrackedEntry> entries = new IdentityHashMap<>();
         private final Map<Long, OwnerCell> cells = new HashMap<>();
+        private final Map<Long, OwnerCluster> clusters = new HashMap<>();
+
+        private List<SwarmEntry> snapshotView = List.of();
+        private boolean snapshotDirty = true;
+        private int structureVersion = 0;
 
         private OwnerSwarm(UUID ownerId) {
             this.ownerId = ownerId;
@@ -161,6 +203,8 @@ public final class PetSwarmIndex {
             }
             entries.clear();
             cells.clear();
+            snapshotView = List.of();
+            markDirty();
         }
 
         void updateEntry(MobEntity pet, PetComponent component) {
@@ -170,12 +214,17 @@ public final class PetSwarmIndex {
             }
 
             TrackedEntry entry = entries.get(pet);
+            boolean changed = false;
             if (entry == null) {
                 entry = createEntry(pet, component);
                 entries.put(pet, entry);
                 addToCell(entry, entry.cellKey);
+                changed = true;
             } else {
-                entry.component = component;
+                if (entry.component != component) {
+                    entry.component = component;
+                    changed = true;
+                }
             }
 
             double x = pet.getX();
@@ -185,11 +234,19 @@ public final class PetSwarmIndex {
             long newKey = cellKey(x, y, z);
             if (entry.cellKey != newKey) {
                 moveEntry(entry, newKey);
+                changed = true;
             }
 
-            entry.x = x;
-            entry.y = y;
-            entry.z = z;
+            if (entry.x != x || entry.y != y || entry.z != z) {
+                entry.x = x;
+                entry.y = y;
+                entry.z = z;
+                changed = true;
+            }
+
+            if (changed) {
+                markDirty();
+            }
         }
 
         void remove(MobEntity pet) {
@@ -209,6 +266,9 @@ public final class PetSwarmIndex {
 
         private void addToCell(TrackedEntry entry, long key) {
             OwnerCell cell = cells.computeIfAbsent(key, OwnerCell::new);
+            if (cell.cluster == null) {
+                attachCellToCluster(cell);
+            }
             cell.add(entry);
             entry.cell = cell;
             entry.cellKey = key;
@@ -220,6 +280,7 @@ public final class PetSwarmIndex {
                 currentCell.remove(entry);
                 if (currentCell.isEmpty()) {
                     cells.remove(currentCell.key);
+                    detachCellFromCluster(currentCell);
                 }
             }
             addToCell(entry, newKey);
@@ -231,9 +292,13 @@ public final class PetSwarmIndex {
                 cell.remove(entry);
                 if (cell.isEmpty()) {
                     cells.remove(cell.key);
+                    detachCellFromCluster(cell);
                 }
             }
             swarmByPet.remove(entry.pet());
+            entry.snapshot = null;
+            entry.invalidateCache();
+            markDirty();
         }
 
         void forEachInRange(Vec3d center, double radius, Consumer<SwarmEntry> consumer) {
@@ -241,21 +306,14 @@ public final class PetSwarmIndex {
                 return;
             }
 
-            double radiusSq = radius * radius;
-            int sectionRadius = MathHelper.ceil(radius / 16.0);
-            int baseX = ChunkSectionPos.getSectionCoord(MathHelper.floor(center.x));
-            int baseY = ChunkSectionPos.getSectionCoord(MathHelper.floor(center.y));
-            int baseZ = ChunkSectionPos.getSectionCoord(MathHelper.floor(center.z));
-
-            for (int sx = baseX - sectionRadius; sx <= baseX + sectionRadius; sx++) {
-                for (int sy = baseY - sectionRadius; sy <= baseY + sectionRadius; sy++) {
-                    for (int sz = baseZ - sectionRadius; sz <= baseZ + sectionRadius; sz++) {
-                        OwnerCell cell = cells.get(ChunkSectionPos.asLong(sx, sy, sz));
-                        if (cell == null) continue;
-                        cell.forEach(center.x, center.y, center.z, radiusSq, consumer);
-                    }
+            final double radiusSq = radius * radius;
+            forEachClusterIntersectingSphere(center.x, center.y, center.z, radius, new ClusterConsumer() {
+                @Override
+                public boolean accept(OwnerCluster cluster) {
+                    cluster.forEach(center.x, center.y, center.z, radiusSq, consumer);
+                    return true;
                 }
-            }
+            });
         }
 
         void forEachNeighbor(MobEntity pet, PetComponent component, double radius,
@@ -274,26 +332,254 @@ public final class PetSwarmIndex {
                 }
             }
 
+            final double radiusSq = radius * radius;
+            final int limit = maxSamples > 0 ? maxSamples : Integer.MAX_VALUE;
+
+            NeighborCache cache = base.ensureCache();
+            if (cache.isValid(structureVersion) && cache.supports(radiusSq, limit)) {
+                cache.forEach(radiusSq, limit, visitor);
+                return;
+            }
+
+            cache.begin(structureVersion, radiusSq, limit);
+            final NeighborCache activeCache = cache;
+            final TrackedEntry searchBase = base;
+            final NeighborAcceptor collector = new NeighborAcceptor() {
+                @Override
+                public boolean accept(TrackedEntry entry, double distanceSq) {
+                    activeCache.add(entry, distanceSq);
+                    return true;
+                }
+            };
+
+            final int[] visited = new int[]{0};
+            forEachClusterIntersectingSphere(base.x, base.y, base.z, radius, new ClusterConsumer() {
+                @Override
+                public boolean accept(OwnerCluster cluster) {
+                    if (visited[0] >= limit) {
+                        return false;
+                    }
+                    visited[0] = cluster.forEachNeighbor(searchBase, radiusSq, collector, visited[0], limit);
+                    return visited[0] < limit;
+                }
+            });
+
+            cache.finish();
+            cache.forEach(radiusSq, limit, visitor);
+        }
+
+        List<SwarmEntry> snapshot() {
+            if (entries.isEmpty()) {
+                snapshotView = List.of();
+                snapshotDirty = false;
+                return List.of();
+            }
+            if (!snapshotDirty) {
+                return snapshotView;
+            }
+
+            List<SwarmEntry> copy = new ArrayList<>(entries.size());
+            var iterator = entries.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<MobEntity, TrackedEntry> mapEntry = iterator.next();
+                TrackedEntry tracked = mapEntry.getValue();
+                if (!tracked.isValid()) {
+                    iterator.remove();
+                    removeEntry(tracked);
+                    continue;
+                }
+                copy.add(tracked.snapshot());
+            }
+
+            if (copy.isEmpty()) {
+                snapshotView = List.of();
+            } else {
+                snapshotView = Collections.unmodifiableList(copy);
+            }
+            snapshotDirty = false;
+            return snapshotView;
+        }
+
+        private void markDirty() {
+            snapshotDirty = true;
+            bumpStructureVersion();
+        }
+
+        private void bumpStructureVersion() {
+            if (structureVersion == Integer.MAX_VALUE) {
+                structureVersion = 0;
+                invalidateAllCaches();
+            } else {
+                structureVersion++;
+            }
+        }
+
+        private void invalidateAllCaches() {
+            for (TrackedEntry entry : entries.values()) {
+                entry.invalidateCache();
+            }
+        }
+
+        private void attachCellToCluster(OwnerCell cell) {
+            long clusterKey = clusterKeyForCell(cell.key);
+            OwnerCluster cluster = clusters.computeIfAbsent(clusterKey, OwnerCluster::new);
+            cluster.addCell(cell);
+        }
+
+        private void detachCellFromCluster(OwnerCell cell) {
+            OwnerCluster cluster = cell.cluster;
+            if (cluster == null) {
+                return;
+            }
+            cluster.removeCell(cell);
+            if (cluster.isEmpty()) {
+                clusters.remove(cluster.key);
+            }
+            cell.cluster = null;
+        }
+
+        private void forEachClusterIntersectingSphere(double centerX, double centerY, double centerZ,
+                                                      double radius, ClusterConsumer consumer) {
+            if (clusters.isEmpty()) {
+                return;
+            }
+
+            double minX = centerX - radius;
+            double maxX = centerX + radius;
+            double minY = centerY - radius;
+            double maxY = centerY + radius;
+            double minZ = centerZ - radius;
+            double maxZ = centerZ + radius;
+
+            int minSectionX = ChunkSectionPos.getSectionCoord(MathHelper.floor(minX));
+            int maxSectionX = ChunkSectionPos.getSectionCoord(MathHelper.floor(maxX));
+            int minSectionY = ChunkSectionPos.getSectionCoord(MathHelper.floor(minY));
+            int maxSectionY = ChunkSectionPos.getSectionCoord(MathHelper.floor(maxY));
+            int minSectionZ = ChunkSectionPos.getSectionCoord(MathHelper.floor(minZ));
+            int maxSectionZ = ChunkSectionPos.getSectionCoord(MathHelper.floor(maxZ));
+
+            int minClusterX = minSectionX >> CLUSTER_SHIFT;
+            int maxClusterX = maxSectionX >> CLUSTER_SHIFT;
+            int minClusterY = minSectionY >> CLUSTER_SHIFT;
+            int maxClusterY = maxSectionY >> CLUSTER_SHIFT;
+            int minClusterZ = minSectionZ >> CLUSTER_SHIFT;
+            int maxClusterZ = maxSectionZ >> CLUSTER_SHIFT;
+
             double radiusSq = radius * radius;
-            int sectionRadius = MathHelper.ceil(radius / 16.0);
-            int baseX = ChunkSectionPos.getSectionCoord(MathHelper.floor(base.x));
-            int baseY = ChunkSectionPos.getSectionCoord(MathHelper.floor(base.y));
-            int baseZ = ChunkSectionPos.getSectionCoord(MathHelper.floor(base.z));
 
-            int limit = maxSamples > 0 ? maxSamples : Integer.MAX_VALUE;
-            int visited = 0;
-
-            for (int sx = baseX - sectionRadius; sx <= baseX + sectionRadius; sx++) {
-                for (int sy = baseY - sectionRadius; sy <= baseY + sectionRadius; sy++) {
-                    for (int sz = baseZ - sectionRadius; sz <= baseZ + sectionRadius; sz++) {
-                        OwnerCell cell = cells.get(ChunkSectionPos.asLong(sx, sy, sz));
-                        if (cell == null) continue;
-                        visited = cell.forEachNeighbor(base, radiusSq, visitor, visited, limit);
-                        if (visited >= limit) {
+            for (int clusterX = minClusterX; clusterX <= maxClusterX; clusterX++) {
+                for (int clusterY = minClusterY; clusterY <= maxClusterY; clusterY++) {
+                    for (int clusterZ = minClusterZ; clusterZ <= maxClusterZ; clusterZ++) {
+                        OwnerCluster cluster = clusters.get(ChunkSectionPos.asLong(clusterX, clusterY, clusterZ));
+                        if (cluster == null) {
+                            continue;
+                        }
+                        if (!cluster.intersectsSphere(centerX, centerY, centerZ, radiusSq)) {
+                            continue;
+                        }
+                        if (!consumer.accept(cluster)) {
                             return;
                         }
                     }
                 }
+            }
+        }
+
+        @FunctionalInterface
+        private interface ClusterConsumer {
+            boolean accept(OwnerCluster cluster);
+        }
+
+        private long clusterKeyForCell(long cellKey) {
+            int secX = ChunkSectionPos.unpackX(cellKey);
+            int secY = ChunkSectionPos.unpackY(cellKey);
+            int secZ = ChunkSectionPos.unpackZ(cellKey);
+            return ChunkSectionPos.asLong(secX >> CLUSTER_SHIFT, secY >> CLUSTER_SHIFT, secZ >> CLUSTER_SHIFT);
+        }
+
+        private double clusterMin(int clusterCoord) {
+            int section = clusterCoord << CLUSTER_SHIFT;
+            return ChunkSectionPos.getBlockCoord(section);
+        }
+
+        private double clusterMax(int clusterCoord) {
+            return clusterMin(clusterCoord) + CLUSTER_SIZE;
+        }
+
+        private double clamp(double value, double min, double max) {
+            if (value < min) return min;
+            if (value > max) return max;
+            return value;
+        }
+
+        private final class OwnerCluster {
+            private final long key;
+            private final List<OwnerCell> members = new ArrayList<>();
+
+            private OwnerCluster(long key) {
+                this.key = key;
+            }
+
+            void addCell(OwnerCell cell) {
+                members.add(cell);
+                cell.cluster = this;
+            }
+
+            void removeCell(OwnerCell cell) {
+                for (int i = 0; i < members.size(); i++) {
+                    if (members.get(i) == cell) {
+                        int last = members.size() - 1;
+                        if (i != last) {
+                            members.set(i, members.get(last));
+                        }
+                        members.remove(last);
+                        break;
+                    }
+                }
+            }
+
+            boolean isEmpty() {
+                return members.isEmpty();
+            }
+
+            boolean intersectsSphere(double centerX, double centerY, double centerZ, double radiusSq) {
+                int clusterX = ChunkSectionPos.unpackX(key);
+                int clusterY = ChunkSectionPos.unpackY(key);
+                int clusterZ = ChunkSectionPos.unpackZ(key);
+
+                double minX = clusterMin(clusterX);
+                double minY = clusterMin(clusterY);
+                double minZ = clusterMin(clusterZ);
+                double maxX = clusterMax(clusterX);
+                double maxY = clusterMax(clusterY);
+                double maxZ = clusterMax(clusterZ);
+
+                double nearestX = clamp(centerX, minX, maxX);
+                double nearestY = clamp(centerY, minY, maxY);
+                double nearestZ = clamp(centerZ, minZ, maxZ);
+
+                double dx = centerX - nearestX;
+                double dy = centerY - nearestY;
+                double dz = centerZ - nearestZ;
+                return (dx * dx) + (dy * dy) + (dz * dz) <= radiusSq;
+            }
+
+            void forEach(double centerX, double centerY, double centerZ, double radiusSq,
+                         Consumer<SwarmEntry> consumer) {
+                for (OwnerCell cell : members) {
+                    cell.forEach(centerX, centerY, centerZ, radiusSq, consumer);
+                }
+            }
+
+            int forEachNeighbor(TrackedEntry base, double radiusSq, NeighborAcceptor acceptor,
+                                 int visited, int limit) {
+                for (OwnerCell cell : members) {
+                    visited = cell.forEachNeighbor(base, radiusSq, acceptor, visited, limit);
+                    if (visited >= limit) {
+                        return visited;
+                    }
+                }
+                return visited;
             }
         }
     }
@@ -301,6 +587,7 @@ public final class PetSwarmIndex {
     private static final class OwnerCell {
         private final long key;
         private final List<TrackedEntry> members = new ArrayList<>();
+        private OwnerSwarm.OwnerCluster cluster;
 
         private OwnerCell(long key) {
             this.key = key;
@@ -346,7 +633,7 @@ public final class PetSwarmIndex {
             }
         }
 
-        int forEachNeighbor(TrackedEntry base, double radiusSq, NeighborVisitor visitor,
+        int forEachNeighbor(TrackedEntry base, double radiusSq, NeighborAcceptor acceptor,
                              int visited, int limit) {
             for (int i = 0; i < members.size();) {
                 TrackedEntry entry = members.get(i);
@@ -364,8 +651,9 @@ public final class PetSwarmIndex {
                 double dz = entry.z - base.z;
                 double distSq = (dx * dx) + (dy * dy) + (dz * dz);
                 if (distSq <= radiusSq) {
-                    visitor.accept(entry, distSq);
-                    visited++;
+                    if (acceptor.accept(entry, distSq)) {
+                        visited++;
+                    }
                     if (visited >= limit) {
                         return visited;
                     }
@@ -379,6 +667,8 @@ public final class PetSwarmIndex {
     private static final class TrackedEntry extends SwarmEntry {
         private long cellKey;
         private OwnerCell cell;
+        private SwarmEntry snapshot;
+        private NeighborCache neighborCache;
 
         private TrackedEntry(MobEntity pet, PetComponent component, double x, double y, double z, long cellKey) {
             super(pet, component, x, y, z);
@@ -393,6 +683,35 @@ public final class PetSwarmIndex {
             UUID ownerId = component != null ? component.getOwnerUuid() : null;
             return ownerId != null;
         }
+
+        SwarmEntry snapshot() {
+            SwarmEntry view = snapshot;
+            if (view == null) {
+                view = new SwarmEntry(pet(), component(), x, y, z);
+                snapshot = view;
+            } else {
+                view.component = component();
+                view.x = x;
+                view.y = y;
+                view.z = z;
+            }
+            return view;
+        }
+
+        NeighborCache ensureCache() {
+            NeighborCache cache = neighborCache;
+            if (cache == null) {
+                cache = new NeighborCache();
+                neighborCache = cache;
+            }
+            return cache;
+        }
+
+        void invalidateCache() {
+            if (neighborCache != null) {
+                neighborCache.invalidate();
+            }
+        }
     }
 
     private static long cellKey(double x, double y, double z) {
@@ -400,5 +719,78 @@ public final class PetSwarmIndex {
         int secY = ChunkSectionPos.getSectionCoord(MathHelper.floor(y));
         int secZ = ChunkSectionPos.getSectionCoord(MathHelper.floor(z));
         return ChunkSectionPos.asLong(secX, secY, secZ);
+    }
+
+    private interface NeighborAcceptor {
+        boolean accept(TrackedEntry entry, double distanceSq);
+    }
+
+    private static final class NeighborCache {
+        private static final Comparator<NeighborRecord> SORT_BY_DISTANCE = Comparator.comparingDouble(record -> record.distanceSq);
+
+        private int version = -1;
+        private double computedRadiusSq = 0.0D;
+        private int cachedLimit = 0;
+        private final List<NeighborRecord> records = new ArrayList<>();
+        private int size = 0;
+
+        boolean isValid(int currentVersion) {
+            return version == currentVersion;
+        }
+
+        boolean supports(double radiusSq, int limit) {
+            return radiusSq <= computedRadiusSq && limit <= cachedLimit;
+        }
+
+        void begin(int currentVersion, double radiusSq, int limit) {
+            this.version = currentVersion;
+            this.computedRadiusSq = radiusSq;
+            this.cachedLimit = limit;
+            this.size = 0;
+        }
+
+        void add(TrackedEntry entry, double distanceSq) {
+            NeighborRecord record;
+            if (size < records.size()) {
+                record = records.get(size);
+            } else {
+                record = new NeighborRecord();
+                records.add(record);
+            }
+            record.entry = entry;
+            record.distanceSq = distanceSq;
+            size++;
+        }
+
+        void finish() {
+            if (size > 1) {
+                records.subList(0, size).sort(SORT_BY_DISTANCE);
+            }
+        }
+
+        void forEach(double radiusSq, int limit, NeighborVisitor visitor) {
+            int remaining = limit;
+            double threshold = Math.min(radiusSq, computedRadiusSq);
+            for (int i = 0; i < size && remaining > 0; i++) {
+                NeighborRecord record = records.get(i);
+                if (record.distanceSq > threshold) {
+                    break;
+                }
+                visitor.accept(record.entry, record.distanceSq);
+                remaining--;
+            }
+        }
+
+        void invalidate() {
+            version = -1;
+            computedRadiusSq = 0.0D;
+            cachedLimit = 0;
+            size = 0;
+        }
+
+        private static final class NeighborRecord {
+            private TrackedEntry entry;
+            private double distanceSq;
+        }
     }
 }

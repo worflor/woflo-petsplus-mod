@@ -1,13 +1,16 @@
 package woflo.petsplus.roles.support;
 
-import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.StateManager;
 import woflo.petsplus.util.PetPerchUtil;
 import woflo.petsplus.util.TriggerConditions;
+
+import java.util.List;
 
 /**
  * Support role behaviors for pet-agnostic utility enhancement.
@@ -29,23 +32,29 @@ public class SupportBehaviors {
             return discount;
         }
 
-        return serverWorld.getEntitiesByClass(
-            MobEntity.class,
-            owner.getBoundingBox().expand(16),
-            entity -> {
-                PetComponent component = PetComponent.get(entity);
-                return component != null &&
-                       component.hasRole(PetRoleType.SUPPORT) &&
-                       component.isOwnedBy(owner) &&
-                       entity.isAlive() &&
-                       PetPerchUtil.isPetPerched(component);
+        StateManager stateManager = StateManager.forWorld(serverWorld);
+        List<PetSwarmIndex.SwarmEntry> swarm = stateManager.getSwarmIndex().snapshotOwner(owner.getUuid());
+        for (PetSwarmIndex.SwarmEntry entry : swarm) {
+            PetComponent component = entry.component();
+            if (component == null || !component.hasRole(PetRoleType.SUPPORT)) {
+                continue;
             }
-        ).stream()
-        .findFirst()
-        .map(pet -> discount)
-        .orElse(0.0);
+            if (!component.isOwnedBy(owner)) {
+                continue;
+            }
+            if (!PetPerchUtil.isPetPerched(component)) {
+                continue;
+            }
+            var pet = entry.pet();
+            if (pet == null || !pet.isAlive()) {
+                continue;
+            }
+            return discount;
+        }
+
+        return 0.0;
     }
-    
+
     /**
      * Get extra radius for aura pulses when owner is mounted.
      * Called by aura effects to determine radius bonus.
@@ -61,17 +70,27 @@ public class SupportBehaviors {
         }
 
         // Find nearby Support pets
-        boolean hasNearbySupport = !serverWorld.getEntitiesByClass(
-            MobEntity.class,
-            owner.getBoundingBox().expand(16),
-            entity -> {
-                PetComponent component = PetComponent.get(entity);
-                return component != null &&
-                       component.hasRole(PetRoleType.SUPPORT) &&
-                       component.isOwnedBy(owner) &&
-                       entity.isAlive();
+        StateManager stateManager = StateManager.forWorld(serverWorld);
+        List<PetSwarmIndex.SwarmEntry> swarm = stateManager.getSwarmIndex().snapshotOwner(owner.getUuid());
+        boolean hasNearbySupport = false;
+        double radiusSq = 16 * 16;
+        for (PetSwarmIndex.SwarmEntry entry : swarm) {
+            PetComponent component = entry.component();
+            if (component == null || !component.hasRole(PetRoleType.SUPPORT)) {
+                continue;
             }
-        ).isEmpty();
+            if (!component.isOwnedBy(owner)) {
+                continue;
+            }
+            var pet = entry.pet();
+            if (pet == null || !pet.isAlive()) {
+                continue;
+            }
+            if (pet.squaredDistanceTo(owner) <= radiusSq) {
+                hasNearbySupport = true;
+                break;
+            }
+        }
 
         boolean eligibleMount = TriggerConditions.isMountedOnSaddled(owner);
 

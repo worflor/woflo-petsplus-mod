@@ -6,16 +6,22 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.processing.AsyncWorkCoordinator;
+
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.WeakHashMap;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
@@ -34,8 +40,32 @@ public final class EmotionStimulusBus {
     }
 
     @FunctionalInterface
+    public interface SimpleStimulusAction {
+        void contribute(SimpleStimulusCollector collector);
+    }
+
+    public interface SimpleStimulusCollector {
+        void pushEmotion(PetComponent.Emotion emotion, float amount);
+    }
+
+    @FunctionalInterface
     public interface DispatchListener {
         void onDispatch(MobEntity pet, PetComponent component, long time);
+    }
+
+    @FunctionalInterface
+    public interface QueueListener {
+        void onStimulusQueued(ServerWorld world, MobEntity pet, long time);
+    }
+
+    @FunctionalInterface
+    public interface IdleListener {
+        /**
+         * Invoked when an idle emotion refresh is scheduled. Implementations may return {@code true}
+         * to indicate they took ownership of the scheduling work, preventing the default executor
+         * from running.
+         */
+        boolean onIdleStimulusScheduled(ServerWorld world, MobEntity pet, long scheduledTick);
     }
 
     private static final ScheduledExecutorService IDLE_EXECUTOR = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
@@ -53,9 +83,11 @@ public final class EmotionStimulusBus {
     private static final long IDLE_JITTER_SALT = 0x2D63A86C0E1F4AC3L;
 
     private final MoodService service;
-    private final Map<MobEntity, List<StimulusAction>> pending = new WeakHashMap<>();
+    private final Map<MobEntity, PendingStimuli> pending = new WeakHashMap<>();
     private final Map<UUID, ScheduledFuture<?>> idleTasks = new ConcurrentHashMap<>();
     private final List<DispatchListener> dispatchListeners = new CopyOnWriteArrayList<>();
+    private final List<QueueListener> queueListeners = new CopyOnWriteArrayList<>();
+    private final List<IdleListener> idleListeners = new CopyOnWriteArrayList<>();
 
     public EmotionStimulusBus(MoodService service) {
         this.service = service;
@@ -67,29 +99,165 @@ public final class EmotionStimulusBus {
             return;
         }
         synchronized (pending) {
-            pending.computeIfAbsent(pet, ignored -> new ArrayList<>()).add(action);
+            pending.computeIfAbsent(pet, ignored -> new PendingStimuli()).synchronous.add(action);
         }
         MinecraftServer server = serverWorld.getServer();
-        server.submit(() -> dispatchStimuli(pet));
+        long worldTime = serverWorld.getTime();
+        server.submit(() -> notifyQueued(serverWorld, pet, worldTime));
     }
 
-    public void dispatchStimuli(MobEntity pet) {
+    public void queueSimpleStimulus(MobEntity pet, SimpleStimulusAction action) {
+        Objects.requireNonNull(pet, "pet");
         if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
-        List<StimulusAction> actions;
         synchronized (pending) {
-            actions = pending.remove(pet);
+            pending.computeIfAbsent(pet, ignored -> new PendingStimuli()).simple.add(action);
         }
-        if (actions == null || actions.isEmpty()) {
+        MinecraftServer server = serverWorld.getServer();
+        long worldTime = serverWorld.getTime();
+        server.submit(() -> notifyQueued(serverWorld, pet, worldTime));
+    }
+
+    public void dispatchStimuli(MobEntity pet) {
+        dispatchStimuli(pet, null);
+    }
+
+    public void dispatchStimuli(MobEntity pet, @Nullable AsyncWorkCoordinator coordinator) {
+        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+        PendingStimuli stimuli;
+        synchronized (pending) {
+            stimuli = pending.remove(pet);
+        }
+        if (stimuli == null || stimuli.isEmpty()) {
             return;
         }
 
         PetComponent component = PetComponent.getOrCreate(pet);
         long time = serverWorld.getTime();
+        if (coordinator != null
+            && stimuli.synchronous.isEmpty()
+            && !stimuli.simple.isEmpty()) {
+            processSimpleStimuliAsync(pet, serverWorld, stimuli.simple, coordinator);
+            return;
+        }
+
+        processStimuliSynchronously(pet, component, serverWorld, time, stimuli.simple, stimuli.synchronous);
+    }
+
+    public void addDispatchListener(DispatchListener listener) {
+        if (listener != null) {
+            dispatchListeners.add(listener);
+        }
+    }
+
+    public void removeDispatchListener(DispatchListener listener) {
+        if (listener != null) {
+            dispatchListeners.remove(listener);
+        }
+    }
+
+    public void addQueueListener(QueueListener listener) {
+        if (listener != null) {
+            queueListeners.add(listener);
+        }
+    }
+
+    public void removeQueueListener(QueueListener listener) {
+        if (listener != null) {
+            queueListeners.remove(listener);
+        }
+    }
+
+    public void addIdleListener(IdleListener listener) {
+        if (listener != null) {
+            idleListeners.add(listener);
+        }
+    }
+
+    public void removeIdleListener(IdleListener listener) {
+        if (listener != null) {
+            idleListeners.remove(listener);
+        }
+    }
+
+    private void notifyQueued(ServerWorld world, MobEntity pet, long time) {
+        if (queueListeners.isEmpty()) {
+            dispatchStimuli(pet, null);
+            return;
+        }
+        for (QueueListener listener : queueListeners) {
+            try {
+                listener.onStimulusQueued(world, pet, time);
+            } catch (Exception ex) {
+                Petsplus.LOGGER.error("Queued emotion stimulus listener failed for pet {}", pet.getUuid(), ex);
+            }
+        }
+    }
+
+    private void scheduleIdleDrain(MobEntity pet, PetComponent component, ServerWorld world, long now) {
+        UUID id = pet.getUuid();
+        ScheduledFuture<?> existing = idleTasks.remove(id);
+        if (existing != null) {
+            existing.cancel(false);
+        }
+        long delayTicks = MathHelper.clamp(component.estimateNextEmotionUpdate(now), 20L, 400L);
+        // Deterministically select a small ±8–10 tick offset so each pet drifts on its own cadence.
+        int jitterIndex = component.pickStableIndex(IDLE_JITTER_SALT, IDLE_JITTER_CHOICES.length);
+        long jitter = IDLE_JITTER_CHOICES[jitterIndex];
+        long adjustedTicks = MathHelper.clamp(delayTicks + jitter, 20L, 400L);
+        long scheduledTick = now + adjustedTicks;
+        if (notifyIdleScheduled(world, pet, scheduledTick)) {
+            return;
+        }
+        long delayMillis = adjustedTicks * 50L;
+        ScheduledFuture<?> future = IDLE_EXECUTOR.schedule(() -> {
+            MinecraftServer server = world.getServer();
+            server.submit(() -> service.ensureFresh(pet, component, world.getTime()));
+        }, delayMillis, TimeUnit.MILLISECONDS);
+        idleTasks.put(id, future);
+    }
+
+    private boolean notifyIdleScheduled(ServerWorld world, MobEntity pet, long scheduledTick) {
+        if (idleListeners.isEmpty()) {
+            return false;
+        }
+        boolean handled = false;
+        for (IdleListener listener : idleListeners) {
+            try {
+                handled |= listener.onIdleStimulusScheduled(world, pet, scheduledTick);
+            } catch (Exception ex) {
+                Petsplus.LOGGER.error("Idle emotion listener failed for pet {}", pet.getUuid(), ex);
+            }
+        }
+        return handled;
+    }
+
+    private void processStimuliSynchronously(MobEntity pet,
+                                             PetComponent component,
+                                             ServerWorld world,
+                                             long time,
+                                             List<SimpleStimulusAction> simpleActions,
+                                             List<StimulusAction> synchronousActions) {
         service.beginStimulusDispatch();
         try {
-            for (StimulusAction action : actions) {
+            if (!simpleActions.isEmpty()) {
+                SimpleStimulusCollectorImpl collector = new SimpleStimulusCollectorImpl();
+                for (SimpleStimulusAction action : simpleActions) {
+                    try {
+                        action.contribute(collector);
+                    } catch (Exception ex) {
+                        Petsplus.LOGGER.error("Failed to collect simple emotion stimulus for pet {}", pet.getUuid(), ex);
+                    }
+                }
+                for (Map.Entry<PetComponent.Emotion, Float> entry : collector.results().entrySet()) {
+                    component.pushEmotion(entry.getKey(), entry.getValue());
+                }
+            }
+
+            for (StimulusAction action : synchronousActions) {
                 try {
                     action.accept(component);
                 } catch (Exception ex) {
@@ -109,38 +277,115 @@ public final class EmotionStimulusBus {
         }
 
         service.commitStimuli(pet, component, time);
-        scheduleIdleDrain(pet, component, serverWorld, time);
+        scheduleIdleDrain(pet, component, world, time);
     }
 
-    public void addDispatchListener(DispatchListener listener) {
-        if (listener != null) {
-            dispatchListeners.add(listener);
+    private void processSimpleStimuliAsync(MobEntity pet,
+                                           ServerWorld world,
+                                           List<SimpleStimulusAction> actions,
+                                           AsyncWorkCoordinator coordinator) {
+        if (actions.isEmpty()) {
+            return;
+        }
+        UUID petId = pet.getUuid();
+        coordinator.submitStandalone(
+            "mood-stimulus-" + petId,
+            () -> computeSimpleStimulusResult(actions),
+            result -> applySimpleStimulusResult(pet, world, result)
+        ).exceptionally(error -> {
+            Throwable cause = unwrap(error);
+            if (cause instanceof RejectedExecutionException) {
+                Petsplus.LOGGER.debug("Async mood stimulus rejected for pet {}, running synchronously", petId);
+                PetComponent component = PetComponent.getOrCreate(pet);
+                long time = world.getTime();
+                processStimuliSynchronously(pet, component, world, time, actions, List.of());
+            } else {
+                Petsplus.LOGGER.error("Async mood stimulus failed for pet {}", petId, cause);
+            }
+            return null;
+        });
+    }
+
+    private SimpleStimulusResult computeSimpleStimulusResult(List<SimpleStimulusAction> actions) throws Exception {
+        SimpleStimulusCollectorImpl collector = new SimpleStimulusCollectorImpl();
+        for (SimpleStimulusAction action : actions) {
+            action.contribute(collector);
+        }
+        return new SimpleStimulusResult(new EnumMap<>(collector.results()));
+    }
+
+    private void applySimpleStimulusResult(MobEntity pet,
+                                           ServerWorld expectedWorld,
+                                           SimpleStimulusResult result) {
+        if (result == null || result.isEmpty()) {
+            return;
+        }
+        if (!(pet.getWorld() instanceof ServerWorld world) || world != expectedWorld || pet.isRemoved()) {
+            return;
+        }
+
+        PetComponent component = PetComponent.getOrCreate(pet);
+        long time = world.getTime();
+        service.beginStimulusDispatch();
+        try {
+            for (Map.Entry<PetComponent.Emotion, Float> entry : result.emotionDeltas().entrySet()) {
+                component.pushEmotion(entry.getKey(), entry.getValue());
+            }
+
+            for (DispatchListener listener : dispatchListeners) {
+                try {
+                    listener.onDispatch(pet, component, time);
+                } catch (Exception ex) {
+                    Petsplus.LOGGER.error("Reactive emotion provider failed for pet {}", pet.getUuid(), ex);
+                }
+            }
+        } finally {
+            service.endStimulusDispatch();
+        }
+
+        service.commitStimuli(pet, component, time);
+        scheduleIdleDrain(pet, component, world, time);
+    }
+
+    private static final class PendingStimuli {
+        final List<StimulusAction> synchronous = new ArrayList<>();
+        final List<SimpleStimulusAction> simple = new ArrayList<>();
+
+        boolean isEmpty() {
+            return synchronous.isEmpty() && simple.isEmpty();
         }
     }
 
-    public void removeDispatchListener(DispatchListener listener) {
-        if (listener != null) {
-            dispatchListeners.remove(listener);
+    private static final class SimpleStimulusCollectorImpl implements SimpleStimulusCollector {
+        private final EnumMap<PetComponent.Emotion, Float> totals = new EnumMap<>(PetComponent.Emotion.class);
+
+        @Override
+        public void pushEmotion(PetComponent.Emotion emotion, float amount) {
+            if (emotion == null) {
+                return;
+            }
+            if (Math.abs(amount) <= 0.0001f) {
+                return;
+            }
+            totals.merge(emotion, amount, Float::sum);
+        }
+
+        EnumMap<PetComponent.Emotion, Float> results() {
+            return totals;
         }
     }
 
-    private void scheduleIdleDrain(MobEntity pet, PetComponent component, ServerWorld world, long now) {
-        UUID id = pet.getUuid();
-        ScheduledFuture<?> existing = idleTasks.remove(id);
-        if (existing != null) {
-            existing.cancel(false);
+    private static Throwable unwrap(Throwable error) {
+        if (error instanceof CompletionException completion && completion.getCause() != null) {
+            return completion.getCause();
         }
-        long delayTicks = MathHelper.clamp(component.estimateNextEmotionUpdate(now), 20L, 400L);
-        // Deterministically select a small ±8–10 tick offset so each pet drifts on its own cadence.
-        int jitterIndex = component.pickStableIndex(IDLE_JITTER_SALT, IDLE_JITTER_CHOICES.length);
-        long jitter = IDLE_JITTER_CHOICES[jitterIndex];
-        long adjustedTicks = MathHelper.clamp(delayTicks + jitter, 20L, 400L);
-        long delayMillis = adjustedTicks * 50L;
-        ScheduledFuture<?> future = IDLE_EXECUTOR.schedule(() -> {
-            MinecraftServer server = world.getServer();
-            server.submit(() -> service.ensureFresh(pet, component, world.getTime()));
-        }, delayMillis, TimeUnit.MILLISECONDS);
-        idleTasks.put(id, future);
+        return error;
+    }
+
+    private record SimpleStimulusResult(EnumMap<PetComponent.Emotion, Float> emotionDeltas) {
+        boolean isEmpty() {
+            return emotionDeltas == null || emotionDeltas.isEmpty();
+        }
     }
 
 }

@@ -133,4 +133,15 @@ public final class PetWorkScheduler {
             consumer.accept(task);
         }
     }
+
+    public synchronized void clear() {
+        for (EnumMap<TaskType, ScheduledTask> tasks : tasksByComponent.values()) {
+            for (ScheduledTask task : tasks.values()) {
+                task.cancelled = true;
+                task.component.onTaskUnschedule(task.type);
+            }
+        }
+        tasksByComponent.clear();
+        buckets.clear();
+    }
 }
