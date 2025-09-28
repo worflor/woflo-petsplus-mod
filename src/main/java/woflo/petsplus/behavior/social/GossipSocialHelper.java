@@ -18,7 +18,7 @@ final class GossipSocialHelper {
 
     private static final float RESTLESS_THRESHOLD = 0.3f;
     private static final float ANGER_THRESHOLD = 0.25f;
-    private static final float MIN_DELTA = 0.0035f;
+    private static final float MIN_DELTA = 0.007f;
 
     private GossipSocialHelper() {
     }
@@ -59,52 +59,52 @@ final class GossipSocialHelper {
 
     static float curiosityDelta(RumorEntry rumor, float knowledgeGap, boolean alreadyKnows, boolean isAbstract) {
         float strength = rumorStrength(rumor);
-        float gapBoost = MathHelper.clamp(knowledgeGap * 0.0065f, 0f, 0.01f);
-        float base = 0.0045f + (strength * 0.0125f) + gapBoost;
+        float gapBoost = MathHelper.clamp(knowledgeGap * 0.016f, 0f, 0.024f);
+        float base = 0.012f + (strength * 0.03f) + gapBoost;
         if (alreadyKnows) {
-            base *= 0.4f;
+            base *= 0.5f;
         }
         if (isAbstract) {
-            base *= 0.75f;
+            base *= 0.8f;
         }
-        return clamp(base, MIN_DELTA, 0.024f);
+        return clamp(base, 0.008f, 0.05f);
     }
 
     static float loyaltyDelta(RumorEntry rumor, float knowledgeGap, boolean witnessed) {
         float strength = rumorStrength(rumor);
-        float gapBoost = MathHelper.clamp(knowledgeGap * 0.0055f, 0f, 0.009f);
-        float base = 0.0038f + (strength * 0.0105f) + gapBoost;
+        float gapBoost = MathHelper.clamp(knowledgeGap * 0.014f, 0f, 0.022f);
+        float base = 0.01f + (strength * 0.026f) + gapBoost;
         if (witnessed) {
-            base += 0.0035f;
+            base += 0.008f;
         }
-        return clamp(base, MIN_DELTA, 0.02f);
+        return clamp(base, 0.007f, 0.044f);
     }
 
     static float frustrationDelta(RumorEntry rumor) {
         float confidenceDrop = 1f - MathHelper.clamp(rumor.confidence(), 0f, 1f);
-        float shareWear = MathHelper.clamp(rumor.shareCount() * 0.0022f, 0f, 0.008f);
-        float base = 0.0042f + (confidenceDrop * 0.014f) + shareWear;
+        float shareWear = MathHelper.clamp(rumor.shareCount() * 0.005f, 0f, 0.018f);
+        float base = 0.01f + (confidenceDrop * 0.032f) + shareWear;
         if (GossipTopics.isAbstract(rumor.topicId())) {
-            base *= 0.8f;
+            base *= 0.85f;
         }
-        return clamp(base, 0.004f, 0.02f);
+        return clamp(base, 0.008f, 0.046f);
     }
 
     static float storytellerEaseDelta(int sharedCount, float averageStrength) {
-        float base = 0.0062f + (averageStrength * 0.0135f) + (sharedCount * 0.0025f);
-        return clamp(base, 0.0055f, 0.028f);
+        float base = 0.014f + (averageStrength * 0.032f) + (sharedCount * 0.006f);
+        return clamp(base, 0.012f, 0.056f);
     }
 
     static float storytellerPrideDelta(float averageStrength, float storytellerKnowledge) {
-        float knowledgeBoost = MathHelper.clamp(storytellerKnowledge * 0.0025f, 0f, 0.01f);
-        float base = 0.0045f + (averageStrength * 0.0105f) + knowledgeBoost;
-        return clamp(base, 0.004f, 0.02f);
+        float knowledgeBoost = MathHelper.clamp(storytellerKnowledge * 0.006f, 0f, 0.024f);
+        float base = 0.011f + (averageStrength * 0.026f) + knowledgeBoost;
+        return clamp(base, 0.009f, 0.048f);
     }
 
     static float empathyDelta(RumorEntry rumor, float knowledgeGap) {
-        float base = 0.0045f + (rumorStrength(rumor) * 0.0105f)
-            + MathHelper.clamp(knowledgeGap * 0.006f, 0f, 0.01f);
-        return clamp(base, 0.004f, 0.02f);
+        float base = 0.011f + (rumorStrength(rumor) * 0.026f)
+            + MathHelper.clamp(knowledgeGap * 0.014f, 0f, 0.024f);
+        return clamp(base, 0.009f, 0.048f);
     }
 
     static float rumorStrength(RumorEntry rumor) {

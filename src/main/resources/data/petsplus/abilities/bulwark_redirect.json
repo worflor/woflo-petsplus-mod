@@ -1,0 +1,26 @@
+{
+  "id": "petsplus:bulwark_redirect",
+  "trigger": {
+    "event": "after_pet_redirect",
+    "internal_cd_ticks": 40
+  },
+  "effects": [
+    {
+      "type": "projectile_dr_for_owner",
+      "reduction_pct": 0.25,
+      "duration_ticks": 100,
+      "radius": 8.0
+    },
+    {
+      "type": "buff",
+      "target": "pet",
+      "id": "minecraft:resistance",
+      "duration": 60,
+      "amplifier": 0
+    },
+    {
+      "type": "retarget_nearest_hostile",
+      "radius": 6.0
+    }
+  ]
+}

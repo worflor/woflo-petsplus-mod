@@ -3,7 +3,7 @@
   "trigger": {
     "event": "owner_dealt_damage",
     "target_hp_pct_below": 0.4,
-    "cooldown_ticks": 200
+    "internal_cd_ticks": 200
   },
   "effects": [
     {

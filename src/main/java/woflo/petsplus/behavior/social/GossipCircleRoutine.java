@@ -185,12 +185,12 @@ public class GossipCircleRoutine implements SocialBehaviorRoutine {
             rumorIndex++;
             if (shared) {
                 sharedRumors.add(rumor);
-                if (context.tryMarkBeat("gossip_circle_cluster_" + clusterIndex, 240)) {
+                if (context.tryMarkBeat("gossip_circle_cluster_" + clusterIndex, 2400)) {
                     Text cueText = GossipNarration.buildCircleCue(storyteller, cluster, rumor, context.currentTick());
                     EmotionContextCues.sendCue(context.owner(),
                         "social.gossip.circle." + context.pet().getUuidAsString() + "." + clusterIndex,
                         cueText,
-                        240);
+                        2400);
                 }
             } else if (!GossipTopics.isAbstract(rumor.topicId())) {
                 storytellerLedger.deferRumor(rumor.topicId());

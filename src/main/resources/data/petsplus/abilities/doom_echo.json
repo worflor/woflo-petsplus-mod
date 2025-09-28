@@ -8,7 +8,7 @@
   "effects": [
     {
       "type": "area_effect",
-      "radius": 5,
+      "radius": 5.0,
       "effects": [
         {
           "id": "minecraft:weakness",
@@ -19,7 +19,7 @@
     },
     {
       "type": "owner_next_attack_bonus",
-      "bonus_damage_pct": 0.0,
+      "bonus_damage_pct": 0.1,
       "expire_ticks": 100,
       "on_hit_effect": {
         "type": "heal_owner_flat_pct",
@@ -27,7 +27,7 @@
       }
     },
     {
-      "type": "effect",
+      "type": "buff",
       "target": "owner",
       "id": "minecraft:nausea",
       "duration": 20,

@@ -2,7 +2,8 @@
   "id": "petsplus:voidbrand",
   "trigger": {
     "event": "aggro_acquired",
-    "cooldown_ticks": 300
+    "cooldown_ticks": 300,
+    "internal_cd_ticks": 300
   },
   "effects": [
     {

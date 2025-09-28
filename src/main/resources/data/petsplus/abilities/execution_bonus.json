@@ -1,0 +1,22 @@
+{
+  "id": "petsplus:execution_bonus",
+  "trigger": {
+    "event": "owner_killed_entity",
+    "target_had_tag": "petsplus:finisher",
+    "internal_cd_ticks": 60
+  },
+  "effects": [
+    {
+      "type": "owner_next_attack_bonus",
+      "bonus_damage_pct": 0.15,
+      "expire_ticks": 160
+    },
+    {
+      "type": "buff",
+      "target": "owner",
+      "id": "minecraft:strength",
+      "duration": 100,
+      "amplifier": 0
+    }
+  ]
+}

@@ -222,12 +222,12 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
         whisperer.pushEmotion(PetComponent.Emotion.EMPATHY,
             GossipSocialHelper.empathyDelta(rumor, knowledgeGap));
 
-        if (context.tryMarkBeat("gossip_whisper", 200)) {
+        if (context.tryMarkBeat("gossip_whisper", 1800)) {
             Text cueText = GossipNarration.buildWhisperCue(whisperer, listener, rumor, context.currentTick());
             EmotionContextCues.sendCue(context.owner(),
                 "social.gossip.whisper." + context.pet().getUuidAsString(),
                 cueText,
-                200);
+                1800);
         }
     }
 }

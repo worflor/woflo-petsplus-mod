@@ -4,7 +4,8 @@
   "required_level": 23,
   "trigger": {
     "event": "on_combat_end",
-    "cooldown_ticks": 200
+    "cooldown_ticks": 200,
+    "internal_cd_ticks": 200
   },
   "effects": [
     {

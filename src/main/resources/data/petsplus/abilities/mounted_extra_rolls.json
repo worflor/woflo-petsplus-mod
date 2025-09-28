@@ -1,0 +1,32 @@
+{
+  "id": "petsplus:mounted_extra_rolls",
+  "trigger": {
+    "event": "owner_begin_fall",
+    "require_mounted": true,
+    "internal_cd_ticks": 80
+  },
+  "effects": [
+    {
+      "type": "buff",
+      "target": "owner",
+      "id": "minecraft:slow_falling",
+      "duration": 40,
+      "amplifier": 0,
+      "only_if_mounted": true
+    },
+    {
+      "type": "buff",
+      "target": "mount",
+      "id": "minecraft:speed",
+      "duration": 60,
+      "amplifier": 2,
+      "only_if_mounted": true
+    },
+    {
+      "type": "knockup",
+      "target": "hostile",
+      "radius": 4.0,
+      "strength": 0.5
+    }
+  ]
+}

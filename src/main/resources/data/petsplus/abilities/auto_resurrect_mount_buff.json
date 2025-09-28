@@ -16,10 +16,12 @@
       "only_if_mounted": true
     },
     {
-      "type": "feedback",
-      "message": "§8Your mount feels the dark protection...",
+      "type": "buff",
       "target": "owner",
-      "action_bar": true
+      "id": "minecraft:absorption",
+      "duration": 100,
+      "amplifier": 1,
+      "only_if_mounted": true
     }
   ]
 }

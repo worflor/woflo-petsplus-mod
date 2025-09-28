@@ -5,36 +5,36 @@
     "_comment": "Configuration for pet mood calculation and display",
 
     "slotCount": 5,
-    "decayTickInterval": 40,
-    "defaultDecayRate": 0.96,
+    "decayTickInterval": 1200,
+    "defaultDecayRate": 0.985,
     "epsilon": 0.008,
     "momentum": 0.35,
     "switchMargin": 0.12,
     "hysteresisTicks": 60,
     "levelThresholds": [0.25, 0.50, 0.75],
     "weight": {
-      "defaultMax": 4.0,
-      "saturationAlpha": 0.3,
+      "defaultMax": 2.5,
+      "saturationAlpha": 0.25,
       "perEmotionMax": {
-        "relief": 5.0,
-        "saudade": 6.0,
-        "protectiveness": 5.5,
-        "disgust": 3.0,
-        "angst": 3.5,
-        "foreboding": 4.5,
-        "glee": 3.0,
-        "kefi": 3.5
+        "relief": 3.2,
+        "saudade": 4.0,
+        "protectiveness": 3.5,
+        "disgust": 2.0,
+        "angst": 2.2,
+        "foreboding": 2.8,
+        "glee": 2.0,
+        "kefi": 2.5
       }
     },
     "perEmotionDecay": {
-      "relief": 0.94,
-      "saudade": 0.98,
-      "protectiveness": 0.97,
-      "disgust": 0.92,
-      "angst": 0.93,
-      "foreboding": 0.95,
-      "glee": 0.90,
-      "kefi": 0.91
+      "relief": 0.975,
+      "saudade": 0.992,
+      "protectiveness": 0.988,
+      "disgust": 0.965,
+      "angst": 0.975,
+      "foreboding": 0.980,
+      "glee": 0.955,
+      "kefi": 0.970
     },
     "eviction": {
       "useLastUpdated": true,
@@ -42,9 +42,9 @@
       "lowWeightCoeff": 1.0,
       "parkedBias": 1.0
     },
-    "affectionateDecayTicks": 400,
-    "pettingWeight": 0.8,
-    "maxPettingBonus": 2.5,
+    "affectionateDecayTicks": 2400,
+    "pettingWeight": 0.6,
+    "maxPettingBonus": 1.8,
 
     "vigilantCombatWindowTicks": 100,
     "combatVigilantBonus": 1.5,

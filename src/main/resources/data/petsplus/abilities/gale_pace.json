@@ -1,0 +1,31 @@
+{
+  "id": "petsplus:gale_pace",
+  "trigger": {
+    "event": "owner_begin_fall",
+    "min_fall_distance": 2.0,
+    "internal_cd_ticks": 120
+  },
+  "effects": [
+    {
+      "type": "buff",
+      "target": "owner",
+      "id": "minecraft:speed",
+      "duration": 100,
+      "amplifier": 1
+    },
+    {
+      "type": "buff",
+      "target": "owner",
+      "id": "minecraft:jump_boost",
+      "duration": 100,
+      "amplifier": 0
+    },
+    {
+      "type": "buff",
+      "target": "pet",
+      "id": "minecraft:speed",
+      "duration": 100,
+      "amplifier": 2
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "id": "petsplus:spotter_fallback",
+  "trigger": {
+    "event": "owner_broke_block",
+    "block_valuable": true,
+    "internal_cd_ticks": 160
+  },
+  "effects": [
+    {
+      "type": "magnetize_drops_and_xp",
+      "radius": 8.0,
+      "duration_ticks": 100
+    },
+    {
+      "type": "buff",
+      "target": "owner",
+      "id": "minecraft:luck",
+      "duration": 120,
+      "amplifier": 0
+    },
+    {
+      "type": "buff",
+      "target": "pet",
+      "id": "minecraft:speed",
+      "duration": 80,
+      "amplifier": 1
+    }
+  ]
+}

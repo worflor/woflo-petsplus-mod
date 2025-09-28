@@ -1,0 +1,34 @@
+{
+  "id": "petsplus:skybond_mount_extension",
+  "trigger": {
+    "event": "owner_mounted",
+    "require_flying_mount": true,
+    "internal_cd_ticks": 600
+  },
+  "effects": [
+    {
+      "type": "buff",
+      "target": "mount",
+      "id": "minecraft:slow_falling",
+      "duration": 300,
+      "amplifier": 0,
+      "only_if_mounted": true
+    },
+    {
+      "type": "buff",
+      "target": "mount",
+      "id": "minecraft:speed",
+      "duration": 240,
+      "amplifier": 1,
+      "only_if_mounted": true
+    },
+    {
+      "type": "buff",
+      "target": "owner",
+      "id": "minecraft:levitation",
+      "duration": 20,
+      "amplifier": 2,
+      "only_if_mounted": true
+    }
+  ]
+}

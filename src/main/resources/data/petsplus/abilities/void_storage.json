@@ -3,7 +3,8 @@
   "required_level": 7,
   "trigger": {
     "event": "owner_signal_proximity_channel",
-    "cooldown_ticks": 120
+    "cooldown_ticks": 120,
+    "internal_cd_ticks": 120
   },
   "effects": [
     {

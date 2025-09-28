@@ -1,0 +1,29 @@
+{
+  "id": "petsplus:edge_step",
+  "trigger": {
+    "event": "owner_took_fall_damage",
+    "min_damage": 3.0,
+    "internal_cd_ticks": 100
+  },
+  "effects": [
+    {
+      "type": "heal_owner_flat_pct",
+      "flat_amount": 2.0,
+      "pct_amount": 0.0
+    },
+    {
+      "type": "buff",
+      "target": "owner",
+      "id": "minecraft:slow_falling",
+      "duration": 60,
+      "amplifier": 0
+    },
+    {
+      "type": "buff",
+      "target": "owner",
+      "id": "minecraft:speed",
+      "duration": 80,
+      "amplifier": 1
+    }
+  ]
+}

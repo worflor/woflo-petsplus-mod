@@ -3,7 +3,8 @@
   "description": "Mounted support aura",
   "trigger": {
     "event": "interval_while_active",
-    "ticks": 40
+    "interval_ticks": 40,
+    "internal_cd_ticks": 40
   },
   "effects": [
     {

@@ -349,21 +349,35 @@ public final class PetInspectionManager {
     private static void showEmotionPoolScoreboard(ServerPlayerEntity player, PetComponent comp, String petName) {
         var emotions = comp.getEmotionPoolDebug();
         var paletteStops = comp.getEmotionPalette();
-        TextColor headerColor = paletteStops.isEmpty()
-                ? TextColor.fromFormatting(Formatting.YELLOW)
-                : paletteStops.get(0).color();
-        TextColor accentColor = paletteStops.size() > 1
-                ? paletteStops.get(1).color()
-                : headerColor;
+
+        // Determine consistent colors using emotion palette as primary source
+        TextColor headerColor;
+        TextColor accentColor;
+
+        if (paletteStops.isEmpty()) {
+            // If no palette, fall back to a neutral emotion color
+            headerColor = PetComponent.getEmotionColor(PetComponent.Emotion.CONTENT); // Neutral green
+            accentColor = PetComponent.getEmotionAccentColor(PetComponent.Emotion.CONTENT);
+        } else {
+            headerColor = paletteStops.get(0).color();
+            accentColor = paletteStops.size() > 1
+                    ? paletteStops.get(1).color()
+                    : PetComponent.getEmotionAccentColor(paletteStops.get(0).emotion());
+        }
 
         // Create or update scoreboard objective
         var scoreboard = player.getServer().getScoreboard();
         var objective = scoreboard.getNullableObjective("pet_emotions");
 
         if (objective == null) {
+            // Use the dominant emotion color for the title, or yellow as final fallback
+            Text titleText = headerColor != null
+                ? Text.literal("Pet Emotions").styled(style -> style.withColor(headerColor))
+                : Text.literal("Pet Emotions").formatted(Formatting.YELLOW);
+
             objective = scoreboard.addObjective("pet_emotions",
                 net.minecraft.scoreboard.ScoreboardCriterion.DUMMY,
-                Text.literal("Pet Emotions").formatted(Formatting.YELLOW),
+                titleText,
                 net.minecraft.scoreboard.ScoreboardCriterion.RenderType.INTEGER,
                 false, null);
 
@@ -376,14 +390,15 @@ public final class PetInspectionManager {
             scoreboard.removeScore(ScoreHolder.fromName(entry.owner()), objective);
         }
 
-        // Add pet name header
-        String header = toSectionColor(headerColor, "§e") + petName + " [" + comp.getMoodLevel() + "]";
+        // Add pet name header - use consistent emotion-derived fallback
+        String header = toSectionColor(headerColor, toSectionColor(PetComponent.getEmotionColor(PetComponent.Emotion.CONTENT), "§e"))
+                + petName + " [" + comp.getMoodLevel() + "]";
         ScoreHolder headerHolder = ScoreHolder.fromName(header);
         scoreboard.getOrCreateScore(headerHolder, objective).setScore(15);
 
-        // Add current mood
+        // Add current mood - use consistent emotion-derived fallback
         String moodLine = "§7Mood: "
-                + toSectionColor(accentColor, "§f")
+                + toSectionColor(accentColor, toSectionColor(PetComponent.getEmotionAccentColor(PetComponent.Emotion.CONTENT), "§f"))
                 + comp.getCurrentMood().name().toLowerCase();
         ScoreHolder moodHolder = ScoreHolder.fromName(moodLine);
         scoreboard.getOrCreateScore(moodHolder, objective).setScore(14);
@@ -403,8 +418,10 @@ public final class PetInspectionManager {
                 if (score < 1) break; // Scoreboard limit
 
                 TextColor emotionColor = PetComponent.getEmotionColor(emotionInfo.emotion());
-                String color = toSectionColor(emotionColor, "§f");
-                String parkedMarker = emotionInfo.parked() ? toSectionColor(PetComponent.getEmotionAccentColor(emotionInfo.emotion()), "§b") + "*" : "";
+                String color = toSectionColor(emotionColor, toSectionColor(PetComponent.getEmotionColor(PetComponent.Emotion.CONTENT), "§f"));
+                String parkedMarker = emotionInfo.parked()
+                    ? toSectionColor(PetComponent.getEmotionAccentColor(emotionInfo.emotion()), toSectionColor(PetComponent.getEmotionAccentColor(PetComponent.Emotion.CONTENT), "§b")) + "*"
+                    : "";
                 String line = color + emotionInfo.emotion().name().toLowerCase()
                              + " §7[" + Math.round(emotionInfo.weight() * 100) + "%]" + parkedMarker;
 
@@ -447,6 +464,23 @@ public final class PetInspectionManager {
             builder.append('§').append(c);
         }
         return builder.toString();
+    }
+
+    /**
+     * Helper method to get emotion-consistent fallback color
+     */
+    private static String getEmotionFallbackColor(TextColor preferredColor, boolean useAccent) {
+        if (preferredColor != null) {
+            return toSectionColor(preferredColor, getDefaultEmotionFallback(useAccent));
+        }
+        return getDefaultEmotionFallback(useAccent);
+    }
+
+    private static String getDefaultEmotionFallback(boolean useAccent) {
+        TextColor fallbackColor = useAccent
+            ? PetComponent.getEmotionAccentColor(PetComponent.Emotion.CONTENT)
+            : PetComponent.getEmotionColor(PetComponent.Emotion.CONTENT);
+        return toSectionColor(fallbackColor, useAccent ? "§b" : "§f");
     }
 
     private static final class PlayerTicker implements PlayerTickListener {

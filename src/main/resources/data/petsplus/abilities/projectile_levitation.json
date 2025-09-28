@@ -1,0 +1,36 @@
+{
+  "id": "petsplus:projectile_levitation",
+  "trigger": {
+    "event": "owner_shot_projectile",
+    "projectile_type": "arrow",
+    "internal_cd_ticks": 60
+  },
+  "effects": [
+    {
+      "type": "buff",
+      "target": "owner",
+      "id": "minecraft:levitation",
+      "duration": 20,
+      "amplifier": 1
+    },
+    {
+      "type": "area_effect",
+      "radius": 5.0,
+      "target": "hostile",
+      "effects": [
+        {
+          "id": "minecraft:levitation",
+          "duration": 40,
+          "amplifier": 0
+        }
+      ]
+    },
+    {
+      "type": "buff",
+      "target": "pet",
+      "id": "minecraft:slow_falling",
+      "duration": 100,
+      "amplifier": 0
+    }
+  ]
+}
