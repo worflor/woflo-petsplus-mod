@@ -266,6 +266,22 @@ final class OwnerProcessingGroup {
         return batch;
     }
 
+    OwnerTaskBatch snapshotForOwnerTick(long currentTick) {
+        OwnerTaskBatch batch = OwnerTaskBatch.obtain(ownerId, currentTick, lastKnownOwner);
+        EnumSet<OwnerEventType> dueEvents = EnumSet.noneOf(OwnerEventType.class);
+        for (Map.Entry<OwnerEventType, OwnerEventWindow> entry : eventWindows.entrySet()) {
+            OwnerEventWindow window = entry.getValue();
+            if (window != null && window.isDue(currentTick)) {
+                dueEvents.add(entry.getKey());
+            }
+        }
+        if (!dueEvents.isEmpty()) {
+            batch.attachDueEvents(dueEvents);
+        }
+        batch.attachPets(snapshotPets());
+        return batch;
+    }
+
     boolean applyPrediction(OwnerEventType type, long predictedTick) {
         if (type == null) {
             return false;

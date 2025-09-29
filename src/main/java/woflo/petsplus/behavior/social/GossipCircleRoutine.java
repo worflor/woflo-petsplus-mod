@@ -225,8 +225,8 @@ public class GossipCircleRoutine implements SocialBehaviorRoutine {
         float averageStrength = combinedStrength / sharedRumors.size();
         float sobremesaDelta = GossipSocialHelper.storytellerEaseDelta(sharedRumors.size(), averageStrength);
         float prideDelta = GossipSocialHelper.storytellerPrideDelta(averageStrength, storytellerKnowledge);
-        storyteller.pushEmotion(PetComponent.Emotion.SOBREMESA, sobremesaDelta);
-        storyteller.pushEmotion(PetComponent.Emotion.PRIDE, prideDelta);
+        context.pushEmotion(storyteller, PetComponent.Emotion.SOBREMESA, sobremesaDelta);
+        context.pushEmotion(storyteller, PetComponent.Emotion.PRIDE, prideDelta);
     }
 
     private boolean shareWithCluster(SocialContextSnapshot context,
@@ -265,29 +265,29 @@ public class GossipCircleRoutine implements SocialBehaviorRoutine {
             float knowledgeGap = Math.max(0f, storytellerKnowledge - listenerKnowledge);
             if (witnessed) {
                 listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), true);
-                listener.pushEmotion(PetComponent.Emotion.LOYALTY,
+                context.pushEmotion(listener, PetComponent.Emotion.LOYALTY,
                     GossipSocialHelper.loyaltyDelta(rumor, knowledgeGap, true));
                 continue;
             }
             if (listenerLedger.hasHeardRecently(rumor.topicId(), context.currentTick())) {
                 listenerLedger.registerDuplicateHeard(rumor.topicId(), context.currentTick());
-                listener.pushEmotion(PetComponent.Emotion.FRUSTRATION,
+                context.pushEmotion(listener, PetComponent.Emotion.FRUSTRATION,
                     GossipSocialHelper.frustrationDelta(rumor));
                 listener.optOutOfGossip(context.currentTick());
                 continue;
             }
             if (isAbstract) {
                 listenerLedger.registerAbstractHeard(rumor.topicId(), context.currentTick());
-                listener.pushEmotion(PetComponent.Emotion.CURIOUS,
+                context.pushEmotion(listener, PetComponent.Emotion.CURIOUS,
                     GossipSocialHelper.curiosityDelta(rumor, knowledgeGap, false, true));
                 sharedWithNewListener = true;
             } else {
                 listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), alreadyKnows);
                 if (alreadyKnows) {
-                    listener.pushEmotion(PetComponent.Emotion.LOYALTY,
+                    context.pushEmotion(listener, PetComponent.Emotion.LOYALTY,
                         GossipSocialHelper.loyaltyDelta(rumor, knowledgeGap, false));
                 } else {
-                    listener.pushEmotion(PetComponent.Emotion.CURIOUS,
+                    context.pushEmotion(listener, PetComponent.Emotion.CURIOUS,
                         GossipSocialHelper.curiosityDelta(rumor, knowledgeGap, false, false));
                     sharedWithNewListener = true;
                 }

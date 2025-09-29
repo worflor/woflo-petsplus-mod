@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.WeakHashMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -120,19 +121,28 @@ public final class EmotionStimulusBus {
     }
 
     public void dispatchStimuli(MobEntity pet) {
-        dispatchStimuli(pet, null);
+        dispatchStimuliAsync(pet, null);
     }
 
     public void dispatchStimuli(MobEntity pet, @Nullable AsyncWorkCoordinator coordinator) {
+        dispatchStimuliAsync(pet, coordinator);
+    }
+
+    public CompletableFuture<Void> dispatchStimuliAsync(MobEntity pet) {
+        return dispatchStimuliAsync(pet, null);
+    }
+
+    public CompletableFuture<Void> dispatchStimuliAsync(MobEntity pet,
+                                                        @Nullable AsyncWorkCoordinator coordinator) {
         if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
-            return;
+            return CompletableFuture.completedFuture(null);
         }
         PendingStimuli stimuli;
         synchronized (pending) {
             stimuli = pending.remove(pet);
         }
         if (stimuli == null || stimuli.isEmpty()) {
-            return;
+            return CompletableFuture.completedFuture(null);
         }
 
         PetComponent component = PetComponent.getOrCreate(pet);
@@ -140,11 +150,11 @@ public final class EmotionStimulusBus {
         if (coordinator != null
             && stimuli.synchronous.isEmpty()
             && !stimuli.simple.isEmpty()) {
-            processSimpleStimuliAsync(pet, serverWorld, stimuli.simple, coordinator);
-            return;
+            return processSimpleStimuliAsync(pet, serverWorld, stimuli.simple, coordinator);
         }
 
         processStimuliSynchronously(pet, component, serverWorld, time, stimuli.simple, stimuli.synchronous);
+        return CompletableFuture.completedFuture(null);
     }
 
     public void addDispatchListener(DispatchListener listener) {
@@ -280,27 +290,30 @@ public final class EmotionStimulusBus {
         scheduleIdleDrain(pet, component, world, time);
     }
 
-    private void processSimpleStimuliAsync(MobEntity pet,
-                                           ServerWorld world,
-                                           List<SimpleStimulusAction> actions,
-                                           AsyncWorkCoordinator coordinator) {
+    private CompletableFuture<Void> processSimpleStimuliAsync(MobEntity pet,
+                                                              ServerWorld world,
+                                                              List<SimpleStimulusAction> actions,
+                                                              AsyncWorkCoordinator coordinator) {
         if (actions.isEmpty()) {
-            return;
+            return CompletableFuture.completedFuture(null);
         }
         UUID petId = pet.getUuid();
-        coordinator.submitStandalone(
+        CompletableFuture<SimpleStimulusResult> future = coordinator.submitStandalone(
             "mood-stimulus-" + petId,
             () -> computeSimpleStimulusResult(actions),
             result -> applySimpleStimulusResult(pet, world, result)
-        ).exceptionally(error -> {
-            Throwable cause = unwrap(error);
-            if (cause instanceof RejectedExecutionException) {
-                Petsplus.LOGGER.debug("Async mood stimulus rejected for pet {}, running synchronously", petId);
+        );
+        return future.handle((result, throwable) -> {
+            if (throwable != null) {
+                Throwable cause = unwrap(throwable);
+                if (cause instanceof RejectedExecutionException) {
+                    Petsplus.LOGGER.debug("Async mood stimulus rejected for pet {}, running synchronously", petId);
+                } else {
+                    Petsplus.LOGGER.error("Async mood stimulus failed for pet {}", petId, cause);
+                }
                 PetComponent component = PetComponent.getOrCreate(pet);
                 long time = world.getTime();
                 processStimuliSynchronously(pet, component, world, time, actions, List.of());
-            } else {
-                Petsplus.LOGGER.error("Async mood stimulus failed for pet {}", petId, cause);
             }
             return null;
         });

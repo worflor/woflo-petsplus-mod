@@ -9,7 +9,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -33,6 +33,7 @@ import woflo.petsplus.state.processing.AsyncProcessingTelemetry;
 public final class AsyncWorkCoordinator implements AutoCloseable {
     private static final int MAX_IDLE_SECONDS = 30;
     private static final AtomicLong THREAD_COUNTER = new AtomicLong();
+    private static final AtomicLong TASK_SEQUENCE = new AtomicLong();
 
     private final DoubleSupplier loadFactorSupplier;
     private final ExecutorService executor;
@@ -80,7 +81,7 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
             threads,
             MAX_IDLE_SECONDS,
             TimeUnit.SECONDS,
-            new LinkedBlockingQueue<>(),
+            new PriorityBlockingQueue<>(),
             factory
         );
         pool.allowCoreThreadTimeOut(true);
@@ -98,8 +99,16 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
     public <T> CompletableFuture<T> submitOwnerBatch(OwnerBatchSnapshot snapshot,
                                                      OwnerBatchJob<T> job,
                                                      @Nullable Consumer<T> applier) {
+        return submitOwnerBatch(snapshot, job, applier, AsyncJobPriority.CRITICAL);
+    }
+
+    public <T> CompletableFuture<T> submitOwnerBatch(OwnerBatchSnapshot snapshot,
+                                                     OwnerBatchJob<T> job,
+                                                     @Nullable Consumer<T> applier,
+                                                     AsyncJobPriority priority) {
         Objects.requireNonNull(snapshot, "snapshot");
         Objects.requireNonNull(job, "job");
+        AsyncJobPriority effectivePriority = priority == null ? AsyncJobPriority.CRITICAL : priority;
 
         int allowedThreads = computeAllowedThreads();
         if (allowedThreads <= 0) {
@@ -114,7 +123,7 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
         telemetry.recordActiveJobs(activeJobs.get());
         CompletableFuture<T> completion = new CompletableFuture<>();
         try {
-            executor.execute(() -> runJob(snapshot, job, applier, completion));
+            executor.execute(wrap(effectivePriority, () -> runJob(snapshot, job, applier, completion)));
         } catch (RejectedExecutionException ex) {
             activeJobs.decrementAndGet();
             telemetry.recordActiveJobs(activeJobs.get());
@@ -125,6 +134,11 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
         return completion;
     }
 
+    private Runnable wrap(AsyncJobPriority priority, Runnable delegate) {
+        return new PrioritizedRunnable(priority == null ? AsyncJobPriority.NORMAL : priority,
+            TASK_SEQUENCE.incrementAndGet(), delegate);
+    }
+
     /**
      * Submit a non-owner-scoped task to the background executor while still
      * respecting the coordinator's load-based throttling and main-thread
@@ -133,8 +147,16 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
     public <T> CompletableFuture<T> submitStandalone(String descriptor,
                                                      Callable<T> job,
                                                      @Nullable Consumer<T> applier) {
+        return submitStandalone(descriptor, job, applier, AsyncJobPriority.NORMAL);
+    }
+
+    public <T> CompletableFuture<T> submitStandalone(String descriptor,
+                                                     Callable<T> job,
+                                                     @Nullable Consumer<T> applier,
+                                                     AsyncJobPriority priority) {
         Objects.requireNonNull(descriptor, "descriptor");
         Objects.requireNonNull(job, "job");
+        AsyncJobPriority effectivePriority = priority == null ? AsyncJobPriority.NORMAL : priority;
 
         int allowedThreads = computeAllowedThreads();
         if (allowedThreads <= 0) {
@@ -149,7 +171,7 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
         telemetry.recordActiveJobs(activeJobs.get());
         CompletableFuture<T> completion = new CompletableFuture<>();
         try {
-            executor.execute(() -> runStandalone(descriptor, job, applier, completion));
+            executor.execute(wrap(effectivePriority, () -> runStandalone(descriptor, job, applier, completion)));
         } catch (RejectedExecutionException ex) {
             activeJobs.decrementAndGet();
             telemetry.recordActiveJobs(activeJobs.get());
@@ -368,5 +390,34 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
     @FunctionalInterface
     public interface OwnerBatchJob<T> {
         T run(OwnerBatchSnapshot snapshot) throws Exception;
+    }
+
+    private static final class PrioritizedRunnable implements Runnable, Comparable<PrioritizedRunnable> {
+        private final AsyncJobPriority priority;
+        private final long sequence;
+        private final Runnable delegate;
+
+        private PrioritizedRunnable(AsyncJobPriority priority, long sequence, Runnable delegate) {
+            this.priority = priority == null ? AsyncJobPriority.NORMAL : priority;
+            this.sequence = sequence;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void run() {
+            delegate.run();
+        }
+
+        @Override
+        public int compareTo(PrioritizedRunnable other) {
+            if (other == this) {
+                return 0;
+            }
+            int priorityCompare = Integer.compare(other.priority.weight(), this.priority.weight());
+            if (priorityCompare != 0) {
+                return priorityCompare;
+            }
+            return Long.compare(this.sequence, other.sequence);
+        }
     }
 }

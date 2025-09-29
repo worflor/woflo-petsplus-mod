@@ -135,7 +135,7 @@ public final class MoodService implements MoodAPI {
         snapshotAndNotify(pet, comp);
     }
 
-    boolean isInStimulusDispatch() {
+    public boolean isInStimulusDispatch() {
         return Boolean.TRUE.equals(inStimulusDispatch.get());
     }
 

@@ -216,6 +216,19 @@ public final class OwnerProcessingManager {
         }
     }
 
+    @Nullable
+    public OwnerTaskBatch snapshotOwnerTick(ServerPlayerEntity owner, long currentTick) {
+        if (owner == null) {
+            return null;
+        }
+        OwnerProcessingGroup group = groups.get(owner.getUuid());
+        if (group == null) {
+            return null;
+        }
+        group.onOwnerTick(owner, currentTick);
+        return group.snapshotForOwnerTick(currentTick);
+    }
+
     public void enqueueTask(PetWorkScheduler.ScheduledTask task) {
         PetComponent component = task.component();
         if (component == null) {
@@ -269,9 +282,11 @@ public final class OwnerProcessingManager {
                 continue;
             }
 
-            try (OwnerTaskBatch batch = group.drain(currentTick)) {
-                consumer.accept(group.ownerId(), batch);
+            OwnerTaskBatch batch = group.drain(currentTick);
+            if (batch == null) {
+                continue;
             }
+            consumer.accept(group.ownerId(), batch);
             processed++;
 
             if (group.isEmpty()) {
@@ -321,6 +336,42 @@ public final class OwnerProcessingManager {
             }
             long predictedTick = Math.max(currentTick, Math.max(0L, entry.getValue()));
             if (group.applyPrediction(type, predictedTick)) {
+                changed = true;
+            }
+        }
+
+        if (!changed) {
+            return;
+        }
+
+        removeGroupFromDueQueue(group);
+        long nextTick = group.nextEventTick();
+        if (nextTick <= currentTick) {
+            queueGroup(group);
+        } else {
+            scheduleEventGroup(group);
+        }
+    }
+
+    public void applyEventWindowPredictions(UUID ownerId,
+                                            Map<OwnerEventType, Long> predictions,
+                                            long currentTick) {
+        if (ownerId == null || predictions == null || predictions.isEmpty()) {
+            return;
+        }
+        OwnerProcessingGroup group = groups.get(ownerId);
+        if (group == null) {
+            return;
+        }
+
+        boolean changed = false;
+        for (Map.Entry<OwnerEventType, Long> entry : predictions.entrySet()) {
+            OwnerEventType type = entry.getKey();
+            if (!isEventActive(type)) {
+                continue;
+            }
+            long tick = Math.max(0L, entry.getValue() == null ? 0L : entry.getValue());
+            if (group.applyPrediction(type, tick)) {
                 changed = true;
             }
         }

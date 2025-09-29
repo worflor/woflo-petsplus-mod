@@ -10,6 +10,7 @@ import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.processing.OwnerSpatialResult;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,12 +48,19 @@ public final class AuraTargetResolver {
 
     public List<LivingEntity> resolveTargets(ServerWorld world, MobEntity pet, PetComponent component,
                                              ServerPlayerEntity owner, double radius, PetRoleType.AuraTarget target) {
-        return resolveTargets(world, pet, component, owner, radius, target, null);
+        return resolveTargets(world, pet, component, owner, radius, target, null, null);
     }
 
     public List<LivingEntity> resolveTargets(ServerWorld world, MobEntity pet, PetComponent component,
                                              ServerPlayerEntity owner, double radius, PetRoleType.AuraTarget target,
                                              @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot) {
+        return resolveTargets(world, pet, component, owner, radius, target, swarmSnapshot, null);
+    }
+
+    public List<LivingEntity> resolveTargets(ServerWorld world, MobEntity pet, PetComponent component,
+                                             ServerPlayerEntity owner, double radius, PetRoleType.AuraTarget target,
+                                             @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot,
+                                             @Nullable OwnerSpatialResult spatialResult) {
         if (target == null) {
             return List.of();
         }
@@ -70,10 +78,10 @@ public final class AuraTargetResolver {
             }
             case OWNER_AND_ALLIES -> {
                 addOwnerIfInRange(resolved, owner, center, squaredRadius);
-                resolved.addAll(collectNearbyAllies(world, pet, component, owner, center, radius, squaredRadius, swarmSnapshot));
+                resolved.addAll(collectNearbyAllies(world, pet, component, owner, center, radius, squaredRadius, swarmSnapshot, spatialResult));
             }
             case NEARBY_PLAYERS -> resolved.addAll(collectNearbyPlayers(owner, center, radius, squaredRadius));
-            case NEARBY_ALLIES -> resolved.addAll(collectNearbyAllies(world, pet, component, owner, center, radius, squaredRadius, swarmSnapshot));
+            case NEARBY_ALLIES -> resolved.addAll(collectNearbyAllies(world, pet, component, owner, center, radius, squaredRadius, swarmSnapshot, spatialResult));
         }
 
         resolved.remove(pet);
@@ -95,33 +103,66 @@ public final class AuraTargetResolver {
 
     private List<LivingEntity> collectNearbyAllies(ServerWorld world, MobEntity pet, PetComponent component,
                                                    ServerPlayerEntity owner, Vec3d center, double radius, double squaredRadius,
-                                                   @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot) {
+                                                   @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot,
+                                                   @Nullable OwnerSpatialResult spatialResult) {
         Set<LivingEntity> allies = new LinkedHashSet<>();
         if (owner != null && (squaredRadius == 0 || owner.getPos().squaredDistanceTo(center) <= squaredRadius)) {
             allies.add(owner);
         }
 
-        if (swarmSnapshot != null && !swarmSnapshot.isEmpty()) {
-            for (PetSwarmIndex.SwarmEntry entry : swarmSnapshot) {
-                MobEntity other = entry.pet();
-                if (other == null || other == pet || !other.isAlive()) {
-                    continue;
-                }
-                double dx = entry.x() - center.x;
-                double dy = entry.y() - center.y;
-                double dz = entry.z() - center.z;
-                double distSq = (dx * dx) + (dy * dy) + (dz * dz);
-                if (squaredRadius == 0 || distSq <= squaredRadius) {
-                    allies.add(other);
+        boolean populatedFromSpatial = false;
+        if (spatialResult != null && component != null) {
+            UUID ownerId = component.getOwnerUuid();
+            MobEntity basePet = pet;
+            UUID baseId = basePet != null ? basePet.getUuid() : null;
+            if (ownerId != null && baseId != null) {
+                List<UUID> neighborIds = spatialResult.neighborsWithin(baseId, radius <= 0.0D ? Double.MAX_VALUE : radius, Integer.MAX_VALUE);
+                if (!neighborIds.isEmpty()) {
+                    populatedFromSpatial = true;
+                    for (UUID id : neighborIds) {
+                        PetSwarmIndex.SwarmEntry entry = swarmIndex.findEntry(ownerId, id);
+                        if (entry == null) {
+                            continue;
+                        }
+                        MobEntity other = entry.pet();
+                        if (other == null || other == pet || !other.isAlive()) {
+                            continue;
+                        }
+                        double dx = entry.x() - center.x;
+                        double dy = entry.y() - center.y;
+                        double dz = entry.z() - center.z;
+                        double distSq = (dx * dx) + (dy * dy) + (dz * dz);
+                        if (squaredRadius == 0 || distSq <= squaredRadius) {
+                            allies.add(other);
+                        }
+                    }
                 }
             }
-        } else {
-            swarmIndex.forEachNeighbor(pet, component, radius, (entry, distSq) -> {
-                MobEntity other = entry.pet();
-                if (other != pet && other.isAlive() && (squaredRadius == 0 || distSq <= squaredRadius)) {
-                    allies.add(other);
+        }
+
+        if (!populatedFromSpatial) {
+            if (swarmSnapshot != null && !swarmSnapshot.isEmpty()) {
+                for (PetSwarmIndex.SwarmEntry entry : swarmSnapshot) {
+                    MobEntity other = entry.pet();
+                    if (other == null || other == pet || !other.isAlive()) {
+                        continue;
+                    }
+                    double dx = entry.x() - center.x;
+                    double dy = entry.y() - center.y;
+                    double dz = entry.z() - center.z;
+                    double distSq = (dx * dx) + (dy * dy) + (dz * dz);
+                    if (squaredRadius == 0 || distSq <= squaredRadius) {
+                        allies.add(other);
+                    }
                 }
-            });
+            } else {
+                swarmIndex.forEachNeighbor(pet, component, radius, (entry, distSq) -> {
+                    MobEntity other = entry.pet();
+                    if (other != pet && other.isAlive() && (squaredRadius == 0 || distSq <= squaredRadius)) {
+                        allies.add(other);
+                    }
+                });
+            }
         }
 
         for (LivingEntity player : collectNearbyPlayers(owner, center, radius, squaredRadius)) {

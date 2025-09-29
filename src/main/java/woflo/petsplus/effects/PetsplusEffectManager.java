@@ -27,6 +27,7 @@ import woflo.petsplus.roles.support.SupportPotionUtils;
 import woflo.petsplus.roles.support.SupportPotionUtils.SupportPotionState;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.processing.OwnerSpatialResult;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -52,12 +53,13 @@ public final class PetsplusEffectManager {
      */
     public static long applyRoleAuraEffects(ServerWorld world, MobEntity pet, PetComponent petComp,
                                             PlayerEntity owner, AuraTargetResolver resolver, long worldTime) {
-        return applyRoleAuraEffects(world, pet, petComp, owner, resolver, worldTime, null);
+        return applyRoleAuraEffects(world, pet, petComp, owner, resolver, worldTime, null, null);
     }
 
     public static long applyRoleAuraEffects(ServerWorld world, MobEntity pet, PetComponent petComp,
                                             PlayerEntity owner, AuraTargetResolver resolver, long worldTime,
-                                            @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot) {
+                                            @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot,
+                                            @Nullable OwnerSpatialResult spatialResult) {
         if (!(owner instanceof ServerPlayerEntity serverOwner) || !owner.isAlive()) {
             return Long.MAX_VALUE;
         }
@@ -67,7 +69,7 @@ public final class PetsplusEffectManager {
             return Long.MAX_VALUE;
         }
 
-        long nextCheckTick = applyPassiveAuras(world, pet, petComp, serverOwner, roleType, resolver, worldTime, swarmSnapshot);
+        long nextCheckTick = applyPassiveAuras(world, pet, petComp, serverOwner, roleType, resolver, worldTime, swarmSnapshot, spatialResult);
 
         PetRoleType.SupportPotionBehavior supportBehavior = roleType.supportPotionBehavior();
         if (supportBehavior != null) {
@@ -80,7 +82,8 @@ public final class PetsplusEffectManager {
                 supportBehavior,
                 resolver,
                 worldTime,
-                swarmSnapshot
+                swarmSnapshot,
+                spatialResult
             );
             nextCheckTick = Math.min(nextCheckTick, supportNext);
         }
@@ -90,7 +93,8 @@ public final class PetsplusEffectManager {
 
     private static long applyPassiveAuras(ServerWorld world, MobEntity pet, PetComponent petComp, ServerPlayerEntity owner,
                                           PetRoleType roleType, AuraTargetResolver resolver, long worldTime,
-                                          @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot) {
+                                          @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot,
+                                          @Nullable OwnerSpatialResult spatialResult) {
         List<PetRoleType.PassiveAura> auras = roleType.passiveAuras();
         if (auras.isEmpty()) {
             return Long.MAX_VALUE;
@@ -123,7 +127,7 @@ public final class PetsplusEffectManager {
                 if (level < effect.minLevel()) {
                     continue;
                 }
-                affectedEntities.addAll(applyAuraEffect(world, pet, petComp, owner, radius, effect, resolver, swarmSnapshot));
+                affectedEntities.addAll(applyAuraEffect(world, pet, petComp, owner, radius, effect, resolver, swarmSnapshot, spatialResult));
             }
 
             if (!affectedEntities.isEmpty()) {
@@ -141,7 +145,8 @@ public final class PetsplusEffectManager {
     private static long applySupportPotionAura(ServerWorld world, MobEntity pet, PetComponent petComp, ServerPlayerEntity owner,
                                                PetRoleType roleType, PetRoleType.SupportPotionBehavior behavior,
                                                AuraTargetResolver resolver, long worldTime,
-                                               @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot) {
+                                               @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot,
+                                               @Nullable OwnerSpatialResult spatialResult) {
         if (!SupportPotionUtils.hasStoredPotion(petComp)) {
             return Long.MAX_VALUE;
         }
@@ -192,7 +197,7 @@ public final class PetsplusEffectManager {
             config.getSupportPotionRadius(roleType, behavior)
         );
         Set<LivingEntity> recipients = new LinkedHashSet<>(
-            resolveTargets(world, pet, petComp, owner, radius, PetRoleType.AuraTarget.OWNER_AND_ALLIES, resolver, swarmSnapshot)
+            resolveTargets(world, pet, petComp, owner, radius, PetRoleType.AuraTarget.OWNER_AND_ALLIES, resolver, swarmSnapshot, spatialResult)
         );
         if (config.isSupportPotionAppliedToPet(roleType, behavior)) {
             recipients.add(pet);
@@ -227,14 +232,15 @@ public final class PetsplusEffectManager {
     private static List<LivingEntity> applyAuraEffect(ServerWorld world, MobEntity pet, PetComponent petComp,
                                                       ServerPlayerEntity owner, double radius, PetRoleType.AuraEffect effect,
                                                       AuraTargetResolver resolver,
-                                                      @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot) {
+                                                      @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot,
+                                                      @Nullable OwnerSpatialResult spatialResult) {
         RegistryEntry<StatusEffect> entry = Registries.STATUS_EFFECT.getEntry(effect.effectId()).orElse(null);
         if (entry == null) {
             Petsplus.LOGGER.warn("Unknown status effect '{}' configured for aura {}", effect.effectId(), pet.getUuid());
             return List.of();
         }
 
-        List<LivingEntity> targets = resolveTargets(world, pet, petComp, owner, radius, effect.target(), resolver, swarmSnapshot);
+        List<LivingEntity> targets = resolveTargets(world, pet, petComp, owner, radius, effect.target(), resolver, swarmSnapshot, spatialResult);
         if (targets.isEmpty()) {
             return List.of();
         }
@@ -248,9 +254,10 @@ public final class PetsplusEffectManager {
     private static List<LivingEntity> resolveTargets(ServerWorld world, MobEntity pet, PetComponent petComp,
                                                      ServerPlayerEntity owner, double radius, PetRoleType.AuraTarget target,
                                                      AuraTargetResolver resolver,
-                                                     @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot) {
+                                                     @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot,
+                                                     @Nullable OwnerSpatialResult spatialResult) {
         if (resolver != null) {
-            List<LivingEntity> resolved = resolver.resolveTargets(world, pet, petComp, owner, radius, target, swarmSnapshot);
+            List<LivingEntity> resolved = resolver.resolveTargets(world, pet, petComp, owner, radius, target, swarmSnapshot, spatialResult);
             if (!resolved.isEmpty()) {
                 return resolved;
             }

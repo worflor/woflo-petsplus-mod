@@ -11,6 +11,7 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 
+import woflo.petsplus.mood.EmotionStimulusBus;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetSwarmIndex;
 import woflo.petsplus.state.gossip.RumorEntry;
@@ -29,10 +30,17 @@ public class SocialContextSnapshot {
     private final MobEntity pet;
     private final PetComponent component;
     private final ServerPlayerEntity owner;
+    public interface EmotionDispatcher {
+        void push(PetComponent component, PetComponent.Emotion emotion, float amount);
+
+        EmotionStimulusBus.SimpleStimulusCollector collectorFor(PetComponent component);
+    }
+
     private final ServerWorld world;
     private final long currentTick;
     private final PetSocialData petData;
     private final Map<MobEntity, PetSocialData> petDataCache;
+    private final EmotionDispatcher emotionDispatcher;
 
     private final NeighborSampleCache neighborSampleCache = new NeighborSampleCache();
 
@@ -57,7 +65,8 @@ public class SocialContextSnapshot {
     public SocialContextSnapshot(MobEntity pet, PetComponent component,
                                  ServerPlayerEntity owner, ServerWorld world,
                                  long currentTick, PetSocialData petData,
-                                 Map<MobEntity, PetSocialData> petDataCache) {
+                                 Map<MobEntity, PetSocialData> petDataCache,
+                                 EmotionDispatcher emotionDispatcher) {
         this.pet = Objects.requireNonNull(pet, "pet");
         this.component = Objects.requireNonNull(component, "component");
         this.owner = owner;
@@ -65,6 +74,7 @@ public class SocialContextSnapshot {
         this.currentTick = currentTick;
         this.petData = Objects.requireNonNull(petData, "petData");
         this.petDataCache = Objects.requireNonNull(petDataCache, "petDataCache");
+        this.emotionDispatcher = emotionDispatcher;
     }
 
     public MobEntity pet() {
@@ -106,6 +116,36 @@ public class SocialContextSnapshot {
     public NeighborSummary ensureNeighborSample(PetSwarmIndex swarm, double sampleRadius,
                                                 int maxSamples, double packRadius) {
         return neighborSampleCache.ensure(this, swarm, sampleRadius, maxSamples, packRadius);
+    }
+
+    public EmotionStimulusBus.SimpleStimulusCollector collectorFor(PetComponent target) {
+        if (emotionDispatcher == null || target == null) {
+            return (emotion, amount) -> {
+                if (target != null) {
+                    target.pushEmotion(emotion, amount);
+                }
+            };
+        }
+        return emotionDispatcher.collectorFor(target);
+    }
+
+    public void pushEmotion(PetComponent.Emotion emotion, float amount) {
+        if (emotionDispatcher != null) {
+            emotionDispatcher.push(component, emotion, amount);
+        } else {
+            component.pushEmotion(emotion, amount);
+        }
+    }
+
+    public void pushEmotion(PetComponent target, PetComponent.Emotion emotion, float amount) {
+        if (target == null) {
+            return;
+        }
+        if (emotionDispatcher != null) {
+            emotionDispatcher.push(target, emotion, amount);
+        } else {
+            target.pushEmotion(emotion, amount);
+        }
     }
 
     public boolean isNeighborLookingAtSelf(PetSocialData neighbor, double toleranceDegrees) {
