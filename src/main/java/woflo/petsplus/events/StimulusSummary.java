@@ -100,10 +100,14 @@ public final class StimulusSummary {
         }
 
         public StimulusSummary build() {
+            return buildWithTick(tick);
+        }
+
+        public StimulusSummary buildWithTick(long tickOverride) {
             if (petCount <= 0) {
-                return StimulusSummary.empty(tick);
+                return StimulusSummary.empty(tickOverride);
             }
-            return new StimulusSummary(totalDelta, maxSampleDelta, petCount, tick, deltas);
+            return new StimulusSummary(totalDelta, maxSampleDelta, petCount, tickOverride, deltas);
         }
     }
 }

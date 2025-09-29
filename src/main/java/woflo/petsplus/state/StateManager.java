@@ -53,6 +53,7 @@ import woflo.petsplus.events.XpEventHandler;
 import woflo.petsplus.state.gossip.GossipTopics;
 import woflo.petsplus.state.gossip.PetGossipLedger;
 import woflo.petsplus.state.gossip.RumorEntry;
+import woflo.petsplus.state.processing.AsyncWorkerBudget;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -96,6 +97,7 @@ public class StateManager {
     private final OwnerEventDispatcher ownerEventDispatcher = new OwnerEventDispatcher();
     private final AdaptiveTickScaler adaptiveTickScaler = new AdaptiveTickScaler();
     private final AsyncWorkCoordinator asyncWorkCoordinator;
+    private final AsyncWorkerBudget.Registration asyncWorkerRegistration;
     private final OwnerEventDispatcher.PresenceListener ownerPresenceListener;
     private final EmotionStimulusBus.QueueListener stimulusQueueListener;
     private final EmotionStimulusBus.IdleListener stimulusIdleListener;
@@ -109,7 +111,9 @@ public class StateManager {
         if (server == null) {
             throw new IllegalStateException("Server world is missing server reference");
         }
-        this.asyncWorkCoordinator = new AsyncWorkCoordinator(server, adaptiveTickScaler::loadFactor);
+        AsyncWorkerBudget.Registration registration = AsyncWorkerBudget.global().registerCoordinator();
+        this.asyncWorkCoordinator = new AsyncWorkCoordinator(server, adaptiveTickScaler::loadFactor, registration);
+        this.asyncWorkerRegistration = registration;
         this.ownerPresenceListener = ownerProcessingManager::onListenerPresenceChanged;
         this.stimulusQueueListener = this::handleStimulusQueued;
         this.stimulusIdleListener = this::handleStimulusIdleScheduled;
@@ -2202,6 +2206,7 @@ public class StateManager {
         ownerStates.clear();
         asyncWorkCoordinator.drainMainThreadTasks();
         asyncWorkCoordinator.close();
+        asyncWorkerRegistration.close();
     }
     
     /**
