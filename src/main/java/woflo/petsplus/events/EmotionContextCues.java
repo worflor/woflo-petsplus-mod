@@ -153,6 +153,8 @@ public final class EmotionContextCues implements PlayerTickListener {
         clear(player);
         // Clear boss bars to avoid cross-dimensional display issues
         woflo.petsplus.ui.BossBarManager.clearForDimensionChange(player);
+        // Pause inspection manager to prevent race conditions during dimension change
+        woflo.petsplus.ui.PetInspectionManager.onDimensionChange(player);
         // Preserve journal entries so players can still review missed cues after travelling.
     }
 
@@ -347,8 +349,10 @@ public final class EmotionContextCues implements PlayerTickListener {
             CATEGORY_COOLDOWNS.computeIfAbsent(player, p -> new HashMap<>())
                 .put(definition.category(), now);
             if (EmotionCueConfig.get().hudPulseEnabled() && definition.highlightHud()) {
-                if (impact > definition.minDelta() * 3.0f) {
-                    BossBarManager.showOrUpdateInfoBar(player, text.copy(), BossBar.Color.PURPLE, 40);
+                // Reduced threshold from 3.0x to 2.0x for more responsive feedback
+                // Reduced duration from 40 to 30 ticks (1.5s) for snappier feel
+                if (impact > definition.minDelta() * 2.0f) {
+                    BossBarManager.showOrUpdateInfoBar(player, text.copy(), BossBar.Color.PURPLE, 30);
                 }
             }
         }

@@ -40,7 +40,6 @@ public final class PetInspectionManager {
     private static final int VIEW_DIST = 12;
     private static final Map<UUID, InspectionState> inspecting = new HashMap<>();
     private static final int LINGER_TICKS = 100; // 5s linger after looking away
-    private static final int DEBUG_LINGER_TICKS = 200; // 10s linger in debug mode
 
     public static void onPlayerDisconnect(ServerPlayerEntity player) {
         if (player == null) {
@@ -51,12 +50,34 @@ public final class PetInspectionManager {
         clearEmotionScoreboard(player);
     }
 
+    public static void onDimensionChange(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+        InspectionState state = inspecting.get(player.getUuid());
+        if (state != null) {
+            state.pauseForDimensionChange();
+        }
+        BossBarManager.removeBossBar(player);
+        clearEmotionScoreboard(player);
+    }
+
     private static void updateForPlayer(ServerPlayerEntity player) {
         MobEntity pet = findLookedAtPet(player);
         UUID pid = player.getUuid();
 
         InspectionState state = inspecting.computeIfAbsent(pid, k -> new InspectionState());
-        
+
+        // Skip updates during dimension transition
+        if (state.isPaused()) {
+            state.tickPause();
+            if (!state.isPaused()) {
+                // Pause expired, resume normal operation
+                BossBarManager.removeBossBar(player);
+            }
+            return;
+        }
+
         if (pet == null) {
             handleLookAway(player, state);
             return;
@@ -141,21 +162,25 @@ public final class PetInspectionManager {
         float health = pet.getHealth();
         float maxHealth = pet.getMaxHealth();
         float healthPercent = maxHealth > 0 ? health / maxHealth : 0;
-        
-        // Use the actual XP flash system from PetComponent instead of detecting changes manually
-        // This ensures XP flashing only happens when XP is actually gained via addExperience()
+
+        // Cache XP flash state at frame start for consistency across the update
+        // This prevents boss bar text from becoming inconsistent with the flash state
         boolean recentXpGain = comp.isXpFlashing();
+        long xpFlashStartTick = comp.getXpFlashStartTick();
+        state.cachedXpFlashing = recentXpGain;
+        state.cachedXpFlashStartTick = xpFlashStartTick;
+
         boolean canLevelUp = comp.isFeatureLevel();
         boolean injured = healthPercent < 1.0f;
         boolean critical = healthPercent <= 0.25f;
         boolean inCombat = pet.getAttacking() != null || pet.getAttacker() != null ||
                           (pet.getWorld().getTime() - comp.getLastAttackTick()) < 60; // 3 seconds since last damage
-        
+
         // Check for cooldowns and auras
         boolean hasCooldowns = hasActiveCooldowns(comp);
         boolean hasAura = hasActiveAura(comp);
-        
-        return new PetStatus(healthPercent, recentXpGain, canLevelUp, 
+
+        return new PetStatus(healthPercent, recentXpGain, canLevelUp,
                            injured, critical, inCombat, hasCooldowns, hasAura);
     }
 
@@ -229,12 +254,27 @@ public final class PetInspectionManager {
     }
 
     private static void showFrame(ServerPlayerEntity player, DisplayFrame frame) {
-        // Use forceUpdate=true for animated mood content to ensure smooth animations
+        // Use forceUpdate only when text content actually changes (mood animations, XP flash)
+        // Check if this is an animated frame that needs forced updates
+        boolean needsForceUpdate = frameHasAnimation(frame);
+
         switch (frame.priority) {
-            case CRITICAL -> BossBarManager.showOrUpdateBossBar(player, frame.text, frame.progress, frame.color, 20, true);
-            case HIGH -> BossBarManager.showOrUpdateBossBar(player, frame.text, frame.progress, frame.color, 40, true);
-            default -> BossBarManager.showOrUpdateBossBar(player, frame.text, frame.progress, frame.color, 60, true);
+            case CRITICAL -> BossBarManager.showOrUpdateBossBar(player, frame.text, frame.progress, frame.color, 20, needsForceUpdate);
+            case HIGH -> BossBarManager.showOrUpdateBossBar(player, frame.text, frame.progress, frame.color, 40, needsForceUpdate);
+            default -> BossBarManager.showOrUpdateBossBar(player, frame.text, frame.progress, frame.color, 60, needsForceUpdate);
         }
+    }
+
+    /**
+     * Check if a frame contains animated content that requires forced updates
+     */
+    private static boolean frameHasAnimation(DisplayFrame frame) {
+        // Frames with mood text or XP flash animations need forced updates
+        // Check if the text string contains mood emoji or color codes that change
+        String textStr = frame.text.getString();
+        return textStr.contains("§x") || // Hex colors (used by mood system)
+               textStr.contains("💭") ||  // Mood thought bubble
+               textStr.contains("Lv.");   // Level text (may have XP flash)
     }
 
     // Helper methods...
@@ -265,6 +305,10 @@ public final class PetInspectionManager {
         UUID lastPetId = null;
         int ownershipFailures = 0;
         boolean hasFocus = false;
+        int pauseTicks = 0;
+        boolean cachedXpFlashing = false;
+        long cachedXpFlashStartTick = -1;
+        private static final int DIMENSION_PAUSE_TICKS = 20; // 1 second pause during dimension change
 
         void tick() {
             tickCounter++;
@@ -275,6 +319,8 @@ public final class PetInspectionManager {
             lastPetId = petId;
             ownershipFailures = 0;
             hasFocus = true;
+            cachedXpFlashing = false;
+            cachedXpFlashStartTick = -1;
         }
 
         void resetOwnershipFailures() {
@@ -286,7 +332,21 @@ public final class PetInspectionManager {
         }
 
         int getLingerTicks() {
-            return woflo.petsplus.Petsplus.DEBUG_MODE ? DEBUG_LINGER_TICKS : LINGER_TICKS;
+            return LINGER_TICKS;
+        }
+
+        void pauseForDimensionChange() {
+            pauseTicks = DIMENSION_PAUSE_TICKS;
+        }
+
+        boolean isPaused() {
+            return pauseTicks > 0;
+        }
+
+        void tickPause() {
+            if (pauseTicks > 0) {
+                pauseTicks--;
+            }
         }
     }
 

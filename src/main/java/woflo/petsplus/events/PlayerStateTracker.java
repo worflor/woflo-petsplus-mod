@@ -106,7 +106,16 @@ public final class PlayerStateTracker implements PlayerTickListener {
     private static void onPlayerRespawn(ServerPlayerEntity oldPlayer, ServerPlayerEntity newPlayer, boolean alive) {
         // Reset combat state on respawn
         OwnerCombatState.remove(oldPlayer);
-        
+
+        // Clear boss bars and UI state to prevent stale displays after death
+        woflo.petsplus.ui.BossBarManager.removeBossBar(oldPlayer);
+        woflo.petsplus.ui.PetInspectionManager.onPlayerDisconnect(oldPlayer);
+
+        // Clear for new player as well to ensure clean slate
+        if (newPlayer != oldPlayer) {
+            woflo.petsplus.ui.BossBarManager.removeBossBar(newPlayer);
+        }
+
         // Trigger any resurrection abilities if it was a death respawn
         if (!alive) {
             // Check for Cursed One mount resistance

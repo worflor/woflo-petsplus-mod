@@ -133,6 +133,9 @@ public final class BossBarManager implements PlayerTickListener {
                 safeMessage = message.copy().formatted(Formatting.GRAY);
             } catch (Exception e) {
                 // Fallback to plain text if formatting fails
+                if (woflo.petsplus.Petsplus.DEBUG_MODE) {
+                    woflo.petsplus.Petsplus.LOGGER.warn("Boss bar message formatting failed, using fallback: {}", e.getMessage());
+                }
                 safeMessage = Text.literal(message.getString()).formatted(Formatting.GRAY);
             }
 
@@ -144,7 +147,8 @@ public final class BossBarManager implements PlayerTickListener {
             scheduleBossBar(player, info, scheduleTick, false);
 
             try {
-                info.bossBar = new ServerBossBar(info.message, color, BossBar.Style.NOTCHED_20);
+                // Use PROGRESS style for health bars (smooth gradient), not NOTCHED_20
+                info.bossBar = new ServerBossBar(info.message, color, BossBar.Style.PROGRESS);
                 info.bossBar.addPlayer(player);
                 info.bossBar.setPercent(info.percent);
             } catch (Exception e) {
@@ -159,8 +163,9 @@ public final class BossBarManager implements PlayerTickListener {
         } else {
             long currentTick = getCurrentTick(player);
 
-            // Rate limiting: Skip updates if called too frequently (unless forced)
-            if (!forceUpdate && info.lastUpdateTick > 0 && (currentTick - info.lastUpdateTick) < getMinUpdateInterval()) {
+            // Adaptive rate limiting: Skip updates if called too frequently (unless forced)
+            long adaptiveInterval = getAdaptiveUpdateInterval(info, currentTick);
+            if (!forceUpdate && info.lastUpdateTick > 0 && (currentTick - info.lastUpdateTick) < adaptiveInterval) {
                 // Update duration but skip visual update to prevent spam
                 info.remainingTicks = Math.max(info.remainingTicks, durationTicks);
                 info.totalTicks = Math.max(info.totalTicks, durationTicks);
@@ -172,6 +177,9 @@ public final class BossBarManager implements PlayerTickListener {
             try {
                 newMsg = message.copy().formatted(Formatting.GRAY);
             } catch (Exception e) {
+                if (woflo.petsplus.Petsplus.DEBUG_MODE) {
+                    woflo.petsplus.Petsplus.LOGGER.warn("Boss bar message update formatting failed, using fallback: {}", e.getMessage());
+                }
                 newMsg = Text.literal(message.getString()).formatted(Formatting.GRAY);
             }
 
@@ -184,12 +192,16 @@ public final class BossBarManager implements PlayerTickListener {
                 info.message = newMsg;
                 changed = true;
             }
-            if (Math.abs(newPct - info.percent) > 0.001f) {
+            if (Math.abs(newPct - info.percent) > EPSILON) {
                 info.percent = newPct;
                 changed = true;
             }
             if (info.color != color) {
-                info.color = color;
+                // Start color transition instead of instant change
+                if (info.pendingColor != color) {
+                    info.pendingColor = color;
+                    info.colorTransitionTicks = BossBarInfo.COLOR_TRANSITION_DURATION;
+                }
                 changed = true;
             }
             info.remainingTicks = Math.max(info.remainingTicks, durationTicks);
@@ -205,7 +217,8 @@ public final class BossBarManager implements PlayerTickListener {
                     info.bossBar.setName(info.message);
                     info.bossBar.setColor(info.color);
                     info.bossBar.setPercent(info.percent);
-                    info.bossBar.setStyle(BossBar.Style.NOTCHED_20);
+                    // Keep PROGRESS style for smooth health display
+                    info.bossBar.setStyle(BossBar.Style.PROGRESS);
                 } catch (Exception e) {
                     // If boss bar update fails, try to recover or fall back
                     handleBossBarFailure(player, info, e);
@@ -367,6 +380,19 @@ public final class BossBarManager implements PlayerTickListener {
         }
 
         try {
+            // Update color transition if active
+            if (info.colorTransitionTicks > 0) {
+                info.colorTransitionTicks--;
+                if (info.colorTransitionTicks == 0 && info.pendingColor != null) {
+                    // Transition complete, apply new color
+                    info.color = info.pendingColor;
+                    info.pendingColor = null;
+                    if (info.bossBar != null) {
+                        info.bossBar.setColor(info.color);
+                    }
+                }
+            }
+
             if (info.fixedPercent) {
                 info.bossBar.setPercent(clamp01(info.percent));
             } else {
@@ -441,6 +467,9 @@ public final class BossBarManager implements PlayerTickListener {
         int failureCount = 0;
         boolean isFallbackMode = false;
         private long nextRunTick = Long.MAX_VALUE;
+        BossBar.Color pendingColor = null;
+        int colorTransitionTicks = 0;
+        private static final int COLOR_TRANSITION_DURATION = 2; // 2 ticks (100ms) smooth transition
 
         long nextRunTick() {
             return nextRunTick;
@@ -483,8 +512,13 @@ public final class BossBarManager implements PlayerTickListener {
         }
     }
 
+    private static final float EPSILON = 0.001f; // Epsilon for floating point comparisons
+
     private static float clamp01(float v) {
-        return v < 0 ? 0 : (v > 1 ? 1 : v);
+        // Clamp with epsilon tolerance to avoid micro-updates from floating point errors
+        if (v < EPSILON) return 0;
+        if (v > 1.0f - EPSILON) return 1.0f;
+        return v;
     }
 
     /**
@@ -500,9 +534,34 @@ public final class BossBarManager implements PlayerTickListener {
 
     /**
      * Get minimum interval between updates (in ticks) to prevent spam.
+     * Adaptive: increases if updates are too frequent, decreases during calm periods.
      */
     private static long getMinUpdateInterval() {
-        return 2; // Minimum 2 ticks (100ms) between non-forced updates
+        return 4; // Minimum 4 ticks (200ms) for smoother updates and better performance
+    }
+
+    /**
+     * Get adaptive update interval based on update frequency
+     */
+    private static long getAdaptiveUpdateInterval(BossBarInfo info, long currentTick) {
+        if (info.lastUpdateTick <= 0) {
+            return getMinUpdateInterval();
+        }
+
+        long timeSinceLastUpdate = currentTick - info.lastUpdateTick;
+
+        // If updates are very frequent (< 4 ticks), increase throttle
+        if (timeSinceLastUpdate < 4) {
+            return 6; // Throttle to 300ms during spam
+        }
+
+        // If updates are moderate (4-10 ticks), use standard interval
+        if (timeSinceLastUpdate < 10) {
+            return 4; // Standard 200ms
+        }
+
+        // If updates are infrequent (> 10 ticks), allow faster response
+        return 2; // Faster 100ms response for low-frequency updates
     }
 
     /**
@@ -515,7 +574,7 @@ public final class BossBarManager implements PlayerTickListener {
             // Try to recover by recreating the boss bar
             try {
                 detachBossBar(info);
-                info.bossBar = new ServerBossBar(info.message, info.color, BossBar.Style.NOTCHED_20);
+                info.bossBar = new ServerBossBar(info.message, info.color, BossBar.Style.PROGRESS);
                 info.bossBar.addPlayer(player);
                 info.bossBar.setPercent(info.percent);
                 info.resetFailures(); // Recovery successful
@@ -541,17 +600,33 @@ public final class BossBarManager implements PlayerTickListener {
         }
 
         try {
-            for (ServerPlayerEntity player : List.copyOf(info.bossBar.getPlayers())) {
+            // Get player list snapshot to avoid concurrent modification
+            List<ServerPlayerEntity> playerSnapshot;
+            try {
+                playerSnapshot = List.copyOf(info.bossBar.getPlayers());
+            } catch (Exception e) {
+                // Boss bar already disposed or in invalid state
+                info.bossBar = null;
+                return;
+            }
+
+            // Remove each player safely
+            for (ServerPlayerEntity player : playerSnapshot) {
+                if (player == null) {
+                    continue;
+                }
                 try {
                     info.bossBar.removePlayer(player);
                 } catch (Exception e) {
-                    // Ignore individual player removal failures
+                    // Ignore individual player removal failures - player may have disconnected
                 }
             }
         } catch (Exception e) {
-            // Ignore failures to get player list
+            // Final safety net for any unexpected failures
+        } finally {
+            // Always null out the boss bar reference to prevent memory leaks
+            info.bossBar = null;
         }
-        info.bossBar = null;
     }
 
     /**
