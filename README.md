@@ -1,5 +1,5 @@
 # Pets+ dev-0.86-in-the-background (Pets Plus)
-A standalone Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
+A standalone style Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics. 
 
 
 ## Pet Roles and Levelling
@@ -65,37 +65,37 @@ Pets come with distinct natures based on the conditions found when being tamed o
 2. Feral [ Neutral climates ]
 3. Fierce [ Hotter climates ]
 
-Born natures do not role for tames; tamed natures do not role for born pets.
+Born pets do not roll for tamed natures; tamed pets do not rolr for born natures. (wow)
 ### Born Natures
 4. Radiant [ Daytime - Open sky - No weather ]
 5. Festival [ 3+ pets or players nearby ]
 6. Infernal [ In the Nether ]
 7. Otherworldly [ Any dimension; Besides Overworld and Nether ]
-8. Hearth
+8. Hearth [ i forgor ]
 9. Nocturne [ Nighttime - Full moon - Open sky ]
 10. Tempest [ Rain or thunder weather ]
-11. Solace 
+11. Solace [ Birthed in solitude ]
 12. Echoed [ Deep Dark biome ]
-13. Mycelial
+13. Mycelial [ Mushroom biome ]
 14. Gilded [ Valuable blocks present ]
-15. Gloom
+15. Gloom [ i forgor ]
 16. Verdant [ Lush conditions present ]
 17. Summit [ Height ≥100 - Open sky ]
 18. Tidal [ Fully submerged in water - Ocean biome ]
 19. Molten [ Near fiery blocks ]
-20. Frosty
-21. Mire
+20. Frosty [ Snowy biome ]
+21. Mire [ i forgor ]
 22. Relic [ Near strongholds / Ruins ]
 23. Unnatural [ Breeder owns neither parents ]
 
 
 ## New Friends
-### Now Tamable:
+The following entities are now tamable:
 1. Frogs with slimeballs
 2. Rabbits with carrots
 3. Turtles with seagrass
 
-### Being considered
+### being considered
 - Phantoms via Trust*
 - tiny slimes and tiny magma cubes 
 - Camels
@@ -110,7 +110,7 @@ Born natures do not role for tames; tamed natures do not role for born pets.
 ## Pet Death and Loss
 If your pet dies, it will drop all its items and be gone forever. Your tribute items and all that pet's experience are lost. 
 
-Hey, memorialize the trauma, a **Proof of Existence** drops on every pet death.
+Hey wait, memorialize that trauma! A **Proof of Existence** drops on every pet death.
 
 
 ## Advancements
@@ -147,7 +147,7 @@ Hey, memorialize the trauma, a **Proof of Existence** drops on every pet death.
 - "This isnt vanilla, chocolate, or strawberry..." (tame an entity usually untamable in the vanilla game)
 - "Pack Mentality" (Engage in combat with: a pack of 3 pets of at least 2 unique roles and 2 unique entity types)
 - "It's not nice to do that!!" (punch a pet into a void - killing it)
-- "Hold on a moment..." (notice a gossip cue)
+- "Ok, gopiss girl." (notice a gossip cue)
 - "Size matters" (have a pack large enough for two social circles)
 
 
