@@ -14,7 +14,6 @@ import java.util.EnumSet;
 public class CalmRestGoal extends MoodBasedGoal {
     private BlockPos restSpot;
     private int restTicks;
-    private static final int MIN_REST_TICKS = 100; // 5 seconds minimum
     private static final int MAX_REST_TICKS = 400; // 20 seconds maximum
 
     public CalmRestGoal(MobEntity mob) {

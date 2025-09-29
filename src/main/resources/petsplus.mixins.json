@@ -27,7 +27,8 @@
                 "MobEntityTickMixin",
                 "ItemEntityMixin",
                 "ServerPlayerEntityXpMixin",
-                "VillagerEntityTradeMixin"
+                "VillagerEntityTradeMixin",
+                "PetNamingMixin"
         ],
 	"client": [
 	],

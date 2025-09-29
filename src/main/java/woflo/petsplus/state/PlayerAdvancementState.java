@@ -20,7 +20,6 @@ import java.util.WeakHashMap;
 public class PlayerAdvancementState {
     private static final Map<PlayerEntity, PlayerAdvancementState> STATES = new WeakHashMap<>();
 
-    private final PlayerEntity player;
     private UUID bestFriendForevererPetUuid = null;
     private long bestFriendForevererAwardedTs = 0;
     private boolean orNotAwarded = false;
@@ -31,7 +30,7 @@ public class PlayerAdvancementState {
     private final Set<UUID> healedAlliesToday = new HashSet<>();
 
     public PlayerAdvancementState(PlayerEntity player) {
-        this.player = player;
+        // Player reference not needed - using WeakHashMap key for identity
     }
 
     public static PlayerAdvancementState getOrCreate(PlayerEntity player) {

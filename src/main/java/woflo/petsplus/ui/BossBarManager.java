@@ -139,7 +139,6 @@ public final class BossBarManager implements PlayerTickListener {
             info = new BossBarInfo(safeMessage, durationTicks, color);
             info.fixedPercent = true;
             info.percent = clamp01(percent);
-            info.forceUpdates = forceUpdate;
             info.lastUpdateTick = getCurrentTick(player);
             activeBossBars.put(playerId, info);
             scheduleBossBar(player, info, scheduleTick, false);
@@ -178,7 +177,6 @@ public final class BossBarManager implements PlayerTickListener {
 
             float newPct = clamp01(percent);
             info.fixedPercent = true;
-            info.forceUpdates = forceUpdate;
             info.lastUpdateTick = currentTick;
 
             boolean changed = forceUpdate; // Always consider changed if forceUpdate is true
@@ -439,7 +437,6 @@ public final class BossBarManager implements PlayerTickListener {
         boolean fixedPercent = false;
         float percent = 1.0f;
         BossBar.Color color = BossBar.Color.PURPLE;
-        boolean forceUpdates = false;
         long lastUpdateTick = 0;
         int failureCount = 0;
         boolean isFallbackMode = false;

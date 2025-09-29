@@ -84,7 +84,10 @@ public class FeedbackConfig {
 
         // Utility/QoL feedback
         registerUtilityFeedback();
-        
+
+        // Tribute orbital effects
+        registerTributeOrbitalFeedback();
+
         // Petting feedback effects
         registerPettingFeedback();
     }
@@ -282,6 +285,43 @@ public class FeedbackConfig {
         register("config_changed", List.of(
             new ParticleConfig(ParticleTypes.ENCHANT, 2, 0.1, 0.2, 0.1, 0.01, "circle", 0.3, false)
         ), new AudioConfig(SoundEvents.UI_BUTTON_CLICK.value(), 0.2f, 1.0f, 4.0), 0, true);
+    }
+
+    private static void registerTributeOrbitalFeedback() {
+        // Level 10 - Single orbital (Gold theme)
+        register("tribute_orbital_10", List.of(
+            new ParticleConfig(ParticleTypes.END_ROD, 6, 0.02, 0.02, 0.02, 0.01, "orbital_single", 1.5, true)
+        ), null, 0, true);
+
+        // Level 20 - Dual orbital (Diamond theme)
+        register("tribute_orbital_20", List.of(
+            new ParticleConfig(ParticleTypes.END_ROD, 8, 0.02, 0.02, 0.02, 0.01, "orbital_dual", 1.5, true),
+            new ParticleConfig(ParticleTypes.ENCHANT, 6, 0.01, 0.01, 0.01, 0.005, "orbital_dual", 2.0, true)
+        ), null, 0, true);
+
+        // Level 30 - Triple orbital (Netherite theme)
+        register("tribute_orbital_30", List.of(
+            new ParticleConfig(ParticleTypes.SOUL_FIRE_FLAME, 12, 0.02, 0.02, 0.02, 0.01, "orbital_triple", 1.5, true),
+            new ParticleConfig(ParticleTypes.FLAME, 10, 0.01, 0.01, 0.01, 0.005, "orbital_triple", 2.0, true),
+            new ParticleConfig(ParticleTypes.LAVA, 8, 0.01, 0.01, 0.01, 0.005, "orbital_triple", 2.5, true)
+        ), null, 0, true);
+
+        // Tribute completion effects
+        register("tribute_complete_10", List.of(
+            new ParticleConfig(ParticleTypes.END_ROD, 15, 0.4, 0.4, 0.4, 0.08, "burst", 1.0, true),
+            new ParticleConfig(ParticleTypes.CRIT, 8, 0.3, 0.3, 0.3, 0.05, "circle", 1.2, true)
+        ), new AudioConfig(SoundEvents.ENTITY_VILLAGER_YES, 0.8f, 1.4f, 12.0), 0, true);
+
+        register("tribute_complete_20", List.of(
+            new ParticleConfig(ParticleTypes.END_ROD, 20, 0.5, 0.5, 0.5, 0.1, "burst", 1.2, true),
+            new ParticleConfig(ParticleTypes.ENCHANT, 12, 0.4, 0.4, 0.4, 0.06, "spiral", 1.5, true)
+        ), new AudioConfig(SoundEvents.ENTITY_VILLAGER_YES, 0.9f, 1.5f, 14.0), 0, true);
+
+        register("tribute_complete_30", List.of(
+            new ParticleConfig(ParticleTypes.END_ROD, 25, 0.6, 0.6, 0.6, 0.12, "burst", 1.5, true),
+            new ParticleConfig(ParticleTypes.SOUL_FIRE_FLAME, 15, 0.5, 0.5, 0.5, 0.08, "spiral", 2.0, true),
+            new ParticleConfig(ParticleTypes.EXPLOSION, 1, 0.0, 0.0, 0.0, 0.0, "burst", 0.0, false)
+        ), new AudioConfig(SoundEvents.ENTITY_VILLAGER_YES, 1.0f, 1.6f, 16.0), 0, true);
     }
 
     private static void registerPettingFeedback() {

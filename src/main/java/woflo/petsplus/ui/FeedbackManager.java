@@ -15,6 +15,7 @@ import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.events.TributeHandler;
 
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -166,6 +167,9 @@ public class FeedbackManager {
             case "random" -> emitRandomPattern(config, position, world, effectiveRadius);
             case "aura_radius_ground" -> emitAuraRadiusGround(config, position, world, effectiveRadius);
             case "aura_radius_edge" -> emitAuraRadiusEdge(config, position, world, effectiveRadius);
+            case "orbital_single" -> emitOrbitalSingle(config, position, world, sourceEntity);
+            case "orbital_dual" -> emitOrbitalDual(config, position, world, sourceEntity);
+            case "orbital_triple" -> emitOrbitalTriple(config, position, world, sourceEntity);
             default -> emitBurstPattern(config, position, world);
         }
     }
@@ -365,6 +369,41 @@ public class FeedbackManager {
         }
         String eventName = prefix + "_" + abilityName.toLowerCase();
         emitFeedback(eventName, source, world);
+    }
+
+    /**
+     * Emit orbital patterns for tribute effects
+     */
+    private static void emitOrbitalSingle(FeedbackConfig.ParticleConfig config, Vec3d pos, ServerWorld world, Entity sourceEntity) {
+        if (!(sourceEntity instanceof MobEntity pet)) {
+            emitBurstPattern(config, pos, world);
+            return;
+        }
+        TributeOrbitalEffects.emitTributeOrbital(pet, world, world.getTime());
+    }
+
+    private static void emitOrbitalDual(FeedbackConfig.ParticleConfig config, Vec3d pos, ServerWorld world, Entity sourceEntity) {
+        if (!(sourceEntity instanceof MobEntity pet)) {
+            emitBurstPattern(config, pos, world);
+            return;
+        }
+        TributeOrbitalEffects.emitTributeOrbital(pet, world, world.getTime());
+    }
+
+    private static void emitOrbitalTriple(FeedbackConfig.ParticleConfig config, Vec3d pos, ServerWorld world, Entity sourceEntity) {
+        if (!(sourceEntity instanceof MobEntity pet)) {
+            emitBurstPattern(config, pos, world);
+            return;
+        }
+        TributeOrbitalEffects.emitTributeOrbital(pet, world, world.getTime());
+    }
+
+    /**
+     * Emit tribute orbital effects via feedback system
+     */
+    public static void emitTributeOrbitalFeedback(MobEntity pet, ServerWorld world, int tributeLevel) {
+        String eventName = "tribute_orbital_" + tributeLevel;
+        emitFeedback(eventName, pet, world);
     }
 
     /**

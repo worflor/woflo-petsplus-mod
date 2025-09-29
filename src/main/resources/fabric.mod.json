@@ -3,7 +3,7 @@
 	"id": "petsplus",
 	"version": "${version}",
 	"name": "petsplus",
-	"description": "Pets gain perks and grow with you. Don't let them die :P",
+	"description": "For those who crave social pet systems in their block game.",
 	"authors": [
 		"Woflo"
 	],
@@ -11,7 +11,7 @@
 		"homepage": "https://github.com/worflor/woflo-petsplus-mod",
 		"sources": "https://github.com/worflor/woflo-petsplus-mod"
 	},
-	"license": "CC0-1.0",
+	"license": "GNU General Public License v3.0",
 	"icon": "assets/petsplus/icon.png",
 	"environment": "*",
 	"entrypoints": {

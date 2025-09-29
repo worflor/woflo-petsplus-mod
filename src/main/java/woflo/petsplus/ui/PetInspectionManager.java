@@ -167,7 +167,7 @@ public final class PetInspectionManager {
         // Priority Frame 1: Critical health (always priority)
         if (status.critical) {
             Text text = UIStyle.statusIndicator("injured")
-                .append(UIStyle.cleanPetDisplay(name, status.healthPercent, comp.getLevel(), comp.getXpProgress(), status.canLevelUp, status.recentXpGain, currentTick, status.inCombat));
+                .append(UIStyle.cleanPetDisplay(name, status.healthPercent, comp.getLevel(), comp.getXpProgress(), status.canLevelUp, status.recentXpGain, currentTick, comp.getXpFlashStartTick(), status.inCombat));
             frames.add(new DisplayFrame(text, status.healthPercent, BossBar.Color.RED, FramePriority.CRITICAL));
         }
 
@@ -175,7 +175,7 @@ public final class PetInspectionManager {
         PetRoleType roleType = comp.getRoleType();
         if (roleType != null && roleType.xpCurve().tributeMilestones().contains(comp.getLevel()) && !comp.isMilestoneUnlocked(comp.getLevel())) {
             MutableText text = UIStyle.statusIndicator("happy")
-                .append(UIStyle.cleanPetDisplay(name, status.healthPercent, comp.getLevel(), comp.getXpProgress(), status.canLevelUp, status.recentXpGain, currentTick, status.inCombat))
+                .append(UIStyle.cleanPetDisplay(name, status.healthPercent, comp.getLevel(), comp.getXpProgress(), status.canLevelUp, status.recentXpGain, currentTick, comp.getXpFlashStartTick(), status.inCombat))
                 .append(UIStyle.sepDot())
                 .append(UIStyle.tributeNeeded(getTributeItemName(comp, comp.getLevel())));
             frames.add(new DisplayFrame(text, 1.0f, BossBar.Color.YELLOW, FramePriority.HIGH));
@@ -197,6 +197,7 @@ public final class PetInspectionManager {
             status.canLevelUp,
             status.recentXpGain,
             currentTick,
+            comp.getXpFlashStartTick(),
             status.inCombat
         );
         

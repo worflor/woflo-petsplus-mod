@@ -257,7 +257,7 @@ public final class UIStyle {
      * Clean level display with XP-based color progression and XP gain flashing
      * Level color goes from black (0% XP) to white (100% XP), fades to/from green on XP gain
      */
-    public static MutableText levelWithXpFlash(int level, float xpProgress, boolean canLevelUp, boolean recentXpGain, long currentTick) {
+    public static MutableText levelWithXpFlash(int level, float xpProgress, boolean canLevelUp, boolean recentXpGain, long currentTick, long xpFlashStartTick) {
         TextColor levelColor;
 
         if (canLevelUp) {
@@ -265,8 +265,8 @@ public final class UIStyle {
             boolean pulse = (currentTick / 30) % 2 == 0;
             levelColor = pulse ? LEVEL_TRIBUTE_READY : LEVEL_NEAR_TRIBUTE;
         } else if (recentXpGain) {
-            // Recent XP gain - smooth fade to/from green over 40 ticks (2 seconds)
-            levelColor = getXpFlashColor(xpProgress, currentTick);
+            // Recent XP gain - smooth fade to/from green over 7 ticks (0.35 seconds)
+            levelColor = getXpFlashColor(xpProgress, currentTick, xpFlashStartTick);
         } else {
             // Normal: XP-based color progression from black to white
             levelColor = getXpProgressColor(xpProgress);
@@ -289,31 +289,31 @@ public final class UIStyle {
     }
 
     /**
-     * Get smooth fading XP flash color: base → green → base over 2 seconds (40 ticks)
+     * Get smooth fading XP flash color: base → green → base over 0.35 seconds (7 ticks)
      */
-    private static TextColor getXpFlashColor(float xpProgress, long currentTick) {
-        // Calculate flash progress over 40 ticks (2 seconds)
-        long flashCycle = currentTick % 100; // Within the 5-second recentXpGain window
-        
-        if (flashCycle >= 40) {
-            // After flash period, return to normal color
+    private static TextColor getXpFlashColor(float xpProgress, long currentTick, long xpFlashStartTick) {
+        // Calculate elapsed time since XP gain
+        long elapsedTicks = xpFlashStartTick >= 0 ? (currentTick - xpFlashStartTick) : Long.MAX_VALUE;
+
+        if (elapsedTicks >= 7 || xpFlashStartTick < 0) {
+            // After flash period or no flash active, return to normal color
             return getXpProgressColor(xpProgress);
         }
-        
-        // Create smooth fade: 0→1→0 over 40 ticks
+
+        // Create smooth fade: 0→1→0 over 7 ticks (0.35 seconds)
         float flashPhase;
-        if (flashCycle <= 20) {
-            // Fade to green (0-20 ticks)
-            flashPhase = flashCycle / 20.0f;
+        if (elapsedTicks <= 3) {
+            // Fade to green (0-3 ticks, first half)
+            flashPhase = elapsedTicks / 3.0f;
         } else {
-            // Fade from green (20-40 ticks)
-            flashPhase = (40 - flashCycle) / 20.0f;
+            // Fade from green (4-7 ticks, second half)
+            flashPhase = (7 - elapsedTicks) / 4.0f;
         }
-        
+
         // Interpolate between base XP color and bright green
         TextColor baseColor = getXpProgressColor(xpProgress);
         TextColor flashColor = TextColor.fromRgb(0x55FF55); // Bright green
-        
+
         return interpolateColor(baseColor, flashColor, flashPhase);
     }
 
@@ -334,17 +334,17 @@ public final class UIStyle {
      * Create clean pet display: "Name • Lv.X" where level color shows XP progress
      * Name blinks health color every 5s (3s with double blink for low health)
      */
-    public static MutableText cleanPetDisplay(String name, float healthPercent, int level, float xpProgress, boolean canLevelUp, boolean recentXpGain, long currentTick) {
-        return cleanPetDisplay(name, healthPercent, level, xpProgress, canLevelUp, recentXpGain, currentTick, false);
+    public static MutableText cleanPetDisplay(String name, float healthPercent, int level, float xpProgress, boolean canLevelUp, boolean recentXpGain, long currentTick, long xpFlashStartTick) {
+        return cleanPetDisplay(name, healthPercent, level, xpProgress, canLevelUp, recentXpGain, currentTick, xpFlashStartTick, false);
     }
 
     /**
      * Create clean pet display with combat state for immediate health color feedback
      */
-    public static MutableText cleanPetDisplay(String name, float healthPercent, int level, float xpProgress, boolean canLevelUp, boolean recentXpGain, long currentTick, boolean inCombat) {
+    public static MutableText cleanPetDisplay(String name, float healthPercent, int level, float xpProgress, boolean canLevelUp, boolean recentXpGain, long currentTick, long xpFlashStartTick, boolean inCombat) {
         return dynamicPetName(name, healthPercent, null, currentTick, inCombat)
             .append(sepDot())
-            .append(levelWithXpFlash(level, xpProgress, canLevelUp, recentXpGain, currentTick));
+            .append(levelWithXpFlash(level, xpProgress, canLevelUp, recentXpGain, currentTick, xpFlashStartTick));
     }
     
     /**

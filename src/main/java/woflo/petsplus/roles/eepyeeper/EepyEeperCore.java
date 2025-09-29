@@ -245,7 +245,7 @@ public class EepyEeperCore implements PlayerTickListener {
 
         pet.damage(world, pet.getDamageSources().magic(), Float.MAX_VALUE);
 
-        player.sendMessage(Text.of("Ac" + petName + " A6vanished so you could wake up..."), false);
+        player.sendMessage(Text.translatable("petsplus.eepyeeper.dream_sacrifice", petName), false);
 
     }
 
@@ -269,7 +269,7 @@ public class EepyEeperCore implements PlayerTickListener {
 
                 createPhantomProtectionEffect(player, pet, (ServerWorld) player.getWorld());
 
-                player.sendMessage(Text.of("§9✦ Your sleepy companion wards off nightmares... ✦"), true);
+                player.sendMessage(Text.translatable("petsplus.eepyeeper.phantom_ward"), true);
 
                 return false; // Prevent phantom damage
 
@@ -404,7 +404,7 @@ public class EepyEeperCore implements PlayerTickListener {
 
                 petComp.addExperience(bonusXP);
 
-                player.sendMessage(Text.of("A6Restful Dreams: Your Eepy Eeper shares peaceful slumber benefits!"), true);
+                player.sendMessage(Text.translatable("petsplus.eepyeeper.sleep_bonus"), true);
 
                 restfulDreamsActive = true;
 
@@ -450,7 +450,7 @@ public class EepyEeperCore implements PlayerTickListener {
 
                     sleepCyclesRemaining.put(petUuid, remaining);
 
-                    player.sendMessage(Text.of("A7Your Eepy Eeper needs " + remaining + " more sleep cycle(s) to recover..."), true);
+                    player.sendMessage(Text.translatable("petsplus.eepyeeper.recovery_progress", remaining), true);
 
                 }
 
@@ -527,7 +527,7 @@ public class EepyEeperCore implements PlayerTickListener {
             }
 
             if (world.getTime() % 200 == 0) {
-                player.sendMessage(Text.of("§aYour Eepy Eeper's cozy presence expands"), true);
+                player.sendMessage(Text.translatable("petsplus.eepyeeper.nap_aura_expand"), true);
             }
 
             if (world.getTime() % 20 == 0) {
@@ -613,7 +613,7 @@ public class EepyEeperCore implements PlayerTickListener {
 
                     if (world.getTime() % 200 == 0) { // Every 10 seconds
 
-                        player.sendMessage(Text.of("§aYour Eepy Eeper's cozy presence expands"), true);
+                        player.sendMessage(Text.translatable("petsplus.eepyeeper.nap_aura_expand"), true);
 
                     }
 

@@ -38,11 +38,11 @@ final class PetMoodEngine {
     private static final float CADENCE_ALPHA = 0.35f;
     private static final float VOLATILITY_ALPHA = 0.25f;
     private static final float PEAK_ALPHA = 0.18f;
-    private static final float HABITUATION_BASE = 320f;
+    private static final float HABITUATION_BASE = 1200f;
     private static final float HALF_LIFE_MULTIPLIER = 1.35f;
-    private static final float MIN_HALF_LIFE = 40f;
-    private static final float MAX_HALF_LIFE = 420f;
-    private static final float HOMEOSTASIS_RECOVERY_HALF = 480f;
+    private static final float MIN_HALF_LIFE = 400f;
+    private static final float MAX_HALF_LIFE = 3600f;
+    private static final float HOMEOSTASIS_RECOVERY_HALF = 2400f;
     private static final float RELATIONSHIP_BASE = 1.0f;
     private static final float DANGER_BASE = 1.0f;
     private static final float APPRAISAL_BASE = 0.85f;
@@ -53,8 +53,8 @@ final class PetMoodEngine {
     private static final float OPPONENT_TRANSFER_MAX = 0.30f;
     private static final float REBOUND_GAIN = 0.18f;
     private static final float RELATIONSHIP_VARIANCE = 2200f;
-    private static final float CARE_PULSE_HALF_LIFE = 720f;
-    private static final float DANGER_HALF_LIFE = 260f;
+    private static final float CARE_PULSE_HALF_LIFE = 3600f;
+    private static final float DANGER_HALF_LIFE = 1200f;
 
     private static final int[] BASE_BREATHING_SPEEDS = {300, 200, 120};
     private static final int[] BASE_GRADIENT_SPEEDS = {280, 180, 100};
@@ -246,7 +246,8 @@ final class PetMoodEngine {
             return;
         }
 
-        float sample = MathHelper.clamp(amount, 0f, 1f);
+        // Global intensity cap at 0.5f to prevent overwhelming
+        float sample = MathHelper.clamp(amount, 0f, 0.5f);
         sample *= getNatureStimulusBias(emotion);
         sample = MathHelper.clamp(sample, 0f, 1f);
         float volatilityMultiplier = parent.getNatureVolatilityMultiplier();
@@ -1403,7 +1404,7 @@ final class PetMoodEngine {
                 Map.entry(PetComponent.Mood.PROTECTIVE, 0.2f)));
         table.put(PetComponent.Emotion.KEFI, weights(
                 Map.entry(PetComponent.Mood.PLAYFUL, 0.45f),
-                Map.entry(PetComponent.Mood.PASSIONATE, 0.3f),
+                Map.entry(PetComponent.Mood.PASSIONATE, 0.30f),
                 Map.entry(PetComponent.Mood.HAPPY, 0.25f)));
         table.put(PetComponent.Emotion.ANGST, weights(
                 Map.entry(PetComponent.Mood.RESTLESS, 0.35f),
@@ -1412,7 +1413,7 @@ final class PetMoodEngine {
         table.put(PetComponent.Emotion.FOREBODING, weights(
                 Map.entry(PetComponent.Mood.AFRAID, 0.55f),
                 Map.entry(PetComponent.Mood.RESTLESS, 0.25f),
-                Map.entry(PetComponent.Mood.PROTECTIVE, 0.2f)));
+                Map.entry(PetComponent.Mood.PROTECTIVE, 0.20f)));
         table.put(PetComponent.Emotion.PROTECTIVENESS, weights(
                 Map.entry(PetComponent.Mood.PROTECTIVE, 0.7f),
                 Map.entry(PetComponent.Mood.ANGRY, 0.15f),
@@ -1431,7 +1432,7 @@ final class PetMoodEngine {
                 Map.entry(PetComponent.Mood.RESTLESS, 0.2f)));
         table.put(PetComponent.Emotion.REGRET, weights(
                 Map.entry(PetComponent.Mood.SAUDADE, 0.55f),
-                Map.entry(PetComponent.Mood.CALM, 0.2f),
+                Map.entry(PetComponent.Mood.CALM, 0.20f),
                 Map.entry(PetComponent.Mood.RESTLESS, 0.25f)));
         table.put(PetComponent.Emotion.MONO_NO_AWARE, weights(
                 Map.entry(PetComponent.Mood.YUGEN, 0.5f),
@@ -1442,9 +1443,9 @@ final class PetMoodEngine {
                 Map.entry(PetComponent.Mood.RESTLESS, 0.3f),
                 Map.entry(PetComponent.Mood.CURIOUS, 0.2f)));
         table.put(PetComponent.Emotion.SOBREMESA, weights(
-                Map.entry(PetComponent.Mood.BONDED, 0.5f),
-                Map.entry(PetComponent.Mood.CALM, 0.3f),
-                Map.entry(PetComponent.Mood.HAPPY, 0.2f)));
+                Map.entry(PetComponent.Mood.BONDED, 0.50f),
+                Map.entry(PetComponent.Mood.CALM, 0.30f),
+                Map.entry(PetComponent.Mood.HAPPY, 0.20f)));
         table.put(PetComponent.Emotion.HANYAUKU, weights(
                 Map.entry(PetComponent.Mood.PLAYFUL, 0.5f),
                 Map.entry(PetComponent.Mood.HAPPY, 0.3f),
@@ -1454,25 +1455,25 @@ final class PetMoodEngine {
                 Map.entry(PetComponent.Mood.YUGEN, 0.35f),
                 Map.entry(PetComponent.Mood.SAUDADE, 0.25f)));
         table.put(PetComponent.Emotion.LAGOM, weights(
-                Map.entry(PetComponent.Mood.CALM, 0.5f),
+                Map.entry(PetComponent.Mood.CALM, 0.50f),
                 Map.entry(PetComponent.Mood.BONDED, 0.25f),
                 Map.entry(PetComponent.Mood.HAPPY, 0.25f)));
         table.put(PetComponent.Emotion.ENNUI, weights(
-                Map.entry(PetComponent.Mood.RESTLESS, 0.5f),
-                Map.entry(PetComponent.Mood.SAUDADE, 0.3f),
-                Map.entry(PetComponent.Mood.CALM, 0.2f)));
+                Map.entry(PetComponent.Mood.RESTLESS, 0.50f),
+                Map.entry(PetComponent.Mood.SAUDADE, 0.30f),
+                Map.entry(PetComponent.Mood.CALM, 0.20f)));
         table.put(PetComponent.Emotion.YUGEN, weights(
-                Map.entry(PetComponent.Mood.YUGEN, 0.7f),
-                Map.entry(PetComponent.Mood.CALM, 0.2f),
-                Map.entry(PetComponent.Mood.SAUDADE, 0.1f)));
+                Map.entry(PetComponent.Mood.YUGEN, 0.35f),
+                Map.entry(PetComponent.Mood.CALM, 0.40f),
+                Map.entry(PetComponent.Mood.SAUDADE, 0.25f)));
         table.put(PetComponent.Emotion.SAUDADE, weights(
                 Map.entry(PetComponent.Mood.SAUDADE, 0.7f),
                 Map.entry(PetComponent.Mood.YUGEN, 0.15f),
                 Map.entry(PetComponent.Mood.CALM, 0.15f)));
         table.put(PetComponent.Emotion.HIRAETH, weights(
-                Map.entry(PetComponent.Mood.SAUDADE, 0.6f),
-                Map.entry(PetComponent.Mood.BONDED, 0.25f),
-                Map.entry(PetComponent.Mood.CALM, 0.15f)));
+                Map.entry(PetComponent.Mood.SAUDADE, 0.60f),
+                Map.entry(PetComponent.Mood.RESTLESS, 0.30f),
+                Map.entry(PetComponent.Mood.CALM, 0.10f)));
         table.put(PetComponent.Emotion.STOIC, weights(
                 Map.entry(PetComponent.Mood.SISU, 0.4f),
                 Map.entry(PetComponent.Mood.CALM, 0.35f),
@@ -1881,11 +1882,29 @@ final class PetMoodEngine {
             float delta = Math.max(0f, now - lastUpdateTime);
             float cadence = cadenceEMA > 0f ? cadenceEMA : HABITUATION_BASE;
             float adaptiveHalf = MathHelper.clamp(cadence * HALF_LIFE_MULTIPLIER, MIN_HALF_LIFE, MAX_HALF_LIFE);
+            
+            // Configure special decay rates for cultural emotions
+            if (emotion == PetComponent.Emotion.ENNUI) {
+                // Ennui decays very fast (boredom dissipates quickly)
+                adaptiveHalf *= 0.5f;  // Half the normal half-life (0.9995/tick effect)
+            } else if (emotion == PetComponent.Emotion.HIRAETH) {
+                // Hiraeth decays slowly (homesickness lingers)
+                adaptiveHalf *= 2.0f;  // Double the normal half-life (0.998/tick effect)
+            } else if (emotion == PetComponent.Emotion.SOBREMESA || emotion == PetComponent.Emotion.YUGEN) {
+                // Sobremesa and Yugen have moderate slower decay
+                adaptiveHalf *= 1.3f;
+            } else if (emotion == PetComponent.Emotion.KEFI) {
+                // Kefi has slightly faster decay (energy bursts don't last)
+                adaptiveHalf *= 0.8f;
+            }
+            
             float decayRate = (float) (Math.log(2) / adaptiveHalf);
             float decay = (float) Math.exp(-decayRate * delta);
             intensity *= decay;
             impactBudget *= decay;
-            homeostasisBias = MathHelper.lerp((float) Math.exp(-delta / HOMEOSTASIS_RECOVERY_HALF), homeostasisBias, 1.0f);
+            
+            // HomeostasisBias recovery for idle states  
+            homeostasisBias = MathHelper.lerp((float) Math.exp(-delta / HOMEOSTASIS_RECOVERY_HALF), homeostasisBias, 1.1f);  // x1.1f for recovery
             contagionShare *= Math.exp(-delta / 400f);
             lastUpdateTime = now;
         }

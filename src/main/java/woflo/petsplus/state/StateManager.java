@@ -1627,6 +1627,13 @@ public class StateManager {
             woflo.petsplus.ui.ParticleEffectManager.emitRoleParticles(pet, world, currentTick);
             emitted = true;
         }
+
+        // Check for tribute orbital effects
+        if (woflo.petsplus.events.TributeHandler.isPetWaitingForTribute(pet)) {
+            woflo.petsplus.ui.TributeOrbitalEffects.emitTributeOrbital(pet, world, currentTick);
+            emitted = true;
+        }
+
         component.updateCooldowns();
         long delay = emitted ? PARTICLE_RECHECK_INTERVAL : PARTICLE_RECHECK_INTERVAL * 2;
         delay = scaleIntervalForDistance(delay, pet, owner);

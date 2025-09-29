@@ -106,7 +106,7 @@ public final class StargazeMechanic implements PlayerTickListener {
         long windowDuration = PetsPlusConfig.getInstance().getSectionInt("bond", "stargazeWindowTicks", 2400); // 2 minutes
         stargazeWindows.put(player.getUuid(), player.getWorld().getTime() + windowDuration);
 
-        player.sendMessage(Text.of("§5✦ §dThe night sky seems to shimmer with possibility... §5✦"), false);
+        player.sendMessage(Text.translatable("petsplus.stargaze.shimmer"), false);
     }
 
     /**
@@ -123,7 +123,7 @@ public final class StargazeMechanic implements PlayerTickListener {
         if (!sneaking) {
             StargazeSession session = activeSessions.remove(playerId);
             if (session != null && !session.completed) {
-                player.sendMessage(Text.of("§7The moment was broken..."), true);
+                player.sendMessage(Text.translatable("petsplus.stargaze.interrupted"), true);
             }
             cancelScheduledRuns(player);
             return;
@@ -134,13 +134,13 @@ public final class StargazeMechanic implements PlayerTickListener {
         }
 
         if (!isNightTime((ServerWorld) player.getWorld())) {
-            player.sendMessage(Text.of("§7Wait for nightfall..."), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.wait_for_night"), true);
             return;
         }
 
         MobEntity sittingPet = findNearbySittingPet(player);
         if (sittingPet == null) {
-            player.sendMessage(Text.of("§7Your pet must be sitting nearby..."), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.pet_not_sitting"), true);
             return;
         }
 
@@ -148,7 +148,7 @@ public final class StargazeMechanic implements PlayerTickListener {
         if (session == null || !session.petUuid.equals(sittingPet.getUuid())) {
             session = new StargazeSession(sittingPet.getUuid(), player.getPos(), now);
             activeSessions.put(playerId, session);
-            player.sendMessage(Text.of("§dYou begin to share a quiet moment under the stars..."), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.session_start"), true);
         }
 
         scheduleTick(player, resolveServerTick(player));
@@ -212,7 +212,7 @@ public final class StargazeMechanic implements PlayerTickListener {
     private static void tickSession(ServerPlayerEntity player, StargazeSession session, long now, boolean allowReminders) {
         if (!isWindowActive(player, now)) {
             activeSessions.remove(player.getUuid());
-            player.sendMessage(Text.of("§7The moment has passed..."), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.window_expired"), true);
             cancelScheduledRuns(player);
             return;
         }
@@ -220,7 +220,7 @@ public final class StargazeMechanic implements PlayerTickListener {
         if (!player.isSneaking()) {
             activeSessions.remove(player.getUuid());
             if (!session.completed) {
-                player.sendMessage(Text.of("§7You must stay close to your companion..."), true);
+                player.sendMessage(Text.translatable("petsplus.stargaze.too_far"), true);
             }
             cancelScheduledRuns(player);
             return;
@@ -229,7 +229,7 @@ public final class StargazeMechanic implements PlayerTickListener {
         ServerWorld world = (ServerWorld) player.getWorld();
         if (!isNightTime(world)) {
             activeSessions.remove(player.getUuid());
-            player.sendMessage(Text.of("§7Wait for nightfall..."), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.wait_for_night"), true);
             cancelScheduledRuns(player);
             return;
         }
@@ -237,14 +237,14 @@ public final class StargazeMechanic implements PlayerTickListener {
         MobEntity pet = getSessionPet(world, session.petUuid);
         if (pet == null) {
             activeSessions.remove(player.getUuid());
-            player.sendMessage(Text.of("§7Your pet must be sitting nearby..."), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.pet_not_sitting"), true);
             cancelScheduledRuns(player);
             return;
         }
 
         if (!pet.isAlive()) {
             activeSessions.remove(player.getUuid());
-            player.sendMessage(Text.of("§7The moment was broken..."), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.interrupted"), true);
             cancelScheduledRuns(player);
             return;
         }
@@ -253,14 +253,14 @@ public final class StargazeMechanic implements PlayerTickListener {
         if (player.getPos().distanceTo(session.startPosition) > range
             || pet.getPos().distanceTo(session.startPosition) > range) {
             activeSessions.remove(player.getUuid());
-            player.sendMessage(Text.of("§7You must stay close to your companion..."), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.too_far"), true);
             cancelScheduledRuns(player);
             return;
         }
 
         if (pet instanceof PetsplusTameable tameable && !tameable.petsplus$isSitting()) {
             activeSessions.remove(player.getUuid());
-            player.sendMessage(Text.of("§7Your pet must be sitting nearby..."), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.pet_not_sitting"), true);
             cancelScheduledRuns(player);
             return;
         }
@@ -279,7 +279,7 @@ public final class StargazeMechanic implements PlayerTickListener {
                 session.lastReminderTick = now;
                 int secondsRemaining = (int) Math.max(0, (requiredDuration - duration) / 20);
                 if (secondsRemaining > 0) {
-                    player.sendMessage(Text.of("§d✦ " + secondsRemaining + "s remaining... ✦"), true);
+                    player.sendMessage(Text.translatable("petsplus.stargaze.countdown", secondsRemaining), true);
                 }
             }
         }
@@ -432,7 +432,7 @@ public final class StargazeMechanic implements PlayerTickListener {
             iterator.remove();
             ServerPlayerEntity player = world.getServer().getPlayerManager().getPlayer(entry.getKey());
             if (player != null) {
-                player.sendMessage(Text.of("§7Your pet must be sitting nearby..."), true);
+                player.sendMessage(Text.translatable("petsplus.stargaze.pet_not_sitting"), true);
                 cancelScheduledRuns(player);
             }
         }

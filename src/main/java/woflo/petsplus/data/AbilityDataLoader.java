@@ -164,7 +164,6 @@ public class AbilityDataLoader implements SimpleSynchronousResourceReloadListene
             staleCandidates.remove(abilityId);
         }
 
-        int added = 0;
         int updated = 0;
         for (LoadedAbility ability : definitions.values()) {
             AbilityType existing = PetsPlusRegistries.abilityTypeRegistry().get(ability.id());

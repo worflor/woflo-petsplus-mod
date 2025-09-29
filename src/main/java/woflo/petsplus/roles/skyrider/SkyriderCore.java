@@ -106,8 +106,7 @@ public class SkyriderCore implements PlayerTickListener {
                 }
                 
                 // Check for wind abilities  
-                if (petComp.getOwner() instanceof ServerPlayerEntity owner &&
-                    mobEntity instanceof PetsplusTameable tameable) {
+                if (petComp.getOwner() instanceof ServerPlayerEntity owner) {
                     // Use wind abilities for fall reduction checks
                     boolean shouldApplyFallReduction = SkyriderWinds.shouldApplyFallReductionToMount(mobEntity, owner);
                     if (shouldApplyFallReduction && SkyriderWinds.isOwnerFallingMinDistance(owner, 3.0)) {
@@ -226,7 +225,7 @@ public class SkyriderCore implements PlayerTickListener {
         boolean triggered = false;
 
         for (MobEntity skyriderPet : skyriderPets) {
-            if (!(skyriderPet instanceof PetsplusTameable tameable)) {
+            if (!(skyriderPet instanceof PetsplusTameable)) {
                 continue;
             }
 

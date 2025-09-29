@@ -14,10 +14,14 @@ import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
+import woflo.petsplus.naming.AttributeKey;
+import woflo.petsplus.naming.AttributeRegistry;
+import woflo.petsplus.naming.NameParser;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.stats.nature.PetNatureSelector;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -87,6 +91,20 @@ public class PetDetectionHandler {
                 Identifier existingRole = existingComponent.getRoleId();
                 if (existingRole != null && PetsPlusRegistries.petRoleTypeRegistry().get(existingRole) != null) {
                     pendingRoleSelection.remove(mob);
+
+                    // Parse name attributes for existing pets that don't have them yet
+                    if (mob.hasCustomName() && existingComponent.getNameAttributes().isEmpty()) {
+                        String nameString = mob.getCustomName().getString();
+                        List<AttributeKey> attributes = NameParser.parseWithCache(mob.getUuid(), nameString);
+                        existingComponent.setNameAttributes(attributes);
+                        AttributeRegistry.applyAll(mob, attributes, existingComponent);
+
+                        if (!attributes.isEmpty()) {
+                            Petsplus.LOGGER.debug("Applied {} name attributes to existing pet on load: {}",
+                                attributes.size(), mob.getUuid());
+                        }
+                    }
+
                     return;
                 }
             }
@@ -329,8 +347,19 @@ public class PetDetectionHandler {
 
         // Generate unique characteristics for this pet (first time only)
         component.ensureCharacteristics();
-        
 
+        // Parse name attributes if the pet has a custom name
+        if (mob.hasCustomName()) {
+            String nameString = mob.getCustomName().getString();
+            List<AttributeKey> attributes = NameParser.parseWithCache(mob.getUuid(), nameString);
+            component.setNameAttributes(attributes);
+            AttributeRegistry.applyAll(mob, attributes, component);
+
+            if (!attributes.isEmpty()) {
+                Petsplus.LOGGER.debug("Applied {} name attributes to registered pet: {}",
+                    attributes.size(), mob.getUuid());
+            }
+        }
 
         Petsplus.LOGGER.info("Manually registered pet {} with role {} for owner {}",
             mob.getType().toString(), roleId, owner.getName().getString());

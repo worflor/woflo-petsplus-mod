@@ -191,6 +191,14 @@ public class PetsPlusConfig {
             core.add("action_bar", createActionBarDefaults());
             changed = true;
         }
+        if (!core.has("tribute_orbital") || !core.get("tribute_orbital").isJsonObject()) {
+            core.add("tribute_orbital", createTributeOrbitalDefaults());
+            changed = true;
+        }
+        if (!core.has("named_attributes") || !core.get("named_attributes").isJsonObject()) {
+            core.add("named_attributes", createNamedAttributesDefaults());
+            changed = true;
+        }
         return changed;
     }
 
@@ -225,6 +233,7 @@ public class PetsPlusConfig {
         root.add("visuals", createVisualDefaults());
         root.add("emotion_cues", createEmotionCueDefaults());
         root.add("action_bar", createActionBarDefaults());
+        root.add("named_attributes", createNamedAttributesDefaults());
         return root;
     }
 
@@ -586,10 +595,77 @@ public class PetsPlusConfig {
         return actionBar;
     }
 
+    private static JsonObject createTributeOrbitalDefaults() {
+        JsonObject orbital = new JsonObject();
+        orbital.addProperty("enabled", true);
+        orbital.addProperty("intensity_multiplier", 1.0);
+        orbital.addProperty("visibility_range", 32.0);
+        orbital.addProperty("combat_pause", true);
+        orbital.addProperty("time_scale", 0.05);
+
+        // Orbital configurations for each level
+        JsonObject levelConfigs = new JsonObject();
+
+        // Level 10 configuration
+        JsonObject level10 = new JsonObject();
+        level10.addProperty("radius_base", 1.5);
+        level10.addProperty("particle_count", 6);
+        level10.addProperty("has_trails", false);
+        level10.addProperty("inclination_angles", "0");
+        levelConfigs.add("10", level10);
+
+        // Level 20 configuration
+        JsonObject level20 = new JsonObject();
+        level20.addProperty("radius_base", 1.5);
+        level20.addProperty("particle_count", 8);
+        level20.addProperty("has_trails", true);
+        level20.addProperty("inclination_angles", "0,45");
+        levelConfigs.add("20", level20);
+
+        // Level 30 configuration
+        JsonObject level30 = new JsonObject();
+        level30.addProperty("radius_base", 1.5);
+        level30.addProperty("particle_count", 12);
+        level30.addProperty("has_trails", true);
+        level30.addProperty("inclination_angles", "0,45,90");
+        level30.addProperty("burst_effects", true);
+        levelConfigs.add("30", level30);
+
+        orbital.add("level_configs", levelConfigs);
+        return orbital;
+    }
+
     private static JsonObject createDefaultTributeJson() {
         JsonObject tributes = new JsonObject();
         DEFAULT_TRIBUTE_ITEMS.forEach((level, id) -> tributes.addProperty(String.valueOf(level), id.toString()));
         return tributes;
+    }
+
+    private static JsonObject createNamedAttributesDefaults() {
+        JsonObject namedAttributes = new JsonObject();
+        namedAttributes.addProperty("enabled", true);
+        namedAttributes.addProperty("max_attributes", 5);
+        namedAttributes.addProperty("case_sensitive", false);
+
+        JsonObject patterns = new JsonObject();
+
+        // Exact patterns
+        JsonObject exact = new JsonObject();
+        exact.addProperty("enabled", true);
+        patterns.add("exact", exact);
+
+        // Prefix patterns
+        JsonObject prefix = new JsonObject();
+        prefix.addProperty("enabled", true);
+        patterns.add("prefix", prefix);
+
+        // Regex patterns
+        JsonObject regex = new JsonObject();
+        regex.addProperty("enabled", false);
+        patterns.add("regex", regex);
+
+        namedAttributes.add("patterns", patterns);
+        return namedAttributes;
     }
 
     private static void mergeInto(JsonObject target, JsonObject additions) {
@@ -643,8 +719,94 @@ public class PetsPlusConfig {
         return readBoolean(getSection("emotion_cues"), "debug_overlay", false);
     }
 
+    // Tribute Orbital Configuration
+    public JsonObject getTributeOrbitalSection() {
+        return getSection("tribute_orbital");
+    }
+
+    public boolean isTributeOrbitalEnabled() {
+        return readBoolean(getTributeOrbitalSection(), "enabled", true);
+    }
+
+    public double getTributeOrbitalIntensityMultiplier() {
+        return readDouble(getTributeOrbitalSection(), "intensity_multiplier", 1.0);
+    }
+
+    public double getTributeOrbitalVisibilityRange() {
+        return readDouble(getTributeOrbitalSection(), "visibility_range", 32.0);
+    }
+
+    public boolean isTributeOrbitalCombatPauseEnabled() {
+        return readBoolean(getTributeOrbitalSection(), "combat_pause", true);
+    }
+
+    public double getTributeOrbitalTimeScale() {
+        return readDouble(getTributeOrbitalSection(), "time_scale", 0.05);
+    }
+
+    public JsonObject getTributeOrbitalLevelConfig(int level) {
+        JsonObject levelConfigs = getObject(getTributeOrbitalSection(), "level_configs");
+        if (levelConfigs == null) return EMPTY_OBJECT;
+
+        return getObject(levelConfigs, String.valueOf(level)) != null
+            ? getObject(levelConfigs, String.valueOf(level))
+            : EMPTY_OBJECT;
+    }
+
+    public double getTributeOrbitalRadiusBase(int level) {
+        return readDouble(getTributeOrbitalLevelConfig(level), "radius_base", 1.5);
+    }
+
+    public int getTributeOrbitalParticleCount(int level) {
+        return readInt(getTributeOrbitalLevelConfig(level), "particle_count",
+            level == 10 ? 6 : level == 20 ? 8 : 12);
+    }
+
+    public boolean getTributeOrbitalHasTrails(int level) {
+        return readBoolean(getTributeOrbitalLevelConfig(level), "has_trails", level >= 20);
+    }
+
+    public boolean getTributeOrbitalHasBurstEffects(int level) {
+        return readBoolean(getTributeOrbitalLevelConfig(level), "burst_effects", level >= 30);
+    }
+
     public int getActionBarRecentPetLimit() {
         return readInt(getSection("action_bar"), "recent_pet_limit", 1);
+    }
+
+    // Named Attributes Configuration
+    public JsonObject getNamedAttributesSection() {
+        return getSection("named_attributes");
+    }
+
+    public boolean isNamedAttributesEnabled() {
+        return readBoolean(getNamedAttributesSection(), "enabled", true);
+    }
+
+    public int getMaxNamedAttributes() {
+        return readInt(getNamedAttributesSection(), "max_attributes", 5);
+    }
+
+    public boolean isNamedAttributesCaseSensitive() {
+        return readBoolean(getNamedAttributesSection(), "case_sensitive", false);
+    }
+
+    public boolean isExactPatternsEnabled() {
+        JsonObject patterns = getObject(getNamedAttributesSection(), "patterns");
+        JsonObject exact = getObject(patterns, "exact");
+        return readBoolean(exact, "enabled", true);
+    }
+
+    public boolean isPrefixPatternsEnabled() {
+        JsonObject patterns = getObject(getNamedAttributesSection(), "patterns");
+        JsonObject prefix = getObject(patterns, "prefix");
+        return readBoolean(prefix, "enabled", true);
+    }
+
+    public boolean isRegexPatternsEnabled() {
+        JsonObject patterns = getObject(getNamedAttributesSection(), "patterns");
+        JsonObject regex = getObject(patterns, "regex");
+        return readBoolean(regex, "enabled", false);
     }
 
     public JsonObject getRoleOverrides(Identifier roleId) {

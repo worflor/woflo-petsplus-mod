@@ -147,7 +147,7 @@ Hey wait, memorialize that trauma! A **Proof of Existence** drops on every pet d
 - "This isnt vanilla, chocolate, or strawberry..." (tame an entity usually untamable in the vanilla game)
 - "Pack Mentality" (Engage in combat with: a pack of 3 pets of at least 2 unique roles and 2 unique entity types)
 - "It's not nice to do that!!" (punch a pet into a void - killing it)
-- "Ok, gopiss girl." (notice a gossip cue)
+- "Ok, gopiss girl" (notice a gossip cue)
 - "Size matters" (have a pack large enough for two social circles)
 
 

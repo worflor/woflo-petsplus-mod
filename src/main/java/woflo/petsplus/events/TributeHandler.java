@@ -196,14 +196,13 @@ public class TributeHandler {
             String tributeName = tributeStack.getName().getString();
 
             // Success feedback
-            player.sendMessage(Text.of("§6" + petName + " §eaccepts your §6" + tributeName + " §etribute!"), false);
-            player.sendMessage(Text.of("§aLevel " + milestoneLevel + " milestone unlocked!"), true);
+            player.sendMessage(Text.translatable("petsplus.tribute.accept", petName, tributeName), false);
+            player.sendMessage(Text.translatable("petsplus.tribute.payment_success", milestoneLevel), true);
 
-            // Visual and audio feedback
-            pet.getWorld().playSound(null, pet.getX(), pet.getY(), pet.getZ(),
-                SoundEvents.ENTITY_VILLAGER_YES, SoundCategory.NEUTRAL, 0.8f, 1.4f);
+            // Enhanced visual and audio feedback with orbital completion effect
+            woflo.petsplus.ui.TributeOrbitalEffects.emitTributeCompleteEffect(pet, (ServerWorld) pet.getWorld(), milestoneLevel);
 
-            // Particle effects - golden particles for tribute
+            // Legacy particle effects for compatibility
             ((ServerWorld) pet.getWorld()).spawnParticles(
                 net.minecraft.particle.ParticleTypes.END_ROD,
                 pet.getX(), pet.getY() + pet.getHeight() * 0.7, pet.getZ(),
@@ -224,7 +223,7 @@ public class TributeHandler {
 
         } catch (Exception e) {
             Petsplus.LOGGER.error("Error processing tribute payment", e);
-            player.sendMessage(Text.of("A\u0015cTribute payment failed"), true);
+            player.sendMessage(Text.translatable("petsplus.tribute.payment_failed"), true);
             return false;
         }
     }

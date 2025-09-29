@@ -263,7 +263,6 @@ public final class AuraTargetResolver {
         }
 
         private final class TrackedPlayer {
-            private final UUID id;
             private ServerPlayerEntity player;
             private ServerWorld world;
             private WorldIndex index;
@@ -273,7 +272,6 @@ public final class AuraTargetResolver {
             private double z;
 
             private TrackedPlayer(ServerPlayerEntity player, ServerWorld world, WorldIndex index) {
-                this.id = player.getUuid();
                 this.player = player;
                 this.world = world;
                 this.index = index;

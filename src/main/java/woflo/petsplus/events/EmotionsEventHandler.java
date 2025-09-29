@@ -23,6 +23,8 @@ import net.minecraft.entity.passive.FoxEntity;
 import net.minecraft.entity.passive.OcelotEntity;
 import net.minecraft.entity.passive.ParrotEntity;
 import net.minecraft.entity.passive.WolfEntity;
+import net.minecraft.entity.passive.AxolotlEntity;
+import net.minecraft.entity.passive.TropicalFishEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.village.TradeOffer;
 import net.minecraft.village.VillagerProfession;
@@ -124,6 +126,12 @@ public final class EmotionsEventHandler {
     private static final TagKey<Item> MUSIC_DISC_ITEMS = TagKey.of(RegistryKeys.ITEM,
         Identifier.of("minecraft", "music_discs"));
 
+    // Music system optimization: World-level jukebox caching
+    private static final Map<ServerWorld, Map<BlockPos, Long>> activeJukeboxes = new ConcurrentHashMap<>();
+    private static final Map<ServerWorld, Long> lastJukeboxScan = new ConcurrentHashMap<>();
+    private static final long JUKEBOX_CACHE_DURATION = 300; // 15 seconds in ticks
+    private static final int OPTIMIZED_MUSIC_RADIUS = 12; // Reduced from 48 blocks
+
     private EmotionsEventHandler() {}
 
     public static PlayerTickListener ticker() {
@@ -207,25 +215,37 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             streak.recordKill(now, healthPct, lowHealthFinish);
             applyConfiguredStimulus(sp, "combat.owner_kill", 32, (pc, collector) -> {
                 if (reliefBonus > 0f) {
-                    collector.pushEmotion(PetComponent.Emotion.RELIEF, reliefBonus);
+                    collector.pushEmotion(PetComponent.Emotion.RELIEF, reliefBonus * 3.0f);
                 }
                 switch (context) {
                     case HOSTILE -> {
                         if (tryMarkPetBeat(pc, "combat_owner_kill_hostile", now, 200L)) {
-                            collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f + reliefBonus * 0.4f);
-                            collector.pushEmotion(PetComponent.Emotion.SISU, 0.06f);
+                            // More nuanced hostile kill emotions
+                            collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.25f);  // Post-threat relief
+                            collector.pushEmotion(PetComponent.Emotion.KEFI, 0.20f);  // Victory joy
+                            collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.35f + reliefBonus * 0.3f);
+                            // If guardian role, extra protective response
+                            if (pc.hasRole(PetRoleType.GUARDIAN)) {
+                                collector.pushEmotion(PetComponent.Emotion.PROTECTIVE, 0.50f);
+                            }
                         }
                     }
                     case PASSIVE -> {
                         if (tryMarkPetBeat(pc, "combat_owner_kill_passive", now, 240L)) {
-                            collector.pushEmotion(PetComponent.Emotion.REGRET, 0.06f);
-                            collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.05f);
+                            // Reduced remorse for passive kills
+                            collector.pushEmotion(PetComponent.Emotion.REGRET, 0.15f);  // Reduced from 0.35f
+                            // Only add Hiraeth for non-guardian roles
+                            if (!pc.hasRole(PetRoleType.GUARDIAN)) {
+                                collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.15f);  // Reduced from 0.25f
+                            }
                         }
                     }
                     case BOSS -> {
                         if (tryMarkPetBeat(pc, "combat_owner_kill_boss", now, 360L)) {
-                            collector.pushEmotion(PetComponent.Emotion.PRIDE, 0.08f);
-                            collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.06f + reliefBonus * 0.4f);
+                            collector.pushEmotion(PetComponent.Emotion.PRIDE, 0.50f);
+                            collector.pushEmotion(PetComponent.Emotion.KEFI, 0.35f);  // Intense victory joy
+                            collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.45f + reliefBonus * 0.4f);
+                            collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.40f);  // Major threat eliminated
                         }
                     }
                 }
@@ -273,6 +293,25 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
         EmotionCueConfig config = EmotionCueConfig.get();
         String definitionId = config.findItemUseDefinition(stack);
+        
+        // Check for feeding/food use
+        if (stack.get(DataComponentTypes.FOOD) != null) {
+            // Feeding emotions - transitions from anticipation to satisfaction
+            pushToNearbyOwnedPets(sp, 24, (pc, collector) -> {
+                collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.25f);  // Pre-meal bonding
+                collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.25f);  // Post-meal satisfaction
+                collector.pushEmotion(PetComponent.Emotion.CONTENT, 0.15f);  // Contentment
+            });
+        }
+        
+        // Check for healing items (potions)
+        if (stack.isOf(Items.POTION) || stack.isOf(Items.SPLASH_POTION)) {
+            pushToNearbyOwnedPets(sp, 16, (pc, collector) -> {
+                collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.30f);  // Healing relief
+                collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.20f);  // Balance restored
+            });
+        }
+        
         if (definitionId != null) {
             triggerConfiguredCue(sp, definitionId, config.fallbackRadius(), null);
         }
@@ -356,14 +395,30 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             } else if (lit) {
                 useDefinition = "block_use.campfire.stoke";
                 stateConsumer = (pc, collector) -> {
-                    collector.pushEmotion(PetComponent.Emotion.CONTENT, 0.05f);
-                    collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.04f);
+                    collector.pushEmotion(PetComponent.Emotion.CONTENT, 0.25f);
+                    collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.20f);
+                    // Campfire at night provides comfort
+                    if (world.isNight()) {
+                        collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.30f);
+                        collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.20f);
+                        // Reduce any existing vigilance/fear
+                        collector.pushEmotion(PetComponent.Emotion.VIGILANT, -0.15f);
+                        collector.pushEmotion(PetComponent.Emotion.FOREBODING, -0.20f);
+                    }
                 };
                 gossipTopicId = GossipTopics.SOCIAL_CAMPFIRE;
                 gossipText = Text.translatable("petsplus.gossip.social.campfire");
                 gossipIntensity = 0.34f;
                 gossipConfidence = 0.47f;
             }
+        } else if (state.getBlock() instanceof ChestBlock || state.getBlock() instanceof BarrelBlock) {
+            // Loot discovery emotions when opening containers
+            useDefinition = "block_use.container.open";
+            stateConsumer = (pc, collector) -> {
+                collector.pushEmotion(PetComponent.Emotion.GLEE, 0.25f);  // Discovery joy
+                collector.pushEmotion(PetComponent.Emotion.KEFI, 0.15f);  // Excitement
+                collector.pushEmotion(PetComponent.Emotion.CURIOUS, 0.20f);  // What's inside?
+            };
         } else if (state.getBlock() instanceof JukeboxBlock && state.contains(JukeboxBlock.HAS_RECORD)) {
             boolean hasRecord = state.get(JukeboxBlock.HAS_RECORD);
             if (hasRecord) {
@@ -374,14 +429,92 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 };
             } else if (held.isIn(MUSIC_DISC_ITEMS)) {
                 useDefinition = "block_use.jukebox.start";
+
+                // Determine music disc type for specific emotions
+                String discName = held.getItem().getTranslationKey();
+                boolean isCalm = discName.contains("pigstep") || discName.contains("stal") ||
+                                 discName.contains("mellohi") || discName.contains("wait");
+                boolean isUpbeat = discName.contains("otherside") || discName.contains("cat") ||
+                                   discName.contains("blocks") || discName.contains("chirp");
+                boolean isEerie = discName.contains("13") || discName.contains("11") ||
+                                  discName.contains("ward");
+
                 stateConsumer = (pc, collector) -> {
-                    collector.pushEmotion(PetComponent.Emotion.GLEE, 0.06f);
-                    collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.05f);
-                    if (pc.getPet() instanceof ParrotEntity) {
-                        collector.pushEmotion(PetComponent.Emotion.GLEE, 0.04f);
-                        collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.04f);
-                        collector.pushEmotion(PetComponent.Emotion.KEFI, 0.03f);
+                    // Store music state for prolonged emotional peaks
+                    long currentTime = world.getTime();
+                    pc.setStateData("music_playing", true);
+                    pc.setStateData("music_start_time", currentTime);
+                    pc.setStateData("music_disc_type", discName);
+
+                    // Calculate trait-based affinity bonuses
+                    float musicAffinity = 1.0f;
+                    // Check for entertainment-related roles (if they exist)
+                    // For now, just use characteristics
+
+                    // Check for musical personality traits
+                    Float playfulness = pc.getStateData("trait_playfulness", Float.class);
+                    if (playfulness != null && playfulness > 0.7f) {
+                        musicAffinity *= 1.2f;  // Playful pets enjoy music more
                     }
+
+                    // Peak emotion application with affinity scaling
+                    if (isCalm) {
+                        // Calm music - peaceful emotions with prolonged effect
+                        float peakIntensity = 0.35f * musicAffinity;
+                        collector.pushEmotion(PetComponent.Emotion.LAGOM, peakIntensity);  // Balanced serenity
+                        collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.20f * musicAffinity);  // Idle listening appreciation
+                        collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.15f * musicAffinity);  // Appreciation of beauty
+                        pc.setStateData("music_peak_emotion", "LAGOM");
+                        pc.setStateData("music_peak_intensity", peakIntensity);
+                    } else if (isUpbeat) {
+                        // Upbeat music - energetic emotions with burst
+                        float peakIntensity = 0.40f * musicAffinity;
+                        collector.pushEmotion(PetComponent.Emotion.KEFI, peakIntensity);  // Joyful exuberance peak
+                        collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.25f * musicAffinity);
+                        collector.pushEmotion(PetComponent.Emotion.GLEE, 0.20f * musicAffinity);
+                        pc.setStateData("music_peak_emotion", "KEFI");
+                        pc.setStateData("music_peak_intensity", peakIntensity);
+                    } else if (isEerie) {
+                        // Eerie music - mysterious/dread emotions with tension
+                        if (world.isNight() || world.getLightLevel(pos) < 7) {
+                            collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.25f * musicAffinity);  // Dark atmosphere
+                        }
+                        float peakIntensity = 0.30f * musicAffinity;
+                        collector.pushEmotion(PetComponent.Emotion.YUGEN, peakIntensity);  // Mysterious appreciation peak
+                        collector.pushEmotion(PetComponent.Emotion.ANGST, 0.10f * musicAffinity);  // Slight tension
+                        pc.setStateData("music_peak_emotion", "YUGEN");
+                        pc.setStateData("music_peak_intensity", peakIntensity);
+                    } else {
+                        // Default music emotions
+                        float peakIntensity = 0.25f * musicAffinity;
+                        collector.pushEmotion(PetComponent.Emotion.GLEE, peakIntensity);
+                        collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.20f * musicAffinity);  // General appreciation
+                        collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.15f * musicAffinity);  // Social bonding through music
+                        pc.setStateData("music_peak_emotion", "GLEE");
+                        pc.setStateData("music_peak_intensity", peakIntensity);
+                    }
+
+                    // Species-specific music responses
+                    if (pc.getPet() instanceof ParrotEntity) {
+                        // Parrots have special affinity for all music
+                        collector.pushEmotion(PetComponent.Emotion.KEFI, 0.25f);  // Extra musical joy
+                        collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.20f);
+                        collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.15f);  // Flock unity through music
+                    } else if (pc.getPet() instanceof WolfEntity) {
+                        // Wolves howl along with music
+                        collector.pushEmotion(PetComponent.Emotion.LOYALTY, 0.15f * musicAffinity);
+                        collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.20f * musicAffinity);  // Pack bonding
+                    } else if (pc.getPet() instanceof CatEntity) {
+                        // Cats are more selective about music
+                        if (isCalm) {
+                            collector.pushEmotion(PetComponent.Emotion.CONTENT, 0.20f * musicAffinity);
+                        } else {
+                            collector.pushEmotion(PetComponent.Emotion.ENNUI, 0.10f);  // Mild annoyance at loud music
+                        }
+                    }
+
+                    // Store music session data for ongoing effects
+                    pc.setStateData("music_session_id", java.util.UUID.randomUUID().toString());
                 };
             }
         } else if (state.getBlock() instanceof BedBlock && state.contains(BedBlock.OCCUPIED)) {
@@ -395,8 +528,16 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             } else {
                 useDefinition = "block_use.bed.rest";
                 stateConsumer = (pc, collector) -> {
-                    collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.05f);
-                    collector.pushEmotion(PetComponent.Emotion.CONTENT, 0.04f);
+                    collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.25f);
+                    collector.pushEmotion(PetComponent.Emotion.CONTENT, 0.20f);
+                    // Bed provides strong safety at night
+                    if (world.isNight()) {
+                        collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.35f);
+                        collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.25f); // Home feeling
+                        // Clear fear/vigilance
+                        collector.pushEmotion(PetComponent.Emotion.VIGILANT, -0.20f);
+                        collector.pushEmotion(PetComponent.Emotion.FOREBODING, -0.25f);
+                    }
                 };
             }
         }
@@ -410,6 +551,13 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
         if (held.getItem() instanceof BlockItem blockItem) {
             BlockState defaultState = blockItem.getBlock().getDefaultState();
+            
+            // Building/placing blocks - appreciation of creation
+            pushToNearbyOwnedPets(sp, 16, (pc, collector) -> {
+                collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.15f);  // Appreciation of creation
+                collector.pushEmotion(PetComponent.Emotion.FOCUSED, 0.10f);  // Watching owner work
+            });
+            
             if (defaultState.isIn(BlockTags.SAPLINGS)) {
                 NatureFlavorHandler.triggerForOwner(sp, 32, Trigger.PLACE_SAPLING);
             }
@@ -435,6 +583,18 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         ItemStack stack = player.getStackInHand(hand);
         EmotionCueConfig config = EmotionCueConfig.get();
         String definitionId = config.findEntityUseDefinition(entity, stack);
+        
+        // Check if petting a pet
+        if (entity instanceof MobEntity mob && PetComponent.get(mob) != null && stack.isEmpty()) {
+            PetComponent pc = PetComponent.get(mob);
+            // Petting emotions
+            pushToSinglePet(sp, pc, (comp, collector) -> {
+                collector.pushEmotion(PetComponent.Emotion.KEFI, 0.20f);  // Initial joy
+                collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.25f);  // Settling into contentment
+                collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.15f);  // Bonding
+            });
+        }
+        
         if (definitionId != null) {
             triggerConfiguredCue(sp, definitionId, config.fallbackRadius(), null);
         }
@@ -464,14 +624,20 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         perTarget.put(playerId, now);
 
         float charge = sp.getAttackCooldownProgress(0.5f);
-        float passionate = 0.04f + 0.04f * charge;
-        float focused = 0.03f + 0.03f * charge;
-        float startle = 0.015f + 0.02f * charge;
+        float passionate = 0.20f + 0.20f * charge;
+        float focused = 0.15f + 0.15f * charge;
+        float startle = 0.08f + 0.10f * charge;
 
         CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 28, (pc, collector) -> {
+            // Add Foreboding when owner health is low
+            float ownerHealthPct = sp.getHealth() / sp.getMaxHealth();
+            if (ownerHealthPct < 0.5f) {
+                collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.45f);  // Dread when owner in danger
+                collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.40f);
+            }
             collector.pushEmotion(PetComponent.Emotion.KEFI, passionate);
             collector.pushEmotion(PetComponent.Emotion.FOCUSED, focused);
-            collector.pushEmotion(PetComponent.Emotion.STARTLE, startle);
+            collector.pushEmotion(PetComponent.Emotion.STARTLE, startle * 0.7f);  // Reduced startle
         });
         sendCueAfterStimulus(sp, stimulusFuture,
             "combat.owner_swing." + targetId,
@@ -487,9 +653,9 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         EmotionContextCues.clear(oldPlayer);
         EmotionContextCues.clear(newPlayer);
         CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(newPlayer, 32, (pc, collector) -> {
-            collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.20f);
-            collector.pushEmotion(PetComponent.Emotion.STOIC, 0.16f);
-            collector.pushEmotion(PetComponent.Emotion.GAMAN, 0.08f);
+            collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.80f);
+            collector.pushEmotion(PetComponent.Emotion.STOIC, 0.65f);
+            collector.pushEmotion(PetComponent.Emotion.GAMAN, 0.40f);
         });
         sendCueAfterStimulus(newPlayer, stimulusFuture,
             "player.respawn",
@@ -514,9 +680,9 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 continue;
             }
             MoodService.getInstance().getStimulusBus().queueSimpleStimulus(pet, collector -> {
-                collector.pushEmotion(PetComponent.Emotion.SAUDADE, 0.25f);
-                collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.20f);
-                collector.pushEmotion(PetComponent.Emotion.REGRET, 0.15f);
+                collector.pushEmotion(PetComponent.Emotion.SAUDADE, 0.95f);
+                collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.85f);
+                collector.pushEmotion(PetComponent.Emotion.REGRET, 0.70f);
             });
             MoodService.getInstance().getStimulusBus().dispatchStimuli(pet);
         }
@@ -925,9 +1091,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             }
         }
 
-        if (payload.raining()
-            && payload.timePhase() == TimePhase.NIGHT
-            && payload.idleTicks() >= 2400L) {
+        if (payload.raining() && payload.idleTicks() >= 2400L) {
             long sinceRainy = now - payload.lastRainyCueTick();
             if (sinceRainy >= 1200L) {
                 triggerRainy = true;
@@ -937,7 +1101,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         if (!triggerIdle && !triggerRainy) {
             return IdleMaintenancePlan.none();
         }
-        return new IdleMaintenancePlan(triggerIdle, triggerRainy);
+        return new IdleMaintenancePlan(triggerIdle, triggerRainy, payload.idleTicks(), payload.timePhase() == TimePhase.NIGHT);
     }
 
     private static void applyIdleMaintenancePlan(ServerPlayerEntity player,
@@ -956,18 +1120,56 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         List<CompletableFuture<Void>> pendingWork = new ArrayList<>(2);
 
         if (plan.triggerIdleCue()) {
-            pendingWork.add(applyStimulusToComponents(nearbyComponents.values(),
-                (pc, collector) -> collector.pushEmotion(PetComponent.Emotion.ENNUI, 0.15f), builder, world));
-            pendingCues.add(() -> EmotionContextCues.sendCue(player, "idle.ennui",
-                Text.translatable("petsplus.emotion_cue.idle.ennui"), 2400));
+            // Context-dependent idle emotions from rebalanced logic
+            if (plan.isNight()) {
+                // Night idle - check distance from base for Hiraeth
+                Vec3d spawnPos = Vec3d.ofCenter(world.getSpawnPos());
+                double distanceFromBase = player.getPos().distanceTo(spawnPos);
+
+                pendingWork.add(applyStimulusToComponents(nearbyComponents.values(),
+                    (pc, collector) -> {
+                        if (distanceFromBase > 200) {
+                            collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.20f);  // Far from home at night
+                        }
+                        collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.25f);  // Mysterious night beauty
+                        collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.15f);  // Some peace
+                    }, builder, world));
+                pendingCues.add(() -> EmotionContextCues.sendCue(player, "idle.night_peaceful",
+                    Text.translatable("petsplus.emotion_cue.idle.night_peaceful"), 2400));
+            } else {
+                // Day idle - energy-based response
+                pendingWork.add(applyStimulusToComponents(nearbyComponents.values(),
+                    (pc, collector) -> {
+                        // High-energy pets get restless and playful
+                        // TODO: Check pet's energy characteristic when available
+                        collector.pushEmotion(PetComponent.Emotion.KEFI, 0.15f);  // Bored energy
+                        collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.20f);  // Want to play
+                        // Cap Ennui for repetitive idle
+                        if (plan.idleTicks() >= 6000L) {  // >10 minutes
+                            collector.pushEmotion(PetComponent.Emotion.ENNUI, Math.min(0.10f, plan.idleTicks() / 36000f));
+                        }
+                    }, builder, world));
+                pendingCues.add(() -> EmotionContextCues.sendCue(player, "idle.restless",
+                    Text.translatable("petsplus.emotion_cue.idle.restless"), 2400));
+            }
             state.lastIdleCueTick = now;
         }
 
         if (plan.triggerRainyCue()) {
+            // Rainy idle - cozy but slightly bored from rebalanced logic
             pendingWork.add(applyStimulusToComponents(nearbyComponents.values(),
-                (pc, collector) -> collector.pushEmotion(PetComponent.Emotion.ENNUI, 0.06f), builder, world));
-            pendingCues.add(() -> EmotionContextCues.sendCue(player, "idle.rainy_ennui",
-                Text.translatable("petsplus.emotion_cue.idle.rainy"), 2400));
+                (pc, collector) -> {
+                    collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.20f);  // Cozy indoor feeling
+                    // Low energy pets get more Ennui
+                    collector.pushEmotion(PetComponent.Emotion.ENNUI, 0.10f);  // Mild tedious discomfort
+                    // Check if sheltered for extra coziness
+                    BlockPos playerPos = player.getBlockPos();
+                    if (world.getBlockState(playerPos.up(2)).isSolidBlock(world, playerPos.up(2))) {
+                        collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.15f);  // Extra comfort when dry
+                    }
+                }, builder, world));
+            pendingCues.add(() -> EmotionContextCues.sendCue(player, "idle.rainy_cozy",
+                Text.translatable("petsplus.emotion_cue.idle.rainy_cozy"), 2400));
             state.lastRainyIdleCueTick = now;
         }
 
@@ -1089,8 +1291,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
     private record IdlePetSample(long lastAttackTick) {
     }
 
-    private record IdleMaintenancePlan(boolean triggerIdleCue, boolean triggerRainyCue) {
-        static IdleMaintenancePlan none() { return new IdleMaintenancePlan(false, false); }
+    private record IdleMaintenancePlan(boolean triggerIdleCue, boolean triggerRainyCue, long idleTicks, boolean isNight) {
+        static IdleMaintenancePlan none() { return new IdleMaintenancePlan(false, false, 0L, false); }
         boolean hasActions() { return triggerIdleCue || triggerRainyCue; }
     }
 
@@ -1108,10 +1310,19 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
         for (ServerPlayerEntity sp : world.getPlayers()) {
             if (raining && !wasRaining) {
+                // Reduced rain intensity, check for shelter
                 CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
-                    collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.08f);
-                    collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.06f);
-                    collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.04f);
+                    MobEntity pet = pc.getPet();
+                    boolean isExposed = !world.getBlockState(pet.getBlockPos().up(2)).isSolidBlock(world, pet.getBlockPos().up(2));
+                    if (isExposed) {
+                        collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.25f);  // Reduced from 0.35f
+                        collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.20f);  // Reduced from 0.30f
+                        collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.10f);  // Reduced from 0.15f
+                    } else {
+                        // Cozy indoors during rain
+                        collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.35f);
+                        collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.25f);
+                    }
                 });
                 NatureFlavorHandler.triggerForOwner(sp, 48, Trigger.WEATHER_RAIN_START);
                 sendCueAfterStimulus(sp, stimulusFuture,
@@ -1119,9 +1330,14 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                     () -> Text.translatable("petsplus.emotion_cue.weather.rain_start"),
                     600);
             } else if (!raining && wasRaining) {
+                // Clear weather after rain
                 CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
-                    collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.10f);
-                    collector.pushEmotion(PetComponent.Emotion.GLEE, 0.06f);
+                    collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.35f);  // Reduced from 0.40f
+                    collector.pushEmotion(PetComponent.Emotion.GLEE, 0.20f);  // Reduced from 0.25f
+                    // Add Kefi for sunny energy after rain
+                    if (world.isDay()) {
+                        collector.pushEmotion(PetComponent.Emotion.KEFI, 0.20f);
+                    }
                 });
                 NatureFlavorHandler.triggerForOwner(sp, 48, Trigger.WEATHER_CLEAR);
                 sendCueAfterStimulus(sp, stimulusFuture,
@@ -1131,16 +1347,40 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             }
 
             if (thundering && !wasThundering) {
+                // Thunder with exposure check
                 CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
-                    collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.12f);
-                    collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
-                    collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.06f);
+                    MobEntity pet = pc.getPet();
+                    boolean isExposed = !world.getBlockState(pet.getBlockPos().up(2)).isSolidBlock(world, pet.getBlockPos().up(2));
+                    if (isExposed) {
+                        collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.40f);  // Reduced from 0.50f
+                        collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.35f);  // Reduced from 0.40f
+                        collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.20f);  // Reduced from 0.25f
+                    } else {
+                        // Less fear when sheltered
+                        collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.25f);
+                        collector.pushEmotion(PetComponent.Emotion.VIGILANT, 0.30f);
+                    }
                 });
                 NatureFlavorHandler.triggerForOwner(sp, 48, Trigger.WEATHER_THUNDER_START);
                 sendCueAfterStimulus(sp, stimulusFuture,
                     "weather.thunder",
                     () -> Text.translatable("petsplus.emotion_cue.weather.thunder"),
                     600);
+            }
+            
+            // Add clear night Yūgen trigger for moon phases
+            if (!raining && !thundering && world.isNight() && !wasRaining) {
+                long moonPhase = (world.getTimeOfDay() / 24000L) % 8L;
+                if (moonPhase <= 3) {  // Near full moon
+                    CompletableFuture<StimulusSummary> moonFuture = pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
+                        collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.30f);  // Subtle beauty of moonlit night
+                        collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.15f);  // Transient beauty
+                    });
+                    sendCueAfterStimulus(sp, moonFuture,
+                        "weather.moonlight",
+                        () -> Text.translatable("petsplus.emotion_cue.weather.moonlight"),
+                        1200);
+                }
             }
         }
 
@@ -1160,9 +1400,9 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             switch (next) {
                 case DAWN -> {
                     CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
-                        collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.10f);
-                        collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.06f);
-                        collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.04f);
+                        collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.35f);
+                        collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.25f);
+                        collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.15f);
                     });
                     sendCueAfterStimulus(sp, stimulusFuture,
                         "time.dawn",
@@ -1171,9 +1411,9 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 }
                 case DUSK -> {
                     CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
-                        collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.08f);
-                        collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.06f);
-                        collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.04f);
+                        collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.35f);
+                        collector.pushEmotion(PetComponent.Emotion.VIGILANT, 0.20f);  // Alert, not afraid
+                        collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.20f);
                     });
                     sendCueAfterStimulus(sp, stimulusFuture,
                         "time.dusk",
@@ -1181,8 +1421,10 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                         1200);
                 }
                 case DAY -> {
-                    CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 48,
-                        (pc, collector) -> collector.pushEmotion(PetComponent.Emotion.KEFI, 0.04f));
+                    CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
+                        collector.pushEmotion(PetComponent.Emotion.KEFI, 0.20f);
+                        collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.15f);  // Relief from dawn
+                    });
                     NatureFlavorHandler.triggerForOwner(sp, 48, Trigger.DAYBREAK);
                     sendCueAfterStimulus(sp, stimulusFuture,
                         "time.day",
@@ -1190,8 +1432,14 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                         2400);
                 }
                 case NIGHT -> {
-                    CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 48,
-                        (pc, collector) -> collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.04f));
+                    CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
+                        collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.20f);
+                        collector.pushEmotion(PetComponent.Emotion.VIGILANT, 0.25f);  // Watchful at night
+                        // Check if safe with owner for comfort
+                        if (pc.getPet().distanceTo(sp) < 8) {
+                            collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.15f);  // Calm when close to owner
+                        }
+                    });
                     NatureFlavorHandler.triggerForOwner(sp, 48, Trigger.NIGHTFALL);
                     sendCueAfterStimulus(sp, stimulusFuture,
                         "time.night",
@@ -1312,8 +1560,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         if (currentLevel <= 4) {
             if (!state.lowHungerNotified || previousLevel > 4) {
                 CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(player, 32, (pc, collector) -> {
-                    collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.12f);
-                    collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
+                    collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.45f);
+                    collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.35f);
                 });
                 sendCueAfterStimulus(player, stimulusFuture,
                     "owner.low_hunger",
@@ -1347,32 +1595,62 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         if (biomeKey != null && (state.biomeKey == null || !biomeKey.equals(state.biomeKey))) {
             state.biomeKey = biomeKey;
             if (biomeEntry != null) {
-                if (biomeEntry.isIn(DESERT_LIKE_BIOMES)) {
-                    pushToNearbyOwnedPets(player, 48, (pc, collector) -> collector.pushEmotion(PetComponent.Emotion.HANYAUKU, 0.12f), false);
+                if (biomeEntry.isIn(DESERT_LIKE_BIOMES) || biomeKey.equals(BiomeKeys.DESERT) || biomeKey.equals(BiomeKeys.BADLANDS)) {
+                    // Desert/Mesa emotions with heat response
+                    pushToNearbyOwnedPets(player, 48, (pc, collector) -> {
+                        MobEntity pet = pc.getPet();
+                        // Hiraeth for longing for cooler places
+                        collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.30f);
+                        // Disgust at the heat/sand
+                        collector.pushEmotion(PetComponent.Emotion.DISGUST, 0.15f);
+                        // Species modifier for desert-adapted pets
+                        if (pet instanceof net.minecraft.entity.passive.CamelEntity) {
+                            // Camels thrive in desert
+                            collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.25f);
+                            collector.pushEmotion(PetComponent.Emotion.DISGUST, -0.15f);  // Remove disgust
+                        }
+                    }, false);
                 }
                 if (biomeKey.equals(BiomeKeys.CHERRY_GROVE) || biomeKey.equals(BiomeKeys.FLOWER_FOREST)) {
                     pushToNearbyOwnedPets(player, 32, (pc, collector) -> {
-                        collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.10f);
-                        collector.pushEmotion(PetComponent.Emotion.BLISSFUL, 0.08f);
+                        collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.35f);  // Reduced from 0.40f
+                        collector.pushEmotion(PetComponent.Emotion.BLISSFUL, 0.30f);  // Reduced from 0.35f
+                        collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.20f);  // Added subtle beauty
                     }, false);
                 }
                 if (biomeKey.equals(BiomeKeys.MUSHROOM_FIELDS)) {
+                    // Mushroom fields - balanced harmony
                     pushToNearbyOwnedPets(player, 48, (pc, collector) -> {
-                        collector.pushEmotion(PetComponent.Emotion.GLEE, 0.15f);
-                        collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.08f);
+                        collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.25f);  // Perfect balance
+                        collector.pushEmotion(PetComponent.Emotion.GLEE, 0.30f);  // Reduced from 0.50f
+                        collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.25f);  // Reduced from 0.35f
                     }, false);
                 }
                 if (biomeKey.equals(BiomeKeys.DEEP_DARK)) {
+                    // Deep Dark - dread with mysterious allure
                     pushToNearbyOwnedPets(player, 48, (pc, collector) -> {
-                        collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.18f);
-                        collector.pushEmotion(PetComponent.Emotion.ANGST, 0.12f);
+                        collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.50f);  // Reduced from 0.65f
+                        collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.20f);  // Mysterious profundity
+                        collector.pushEmotion(PetComponent.Emotion.ANGST, 0.35f);  // Reduced from 0.50f
                     }, false);
                 }
                 if (biomeEntry.isIn(OCEANIC_BIOMES)) {
-                    pushToNearbyOwnedPets(player, 48, (pc, collector) -> collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.08f), false);
+                    pushToNearbyOwnedPets(player, 48, (pc, collector) -> {
+                        MobEntity pet = pc.getPet();
+                        collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.20f);  // Reduced from 0.30f
+                        // Aquatic pets feel different in ocean
+                        if (pet instanceof AxolotlEntity ||
+                            pet instanceof TropicalFishEntity) {
+                            collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.25f);  // Harmony in water
+                            collector.pushEmotion(PetComponent.Emotion.FERNWEH, -0.10f);  // Less wanderlust
+                        }
+                    }, false);
                 }
                 if (biomeEntry.isIn(SNOWY_BIOMES)) {
-                    pushToNearbyOwnedPets(player, 48, (pc, collector) -> collector.pushEmotion(PetComponent.Emotion.STOIC, 0.10f), false);
+                    pushToNearbyOwnedPets(player, 48, (pc, collector) -> {
+                        collector.pushEmotion(PetComponent.Emotion.STOIC, 0.30f);  // Reduced from 0.35f
+                        collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.15f);  // Longing for warmth
+                    }, false);
                 }
             }
             Identifier newBiomeId = biomeKey.getValue();
@@ -1409,36 +1687,59 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
     private static void handlePlayerFall(ServerPlayerEntity player, double distance) {
         float magnitude = (float) Math.min(0.12d, 0.02d * distance);
+        
         if (distance < 1.5d) {
+            // Small hop - playful but toned down
             pushToNearbyOwnedPets(player, 16, (pc, collector) -> {
                 long now = player.getWorld().getTime();
                 if (tryMarkPetBeat(pc, "owner_small_hop", now, 40L)) {
-                    collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.03f + magnitude * 0.6f);
-                    collector.pushEmotion(PetComponent.Emotion.GLEE, 0.02f + magnitude * 0.4f);
+                    collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.02f + magnitude * 0.4f);
+                    collector.pushEmotion(PetComponent.Emotion.GLEE, 0.01f + magnitude * 0.3f);
                 }
             });
             return;
         }
 
-        if (distance < 6.0d) {
+        if (distance >= 3.0d && distance < 6.0d) {
+            // Risky fall (3-6 blocks) - foreboding or startle
             pushToNearbyOwnedPets(player, 24, (pc, collector) -> {
-                collector.pushEmotion(PetComponent.Emotion.STARTLE, magnitude);
-                collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.05f + magnitude * 0.5f);
+                // Personality-dependent response
+                collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.25f);  // Anticipatory dread
+                collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.30f);  // Sudden surprise
+                collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.15f + magnitude * 0.3f);
             });
             return;
         }
 
-        pushToNearbyOwnedPets(player, 28, (pc, collector) -> {
+        if (distance >= 6.0d && distance < 10.0d) {
+            // Moderate fall - increasing worry
+            pushToNearbyOwnedPets(player, 28, (pc, collector) -> {
+                long now = player.getWorld().getTime();
+                if (tryMarkPetBeat(pc, "owner_moderate_fall", now, 120L)) {
+                    collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.35f);
+                    collector.pushEmotion(PetComponent.Emotion.ANGST, 0.25f + magnitude * 0.4f);
+                    collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.20f + magnitude * 0.3f);
+                    if (player.getHealth() > 0f) {
+                        collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.15f);
+                    }
+                }
+            });
+            return;
+        }
+
+        // Big fall (>10 blocks) - intense anxiety
+        pushToNearbyOwnedPets(player, 32, (pc, collector) -> {
             long now = player.getWorld().getTime();
             if (tryMarkPetBeat(pc, "owner_big_fall", now, 160L)) {
-                collector.pushEmotion(PetComponent.Emotion.STARTLE, magnitude);
-                collector.pushEmotion(PetComponent.Emotion.ANGST, 0.06f + magnitude * 0.6f);
-                collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.07f + magnitude * 0.5f);
+                collector.pushEmotion(PetComponent.Emotion.ANGST, 0.40f);  // Intense anxiety for big falls
+                collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.35f);
+                collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.30f);  // Dread of impact
+                collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.35f);
                 if (player.getHealth() > 0f) {
-                    collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.05f + magnitude * 0.4f);
+                    collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.30f);  // Major relief on survival
                 }
             } else {
-                collector.pushEmotion(PetComponent.Emotion.STARTLE, magnitude * 0.5f);
+                collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.20f);
             }
         });
     }
@@ -1958,6 +2259,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             addMovementActivityTriggers(pet, pc, owner, world, collector);
             addRoleSpecificAmbientTriggers(pet, pc, owner, world, collector);
             addSpeciesSpecificTriggers(pet, pc, owner, world, collector);
+            sustainMusicEmotions(pet, pc, owner, world, currentTick, collector);
 
             processSocialRoutines(pet, pc, petDataCache, owner, world, currentTick, swarm, accumulators);
         }
@@ -2325,21 +2627,70 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         EmotionStimulusBus bus = MoodService.getInstance().getStimulusBus();
 
         if (hierarchyPosition > 0.7f) {
+            // High rank - alpha assertion with cultural emotions
             bus.queueSimpleStimulus(pet, collector -> {
-                collector.pushEmotion(PetComponent.Emotion.PRIDE, 0.06f);
-                collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.04f);
+                collector.pushEmotion(PetComponent.Emotion.KEFI, 0.25f);  // Joyful leadership passion
+                collector.pushEmotion(PetComponent.Emotion.PROTECTIVE, 0.40f);  // Strong protective instinct
+                collector.pushEmotion(PetComponent.Emotion.PRIDE, 0.15f);  // Moderate pride
+                // Add contagion spreading for alpha influence
+                // TODO: Re-implement contagion system with new async API
+                // collector.addContagionShare(PetComponent.Emotion.KEFI, 0.20f);
             });
             bus.dispatchStimuli(pet, coordinator);
-            EmotionContextCues.sendCue(context.owner(), "social.alpha." + pet.getUuidAsString(),
-                Text.translatable("petsplus.emotion_cue.social.alpha", pet.getDisplayName()), 600);
-        } else if (hierarchyPosition < 0.3f) {
+            EmotionContextCues.sendCue(context.owner(), "social.alpha." + context.pet().getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.social.alpha", context.pet().getDisplayName()), 600);
+        } else if (hierarchyPosition >= 0.3f && hierarchyPosition <= 0.7f) {
+            // Middle rank - beta submission with harmony
             bus.queueSimpleStimulus(pet, collector -> {
-                collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.05f);
-                collector.pushEmotion(PetComponent.Emotion.LOYALTY, 0.04f);
+                collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.20f);  // Relaxed social bonding
+                collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.15f);  // Balanced acceptance
+                collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.10f);  // Community feeling
             });
             bus.dispatchStimuli(pet, coordinator);
-            EmotionContextCues.sendCue(context.owner(), "social.follower." + pet.getUuidAsString(),
-                Text.translatable("petsplus.emotion_cue.social.follower", pet.getDisplayName()), 500);
+            EmotionContextCues.sendCue(context.owner(), "social.beta." + context.pet().getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.social.beta", context.pet().getDisplayName()), 500);
+        } else {
+            // Low rank - omega with mild discontent
+            bus.queueSimpleStimulus(pet, collector -> {
+                collector.pushEmotion(PetComponent.Emotion.ENNUI, 0.15f);  // Boredom in low status
+                collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.10f);  // Some acceptance
+                collector.pushEmotion(PetComponent.Emotion.LOYALTY, 0.15f);  // Loyal despite position
+            });
+            bus.dispatchStimuli(pet, coordinator);
+            EmotionContextCues.sendCue(context.owner(), "social.omega." + context.pet().getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.social.omega", context.pet().getDisplayName()), 500);
+        }
+
+        // Group bonding for all ranks when multiple pets present
+        if (evaluation.totalNeighbors() >= 3) {
+            bus.queueSimpleStimulus(pet, collector -> {
+                collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.25f);  // Strong group unity
+            });
+            bus.dispatchStimuli(pet, coordinator);
+        }
+    }
+
+    private static void addOtherPetHurtTriggers(MobEntity pet, PetComponent pc, ServerPlayerEntity owner, ServerWorld world,
+                                               EmotionStimulusBus.SimpleStimulusCollector collector) {
+        // Check for other hurt pets nearby
+        List<MobEntity> nearbyPets = world.getEntitiesByClass(
+            MobEntity.class,
+            pet.getBoundingBox().expand(16),
+            entity -> entity != pet && PetComponent.get(entity) != null && entity.isAlive()
+        );
+
+        for (MobEntity otherPet : nearbyPets) {
+            PetComponent otherPc = PetComponent.get(otherPet);
+            if (otherPc != null && otherPc.getOwner() == owner) {
+                float otherHealth = otherPet.getHealth() / otherPet.getMaxHealth();
+                if (otherHealth < 0.5f) {
+                    // Other pet is hurt
+                    collector.pushEmotion(PetComponent.Emotion.EMPATHY, 0.25f);  // Empathy for hurt companion
+                    collector.pushEmotion(PetComponent.Emotion.PROTECTIVE, 0.20f);  // Want to protect
+                    collector.pushEmotion(PetComponent.Emotion.WORRIED, 0.15f);  // Concern
+                    break;  // Only react once
+                }
+            }
         }
     }
 
@@ -2400,38 +2751,50 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
         // Owner looking directly at pet - awareness and attention
         if (distanceToOwner < 64 && lookAlignment > 0.8) { // Owner looking at pet
-            collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.03f); // Reduced from 0.08f to 0.03f - Cozy attention
+            collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.30f); // Increased cozy attention
             if (pet.getHealth() / pet.getMaxHealth() < 0.7f) {
-                collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.12f); // Owner noticing when hurt
+                collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.25f); // Reduced relief when noticed
+                collector.pushEmotion(PetComponent.Emotion.EMPATHY, 0.20f); // Owner's care
             }
             EmotionContextCues.sendCue(owner, "social.look." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.social.look", pet.getDisplayName()), 200);
         }
 
-        // Owner proximity dynamics
-        if (distanceToOwner < 4) { // Very close
-            collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.025f); // Reduced from 0.06f to 0.025f - Home/safety feeling
+        // Owner proximity dynamics with refined separation emotions
+        if (distanceToOwner < 4) { // Very close - petting range
+            collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.30f); // Cozy bonding
+            collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.25f); // Perfect contentment
+            // Add relationship guard increase for closeness
+            pc.setStateData("relationship_boost", 0.10f);
             EmotionContextCues.sendCue(owner, "social.close." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.social.close", pet.getDisplayName()), 200);
-        } else if (distanceToOwner > 256) { // Far away
-            collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.04f); // Longing
+        } else if (distanceToOwner > 50 * 50) { // >50 blocks away (squared for efficiency)
+            collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.25f); // Homesick longing
+            collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f); // Some wanderlust mixed in
+            // Note: Decay for Hiraeth should be slower (0.998/tick) - handled in PetMoodEngine
             EmotionContextCues.sendCue(owner, "social.far." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.social.far", pet.getDisplayName()), 400);
         }
 
-        // Owner's current activity awareness
+        // Owner's current activity awareness - combat aid
         if (owner.getAttackCooldownProgress(0.0f) < 1.0f) {
-            collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.05f);
-            collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
+            collector.pushEmotion(PetComponent.Emotion.PROTECTIVE, 0.50f); // Strong protective instinct
+            collector.pushEmotion(PetComponent.Emotion.EMPATHY, 0.25f); // Supportive empathy
+            // Check if pet successfully aided (e.g., pet has recent attack)
+            if ((world.getTime() - pc.getLastAttackTick()) < 100) {
+                collector.pushEmotion(PetComponent.Emotion.KEFI, 0.20f); // Victory joy from helping
+            }
             EmotionContextCues.sendCue(owner, "social.combat." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.social.combat", pet.getDisplayName()), 200);
         }
 
         if (owner.isSneaking() && distanceToOwner < 16) {
-            collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.03f); // Mysterious quiet behavior
+            collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.20f); // Increased subtle awareness
+            collector.pushEmotion(PetComponent.Emotion.FOCUSED, 0.15f); // Alert to owner's stealth
             EmotionContextCues.sendCue(owner, "social.sneak." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.social.sneak", pet.getDisplayName()), 200);
             if (pc.hasRole(PetRoleType.ECLIPSED)) {
+                collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.10f); // Extra mysterious feeling
                 EmotionContextCues.sendCue(owner,
                     "role.eclipsed.shadow." + pet.getUuidAsString(),
                     Text.translatable("petsplus.emotion_cue.role.eclipsed_shroud", pet.getDisplayName()),
@@ -2439,14 +2802,16 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             }
         }
 
-        // Owner health awareness
+        // Owner health awareness with refined emotions
         float ownerHealthPercent = owner.getHealth() / owner.getMaxHealth();
         if (ownerHealthPercent < 0.3f && distanceToOwner < 64) {
-            collector.pushEmotion(PetComponent.Emotion.ANGST, 0.15f); // Worry about hurt owner
-            collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.12f);
+            collector.pushEmotion(PetComponent.Emotion.ANGST, 0.45f); // Reduced worry
+            collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.50f); // Strong protection
+            collector.pushEmotion(PetComponent.Emotion.EMPATHY, 0.30f); // Deep empathy for hurt owner
             EmotionContextCues.sendCue(owner, "social.owner_hurt." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.social.owner_hurt", pet.getDisplayName()), 200);
             if (pc.hasRole(PetRoleType.GUARDIAN)) {
+                collector.pushEmotion(PetComponent.Emotion.PROTECTIVE, 0.20f); // Extra for guardians
                 EmotionContextCues.sendCue(owner,
                     "role.guardian.vigil." + pet.getUuidAsString(),
                     Text.translatable("petsplus.emotion_cue.role.guardian_vigil", pet.getDisplayName()),
@@ -2460,14 +2825,42 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                                                       EmotionStimulusBus.SimpleStimulusCollector collector) {
         BlockPos petPos = pet.getBlockPos();
 
-        // Light level awareness
+        // Graduated light level awareness with context
         int lightLevel = world.getLightLevel(petPos);
+        boolean isNight = world.isNight();
+        boolean nearOwner = pet.distanceTo(owner) < 6;
+        boolean inShelter = world.getBlockState(petPos.up(2)).isSolidBlock(world, petPos.up(2));
+        
         if (lightLevel <= 3) {
-            collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.04f); // Dark places feel ominous
+            // Very dark - check context before fear
+            if (!nearOwner && !inShelter) {
+                collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.20f); // Only afraid if alone in dark
+                collector.pushEmotion(PetComponent.Emotion.VIGILANT, 0.25f);
+            } else {
+                collector.pushEmotion(PetComponent.Emotion.VIGILANT, 0.20f); // Just watchful if safe
+                if (nearOwner) {
+                    collector.pushEmotion(PetComponent.Emotion.PROTECTIVE, 0.15f); // Protective of owner in dark
+                }
+            }
             EmotionContextCues.sendCue(owner, "environment.dark." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.environment.dark", pet.getDisplayName()), 200);
+        } else if (lightLevel <= 7) {
+            // Dim light - vigilant but not afraid
+            collector.pushEmotion(PetComponent.Emotion.VIGILANT, 0.15f);
+            if (isNight) {
+                collector.pushEmotion(PetComponent.Emotion.CURIOUS, 0.10f); // Curious about night sounds
+            }
+        } else if (lightLevel <= 11) {
+            // Moderate light - comfortable
+            collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.10f);
         } else if (lightLevel >= 12) {
-            collector.pushEmotion(PetComponent.Emotion.KEFI, 0.02f); // Bright areas feel energizing
+            // Bright light - energizing
+            collector.pushEmotion(PetComponent.Emotion.KEFI, 0.12f);
+            if (isNight && lightLevel >= 14) {
+                // Well-lit at night = safety
+                collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.15f);
+                collector.pushEmotion(PetComponent.Emotion.CONTENT, 0.10f);
+            }
             EmotionContextCues.sendCue(owner, "environment.bright." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.environment.bright", pet.getDisplayName()), 400);
         }
@@ -2475,30 +2868,38 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         // Height awareness
         int y = petPos.getY();
         if (y > 120) { // High altitude
-            collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.03f); // Awe at heights
-            collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.02f); // Wanderlust from vistas
+            collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.18f); // Awe at heights
+            collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f); // Wanderlust from vistas
             EmotionContextCues.sendCue(owner, "environment.high." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.environment.high", pet.getDisplayName()), 400);
         } else if (y < 20) { // Deep underground
-            collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.05f); // Underground unease
+            collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.25f); // Underground unease
             EmotionContextCues.sendCue(owner, "environment.deep." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.environment.deep", pet.getDisplayName()), 400);
         }
 
         // Water proximity
         if (world.getBlockState(petPos.down()).getFluidState().isEmpty() == false) {
-            collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.03f); // Water brings balance
+            collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.15f); // Water brings balance
             EmotionContextCues.sendCue(owner, "environment.water." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.environment.water", pet.getDisplayName()), 400);
         }
 
         // Flowers and nature
         for (BlockPos offset : BlockPos.iterate(petPos.add(-2, -1, -2), petPos.add(2, 1, 2))) {
-            if (world.getBlockState(offset).isIn(NATURE_PLANTS)) {
-                collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.02f); // Beauty of nature
+            BlockState blockState = world.getBlockState(offset);
+            if (blockState.isIn(NATURE_PLANTS)) {
+                collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.12f); // Beauty of nature
                 EmotionContextCues.sendCue(owner, "environment.flower." + pet.getUuidAsString(),
                     Text.translatable("petsplus.emotion_cue.environment.flower", pet.getDisplayName()), 400);
                 break;
+            }
+            // Check for safety indicators at night
+            if (isNight && (blockState.isIn(BlockTags.CAMPFIRES) || blockState.getBlock() instanceof BedBlock)) {
+                collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.15f);
+                collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.20f);
+                // Reduce vigilance when near safe spaces
+                collector.pushEmotion(PetComponent.Emotion.VIGILANT, -0.10f);
             }
         }
 
@@ -2518,9 +2919,14 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             // Check if mobs are clustered (potential mob farm)
             boolean isClusteredFarm = nearbyHostiles.size() >= 4 && checkIfClustered(nearbyHostiles);
             float clusterPenalty = isClusteredFarm ? 0.3f : 1.0f;
-            
-            float baseForeboding = (0.03f + varietyFactor * 0.03f) * countFactor * clusterPenalty;
-            float baseProtectiveness = (0.02f + varietyFactor * 0.02f) * countFactor * clusterPenalty;
+
+            // Context-aware threat response
+            // Recalculate nearOwner for hostile response distance (different threshold)
+            nearOwner = pet.distanceTo(owner) < 8;
+
+            float baseVigilant = (0.20f + varietyFactor * 0.15f) * countFactor * clusterPenalty;
+            float baseForeboding = (0.15f + varietyFactor * 0.10f) * countFactor * clusterPenalty;
+            float baseProtectiveness = (0.18f + varietyFactor * 0.12f) * countFactor * clusterPenalty;
 
             // Apply fatigue to reduce repetitive fear from the same hostile situation
             long currentTime = world.getTime();
@@ -2528,8 +2934,17 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             float fatigueFactor = calculateHostileFatigue(pc, hostileSignature, currentTime, baseForeboding, 300); // 15s fatigue window
 
             if (fatigueFactor > 0.2f) { // Only trigger if not heavily fatigued
-                collector.pushEmotion(PetComponent.Emotion.FOREBODING, baseForeboding * fatigueFactor);
-                collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, baseProtectiveness * fatigueFactor);
+                // Always become vigilant first
+                collector.pushEmotion(PetComponent.Emotion.VIGILANT, baseVigilant * fatigueFactor);
+
+                // Only feel fear if conditions warrant it
+                if (!nearOwner && (isNight || lightLevel <= 7)) {
+                    collector.pushEmotion(PetComponent.Emotion.FOREBODING, baseForeboding * fatigueFactor);
+                }
+
+                // Always protective, especially near owner
+                float protectiveBonus = nearOwner ? 1.5f : 1.0f;
+                collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, baseProtectiveness * fatigueFactor * protectiveBonus);
             }
             EmotionContextCues.sendCue(owner, "environment.hostiles." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.environment.hostiles", pet.getDisplayName()), 200);
@@ -2548,27 +2963,41 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         Vec3d velocity = pet.getVelocity();
         double speed = velocity.length();
         boolean isCat = pet instanceof CatEntity;
+        
+        // Calculate distance from spawn/home
+        Vec3d spawnPos = Vec3d.ofCenter(world.getSpawnPos());
+        double distanceFromSpawn = pet.getPos().distanceTo(spawnPos);
 
-        // Movement patterns
-        if (speed > 0.2) { // Pet is moving fast
-            collector.pushEmotion(PetComponent.Emotion.KEFI, 0.04f); // Energy from movement
-            collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.02f); // Adventure spirit
+        // Movement patterns with refined emotions
+        if (speed > 0.3) { // Pet is moving very fast
+            collector.pushEmotion(PetComponent.Emotion.KEFI, 0.15f * (float)Math.min(speed, 1.0));  // Scale with velocity
+            collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.10f); // Adventure spirit
             EmotionContextCues.sendCue(owner, "movement.run." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.movement.run", pet.getDisplayName()), 200);
+        } else if (speed > 0.1 && speed <= 0.3) { // Safe exploration speed
+            collector.pushEmotion(PetComponent.Emotion.KEFI, 0.15f); // Spirited exploration
+            collector.pushEmotion(PetComponent.Emotion.CURIOUS, 0.30f); // Curiosity during exploration
         } else if (speed < 0.01) { // Pet is very still
-            collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.03f); // Peaceful stillness
+            collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.05f); // Peaceful stillness
             EmotionContextCues.sendCue(owner, "movement.still." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.movement.still", pet.getDisplayName()), 200);
+        }
+        
+        // Long trek detection
+        if (distanceFromSpawn > 1000) {
+            collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.20f); // Homesickness on long journeys
+            collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f); // Mixed with wanderlust
         }
 
         // Falling or jumping - more nuanced responses
         if (velocity.y < -0.8) { // Falling very fast - concern
-            collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.06f);
-            collector.pushEmotion(PetComponent.Emotion.ANGST, 0.04f);
+            collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.25f);  // Dread of falling
+            collector.pushEmotion(PetComponent.Emotion.ANGST, 0.20f);
             EmotionContextCues.sendCue(owner, "movement.fall." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.movement.fall", pet.getDisplayName()), 200);
-        } else if (velocity.y > 0.4) { // Jumping up - joy but reasonable
-            collector.pushEmotion(PetComponent.Emotion.KEFI, 0.04f); // Reduced joy of leaping
+        } else if (velocity.y > 0.4) { // Jumping up - moderate joy
+            collector.pushEmotion(PetComponent.Emotion.KEFI, 0.10f); // Joy of leaping
+            collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.08f);
             EmotionContextCues.sendCue(owner, "movement.jump." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.movement.jump", pet.getDisplayName()), 200);
         }
@@ -2653,11 +3082,185 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         }
     }
 
+    private static void sustainMusicEmotions(MobEntity pet, PetComponent pc, ServerPlayerEntity owner, ServerWorld world, long now,
+                                              EmotionStimulusBus.SimpleStimulusCollector collector) {
+        // Check if music is currently playing near pet
+        Boolean musicPlaying = pc.getStateData("music_playing", Boolean.class);
+        if (musicPlaying == null || !musicPlaying) {
+            // Throttle initial music detection checks per pet
+            Long lastMusicCheck = pc.getStateData("last_music_check", Long.class);
+            if (lastMusicCheck != null && now - lastMusicCheck < 100) { // Only check every 5 seconds per pet
+                return;
+            }
+            pc.setStateData("last_music_check", now);
+
+            // Check if jukebox is playing nearby (using optimized radius)
+            if (isJukeboxPlaying(world, pet.getBlockPos(), OPTIMIZED_MUSIC_RADIUS)) {
+                // Start new music session
+                pc.setStateData("music_playing", true);
+                pc.setStateData("music_start_time", now);
+                pc.setStateData("last_jukebox_pos", pet.getBlockPos().toImmutable());
+            } else {
+                return;
+            }
+        }
+
+        Long musicStartTime = pc.getStateData("music_start_time", Long.class);
+        if (musicStartTime == null) {
+            musicStartTime = now;
+            pc.setStateData("music_start_time", musicStartTime);
+        }
+
+        long musicDuration = now - musicStartTime;
+
+        // Enhanced throttling: Only verify music is still playing every 15 seconds during active sessions
+        Long lastMusicVerification = pc.getStateData("last_music_verification", Long.class);
+        boolean shouldVerifyMusic = lastMusicVerification == null || now - lastMusicVerification > JUKEBOX_CACHE_DURATION;
+
+        if (shouldVerifyMusic) {
+            pc.setStateData("last_music_verification", now);
+
+            // Check if music is still playing (with optimized detection)
+            if (!isJukeboxPlaying(world, pet.getBlockPos(), OPTIMIZED_MUSIC_RADIUS)) {
+                // Music stopped - apply decay
+                if (musicDuration > 100) {
+                    // Apply lingering emotions after music stops
+                    String peakEmotion = pc.getStateData("music_peak_emotion", String.class);
+                    Float peakIntensity = pc.getStateData("music_peak_intensity", Float.class);
+                    if (peakEmotion != null && peakIntensity != null) {
+                        try {
+                            PetComponent.Emotion emotion = PetComponent.Emotion.valueOf(peakEmotion);
+                            // Gradually decay the peak emotion
+                            float decayFactor = (float) Math.exp(-(now - musicStartTime - 2400) / 1200.0); // Decay over 1 minute
+                            if (decayFactor > 0.1f) {
+                                collector.pushEmotion(emotion, peakIntensity * decayFactor * 0.3f);
+                                collector.pushEmotion(PetComponent.Emotion.NOSTALGIA, 0.10f * decayFactor); // Nostalgia for the music
+                            } else {
+                                // Music fully decayed
+                                pc.setStateData("music_playing", false);
+                            }
+                        } catch (IllegalArgumentException ignored) {}
+                    }
+                } else {
+                    pc.setStateData("music_playing", false);
+                }
+                return;
+            }
+        }
+        
+        // Music is playing - sustain emotions with PeakEMA pattern
+        if (musicDuration % 100 == 0) { // Every 5 seconds
+            String peakEmotion = pc.getStateData("music_peak_emotion", String.class);
+            Float peakIntensity = pc.getStateData("music_peak_intensity", Float.class);
+            
+            if (peakEmotion != null && peakIntensity != null) {
+                try {
+                    PetComponent.Emotion emotion = PetComponent.Emotion.valueOf(peakEmotion);
+                    
+                    // Calculate wave pattern for music emotion (rising and falling)
+                    float wavePhase = (float) Math.sin(musicDuration * 0.01); // Slow wave
+                    float pulseIntensity = peakIntensity * (0.7f + 0.3f * wavePhase);
+                    
+                    // Apply sustained emotion with wave pattern
+                    collector.pushEmotion(emotion, pulseIntensity);
+                    
+                    // Add complementary emotions based on music type
+                    if ("LAGOM".equals(peakEmotion)) {
+                        collector.pushEmotion(PetComponent.Emotion.CONTENT, 0.10f);
+                    } else if ("KEFI".equals(peakEmotion)) {
+                        collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.15f * (0.5f + 0.5f * wavePhase));
+                    } else if ("YUGEN".equals(peakEmotion)) {
+                        collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.08f);
+                    }
+                    
+                    // Dance behavior for certain pets
+                    if (pet instanceof ParrotEntity && musicDuration % 200 == 0) {
+                        collector.pushEmotion(PetComponent.Emotion.KEFI, 0.20f); // Dancing burst
+                        EmotionContextCues.sendCue(owner, "music.parrot_dance." + pet.getUuidAsString(),
+                            Text.translatable("petsplus.emotion_cue.music.parrot_dance", pet.getDisplayName()), 400);
+                    }
+                } catch (IllegalArgumentException ignored) {}
+            }
+        }
+    }
+    
     private static void addSpeciesSpecificTriggers(MobEntity pet, PetComponent pc, ServerPlayerEntity owner, ServerWorld world,
                                                    EmotionStimulusBus.SimpleStimulusCollector collector) {
-        long now = world.getTime();
-        BlockPos petPos = pet.getBlockPos();
-
+        // Species-specific emotional responses with cultural nuances
+        if (pet instanceof WolfEntity) {
+            // Dogs - loyal pack animals
+            collector.pushEmotion(PetComponent.Emotion.LOYALTY, 0.30f);  // Strong loyalty trait
+            collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.20f);  // Social bonding
+            // Dogs are protective when owner is in danger
+            if (owner.getHealth() / owner.getMaxHealth() < 0.5f) {
+                collector.pushEmotion(PetComponent.Emotion.PROTECTIVE, 0.20f);
+            }
+        } else if (pet instanceof CatEntity cat) {
+            // Cats - independent and mysterious
+            // Check if cat is sitting (perching behavior)
+            if (cat.isSitting()) {
+                collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.25f);  // Graceful observation
+                collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.15f);  // Content in their spot
+            } else if (cat.getOwner() != null && cat.distanceTo(owner) > 10) {
+                // Forced to follow when they'd rather be independent
+                collector.pushEmotion(PetComponent.Emotion.ENNUI, 0.10f);  // Mild annoyance
+            }
+            // Cats are less affected by Regret for hunting
+            // This is handled in combat emotions
+        } else if (pet instanceof AbstractHorseEntity horse) {
+            // Horses - love to roam and explore
+            Vec3d velocity = horse.getVelocity();
+            if (velocity.length() > 0.3) {  // Galloping
+                collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.20f);  // Love of far places
+                collector.pushEmotion(PetComponent.Emotion.KEFI, 0.15f);  // Joy of movement
+            }
+            // Horses feel cramped in small spaces
+            if (world.getBlockState(horse.getBlockPos().up(3)).isSolidBlock(world, horse.getBlockPos().up(3))) {
+                collector.pushEmotion(PetComponent.Emotion.RESTLESS, 0.15f);
+            }
+        } else if (pet instanceof AxolotlEntity || pet instanceof net.minecraft.entity.passive.TropicalFishEntity) {
+            // Aquatic pets - need water
+            if (pet.isInFluid()) {
+                collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.25f);  // Perfect harmony in water
+                collector.pushEmotion(PetComponent.Emotion.CONTENT, 0.15f);
+            } else {
+                // Out of water - distress
+                collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.30f);  // Longing for water
+                collector.pushEmotion(PetComponent.Emotion.ANGST, 0.25f);  // Anxiety
+            }
+            // Check for arid biomes
+            RegistryEntry<Biome> biome = world.getBiome(pet.getBlockPos());
+            if (biome.isIn(DESERT_LIKE_BIOMES)) {
+                collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.15f);  // Extra longing in desert
+            }
+        } else if (pet instanceof ParrotEntity) {
+            // Parrots - social and musical
+            collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.15f);
+            // Check for other parrots nearby
+            List<ParrotEntity> nearbyParrots = world.getEntitiesByClass(
+                ParrotEntity.class, 
+                pet.getBoundingBox().expand(10), 
+                p -> p != pet && p.isAlive()
+            );
+            if (!nearbyParrots.isEmpty()) {
+                collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.20f);  // Flock unity
+            }
+        } else if (pet instanceof FoxEntity) {
+            // Foxes - clever and mischievous
+            pc.pushEmotion(PetComponent.Emotion.CURIOUS, 0.20f);
+            pc.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.15f);
+            // Foxes are nocturnal
+            if (world.isNight()) {
+                pc.pushEmotion(PetComponent.Emotion.KEFI, 0.15f);  // More energetic at night
+            }
+        }
+        
+        // Apply nature volatility multiplier for species (would need species-specific config)
+        // This affects how quickly emotions change for different species
+    }
+    
+    private static void addLegacySpeciesHandlers(MobEntity pet, PetComponent pc, ServerPlayerEntity owner, ServerWorld world, long now, BlockPos petPos) {
+        // Legacy species handlers that were already in the code
         if (pet instanceof AbstractHorseEntity) {
             if (pet.hasPassenger(owner) && tryMarkPetBeat(pc, "horse_ride", now, 200)) {
                 double speed = pet.getVelocity().horizontalLength();
@@ -2799,12 +3402,45 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
     }
 
     private static boolean isJukeboxPlaying(ServerWorld world, BlockPos center, int radius) {
-        for (BlockPos pos : BlockPos.iterate(center.add(-radius, -1, -radius), center.add(radius, 1, radius))) {
-            BlockState state = world.getBlockState(pos);
-            if (state.getBlock() instanceof JukeboxBlock && state.get(JukeboxBlock.HAS_RECORD)) {
-                return true;
+        return isJukeboxPlayingOptimized(world, center, radius, world.getTime());
+    }
+
+    private static boolean isJukeboxPlayingOptimized(ServerWorld world, BlockPos center, int radius, long currentTick) {
+        // First, try cache lookup for quick response
+        Map<BlockPos, Long> worldJukeboxes = activeJukeboxes.get(world);
+        if (worldJukeboxes != null) {
+            for (Map.Entry<BlockPos, Long> entry : worldJukeboxes.entrySet()) {
+                BlockPos jukeboxPos = entry.getKey();
+                // Check if jukebox is within range and still active
+                if (center.isWithinDistance(jukeboxPos, radius)) {
+                    // Verify it's still playing (cache might be stale)
+                    BlockState state = world.getBlockState(jukeboxPos);
+                    if (state.getBlock() instanceof JukeboxBlock && state.get(JukeboxBlock.HAS_RECORD)) {
+                        return true;
+                    } else {
+                        // Remove stale entry
+                        worldJukeboxes.remove(jukeboxPos);
+                    }
+                }
             }
         }
+
+        // Check if we need to refresh the cache
+        Long lastScan = lastJukeboxScan.get(world);
+        if (lastScan == null || currentTick - lastScan > JUKEBOX_CACHE_DURATION) {
+            refreshJukeboxCache(world, center, Math.max(radius, OPTIMIZED_MUSIC_RADIUS), currentTick);
+
+            // Try cache lookup again after refresh
+            worldJukeboxes = activeJukeboxes.get(world);
+            if (worldJukeboxes != null) {
+                for (BlockPos jukeboxPos : worldJukeboxes.keySet()) {
+                    if (center.isWithinDistance(jukeboxPos, radius)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
         return false;
     }
 
@@ -3079,6 +3715,25 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             }
             throw new RuntimeException(throwable);
         }
+    }
+
+    private static void refreshJukeboxCache(ServerWorld world, BlockPos scanCenter, int scanRadius, long currentTick) {
+        Map<BlockPos, Long> worldJukeboxes = activeJukeboxes.computeIfAbsent(world, k -> new ConcurrentHashMap<>());
+
+        // Clear old entries first
+        worldJukeboxes.clear();
+
+        // Scan for active jukeboxes in area (limited radius)
+        for (BlockPos pos : BlockPos.iterate(
+                scanCenter.add(-scanRadius, -2, -scanRadius),
+                scanCenter.add(scanRadius, 2, scanRadius))) {
+            BlockState state = world.getBlockState(pos);
+            if (state.getBlock() instanceof JukeboxBlock && state.get(JukeboxBlock.HAS_RECORD)) {
+                worldJukeboxes.put(pos.toImmutable(), currentTick);
+            }
+        }
+
+        lastJukeboxScan.put(world, currentTick);
     }
 
     // ==== 5th Wave: Tag-Based and Data-Driven Advanced Emotion Hooks ====

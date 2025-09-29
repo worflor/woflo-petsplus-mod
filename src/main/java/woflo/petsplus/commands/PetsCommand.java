@@ -30,6 +30,8 @@ import woflo.petsplus.commands.arguments.PetRoleArgumentType;
 import woflo.petsplus.commands.suggestions.PetsSuggestionProviders;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.events.EmotionContextCues;
+import woflo.petsplus.naming.AttributeKey;
+import woflo.petsplus.naming.NameParser;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetSnapshot;
 import woflo.petsplus.ui.ChatLinks;
@@ -132,7 +134,10 @@ public class PetsCommand {
                         .executes(PetsCommand::adminExportNamedPet)))
                 .then(CommandManager.literal("import")
                     .then(CommandManager.argument("snapshot", StringArgumentType.greedyString())
-                        .executes(PetsCommand::adminImportPet))))
+                        .executes(PetsCommand::adminImportPet)))
+                .then(CommandManager.literal("testname")
+                    .then(CommandManager.argument("name", StringArgumentType.greedyString())
+                        .executes(PetsCommand::adminTestNameParsing))))
 
             .then(CommandManager.literal("journal")
                 .executes(PetsCommand::showCueJournal))
@@ -490,6 +495,71 @@ public class PetsCommand {
             return 1;
         } catch (PetSnapshot.SnapshotException e) {
             player.sendMessage(Text.literal("Failed to import pet: " + e.getMessage()).formatted(Formatting.RED), false);
+            return 0;
+        }
+    }
+
+    private static int adminTestNameParsing(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        String name = StringArgumentType.getString(context, "name");
+
+        if (name.trim().isEmpty()) {
+            player.sendMessage(Text.literal("Name cannot be empty.").formatted(Formatting.RED), false);
+            return 0;
+        }
+
+        try {
+            // Parse the name for attributes
+            List<AttributeKey> attributes = NameParser.parse(name);
+
+            // Send result to player
+            player.sendMessage(Text.literal("📝 Testing name parsing for: \"")
+                .formatted(Formatting.YELLOW)
+                .append(Text.literal(name).formatted(Formatting.WHITE))
+                .append(Text.literal("\"").formatted(Formatting.YELLOW)), false);
+
+            if (attributes.isEmpty()) {
+                player.sendMessage(Text.literal("   No attributes found.").formatted(Formatting.GRAY), false);
+            } else {
+                player.sendMessage(Text.literal("   Found " + attributes.size() + " attribute(s):").formatted(Formatting.GREEN), false);
+
+                for (int i = 0; i < attributes.size(); i++) {
+                    AttributeKey attr = attributes.get(i);
+                    MutableText attributeText = Text.literal("   " + (i + 1) + ". ")
+                        .formatted(Formatting.GRAY)
+                        .append(Text.literal(attr.type()).formatted(Formatting.AQUA));
+
+                    if (attr.hasValue()) {
+                        attributeText.append(Text.literal(": ").formatted(Formatting.GRAY))
+                            .append(Text.literal(attr.value()).formatted(Formatting.WHITE));
+                    }
+
+                    if (attr.priority() > 0) {
+                        attributeText.append(Text.literal(" (priority: " + attr.priority() + ")").formatted(Formatting.DARK_GRAY));
+                    }
+
+                    player.sendMessage(attributeText, false);
+                }
+
+                // Show configuration status
+                PetsPlusConfig config = PetsPlusConfig.getInstance();
+                player.sendMessage(Text.literal("Config status:")
+                    .formatted(Formatting.YELLOW), false);
+                player.sendMessage(Text.literal("  Enabled: " + config.isNamedAttributesEnabled())
+                    .formatted(config.isNamedAttributesEnabled() ? Formatting.GREEN : Formatting.RED), false);
+                player.sendMessage(Text.literal("  Max attributes: " + config.getMaxNamedAttributes())
+                    .formatted(Formatting.GRAY), false);
+                player.sendMessage(Text.literal("  Case sensitive: " + config.isNamedAttributesCaseSensitive())
+                    .formatted(Formatting.GRAY), false);
+                player.sendMessage(Text.literal("  Patterns - Exact: " + config.isExactPatternsEnabled() +
+                    ", Prefix: " + config.isPrefixPatternsEnabled() +
+                    ", Regex: " + config.isRegexPatternsEnabled())
+                    .formatted(Formatting.GRAY), false);
+            }
+
+            return 1;
+        } catch (Exception e) {
+            player.sendMessage(Text.literal("Error parsing name: " + e.getMessage()).formatted(Formatting.RED), false);
             return 0;
         }
     }

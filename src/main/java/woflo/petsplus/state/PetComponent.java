@@ -37,9 +37,11 @@ import woflo.petsplus.stats.PetCharacteristics;
 import woflo.petsplus.state.gossip.PetGossipLedger;
 import woflo.petsplus.state.gossip.RumorEntry;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
+import woflo.petsplus.naming.AttributeKey;
 
 import net.minecraft.util.math.ChunkSectionPos;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -98,6 +100,9 @@ public class PetComponent {
     private float natureGuardModifier = 1.0f;
     private NatureEmotionProfile natureEmotionProfile = NatureEmotionProfile.EMPTY;
 
+    // Name-based attributes
+    private List<AttributeKey> nameAttributes = new ArrayList<>();
+
     private StateManager stateManager;
 
     private final EnumMap<PetWorkScheduler.TaskType, Long> scheduledTaskTicks =
@@ -117,7 +122,7 @@ public class PetComponent {
 
     // BossBar UI enhancements
     private long xpFlashStartTick = -1;
-    private static final int XP_FLASH_DURATION = 40; // 2 seconds
+    private static final int XP_FLASH_DURATION = 7; // 0.35 seconds
     
 
 
@@ -541,6 +546,37 @@ public class PetComponent {
     
     public MobEntity getPet() {
         return pet;
+    }
+
+    // Name-based attributes methods
+    public List<AttributeKey> getNameAttributes() {
+        return new ArrayList<>(nameAttributes);
+    }
+
+    public void setNameAttributes(List<AttributeKey> attributes) {
+        if (attributes == null) {
+            this.nameAttributes = new ArrayList<>();
+        } else {
+            this.nameAttributes = new ArrayList<>(attributes);
+        }
+    }
+
+    public void addNameAttribute(AttributeKey attribute) {
+        if (attribute != null && !nameAttributes.contains(attribute)) {
+            nameAttributes.add(attribute);
+        }
+    }
+
+    public void removeNameAttribute(AttributeKey attribute) {
+        nameAttributes.remove(attribute);
+    }
+
+    public void clearNameAttributes() {
+        nameAttributes.clear();
+    }
+
+    public boolean hasNameAttribute(String type) {
+        return nameAttributes.stream().anyMatch(attr -> attr.normalizedType().equals(type.toLowerCase()));
     }
 
     public void refreshSpeciesDescriptor() {
@@ -1729,6 +1765,13 @@ public class PetComponent {
     }
 
     /**
+     * Get the tick when XP flash started (for UI animation timing).
+     */
+    public long getXpFlashStartTick() {
+        return xpFlashStartTick;
+    }
+
+    /**
      * Get BossBar color based on XP progression (black to white gradient concept).
      */
     private BossBar.Color getProgressionBossBarColor() {
@@ -2269,6 +2312,19 @@ public class PetComponent {
             }
         }
 
+        // Save name attributes
+        if (!nameAttributes.isEmpty()) {
+            NbtList nameAttrsNbt = new NbtList();
+            for (AttributeKey attr : nameAttributes) {
+                NbtCompound attrNbt = new NbtCompound();
+                attrNbt.putString("type", attr.type());
+                attrNbt.putString("value", attr.value());
+                attrNbt.putInt("priority", attr.priority());
+                nameAttrsNbt.add(attrNbt);
+            }
+            nbt.put("NameAttrs", nameAttrsNbt);
+        }
+
         // Save characteristics
         if (characteristics != null) {
             NbtCompound characteristicsNbt = new NbtCompound();
@@ -2439,6 +2495,24 @@ public class PetComponent {
                             }
                         });
                         inventories.put(key, list);
+                    });
+                }
+            });
+        }
+
+        // Load name attributes
+        this.nameAttributes.clear();
+        if (nbt.contains("NameAttrs")) {
+            nbt.getList("NameAttrs").ifPresent(nameAttrsNbt -> {
+                for (int i = 0; i < nameAttrsNbt.size(); i++) {
+                    nameAttrsNbt.getCompound(i).ifPresent(attrNbt -> {
+                        String type = attrNbt.getString("type").orElse("");
+                        String value = attrNbt.getString("value").orElse("");
+                        int priority = attrNbt.getInt("priority").orElse(0);
+
+                        if (!type.isEmpty()) {
+                            this.nameAttributes.add(new AttributeKey(type, value, priority));
+                        }
                     });
                 }
             });
