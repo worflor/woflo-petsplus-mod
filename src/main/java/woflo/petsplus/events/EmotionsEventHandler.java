@@ -83,7 +83,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -951,29 +950,36 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         }
         StimulusSummary.Builder builder = StimulusSummary.builder(world.getTime());
         List<Runnable> pendingCues = new ArrayList<>(2);
+        List<CompletableFuture<Void>> pendingWork = new ArrayList<>(2);
 
         if (plan.triggerIdleCue()) {
-            applyStimulusToComponents(nearbyComponents.values(),
-                (pc, collector) -> collector.pushEmotion(PetComponent.Emotion.ENNUI, 0.15f), builder, world);
+            pendingWork.add(applyStimulusToComponents(nearbyComponents.values(),
+                (pc, collector) -> collector.pushEmotion(PetComponent.Emotion.ENNUI, 0.15f), builder, world));
             pendingCues.add(() -> EmotionContextCues.sendCue(player, "idle.ennui",
                 Text.translatable("petsplus.emotion_cue.idle.ennui"), 2400));
             state.lastIdleCueTick = now;
         }
 
         if (plan.triggerRainyCue()) {
-            applyStimulusToComponents(nearbyComponents.values(),
-                (pc, collector) -> collector.pushEmotion(PetComponent.Emotion.ENNUI, 0.06f), builder, world);
+            pendingWork.add(applyStimulusToComponents(nearbyComponents.values(),
+                (pc, collector) -> collector.pushEmotion(PetComponent.Emotion.ENNUI, 0.06f), builder, world));
             pendingCues.add(() -> EmotionContextCues.sendCue(player, "idle.rainy_ennui",
                 Text.translatable("petsplus.emotion_cue.idle.rainy"), 2400));
             state.lastRainyIdleCueTick = now;
         }
 
-        StimulusSummary summary = builder.buildWithTick(world.getTime());
-        if (!summary.isEmpty()) {
-            EmotionContextCues.recordStimulus(player, summary);
-        }
-        pendingCues.forEach(Runnable::run);
-        state.appliedEmotionVersion = Math.max(state.appliedEmotionVersion, version);
+        CompletableFuture<Void> completion = pendingWork.isEmpty()
+            ? CompletableFuture.completedFuture(null)
+            : CompletableFuture.allOf(pendingWork.toArray(CompletableFuture[]::new));
+
+        completion.whenComplete((ignored, error) -> {
+            StimulusSummary summary = builder.buildWithTick(world.getTime());
+            if (!summary.isEmpty()) {
+                EmotionContextCues.recordStimulus(player, summary);
+            }
+            pendingCues.forEach(Runnable::run);
+            state.appliedEmotionVersion = Math.max(state.appliedEmotionVersion, version);
+        });
     }
 
     private static Map<UUID, PetComponent> collectNearbyPetComponents(OwnerEventFrame frame,
@@ -998,17 +1004,18 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         return result;
     }
 
-    private static void applyStimulusToComponents(Collection<PetComponent> components,
-                                                  BiConsumer<PetComponent, EmotionStimulusBus.SimpleStimulusCollector> consumer,
-                                                  StimulusSummary.Builder builder,
-                                                  ServerWorld world) {
+    private static CompletableFuture<Void> applyStimulusToComponents(Collection<PetComponent> components,
+                                                                     BiConsumer<PetComponent, EmotionStimulusBus.SimpleStimulusCollector> consumer,
+                                                                     StimulusSummary.Builder builder,
+                                                                     ServerWorld world) {
         if (components == null || components.isEmpty() || world == null) {
-            return;
+            return CompletableFuture.completedFuture(null);
         }
 
         StateManager stateManager = StateManager.forWorld(world);
         AsyncWorkCoordinator coordinator = stateManager.getAsyncWorkCoordinator();
         EmotionStimulusBus bus = MoodService.getInstance().getStimulusBus();
+        List<CompletableFuture<Void>> pendingDispatches = new ArrayList<>();
 
         for (PetComponent component : components) {
             if (component == null) {
@@ -1040,18 +1047,31 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 }
             });
             CompletableFuture<Void> dispatch = bus.dispatchStimuliAsync(pet, coordinator);
-            if (dispatch != null) {
-                try {
-                    dispatch.join();
-                } catch (CompletionException | CancellationException ex) {
-                    Petsplus.LOGGER.error("Failed to dispatch emotion stimulus for pet {}", pet.getUuid(),
-                        unwrapAsyncError(ex));
-                    continue;
-                }
+            if (dispatch == null) {
+                Map<PetComponent.Mood, Float> after = snapshotMoodBlend(component);
+                builder.addSample(before, after);
+                continue;
             }
-            Map<PetComponent.Mood, Float> after = snapshotMoodBlend(component);
-            builder.addSample(before, after);
+
+            PetComponent capturedComponent = component;
+            MobEntity capturedPet = pet;
+            CompletableFuture<Void> completion = dispatch.handle((ignored, throwable) -> {
+                if (throwable != null) {
+                    Petsplus.LOGGER.error("Failed to dispatch emotion stimulus for pet {}", capturedPet.getUuid(),
+                        unwrapAsyncError(throwable));
+                } else {
+                    Map<PetComponent.Mood, Float> after = snapshotMoodBlend(capturedComponent);
+                    builder.addSample(before, after);
+                }
+                return null;
+            });
+            pendingDispatches.add(completion);
         }
+
+        if (pendingDispatches.isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return CompletableFuture.allOf(pendingDispatches.toArray(CompletableFuture[]::new));
     }
 
     private record IdleMaintenancePayload(long now,
@@ -1449,12 +1469,16 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         void accept(PetComponent component, EmotionStimulusBus.SimpleStimulusCollector collector);
     }
 
-    private static StimulusSummary pushToNearbyOwnedPets(ServerPlayerEntity owner, double radius, PetConsumer consumer) {
+    private static CompletableFuture<StimulusSummary> pushToNearbyOwnedPets(ServerPlayerEntity owner,
+                                                                            double radius,
+                                                                            PetConsumer consumer) {
         return pushToNearbyOwnedPets(owner, radius, consumer, true);
     }
 
-    private static StimulusSummary pushToNearbyOwnedPets(ServerPlayerEntity owner, double radius, PetConsumer consumer,
-                                                         boolean recordStimulus) {
+    private static CompletableFuture<StimulusSummary> pushToNearbyOwnedPets(ServerPlayerEntity owner,
+                                                                            double radius,
+                                                                            PetConsumer consumer,
+                                                                            boolean recordStimulus) {
         StateManager stateManager = StateManager.forWorld((ServerWorld) owner.getWorld());
         PetSwarmIndex swarmIndex = stateManager.getSwarmIndex();
         AsyncWorkCoordinator coordinator = stateManager.getAsyncWorkCoordinator();
@@ -1463,6 +1487,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         swarmIndex.forEachPetInRange(owner, center, radius, pets::add);
         long startTick = owner.getWorld().getTime();
         StimulusSummary.Builder builder = StimulusSummary.builder(startTick);
+        List<CompletableFuture<Void>> pendingDispatches = new ArrayList<>();
+
         for (PetSwarmIndex.SwarmEntry entry : pets) {
             MobEntity pet = entry.pet();
             PetComponent pc = entry.component();
@@ -1491,25 +1517,29 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                     }
                 });
                 CompletableFuture<Void> dispatch = bus.dispatchStimuliAsync(pet, coordinator);
-                if (dispatch != null) {
-                    try {
-                        dispatch.join();
-                    } catch (CompletionException | CancellationException ex) {
-                        Petsplus.LOGGER.error("Failed to dispatch emotion stimulus for pet {}", pet.getUuid(),
-                            unwrapAsyncError(ex));
-                        continue;
-                    }
+                if (dispatch == null) {
+                    Map<PetComponent.Mood, Float> after = snapshotMoodBlend(pc);
+                    builder.addSample(before, after);
+                    continue;
                 }
-                Map<PetComponent.Mood, Float> after = snapshotMoodBlend(pc);
-                builder.addSample(before, after);
+
+                PetComponent capturedComponent = pc;
+                MobEntity capturedPet = pet;
+                CompletableFuture<Void> completion = dispatch.handle((ignored, throwable) -> {
+                    if (throwable != null) {
+                        Petsplus.LOGGER.error("Failed to dispatch emotion stimulus for pet {}", capturedPet.getUuid(),
+                            unwrapAsyncError(throwable));
+                    } else {
+                        Map<PetComponent.Mood, Float> after = snapshotMoodBlend(capturedComponent);
+                        builder.addSample(before, after);
+                    }
+                    return null;
+                });
+                pendingDispatches.add(completion);
             } catch (Throwable ignored) {}
         }
-        long recordTick = owner.getWorld().getTime();
-        StimulusSummary summary = builder.buildWithTick(recordTick);
-        if (recordStimulus) {
-            EmotionContextCues.recordStimulus(owner, summary);
-        }
-        return summary;
+
+        return finalizeStimulusSummary(owner, builder, recordStimulus, pendingDispatches);
     }
 
     private static void forEachOwnedPet(ServerPlayerEntity owner, double radius,
@@ -1543,15 +1573,18 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         return EmotionBaselineTracker.snapshotBlend(pc);
     }
 
-    private static StimulusSummary pushToSinglePet(ServerPlayerEntity owner, PetComponent pc, PetConsumer consumer) {
+    private static CompletableFuture<StimulusSummary> pushToSinglePet(ServerPlayerEntity owner,
+                                                                      PetComponent pc,
+                                                                      PetConsumer consumer) {
         if (owner == null || pc == null) {
-            return StimulusSummary.empty(owner != null ? owner.getWorld().getTime() : 0L);
+            return CompletableFuture.completedFuture(StimulusSummary.empty(
+                owner != null ? owner.getWorld().getTime() : 0L));
         }
         long startTick = owner.getWorld().getTime();
         StimulusSummary.Builder builder = StimulusSummary.builder(startTick);
         MobEntity pet = pc.getPet();
         if (pet == null) {
-            return builder.buildWithTick(startTick);
+            return CompletableFuture.completedFuture(builder.buildWithTick(startTick));
         }
 
         EnumMap<PetComponent.Emotion, Float> deltas = new EnumMap<>(PetComponent.Emotion.class);
@@ -1564,6 +1597,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
         Map<PetComponent.Mood, Float> before = snapshotMoodBlend(pc);
         consumer.accept(pc, collector);
+        List<CompletableFuture<Void>> pendingDispatches = new ArrayList<>(1);
         if (!deltas.isEmpty()) {
             StateManager stateManager = StateManager.forWorld((ServerWorld) owner.getWorld());
             AsyncWorkCoordinator coordinator = stateManager.getAsyncWorkCoordinator();
@@ -1574,29 +1608,55 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 }
             });
             CompletableFuture<Void> dispatch = bus.dispatchStimuliAsync(pet, coordinator);
-            if (dispatch != null) {
-                try {
-                    dispatch.join();
-                } catch (CompletionException | CancellationException ex) {
-                    Petsplus.LOGGER.error("Failed to dispatch emotion stimulus for pet {}", pet.getUuid(),
-                        unwrapAsyncError(ex));
-                    long failureTick = owner.getWorld().getTime();
-                    StimulusSummary failedSummary = builder.buildWithTick(failureTick);
-                    EmotionContextCues.recordStimulus(owner, failedSummary);
-                    return failedSummary;
-                }
+            if (dispatch == null) {
+                Map<PetComponent.Mood, Float> after = snapshotMoodBlend(pc);
+                builder.addSample(before, after);
+            } else {
+                PetComponent capturedComponent = pc;
+                MobEntity capturedPet = pet;
+                CompletableFuture<Void> completion = dispatch.handle((ignored, throwable) -> {
+                    if (throwable != null) {
+                        Petsplus.LOGGER.error("Failed to dispatch emotion stimulus for pet {}", capturedPet.getUuid(),
+                            unwrapAsyncError(throwable));
+                    } else {
+                        Map<PetComponent.Mood, Float> after = snapshotMoodBlend(capturedComponent);
+                        builder.addSample(before, after);
+                    }
+                    return null;
+                });
+                pendingDispatches.add(completion);
             }
-            Map<PetComponent.Mood, Float> after = snapshotMoodBlend(pc);
-            builder.addSample(before, after);
         }
-        long recordTick = owner.getWorld().getTime();
-        StimulusSummary summary = builder.buildWithTick(recordTick);
-        EmotionContextCues.recordStimulus(owner, summary);
-        return summary;
+
+        return finalizeStimulusSummary(owner, builder, true, pendingDispatches);
     }
 
-    private static StimulusSummary applyConfiguredStimulus(ServerPlayerEntity owner, String definitionId,
-                                                           double defaultRadius, PetConsumer consumer) {
+    private static CompletableFuture<StimulusSummary> finalizeStimulusSummary(ServerPlayerEntity owner,
+                                                                              StimulusSummary.Builder builder,
+                                                                              boolean recordStimulus,
+                                                                              List<CompletableFuture<Void>> pendingDispatches) {
+        if (pendingDispatches.isEmpty()) {
+            StimulusSummary summary = builder.buildWithTick(owner.getWorld().getTime());
+            if (recordStimulus) {
+                EmotionContextCues.recordStimulus(owner, summary);
+            }
+            return CompletableFuture.completedFuture(summary);
+        }
+
+        CompletableFuture<Void> completion = CompletableFuture.allOf(pendingDispatches.toArray(CompletableFuture[]::new));
+        return completion.thenApply(ignored -> {
+            StimulusSummary summary = builder.buildWithTick(owner.getWorld().getTime());
+            if (recordStimulus) {
+                EmotionContextCues.recordStimulus(owner, summary);
+            }
+            return summary;
+        });
+    }
+
+    private static CompletableFuture<StimulusSummary> applyConfiguredStimulus(ServerPlayerEntity owner,
+                                                                              String definitionId,
+                                                                              double defaultRadius,
+                                                                              PetConsumer consumer) {
         EmotionCueDefinition definition = EmotionCueConfig.get().definition(definitionId);
         double radius = definition != null ? definition.resolvedRadius(defaultRadius) : defaultRadius;
         return pushToNearbyOwnedPets(owner, radius, (pc, collector) -> {
@@ -1616,11 +1676,12 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
     private static void triggerConfiguredCue(ServerPlayerEntity owner, String definitionId, double defaultRadius,
                                              PetConsumer consumer, String fallbackKey, Object... args) {
-        applyConfiguredStimulus(owner, definitionId, defaultRadius, consumer);
-        Text cueText = resolveCueText(definitionId, fallbackKey, args);
-        if (cueText != null && !cueText.getString().isEmpty()) {
-            EmotionContextCues.sendCue(owner, definitionId, cueText);
-        }
+        applyConfiguredStimulus(owner, definitionId, defaultRadius, consumer).thenRun(() -> {
+            Text cueText = resolveCueText(definitionId, fallbackKey, args);
+            if (cueText != null && !cueText.getString().isEmpty()) {
+                EmotionContextCues.sendCue(owner, definitionId, cueText);
+            }
+        });
     }
 
     private static void emitPetCue(ServerPlayerEntity owner, PetComponent pc, String cueId, PetConsumer consumer,
@@ -1634,11 +1695,12 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 }
             }
             consumer.accept(petComponent, collector);
+        }).thenRun(() -> {
+            Text cueText = resolveCueText(definitionId, fallbackKey, args);
+            if (cueText != null && !cueText.getString().isEmpty()) {
+                EmotionContextCues.sendCue(owner, cueId, cueText, fallbackCooldown);
+            }
         });
-        Text cueText = resolveCueText(definitionId, fallbackKey, args);
-        if (cueText != null && !cueText.getString().isEmpty()) {
-            EmotionContextCues.sendCue(owner, cueId, cueText, fallbackCooldown);
-        }
     }
 
     private static Throwable unwrapAsyncError(Throwable error) {
