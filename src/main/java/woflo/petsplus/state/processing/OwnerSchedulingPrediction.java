@@ -110,6 +110,7 @@ public final class OwnerSchedulingPrediction {
             case GOSSIP -> 200L;
             case MOVEMENT -> 5L;
             case XP_GAIN -> 1L;
+            case EMOTION -> 60L;
             case ABILITY_TRIGGER -> 5L;
         };
     }

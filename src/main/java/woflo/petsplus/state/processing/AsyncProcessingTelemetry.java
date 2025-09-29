@@ -201,13 +201,42 @@ public final class AsyncProcessingTelemetry {
             return rejectedSubmissions;
         }
 
+        public double backgroundShare() {
+            double async = asyncNanos;
+            double total = async + captureNanos + applyNanos;
+            if (total <= 0.0D) {
+                return 0.0D;
+            }
+            return async / total;
+        }
+
+        public double mainThreadShare() {
+            double main = captureNanos + applyNanos;
+            double total = main + asyncNanos;
+            if (total <= 0.0D) {
+                return 0.0D;
+            }
+            return main / total;
+        }
+
+        public double asyncToMainRatio() {
+            double main = captureNanos + applyNanos;
+            if (main <= 0.0D) {
+                return asyncNanos > 0.0D ? Double.POSITIVE_INFINITY : 0.0D;
+            }
+            return asyncNanos / main;
+        }
+
         public String toSummaryString() {
             return String.format(
-                "window=%dms captureAvg=%.3fms asyncAvg=%.3fms applyAvg=%.3fms peakJobs=%d peakQueue=%d peakDrain=%d throttled=%d rejected=%d",
+                "window=%dms captureAvg=%.3fms asyncAvg=%.3fms applyAvg=%.3fms bgShare=%.2f mainShare=%.2f asyncMainRatio=%.2f peakJobs=%d peakQueue=%d peakDrain=%d throttled=%d rejected=%d",
                 windowMillis(),
                 averageCaptureMillis(),
                 averageAsyncMillis(),
                 averageApplyMillis(),
+                backgroundShare(),
+                mainThreadShare(),
+                asyncToMainRatio(),
                 peakActiveJobs,
                 peakResultQueue,
                 peakDrainBatch,

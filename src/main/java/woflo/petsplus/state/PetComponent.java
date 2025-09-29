@@ -31,6 +31,8 @@ import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.component.PetsplusComponents;
+import woflo.petsplus.mood.EmotionBaselineTracker;
+import woflo.petsplus.mood.MoodService;
 import woflo.petsplus.stats.PetCharacteristics;
 import woflo.petsplus.state.gossip.PetGossipLedger;
 import woflo.petsplus.state.gossip.RumorEntry;
@@ -453,8 +455,58 @@ public class PetComponent {
             || gossipLedger.hasAbstractTopicsReady(currentTick);
     }
 
+    public GossipShareSnapshot snapshotGossipShareables(long currentTick, int maxSamples) {
+        int limit = Math.max(1, maxSamples);
+        boolean optedOut = isGossipOptedOut(currentTick);
+        if (optedOut) {
+            return GossipShareSnapshot.empty();
+        }
+        List<RumorEntry> fresh = gossipLedger.peekFreshRumors(limit, currentTick);
+        int remaining = Math.max(0, limit - fresh.size());
+        List<RumorEntry> abstracts = remaining > 0
+            ? gossipLedger.peekAbstractRumors(remaining, currentTick)
+            : List.of();
+        return new GossipShareSnapshot(
+            false,
+            fresh == null || fresh.isEmpty() ? List.of() : List.copyOf(fresh),
+            abstracts == null || abstracts.isEmpty() ? List.of() : List.copyOf(abstracts)
+        );
+    }
+
     public Stream<RumorEntry> streamRumors() {
         return gossipLedger.stream();
+    }
+
+    public static final class GossipShareSnapshot {
+        private static final GossipShareSnapshot EMPTY = new GossipShareSnapshot(true, List.of(), List.of());
+
+        private final boolean optedOut;
+        private final List<RumorEntry> freshRumors;
+        private final List<RumorEntry> abstractRumors;
+
+        private GossipShareSnapshot(boolean optedOut,
+                                    List<RumorEntry> freshRumors,
+                                    List<RumorEntry> abstractRumors) {
+            this.optedOut = optedOut;
+            this.freshRumors = freshRumors == null || freshRumors.isEmpty() ? List.of() : freshRumors;
+            this.abstractRumors = abstractRumors == null || abstractRumors.isEmpty() ? List.of() : abstractRumors;
+        }
+
+        public static GossipShareSnapshot empty() {
+            return EMPTY;
+        }
+
+        public boolean optedOut() {
+            return optedOut;
+        }
+
+        public List<RumorEntry> freshRumors() {
+            return freshRumors;
+        }
+
+        public List<RumorEntry> abstractRumors() {
+            return abstractRumors;
+        }
     }
 
     public static PetComponent getOrCreate(MobEntity pet) {
@@ -913,6 +965,19 @@ public class PetComponent {
         lastSwarmCellKey = Long.MIN_VALUE;
     }
 
+    public SwarmStateSnapshot snapshotSwarmState() {
+        return new SwarmStateSnapshot(swarmTrackingInitialized, lastSwarmCellKey, lastSwarmX, lastSwarmY, lastSwarmZ);
+    }
+
+    public void applySwarmUpdate(PetSwarmIndex index, long cellKey, double x, double y, double z) {
+        swarmTrackingInitialized = true;
+        lastSwarmCellKey = cellKey;
+        lastSwarmX = x;
+        lastSwarmY = y;
+        lastSwarmZ = z;
+        index.updatePet(pet, this);
+    }
+
     /**
      * Updates the cached swarm tracking entry if the pet has moved a significant
      * amount since the last update. Returns {@code true} when the underlying
@@ -949,6 +1014,9 @@ public class PetComponent {
             return true;
         }
         return false;
+    }
+
+    public record SwarmStateSnapshot(boolean initialized, long cellKey, double x, double y, double z) {
     }
 
     @Nullable
@@ -1035,6 +1103,30 @@ public class PetComponent {
         }
         
         // Trigger particle effect if any cooldown expired
+        if (anyExpired) {
+            woflo.petsplus.ui.CooldownParticleManager.triggerCooldownRefresh(serverWorld, pet);
+        }
+    }
+
+    public void applyCooldownExpirations(List<String> keys, long currentTick) {
+        if (!(pet.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld)) {
+            return;
+        }
+        if (keys == null || keys.isEmpty()) {
+            return;
+        }
+        boolean anyExpired = false;
+        for (String key : keys) {
+            if (key == null) {
+                continue;
+            }
+            Long cooldownEnd = cooldowns.get(key);
+            if (cooldownEnd == null || cooldownEnd > currentTick) {
+                continue;
+            }
+            cooldowns.remove(key);
+            anyExpired = true;
+        }
         if (anyExpired) {
             woflo.petsplus.ui.CooldownParticleManager.triggerCooldownRefresh(serverWorld, pet);
         }
@@ -1564,6 +1656,9 @@ public class PetComponent {
     public void pushEmotion(Emotion emotion, float amount) {
         long now = pet.getWorld() instanceof ServerWorld sw ? sw.getTime() : 0L;
         moodEngine.applyStimulus(new EmotionDelta(emotion, amount), now);
+        if (!MoodService.getInstance().isInStimulusDispatch()) {
+            EmotionBaselineTracker.recordDirectChange(this);
+        }
     }
 
     /** Apply mirrored pack contagion influence for an emotion. */
