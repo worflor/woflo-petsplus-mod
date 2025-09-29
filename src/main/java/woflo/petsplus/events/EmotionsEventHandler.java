@@ -950,27 +950,29 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             return;
         }
         StimulusSummary.Builder builder = StimulusSummary.builder(world.getTime());
+        List<Runnable> pendingCues = new ArrayList<>(2);
 
         if (plan.triggerIdleCue()) {
             applyStimulusToComponents(nearbyComponents.values(),
                 (pc, collector) -> collector.pushEmotion(PetComponent.Emotion.ENNUI, 0.15f), builder, world);
-            EmotionContextCues.sendCue(player, "idle.ennui",
-                Text.translatable("petsplus.emotion_cue.idle.ennui"), 2400);
+            pendingCues.add(() -> EmotionContextCues.sendCue(player, "idle.ennui",
+                Text.translatable("petsplus.emotion_cue.idle.ennui"), 2400));
             state.lastIdleCueTick = now;
         }
 
         if (plan.triggerRainyCue()) {
             applyStimulusToComponents(nearbyComponents.values(),
                 (pc, collector) -> collector.pushEmotion(PetComponent.Emotion.ENNUI, 0.06f), builder, world);
-            EmotionContextCues.sendCue(player, "idle.rainy_ennui",
-                Text.translatable("petsplus.emotion_cue.idle.rainy"), 2400);
+            pendingCues.add(() -> EmotionContextCues.sendCue(player, "idle.rainy_ennui",
+                Text.translatable("petsplus.emotion_cue.idle.rainy"), 2400));
             state.lastRainyIdleCueTick = now;
         }
 
-        StimulusSummary summary = builder.build();
+        StimulusSummary summary = builder.buildWithTick(world.getTime());
         if (!summary.isEmpty()) {
             EmotionContextCues.recordStimulus(player, summary);
         }
+        pendingCues.forEach(Runnable::run);
         state.appliedEmotionVersion = Math.max(state.appliedEmotionVersion, version);
     }
 
@@ -1459,7 +1461,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         Vec3d center = owner.getPos();
         List<PetSwarmIndex.SwarmEntry> pets = new ArrayList<>();
         swarmIndex.forEachPetInRange(owner, center, radius, pets::add);
-        StimulusSummary.Builder builder = StimulusSummary.builder(owner.getWorld().getTime());
+        long startTick = owner.getWorld().getTime();
+        StimulusSummary.Builder builder = StimulusSummary.builder(startTick);
         for (PetSwarmIndex.SwarmEntry entry : pets) {
             MobEntity pet = entry.pet();
             PetComponent pc = entry.component();
@@ -1501,7 +1504,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 builder.addSample(before, after);
             } catch (Throwable ignored) {}
         }
-        StimulusSummary summary = builder.build();
+        long recordTick = owner.getWorld().getTime();
+        StimulusSummary summary = builder.buildWithTick(recordTick);
         if (recordStimulus) {
             EmotionContextCues.recordStimulus(owner, summary);
         }
@@ -1543,10 +1547,11 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         if (owner == null || pc == null) {
             return StimulusSummary.empty(owner != null ? owner.getWorld().getTime() : 0L);
         }
-        StimulusSummary.Builder builder = StimulusSummary.builder(owner.getWorld().getTime());
+        long startTick = owner.getWorld().getTime();
+        StimulusSummary.Builder builder = StimulusSummary.builder(startTick);
         MobEntity pet = pc.getPet();
         if (pet == null) {
-            return builder.build();
+            return builder.buildWithTick(startTick);
         }
 
         EnumMap<PetComponent.Emotion, Float> deltas = new EnumMap<>(PetComponent.Emotion.class);
@@ -1575,7 +1580,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 } catch (CompletionException | CancellationException ex) {
                     Petsplus.LOGGER.error("Failed to dispatch emotion stimulus for pet {}", pet.getUuid(),
                         unwrapAsyncError(ex));
-                    StimulusSummary failedSummary = builder.build();
+                    long failureTick = owner.getWorld().getTime();
+                    StimulusSummary failedSummary = builder.buildWithTick(failureTick);
                     EmotionContextCues.recordStimulus(owner, failedSummary);
                     return failedSummary;
                 }
@@ -1583,7 +1589,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             Map<PetComponent.Mood, Float> after = snapshotMoodBlend(pc);
             builder.addSample(before, after);
         }
-        StimulusSummary summary = builder.build();
+        long recordTick = owner.getWorld().getTime();
+        StimulusSummary summary = builder.buildWithTick(recordTick);
         EmotionContextCues.recordStimulus(owner, summary);
         return summary;
     }
