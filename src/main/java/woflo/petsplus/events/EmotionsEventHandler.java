@@ -1678,13 +1678,45 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         }
 
         CompletableFuture<Void> completion = CompletableFuture.allOf(pendingDispatches.toArray(CompletableFuture[]::new));
-        return completion.thenApply(ignored -> {
-            StimulusSummary summary = builder.buildWithTick(owner.getWorld().getTime());
-            if (recordStimulus) {
-                EmotionContextCues.recordStimulus(owner, summary);
+        CompletableFuture<StimulusSummary> result = new CompletableFuture<>();
+        completion.whenComplete((ignored, throwable) -> {
+            if (throwable != null) {
+                result.completeExceptionally(unwrapAsyncError(throwable));
+                return;
             }
-            return summary;
+
+            MinecraftServer server = owner.getServer();
+            if (server == null) {
+                result.completeExceptionally(new IllegalStateException(
+                    "Server unavailable when finalizing stimulus summary"));
+                return;
+            }
+
+            Runnable task = () -> {
+                try {
+                    StimulusSummary summary = builder.buildWithTick(owner.getWorld().getTime());
+                    if (recordStimulus) {
+                        EmotionContextCues.recordStimulus(owner, summary);
+                    }
+                    result.complete(summary);
+                } catch (Throwable error) {
+                    result.completeExceptionally(error);
+                    throw error;
+                }
+            };
+
+            CompletableFuture<?> scheduled = server.submit(task);
+            if (scheduled == null) {
+                result.completeExceptionally(new IllegalStateException(
+                    "Server rejected stimulus summary scheduling"));
+                return;
+            }
+            scheduled.exceptionally(error -> {
+                result.completeExceptionally(error);
+                return null;
+            });
         });
+        return result;
     }
 
     private static CompletableFuture<StimulusSummary> applyConfiguredStimulus(ServerPlayerEntity owner,
@@ -1754,7 +1786,32 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                     unwrapAsyncError(throwable));
                 return;
             }
-            deliverCue(owner, cueId, cueTextSupplier, cooldownTicks);
+
+            MinecraftServer server = owner.getServer();
+            if (server == null) {
+                Petsplus.LOGGER.warn("Skipping cue {} for owner {}: server unavailable for main-thread scheduling",
+                    cueId, owner.getUuid());
+                return;
+            }
+
+            Runnable task = () -> {
+                try {
+                    deliverCue(owner, cueId, cueTextSupplier, cooldownTicks);
+                } catch (Throwable applyError) {
+                    Petsplus.LOGGER.error("Failed to deliver cue {} on main thread", cueId, applyError);
+                    throw applyError;
+                }
+            };
+
+            CompletableFuture<?> scheduled = server.submit(task);
+            if (scheduled == null) {
+                Petsplus.LOGGER.warn("Server rejected cue {} scheduling for owner {}", cueId, owner.getUuid());
+                return;
+            }
+            scheduled.exceptionally(error -> {
+                Petsplus.LOGGER.error("Cue {} scheduling failed", cueId, error);
+                return null;
+            });
         });
     }
 
