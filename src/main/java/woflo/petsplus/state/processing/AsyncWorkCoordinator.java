@@ -1,16 +1,17 @@
 package woflo.petsplus.state.processing;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -138,22 +139,27 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
 
         telemetry.recordActiveJobs(activeJobs.get());
         CompletableFuture<T> completion = new CompletableFuture<>();
+        TrackedTask task = wrap(
+            effectivePriority,
+            () -> runJob(snapshot, job, applier, completion, reservation),
+            reservation,
+            completion
+        );
         try {
-            executor.execute(wrap(effectivePriority, () -> runJob(snapshot, job, applier, completion, reservation)));
+            executor.execute(task);
         } catch (RejectedExecutionException ex) {
-            reservation.close();
-            activeJobs.decrementAndGet();
-            telemetry.recordActiveJobs(activeJobs.get());
-            telemetry.recordRejectedSubmission();
-            completion.completeExceptionally(ex);
+            task.cancel(ex);
             return completion;
         }
         return completion;
     }
 
-    private Runnable wrap(AsyncJobPriority priority, Runnable delegate) {
-        return new PrioritizedRunnable(priority == null ? AsyncJobPriority.NORMAL : priority,
-            TASK_SEQUENCE.incrementAndGet(), delegate);
+    private TrackedTask wrap(AsyncJobPriority priority,
+                             Runnable delegate,
+                             SlotReservation reservation,
+                             CompletableFuture<?> completion) {
+        return new TrackedTask(priority == null ? AsyncJobPriority.NORMAL : priority,
+            TASK_SEQUENCE.incrementAndGet(), delegate, reservation, completion);
     }
 
     /**
@@ -188,14 +194,16 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
 
         telemetry.recordActiveJobs(activeJobs.get());
         CompletableFuture<T> completion = new CompletableFuture<>();
+        TrackedTask task = wrap(
+            effectivePriority,
+            () -> runStandalone(descriptor, job, applier, completion, reservation),
+            reservation,
+            completion
+        );
         try {
-            executor.execute(wrap(effectivePriority, () -> runStandalone(descriptor, job, applier, completion, reservation)));
+            executor.execute(task);
         } catch (RejectedExecutionException ex) {
-            reservation.close();
-            activeJobs.decrementAndGet();
-            telemetry.recordActiveJobs(activeJobs.get());
-            telemetry.recordRejectedSubmission();
-            completion.completeExceptionally(ex);
+            task.cancel(ex);
             return completion;
         }
         return completion;
@@ -431,7 +439,15 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
 
     @Override
     public void close() {
-        executor.shutdownNow();
+        List<Runnable> aborted = executor.shutdownNow();
+        if (!aborted.isEmpty()) {
+            RejectedExecutionException cause = new RejectedExecutionException("Async coordinator closed before task start");
+            for (Runnable runnable : aborted) {
+                if (runnable instanceof TrackedTask task) {
+                    task.cancel(cause);
+                }
+            }
+        }
         if (budgetRegistration != null) {
             budgetRegistration.close();
         }
@@ -462,15 +478,24 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
         T run(OwnerBatchSnapshot snapshot) throws Exception;
     }
 
-    private static final class PrioritizedRunnable implements Runnable, Comparable<PrioritizedRunnable> {
+    private final class TrackedTask implements Runnable, Comparable<TrackedTask> {
         private final AsyncJobPriority priority;
         private final long sequence;
         private final Runnable delegate;
+        private final SlotReservation reservation;
+        private final CompletableFuture<?> completion;
+        private final AtomicBoolean cancelled = new AtomicBoolean();
 
-        private PrioritizedRunnable(AsyncJobPriority priority, long sequence, Runnable delegate) {
+        private TrackedTask(AsyncJobPriority priority,
+                            long sequence,
+                            Runnable delegate,
+                            SlotReservation reservation,
+                            CompletableFuture<?> completion) {
             this.priority = priority == null ? AsyncJobPriority.NORMAL : priority;
             this.sequence = sequence;
             this.delegate = delegate;
+            this.reservation = reservation;
+            this.completion = completion;
         }
 
         @Override
@@ -479,7 +504,7 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
         }
 
         @Override
-        public int compareTo(PrioritizedRunnable other) {
+        public int compareTo(TrackedTask other) {
             if (other == this) {
                 return 0;
             }
@@ -488,6 +513,23 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
                 return priorityCompare;
             }
             return Long.compare(this.sequence, other.sequence);
+        }
+
+        private void cancel(Throwable cause) {
+            if (!cancelled.compareAndSet(false, true)) {
+                return;
+            }
+            try {
+                reservation.close();
+            } finally {
+                activeJobs.decrementAndGet();
+                telemetry.recordActiveJobs(activeJobs.get());
+                telemetry.recordRejectedSubmission();
+                if (cause == null) {
+                    cause = new RejectedExecutionException("Async task cancelled");
+                }
+                completion.completeExceptionally(cause);
+            }
         }
     }
 }
