@@ -18,12 +18,15 @@ import org.jetbrains.annotations.Nullable;
 
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetWorkScheduler;
+import woflo.petsplus.state.gossip.RumorEntry;
 
 /**
  * Immutable description of an owner task batch that strips out references to
  * live world state so it can safely be handed to background workers.
  */
 public final class OwnerBatchSnapshot {
+    private static final int MAX_GOSSIP_SAMPLES = 4;
+
     private final UUID ownerId;
     private final long snapshotTick;
     private final UUID lastKnownOwnerId;
@@ -114,6 +117,8 @@ public final class OwnerBatchSnapshot {
 
         List<PetSummary> pets;
         List<PetComponent> batchPets = batch.pets();
+        boolean captureGossip = shouldCaptureGossip(batch);
+
         if (batchPets.isEmpty()) {
             pets = List.of();
         } else {
@@ -132,6 +137,15 @@ public final class OwnerBatchSnapshot {
                 Map<String, Long> sanitizedCooldowns = cooldowns.isEmpty()
                     ? Map.of()
                     : Collections.unmodifiableMap(cooldowns);
+                boolean gossipOptedOut = false;
+                List<RumorEntry> freshRumors = List.of();
+                List<RumorEntry> abstractRumors = List.of();
+                if (captureGossip) {
+                    PetComponent.GossipShareSnapshot snapshot = component.snapshotGossipShareables(snapshotTick, MAX_GOSSIP_SAMPLES);
+                    gossipOptedOut = snapshot.optedOut();
+                    freshRumors = snapshot.freshRumors();
+                    abstractRumors = snapshot.abstractRumors();
+                }
                 double x = Double.NaN;
                 double y = Double.NaN;
                 double z = Double.NaN;
@@ -140,7 +154,8 @@ public final class OwnerBatchSnapshot {
                     y = entity.getY();
                     z = entity.getZ();
                 }
-                copies.add(new PetSummary(petId, roleId, level, lastAttackTick, perched, x, y, z, sanitizedCooldowns));
+                copies.add(new PetSummary(petId, roleId, level, lastAttackTick, perched, x, y, z,
+                    sanitizedCooldowns, gossipOptedOut, freshRumors, abstractRumors));
             }
             pets = List.copyOf(copies);
         }
@@ -161,6 +176,17 @@ public final class OwnerBatchSnapshot {
                                long dueTick) {
     }
 
+    private static boolean shouldCaptureGossip(OwnerTaskBatch batch) {
+        if (batch == null) {
+            return false;
+        }
+        if (batch.dueEventsView().contains(OwnerEventType.GOSSIP)) {
+            return true;
+        }
+        List<PetWorkScheduler.ScheduledTask> tasks = batch.tasksFor(PetWorkScheduler.TaskType.GOSSIP_DECAY);
+        return tasks != null && !tasks.isEmpty();
+    }
+
     public record PetSummary(UUID petUuid,
                               @Nullable Identifier roleId,
                               int level,
@@ -169,6 +195,9 @@ public final class OwnerBatchSnapshot {
                               double x,
                               double y,
                               double z,
-                              Map<String, Long> cooldowns) {
+                              Map<String, Long> cooldowns,
+                              boolean gossipOptedOut,
+                              List<RumorEntry> freshRumors,
+                              List<RumorEntry> abstractRumors) {
     }
 }

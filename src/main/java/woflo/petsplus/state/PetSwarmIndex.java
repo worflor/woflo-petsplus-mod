@@ -16,6 +16,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 
+import org.jetbrains.annotations.Nullable;
+
 /**
  * Maintains an owner-scoped spatial index of tracked pets so that group
  * interactions can query nearby allies without scanning the entire world.
@@ -132,6 +134,22 @@ public final class PetSwarmIndex {
         return swarm.snapshot();
     }
 
+    @Nullable
+    public SwarmEntry findEntry(UUID ownerId, UUID petId) {
+        if (ownerId == null || petId == null) {
+            return null;
+        }
+        OwnerSwarm swarm = swarmsByOwner.get(ownerId);
+        if (swarm == null) {
+            return null;
+        }
+        TrackedEntry entry = swarm.findByUuid(petId);
+        if (entry == null) {
+            return null;
+        }
+        return entry.snapshot();
+    }
+
     public interface NeighborVisitor {
         void accept(SwarmEntry entry, double squaredDistance);
     }
@@ -178,6 +196,7 @@ public final class PetSwarmIndex {
         private static final double CLUSTER_SIZE = SECTION_SIZE * (1 << CLUSTER_SHIFT);
         private final UUID ownerId;
         private final Map<MobEntity, TrackedEntry> entries = new IdentityHashMap<>();
+        private final Map<UUID, TrackedEntry> entriesByUuid = new HashMap<>();
         private final Map<Long, OwnerCell> cells = new HashMap<>();
         private final Map<Long, OwnerCluster> clusters = new HashMap<>();
 
@@ -218,6 +237,7 @@ public final class PetSwarmIndex {
             if (entry == null) {
                 entry = createEntry(pet, component);
                 entries.put(pet, entry);
+                entriesByUuid.put(pet.getUuid(), entry);
                 addToCell(entry, entry.cellKey);
                 changed = true;
             } else {
@@ -252,6 +272,7 @@ public final class PetSwarmIndex {
         void remove(MobEntity pet) {
             TrackedEntry entry = entries.remove(pet);
             if (entry != null) {
+                entriesByUuid.remove(pet.getUuid());
                 removeEntry(entry);
             }
         }
@@ -296,9 +317,18 @@ public final class PetSwarmIndex {
                 }
             }
             swarmByPet.remove(entry.pet());
+            entriesByUuid.remove(entry.pet().getUuid());
             entry.snapshot = null;
             entry.invalidateCache();
             markDirty();
+        }
+
+        @Nullable
+        TrackedEntry findByUuid(UUID petId) {
+            if (petId == null) {
+                return null;
+            }
+            return entriesByUuid.get(petId);
         }
 
         void forEachInRange(Vec3d center, double radius, Consumer<SwarmEntry> consumer) {

@@ -9,6 +9,8 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.ChunkSectionPos;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.TriggerContext;
@@ -21,6 +23,7 @@ import woflo.petsplus.effects.PetsplusEffectManager;
 import woflo.petsplus.effects.ProjectileDrForOwnerEffect;
 import woflo.petsplus.effects.TagTargetEffect;
 import woflo.petsplus.events.EmotionContextCues;
+import woflo.petsplus.events.EmotionsEventHandler;
 import woflo.petsplus.roles.support.SupportPotionUtils;
 import woflo.petsplus.roles.support.SupportPotionVacuumManager;
 import woflo.petsplus.mood.MoodService;
@@ -28,16 +31,24 @@ import woflo.petsplus.mood.EmotionStimulusBus;
 import woflo.petsplus.ui.CooldownParticleManager;
 import woflo.petsplus.util.EntityTagUtil;
 import woflo.petsplus.state.processing.AsyncProcessingSettings;
+import woflo.petsplus.state.processing.AsyncMigrationProgressTracker;
 import woflo.petsplus.state.processing.AsyncProcessingTelemetry;
 import woflo.petsplus.state.processing.AsyncWorkCoordinator;
+import woflo.petsplus.state.processing.AsyncJobPriority;
 import woflo.petsplus.state.processing.OwnerBatchSnapshot;
 import woflo.petsplus.state.processing.OwnerEventDispatcher;
 import woflo.petsplus.state.processing.OwnerEventFrame;
 import woflo.petsplus.state.processing.OwnerEventType;
+import woflo.petsplus.state.processing.OwnerBatchPlan;
+import woflo.petsplus.state.processing.OwnerBatchPlanner;
 import woflo.petsplus.state.processing.OwnerProcessingManager;
 import woflo.petsplus.state.processing.OwnerTaskBatch;
 import woflo.petsplus.state.processing.OwnerSpatialResult;
 import woflo.petsplus.state.processing.OwnerSchedulingPrediction;
+import woflo.petsplus.state.processing.AbilityCooldownPlan;
+import woflo.petsplus.state.processing.AbilityCooldownPlanner;
+import woflo.petsplus.state.processing.GossipPropagationPlanner.GossipPropagationPlan;
+import woflo.petsplus.state.processing.GossipPropagationPlanner.Share;
 import woflo.petsplus.events.XpEventHandler;
 import woflo.petsplus.state.gossip.GossipTopics;
 import woflo.petsplus.state.gossip.PetGossipLedger;
@@ -55,6 +66,7 @@ import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.RejectedExecutionException;
 
@@ -158,6 +170,14 @@ public class StateManager {
         swarmIndex.trackPet(pet, component);
         ownerProcessingManager.trackPet(component);
         return component;
+    }
+
+    public AsyncWorkCoordinator getAsyncWorkCoordinator() {
+        return asyncWorkCoordinator;
+    }
+
+    public OwnerProcessingManager getOwnerProcessingManager() {
+        return ownerProcessingManager;
     }
 
     @Nullable
@@ -267,13 +287,37 @@ public class StateManager {
     }
 
     public void handleOwnerTick(ServerPlayerEntity player) {
+        AsyncMigrationProgressTracker.markComplete(AsyncMigrationProgressTracker.Phase.OWNER_PROCESSING);
+        long worldTime = world.getTime();
+        OwnerTaskBatch ownerTickBatch = ownerProcessingManager.snapshotOwnerTick(player, worldTime);
+        EnumSet<OwnerEventType> spatialListeners = collectSpatialListeners();
+        OwnerBatchSnapshot snapshot = null;
+
+        if (ownerTickBatch != null) {
+            boolean hasDueEvents = !ownerTickBatch.dueEventsView().isEmpty();
+            boolean wantsPrediction = AsyncProcessingSettings.asyncPredictiveSchedulingEnabled();
+
+            if (!spatialListeners.isEmpty() && AsyncProcessingSettings.asyncSpatialAnalyticsEnabled()) {
+                long captureStart = System.nanoTime();
+                snapshot = OwnerBatchSnapshot.capture(ownerTickBatch);
+                asyncWorkCoordinator.telemetry().recordCaptureDuration(System.nanoTime() - captureStart);
+                primeSpatialAnalysis(snapshot, spatialListeners, worldTime);
+            }
+
+            if (snapshot != null) {
+                ownerBatchProcessor.processBatchWithSnapshot(ownerTickBatch, player, worldTime, true, null, snapshot);
+            } else if (hasDueEvents || wantsPrediction) {
+                ownerBatchProcessor.processBatch(ownerTickBatch, player, worldTime);
+            } else {
+                ownerTickBatch.close();
+            }
+        }
+
         auraTargetResolver.handleOwnerTick(player);
         OwnerCombatState state = ownerStates.get(player);
         if (state != null) {
             state.tick();
         }
-
-        ownerProcessingManager.processOwnerTick(player, world.getTime());
 
         MinecraftServer server = player.getServer();
         if (server == null) {
@@ -288,12 +332,12 @@ public class StateManager {
         }
 
         if (currentServerTick >= nextMaintenanceTick) {
-            long worldTime = world.getTime();
+            long worldTick = world.getTime();
 
-            TagTargetEffect.cleanupExpiredTags(worldTime);
-            EntityTagUtil.cleanupExpiredTags(worldTime);
-            ProjectileDrForOwnerEffect.cleanupExpired(worldTime);
-            CooldownParticleManager.maybeCleanup(worldTime);
+            TagTargetEffect.cleanupExpiredTags(worldTick);
+            EntityTagUtil.cleanupExpiredTags(worldTick);
+            ProjectileDrForOwnerEffect.cleanupExpired(worldTick);
+            CooldownParticleManager.maybeCleanup(worldTick);
 
             petComponents.entrySet().removeIf(entry -> entry.getKey() == null || entry.getKey().isRemoved());
             ownerStates.entrySet().removeIf(entry -> entry.getKey() == null || entry.getKey().isRemoved());
@@ -322,6 +366,85 @@ public class StateManager {
 
         long time = world.getTime();
         component.ensureSchedulingInitialized(time);
+
+        AsyncMigrationProgressTracker.markComplete(AsyncMigrationProgressTracker.Phase.PET_STATE);
+
+        PetComponent.SwarmStateSnapshot swarmSnapshot = component.snapshotSwarmState();
+        double x = pet.getX();
+        double y = pet.getY();
+        double z = pet.getZ();
+
+        asyncWorkCoordinator.submitStandalone(
+            "pet-tick-" + pet.getUuid(),
+            () -> computePetTickPlan(x, y, z, swarmSnapshot),
+            plan -> applyPetTickPlan(component, pet, plan, time),
+            AsyncJobPriority.HIGH
+        ).exceptionally(error -> {
+            Throwable cause = unwrapAsyncError(error);
+            if (cause instanceof RejectedExecutionException) {
+                Petsplus.LOGGER.debug("Async pet tick rejected for pet {}", pet.getUuid());
+                runSynchronousPetTick(component, pet, time);
+            } else {
+                Petsplus.LOGGER.error("Async pet tick failed for pet {}", pet.getUuid(), cause);
+                runSynchronousPetTick(component, pet, time);
+            }
+            return null;
+        });
+    }
+
+    private static PetTickPlan computePetTickPlan(double x, double y, double z,
+                                                  PetComponent.SwarmStateSnapshot snapshot) {
+        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z) || snapshot == null) {
+            return PetTickPlan.noop();
+        }
+        long cellKey = ChunkSectionPos.asLong(
+            ChunkSectionPos.getSectionCoord(MathHelper.floor(x)),
+            ChunkSectionPos.getSectionCoord(MathHelper.floor(y)),
+            ChunkSectionPos.getSectionCoord(MathHelper.floor(z))
+        );
+
+        double dx = x - snapshot.x();
+        double dy = y - snapshot.y();
+        double dz = z - snapshot.z();
+        double distanceSq = (dx * dx) + (dy * dy) + (dz * dz);
+        final double movementThresholdSq = 0.0625D;
+
+        if (!snapshot.initialized() || snapshot.cellKey() != cellKey || distanceSq >= movementThresholdSq) {
+            return new PetTickPlan(true, cellKey, x, y, z);
+        }
+        return PetTickPlan.noop();
+    }
+
+    private void applyPetTickPlan(PetComponent component, MobEntity pet, PetTickPlan plan, long time) {
+        if (component == null || pet == null || plan == null) {
+            runSynchronousPetTick(component, pet, time);
+            return;
+        }
+
+        boolean swarmUpdated = false;
+        if (plan.swarmUpdate()) {
+            component.applySwarmUpdate(swarmIndex, plan.cellKey(), plan.x(), plan.y(), plan.z());
+            swarmUpdated = true;
+        }
+
+        ownerProcessingManager.markPetChanged(component, time);
+        if (swarmUpdated) {
+            if (hasOwnerEventListeners(OwnerEventType.AURA)) {
+                ownerProcessingManager.signalEvent(component, OwnerEventType.AURA, time);
+            }
+            if (hasOwnerEventListeners(OwnerEventType.SUPPORT)) {
+                ownerProcessingManager.signalEvent(component, OwnerEventType.SUPPORT, time);
+            }
+            if (hasOwnerEventListeners(OwnerEventType.MOVEMENT)) {
+                ownerProcessingManager.signalEvent(component, OwnerEventType.MOVEMENT, time);
+            }
+        }
+    }
+
+    private void runSynchronousPetTick(PetComponent component, MobEntity pet, long time) {
+        if (component == null || pet == null) {
+            return;
+        }
         boolean swarmUpdated = component.updateSwarmTrackingIfMoved(swarmIndex);
         ownerProcessingManager.markPetChanged(component, time);
         if (swarmUpdated) {
@@ -337,6 +460,12 @@ public class StateManager {
         }
     }
 
+    private record PetTickPlan(boolean swarmUpdate, long cellKey, double x, double y, double z) {
+        static PetTickPlan noop() {
+            return new PetTickPlan(false, Long.MIN_VALUE, 0.0D, 0.0D, 0.0D);
+        }
+    }
+
     public void schedulePetTask(PetComponent component, PetWorkScheduler.TaskType type, long tick) {
         workScheduler.schedule(component, type, tick);
         ownerProcessingManager.onTaskScheduled(component, type, tick);
@@ -348,6 +477,7 @@ public class StateManager {
     }
 
     public void processScheduledPetTasks(long currentTick) {
+        AsyncMigrationProgressTracker.markComplete(AsyncMigrationProgressTracker.Phase.ADVANCED_SYSTEMS);
         asyncWorkCoordinator.drainMainThreadTasks();
         adaptiveTickScaler.recordTick();
         ownerProcessingManager.prepareForTick(currentTick);
@@ -478,6 +608,83 @@ public class StateManager {
         return false;
     }
 
+    private EnumSet<OwnerEventType> collectSpatialListeners() {
+        EnumSet<OwnerEventType> listeners = EnumSet.noneOf(OwnerEventType.class);
+        for (OwnerEventType type : OwnerEventType.values()) {
+            if (type != null && type.requiresSwarmSnapshot() && hasOwnerEventListeners(type)) {
+                listeners.add(type);
+            }
+        }
+        return listeners;
+    }
+
+    private void primeSpatialAnalysis(OwnerBatchSnapshot snapshot,
+                                      EnumSet<OwnerEventType> eventTypes,
+                                      long currentTick) {
+        if (snapshot == null || eventTypes == null || eventTypes.isEmpty()) {
+            return;
+        }
+        UUID ownerId = snapshot.ownerId();
+        if (ownerId == null) {
+            return;
+        }
+
+        EnumSet<OwnerEventType> scheduledTypes = EnumSet.noneOf(OwnerEventType.class);
+        for (OwnerEventType type : eventTypes) {
+            if (type == null || !type.requiresSwarmSnapshot()) {
+                continue;
+            }
+            if (hasSpatialResult(ownerId, type)) {
+                continue;
+            }
+            SpatialJobState state = spatialJobState(ownerId, type);
+            if (state.pending || state.attempts >= MAX_SPATIAL_DEFERRALS) {
+                continue;
+            }
+            state.markRequested(currentTick);
+            scheduledTypes.add(type);
+        }
+
+        if (scheduledTypes.isEmpty()) {
+            return;
+        }
+
+        asyncWorkCoordinator.submitOwnerBatch(
+            snapshot,
+            OwnerSpatialResult::analyze,
+            result -> {
+                if (result == null || result.isEmpty()) {
+                    for (OwnerEventType type : scheduledTypes) {
+                        markSpatialJobFailed(ownerId, type);
+                    }
+                    return;
+                }
+                for (OwnerEventType type : scheduledTypes) {
+                    storeSpatialResult(ownerId, type, result);
+                }
+            }
+        ).exceptionally(error -> {
+            Throwable cause = unwrapAsyncError(error);
+            if (cause instanceof RejectedExecutionException) {
+                Petsplus.LOGGER.debug("Preemptive spatial analysis rejected for owner {}", ownerId);
+            } else {
+                Petsplus.LOGGER.error("Preemptive spatial analysis failed for owner {}", ownerId, cause);
+            }
+            for (OwnerEventType type : scheduledTypes) {
+                markSpatialJobFailed(ownerId, type);
+            }
+            return null;
+        });
+    }
+
+    private boolean hasSpatialResult(UUID ownerId, OwnerEventType type) {
+        if (ownerId == null || type == null) {
+            return false;
+        }
+        EnumMap<OwnerEventType, OwnerSpatialResult> results = pendingSpatialResults.get(ownerId);
+        return results != null && results.containsKey(type);
+    }
+
     private void storeSpatialResult(UUID ownerId,
                                     OwnerEventType type,
                                     OwnerSpatialResult result) {
@@ -548,6 +755,7 @@ public class StateManager {
         ownerEventDispatcher.register(OwnerEventType.XP_GAIN, XpEventHandler::handleOwnerXpGainEvent);
         ownerEventDispatcher.register(OwnerEventType.GOSSIP, this::processGossipDecayEvent);
         ownerEventDispatcher.register(OwnerEventType.SUPPORT, this::processSupportPotionEvent);
+        ownerEventDispatcher.register(OwnerEventType.EMOTION, EmotionsEventHandler::onOwnerEmotionEvent);
         ownerEventDispatcher.register(OwnerEventType.ABILITY_TRIGGER, OwnerAbilityEventBridge.INSTANCE);
     }
 
@@ -635,6 +843,41 @@ public class StateManager {
         }
 
         long currentTick = frame.currentTick();
+        GossipPropagationPlan plan = frame.payload(GossipPropagationPlan.class);
+        Set<UUID> handled = Collections.emptySet();
+        if (plan != null && !plan.isEmpty()) {
+            handled = applyGossipPlan(frame, plan, currentTick);
+            if (handled.size() >= dueTasks.size()) {
+                return;
+            }
+        }
+
+        List<PetWorkScheduler.ScheduledTask> fallbackTasks;
+        if (handled.isEmpty()) {
+            fallbackTasks = dueTasks;
+        } else {
+            fallbackTasks = new ArrayList<>();
+            for (PetWorkScheduler.ScheduledTask task : dueTasks) {
+                MobEntity pet = task.pet();
+                if (pet == null) {
+                    continue;
+                }
+                if (!handled.contains(pet.getUuid())) {
+                    fallbackTasks.add(task);
+                }
+            }
+        }
+
+        if (fallbackTasks.isEmpty()) {
+            return;
+        }
+
+        processGossipDecayFallback(frame, fallbackTasks, currentTick);
+    }
+
+    private void processGossipDecayFallback(OwnerEventFrame frame,
+                                            List<PetWorkScheduler.ScheduledTask> tasks,
+                                            long currentTick) {
         List<PetSwarmIndex.SwarmEntry> swarmSnapshot = frame.swarmSnapshot();
         if (swarmSnapshot.isEmpty()) {
             UUID ownerId = frame.ownerId();
@@ -649,7 +892,7 @@ public class StateManager {
         OwnerSpatialResult spatialResult = frame.payload(OwnerSpatialResult.class);
         Map<UUID, PetSwarmIndex.SwarmEntry> swarmById = null;
 
-        for (PetWorkScheduler.ScheduledTask task : dueTasks) {
+        for (PetWorkScheduler.ScheduledTask task : tasks) {
             PetComponent component = task.component();
             MobEntity pet = task.pet();
             if (component == null || pet == null || pet.isRemoved()) {
@@ -838,6 +1081,118 @@ public class StateManager {
                 consumed.add(consumedItem);
             }
         }
+    }
+
+    private Set<UUID> applyGossipPlan(OwnerEventFrame frame,
+                                      GossipPropagationPlan plan,
+                                      long currentTick) {
+        Map<UUID, PetComponent> componentsById = new HashMap<>();
+        for (PetComponent component : frame.pets()) {
+            if (component == null) {
+                continue;
+            }
+            MobEntity pet = component.getPetEntity();
+            if (pet == null) {
+                continue;
+            }
+            componentsById.put(pet.getUuid(), component);
+        }
+        for (PetSwarmIndex.SwarmEntry entry : frame.swarmSnapshot()) {
+            if (entry == null) {
+                continue;
+            }
+            MobEntity pet = entry.pet();
+            PetComponent component = entry.component();
+            if (pet == null || component == null) {
+                continue;
+            }
+            componentsById.putIfAbsent(pet.getUuid(), component);
+        }
+
+        UUID ownerId = frame.ownerId();
+        Set<UUID> handled = new HashSet<>();
+
+        for (UUID storytellerId : plan.storytellers()) {
+            if (storytellerId == null) {
+                continue;
+            }
+            PetComponent storyteller = resolveGossipComponent(ownerId, storytellerId, componentsById);
+            if (storyteller == null) {
+                continue;
+            }
+            MobEntity storytellerPet = storyteller.getPetEntity();
+            if (storytellerPet == null || storytellerPet.isRemoved()) {
+                continue;
+            }
+            if (storyteller.isGossipOptedOut(currentTick)) {
+                continue;
+            }
+            List<Share> shares = plan.sharesFor(storytellerId);
+            if (shares.isEmpty()) {
+                continue;
+            }
+            storyteller.attachStateManager(this);
+            PetGossipLedger storytellerLedger = storyteller.getGossipLedger();
+            boolean anyShared = false;
+
+            for (Share share : shares) {
+                if (share == null) {
+                    continue;
+                }
+                PetComponent neighbor = resolveGossipComponent(ownerId, share.listenerId(), componentsById);
+                if (neighbor == null) {
+                    continue;
+                }
+                MobEntity neighborPet = neighbor.getPetEntity();
+                if (neighborPet == null || neighborPet.isRemoved()) {
+                    continue;
+                }
+                if (neighbor.isGossipOptedOut(currentTick)) {
+                    continue;
+                }
+                RumorEntry rumor = share.rumor();
+                if (rumor == null) {
+                    continue;
+                }
+                PetGossipLedger neighborLedger = neighbor.getGossipLedger();
+                boolean alreadyHeard = neighborLedger.hasRumor(rumor.topicId());
+                neighborLedger.ingestRumorFromPeer(rumor, currentTick, alreadyHeard);
+                if (alreadyHeard) {
+                    neighborLedger.registerDuplicateHeard(rumor.topicId(), currentTick);
+                } else if (GossipTopics.isAbstract(rumor.topicId())) {
+                    neighborLedger.registerAbstractHeard(rumor.topicId(), currentTick);
+                }
+                storytellerLedger.markShared(rumor.topicId(), currentTick);
+                anyShared = true;
+            }
+
+            if (anyShared) {
+                handled.add(storytellerId);
+            }
+        }
+
+        return handled;
+    }
+
+    private PetComponent resolveGossipComponent(@Nullable UUID ownerId,
+                                                UUID petId,
+                                                Map<UUID, PetComponent> cache) {
+        if (petId == null) {
+            return null;
+        }
+        PetComponent component = cache.get(petId);
+        if (component != null) {
+            return component;
+        }
+        PetSwarmIndex.SwarmEntry entry = swarmIndex.findEntry(ownerId, petId);
+        if (entry == null) {
+            return null;
+        }
+        component = entry.component();
+        if (component != null) {
+            cache.put(petId, component);
+        }
+        return component;
     }
 
     @Nullable
@@ -1061,6 +1416,21 @@ public class StateManager {
         dispatchOwnerEvents(owner, events, payload);
     }
 
+    public void requestEmotionEvent(ServerPlayerEntity owner,
+                                    @Nullable Object payload) {
+        if (owner == null || owner.isRemoved()) {
+            return;
+        }
+        AsyncMigrationProgressTracker.markComplete(AsyncMigrationProgressTracker.Phase.CORE_EMOTION);
+        EnumSet<OwnerEventType> events = EnumSet.of(OwnerEventType.EMOTION);
+        EnumMap<OwnerEventType, Object> payloads = null;
+        if (payload != null) {
+            payloads = new EnumMap<>(OwnerEventType.class);
+            payloads.put(OwnerEventType.EMOTION, payload);
+        }
+        dispatchOwnerEvents(owner, events, payloads);
+    }
+
     private void cancelScheduledWork(PetComponent component, MobEntity pet) {
         workScheduler.unscheduleAll(component);
         component.markSchedulingUninitialized();
@@ -1131,7 +1501,7 @@ public class StateManager {
         component.attachStateManager(this);
 
         switch (task.type()) {
-            case INTERVAL -> runIntervalAbility(pet, component, serverOwner, currentTick);
+            case INTERVAL -> runIntervalAbility(pet, component, serverOwner, context, currentTick);
             case AURA -> runAuraPulse(pet, component, serverOwner, context, currentTick);
             case SUPPORT_POTION -> runSupportScan(pet, component, serverOwner, currentTick);
             case PARTICLE -> runParticlePass(pet, component, serverOwner, currentTick);
@@ -1141,8 +1511,15 @@ public class StateManager {
         ownerProcessingManager.onTaskExecuted(component, task.type(), currentTick);
     }
 
-    private void runIntervalAbility(MobEntity pet, PetComponent component, ServerPlayerEntity owner, long currentTick) {
-        component.updateCooldowns();
+    private void runIntervalAbility(MobEntity pet,
+                                    PetComponent component,
+                                    ServerPlayerEntity owner,
+                                    @Nullable OwnerBatchContext context,
+                                    long currentTick) {
+        boolean handledCooldowns = context != null && context.applyAbilityCooldownPlan(component, currentTick);
+        if (!handledCooldowns) {
+            component.updateCooldowns();
+        }
         TriggerContext ctx = new TriggerContext(world, pet, owner, "interval_tick");
         woflo.petsplus.abilities.AbilityManager.triggerAbilities(pet, ctx);
         long delay = scaleIntervalForDistance(INTERVAL_TICK_SPACING, pet, owner);
@@ -1163,6 +1540,22 @@ public class StateManager {
             return;
         }
 
+        OwnerSpatialResult spatialResult = null;
+        if (context != null) {
+            Object payload = context.payload(OwnerEventType.AURA);
+            if (payload instanceof OwnerSpatialResult result) {
+                spatialResult = result;
+            }
+        }
+
+        List<PetSwarmIndex.SwarmEntry> swarmSnapshot = null;
+        if (spatialResult != null) {
+            swarmSnapshot = gatherSwarmFromSpatial(component.getOwnerUuid(), spatialResult);
+        }
+        if ((swarmSnapshot == null || swarmSnapshot.isEmpty()) && context != null) {
+            swarmSnapshot = context.swarmSnapshot();
+        }
+
         try {
             long nextTick = PetsplusEffectManager.applyRoleAuraEffects(
                 world,
@@ -1171,7 +1564,8 @@ public class StateManager {
                 owner,
                 auraTargetResolver,
                 currentTick,
-                context != null ? context.swarmSnapshot() : null
+                swarmSnapshot,
+                spatialResult
             );
             long baseDelay;
             if (nextTick == Long.MAX_VALUE) {
@@ -1187,6 +1581,21 @@ public class StateManager {
             long delay = scaleIntervalForDistance(DEFAULT_AURA_RECHECK, pet, owner);
             component.scheduleNextAuraCheck(currentTick + delay);
         }
+    }
+
+    private List<PetSwarmIndex.SwarmEntry> gatherSwarmFromSpatial(@Nullable UUID ownerId,
+                                                                  @Nullable OwnerSpatialResult spatialResult) {
+        if (ownerId == null || spatialResult == null || spatialResult.isEmpty()) {
+            return List.of();
+        }
+        List<PetSwarmIndex.SwarmEntry> entries = new ArrayList<>();
+        for (UUID petId : spatialResult.petIds()) {
+            PetSwarmIndex.SwarmEntry entry = swarmIndex.findEntry(ownerId, petId);
+            if (entry != null) {
+                entries.add(entry);
+            }
+        }
+        return entries;
     }
 
     private void runSupportScan(MobEntity pet, PetComponent component, ServerPlayerEntity owner, long currentTick) {
@@ -1257,26 +1666,149 @@ public class StateManager {
                           long currentTick,
                           boolean markEvents,
                           @Nullable Map<OwnerEventType, Object> eventPayloads) {
-            if (batch == null || (batch.isEmpty() && batch.dueEventsView().isEmpty())) {
+            if (batch == null) {
+                return;
+            }
+            if (batch.isEmpty() && batch.dueEventsView().isEmpty()) {
+                batch.close();
                 return;
             }
 
-            ServerPlayerEntity owner = sanitizeOwner(ownerOverride);
-            if (owner == null) {
-                owner = sanitizeOwner(batch.lastKnownOwner());
-            }
-            if (owner == null) {
-                owner = resolveOnlineOwner(batch.ownerId());
+            boolean asyncEligible = markEvents && AsyncProcessingSettings.asyncOwnerProcessingEnabled();
+            if (asyncEligible && tryProcessBatchAsync(batch, ownerOverride, currentTick, eventPayloads)) {
+                return;
             }
 
+            processBatchSynchronously(batch, ownerOverride, currentTick, markEvents, eventPayloads, null);
+        }
+
+        void processBatchWithSnapshot(OwnerTaskBatch batch,
+                                      @Nullable ServerPlayerEntity ownerOverride,
+                                      long currentTick,
+                                      boolean markEvents,
+                                      @Nullable Map<OwnerEventType, Object> eventPayloads,
+                                      OwnerBatchSnapshot snapshot) {
+            if (batch == null) {
+                return;
+            }
+            if (batch.isEmpty() && batch.dueEventsView().isEmpty()) {
+                batch.close();
+                return;
+            }
+
+            boolean asyncEligible = markEvents && AsyncProcessingSettings.asyncOwnerProcessingEnabled();
+            if (asyncEligible && tryProcessBatchAsyncWithSnapshot(batch, ownerOverride, currentTick, eventPayloads, snapshot)) {
+                return;
+            }
+
+            processBatchSynchronously(batch, ownerOverride, currentTick, markEvents, eventPayloads, snapshot);
+        }
+
+        private boolean tryProcessBatchAsync(OwnerTaskBatch batch,
+                                             @Nullable ServerPlayerEntity ownerOverride,
+                                             long currentTick,
+                                             @Nullable Map<OwnerEventType, Object> eventPayloads) {
             long captureStart = System.nanoTime();
             OwnerBatchSnapshot snapshot = OwnerBatchSnapshot.capture(batch);
             asyncWorkCoordinator.telemetry().recordCaptureDuration(System.nanoTime() - captureStart);
-            OwnerBatchContext context = new OwnerBatchContext(batch, owner, eventPayloads, snapshot);
 
-            batch.forEachBucket((type, tasks) -> executeBucket(type, tasks, context, currentTick));
-            handleDueEvents(context, context.dueEvents(), currentTick, markEvents);
-            maybeSchedulePredictiveJob(context);
+            return tryProcessBatchAsyncWithSnapshot(batch, ownerOverride, currentTick, eventPayloads, snapshot);
+        }
+
+        private boolean tryProcessBatchAsyncWithSnapshot(OwnerTaskBatch batch,
+                                                         @Nullable ServerPlayerEntity ownerOverride,
+                                                         long currentTick,
+                                                         @Nullable Map<OwnerEventType, Object> eventPayloads,
+                                                         OwnerBatchSnapshot snapshot) {
+            CompletableFuture<OwnerBatchPlan> future = asyncWorkCoordinator.submitOwnerBatch(
+                snapshot,
+                OwnerBatchPlanner::plan,
+                plan -> applyAsyncPlan(batch, ownerOverride, currentTick, eventPayloads, snapshot, plan)
+            );
+
+            future.whenCompleteAsync((ignored, error) -> {
+                if (error == null) {
+                    return;
+                }
+                Throwable cause = unwrapAsyncError(error);
+                if (cause instanceof RejectedExecutionException) {
+                    Petsplus.LOGGER.debug("Async owner batch rejected for owner {}", snapshot.ownerId());
+                } else {
+                    Petsplus.LOGGER.error("Async owner batch failed for owner {}", snapshot.ownerId(), cause);
+                }
+                processBatchSynchronously(batch, ownerOverride, currentTick, true, eventPayloads, snapshot);
+            }, runnable -> {
+                MinecraftServer server = world.getServer();
+                if (server != null) {
+                    server.submit(runnable);
+                } else {
+                    runnable.run();
+                }
+            });
+
+            return true;
+        }
+
+        private void applyAsyncPlan(OwnerTaskBatch batch,
+                                    @Nullable ServerPlayerEntity ownerOverride,
+                                    long currentTick,
+                                    @Nullable Map<OwnerEventType, Object> eventPayloads,
+                                    OwnerBatchSnapshot snapshot,
+                                    OwnerBatchPlan plan) {
+            try {
+                ServerPlayerEntity owner = resolveOwner(ownerOverride, batch, snapshot);
+                Map<OwnerEventType, Object> payloads = mergePayloads(eventPayloads, plan);
+                AbilityCooldownPlan cooldownPlan = plan == null ? AbilityCooldownPlan.empty() : plan.abilityCooldownPlan();
+                OwnerBatchContext context = new OwnerBatchContext(batch, owner, payloads, snapshot, cooldownPlan);
+                runBatch(context, currentTick, true);
+                applyPlanPrediction(snapshot, plan, currentTick);
+            } finally {
+                batch.close();
+            }
+        }
+
+        private void processBatchSynchronously(OwnerTaskBatch batch,
+                                               @Nullable ServerPlayerEntity ownerOverride,
+                                               long currentTick,
+                                               boolean markEvents,
+                                               @Nullable Map<OwnerEventType, Object> eventPayloads,
+                                               @Nullable OwnerBatchSnapshot snapshot) {
+            try {
+                ServerPlayerEntity owner = resolveOwner(ownerOverride, batch, snapshot);
+                OwnerBatchSnapshot effectiveSnapshot = snapshot;
+                if (effectiveSnapshot == null) {
+                    long captureStart = System.nanoTime();
+                    effectiveSnapshot = OwnerBatchSnapshot.capture(batch);
+                    asyncWorkCoordinator.telemetry().recordCaptureDuration(System.nanoTime() - captureStart);
+                }
+                AbilityCooldownPlan cooldownPlan = AbilityCooldownPlanner.plan(effectiveSnapshot);
+                OwnerBatchContext context = new OwnerBatchContext(batch, owner, eventPayloads, effectiveSnapshot, cooldownPlan);
+                runBatch(context, currentTick, markEvents);
+                maybeSchedulePredictiveJob(context);
+            } finally {
+                batch.close();
+            }
+        }
+
+        private ServerPlayerEntity resolveOwner(@Nullable ServerPlayerEntity ownerOverride,
+                                                OwnerTaskBatch batch,
+                                                @Nullable OwnerBatchSnapshot snapshot) {
+            ServerPlayerEntity owner = sanitizeOwner(ownerOverride);
+            if (owner != null) {
+                return owner;
+            }
+            owner = sanitizeOwner(batch.lastKnownOwner());
+            if (owner != null) {
+                return owner;
+            }
+            UUID lastKnownId = snapshot != null ? snapshot.lastKnownOwnerId() : null;
+            if (lastKnownId != null) {
+                owner = resolveOnlineOwner(lastKnownId);
+                if (owner != null) {
+                    return owner;
+                }
+            }
+            return resolveOnlineOwner(snapshot != null ? snapshot.ownerId() : batch.ownerId());
         }
 
         private ServerPlayerEntity sanitizeOwner(@Nullable ServerPlayerEntity candidate) {
@@ -1284,6 +1816,53 @@ public class StateManager {
                 return null;
             }
             return candidate;
+        }
+
+        private Map<OwnerEventType, Object> mergePayloads(@Nullable Map<OwnerEventType, Object> base,
+                                                          OwnerBatchPlan plan) {
+            if ((base == null || base.isEmpty()) && (plan == null || plan.eventPayloads().isEmpty())) {
+                return Map.of();
+            }
+            EnumMap<OwnerEventType, Object> merged = new EnumMap<>(OwnerEventType.class);
+            if (base != null) {
+                for (Map.Entry<OwnerEventType, Object> entry : base.entrySet()) {
+                    if (entry.getKey() != null && entry.getValue() != null) {
+                        merged.put(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+            if (plan != null) {
+                merged.putAll(plan.eventPayloads());
+            }
+            return merged;
+        }
+
+        private void applyPlanPrediction(OwnerBatchSnapshot snapshot,
+                                         OwnerBatchPlan plan,
+                                         long currentTick) {
+            if (plan == null) {
+                return;
+            }
+            UUID ownerId = snapshot.ownerId();
+            if (ownerId == null) {
+                return;
+            }
+            OwnerSchedulingPrediction prediction = plan.schedulingPrediction();
+            if (prediction != null && !prediction.isEmpty()) {
+                ownerProcessingManager.applySchedulingPrediction(ownerId, prediction, currentTick);
+            }
+
+            Map<OwnerEventType, Long> windows = plan.eventWindowPredictions();
+            if (!windows.isEmpty()) {
+                ownerProcessingManager.applyEventWindowPredictions(ownerId, windows, currentTick);
+            }
+        }
+
+        private void runBatch(OwnerBatchContext context,
+                              long currentTick,
+                              boolean markEvents) {
+            context.batch().forEachBucket((type, tasks) -> executeBucket(type, tasks, context, currentTick));
+            handleDueEvents(context, context.dueEvents(), currentTick, markEvents);
         }
 
         private void executeBucket(PetWorkScheduler.TaskType type,
@@ -1389,35 +1968,6 @@ public class StateManager {
             dispatchOwnerEvents(context, activeEvents, currentTick, markEvents, requiresSwarm);
         }
 
-        private void maybeSchedulePredictiveJob(OwnerBatchContext context) {
-            if (!AsyncProcessingSettings.asyncPredictiveSchedulingEnabled()) {
-                return;
-            }
-            OwnerBatchSnapshot snapshot = context.snapshot();
-            UUID ownerId = snapshot.ownerId();
-            if (ownerId == null) {
-                return;
-            }
-            asyncWorkCoordinator.submitOwnerBatch(
-                snapshot,
-                OwnerSchedulingPrediction::predict,
-                prediction -> {
-                    if (prediction == null || prediction.isEmpty()) {
-                        return;
-                    }
-                    ownerProcessingManager.applySchedulingPrediction(ownerId, prediction, world.getTime());
-                }
-            ).exceptionally(error -> {
-                Throwable cause = unwrapAsyncError(error);
-                if (cause instanceof RejectedExecutionException) {
-                    Petsplus.LOGGER.debug("Async predictive scheduling skipped for owner {} due to throttling", ownerId);
-                } else {
-                    Petsplus.LOGGER.error("Async predictive scheduling failed for owner {}", ownerId, cause);
-                }
-                return null;
-            });
-        }
-
         private void dispatchOwnerEvents(OwnerBatchContext context,
                                          EnumSet<OwnerEventType> dueEvents,
                                          long currentTick,
@@ -1458,21 +2008,51 @@ public class StateManager {
                 }
             }
         }
-    }
 
+        private void maybeSchedulePredictiveJob(OwnerBatchContext context) {
+            if (!AsyncProcessingSettings.asyncPredictiveSchedulingEnabled()) {
+                return;
+            }
+            OwnerBatchSnapshot snapshot = context.snapshot();
+            UUID ownerId = snapshot.ownerId();
+            if (ownerId == null) {
+                return;
+            }
+            asyncWorkCoordinator.submitOwnerBatch(
+                snapshot,
+                OwnerSchedulingPrediction::predict,
+                prediction -> {
+                    if (prediction == null || prediction.isEmpty()) {
+                        return;
+                    }
+                    ownerProcessingManager.applySchedulingPrediction(ownerId, prediction, world.getTime());
+                }
+            ).exceptionally(error -> {
+                Throwable cause = unwrapAsyncError(error);
+                if (cause instanceof RejectedExecutionException) {
+                    Petsplus.LOGGER.debug("Async predictive scheduling skipped for owner {} due to throttling", ownerId);
+                } else {
+                    Petsplus.LOGGER.error("Async predictive scheduling failed for owner {}", ownerId, cause);
+                }
+                return null;
+            });
+        }
+    }
     private final class OwnerBatchContext {
         private final OwnerTaskBatch batch;
         private final OwnerBatchSnapshot snapshot;
         private final ServerPlayerEntity owner;
         private final Set<OwnerEventType> dueEvents;
         private final EnumMap<OwnerEventType, Object> payloads;
+        private final AbilityCooldownPlan abilityCooldownPlan;
         private List<PetSwarmIndex.SwarmEntry> swarmSnapshot = List.of();
         private boolean swarmPrimed;
 
         private OwnerBatchContext(OwnerTaskBatch batch,
                                   @Nullable ServerPlayerEntity owner,
                                   @Nullable Map<OwnerEventType, Object> eventPayloads,
-                                  OwnerBatchSnapshot snapshot) {
+                                  OwnerBatchSnapshot snapshot,
+                                  AbilityCooldownPlan abilityCooldownPlan) {
             this.batch = batch;
             this.snapshot = snapshot;
             this.owner = owner != null && !owner.isRemoved() ? owner : null;
@@ -1492,6 +2072,7 @@ public class StateManager {
                     }
                 }
             }
+            this.abilityCooldownPlan = abilityCooldownPlan == null ? AbilityCooldownPlan.empty() : abilityCooldownPlan;
         }
 
         EnumSet<OwnerEventType> prepareAsyncPayloads(EnumSet<OwnerEventType> candidates, long currentTick) {
@@ -1501,6 +2082,9 @@ public class StateManager {
             EnumSet<OwnerEventType> deferred = EnumSet.noneOf(OwnerEventType.class);
             for (OwnerEventType type : candidates) {
                 if (type == null || !type.requiresSwarmSnapshot()) {
+                    continue;
+                }
+                if (payloads.containsKey(type)) {
                     continue;
                 }
                 boolean ready = StateManager.this.prepareSpatialPayload(this, type, currentTick);
@@ -1541,6 +2125,10 @@ public class StateManager {
 
         OwnerTaskBatch batch() {
             return batch;
+        }
+
+        boolean applyAbilityCooldownPlan(PetComponent component, long currentTick) {
+            return abilityCooldownPlan.applyTo(component, currentTick);
         }
 
         void ensurePetsPrimed(long currentTick) {

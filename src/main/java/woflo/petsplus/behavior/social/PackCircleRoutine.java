@@ -64,7 +64,6 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
     }
 
     private void applyMoodContagion(SocialContextSnapshot context) {
-        PetComponent component = context.component();
         for (PetSocialData neighbor : context.moodNeighbors()) {
             PetComponent.Mood mood = neighbor.currentMood();
             if (mood == null) {
@@ -73,20 +72,20 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
             float strength = calculateContagionStrength(context, context.petData(), neighbor,
                 context.hasEldestPet(), context.hasSimilarAge(), context.strongestBondResonance());
             switch (mood) {
-                case HAPPY -> component.pushEmotion(PetComponent.Emotion.CHEERFUL, strength);
-                case PLAYFUL -> component.pushEmotion(PetComponent.Emotion.GLEE, strength);
-                case CURIOUS -> component.pushEmotion(PetComponent.Emotion.CURIOUS, strength);
-                case BONDED -> component.pushEmotion(PetComponent.Emotion.UBUNTU, strength);
-                case CALM -> component.pushEmotion(PetComponent.Emotion.LAGOM, strength + 0.01f);
-                case PASSIONATE -> component.pushEmotion(PetComponent.Emotion.KEFI, strength);
-                case YUGEN -> component.pushEmotion(PetComponent.Emotion.YUGEN, strength);
-                case FOCUSED -> component.pushEmotion(PetComponent.Emotion.FOCUSED, strength);
-                case SISU -> component.pushEmotion(PetComponent.Emotion.SISU, strength);
-                case SAUDADE -> component.pushEmotion(PetComponent.Emotion.SAUDADE, strength);
-                case PROTECTIVE -> component.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, strength);
-                case RESTLESS -> component.pushEmotion(PetComponent.Emotion.RESTLESS, strength);
-                case AFRAID -> component.pushEmotion(PetComponent.Emotion.ANGST, strength + 0.01f);
-                case ANGRY -> component.pushEmotion(PetComponent.Emotion.FRUSTRATION, strength);
+                case HAPPY -> context.pushEmotion(PetComponent.Emotion.CHEERFUL, strength);
+                case PLAYFUL -> context.pushEmotion(PetComponent.Emotion.GLEE, strength);
+                case CURIOUS -> context.pushEmotion(PetComponent.Emotion.CURIOUS, strength);
+                case BONDED -> context.pushEmotion(PetComponent.Emotion.UBUNTU, strength);
+                case CALM -> context.pushEmotion(PetComponent.Emotion.LAGOM, strength + 0.01f);
+                case PASSIONATE -> context.pushEmotion(PetComponent.Emotion.KEFI, strength);
+                case YUGEN -> context.pushEmotion(PetComponent.Emotion.YUGEN, strength);
+                case FOCUSED -> context.pushEmotion(PetComponent.Emotion.FOCUSED, strength);
+                case SISU -> context.pushEmotion(PetComponent.Emotion.SISU, strength);
+                case SAUDADE -> context.pushEmotion(PetComponent.Emotion.SAUDADE, strength);
+                case PROTECTIVE -> context.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, strength);
+                case RESTLESS -> context.pushEmotion(PetComponent.Emotion.RESTLESS, strength);
+                case AFRAID -> context.pushEmotion(PetComponent.Emotion.ANGST, strength + 0.01f);
+                case ANGRY -> context.pushEmotion(PetComponent.Emotion.FRUSTRATION, strength);
             }
         }
     }
@@ -132,8 +131,8 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
                 PetComponent.Mood currentMood = component.getCurrentMood();
                 if (currentMood != PetComponent.Mood.CALM && petAge > 48000) {
                     float lonelinessStrength = petAge > 168000 ? 0.05f : 0.03f;
-                    component.pushEmotion(PetComponent.Emotion.FERNWEH, lonelinessStrength);
-                    component.pushEmotion(PetComponent.Emotion.SAUDADE, lonelinessStrength * 0.6f);
+                    context.pushEmotion(PetComponent.Emotion.FERNWEH, lonelinessStrength);
+                    context.pushEmotion(PetComponent.Emotion.SAUDADE, lonelinessStrength * 0.6f);
                     if (context.tryMarkBeat("social_lonely", 300)) {
                         EmotionContextCues.sendCue(context.owner(),
                             "social.lonely." + context.pet().getUuidAsString(),
@@ -143,10 +142,10 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
                 }
             }
             case 1 -> {
-                component.pushEmotion(PetComponent.Emotion.UBUNTU, 0.04f);
-                component.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.03f);
+                context.pushEmotion(PetComponent.Emotion.UBUNTU, 0.04f);
+                context.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.03f);
                 if (context.strongestBondResonance() > 0.7f) {
-                    component.pushEmotion(PetComponent.Emotion.HIRAETH, 0.02f);
+                    context.pushEmotion(PetComponent.Emotion.HIRAETH, 0.02f);
                 }
                 if (context.tryMarkBeat("social_pair", 400)) {
                     EmotionContextCues.sendCue(context.owner(),
@@ -157,29 +156,29 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
             }
             default -> {
                 if (nearbyCount <= 3) {
-                    component.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.06f);
-                    component.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.04f);
+                    context.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.06f);
+                    context.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.04f);
                     if (context.hasSimilarAge()) {
-                        component.pushEmotion(PetComponent.Emotion.GLEE, 0.03f);
+                        context.pushEmotion(PetComponent.Emotion.GLEE, 0.03f);
                     }
                 } else {
-                    component.pushEmotion(PetComponent.Emotion.KEFI, 0.05f);
-                    component.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.07f);
-                    component.pushEmotion(PetComponent.Emotion.PRIDE, 0.04f);
+                    context.pushEmotion(PetComponent.Emotion.KEFI, 0.05f);
+                    context.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.07f);
+                    context.pushEmotion(PetComponent.Emotion.PRIDE, 0.04f);
                 }
             }
         }
 
         if (context.hasEldestPet() && context.tryMarkBeat("social_eldest", 400)) {
-            component.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.05f);
-            component.pushEmotion(PetComponent.Emotion.HIRAETH, 0.03f);
+            context.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.05f);
+            context.pushEmotion(PetComponent.Emotion.HIRAETH, 0.03f);
             EmotionContextCues.sendCue(context.owner(),
                 "social.eldest." + context.pet().getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.social.eldest", context.pet().getDisplayName()),
                 400);
         } else if (context.hasOlderPet() && context.tryMarkBeat("social_elder", 350)) {
-            component.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.03f);
-            component.pushEmotion(PetComponent.Emotion.FOCUSED, 0.02f);
+            context.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.03f);
+            context.pushEmotion(PetComponent.Emotion.FOCUSED, 0.02f);
             EmotionContextCues.sendCue(context.owner(),
                 "social.elder." + context.pet().getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.social.elder", context.pet().getDisplayName()),
@@ -192,7 +191,7 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
             && context.relativeSpeedTo(closest) < 0.08
             && context.areMutuallyFacing(closest, 25.0)
             && context.tryMarkBeat("social_intimate", 200)) {
-            component.pushEmotion(PetComponent.Emotion.UBUNTU, 0.02f);
+            context.pushEmotion(PetComponent.Emotion.UBUNTU, 0.02f);
         }
     }
 

@@ -11,11 +11,13 @@ public final class AsyncProcessingSettings {
     private static final boolean SHADOW_ASYNC_ABILITIES =
         Boolean.parseBoolean(System.getProperty("petsplus.async.abilities.shadow", "false"));
     private static final boolean ENABLE_ASYNC_SPATIAL =
-        Boolean.parseBoolean(System.getProperty("petsplus.async.spatial", "false"));
+        Boolean.parseBoolean(System.getProperty("petsplus.async.spatial", "true"));
+    private static final boolean ENABLE_ASYNC_OWNER =
+        Boolean.parseBoolean(System.getProperty("petsplus.async.owner", "true"));
     private static final boolean ENABLE_ASYNC_PREDICTIVE =
-        Boolean.parseBoolean(System.getProperty("petsplus.async.predictive", "false"));
+        Boolean.parseBoolean(System.getProperty("petsplus.async.predictive", "true"));
     private static final boolean ENABLE_ASYNC_MOOD =
-        Boolean.parseBoolean(System.getProperty("petsplus.async.mood", "false"));
+        Boolean.parseBoolean(System.getProperty("petsplus.async.mood", "true"));
     private static final int TELEMETRY_LOG_INTERVAL_TICKS = Math.max(
         0,
         Integer.parseInt(System.getProperty("petsplus.async.telemetry.interval", "0"))
@@ -46,6 +48,14 @@ public final class AsyncProcessingSettings {
      */
     public static boolean asyncSpatialAnalyticsEnabled() {
         return ENABLE_ASYNC_SPATIAL;
+    }
+
+    /**
+     * @return {@code true} when owner-scoped upkeep should be planned on the
+     *         background coordinator before being applied on the main thread.
+     */
+    public static boolean asyncOwnerProcessingEnabled() {
+        return ENABLE_ASYNC_OWNER;
     }
 
     /**

@@ -80,7 +80,10 @@ class AbilityManagerTest {
             Double.NaN,
             Double.NaN,
             Double.NaN,
-            cooldownSnapshotMap
+            cooldownSnapshotMap,
+            false,
+            List.of(),
+            List.of()
         );
 
         OwnerBatchSnapshot snapshot = createSnapshot(ownerId, List.of(summary), 80L);

@@ -51,12 +51,12 @@ public class WhisperRoutine implements SocialBehaviorRoutine {
                 && (context.currentTick() - lastInteraction) > REUNION_THRESHOLD;
 
             if (isFirstMeeting) {
-                component.pushEmotion(PetComponent.Emotion.CURIOUS, 0.06f);
+                context.pushEmotion(PetComponent.Emotion.CURIOUS, 0.06f);
                 if (context.petData().age() < 72000) {
-                    component.pushEmotion(PetComponent.Emotion.GLEE, 0.04f);
-                    component.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.05f);
+                    context.pushEmotion(PetComponent.Emotion.GLEE, 0.04f);
+                    context.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.05f);
                 } else {
-                    component.pushEmotion(PetComponent.Emotion.VIGILANT, 0.03f);
+                    context.pushEmotion(PetComponent.Emotion.VIGILANT, 0.03f);
                 }
                 component.setStateData(socialMemoryKey, context.currentTick());
 
@@ -71,8 +71,8 @@ public class WhisperRoutine implements SocialBehaviorRoutine {
                 long separationTime = context.currentTick() - lastInteraction;
                 float reunionStrength = Math.min(0.08f, separationTime / 120000f);
 
-                component.pushEmotion(PetComponent.Emotion.GLEE, reunionStrength);
-                component.pushEmotion(PetComponent.Emotion.LOYALTY, reunionStrength * 0.7f);
+                context.pushEmotion(PetComponent.Emotion.GLEE, reunionStrength);
+                context.pushEmotion(PetComponent.Emotion.LOYALTY, reunionStrength * 0.7f);
                 component.setStateData(socialMemoryKey, context.currentTick());
             }
 
@@ -83,7 +83,7 @@ public class WhisperRoutine implements SocialBehaviorRoutine {
                 if (sinceStress >= 0 && sinceStress < 200) {
                     empathyStrength *= 0.5f;
                 }
-                component.pushEmotion(PetComponent.Emotion.EMPATHY, empathyStrength);
+                context.pushEmotion(PetComponent.Emotion.EMPATHY, empathyStrength);
                 if (context.tryMarkBeat("empathy_" + otherPetId, 600)) {
                     EmotionContextCues.sendCue(context.owner(),
                         "social.empathy." + context.pet().getUuidAsString(),

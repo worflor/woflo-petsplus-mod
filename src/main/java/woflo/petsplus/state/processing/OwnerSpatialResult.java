@@ -3,9 +3,11 @@ package woflo.petsplus.state.processing;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -18,6 +20,7 @@ public final class OwnerSpatialResult {
     private final UUID ownerId;
     private final long snapshotTick;
     private final Map<UUID, List<Neighbor>> neighborsByPet;
+    private final Set<UUID> petIds;
 
     private OwnerSpatialResult(UUID ownerId,
                                long snapshotTick,
@@ -25,6 +28,9 @@ public final class OwnerSpatialResult {
         this.ownerId = ownerId;
         this.snapshotTick = snapshotTick;
         this.neighborsByPet = neighborsByPet;
+        this.petIds = neighborsByPet.isEmpty()
+            ? Set.of()
+            : Collections.unmodifiableSet(new LinkedHashSet<>(neighborsByPet.keySet()));
     }
 
     public UUID ownerId() {
@@ -37,6 +43,10 @@ public final class OwnerSpatialResult {
 
     public boolean isEmpty() {
         return neighborsByPet.isEmpty();
+    }
+
+    public Set<UUID> petIds() {
+        return petIds;
     }
 
     /**

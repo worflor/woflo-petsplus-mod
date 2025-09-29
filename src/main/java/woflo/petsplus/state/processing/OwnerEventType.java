@@ -19,6 +19,7 @@ public enum OwnerEventType {
     GOSSIP(PetWorkScheduler.TaskType.GOSSIP_DECAY, true, false),
     MOVEMENT(null, true, false),
     XP_GAIN(null, true, false),
+    EMOTION(null, true, false),
     ABILITY_TRIGGER(null, false, true);
 
     private static final Map<PetWorkScheduler.TaskType, OwnerEventType> LOOKUP =

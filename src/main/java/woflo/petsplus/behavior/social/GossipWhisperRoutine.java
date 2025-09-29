@@ -177,13 +177,13 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
 
         if (witnessed) {
             listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), true);
-            listener.pushEmotion(PetComponent.Emotion.LOYALTY,
+            context.pushEmotion(listener, PetComponent.Emotion.LOYALTY,
                 GossipSocialHelper.loyaltyDelta(rumor, knowledgeGap, true));
             sharedAny = true;
         } else {
             if (listenerLedger.hasHeardRecently(rumor.topicId(), context.currentTick())) {
                 listenerLedger.registerDuplicateHeard(rumor.topicId(), context.currentTick());
-                listener.pushEmotion(PetComponent.Emotion.FRUSTRATION,
+                context.pushEmotion(listener, PetComponent.Emotion.FRUSTRATION,
                     GossipSocialHelper.frustrationDelta(rumor));
                 listener.optOutOfGossip(context.currentTick());
                 return;
@@ -193,18 +193,18 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
                 && GossipTopics.isAbstract(rumor.topicId());
             if (isAbstract) {
                 listenerLedger.registerAbstractHeard(rumor.topicId(), context.currentTick());
-                listener.pushEmotion(PetComponent.Emotion.CURIOUS,
+                context.pushEmotion(listener, PetComponent.Emotion.CURIOUS,
                     GossipSocialHelper.curiosityDelta(rumor, knowledgeGap, false, true));
                 newListener = true;
                 sharedAny = true;
             } else if (alreadyKnows) {
                 listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), true);
-                listener.pushEmotion(PetComponent.Emotion.LOYALTY,
+                context.pushEmotion(listener, PetComponent.Emotion.LOYALTY,
                     GossipSocialHelper.loyaltyDelta(rumor, knowledgeGap, false));
                 sharedAny = true;
             } else {
                 listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), false);
-                listener.pushEmotion(PetComponent.Emotion.CURIOUS,
+                context.pushEmotion(listener, PetComponent.Emotion.CURIOUS,
                     GossipSocialHelper.curiosityDelta(rumor, knowledgeGap, false, false));
                 newListener = true;
                 sharedAny = true;
@@ -219,7 +219,7 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
             return;
         }
 
-        whisperer.pushEmotion(PetComponent.Emotion.EMPATHY,
+        context.pushEmotion(whisperer, PetComponent.Emotion.EMPATHY,
             GossipSocialHelper.empathyDelta(rumor, knowledgeGap));
 
         if (context.tryMarkBeat("gossip_whisper", 1800)) {
