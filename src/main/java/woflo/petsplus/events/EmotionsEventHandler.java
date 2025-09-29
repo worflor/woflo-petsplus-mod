@@ -83,6 +83,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -1031,25 +1032,23 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             }
 
             Map<PetComponent.Mood, Float> before = snapshotMoodBlend(component);
-            EmotionStimulusBus.DispatchListener listener = new EmotionStimulusBus.DispatchListener() {
-                @Override
-                public void onDispatch(MobEntity dispatchedPet, PetComponent dispatchedComponent, long time) {
-                    if (dispatchedPet != pet) {
-                        return;
-                    }
-                    bus.removeDispatchListener(this);
-                    Map<PetComponent.Mood, Float> after = snapshotMoodBlend(dispatchedComponent);
-                    builder.addSample(before, after);
-                }
-            };
-            bus.addDispatchListener(listener);
-
             bus.queueSimpleStimulus(pet, replayCollector -> {
                 for (Map.Entry<PetComponent.Emotion, Float> entry : deltas.entrySet()) {
                     replayCollector.pushEmotion(entry.getKey(), entry.getValue());
                 }
             });
-            bus.dispatchStimuli(pet, coordinator);
+            CompletableFuture<Void> dispatch = bus.dispatchStimuliAsync(pet, coordinator);
+            if (dispatch != null) {
+                try {
+                    dispatch.join();
+                } catch (CompletionException | CancellationException ex) {
+                    Petsplus.LOGGER.error("Failed to dispatch emotion stimulus for pet {}", pet.getUuid(),
+                        unwrapAsyncError(ex));
+                    continue;
+                }
+            }
+            Map<PetComponent.Mood, Float> after = snapshotMoodBlend(component);
+            builder.addSample(before, after);
         }
     }
 
@@ -1461,7 +1460,6 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         List<PetSwarmIndex.SwarmEntry> pets = new ArrayList<>();
         swarmIndex.forEachPetInRange(owner, center, radius, pets::add);
         StimulusSummary.Builder builder = StimulusSummary.builder(owner.getWorld().getTime());
-        List<CompletableFuture<Void>> dispatchFutures = new ArrayList<>();
         for (PetSwarmIndex.SwarmEntry entry : pets) {
             MobEntity pet = entry.pet();
             PetComponent pc = entry.component();
@@ -1484,63 +1482,24 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 }
 
                 EmotionStimulusBus bus = MoodService.getInstance().getStimulusBus();
-                EmotionStimulusBus.DispatchListener listener = new EmotionStimulusBus.DispatchListener() {
-                    @Override
-                    public void onDispatch(MobEntity dispatchedPet, PetComponent dispatchedComponent, long time) {
-                        if (dispatchedPet != pet) {
-                            return;
-                        }
-                        bus.removeDispatchListener(this);
-                        Map<PetComponent.Mood, Float> after = snapshotMoodBlend(dispatchedComponent);
-                        builder.addSample(before, after);
-                    }
-                };
-                bus.addDispatchListener(listener);
                 bus.queueSimpleStimulus(pet, replayCollector -> {
                     for (Map.Entry<PetComponent.Emotion, Float> delta : deltas.entrySet()) {
                         replayCollector.pushEmotion(delta.getKey(), delta.getValue());
                     }
                 });
-                CompletableFuture<Void> dispatchFuture = bus.dispatchStimuliAsync(pet, coordinator);
-                if (dispatchFuture != null) {
-                    EmotionStimulusBus.DispatchListener listenerCapture = listener;
-                    MobEntity petCapture = pet;
-                    dispatchFutures.add(dispatchFuture);
-                    dispatchFuture.whenComplete((ignored, throwable) -> {
-                        bus.removeDispatchListener(listenerCapture);
-                        if (throwable != null) {
-                            Petsplus.LOGGER.error("Failed to dispatch emotion stimulus for pet {}", petCapture.getUuid(),
-                                unwrapAsyncError(throwable));
-                        }
-                    });
+                CompletableFuture<Void> dispatch = bus.dispatchStimuliAsync(pet, coordinator);
+                if (dispatch != null) {
+                    try {
+                        dispatch.join();
+                    } catch (CompletionException | CancellationException ex) {
+                        Petsplus.LOGGER.error("Failed to dispatch emotion stimulus for pet {}", pet.getUuid(),
+                            unwrapAsyncError(ex));
+                        continue;
+                    }
                 }
+                Map<PetComponent.Mood, Float> after = snapshotMoodBlend(pc);
+                builder.addSample(before, after);
             } catch (Throwable ignored) {}
-        }
-        if (!dispatchFutures.isEmpty()) {
-            CompletableFuture<Void> combined = CompletableFuture.allOf(
-                dispatchFutures.toArray(new CompletableFuture[0])
-            );
-            ServerPlayerEntity ownerCapture = owner;
-            Runnable finalizeSummary = () -> {
-                StimulusSummary summary = builder.build();
-                if (recordStimulus) {
-                    EmotionContextCues.recordStimulus(ownerCapture, summary);
-                }
-            };
-            combined.whenComplete((ignored, throwable) -> {
-                if (throwable != null) {
-                    Petsplus.LOGGER.error("Failed to finalize emotion stimuli for player {}", ownerCapture.getUuid(),
-                        unwrapAsyncError(throwable));
-                    return;
-                }
-                MinecraftServer server = ownerCapture.getServer();
-                if (server != null) {
-                    server.submit(finalizeSummary);
-                } else {
-                    finalizeSummary.run();
-                }
-            });
-            return builder.build();
         }
         StimulusSummary summary = builder.build();
         if (recordStimulus) {
@@ -1600,65 +1559,29 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
         Map<PetComponent.Mood, Float> before = snapshotMoodBlend(pc);
         consumer.accept(pc, collector);
-        List<CompletableFuture<Void>> dispatchFutures = new ArrayList<>();
         if (!deltas.isEmpty()) {
             StateManager stateManager = StateManager.forWorld((ServerWorld) owner.getWorld());
             AsyncWorkCoordinator coordinator = stateManager.getAsyncWorkCoordinator();
             EmotionStimulusBus bus = MoodService.getInstance().getStimulusBus();
-            EmotionStimulusBus.DispatchListener listener = new EmotionStimulusBus.DispatchListener() {
-                @Override
-                public void onDispatch(MobEntity dispatchedPet, PetComponent dispatchedComponent, long time) {
-                    if (dispatchedPet != pet) {
-                        return;
-                    }
-                    bus.removeDispatchListener(this);
-                    Map<PetComponent.Mood, Float> after = snapshotMoodBlend(dispatchedComponent);
-                    builder.addSample(before, after);
-                }
-            };
-            bus.addDispatchListener(listener);
             bus.queueSimpleStimulus(pet, replayCollector -> {
                 for (Map.Entry<PetComponent.Emotion, Float> entry : deltas.entrySet()) {
                     replayCollector.pushEmotion(entry.getKey(), entry.getValue());
                 }
             });
-            CompletableFuture<Void> dispatchFuture = bus.dispatchStimuliAsync(pet, coordinator);
-            if (dispatchFuture != null) {
-                EmotionStimulusBus.DispatchListener listenerCapture = listener;
-                MobEntity petCapture = pet;
-                dispatchFutures.add(dispatchFuture);
-                dispatchFuture.whenComplete((ignored, throwable) -> {
-                    bus.removeDispatchListener(listenerCapture);
-                    if (throwable != null) {
-                        Petsplus.LOGGER.error("Failed to dispatch emotion stimulus for pet {}", petCapture.getUuid(),
-                            unwrapAsyncError(throwable));
-                    }
-                });
+            CompletableFuture<Void> dispatch = bus.dispatchStimuliAsync(pet, coordinator);
+            if (dispatch != null) {
+                try {
+                    dispatch.join();
+                } catch (CompletionException | CancellationException ex) {
+                    Petsplus.LOGGER.error("Failed to dispatch emotion stimulus for pet {}", pet.getUuid(),
+                        unwrapAsyncError(ex));
+                    StimulusSummary failedSummary = builder.build();
+                    EmotionContextCues.recordStimulus(owner, failedSummary);
+                    return failedSummary;
+                }
             }
-        }
-        if (!dispatchFutures.isEmpty()) {
-            CompletableFuture<Void> combined = CompletableFuture.allOf(
-                dispatchFutures.toArray(new CompletableFuture[0])
-            );
-            ServerPlayerEntity ownerCapture = owner;
-            Runnable finalizeSummary = () -> {
-                StimulusSummary summary = builder.build();
-                EmotionContextCues.recordStimulus(ownerCapture, summary);
-            };
-            combined.whenComplete((ignored, throwable) -> {
-                if (throwable != null) {
-                    Petsplus.LOGGER.error("Failed to finalize emotion stimuli for player {}", ownerCapture.getUuid(),
-                        unwrapAsyncError(throwable));
-                    return;
-                }
-                MinecraftServer server = ownerCapture.getServer();
-                if (server != null) {
-                    server.submit(finalizeSummary);
-                } else {
-                    finalizeSummary.run();
-                }
-            });
-            return builder.build();
+            Map<PetComponent.Mood, Float> after = snapshotMoodBlend(pc);
+            builder.addSample(before, after);
         }
         StimulusSummary summary = builder.build();
         EmotionContextCues.recordStimulus(owner, summary);
