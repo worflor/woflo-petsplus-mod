@@ -163,3 +163,4 @@ All compute heavy tasks are done asynchronously using background threads.
 - woflo - (me)
 - woflo - (myself)
 - woflo - (i)
+- @GuriCreates - Mod Icon
