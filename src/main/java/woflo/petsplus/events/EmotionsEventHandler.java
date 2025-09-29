@@ -84,6 +84,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
@@ -467,15 +468,14 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         float focused = 0.03f + 0.03f * charge;
         float startle = 0.015f + 0.02f * charge;
 
-        pushToNearbyOwnedPets(sp, 28, (pc, collector) -> {
+        CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 28, (pc, collector) -> {
             collector.pushEmotion(PetComponent.Emotion.KEFI, passionate);
             collector.pushEmotion(PetComponent.Emotion.FOCUSED, focused);
             collector.pushEmotion(PetComponent.Emotion.STARTLE, startle);
         });
-
-        EmotionContextCues.sendCue(sp,
+        sendCueAfterStimulus(sp, stimulusFuture,
             "combat.owner_swing." + targetId,
-            Text.translatable("petsplus.emotion_cue.combat.owner_swing", target.getDisplayName()),
+            () -> Text.translatable("petsplus.emotion_cue.combat.owner_swing", target.getDisplayName()),
             160);
 
         return ActionResult.PASS;
@@ -486,12 +486,15 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         if (!alive) return;
         EmotionContextCues.clear(oldPlayer);
         EmotionContextCues.clear(newPlayer);
-        pushToNearbyOwnedPets(newPlayer, 32, (pc, collector) -> {
+        CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(newPlayer, 32, (pc, collector) -> {
             collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.20f);
             collector.pushEmotion(PetComponent.Emotion.STOIC, 0.16f);
             collector.pushEmotion(PetComponent.Emotion.GAMAN, 0.08f);
         });
-        EmotionContextCues.sendCue(newPlayer, "player.respawn", Text.translatable("petsplus.emotion_cue.player.respawn"), 200);
+        sendCueAfterStimulus(newPlayer, stimulusFuture,
+            "player.respawn",
+            () -> Text.translatable("petsplus.emotion_cue.player.respawn"),
+            200);
         NatureFlavorHandler.triggerForOwner(newPlayer, 32, Trigger.OWNER_RESPAWN);
     }
 
@@ -1091,6 +1094,9 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         boolean hasActions() { return triggerIdleCue || triggerRainyCue; }
     }
 
+    private record PendingCue(String cueId, Supplier<Text> textSupplier, long cooldown) {
+    }
+
     public static void handleWeatherUpdated(ServerWorld world, boolean wasRaining, boolean wasThundering, boolean raining, boolean thundering) {
         WEATHER.put(world, new WeatherState(raining, thundering));
         long now = world.getTime();
@@ -1102,30 +1108,39 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
         for (ServerPlayerEntity sp : world.getPlayers()) {
             if (raining && !wasRaining) {
-                pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
+                CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
                     collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.08f);
                     collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.06f);
                     collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.04f);
                 });
                 NatureFlavorHandler.triggerForOwner(sp, 48, Trigger.WEATHER_RAIN_START);
-                EmotionContextCues.sendCue(sp, "weather.rain_start", Text.translatable("petsplus.emotion_cue.weather.rain_start"), 600);
+                sendCueAfterStimulus(sp, stimulusFuture,
+                    "weather.rain_start",
+                    () -> Text.translatable("petsplus.emotion_cue.weather.rain_start"),
+                    600);
             } else if (!raining && wasRaining) {
-                pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
+                CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
                     collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.10f);
                     collector.pushEmotion(PetComponent.Emotion.GLEE, 0.06f);
                 });
                 NatureFlavorHandler.triggerForOwner(sp, 48, Trigger.WEATHER_CLEAR);
-                EmotionContextCues.sendCue(sp, "weather.rain_end", Text.translatable("petsplus.emotion_cue.weather.rain_end"), 600);
+                sendCueAfterStimulus(sp, stimulusFuture,
+                    "weather.rain_end",
+                    () -> Text.translatable("petsplus.emotion_cue.weather.rain_end"),
+                    600);
             }
 
             if (thundering && !wasThundering) {
-                pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
+                CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
                     collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.12f);
                     collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
                     collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.06f);
                 });
                 NatureFlavorHandler.triggerForOwner(sp, 48, Trigger.WEATHER_THUNDER_START);
-                EmotionContextCues.sendCue(sp, "weather.thunder", Text.translatable("petsplus.emotion_cue.weather.thunder"), 600);
+                sendCueAfterStimulus(sp, stimulusFuture,
+                    "weather.thunder",
+                    () -> Text.translatable("petsplus.emotion_cue.weather.thunder"),
+                    600);
             }
         }
 
@@ -1144,30 +1159,44 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         for (ServerPlayerEntity sp : world.getPlayers()) {
             switch (next) {
                 case DAWN -> {
-                    pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
+                    CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
                         collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.10f);
                         collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.06f);
                         collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.04f);
                     });
-                    EmotionContextCues.sendCue(sp, "time.dawn", Text.translatable("petsplus.emotion_cue.time.dawn"), 1200);
+                    sendCueAfterStimulus(sp, stimulusFuture,
+                        "time.dawn",
+                        () -> Text.translatable("petsplus.emotion_cue.time.dawn"),
+                        1200);
                 }
                 case DUSK -> {
-                    pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
+                    CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
                         collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.08f);
                         collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.06f);
                         collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.04f);
                     });
-                    EmotionContextCues.sendCue(sp, "time.dusk", Text.translatable("petsplus.emotion_cue.time.dusk"), 1200);
+                    sendCueAfterStimulus(sp, stimulusFuture,
+                        "time.dusk",
+                        () -> Text.translatable("petsplus.emotion_cue.time.dusk"),
+                        1200);
                 }
                 case DAY -> {
-                    pushToNearbyOwnedPets(sp, 48, (pc, collector) -> collector.pushEmotion(PetComponent.Emotion.KEFI, 0.04f));
+                    CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 48,
+                        (pc, collector) -> collector.pushEmotion(PetComponent.Emotion.KEFI, 0.04f));
                     NatureFlavorHandler.triggerForOwner(sp, 48, Trigger.DAYBREAK);
-                    EmotionContextCues.sendCue(sp, "time.day", Text.translatable("petsplus.emotion_cue.time.day"), 2400);
+                    sendCueAfterStimulus(sp, stimulusFuture,
+                        "time.day",
+                        () -> Text.translatable("petsplus.emotion_cue.time.day"),
+                        2400);
                 }
                 case NIGHT -> {
-                    pushToNearbyOwnedPets(sp, 48, (pc, collector) -> collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.04f));
+                    CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 48,
+                        (pc, collector) -> collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.04f));
                     NatureFlavorHandler.triggerForOwner(sp, 48, Trigger.NIGHTFALL);
-                    EmotionContextCues.sendCue(sp, "time.night", Text.translatable("petsplus.emotion_cue.time.night"), 2400);
+                    sendCueAfterStimulus(sp, stimulusFuture,
+                        "time.night",
+                        () -> Text.translatable("petsplus.emotion_cue.time.night"),
+                        2400);
                 }
             }
         }
@@ -1282,12 +1311,14 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
         if (currentLevel <= 4) {
             if (!state.lowHungerNotified || previousLevel > 4) {
-                pushToNearbyOwnedPets(player, 32, (pc, collector) -> {
+                CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(player, 32, (pc, collector) -> {
                     collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.12f);
                     collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
                 });
-                EmotionContextCues.sendCue(player, "owner.low_hunger",
-                    Text.translatable("petsplus.emotion_cue.owner.low_hunger"), 600);
+                sendCueAfterStimulus(player, stimulusFuture,
+                    "owner.low_hunger",
+                    () -> Text.translatable("petsplus.emotion_cue.owner.low_hunger"),
+                    600);
                 state.lowHungerNotified = true;
             }
         } else if (currentLevel > 6 && state.lowHungerNotified) {
@@ -1348,18 +1379,21 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             Text biomeName = Text.translatable("biome." + newBiomeId.getNamespace() + "." + newBiomeId.getPath());
             shareOwnerRumor(player, 48, GossipTopics.EXPLORE_NEW_BIOME, 0.5f, 0.4f,
                 Text.translatable("petsplus.gossip.exploration.new_biome", biomeName));
-            pushToNearbyOwnedPets(player, 48, (pc, collector) -> {
+            List<PendingCue> pendingCues = new ArrayList<>();
+            CompletableFuture<StimulusSummary> summaryFuture = pushToNearbyOwnedPets(player, 48, (pc, collector) -> {
                 if (pc.hasRole(PetRoleType.SCOUT)) {
                     MobEntity scoutPet = pc.getPet();
                     if (scoutPet != null) {
-                        EmotionContextCues.sendCue(player,
-                            "role.scout.biome." + scoutPet.getUuidAsString(),
-                            Text.translatable("petsplus.emotion_cue.role.scout_biome",
-                                scoutPet.getDisplayName(), biomeName),
-                            600);
+                        String cueId = "role.scout.biome." + scoutPet.getUuidAsString();
+                        Text cueText = Text.translatable("petsplus.emotion_cue.role.scout_biome",
+                            scoutPet.getDisplayName(), biomeName);
+                        pendingCues.add(new PendingCue(cueId, () -> cueText, 600));
                     }
                 }
             });
+            for (PendingCue pending : pendingCues) {
+                sendCueAfterStimulus(player, summaryFuture, pending.cueId(), pending.textSupplier(), pending.cooldown());
+            }
         }
 
         if (state.dimensionKey == null || !dimensionKey.equals(state.dimensionKey)) {
@@ -1676,31 +1710,74 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
     private static void triggerConfiguredCue(ServerPlayerEntity owner, String definitionId, double defaultRadius,
                                              PetConsumer consumer, String fallbackKey, Object... args) {
-        applyConfiguredStimulus(owner, definitionId, defaultRadius, consumer).thenRun(() -> {
-            Text cueText = resolveCueText(definitionId, fallbackKey, args);
-            if (cueText != null && !cueText.getString().isEmpty()) {
-                EmotionContextCues.sendCue(owner, definitionId, cueText);
-            }
-        });
+        CompletableFuture<StimulusSummary> summaryFuture = applyConfiguredStimulus(owner, definitionId, defaultRadius, consumer);
+        sendCueAfterStimulus(owner, summaryFuture, definitionId,
+            () -> resolveCueText(definitionId, fallbackKey, args));
     }
 
     private static void emitPetCue(ServerPlayerEntity owner, PetComponent pc, String cueId, PetConsumer consumer,
                                    String fallbackKey, long fallbackCooldown, Object... args) {
         String definitionId = resolveDefinitionId(cueId);
         EmotionCueDefinition definition = EmotionCueConfig.get().definition(definitionId);
-        pushToSinglePet(owner, pc, (petComponent, collector) -> {
+        CompletableFuture<StimulusSummary> summaryFuture = pushToSinglePet(owner, pc, (petComponent, collector) -> {
             if (definition != null) {
                 for (Map.Entry<PetComponent.Emotion, Float> entry : definition.baseEmotions().entrySet()) {
                     collector.pushEmotion(entry.getKey(), entry.getValue());
                 }
             }
             consumer.accept(petComponent, collector);
-        }).thenRun(() -> {
-            Text cueText = resolveCueText(definitionId, fallbackKey, args);
-            if (cueText != null && !cueText.getString().isEmpty()) {
-                EmotionContextCues.sendCue(owner, cueId, cueText, fallbackCooldown);
-            }
         });
+        sendCueAfterStimulus(owner, summaryFuture, cueId,
+            () -> resolveCueText(definitionId, fallbackKey, args),
+            fallbackCooldown);
+    }
+
+    private static void sendCueAfterStimulus(ServerPlayerEntity owner,
+                                             CompletableFuture<StimulusSummary> summaryFuture,
+                                             String cueId,
+                                             Supplier<Text> cueTextSupplier) {
+        sendCueAfterStimulus(owner, summaryFuture, cueId, cueTextSupplier, 0L);
+    }
+
+    private static void sendCueAfterStimulus(ServerPlayerEntity owner,
+                                             CompletableFuture<StimulusSummary> summaryFuture,
+                                             String cueId,
+                                             Supplier<Text> cueTextSupplier,
+                                             long cooldownTicks) {
+        if (summaryFuture == null) {
+            deliverCue(owner, cueId, cueTextSupplier, cooldownTicks);
+            return;
+        }
+        summaryFuture.whenComplete((summary, throwable) -> {
+            if (throwable != null) {
+                Petsplus.LOGGER.error("Failed to finalize stimulus summary before emitting cue {}", cueId,
+                    unwrapAsyncError(throwable));
+                return;
+            }
+            deliverCue(owner, cueId, cueTextSupplier, cooldownTicks);
+        });
+    }
+
+    private static void deliverCue(ServerPlayerEntity owner,
+                                   String cueId,
+                                   Supplier<Text> cueTextSupplier,
+                                   long cooldownTicks) {
+        if (cueTextSupplier == null) {
+            return;
+        }
+        Text base = cueTextSupplier.get();
+        if (base == null) {
+            return;
+        }
+        MutableText cueText = base.copy();
+        if (cueText.getString().isEmpty()) {
+            return;
+        }
+        if (cooldownTicks > 0L) {
+            EmotionContextCues.sendCue(owner, cueId, cueText, cooldownTicks);
+        } else {
+            EmotionContextCues.sendCue(owner, cueId, cueText);
+        }
     }
 
     private static Throwable unwrapAsyncError(Throwable error) {
@@ -2961,21 +3038,27 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         // Check if it's an enchanting table using block tags (flexible)
         if (state.isIn(BlockTags.ENCHANTMENT_POWER_PROVIDER) || state.isOf(Blocks.ENCHANTING_TABLE)) {
 
-            pushToNearbyOwnedPets(sp, 24, (pc, collector) -> {
+            List<PendingCue> pendingCues = new ArrayList<>();
+            CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 24, (pc, collector) -> {
                 collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.18f); // Wonder at magic
                 collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.08f); // Slight wariness of unknown
                 collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.06f); // Beauty of magical sparkles
                 if (pc.hasRole(PetRoleType.ENCHANTMENT_BOUND)) {
                     MobEntity petEntity = pc.getPet();
                     if (petEntity != null) {
-                        EmotionContextCues.sendCue(sp,
-                            "role.enchanter.attune." + petEntity.getUuidAsString(),
-                            Text.translatable("petsplus.emotion_cue.role.enchanter_attune", petEntity.getDisplayName()),
-                            200);
+                        String cueId = "role.enchanter.attune." + petEntity.getUuidAsString();
+                        Text cueText = Text.translatable("petsplus.emotion_cue.role.enchanter_attune", petEntity.getDisplayName());
+                        pendingCues.add(new PendingCue(cueId, () -> cueText, 200));
                     }
                 }
             });
-            EmotionContextCues.sendCue(sp, "block_use.enchanting", Text.translatable("petsplus.emotion_cue.block_use.enchanting"), 200);
+            for (PendingCue pending : pendingCues) {
+                sendCueAfterStimulus(sp, stimulusFuture, pending.cueId(), pending.textSupplier(), pending.cooldown());
+            }
+            sendCueAfterStimulus(sp, stimulusFuture,
+                "block_use.enchanting",
+                () -> Text.translatable("petsplus.emotion_cue.block_use.enchanting"),
+                200);
         }
 
         return ActionResult.PASS;
@@ -2995,7 +3078,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             boolean isMystic = profession.matchesKey(VillagerProfession.CLERIC);
             boolean isGuard = profession.matchesKey(VillagerProfession.WEAPONSMITH)
                 || profession.matchesKey(VillagerProfession.ARMORER);
-            pushToNearbyOwnedPets(sp, 20, (pc, collector) -> {
+            CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 20, (pc, collector) -> {
                 collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.12f); // Social interaction comfort
                 collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.08f); // Observing human customs
 
@@ -3008,15 +3091,27 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                     collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f); // Defense associations
                 }
             });
-            EmotionContextCues.sendCue(sp, "entity.trade", Text.translatable("petsplus.emotion_cue.entity.trade"), 200);
+            sendCueAfterStimulus(sp, stimulusFuture,
+                "entity.trade",
+                () -> Text.translatable("petsplus.emotion_cue.entity.trade"),
+                200);
             if (isFoodTrader) {
-                EmotionContextCues.sendCue(sp, "entity.trade.food", Text.translatable("petsplus.emotion_cue.entity.trade_food"), 400);
+                sendCueAfterStimulus(sp, stimulusFuture,
+                    "entity.trade.food",
+                    () -> Text.translatable("petsplus.emotion_cue.entity.trade_food"),
+                    400);
             } else if (isMystic) {
-                EmotionContextCues.sendCue(sp, "entity.trade.mystic", Text.translatable("petsplus.emotion_cue.entity.trade_mystic"), 400);
+                sendCueAfterStimulus(sp, stimulusFuture,
+                    "entity.trade.mystic",
+                    () -> Text.translatable("petsplus.emotion_cue.entity.trade_mystic"),
+                    400);
             } else if (isGuard) {
-                EmotionContextCues.sendCue(sp, "entity.trade.guard", Text.translatable("petsplus.emotion_cue.entity.trade_guard"), 400);
+                sendCueAfterStimulus(sp, stimulusFuture,
+                    "entity.trade.guard",
+                    () -> Text.translatable("petsplus.emotion_cue.entity.trade_guard"),
+                    400);
             }
-
+            
             NatureFlavorHandler.triggerForOwner(sp, 20, Trigger.VILLAGER_TRADE);
         }
 
