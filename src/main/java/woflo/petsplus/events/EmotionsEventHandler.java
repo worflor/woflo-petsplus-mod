@@ -1461,6 +1461,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         List<PetSwarmIndex.SwarmEntry> pets = new ArrayList<>();
         swarmIndex.forEachPetInRange(owner, center, radius, pets::add);
         StimulusSummary.Builder builder = StimulusSummary.builder(owner.getWorld().getTime());
+        List<CompletableFuture<Void>> dispatchFutures = new ArrayList<>();
         for (PetSwarmIndex.SwarmEntry entry : pets) {
             MobEntity pet = entry.pet();
             PetComponent pc = entry.component();
@@ -1500,8 +1501,46 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                         replayCollector.pushEmotion(delta.getKey(), delta.getValue());
                     }
                 });
-                bus.dispatchStimuli(pet, coordinator);
+                CompletableFuture<Void> dispatchFuture = bus.dispatchStimuliAsync(pet, coordinator);
+                if (dispatchFuture != null) {
+                    EmotionStimulusBus.DispatchListener listenerCapture = listener;
+                    MobEntity petCapture = pet;
+                    dispatchFutures.add(dispatchFuture);
+                    dispatchFuture.whenComplete((ignored, throwable) -> {
+                        bus.removeDispatchListener(listenerCapture);
+                        if (throwable != null) {
+                            Petsplus.LOGGER.error("Failed to dispatch emotion stimulus for pet {}", petCapture.getUuid(),
+                                unwrapAsyncError(throwable));
+                        }
+                    });
+                }
             } catch (Throwable ignored) {}
+        }
+        if (!dispatchFutures.isEmpty()) {
+            CompletableFuture<Void> combined = CompletableFuture.allOf(
+                dispatchFutures.toArray(new CompletableFuture[0])
+            );
+            ServerPlayerEntity ownerCapture = owner;
+            Runnable finalizeSummary = () -> {
+                StimulusSummary summary = builder.build();
+                if (recordStimulus) {
+                    EmotionContextCues.recordStimulus(ownerCapture, summary);
+                }
+            };
+            combined.whenComplete((ignored, throwable) -> {
+                if (throwable != null) {
+                    Petsplus.LOGGER.error("Failed to finalize emotion stimuli for player {}", ownerCapture.getUuid(),
+                        unwrapAsyncError(throwable));
+                    return;
+                }
+                MinecraftServer server = ownerCapture.getServer();
+                if (server != null) {
+                    server.submit(finalizeSummary);
+                } else {
+                    finalizeSummary.run();
+                }
+            });
+            return builder.build();
         }
         StimulusSummary summary = builder.build();
         if (recordStimulus) {
@@ -1561,6 +1600,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
         Map<PetComponent.Mood, Float> before = snapshotMoodBlend(pc);
         consumer.accept(pc, collector);
+        List<CompletableFuture<Void>> dispatchFutures = new ArrayList<>();
         if (!deltas.isEmpty()) {
             StateManager stateManager = StateManager.forWorld((ServerWorld) owner.getWorld());
             AsyncWorkCoordinator coordinator = stateManager.getAsyncWorkCoordinator();
@@ -1582,7 +1622,43 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                     replayCollector.pushEmotion(entry.getKey(), entry.getValue());
                 }
             });
-            bus.dispatchStimuli(pet, coordinator);
+            CompletableFuture<Void> dispatchFuture = bus.dispatchStimuliAsync(pet, coordinator);
+            if (dispatchFuture != null) {
+                EmotionStimulusBus.DispatchListener listenerCapture = listener;
+                MobEntity petCapture = pet;
+                dispatchFutures.add(dispatchFuture);
+                dispatchFuture.whenComplete((ignored, throwable) -> {
+                    bus.removeDispatchListener(listenerCapture);
+                    if (throwable != null) {
+                        Petsplus.LOGGER.error("Failed to dispatch emotion stimulus for pet {}", petCapture.getUuid(),
+                            unwrapAsyncError(throwable));
+                    }
+                });
+            }
+        }
+        if (!dispatchFutures.isEmpty()) {
+            CompletableFuture<Void> combined = CompletableFuture.allOf(
+                dispatchFutures.toArray(new CompletableFuture[0])
+            );
+            ServerPlayerEntity ownerCapture = owner;
+            Runnable finalizeSummary = () -> {
+                StimulusSummary summary = builder.build();
+                EmotionContextCues.recordStimulus(ownerCapture, summary);
+            };
+            combined.whenComplete((ignored, throwable) -> {
+                if (throwable != null) {
+                    Petsplus.LOGGER.error("Failed to finalize emotion stimuli for player {}", ownerCapture.getUuid(),
+                        unwrapAsyncError(throwable));
+                    return;
+                }
+                MinecraftServer server = ownerCapture.getServer();
+                if (server != null) {
+                    server.submit(finalizeSummary);
+                } else {
+                    finalizeSummary.run();
+                }
+            });
+            return builder.build();
         }
         StimulusSummary summary = builder.build();
         EmotionContextCues.recordStimulus(owner, summary);
