@@ -45,14 +45,28 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
     private final AtomicInteger writeBufferIndex = new AtomicInteger();
     private final int baseThreadCount;
     private final AsyncProcessingTelemetry telemetry = new AsyncProcessingTelemetry();
+    private final AsyncWorkerBudget.Registration budgetRegistration;
 
     public AsyncWorkCoordinator(MinecraftServer server,
                                 DoubleSupplier loadFactorSupplier) {
-        this(loadFactorSupplier, runnable -> Objects.requireNonNull(server, "server").submit(runnable));
+        this(server, loadFactorSupplier, null);
+    }
+
+    public AsyncWorkCoordinator(MinecraftServer server,
+                                DoubleSupplier loadFactorSupplier,
+                                @Nullable AsyncWorkerBudget.Registration budgetRegistration) {
+        this(loadFactorSupplier, runnable -> Objects.requireNonNull(server, "server").submit(runnable), budgetRegistration);
     }
 
     @SuppressWarnings("unchecked")
     AsyncWorkCoordinator(DoubleSupplier loadFactorSupplier, Executor mainThreadExecutor) {
+        this(loadFactorSupplier, mainThreadExecutor, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    AsyncWorkCoordinator(DoubleSupplier loadFactorSupplier,
+                         Executor mainThreadExecutor,
+                         @Nullable AsyncWorkerBudget.Registration budgetRegistration) {
         this.loadFactorSupplier = loadFactorSupplier != null ? loadFactorSupplier : () -> 1.0D;
         this.mainThreadExecutor = Objects.requireNonNull(mainThreadExecutor, "mainThreadExecutor");
         int available = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
@@ -66,6 +80,7 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
             new AtomicInteger(),
             new AtomicInteger()
         };
+        this.budgetRegistration = budgetRegistration;
     }
 
     private ExecutorService createExecutor(int threads) {
@@ -116,15 +131,17 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
         }
 
         int maxJobs = computeMaxJobs(allowedThreads);
-        if (!tryAcquireSlot(maxJobs)) {
+        SlotReservation reservation = tryAcquireSlot(maxJobs);
+        if (reservation == null) {
             return rejectThrottled("Async job queue is at capacity");
         }
 
         telemetry.recordActiveJobs(activeJobs.get());
         CompletableFuture<T> completion = new CompletableFuture<>();
         try {
-            executor.execute(wrap(effectivePriority, () -> runJob(snapshot, job, applier, completion)));
+            executor.execute(wrap(effectivePriority, () -> runJob(snapshot, job, applier, completion, reservation)));
         } catch (RejectedExecutionException ex) {
+            reservation.close();
             activeJobs.decrementAndGet();
             telemetry.recordActiveJobs(activeJobs.get());
             telemetry.recordRejectedSubmission();
@@ -164,15 +181,17 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
         }
 
         int maxJobs = computeMaxJobs(allowedThreads);
-        if (!tryAcquireSlot(maxJobs)) {
+        SlotReservation reservation = tryAcquireSlot(maxJobs);
+        if (reservation == null) {
             return rejectThrottled("Standalone async task '" + descriptor + "' rejected: async job queue is at capacity");
         }
 
         telemetry.recordActiveJobs(activeJobs.get());
         CompletableFuture<T> completion = new CompletableFuture<>();
         try {
-            executor.execute(wrap(effectivePriority, () -> runStandalone(descriptor, job, applier, completion)));
+            executor.execute(wrap(effectivePriority, () -> runStandalone(descriptor, job, applier, completion, reservation)));
         } catch (RejectedExecutionException ex) {
+            reservation.close();
             activeJobs.decrementAndGet();
             telemetry.recordActiveJobs(activeJobs.get());
             telemetry.recordRejectedSubmission();
@@ -185,7 +204,8 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
     private <T> void runJob(OwnerBatchSnapshot snapshot,
                             OwnerBatchJob<T> job,
                             @Nullable Consumer<T> applier,
-                            CompletableFuture<T> completion) {
+                            CompletableFuture<T> completion,
+                            SlotReservation reservation) {
         long start = System.nanoTime();
         T result = null;
         Throwable failure = null;
@@ -197,43 +217,47 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
             telemetry.recordAsyncDuration(System.nanoTime() - start);
         }
 
-        if (failure != null) {
-            Throwable finalFailure = failure;
-            enqueueResult(() -> {
-                long applyStart = System.nanoTime();
-                try {
-                    completion.completeExceptionally(finalFailure);
-                } finally {
-                    telemetry.recordApplyDuration(System.nanoTime() - applyStart);
-                }
-            });
-        } else {
-            T finalResult = result;
-            enqueueResult(() -> {
-                long applyStart = System.nanoTime();
-                try {
-                    if (applier != null) {
-                        applier.accept(finalResult);
+        try {
+            if (failure != null) {
+                Throwable finalFailure = failure;
+                enqueueResult(() -> {
+                    long applyStart = System.nanoTime();
+                    try {
+                        completion.completeExceptionally(finalFailure);
+                    } finally {
+                        telemetry.recordApplyDuration(System.nanoTime() - applyStart);
                     }
-                    completion.complete(finalResult);
-                } catch (Throwable applyError) {
-                    completion.completeExceptionally(applyError);
-                    throw applyError;
-                } finally {
-                    telemetry.recordApplyDuration(System.nanoTime() - applyStart);
-                }
-            });
+                });
+            } else {
+                T finalResult = result;
+                enqueueResult(() -> {
+                    long applyStart = System.nanoTime();
+                    try {
+                        if (applier != null) {
+                            applier.accept(finalResult);
+                        }
+                        completion.complete(finalResult);
+                    } catch (Throwable applyError) {
+                        completion.completeExceptionally(applyError);
+                        throw applyError;
+                    } finally {
+                        telemetry.recordApplyDuration(System.nanoTime() - applyStart);
+                    }
+                });
+            }
+        } finally {
+            reservation.close();
+            activeJobs.decrementAndGet();
+            telemetry.recordActiveJobs(activeJobs.get());
+            scheduleDrain();
         }
-
-        activeJobs.decrementAndGet();
-        telemetry.recordActiveJobs(activeJobs.get());
-        scheduleDrain();
     }
 
     private <T> void runStandalone(String descriptor,
                                    Callable<T> job,
                                    @Nullable Consumer<T> applier,
-                                   CompletableFuture<T> completion) {
+                                   CompletableFuture<T> completion,
+                                   SlotReservation reservation) {
         long start = System.nanoTime();
         T result = null;
         Throwable failure = null;
@@ -245,37 +269,40 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
             telemetry.recordAsyncDuration(System.nanoTime() - start);
         }
 
-        if (failure != null) {
-            Throwable finalFailure = failure;
-            enqueueResult(() -> {
-                long applyStart = System.nanoTime();
-                try {
-                    completion.completeExceptionally(finalFailure);
-                } finally {
-                    telemetry.recordApplyDuration(System.nanoTime() - applyStart);
-                }
-            });
-        } else {
-            T finalResult = result;
-            enqueueResult(() -> {
-                long applyStart = System.nanoTime();
-                try {
-                    if (applier != null) {
-                        applier.accept(finalResult);
+        try {
+            if (failure != null) {
+                Throwable finalFailure = failure;
+                enqueueResult(() -> {
+                    long applyStart = System.nanoTime();
+                    try {
+                        completion.completeExceptionally(finalFailure);
+                    } finally {
+                        telemetry.recordApplyDuration(System.nanoTime() - applyStart);
                     }
-                    completion.complete(finalResult);
-                } catch (Throwable applyError) {
-                    completion.completeExceptionally(applyError);
-                    throw applyError;
-                } finally {
-                    telemetry.recordApplyDuration(System.nanoTime() - applyStart);
-                }
-            });
+                });
+            } else {
+                T finalResult = result;
+                enqueueResult(() -> {
+                    long applyStart = System.nanoTime();
+                    try {
+                        if (applier != null) {
+                            applier.accept(finalResult);
+                        }
+                        completion.complete(finalResult);
+                    } catch (Throwable applyError) {
+                        completion.completeExceptionally(applyError);
+                        throw applyError;
+                    } finally {
+                        telemetry.recordApplyDuration(System.nanoTime() - applyStart);
+                    }
+                });
+            }
+        } finally {
+            reservation.close();
+            activeJobs.decrementAndGet();
+            telemetry.recordActiveJobs(activeJobs.get());
+            scheduleDrain();
         }
-
-        activeJobs.decrementAndGet();
-        telemetry.recordActiveJobs(activeJobs.get());
-        scheduleDrain();
     }
 
     private void enqueueResult(Runnable runnable) {
@@ -340,9 +367,10 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
             return 0;
         }
         if (factor >= 1.35D) {
-            return Math.max(1, baseThreadCount / 2);
+            int throttled = Math.max(1, baseThreadCount / 2);
+            return clampToBudget(throttled);
         }
-        return baseThreadCount;
+        return clampToBudget(baseThreadCount);
     }
 
     private int computeMaxJobs(int allowedThreads) {
@@ -352,17 +380,33 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
         return allowedThreads + Math.max(1, allowedThreads * 2);
     }
 
-    private boolean tryAcquireSlot(int maxJobs) {
+    @Nullable
+    private SlotReservation tryAcquireSlot(int maxJobs) {
         if (maxJobs <= 0) {
-            return false;
+            return null;
+        }
+        int budgetLimit = Integer.MAX_VALUE;
+        if (budgetRegistration != null) {
+            budgetLimit = budgetRegistration.permittedSlots();
+            if (budgetLimit <= 0) {
+                return null;
+            }
+        }
+        int queueLimit = Math.min(maxJobs, budgetLimit);
+        if (queueLimit <= 0) {
+            return null;
         }
         while (true) {
             int current = activeJobs.get();
-            if (current >= maxJobs) {
-                return false;
+            if (current >= queueLimit) {
+                return null;
             }
             if (activeJobs.compareAndSet(current, current + 1)) {
-                return true;
+                if (budgetRegistration != null && !budgetRegistration.tryClaimSlot()) {
+                    activeJobs.decrementAndGet();
+                    return null;
+                }
+                return new SlotReservation(budgetRegistration);
             }
         }
     }
@@ -378,13 +422,39 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
         return future;
     }
 
+    private int clampToBudget(int desired) {
+        if (budgetRegistration == null) {
+            return desired;
+        }
+        return Math.min(desired, budgetRegistration.permittedSlots());
+    }
+
     @Override
     public void close() {
         executor.shutdownNow();
+        if (budgetRegistration != null) {
+            budgetRegistration.close();
+        }
     }
 
     public AsyncProcessingTelemetry telemetry() {
         return telemetry;
+    }
+
+    private static final class SlotReservation implements AutoCloseable {
+        private final AsyncWorkerBudget.Registration registration;
+        private final AtomicBoolean released = new AtomicBoolean();
+
+        private SlotReservation(@Nullable AsyncWorkerBudget.Registration registration) {
+            this.registration = registration;
+        }
+
+        @Override
+        public void close() {
+            if (released.compareAndSet(false, true) && registration != null) {
+                registration.releaseSlot();
+            }
+        }
     }
 
     @FunctionalInterface
