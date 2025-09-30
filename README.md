@@ -1,8 +1,10 @@
-<h1>
+<p align="center">
   <img src="src/main/resources/assets/petsplus/icon.png"
        alt="Pets+ icon"
-       height="48"
-       style="vertical-align:middle; margin-right:12px;">
+       width="128">
+</p>
+
+<h1 align="center">
   Pets+ <small>dev-0.87-robust-down-thotiana</small>
 </h1>
 
