@@ -16,11 +16,17 @@
   },
   "parent": "petsplus:trial_ready",
   "criteria": {
-    "requirement": {
-      "trigger": "petsplus:pet_level",
+    "ability_max_rank": {
+      "trigger": "petsplus:pet_stat_threshold",
       "conditions": {
-        "min_level": 1
+        "stat_type": "ability_max_rank",
+        "min_value": 1.0
       }
     }
-  }
+  },
+  "requirements": [
+    [
+      "ability_max_rank"
+    ]
+  ]
 }

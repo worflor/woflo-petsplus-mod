@@ -3,10 +3,10 @@ package woflo.petsplus.datagen;
 import net.fabricmc.fabric.api.datagen.v1.FabricDataOutput;
 import net.fabricmc.fabric.api.datagen.v1.provider.FabricAdvancementProvider;
 import net.minecraft.advancement.Advancement;
+import net.minecraft.advancement.AdvancementCriterion;
 import net.minecraft.advancement.AdvancementEntry;
 import net.minecraft.advancement.AdvancementFrame;
 import net.minecraft.advancement.AdvancementRequirements;
-import net.minecraft.advancement.AdvancementCriterion;
 import net.minecraft.item.Items;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.text.Text;
@@ -14,6 +14,9 @@ import net.minecraft.util.Identifier;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.advancement.AdvancementCriteriaRegistry;
 import woflo.petsplus.advancement.criteria.*;
+
+import static woflo.petsplus.advancement.AdvancementStatKeys.ABILITY_MAX_RANK;
+import static woflo.petsplus.advancement.AdvancementStatKeys.ABILITY_MAX_RANK_UNLOCKED_VALUE;
 
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -599,8 +602,8 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
             .criterion("ability_max_rank", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_STAT_THRESHOLD,
                 new PetStatThresholdCriterion.Conditions(
                     Optional.empty(),
-                    Optional.of("ability_max_rank"),
-                    Optional.of(1.0f),
+                    Optional.of(ABILITY_MAX_RANK),
+                    Optional.of(ABILITY_MAX_RANK_UNLOCKED_VALUE),
                     Optional.empty()
                 )))
             .build(consumer, Petsplus.MOD_ID + ":is_this_designer");
