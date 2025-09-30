@@ -4,7 +4,7 @@
     "support_heal_allies": {
       "conditions": {
         "min_value": 5.0,
-        "stat_type": "allies_healed"
+        "stat_type": "unique_allies_healed"
       },
       "trigger": "petsplus:pet_stat_threshold"
     }

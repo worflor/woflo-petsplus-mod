@@ -580,7 +580,7 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
             .criterion("support_heal_allies", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_STAT_THRESHOLD,
                 new PetStatThresholdCriterion.Conditions(
                     Optional.empty(),
-                    Optional.of("allies_healed"),
+                    Optional.of(PetStatThresholdCriterion.STAT_ALLIES_HEALED),
                     Optional.of(5.0f),
                     Optional.empty()
                 )))
