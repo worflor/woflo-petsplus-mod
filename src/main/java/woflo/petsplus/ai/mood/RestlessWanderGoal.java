@@ -15,6 +15,8 @@ public class RestlessWanderGoal extends MoodBasedGoal {
     private int wanderTicks;
     private int stationaryTicks;
     private static final int MAX_STATIONARY_TICKS = 40; // Max 2 seconds still
+    private static final int MAX_WANDER_TICKS = 140; // Cap bursts to 7 seconds
+    private static final String ACTION_RETARGET = "restless_retarget";
 
     public RestlessWanderGoal(MobEntity mob) {
         super(mob, PetComponent.Mood.RESTLESS);
@@ -29,20 +31,22 @@ public class RestlessWanderGoal extends MoodBasedGoal {
 
     @Override
     protected boolean shouldContinueMoodBehavior() {
-        // Continue indefinitely while restless - this goal manages its own movement
-        return true;
+        return wanderTicks < MAX_WANDER_TICKS;
     }
 
     @Override
     public void start() {
+        super.start();
         wanderTicks = 0;
         stationaryTicks = 0;
         selectNewWanderTarget();
+        scheduleActionCooldown(ACTION_RETARGET, currentWorldTick(), 55, 85);
     }
 
     @Override
     public void tick() {
         wanderTicks++;
+        long now = currentWorldTick();
 
         // Track if we're being stationary too long
         if (mob.getVelocity().length() < 0.01) {
@@ -56,6 +60,7 @@ public class RestlessWanderGoal extends MoodBasedGoal {
             (wanderTarget != null && mob.getPos().distanceTo(wanderTarget) < 1.5)) {
             selectNewWanderTarget();
             stationaryTicks = 0;
+            scheduleActionCooldown(ACTION_RETARGET, now, 40, 70);
         }
 
         // Move toward current target
@@ -63,14 +68,16 @@ public class RestlessWanderGoal extends MoodBasedGoal {
             mob.getNavigation().startMovingTo(wanderTarget.x, wanderTarget.y, wanderTarget.z, 1.1); // Slightly fast pace
         }
 
-        // Change direction frequently (every 3-6 seconds)
-        if (wanderTicks % (60 + mob.getRandom().nextInt(60)) == 0) {
+        // Occasionally redirect even if still mid-run
+        if (isActionReady(ACTION_RETARGET, now)) {
             selectNewWanderTarget();
+            scheduleActionCooldown(ACTION_RETARGET, now, 60, 95);
         }
     }
 
     @Override
     public void stop() {
+        super.stop();
         wanderTarget = null;
         wanderTicks = 0;
         stationaryTicks = 0;

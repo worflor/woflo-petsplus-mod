@@ -49,7 +49,13 @@ public class ProtectiveGuardGoal extends MoodBasedGoal {
     }
 
     @Override
+    protected boolean shouldBypassCooldown(boolean moodReady) {
+        return moodReady;
+    }
+
+    @Override
     public void start() {
+        super.start();
         guardTicks = 0;
         updateGuardPosition();
     }
@@ -87,6 +93,7 @@ public class ProtectiveGuardGoal extends MoodBasedGoal {
 
     @Override
     public void stop() {
+        super.stop();
         guardPosition = null;
         guardTicks = 0;
         mob.getNavigation().stop();

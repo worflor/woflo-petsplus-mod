@@ -16,6 +16,8 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 
+import woflo.petsplus.ai.MoodGoalThrottleConfig;
+import woflo.petsplus.ai.MoodGoalThrottles;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.mixin.MobEntityAccessor;
 import woflo.petsplus.state.PetComponent;
@@ -71,6 +73,8 @@ public class MoodInfluencedBehaviors {
         private final EnumMap<FidgetType, Long> fidgetCooldowns = new EnumMap<>(FidgetType.class);
         private long lastFidgetTick = -200;
         private long nextGlobalStartTick = 0;
+        private float globalChanceAccumulator = 0.0f;
+        private long lastChanceTick = Long.MIN_VALUE;
         private Vec3d sniffFocus;
         private float cachedAgilityModifier = 0.0f;
         private float cachedVitalityModifier = 0.0f;
@@ -109,22 +113,55 @@ public class MoodInfluencedBehaviors {
             PetComponent.Mood mood = pc.getCurrentMood();
             float moodStrength = mood != null ? MathHelper.clamp(pc.getMoodStrength(mood), 0f, 1f) : 0f;
             float pressure = MathHelper.clamp((now - lastFidgetTick) / 200f, 0f, 1.5f);
+            MoodGoalThrottleConfig throttleConfig = mood != null ? MoodGoalThrottles.getConfig(mood) : null;
 
-            int baseChance = 90;
+            int rollBound = throttleConfig != null ? throttleConfig.baseChance() : 90;
+            int strengthBonus = throttleConfig != null && throttleConfig.strengthChanceBonus() > 0
+                ? throttleConfig.strengthChanceBonus()
+                : 30;
+            int minRoll = throttleConfig != null ? throttleConfig.minRollBound() : 12;
+            int maxRoll = throttleConfig != null ? throttleConfig.maxRollBound() : 140;
             if (mood == PetComponent.Mood.RESTLESS || pc.hasMoodAbove(PetComponent.Mood.RESTLESS, 0.4f)) {
-                baseChance -= 25;
+                rollBound -= 25;
             }
             if (mood == PetComponent.Mood.AFRAID || pc.hasMoodAbove(PetComponent.Mood.AFRAID, 0.25f)) {
-                baseChance -= 20;
+                rollBound -= 20;
             }
-            baseChance -= Math.round(moodStrength * 30f);
-            baseChance -= Math.round(pressure * 20f);
+            rollBound -= Math.round(moodStrength * strengthBonus);
+
+            if (throttleConfig != null && throttleConfig.pressureIntervalTicks() > 0
+                && throttleConfig.pressureChanceBonus() > 0) {
+                long sinceLast = now - lastFidgetTick;
+                int steps = (int) Math.min(
+                    throttleConfig.maxPressureBonus() / Math.max(throttleConfig.pressureChanceBonus(), 1),
+                    sinceLast / throttleConfig.pressureIntervalTicks()
+                );
+                rollBound -= steps * throttleConfig.pressureChanceBonus();
+            } else {
+                rollBound -= Math.round(pressure * 20f);
+            }
 
             float agilityScaling = MathHelper.clamp(1.0f - cachedAgilityModifier * 0.45f, 0.85f, 1.15f);
-            baseChance = Math.round(baseChance * agilityScaling);
-            baseChance = MathHelper.clamp(baseChance, 12, 140);
+            rollBound = Math.round(rollBound * agilityScaling);
+            rollBound = MathHelper.clamp(rollBound, minRoll, maxRoll);
 
-            return pet.getRandom().nextInt(baseChance) == 0;
+            if (rollBound <= 1) {
+                globalChanceAccumulator = 0.0f;
+                lastChanceTick = now;
+                return true;
+            }
+
+            if (now != lastChanceTick) {
+                float increment = 1.0f / (float) rollBound;
+                globalChanceAccumulator = MathHelper.clamp(globalChanceAccumulator + increment, 0.0f, 1.0f);
+                lastChanceTick = now;
+            }
+            float roll = pet.getRandom().nextFloat();
+            if (roll < globalChanceAccumulator) {
+                globalChanceAccumulator = 0.0f;
+                return true;
+            }
+            return false;
         }
 
         @Override
@@ -157,6 +194,8 @@ public class MoodInfluencedBehaviors {
                 case YAWN -> 20;
             };
             fidgetTimer = 0;
+            globalChanceAccumulator = 0.0f;
+            lastChanceTick = pet.getWorld().getTime();
             if (currentFidget != FidgetType.STRETCH && Math.abs(currentStretchMultiplier - 1.0f) > SPEED_EPSILON) {
                 SpeedModifierHelper.clearMovementSpeedModifier(pet, STRETCH_SPEED_MODIFIER_ID);
                 currentStretchMultiplier = 1.0f;
@@ -252,6 +291,8 @@ public class MoodInfluencedBehaviors {
             lastFidgetTick = now;
             nextGlobalStartTick = Math.max(nextGlobalStartTick, now + 30);
             sniffFocus = null;
+            globalChanceAccumulator = 0.0f;
+            lastChanceTick = now;
         }
 
         private FidgetType selectFidgetForMood(PetComponent pc) {
@@ -544,6 +585,9 @@ public class MoodInfluencedBehaviors {
         private static final int ITEM_INTEREST_REFRESH_TICKS = 30;
         private float cachedAgilityModifier = 0.0f;
         private float cachedVitalityModifier = 0.0f;
+        private final EnumMap<PetComponent.Mood, Long> moodActionCooldowns = new EnumMap<>(PetComponent.Mood.class);
+        private static final int HAPPY_HOP_COOLDOWN = 45;
+        private static final int RESTLESS_JITTER_COOLDOWN = 25;
 
         public MoodMovementVariationGoal(MobEntity pet) {
             this.pet = pet;
@@ -573,6 +617,7 @@ public class MoodInfluencedBehaviors {
 
             PetComponent pc = PetComponent.get(pet);
             cacheCharacteristicModifiers(pc);
+            moodActionCooldowns.clear();
         }
 
         @Override
@@ -620,8 +665,9 @@ public class MoodInfluencedBehaviors {
                     float base = min + (pet.getRandom().nextFloat() * (max - min));
                     float agilityFactor = MathHelper.clamp(1.0f + cachedAgilityModifier * 0.25f, 0.9f, 1.1f);
                     speedMultiplier = clampToRange(base * agilityFactor, min, max);
-                    if (pet.isOnGround() && pet.getRandom().nextInt(20) == 0) {
-                        pet.jump(); // Occasional happy hops
+                    if (pet.isOnGround() && pet.getRandom().nextInt(20) == 0
+                        && tryTriggerMoodAction(mood, HAPPY_HOP_COOLDOWN)) {
+                        pet.jump(); // Occasional happy hops with cooldown
                     }
                 }
                 case CURIOUS -> {
@@ -852,9 +898,25 @@ public class MoodInfluencedBehaviors {
             }
 
             if (mood == PetComponent.Mood.RESTLESS && pet.getRandom().nextBoolean()) {
-                Vec3d wander = new Vec3d(pet.getRandom().nextFloat() - 0.5f, 0, pet.getRandom().nextFloat() - 0.5f).normalize().multiply(0.04);
-                pet.setVelocity(pet.getVelocity().add(wander));
+                if (tryTriggerMoodAction(PetComponent.Mood.RESTLESS, RESTLESS_JITTER_COOLDOWN)) {
+                    Vec3d wander = new Vec3d(pet.getRandom().nextFloat() - 0.5f, 0, pet.getRandom().nextFloat() - 0.5f)
+                        .normalize().multiply(0.04);
+                    pet.setVelocity(pet.getVelocity().add(wander));
+                }
             }
+        }
+
+        private boolean tryTriggerMoodAction(PetComponent.Mood mood, int cooldownTicks) {
+            if (mood == null || cooldownTicks <= 0) {
+                return false;
+            }
+            long now = pet.getWorld().getTime();
+            long last = moodActionCooldowns.getOrDefault(mood, Long.MIN_VALUE);
+            if (now - last < cooldownTicks) {
+                return false;
+            }
+            moodActionCooldowns.put(mood, now);
+            return true;
         }
 
         private PlayerEntity getOwner() {

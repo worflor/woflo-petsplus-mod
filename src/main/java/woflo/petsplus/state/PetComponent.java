@@ -119,6 +119,8 @@ public class PetComponent {
     private double followSpacingOffsetZ;
     private float followSpacingPadding;
     private long followSpacingSampleTick = Long.MIN_VALUE;
+    private long moodFollowHoldUntilTick = Long.MIN_VALUE;
+    private float moodFollowDistanceBonus = 0.0f;
 
     // BossBar UI enhancements
     private long xpFlashStartTick = -1;
@@ -1195,6 +1197,44 @@ public class PetComponent {
 
     public long getFollowSpacingSampleTick() {
         return followSpacingSampleTick;
+    }
+
+    public void requestMoodFollowHold(long now, int holdTicks, float distanceBonus) {
+        if (holdTicks <= 0) {
+            return;
+        }
+        long candidateExpiry = now + holdTicks;
+        if (candidateExpiry > moodFollowHoldUntilTick) {
+            moodFollowHoldUntilTick = candidateExpiry;
+        }
+        moodFollowDistanceBonus = Math.max(moodFollowDistanceBonus, Math.max(0.0f, distanceBonus));
+    }
+
+    public boolean isMoodFollowHoldActive(long now) {
+        if (now >= moodFollowHoldUntilTick) {
+            if (moodFollowHoldUntilTick != Long.MIN_VALUE) {
+                moodFollowHoldUntilTick = Long.MIN_VALUE;
+                moodFollowDistanceBonus = 0.0f;
+            }
+            return false;
+        }
+        return true;
+    }
+
+    public float getMoodFollowDistanceBonus(long now) {
+        if (now >= moodFollowHoldUntilTick) {
+            if (moodFollowHoldUntilTick != Long.MIN_VALUE) {
+                moodFollowHoldUntilTick = Long.MIN_VALUE;
+                moodFollowDistanceBonus = 0.0f;
+            }
+            return 0.0f;
+        }
+        return moodFollowDistanceBonus;
+    }
+
+    public void clearMoodFollowHold() {
+        moodFollowHoldUntilTick = Long.MIN_VALUE;
+        moodFollowDistanceBonus = 0.0f;
     }
 
     public int getOrCreateSocialJitterSeed() {

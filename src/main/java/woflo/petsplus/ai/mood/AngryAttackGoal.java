@@ -1,8 +1,8 @@
 package woflo.petsplus.ai.mood;
 
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.mob.HostileEntity;
+import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.ai.MoodBasedGoal;
 import woflo.petsplus.state.PetComponent;
@@ -13,6 +13,7 @@ import java.util.EnumSet;
  * When pets are ANGRY, they become more aggressive and likely to attack nearby threats.
  */
 public class AngryAttackGoal extends MoodBasedGoal {
+
     private LivingEntity target;
     private int aggressionTicks;
     private static final int MAX_AGGRESSION_TICKS = 200; // 10 seconds
@@ -39,7 +40,13 @@ public class AngryAttackGoal extends MoodBasedGoal {
     }
 
     @Override
+    protected boolean shouldBypassCooldown(boolean moodReady) {
+        return moodReady && target != null && target.isAlive();
+    }
+
+    @Override
     public void start() {
+        super.start();
         aggressionTicks = 0;
         mob.setTarget(target);
     }
@@ -57,11 +64,8 @@ public class AngryAttackGoal extends MoodBasedGoal {
         double distance = mob.squaredDistanceTo(target);
         if (distance > 4.0) { // If far away, get closer
             mob.getNavigation().startMovingTo(target, 1.3); // Fast approach
-        } else {
-            // Close enough - try to attack
-            if (mob.getWorld() instanceof ServerWorld serverWorld) {
-                mob.tryAttack(serverWorld, target);
-            }
+        } else if (!mob.getWorld().isClient()) {
+            performAttack(target);
         }
 
         // Update target if it moves too far away
@@ -78,6 +82,7 @@ public class AngryAttackGoal extends MoodBasedGoal {
 
     @Override
     public void stop() {
+        super.stop();
         target = null;
         aggressionTicks = 0;
         mob.setTarget(null);
@@ -104,5 +109,15 @@ public class AngryAttackGoal extends MoodBasedGoal {
         }
 
         return nearest;
+    }
+
+    private void performAttack(LivingEntity target) {
+        if (target == null) {
+            return;
+        }
+
+        if (mob.getWorld() instanceof ServerWorld serverWorld) {
+            mob.tryAttack(serverWorld, target);
+        }
     }
 }

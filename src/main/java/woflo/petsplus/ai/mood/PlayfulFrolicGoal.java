@@ -23,6 +23,9 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
     private Vec3d lastNavigationTarget;
     private int frolicTicks;
     private boolean clockwise;
+    private static final String ACTION_FROLIC_HOP = "playful_hop";
+    private static final String ACTION_TOY_REFRESH = "playful_toy_refresh";
+    private static final String ACTION_ORBIT_REFRESH = "playful_orbit_refresh";
 
     public PlayfulFrolicGoal(MobEntity mob) {
         super(mob, PetComponent.Mood.PLAYFUL);
@@ -49,26 +52,33 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
 
     @Override
     public void start() {
+        super.start();
         frolicTicks = 0;
         clockwise = mob.getRandom().nextBoolean();
         lastNavigationTarget = null;
         orbitTarget = null;
-        chooseNextOrbitTarget();
+        long now = currentWorldTick();
+        scheduleActionCooldown(ACTION_FROLIC_HOP, now, 28, 42);
+        scheduleActionCooldown(ACTION_TOY_REFRESH, now, 55, 85);
+        scheduleActionCooldown(ACTION_ORBIT_REFRESH, now, 35, 55);
+        chooseNextOrbitTarget(now);
     }
 
     @Override
     public void tick() {
         frolicTicks++;
+        long now = currentWorldTick();
         if (toyPos == null || toyApproachPos == null) {
             stop();
             return;
         }
 
-        if (!isToyValid() && frolicTicks % 20 == 0) {
+        if (!isToyValid() && isActionReady(ACTION_TOY_REFRESH, now)) {
             if (assignToySpot()) {
                 orbitTarget = null;
-                chooseNextOrbitTarget();
+                chooseNextOrbitTarget(now);
             }
+            scheduleActionCooldown(ACTION_TOY_REFRESH, now, 65, 95);
         }
 
         if (toyPos == null || toyApproachPos == null) {
@@ -84,8 +94,8 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
             lastNavigationTarget = approach;
         }
 
-        if (orbitTarget == null || mob.squaredDistanceTo(orbitTarget) < 1.0 || frolicTicks % 25 == 0) {
-            chooseNextOrbitTarget();
+        if (orbitTarget == null || mob.squaredDistanceTo(orbitTarget) < 1.0 || isActionReady(ACTION_ORBIT_REFRESH, now)) {
+            chooseNextOrbitTarget(now);
         }
 
         if (orbitTarget != null) {
@@ -97,13 +107,17 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
 
         mob.getLookControl().lookAt(toyCenter.x, toyCenter.y, toyCenter.z);
 
-        if (mob.isOnGround() && frolicTicks % 18 == 0) {
-            mob.jump();
+        if (mob.isOnGround() && isActionReady(ACTION_FROLIC_HOP, now)) {
+            if (mob.getRandom().nextFloat() < 0.55f) {
+                mob.jump();
+            }
+            scheduleActionCooldown(ACTION_FROLIC_HOP, now, 28, 46);
         }
     }
 
     @Override
     public void stop() {
+        super.stop();
         toyPos = null;
         toyApproachPos = null;
         orbitTarget = null;
@@ -170,7 +184,7 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
             && MoodWorldUtil.isStandable(world, toyApproachPos);
     }
 
-    private void chooseNextOrbitTarget() {
+    private void chooseNextOrbitTarget(long now) {
         if (toyPos == null) {
             orbitTarget = null;
             return;
@@ -192,6 +206,7 @@ public class PlayfulFrolicGoal extends MoodBasedGoal {
             orbitTarget = toyApproachPos != null ? Vec3d.ofCenter(toyApproachPos) : Vec3d.ofCenter(toyPos);
         }
         lastNavigationTarget = null;
+        scheduleActionCooldown(ACTION_ORBIT_REFRESH, now, 30, 50);
     }
 
     private boolean shouldIssuePath(Vec3d target) {
