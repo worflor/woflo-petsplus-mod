@@ -119,6 +119,7 @@ public class SupportPotionPulseEffect implements Effect {
             config.getSupportPotionRadius(roleType, behavior)
         );
         radius *= radiusMultiplier;
+        double initialRadius = radius;
         int baseDuration = SupportPotionUtils.getScaledAuraDuration(
             component,
             behavior,
@@ -160,8 +161,29 @@ public class SupportPotionPulseEffect implements Effect {
             recipients
         );
 
-        radius = profile.radius();
+        double tunedRadius = profile.radius();
         duration = profile.durationTicks();
+
+        if (Math.abs(tunedRadius - initialRadius) > 0.01) {
+            radius = tunedRadius;
+            recipients = new LinkedHashSet<>(resolver.resolveTargets(
+                world,
+                pet,
+                component,
+                serverOwner,
+                radius,
+                PetRoleType.AuraTarget.OWNER_AND_ALLIES
+            ));
+            if (applyToPet) {
+                recipients.add(pet);
+            }
+            recipients.removeIf(Entity::isRemoved);
+            if (recipients.isEmpty()) {
+                return false;
+            }
+        } else {
+            radius = tunedRadius;
+        }
 
         List<StatusEffectInstance> storedEffects = SupportPotionUtils.deserializeEffects(state.serializedEffects(), duration);
         if (storedEffects.isEmpty() && allowFallback && behavior.fallbackEffect() != null) {
