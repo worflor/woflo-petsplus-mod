@@ -7,7 +7,7 @@
   "effects": [
     {
       "type": "projectile_dr_for_owner",
-      "reduction_pct": 0.25,
+      "percent": 0.25,
       "duration_ticks": 100,
       "radius": 8.0
     },

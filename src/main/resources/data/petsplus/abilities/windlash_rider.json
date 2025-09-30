@@ -2,7 +2,7 @@
   "id": "petsplus:windlash_rider",
   "trigger": {
     "event": "owner_begin_fall",
-    "min_fall_distance": 3.0,
+    "min_fall": 3.0,
     "internal_cd_ticks": 120
   },
   "effects": [

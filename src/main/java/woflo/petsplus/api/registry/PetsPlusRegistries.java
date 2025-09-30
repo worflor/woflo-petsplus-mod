@@ -300,6 +300,34 @@ public final class PetsPlusRegistries {
             .description("Owner starts falling beyond a configured height.")
             .build());
 
+        registerTriggerSerializer(TriggerSerializer.builder(id("owner_took_fall_damage"), OwnerTookFallDamageConfig.CODEC,
+            (abilityId, config) -> DataResult.success(new Trigger() {
+                private final Identifier triggerId = id("owner_took_fall_damage");
+                private final double minimumDamage = config.minDamage().orElse(0.0);
+                private final int cooldown = config.cooldown().resolvedCooldown();
+
+                @Override
+                public Identifier getId() {
+                    return triggerId;
+                }
+
+                @Override
+                public int getInternalCooldownTicks() {
+                    return cooldown;
+                }
+
+                @Override
+                public boolean shouldActivate(TriggerContext context) {
+                    if (!Objects.equals(context.getEventType(), "owner_took_fall_damage")) {
+                        return false;
+                    }
+                    double damage = context.getDamage();
+                    return damage >= minimumDamage;
+                }
+            }))
+            .description("Owner takes fall damage that meets an optional damage threshold.")
+            .build());
+
         registerTriggerSerializer(TriggerSerializer.builder(id("interval_while_active"), IntervalWhileActiveConfig.CODEC,
             (abilityId, config) -> DataResult.success(new Trigger() {
                 private final Identifier triggerId = id("interval_while_active");
@@ -335,6 +363,65 @@ public final class PetsPlusRegistries {
             .description("Runs on a fixed cadence while a pet remains active.")
             .build());
 
+        registerTriggerSerializer(TriggerSerializer.builder(id("owner_shot_projectile"), OwnerShotProjectileConfig.CODEC,
+            (abilityId, config) -> DataResult.success(new Trigger() {
+                private final Identifier triggerId = id("owner_shot_projectile");
+                private final String projectileFilter = config.projectileType()
+                    .map(value -> value.toLowerCase(java.util.Locale.ROOT))
+                    .orElse(null);
+                private final int cooldown = config.cooldown().resolvedCooldown();
+
+                @Override
+                public Identifier getId() {
+                    return triggerId;
+                }
+
+                @Override
+                public int getInternalCooldownTicks() {
+                    return cooldown;
+                }
+
+                @Override
+                public boolean shouldActivate(TriggerContext context) {
+                    if (!Objects.equals(context.getEventType(), "owner_shot_projectile")) {
+                        return false;
+                    }
+                    if (projectileFilter == null) {
+                        return true;
+                    }
+                    String projectileType = context.getData("projectile_type", String.class);
+                    if (projectileType == null) {
+                        projectileType = context.getData("projectile_id", String.class);
+                    }
+                    if (projectileType == null) {
+                        Identifier identifier = context.getData("projectile_identifier", Identifier.class);
+                        projectileType = identifier != null ? identifier.toString() : null;
+                    }
+                    if (projectileType == null) {
+                        projectileType = context.getData("projectile_type_no_namespace", String.class);
+                        if (projectileType != null) {
+                            projectileType = projectileType.toLowerCase(java.util.Locale.ROOT);
+                            return projectileFilter.equals(projectileType);
+                        }
+                        return false;
+                    }
+                    projectileType = projectileType.toLowerCase(java.util.Locale.ROOT);
+                    if (projectileFilter.equals(projectileType)) {
+                        return true;
+                    }
+                    int colonIndex = projectileType.indexOf(':');
+                    if (colonIndex >= 0 && colonIndex + 1 < projectileType.length()) {
+                        String withoutNamespace = projectileType.substring(colonIndex + 1);
+                        if (projectileFilter.equals(withoutNamespace)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+            }))
+            .description("Owner fires a projectile, optionally filtered by projectile type.")
+            .build());
+
         registerTriggerSerializer(TriggerSerializer.builder(id("aggro_acquired"), CooldownSettings.CODEC,
             (abilityId, config) -> DataResult.success(simpleEventTrigger("aggro_acquired", config.resolvedCooldown())))
             .description("Pet gains aggro on a hostile target.")
@@ -358,6 +445,13 @@ public final class PetsPlusRegistries {
         registerTriggerSerializer(TriggerSerializer.builder(id("owner_signal_shift_interact"), CooldownSettings.CODEC,
             (abilityId, config) -> DataResult.success(simpleEventTrigger("owner_signal_shift_interact", config.resolvedCooldown())))
             .description("Fires when the owner sneaks and interacts directly with their pet.")
+            .build());
+
+        Identifier ownerBrokeBlockId = id("owner_broke_block");
+        registerTriggerSerializer(TriggerSerializer.builder(ownerBrokeBlockId, OwnerBrokeBlockConfig.CODEC,
+            (abilityId, config) -> DataResult.success(OwnerBrokeBlockTriggerFactory.create(ownerBrokeBlockId,
+                config.blockValuable(), config.blockId(), config.cooldown().resolvedCooldown())))
+            .description("Owner breaks a block, optionally requiring it to be marked valuable.")
             .build());
 
         registerTriggerSerializer(TriggerSerializer.builder(id("owner_low_health"), OwnerLowHealthConfig.CODEC,
@@ -614,9 +708,12 @@ public final class PetsPlusRegistries {
             .build());
 
         registerEffectSerializer(EffectSerializer.builder(id("heal_owner_flat_pct"), HealOwnerFlatPctConfig.CODEC,
-            (abilityId, config, context) -> DataResult.success(new HealOwnerFlatPctEffect(
-                config.value().orElse(0.15))))
-            .description("Heals the owner for a flat percentage of max health.")
+            (abilityId, config, context) -> {
+                double percent = config.pctAmount().orElseGet(() -> config.value().orElse(0.15));
+                double flat = config.flatAmount().orElse(0.0);
+                return DataResult.success(new HealOwnerFlatPctEffect(flat, percent));
+            })
+            .description("Heals the owner by a flat amount plus a percent of max health.")
             .build());
 
         registerEffectSerializer(EffectSerializer.builder(id("knockup"), KnockupConfig.CODEC,
@@ -762,6 +859,13 @@ public final class PetsPlusRegistries {
         ).apply(instance, OwnerBeginFallConfig::new));
     }
 
+    private record OwnerTookFallDamageConfig(Optional<Double> minDamage, CooldownSettings cooldown) {
+        static final Codec<OwnerTookFallDamageConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+            Codec.DOUBLE.optionalFieldOf("min_damage").forGetter(OwnerTookFallDamageConfig::minDamage),
+            CooldownSettings.MAP_CODEC.forGetter(OwnerTookFallDamageConfig::cooldown)
+        ).apply(instance, OwnerTookFallDamageConfig::new));
+    }
+
     private record IntervalWhileActiveConfig(Optional<Integer> ticks, Optional<Boolean> requirePerched,
                                              Optional<Boolean> requireMountedOwner, Optional<Boolean> requireInCombat) {
         static final Codec<IntervalWhileActiveConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -772,11 +876,27 @@ public final class PetsPlusRegistries {
         ).apply(instance, IntervalWhileActiveConfig::new));
     }
 
+    private record OwnerShotProjectileConfig(Optional<String> projectileType, CooldownSettings cooldown) {
+        static final Codec<OwnerShotProjectileConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+            Codec.STRING.optionalFieldOf("projectile_type").forGetter(OwnerShotProjectileConfig::projectileType),
+            CooldownSettings.MAP_CODEC.forGetter(OwnerShotProjectileConfig::cooldown)
+        ).apply(instance, OwnerShotProjectileConfig::new));
+    }
+
     private record OwnerLowHealthConfig(Optional<Double> ownerHpPctBelow, CooldownSettings cooldown) {
         static final Codec<OwnerLowHealthConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Codec.DOUBLE.optionalFieldOf("owner_hp_pct_below").forGetter(OwnerLowHealthConfig::ownerHpPctBelow),
             CooldownSettings.MAP_CODEC.forGetter(OwnerLowHealthConfig::cooldown)
         ).apply(instance, OwnerLowHealthConfig::new));
+    }
+
+    private record OwnerBrokeBlockConfig(Optional<Boolean> blockValuable, Optional<Identifier> blockId,
+        CooldownSettings cooldown) {
+        static final Codec<OwnerBrokeBlockConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+            Codec.BOOL.optionalFieldOf("block_valuable").forGetter(OwnerBrokeBlockConfig::blockValuable),
+            Identifier.CODEC.optionalFieldOf("block_id").forGetter(OwnerBrokeBlockConfig::blockId),
+            CooldownSettings.MAP_CODEC.forGetter(OwnerBrokeBlockConfig::cooldown)
+        ).apply(instance, OwnerBrokeBlockConfig::new));
     }
 
     private record OwnerNextAttackBonusConfig(Optional<Double> bonusDamagePct, Optional<String> vsTag,
@@ -814,9 +934,12 @@ public final class PetsPlusRegistries {
 
     }
 
-    private record HealOwnerFlatPctConfig(Optional<Double> value) {
+    private record HealOwnerFlatPctConfig(Optional<Double> value, Optional<Double> pctAmount,
+                                         Optional<Double> flatAmount) {
         static final Codec<HealOwnerFlatPctConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-            Codec.DOUBLE.optionalFieldOf("value").forGetter(HealOwnerFlatPctConfig::value)
+            Codec.DOUBLE.optionalFieldOf("value").forGetter(HealOwnerFlatPctConfig::value),
+            Codec.DOUBLE.optionalFieldOf("pct_amount").forGetter(HealOwnerFlatPctConfig::pctAmount),
+            Codec.DOUBLE.optionalFieldOf("flat_amount").forGetter(HealOwnerFlatPctConfig::flatAmount)
         ).apply(instance, HealOwnerFlatPctConfig::new));
 
     }

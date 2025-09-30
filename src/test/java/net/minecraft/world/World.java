@@ -22,4 +22,8 @@ public class World {
     public void setTime(long time) {
         this.time = time;
     }
+
+    public boolean isClient() {
+        return false;
+    }
 }

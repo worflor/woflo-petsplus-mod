@@ -1,11 +1,18 @@
 package woflo.petsplus.events;
 
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.Identifier;
+import net.minecraft.registry.tag.BlockTags;
+import net.minecraft.registry.tag.TagKey;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,9 +48,12 @@ import woflo.petsplus.state.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.state.processing.AsyncWorkCoordinator;
 import woflo.petsplus.state.processing.AsyncJobPriority;
+import woflo.petsplus.stats.nature.NatureFlavorHandler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyFloat;
@@ -51,7 +61,6 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.lenient;
@@ -321,6 +330,146 @@ class EmotionsEventHandlerTest {
             assertEquals(1L, largeCount, "should capture exactly one summary with the first batch delta");
         } finally {
             releaseFirstJob.countDown();
+        }
+    }
+
+    @Test
+    void blockBreakDispatchesValuableFlag() throws Exception {
+        MinecraftServer server = new MinecraftServer();
+        ServerWorld world = new ServerWorld(server);
+        world.setTime(80L);
+        ServerPlayerEntity player = new ServerPlayerEntity(world);
+
+        StateManager stateManager = mock(StateManager.class);
+        List<String> events = new ArrayList<>();
+        List<Map<String, Object>> payloads = new ArrayList<>();
+        doAnswer(inv -> {
+            events.add(inv.getArgument(1));
+            payloads.add(inv.getArgument(2));
+            return null;
+        }).when(stateManager).dispatchAbilityTrigger(any(ServerPlayerEntity.class), anyString(), any());
+
+        EmotionCueConfig config = mock(EmotionCueConfig.class);
+        when(config.findBlockBreakDefinition(any())).thenReturn(null);
+
+        Identifier blockId = Identifier.of("minecraft", "diamond_ore");
+        TestBlockState state = new TestBlockState(blockId);
+        state.setValuable(true);
+
+        try (MockedStatic<StateManager> stateManagerStatic = mockStatic(StateManager.class);
+             MockedStatic<EmotionCueConfig> configStatic = mockStatic(EmotionCueConfig.class);
+             MockedStatic<NatureFlavorHandler> natureStatic = mockStatic(NatureFlavorHandler.class)) {
+            stateManagerStatic.when(() -> StateManager.forWorld(world)).thenReturn(stateManager);
+            configStatic.when(EmotionCueConfig::get).thenReturn(config);
+            natureStatic.when(() -> NatureFlavorHandler.triggerForOwner(any(), anyInt(), any())).thenAnswer(inv -> null);
+
+            EmotionsEventHandler.emitOwnerBrokeBlockTrigger(player, state);
+        }
+
+        int idx = events.indexOf("owner_broke_block");
+        assertTrue(idx >= 0, "Expected owner_broke_block trigger");
+        Map<String, Object> payload = payloads.get(idx);
+        assertNotNull(payload, "Block break payload should not be null");
+        assertEquals(Boolean.TRUE, payload.get("block_valuable"), "Valuable ores should set block_valuable flag");
+        assertEquals(blockId, payload.get("block_identifier"), "Payload should include block identifier instance");
+        assertEquals(blockId.toString(), payload.get("block_id"), "Payload should include namespaced string identifier");
+        assertEquals(blockId.getPath(), payload.get("block_id_no_namespace"),
+            "Payload should include namespace-free identifier path");
+    }
+
+    @Test
+    void blockBreakDispatchesNonValuableFlag() throws Exception {
+        MinecraftServer server = new MinecraftServer();
+        ServerWorld world = new ServerWorld(server);
+        world.setTime(92L);
+        ServerPlayerEntity player = new ServerPlayerEntity(world);
+
+        StateManager stateManager = mock(StateManager.class);
+        List<String> events = new ArrayList<>();
+        List<Map<String, Object>> payloads = new ArrayList<>();
+        doAnswer(inv -> {
+            events.add(inv.getArgument(1));
+            payloads.add(inv.getArgument(2));
+            return null;
+        }).when(stateManager).dispatchAbilityTrigger(any(ServerPlayerEntity.class), anyString(), any());
+
+        EmotionCueConfig config = mock(EmotionCueConfig.class);
+        when(config.findBlockBreakDefinition(any())).thenReturn(null);
+
+        Identifier blockId = Identifier.of("minecraft", "stone");
+        TestBlockState state = new TestBlockState(blockId);
+        state.setValuable(false);
+
+        try (MockedStatic<StateManager> stateManagerStatic = mockStatic(StateManager.class);
+             MockedStatic<EmotionCueConfig> configStatic = mockStatic(EmotionCueConfig.class);
+             MockedStatic<NatureFlavorHandler> natureStatic = mockStatic(NatureFlavorHandler.class)) {
+            stateManagerStatic.when(() -> StateManager.forWorld(world)).thenReturn(stateManager);
+            configStatic.when(EmotionCueConfig::get).thenReturn(config);
+            natureStatic.when(() -> NatureFlavorHandler.triggerForOwner(any(), anyInt(), any())).thenAnswer(inv -> null);
+
+            EmotionsEventHandler.emitOwnerBrokeBlockTrigger(player, state);
+        }
+
+        int idx = events.indexOf("owner_broke_block");
+        assertTrue(idx >= 0, "Expected owner_broke_block trigger");
+        Map<String, Object> payload = payloads.get(idx);
+        assertNotNull(payload, "Block break payload should not be null");
+        assertEquals(Boolean.FALSE, payload.get("block_valuable"), "Non-valuable blocks should clear block_valuable flag");
+        assertEquals(blockId, payload.get("block_identifier"), "Payload should include block identifier instance");
+        assertEquals(blockId.toString(), payload.get("block_id"), "Payload should include namespaced string identifier");
+        assertEquals(blockId.getPath(), payload.get("block_id_no_namespace"),
+            "Payload should include namespace-free identifier path");
+    }
+
+    @Test
+    void isValuableBlockDetectsOreTags() throws Exception {
+        BlockState state = mock(BlockState.class);
+        when(state.isIn(BlockTags.DIAMOND_ORES)).thenReturn(true);
+
+        assertTrue(invokeIsValuableBlock(state), "diamond ores should be valuable");
+    }
+
+    @Test
+    void isValuableBlockTreatsNullAsNotValuable() throws Exception {
+        assertFalse(invokeIsValuableBlock(null), "null block states should not be valuable");
+    }
+
+    private static boolean invokeIsValuableBlock(BlockState state) throws Exception {
+        Method method = EmotionsEventHandler.class.getDeclaredMethod("isValuableBlock", BlockState.class);
+        method.setAccessible(true);
+        return (boolean) method.invoke(null, state);
+    }
+
+    private static final class TestBlockState extends BlockState implements EmotionsEventHandler.BlockIdentifierProvider {
+        private final Identifier identifier;
+        private boolean valuable;
+
+        private TestBlockState(Identifier identifier) {
+            this.identifier = identifier;
+        }
+
+        void setValuable(boolean value) {
+            this.valuable = value;
+        }
+
+        @Override
+        public boolean isIn(TagKey<Block> tag) {
+            return valuable;
+        }
+
+        @Override
+        public boolean isOf(Block block) {
+            return valuable;
+        }
+
+        @Override
+        public Block getBlock() {
+            return null;
+        }
+
+        @Override
+        public Identifier petsplus$getIdentifier() {
+            return identifier;
         }
     }
 

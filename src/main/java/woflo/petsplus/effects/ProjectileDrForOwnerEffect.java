@@ -1,7 +1,9 @@
 package woflo.petsplus.effects;
 
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
+import net.minecraft.world.World;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
 
@@ -30,9 +32,25 @@ public class ProjectileDrForOwnerEffect implements Effect {
     
     @Override
     public boolean execute(EffectContext context) {
+        cleanupRemovedOwners();
+
         PlayerEntity owner = context.getOwner();
-        long expiryTime = context.getWorld().getTime() + durationTicks;
-        
+        if (owner == null || owner.isRemoved() || !owner.isAlive()) {
+            return false;
+        }
+
+        ServerWorld world = context.getWorld();
+        if (world == null) {
+            World ownerWorld = owner.getWorld();
+            if (ownerWorld instanceof ServerWorld serverWorld) {
+                world = serverWorld;
+            } else {
+                return false;
+            }
+        }
+
+        long expiryTime = world.getTime() + durationTicks;
+
         ACTIVE_DR.put(owner, new ProjectileDrData(percent, expiryTime));
         return true;
     }
@@ -46,15 +64,34 @@ public class ProjectileDrForOwnerEffect implements Effect {
      * Get the projectile damage reduction for a player.
      */
     public static double getProjectileDr(PlayerEntity player) {
+        if (player == null) {
+            return 0.0;
+        }
+
+        cleanupRemovedOwners();
+
         ProjectileDrData data = ACTIVE_DR.get(player);
-        if (data == null) return 0.0;
-        
-        long currentTime = player.getWorld().getTime();
+        if (data == null) {
+            return 0.0;
+        }
+
+        if (player.isRemoved() || !player.isAlive()) {
+            ACTIVE_DR.remove(player);
+            return 0.0;
+        }
+
+        World world = player.getWorld();
+        if (world == null) {
+            ACTIVE_DR.remove(player);
+            return 0.0;
+        }
+
+        long currentTime = world.getTime();
         if (currentTime >= data.expiryTime) {
             ACTIVE_DR.remove(player);
             return 0.0;
         }
-        
+
         return data.percent;
     }
     
@@ -62,7 +99,11 @@ public class ProjectileDrForOwnerEffect implements Effect {
      * Clean up expired damage reduction effects.
      */
     public static void cleanupExpired(long currentTime) {
-        ACTIVE_DR.entrySet().removeIf(entry -> currentTime >= entry.getValue().expiryTime);
+        ACTIVE_DR.entrySet().removeIf(entry -> currentTime >= entry.getValue().expiryTime || entry.getKey().isRemoved());
+    }
+
+    private static void cleanupRemovedOwners() {
+        ACTIVE_DR.entrySet().removeIf(entry -> entry.getKey().isRemoved());
     }
     
     private static class ProjectileDrData {

@@ -26,4 +26,8 @@ public class LivingEntity extends Entity {
     public void setMaxHealth(float maxHealth) {
         this.maxHealth = maxHealth;
     }
+
+    public net.minecraft.entity.EntityType<?> getType() {
+        return null;
+    }
 }
