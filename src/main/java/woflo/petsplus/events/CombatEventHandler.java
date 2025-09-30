@@ -129,6 +129,10 @@ public class CombatEventHandler {
      * Called when a player attacks an entity directly.
      */
     private static ActionResult onPlayerAttack(PlayerEntity player, World world, Hand hand, Entity target, EntityHitResult hitResult) {
+        if (world.isClient) {
+            return ActionResult.PASS;
+        }
+        
         if (target instanceof LivingEntity livingTarget) {
             // Apply any next attack riders
             OwnerCombatState combatState = OwnerCombatState.get(player);
