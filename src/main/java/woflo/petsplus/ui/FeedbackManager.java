@@ -103,6 +103,13 @@ public class FeedbackManager {
         // Don't emit during combat for cleaner visuals
         if (world.getTime() - component.getLastAttackTick() < 60) return;
 
+        // Check for dev crown easter egg first
+        Boolean hasDevCrown = component.getStateData("has_dev_crown", Boolean.class, false);
+        if (hasDevCrown) {
+            emitDevCrown(pet, world, currentTick);
+            return; // Crown replaces regular ambient particles for extra special feel
+        }
+
         Identifier roleId = component.getRoleId();
         PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
         if (roleType == null) {
@@ -115,6 +122,57 @@ public class FeedbackManager {
             eventName = roleId.getPath() + "_ambient";
         }
         emitFeedback(eventName, pet, world);
+    }
+
+    /**
+     * Emit the developer crown particle effect for pets named "woflo".
+     * Creates a slowly rotating ring of END_ROD particles above the pet's head.
+     */
+    public static void emitDevCrown(MobEntity pet, ServerWorld world, long currentTick) {
+        if (!pet.isAlive() || pet.isRemoved()) return;
+
+        // Check if dev crown is enabled in config
+        var config = woflo.petsplus.config.PetsPlusConfig.getInstance();
+        if (!config.isDevCrownEnabled()) return;
+
+        // Get proper head position accounting for entity type and animations
+        Vec3d petPos = pet.getLerpedPos(1.0f);
+        double headHeight = pet.getEyeY() - petPos.y; // Distance from feet to eyes
+        double crownHeight = headHeight + 0.3; // Slightly above head
+
+        // Scale crown radius with entity size
+        double entityRadius = Math.max(pet.getWidth(), 0.5);
+        double crownRadius = entityRadius * 0.4; // Crown is 40% of entity width
+
+        // Slow rotation for majestic effect (10 second period)
+        double time = world.getTime() * 0.1;
+        int particleCount = 10;
+
+        for (int i = 0; i < particleCount; i++) {
+            double angle = (i / (double) particleCount) * 2 * Math.PI + time;
+            double x = petPos.x + Math.cos(angle) * crownRadius;
+            double z = petPos.z + Math.sin(angle) * crownRadius;
+            double y = petPos.y + crownHeight;
+
+            // Main crown particles - END_ROD for that holographic feel
+            world.spawnParticles(ParticleTypes.END_ROD,
+                x, y, z,
+                1, 0.01, 0.01, 0.01, 0.002);
+
+            // Add occasional sparkles at cardinal points for extra flair
+            if (i % 3 == 0 && world.getRandom().nextFloat() < 0.3) {
+                world.spawnParticles(ParticleTypes.ENCHANT,
+                    x, y + 0.1, z,
+                    1, 0.02, 0.02, 0.02, 0.01);
+            }
+        }
+
+        // Apex sparkle effect (top of crown) every other update
+        if (currentTick % (AMBIENT_PARTICLE_INTERVAL * 2) == 0) {
+            world.spawnParticles(ParticleTypes.WAX_ON,
+                petPos.x, petPos.y + crownHeight + 0.15, petPos.z,
+                3, 0.05, 0.05, 0.05, 0.01);
+        }
     }
 
     /**

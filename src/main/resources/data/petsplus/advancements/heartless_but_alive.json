@@ -16,8 +16,12 @@
   },
   "parent": "petsplus:at_what_cost",
   "criteria": {
-    "trigger": {
-      "trigger": "minecraft:tick"
+    "requirement": {
+      "trigger": "petsplus:pet_stat_threshold",
+      "conditions": {
+        "stat_type": "dream_escapes",
+        "min_value": 10.0
+      }
     }
   }
 }

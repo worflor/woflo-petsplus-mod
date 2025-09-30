@@ -101,13 +101,12 @@ public class PettingHandler {
         petComp.pushEmotion(PetComponent.Emotion.QUERECIA, 0.4f);
         petComp.updateMood();
 
-        // Achievement tracking
-        if (newCount >= 100) {
-            woflo.petsplus.advancement.AdvancementManager.triggerPettingMilestone(player, newCount);
-        }
-        if (newCount == 1) {
-            woflo.petsplus.advancement.AdvancementManager.triggerPettingMilestone(player, newCount);
-        }
+        // Achievement tracking - fire interaction criterion
+        woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_INTERACTION.trigger(
+            player,
+            woflo.petsplus.advancement.criteria.PetInteractionCriterion.INTERACTION_PETTING,
+            newCount
+        );
     }
 
     private static void emitBasePettingEffects(ServerPlayerEntity player, MobEntity pet, ServerWorld world, int petCount) {

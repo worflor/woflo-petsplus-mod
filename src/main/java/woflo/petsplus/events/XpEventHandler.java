@@ -18,7 +18,7 @@ import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.api.event.PetLevelUpEvent;
 import woflo.petsplus.api.event.XpAwardEvent;
 import woflo.petsplus.api.registry.PetRoleType;
-import woflo.petsplus.advancement.AdvancementManager;
+import woflo.petsplus.advancement.AdvancementCriteriaRegistry;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetSwarmIndex;
@@ -119,7 +119,6 @@ public class XpEventHandler {
 
             int petXpGain = Math.max(1, (int) (xpGained * baseXpModifier * levelScaleModifier * learningModifier * participationModifier));
 
-            boolean wasFirstBond = petComp.getLevel() == 1 && petComp.getExperience() == 0;
             int previousLevel = petComp.getLevel();
 
             XpAwardEvent.Context xpContext = new XpAwardEvent.Context(
@@ -139,11 +138,10 @@ public class XpEventHandler {
             int awardedXp = xpContext.getAmount();
             boolean leveledUp = petComp.addExperience(awardedXp);
 
-            if (wasFirstBond) {
-                AdvancementManager.triggerFirstPetBond(owner);
-            }
-
             if (leveledUp) {
+                // Trigger pet level criterion only when leveling up
+                String roleIdStr = petComp.getRoleId() != null ? petComp.getRoleId().toString() : null;
+                AdvancementCriteriaRegistry.PET_LEVEL.trigger(owner, petComp.getLevel(), roleIdStr);
                 PetLevelUpEvent.Context levelContext = new PetLevelUpEvent.Context(
                     owner,
                     pet,
@@ -243,25 +241,12 @@ public class XpEventHandler {
         int newLevel = petComp.getLevel();
         PetRoleType roleType = petComp.getRoleType();
 
-        // Trigger advancement for milestone levels defined by the role
-        for (int milestone : roleType.xpCurve().tributeMilestones()) {
-            if (newLevel == milestone) {
-                AdvancementManager.triggerMilestoneUnlock(owner, newLevel);
-                break;
-            }
-        }
+        // No need to manually trigger advancements anymore - the criterion system handles it!
+        // The PET_LEVEL criterion is already fired above with proper role/level conditions
 
-        // Trigger max level advancement if applicable
-        if (newLevel == roleType.xpCurve().maxLevel()) {
-            AdvancementManager.triggerPetLevel30(owner, pet);
-        }
-
-        // Trigger role-specific milestones
+        // Trigger role-specific milestones for messages/sounds only
         for (PetRoleType.MilestoneAdvancement advancement : roleType.milestoneAdvancements()) {
             if (advancement.level() == newLevel) {
-                if (advancement.advancementId() != null) {
-                    AdvancementManager.triggerConfiguredAdvancement(owner, advancement.advancementId());
-                }
                 sendMilestoneMessage(owner, pet, advancement);
                 playMilestoneSound(owner, pet, advancement.sound());
             }

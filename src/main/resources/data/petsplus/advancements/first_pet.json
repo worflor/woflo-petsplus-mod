@@ -15,8 +15,11 @@
     "hidden": false
   },
   "criteria": {
-    "trigger": {
-      "trigger": "minecraft:tick"
+    "requirement": {
+      "trigger": "petsplus:pet_level",
+      "conditions": {
+        "min_level": 1
+      }
     }
   }
 }

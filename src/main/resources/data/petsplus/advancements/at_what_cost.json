@@ -16,8 +16,12 @@
   },
   "parent": "petsplus:noo_luna",
   "criteria": {
-    "trigger": {
-      "trigger": "minecraft:tick"
+    "requirement": {
+      "trigger": "petsplus:pet_stat_threshold",
+      "conditions": {
+        "stat_type": "dream_escapes",
+        "min_value": 3.0
+      }
     }
   }
 }

@@ -361,6 +361,15 @@ public class PetDetectionHandler {
             }
         }
 
+        // Trigger "First Pet" advancement when first bonding
+        if (owner instanceof net.minecraft.server.network.ServerPlayerEntity serverPlayer) {
+            woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_LEVEL.trigger(
+                serverPlayer,
+                component.getLevel(),
+                roleId.toString()
+            );
+        }
+
         Petsplus.LOGGER.info("Manually registered pet {} with role {} for owner {}",
             mob.getType().toString(), roleId, owner.getName().getString());
     }

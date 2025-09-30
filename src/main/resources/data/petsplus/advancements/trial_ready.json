@@ -16,8 +16,11 @@
   },
   "parent": "petsplus:first_pet",
   "criteria": {
-    "trigger": {
-      "trigger": "minecraft:tick"
+    "requirement": {
+      "trigger": "petsplus:pet_level",
+      "conditions": {
+        "min_level": 10
+      }
     }
   }
 }

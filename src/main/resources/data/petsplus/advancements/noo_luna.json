@@ -16,8 +16,12 @@
   },
   "parent": "petsplus:trial_ready",
   "criteria": {
-    "trigger": {
-      "trigger": "minecraft:tick"
+    "requirement": {
+      "trigger": "petsplus:pet_stat_threshold",
+      "conditions": {
+        "stat_type": "dream_escapes",
+        "min_value": 1.0
+      }
     }
   }
 }

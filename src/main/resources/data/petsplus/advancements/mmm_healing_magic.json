@@ -17,8 +17,12 @@
   },
   "parent": "petsplus:trial_ready",
   "criteria": {
-    "trigger": {
-      "trigger": "minecraft:tick"
+    "requirement": {
+      "trigger": "petsplus:pet_stat_threshold",
+      "conditions": {
+        "stat_type": "unique_allies_healed",
+        "min_value": 5.0
+      }
     }
   }
 }

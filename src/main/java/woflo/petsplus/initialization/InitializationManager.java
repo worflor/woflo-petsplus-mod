@@ -41,15 +41,18 @@ public class InitializationManager {
 
         // Register component types
         woflo.petsplus.component.PetsplusComponents.register();
-        
+
         // Initialize configuration
         PetsPlusConfig.getInstance();
 
         // Load reusable visual systems
         woflo.petsplus.ui.AfterimageManager.initialize();
-        
+
         // Register custom argument types
         PetRoleArgumentType.register();
+
+        // Register custom advancement criteria (new event-driven system)
+        woflo.petsplus.advancement.AdvancementCriteriaRegistry.register();
 
         // Register default emotion providers
         var mood = woflo.petsplus.api.mood.MoodAPI.get();

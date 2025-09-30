@@ -11,7 +11,7 @@ import net.minecraft.util.Formatting;
 import woflo.petsplus.abilities.AbilityManager;
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.advancement.AdvancementManager;
+import woflo.petsplus.advancement.AdvancementCriteriaRegistry;
 import woflo.petsplus.items.ProofOfExistence;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.roles.enchantmentbound.EnchantmentBoundGearSwapManager;
@@ -47,6 +47,7 @@ public class PetDeathHandler {
                                                 DamageSource damageSource) {
         // Store info before removal
         String petName = pet.hasCustomName() ? pet.getCustomName().getString() : pet.getType().getName().getString();
+        int petLevel = petComp.getLevel();
         var owner = petComp.getOwner();
         ServerPlayerEntity serverOwner = owner instanceof ServerPlayerEntity ? (ServerPlayerEntity) owner : null;
 
@@ -63,12 +64,12 @@ public class PetDeathHandler {
 
         // Drop the Proof of Existence memorial item
         ProofOfExistence.dropMemorial(pet, petComp, world);
-        
+
         // Notify owner if nearby and alive
         if (serverOwner != null && !serverOwner.isDead() && serverOwner.getWorld() == world) {
             double distance = serverOwner.distanceTo(pet);
             if (distance <= 64) { // Within 64 blocks
-                
+
                 // Special message for Cursed One pets
                 if (petComp.hasRole(PetRoleType.CURSED_ONE)) {
                     serverOwner.sendMessage(
@@ -90,8 +91,8 @@ public class PetDeathHandler {
                     );
                 }
 
-                // Trigger advancement for permanent pet death
-                AdvancementManager.triggerPetPermanentDeath(serverOwner, pet);
+                // Trigger advancement criterion for permanent pet death
+                AdvancementCriteriaRegistry.PET_DEATH.trigger(serverOwner, petLevel, true);
             }
         }
         

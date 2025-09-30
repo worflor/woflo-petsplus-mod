@@ -16,8 +16,15 @@
   },
   "parent": "petsplus:first_pet",
   "criteria": {
-    "trigger": {
-      "trigger": "minecraft:impossible"
+    "requirement": {
+      "trigger": "petsplus:pet_mood_transition",
+      "conditions": {
+        "from_mood": "RESTLESS",
+        "min_from_level": 3,
+        "to_mood": "HAPPY",
+        "min_to_level": 1,
+        "max_ticks_elapsed": 2000
+      }
     }
   }
 }

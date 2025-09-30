@@ -3,7 +3,7 @@ package woflo.petsplus.mood;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import woflo.petsplus.advancement.AdvancementManager;
+import woflo.petsplus.advancement.AdvancementCriteriaRegistry;
 import woflo.petsplus.api.mood.MoodAPI;
 import woflo.petsplus.api.mood.MoodListener;
 import woflo.petsplus.state.PetComponent;
@@ -47,54 +47,58 @@ public final class MoodAdvancementTracker implements MoodListener {
         long now = serverWorld.getTime();
         MoodState tracker = state.computeIfAbsent(pet, ignored -> new MoodState());
 
-        handleRestlessMilestone(newMood, newLevel, owner, now, tracker);
-        handleAngryMilestone(newMood, newLevel, owner, now, tracker);
+        // Handle transition-based milestones (RESTLESS→HAPPY, ANGRY→CALM)
+        handleRestlessMilestone(oldMood, oldLevel, newMood, newLevel, owner, now, tracker);
+        handleAngryMilestone(oldMood, oldLevel, newMood, newLevel, owner, now, tracker);
 
-        if (newLevel >= 3) {
-            AdvancementManager.triggerMoodLevelThree(owner, newMood);
-        }
+        // Trigger mood level criterion for all mood changes
+        AdvancementCriteriaRegistry.PET_MOOD_LEVEL.trigger(owner, newMood, newLevel);
     }
 
-    private void handleRestlessMilestone(PetComponent.Mood newMood, int newLevel,
+    private void handleRestlessMilestone(PetComponent.Mood oldMood, int oldLevel,
+                                         PetComponent.Mood newMood, int newLevel,
                                          ServerPlayerEntity owner, long now, MoodState tracker) {
+        // Track when RESTLESS level 3+ is reached
         if (newMood == PetComponent.Mood.RESTLESS && newLevel >= 3) {
             tracker.restlessArmed = true;
             tracker.restlessArmedTick = now;
             return;
         }
 
-        if (!tracker.restlessArmed) {
-            return;
-        }
-
-        if (newMood == PetComponent.Mood.HAPPY && newLevel >= 1) {
-            if (now - tracker.restlessArmedTick <= RESTLESS_RELAX_WINDOW_TICKS) {
-                AdvancementManager.triggerRestlessRelax(owner);
-            }
+        // Check if transitioning from RESTLESS to HAPPY within time window
+        if (tracker.restlessArmed && oldMood == PetComponent.Mood.RESTLESS &&
+            newMood == PetComponent.Mood.HAPPY && newLevel >= 1) {
+            long ticksElapsed = now - tracker.restlessArmedTick;
+            // Fire the transition criterion (JSON validates the time window)
+            AdvancementCriteriaRegistry.PET_MOOD_TRANSITION.trigger(owner,
+                oldMood, oldLevel, newMood, newLevel, ticksElapsed);
             tracker.restlessArmed = false;
-        } else if (now - tracker.restlessArmedTick > RESTLESS_RELAX_WINDOW_TICKS) {
+        } else if (tracker.restlessArmed && now - tracker.restlessArmedTick > RESTLESS_RELAX_WINDOW_TICKS) {
+            // Window expired
             tracker.restlessArmed = false;
         }
     }
 
-    private void handleAngryMilestone(PetComponent.Mood newMood, int newLevel,
+    private void handleAngryMilestone(PetComponent.Mood oldMood, int oldLevel,
+                                      PetComponent.Mood newMood, int newLevel,
                                       ServerPlayerEntity owner, long now, MoodState tracker) {
+        // Track when ANGRY level 3+ is reached
         if (newMood == PetComponent.Mood.ANGRY && newLevel >= 3) {
             tracker.angryArmed = true;
             tracker.angryArmedTick = now;
             return;
         }
 
-        if (!tracker.angryArmed) {
-            return;
-        }
-
-        if (newMood != PetComponent.Mood.ANGRY && newLevel <= 1) {
-            if (now - tracker.angryArmedTick <= ANGRY_SOOTHE_WINDOW_TICKS) {
-                AdvancementManager.triggerAngryCooldown(owner);
-            }
+        // Check if transitioning from ANGRY to non-ANGRY with low level within time window
+        if (tracker.angryArmed && oldMood == PetComponent.Mood.ANGRY &&
+            newMood != PetComponent.Mood.ANGRY && newLevel <= 1) {
+            long ticksElapsed = now - tracker.angryArmedTick;
+            // Fire the transition criterion (JSON validates the time window)
+            AdvancementCriteriaRegistry.PET_MOOD_TRANSITION.trigger(owner,
+                oldMood, oldLevel, newMood, newLevel, ticksElapsed);
             tracker.angryArmed = false;
-        } else if (now - tracker.angryArmedTick > ANGRY_SOOTHE_WINDOW_TICKS) {
+        } else if (tracker.angryArmed && now - tracker.angryArmedTick > ANGRY_SOOTHE_WINDOW_TICKS) {
+            // Window expired
             tracker.angryArmed = false;
         }
     }

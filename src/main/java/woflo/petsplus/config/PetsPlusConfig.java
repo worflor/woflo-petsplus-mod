@@ -770,6 +770,15 @@ public class PetsPlusConfig {
         return readBoolean(getTributeOrbitalLevelConfig(level), "burst_effects", level >= 30);
     }
 
+    // Developer Crown Configuration (Easter Egg)
+    public JsonObject getDevCrownSection() {
+        return getSection("dev_crown");
+    }
+
+    public boolean isDevCrownEnabled() {
+        return readBoolean(getDevCrownSection(), "enabled", true);
+    }
+
     public int getActionBarRecentPetLimit() {
         return readInt(getSection("action_bar"), "recent_pet_limit", 1);
     }

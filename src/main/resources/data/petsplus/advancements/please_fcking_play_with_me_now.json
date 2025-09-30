@@ -16,8 +16,12 @@
   },
   "parent": "petsplus:first_pet",
   "criteria": {
-    "trigger": {
-      "trigger": "minecraft:impossible"
+    "requirement": {
+      "trigger": "petsplus:pet_mood_level",
+      "conditions": {
+        "mood": "PLAYFUL",
+        "min_level": 3
+      }
     }
   }
 }

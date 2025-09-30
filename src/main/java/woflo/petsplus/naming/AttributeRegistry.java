@@ -298,6 +298,17 @@ public class AttributeRegistry {
             }
         });
 
+        // Direct "woflo" name detection (easter egg)
+        registerHandler("woflo", (pet, attr, comp) -> {
+            comp.setStateData("has_dev_crown", true);
+            Petsplus.LOGGER.info("Pet {} granted developer crown effect", pet.getUuid());
+
+            PlayerEntity owner = comp.getOwner();
+            if (owner instanceof ServerPlayerEntity serverPlayer && !serverPlayer.getWorld().isClient()) {
+                serverPlayer.sendMessage(Text.literal("✨ Your pet has been blessed with the developer's crown! ✨"), false);
+            }
+        });
+
         Petsplus.LOGGER.info("Registered {} built-in attribute handlers", HANDLERS.size());
     }
 }

@@ -69,12 +69,13 @@ public abstract class ServerPlayNetworkHandlerMixin {
     }
 
     private static boolean isAttack(PlayerInteractEntityC2SPacket packet) {
-        class Result implements PlayerInteractEntityC2SPacket.Handler {
-            private boolean attack;
+        // Use anonymous class instead of local class to avoid Mixin package restrictions
+        final boolean[] isAttack = {false};
 
+        packet.handle(new PlayerInteractEntityC2SPacket.Handler() {
             @Override
             public void attack() {
-                this.attack = true;
+                isAttack[0] = true;
             }
 
             @Override
@@ -84,10 +85,8 @@ public abstract class ServerPlayNetworkHandlerMixin {
             @Override
             public void interactAt(Hand hand, Vec3d pos) {
             }
-        }
+        });
 
-        Result result = new Result();
-        packet.handle(result);
-        return result.attack;
+        return isAttack[0];
     }
 }

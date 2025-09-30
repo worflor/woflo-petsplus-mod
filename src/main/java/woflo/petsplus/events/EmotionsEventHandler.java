@@ -1820,6 +1820,12 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         Vec3d center = owner.getPos();
         List<PetSwarmIndex.SwarmEntry> pets = new ArrayList<>();
         swarmIndex.forEachPetInRange(owner, center, radius, pets::add);
+
+        // Early exit: if no pets found, return null to signal no work needed
+        if (pets.isEmpty()) {
+            return null;
+        }
+
         long startTick = owner.getWorld().getTime();
         StimulusSummary.Builder builder = StimulusSummary.builder(startTick);
         List<CompletableFuture<Void>> pendingDispatches = new ArrayList<>();
@@ -2077,14 +2083,19 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                                              String cueId,
                                              Supplier<Text> cueTextSupplier,
                                              long cooldownTicks) {
+        // Early exit: if no pets were found/affected, don't send any cue
         if (summaryFuture == null) {
-            deliverCue(owner, cueId, cueTextSupplier, cooldownTicks);
             return;
         }
         summaryFuture.whenComplete((summary, throwable) -> {
             if (throwable != null) {
                 Petsplus.LOGGER.error("Failed to finalize stimulus summary before emitting cue {}", cueId,
                     unwrapAsyncError(throwable));
+                return;
+            }
+
+            // Skip cue if no pets were actually affected
+            if (summary == null || summary.isEmpty()) {
                 return;
             }
 

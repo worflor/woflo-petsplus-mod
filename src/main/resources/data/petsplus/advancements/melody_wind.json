@@ -16,8 +16,12 @@
   },
   "parent": "petsplus:trial_ready",
   "criteria": {
-    "trigger": {
-      "trigger": "minecraft:tick"
+    "requirement": {
+      "trigger": "petsplus:pet_level",
+      "conditions": {
+        "min_level": 20,
+        "role": "petsplus:skyrider"
+      }
     }
   }
 }

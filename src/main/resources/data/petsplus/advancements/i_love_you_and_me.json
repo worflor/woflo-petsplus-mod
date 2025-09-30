@@ -16,8 +16,12 @@
   },
   "parent": "petsplus:trial_ready",
   "criteria": {
-    "trigger": {
-      "trigger": "minecraft:tick"
+    "requirement": {
+      "trigger": "petsplus:pet_interaction",
+      "conditions": {
+        "interaction_type": "stargazing",
+        "min_count": 1
+      }
     }
   }
 }
