@@ -117,7 +117,7 @@ These keepsakes aren’t just tear-stained notes anymore—they catalog the pet�
 ## Advancements
 - "Best Friends Forever++" 
 - "Boop" [ Pet your companion for the first time ]
-- "Devoted Companion" [ Pet your companions a hundred times ]
+- "Devoted Companion" [ Pet your companion(s) a hundred times ]
 - "Trial-Ready" [ Max level a *Scout* pet ]
 - "The Melody of the Wind" [ Max level a *Skyrider* pet ]
 - "Edgewalker" [ Level 30 on *Eclisped* pet ]
@@ -136,7 +136,10 @@ These keepsakes aren’t just tear-stained notes anymore—they catalog the pet�
 - "Indiana Bones and the Temple of Zoomies" [ Witniss a pet's *Curious Mood* at its most intense for the first time ]
 - "Bond Voyage!" [ Witniss a pet's *Bonded Mood* at its most intense for the first time ]
 - "Be More Chilllllll" [ Witniss a pet's *Calm Mood* at its most intense for the first time ]
-- "Hearts on Pyre" [RENAME CUZ I HATE]
+- "Ride or Die (please don't die)" [ Witniss a pet's *Passionate Mood* at its most intense for the first time ]
+
+
+
 - "(sighs) sigh…" [ Witniss a pet's *Yūgen Mood* at its most intense for the first time ]
 - "Finnish Him!" [ Witniss a pet's *Sisu Mood* at its most intense for the first time ] 
 - "Afraidiana Grande" [ Witniss a pet's *Afraid Mood* at its most intense for the first time ]
@@ -166,4 +169,4 @@ All compute heavy tasks are done asynchronously using background threads.
 - woflo - (me)
 - woflo - (myself)
 - woflo - (i)
-- GuriCreates (insert promo here) - Mod Icon
+- GuriCreates [ https://guricreates.com ] - Mod Icon
