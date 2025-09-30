@@ -1,0 +1,31 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "support_heal_allies": {
+      "conditions": {
+        "min_value": 5.0,
+        "stat_type": "allies_healed"
+      },
+      "trigger": "petsplus:pet_stat_threshold"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.mmm_healing_magic.desc"
+    },
+    "frame": "goal",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:glistering_melon_slice"
+    },
+    "title": {
+      "translate": "petsplus.adv.mmm_healing_magic.title"
+    }
+  },
+  "requirements": [
+    [
+      "support_heal_allies"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

@@ -640,6 +640,7 @@ public final class PetsPlusRegistries {
         registerAbilityType("finisher_mark", createPlaceholderAbility("finisher_mark"));
         registerAbilityType("bloodlust_surge", createPlaceholderAbility("bloodlust_surge"));
         registerAbilityType("perch_potion_efficiency", createPlaceholderAbility("perch_potion_efficiency"));
+        registerAbilityType("support_potion_pulse", createPlaceholderAbility("support_potion_pulse"));
         registerAbilityType("mounted_cone_aura", createPlaceholderAbility("mounted_cone_aura"));
         registerAbilityType("loot_wisp", createPlaceholderAbility("loot_wisp"));
         registerAbilityType("windlash_rider", createPlaceholderAbility("windlash_rider"));

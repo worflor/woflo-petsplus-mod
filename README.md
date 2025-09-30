@@ -115,6 +115,8 @@ Hey wait, memorialize that trauma! A **Proof of Existence** drops on every pet d
 
 ## Advancements
 - "Best Friends Forever++" 
+- "Boop" [ Pet your companion for the first time ]
+- "Devoted Companion" [ Pet your companions a hundred times ]
 - "Trial-Ready" [ Max level a *Scout* pet ]
 - "The Melody of the Wind" [ Max level a *Skyrider* pet ]
 - "Edgewalker" [ Level 30 on *Eclisped* pet ]

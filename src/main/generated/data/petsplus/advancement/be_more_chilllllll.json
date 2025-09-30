@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "calm_level_3": {
+      "conditions": {
+        "min_level": 3,
+        "mood": "CALM"
+      },
+      "trigger": "petsplus:pet_mood_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.be_more_chilllllll.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:blue_ice"
+    },
+    "title": {
+      "translate": "petsplus.adv.be_more_chilllllll.title"
+    }
+  },
+  "requirements": [
+    [
+      "calm_level_3"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

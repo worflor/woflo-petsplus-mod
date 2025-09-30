@@ -1,0 +1,31 @@
+{
+  "parent": "petsplus:trial_ready",
+  "criteria": {
+    "ability_max_rank": {
+      "conditions": {
+        "min_value": 1.0,
+        "stat_type": "ability_max_rank"
+      },
+      "trigger": "petsplus:pet_stat_threshold"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.is_this_designer.desc"
+    },
+    "frame": "challenge",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:enchanted_book"
+    },
+    "title": {
+      "translate": "petsplus.adv.is_this_designer.title"
+    }
+  },
+  "requirements": [
+    [
+      "ability_max_rank"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "curious_level_3": {
+      "conditions": {
+        "min_level": 3,
+        "mood": "CURIOUS"
+      },
+      "trigger": "petsplus:pet_mood_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.indiana_bones_zoomies.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:brush"
+    },
+    "title": {
+      "translate": "petsplus.adv.indiana_bones_zoomies.title"
+    }
+  },
+  "requirements": [
+    [
+      "curious_level_3"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

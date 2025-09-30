@@ -1,0 +1,31 @@
+{
+  "parent": "petsplus:gentle_touch",
+  "criteria": {
+    "pet_100_times": {
+      "conditions": {
+        "interaction_type": "petting",
+        "min_count": 100
+      },
+      "trigger": "petsplus:pet_interaction"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.devoted_companion.desc"
+    },
+    "frame": "challenge",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:enchanted_golden_apple"
+    },
+    "title": {
+      "translate": "petsplus.adv.devoted_companion.title"
+    }
+  },
+  "requirements": [
+    [
+      "pet_100_times"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

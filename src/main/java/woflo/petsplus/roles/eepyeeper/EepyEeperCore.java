@@ -203,9 +203,15 @@ public class EepyEeperCore implements PlayerTickListener {
 
             }
 
-            // Trigger advancement
-
-            AdvancementManager.triggerDreamEscape(player);
+            // Trigger advancement (track total dream escapes for the player)
+            woflo.petsplus.state.PlayerAdvancementState state = woflo.petsplus.state.PlayerAdvancementState.getOrCreate(player);
+            state.incrementDreamEscapeCount();
+            int dreamEscapes = state.getDreamEscapeCount();
+            woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_INTERACTION.trigger(
+                player,
+                woflo.petsplus.advancement.criteria.PetInteractionCriterion.INTERACTION_DREAM_ESCAPE,
+                dreamEscapes
+            );
 
             // Create dramatic Dream's Escape visual/audio effects
 

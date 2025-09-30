@@ -1,0 +1,31 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "stargaze_complete": {
+      "conditions": {
+        "interaction_type": "stargazing",
+        "min_count": 1
+      },
+      "trigger": "petsplus:pet_interaction"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.i_love_you_and_me.desc"
+    },
+    "frame": "goal",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:spyglass"
+    },
+    "title": {
+      "translate": "petsplus.adv.i_love_you_and_me.title"
+    }
+  },
+  "requirements": [
+    [
+      "stargaze_complete"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

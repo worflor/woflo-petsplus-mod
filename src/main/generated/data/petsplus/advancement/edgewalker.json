@@ -1,0 +1,31 @@
+{
+  "parent": "petsplus:trial_ready",
+  "criteria": {
+    "eclipsed_30": {
+      "conditions": {
+        "min_level": 30,
+        "role": "petsplus:eclipsed"
+      },
+      "trigger": "petsplus:pet_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.edgewalker.desc"
+    },
+    "frame": "goal",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:ender_pearl"
+    },
+    "title": {
+      "translate": "petsplus.adv.edgewalker.title"
+    }
+  },
+  "requirements": [
+    [
+      "eclipsed_30"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

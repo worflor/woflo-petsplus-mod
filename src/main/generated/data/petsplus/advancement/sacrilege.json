@@ -1,0 +1,31 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "guardian_tank_damage": {
+      "conditions": {
+        "min_value": 1000.0,
+        "stat_type": "damage_taken"
+      },
+      "trigger": "petsplus:pet_stat_threshold"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.sacrilege.desc"
+    },
+    "frame": "goal",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:netherite_chestplate"
+    },
+    "title": {
+      "translate": "petsplus.adv.sacrilege.title"
+    }
+  },
+  "requirements": [
+    [
+      "guardian_tank_damage"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

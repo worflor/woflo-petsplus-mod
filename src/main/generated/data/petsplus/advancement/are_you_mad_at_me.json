@@ -1,0 +1,31 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "angry_cooldown": {
+      "conditions": {
+        "from_mood": "ANGRY",
+        "min_from_level": 3
+      },
+      "trigger": "petsplus:pet_mood_transition"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.are_you_mad_at_me.desc"
+    },
+    "frame": "goal",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:rose_bush"
+    },
+    "title": {
+      "translate": "petsplus.adv.are_you_mad_at_me.title"
+    }
+  },
+  "requirements": [
+    [
+      "angry_cooldown"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

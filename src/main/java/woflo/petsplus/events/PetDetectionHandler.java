@@ -257,6 +257,15 @@ public class PetDetectionHandler {
             // Generate unique characteristics for this pet (first time only)
             component.ensureCharacteristics();
             
+            // Trigger "First Pet" advancement when first bonding
+            if (player instanceof net.minecraft.server.network.ServerPlayerEntity serverPlayer) {
+                woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_LEVEL.trigger(
+                    serverPlayer,
+                    component.getLevel(),
+                    roleId.toString()
+                );
+            }
+            
             // Remove from pending list
             pendingRoleSelection.remove(pet);
 

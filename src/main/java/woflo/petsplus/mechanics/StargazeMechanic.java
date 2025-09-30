@@ -294,7 +294,11 @@ public final class StargazeMechanic implements PlayerTickListener {
             pet.getType().getName().getString();
 
         // Trigger advancement
-        AdvancementManager.triggerStargazeTimeout(player);
+        woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_INTERACTION.trigger(
+            player,
+            woflo.petsplus.advancement.criteria.PetInteractionCriterion.INTERACTION_STARGAZING,
+            1
+        );
 
         // Remove from tracking
         activeSessions.remove(player.getUuid());

@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "protective_level_3": {
+      "conditions": {
+        "min_level": 3,
+        "mood": "PROTECTIVE"
+      },
+      "trigger": "petsplus:pet_mood_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.guardian_of_the_grrr_laxy.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:shield"
+    },
+    "title": {
+      "translate": "petsplus.adv.guardian_of_the_grrr_laxy.title"
+    }
+  },
+  "requirements": [
+    [
+      "protective_level_3"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "dream_escape": {
+      "conditions": {
+        "interaction_type": "dream_escape",
+        "min_count": 1
+      },
+      "trigger": "petsplus:pet_interaction"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.noo_luna.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:totem_of_undying"
+    },
+    "title": {
+      "translate": "petsplus.adv.noo_luna.title"
+    }
+  },
+  "requirements": [
+    [
+      "dream_escape"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

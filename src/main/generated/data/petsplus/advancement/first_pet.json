@@ -1,0 +1,29 @@
+{
+  "criteria": {
+    "has_pet": {
+      "conditions": {
+        "min_level": 1
+      },
+      "trigger": "petsplus:pet_level"
+    }
+  },
+  "display": {
+    "background": "minecraft:textures/block/smooth_stone.png",
+    "description": {
+      "translate": "petsplus.adv.first_pet.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:bone"
+    },
+    "title": {
+      "translate": "petsplus.adv.first_pet.title"
+    }
+  },
+  "requirements": [
+    [
+      "has_pet"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

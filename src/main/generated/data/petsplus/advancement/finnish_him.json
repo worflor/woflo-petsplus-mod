@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "sisu_level_3": {
+      "conditions": {
+        "min_level": 3,
+        "mood": "SISU"
+      },
+      "trigger": "petsplus:pet_mood_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.finnish_him.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:iron_chestplate"
+    },
+    "title": {
+      "translate": "petsplus.adv.finnish_him.title"
+    }
+  },
+  "requirements": [
+    [
+      "sisu_level_3"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

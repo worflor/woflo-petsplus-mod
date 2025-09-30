@@ -1,0 +1,29 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "level_10": {
+      "conditions": {
+        "min_level": 10
+      },
+      "trigger": "petsplus:pet_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.trial_ready.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:gold_ingot"
+    },
+    "title": {
+      "translate": "petsplus.adv.trial_ready.title"
+    }
+  },
+  "requirements": [
+    [
+      "level_10"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

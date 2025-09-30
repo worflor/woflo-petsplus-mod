@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "saudade_level_3": {
+      "conditions": {
+        "min_level": 3,
+        "mood": "SAUDADE"
+      },
+      "trigger": "petsplus:pet_mood_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.wish_you_were_here_fur_real.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:echo_shard"
+    },
+    "title": {
+      "translate": "petsplus.adv.wish_you_were_here_fur_real.title"
+    }
+  },
+  "requirements": [
+    [
+      "saudade_level_3"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

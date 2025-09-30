@@ -1,0 +1,33 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "restless_to_happy": {
+      "conditions": {
+        "from_mood": "RESTLESS",
+        "min_from_level": 3,
+        "min_to_level": 3,
+        "to_mood": "HAPPY"
+      },
+      "trigger": "petsplus:pet_mood_transition"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.restless_sit_glow.desc"
+    },
+    "frame": "goal",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:glow_berries"
+    },
+    "title": {
+      "translate": "petsplus.adv.restless_sit_glow.title"
+    }
+  },
+  "requirements": [
+    [
+      "restless_to_happy"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

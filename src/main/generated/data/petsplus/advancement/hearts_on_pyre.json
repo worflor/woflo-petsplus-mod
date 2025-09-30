@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "passionate_level_3": {
+      "conditions": {
+        "min_level": 3,
+        "mood": "PASSIONATE"
+      },
+      "trigger": "petsplus:pet_mood_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.hearts_on_pyre.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:blaze_powder"
+    },
+    "title": {
+      "translate": "petsplus.adv.hearts_on_pyre.title"
+    }
+  },
+  "requirements": [
+    [
+      "passionate_level_3"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

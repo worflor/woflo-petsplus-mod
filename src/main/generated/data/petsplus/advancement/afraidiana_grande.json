@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "afraid_level_3": {
+      "conditions": {
+        "min_level": 3,
+        "mood": "AFRAID"
+      },
+      "trigger": "petsplus:pet_mood_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.afraidiana_grande.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:phantom_membrane"
+    },
+    "title": {
+      "translate": "petsplus.adv.afraidiana_grande.title"
+    }
+  },
+  "requirements": [
+    [
+      "afraid_level_3"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

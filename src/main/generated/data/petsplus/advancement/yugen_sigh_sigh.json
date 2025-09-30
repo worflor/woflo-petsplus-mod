@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "yugen_level_3": {
+      "conditions": {
+        "min_level": 3,
+        "mood": "YUGEN"
+      },
+      "trigger": "petsplus:pet_mood_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.yugen_sigh_sigh.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:amethyst_shard"
+    },
+    "title": {
+      "translate": "petsplus.adv.yugen_sigh_sigh.title"
+    }
+  },
+  "requirements": [
+    [
+      "yugen_level_3"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

@@ -131,9 +131,9 @@ public class AdvancementManager {
             AdvancementEntry advancement = player.getServer().getAdvancementLoader()
                 .get(Identifier.of(advancementId));
             if (advancement != null) {
-                // Use a generic trigger criterion name
-                // The actual criteria are defined in the advancement JSON files
-                player.getAdvancementTracker().grantCriterion(advancement, "trigger");
+                // Use "requirement" as the criterion name to match advancement JSON files
+                // All PetsPlus advancement JSON files use "requirement" as the criterion name
+                player.getAdvancementTracker().grantCriterion(advancement, "requirement");
             }
         } catch (Exception e) {
             // Log error but don't crash

@@ -22,6 +22,7 @@ public class PetInteractionCriterion extends AbstractCriterion<PetInteractionCri
     public static final String INTERACTION_PETTING = "petting";
     public static final String INTERACTION_HEALING = "healing";
     public static final String INTERACTION_STARGAZING = "stargazing";
+    public static final String INTERACTION_DREAM_ESCAPE = "dream_escape";
 
     @Override
     public Codec<Conditions> getConditionsCodec() {

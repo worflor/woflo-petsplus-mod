@@ -1,0 +1,31 @@
+{
+  "parent": "petsplus:at_what_cost",
+  "criteria": {
+    "dream_escape_3": {
+      "conditions": {
+        "interaction_type": "dream_escape",
+        "min_count": 3
+      },
+      "trigger": "petsplus:pet_interaction"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.heartless_but_alive.desc"
+    },
+    "frame": "challenge",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:wither_skeleton_skull"
+    },
+    "title": {
+      "translate": "petsplus.adv.heartless_but_alive.title"
+    }
+  },
+  "requirements": [
+    [
+      "dream_escape_3"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

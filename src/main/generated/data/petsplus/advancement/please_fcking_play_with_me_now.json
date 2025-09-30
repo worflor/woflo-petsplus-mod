@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "playful_level_3": {
+      "conditions": {
+        "min_level": 3,
+        "mood": "PLAYFUL"
+      },
+      "trigger": "petsplus:pet_mood_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.please_fcking_play_with_me_now.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:slime_ball"
+    },
+    "title": {
+      "translate": "petsplus.adv.please_fcking_play_with_me_now.title"
+    }
+  },
+  "requirements": [
+    [
+      "playful_level_3"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

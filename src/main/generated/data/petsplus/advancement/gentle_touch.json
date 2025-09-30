@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "pet_once": {
+      "conditions": {
+        "interaction_type": "petting",
+        "min_count": 1
+      },
+      "trigger": "petsplus:pet_interaction"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.gentle_touch.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:golden_carrot"
+    },
+    "title": {
+      "translate": "petsplus.adv.gentle_touch.title"
+    }
+  },
+  "requirements": [
+    [
+      "pet_once"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

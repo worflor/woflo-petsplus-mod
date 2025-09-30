@@ -1,0 +1,31 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "bonded_level_3": {
+      "conditions": {
+        "min_level": 3,
+        "mood": "BONDED"
+      },
+      "trigger": "petsplus:pet_mood_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.bond_voyage.desc"
+    },
+    "frame": "goal",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:lead"
+    },
+    "title": {
+      "translate": "petsplus.adv.bond_voyage.title"
+    }
+  },
+  "requirements": [
+    [
+      "bonded_level_3"
+    ]
+  ],
+  "sends_telemetry_event": true
+}
