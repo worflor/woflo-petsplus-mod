@@ -2,7 +2,7 @@
   "id": "petsplus:perched_haste_bonus",
   "trigger": {
     "event": "interval_while_active",
-    "interval_ticks": 200,
+    "ticks": 200,
     "internal_cd_ticks": 200
   },
   "effects": [

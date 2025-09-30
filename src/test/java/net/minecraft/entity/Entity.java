@@ -15,6 +15,7 @@ public class Entity {
     protected double y;
     protected double z;
     private boolean removed;
+    public double fallDistance;
     private Text displayName = Text.literal("Entity");
 
     public Entity(World world) {

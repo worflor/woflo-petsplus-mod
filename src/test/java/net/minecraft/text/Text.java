@@ -4,6 +4,10 @@ package net.minecraft.text;
 public interface Text {
     String asString();
 
+    default String getString() {
+        return asString();
+    }
+
     static MutableText literal(String literal) {
         return new MutableText(literal);
     }

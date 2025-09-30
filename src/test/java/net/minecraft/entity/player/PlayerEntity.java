@@ -1,6 +1,7 @@
 package net.minecraft.entity.player;
 
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 
@@ -31,5 +32,9 @@ public class PlayerEntity extends LivingEntity {
 
     public float getAttackCooldownProgress(float partialTicks) {
         return 1.0f;
+    }
+
+    public Text getName() {
+        return Text.literal("Player");
     }
 }

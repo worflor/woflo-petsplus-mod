@@ -18,6 +18,29 @@ public final class Identifier {
         return new Identifier("minecraft", path);
     }
 
+    public static Identifier tryParse(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        int colonIndex = trimmed.indexOf(':');
+        if (colonIndex < 0) {
+            return new Identifier("minecraft", trimmed);
+        }
+        if (colonIndex == 0 || colonIndex == trimmed.length() - 1) {
+            return null;
+        }
+        String namespace = trimmed.substring(0, colonIndex);
+        String path = trimmed.substring(colonIndex + 1);
+        if (namespace.isEmpty() || path.isEmpty()) {
+            return null;
+        }
+        return new Identifier(namespace, path);
+    }
+
     public String getNamespace() {
         return namespace;
     }

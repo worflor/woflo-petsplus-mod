@@ -18,6 +18,10 @@ public final class RegistryKey<T> {
         return new RegistryKey<>(id);
     }
 
+    public static <T> RegistryKey<T> of(RegistryKey<? extends Registry<T>> registry, Identifier id) {
+        return new RegistryKey<>(id);
+    }
+
     public Identifier getValue() {
         return value;
     }

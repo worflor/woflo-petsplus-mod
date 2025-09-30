@@ -2,7 +2,7 @@
   "id": "petsplus:nap_time_radius",
   "trigger": {
     "event": "interval_while_active",
-    "interval_ticks": 400,
+    "ticks": 400,
     "internal_cd_ticks": 400
   },
   "effects": [

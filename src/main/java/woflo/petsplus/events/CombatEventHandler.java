@@ -7,6 +7,7 @@ import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.damage.DamageSource;
+import net.minecraft.entity.damage.DamageTypes;
 import net.minecraft.entity.mob.BlazeEntity;
 import net.minecraft.entity.mob.CreeperEntity;
 import net.minecraft.entity.mob.GhastEntity;
@@ -145,8 +146,18 @@ public class CombatEventHandler {
         combatState.onHitTaken();
         long now = owner.getWorld().getTime();
 
+        if (isFallDamage(damageSource)) {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("damage", (double) amount);
+            double fallDistance = owner.fallDistance;
+            if (fallDistance > 0d) {
+                payload.put("fall_distance", fallDistance);
+            }
+            triggerAbilitiesForOwner(owner, "owner_took_fall_damage", payload);
+        }
+
         // Trigger low health events if needed
-        float healthAfter = owner.getHealth() - amount;
+        float healthAfter = Math.max(0f, owner.getHealth() - amount);
         float maxHealth = Math.max(1f, owner.getMaxHealth());
         double healthPct = healthAfter / maxHealth;
         
@@ -348,14 +359,30 @@ public class CombatEventHandler {
             }
         }
 
+        EntityType<?> victimType = victim.getType();
+        String victimTypeName = victimType != null ? victimType.toString() : "unknown";
         Petsplus.LOGGER.debug("Owner {} dealt {} damage to {}, victim at {}% health",
-            owner.getName().getString(), modifiedDamage, victim.getType().toString(), victimHealthPct * 100);
+            owner.getName().getString(), modifiedDamage, victimTypeName, victimHealthPct * 100);
     }
     
     private static void handleProjectileDamage(PlayerEntity shooter, LivingEntity target, float damage, PersistentProjectileEntity projectile) {
-        // Check if this was a critical hit
+        Map<String, Object> payload = new HashMap<>();
+        Identifier projectileId = null;
+        String rawType = null;
+        EntityType<?> projectileType = projectile.getType();
+        if (projectileType != null) {
+            projectileId = Registries.ENTITY_TYPE.getId(projectileType);
+            rawType = projectileType.toString();
+        }
+        populateProjectileMetadata(payload, projectileId, rawType);
+        payload.put("projectile_entity", projectile);
+        payload.put("victim", target);
+        payload.put("damage", (double) damage);
         boolean wasCrit = projectile.isCritical();
-        
+        payload.put("projectile_critical", wasCrit);
+
+        triggerAbilitiesForOwner(shooter, "owner_shot_projectile", payload);
+
         if (wasCrit) {
             triggerAbilitiesForOwner(shooter, "owner_projectile_crit");
 
@@ -395,6 +422,78 @@ public class CombatEventHandler {
 
         // Handle as regular damage too
         handleOwnerDealtDamage(shooter, target, damage);
+    }
+
+    static void populateProjectileMetadata(Map<String, Object> payload, Identifier projectileId, @Nullable String rawType) {
+        String projectileTypeString = "unknown";
+        if (projectileId != null) {
+            projectileTypeString = projectileId.toString();
+            payload.put("projectile_identifier", projectileId);
+            payload.put("projectile_type_no_namespace", projectileId.getPath());
+        } else if (rawType != null && !rawType.isEmpty()) {
+            String sanitized = sanitizeProjectileTypeString(rawType);
+            if (!sanitized.isEmpty()) {
+                projectileTypeString = sanitized;
+                Identifier parsed = Identifier.tryParse(sanitized);
+                if (parsed != null) {
+                    payload.put("projectile_identifier", parsed);
+                    payload.put("projectile_type_no_namespace", parsed.getPath());
+                } else {
+                    int colonIndex = sanitized.indexOf(':');
+                    if (colonIndex >= 0 && colonIndex + 1 < sanitized.length()) {
+                        payload.put("projectile_type_no_namespace", sanitized.substring(colonIndex + 1).toLowerCase(Locale.ROOT));
+                    }
+                }
+            }
+        }
+
+        String normalized = projectileTypeString.toLowerCase(Locale.ROOT);
+        payload.put("projectile_type", normalized);
+        payload.put("projectile_type_id", normalized);
+        payload.put("projectile_id", normalized);
+        if (!payload.containsKey("projectile_type_no_namespace")) {
+            int colonIndex = normalized.indexOf(':');
+            if (colonIndex >= 0 && colonIndex + 1 < normalized.length()) {
+                payload.put("projectile_type_no_namespace", normalized.substring(colonIndex + 1));
+            } else if (!"unknown".equals(normalized)) {
+                payload.put("projectile_type_no_namespace", normalized);
+            }
+        }
+    }
+
+    private static String sanitizeProjectileTypeString(String rawType) {
+        String trimmed = rawType.trim();
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        int colonIndex = trimmed.indexOf(':');
+        if (colonIndex <= 0) {
+            return trimmed;
+        }
+
+        int start = colonIndex - 1;
+        while (start >= 0 && isIdentifierChar(trimmed.charAt(start))) {
+            start--;
+        }
+        start++;
+
+        int end = colonIndex + 1;
+        while (end < trimmed.length() && isIdentifierChar(trimmed.charAt(end))) {
+            end++;
+        }
+
+        if (start < end) {
+            return trimmed.substring(start, end);
+        }
+        return trimmed;
+    }
+
+    private static boolean isIdentifierChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == '.' || c == '/';
+    }
+
+    private static boolean isFallDamage(DamageSource damageSource) {
+        return damageSource != null && damageSource.isOf(DamageTypes.FALL);
     }
     
     private static void applyAttackRiders(PlayerEntity owner, LivingEntity victim, OwnerCombatState combatState) {

@@ -2,6 +2,7 @@ package woflo.petsplus.effects;
 
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
@@ -37,16 +38,29 @@ public class OwnerNextAttackBonusEffect implements Effect {
     @Override
     public boolean execute(EffectContext context) {
         PlayerEntity owner = context.getOwner();
+        if (owner == null || !owner.isAlive() || owner.isRemoved()) {
+            return false;
+        }
+
+        ServerWorld world = context.getWorld();
+        if (world == null) {
+            if (owner.getWorld() instanceof ServerWorld ownerWorld) {
+                world = ownerWorld;
+            } else {
+                return false;
+            }
+        }
+
         OwnerCombatState combatState = OwnerCombatState.getOrCreate(owner);
-        
+
         // Create attack rider data
         AttackRiderData riderData = new AttackRiderData(
             bonusDamagePct,
             vsTag,
             onHitEffect,
-            context.getWorld().getTime() + expireTicks
+            world.getTime() + expireTicks
         );
-        
+
         combatState.addNextAttackRider("damage_bonus", riderData);
         return true;
     }

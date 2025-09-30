@@ -2,7 +2,7 @@
   "id": "petsplus:mounted_extra_rolls",
   "trigger": {
     "event": "owner_begin_fall",
-    "require_mounted": true,
+    "require_mounted_owner": true,
     "internal_cd_ticks": 80
   },
   "effects": [

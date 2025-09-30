@@ -1,9 +1,11 @@
 package woflo.petsplus.effects;
 
 import net.minecraft.entity.Entity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
+import woflo.petsplus.api.TriggerContext;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,8 +36,17 @@ public class TagTargetEffect implements Effect {
     public boolean execute(EffectContext context) {
         Entity target = getTarget(context);
         if (target == null) return false;
-        
-        long expiryTime = context.getWorld().getTime() + durationTicks;
+
+        ServerWorld world = context.getWorld();
+        if (world == null) {
+            if (target.getWorld() instanceof ServerWorld targetWorld) {
+                world = targetWorld;
+            } else {
+                return false;
+            }
+        }
+
+        long expiryTime = world.getTime() + durationTicks;
         
         ENTITY_TAGS.computeIfAbsent(target, k -> new HashMap<>()).put(key, expiryTime);
         return true;
@@ -52,9 +63,12 @@ public class TagTargetEffect implements Effect {
             return target;
         }
 
-        target = context.getTriggerContext().getData(targetKey, Entity.class);
-        if (target != null) {
-            return target;
+        TriggerContext triggerContext = context.getTriggerContext();
+        if (triggerContext != null) {
+            target = triggerContext.getData(targetKey, Entity.class);
+            if (target != null) {
+                return target;
+            }
         }
 
         target = context.getTarget();
@@ -62,8 +76,8 @@ public class TagTargetEffect implements Effect {
             return target;
         }
 
-        // Fall back to victim from trigger context
-        return context.getTriggerContext().getVictim();
+        // Fall back to victim from trigger context when available
+        return triggerContext != null ? triggerContext.getVictim() : null;
     }
     
     /**

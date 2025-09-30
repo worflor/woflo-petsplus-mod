@@ -54,6 +54,7 @@ import net.minecraft.component.DataComponentTypes;
 import net.minecraft.world.World;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.RegistryKeys;
+import net.minecraft.registry.Registries;
 import net.minecraft.util.Identifier;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeKeys;
@@ -83,6 +84,7 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
@@ -199,6 +201,71 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         if (state.isOf(Blocks.SNOW_BLOCK) || state.isOf(Blocks.SNOW) || state.isOf(Blocks.POWDER_SNOW)) {
             NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.BREAK_SNOW);
         }
+
+        emitOwnerBrokeBlockTrigger(sp, state);
+    }
+
+    static void emitOwnerBrokeBlockTrigger(ServerPlayerEntity player, BlockState state) {
+        Map<String, Object> payload = new HashMap<>();
+        boolean blockValuable = isValuableBlock(state);
+        payload.put("block_valuable", blockValuable);
+        resolveBlockIdentifier(state).ifPresent(blockId -> {
+            payload.put("block_identifier", blockId);
+            payload.put("block_id", blockId.toString());
+            payload.put("block_id_no_namespace", blockId.getPath());
+        });
+        CombatEventHandler.triggerAbilitiesForOwner(player, "owner_broke_block", payload);
+    }
+
+    static Optional<Identifier> resolveBlockIdentifier(@Nullable BlockState state) {
+        if (state == null) {
+            return Optional.empty();
+        }
+        if (state instanceof BlockIdentifierProvider provider) {
+            Identifier override = provider.petsplus$getIdentifier();
+            if (override != null) {
+                return Optional.of(override);
+            }
+        }
+        Block block = state.getBlock();
+        if (block == null) {
+            return Optional.empty();
+        }
+        try {
+            Identifier blockId = Registries.BLOCK.getId(block);
+            return Optional.ofNullable(blockId);
+        } catch (Exception e) {
+            Petsplus.LOGGER.debug("Failed to resolve block identifier for payload", e);
+            return Optional.empty();
+        }
+    }
+
+    interface BlockIdentifierProvider {
+        @Nullable Identifier petsplus$getIdentifier();
+    }
+
+    private static boolean isValuableBlock(BlockState state) {
+        if (state == null) {
+            return false;
+        }
+        if (state.isIn(BlockTags.DIAMOND_ORES)
+            || state.isIn(BlockTags.EMERALD_ORES)
+            || state.isIn(BlockTags.GOLD_ORES)
+            || state.isIn(BlockTags.LAPIS_ORES)
+            || state.isIn(BlockTags.REDSTONE_ORES)
+            || state.isIn(BlockTags.COAL_ORES)
+            || state.isIn(BlockTags.COPPER_ORES)
+            || state.isIn(BlockTags.IRON_ORES)
+            || state.isIn(BlockTags.BEACON_BASE_BLOCKS)) {
+            return true;
+        }
+
+        return state.isOf(Blocks.ANCIENT_DEBRIS)
+            || state.isOf(Blocks.NETHERITE_BLOCK)
+            || state.isOf(Blocks.AMETHYST_CLUSTER)
+            || state.isOf(Blocks.BUDDING_AMETHYST)
+            || state.isOf(Blocks.REINFORCED_DEEPSLATE)
+            || state.isOf(Blocks.BEACON);
     }
 
     // (Block place detour handled in onUseBlock based on held BlockItem)
