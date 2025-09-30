@@ -10,6 +10,9 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.state.PetComponent;
 
+import static woflo.petsplus.roles.guardian.GuardianFortressBondManager.applyRedirectReduction;
+import static woflo.petsplus.roles.guardian.GuardianFortressBondManager.modifyOwnerDamage;
+
 import java.util.List;
 
 /**
@@ -35,15 +38,15 @@ public final class GuardianBulwark {
             return incomingDamage;
         }
         if (incomingDamage <= 0.0f || source == null) {
-            return incomingDamage;
+            return modifyOwnerDamage(owner, incomingDamage);
         }
         if (isDisallowedSource(source)) {
-            return incomingDamage;
+            return modifyOwnerDamage(owner, incomingDamage);
         }
 
         List<GuardianCore.GuardianCandidate> candidates = GuardianCore.collectGuardiansForIntercept(owner);
         if (candidates.isEmpty()) {
-            return incomingDamage;
+            return modifyOwnerDamage(owner, incomingDamage);
         }
 
         float ownerDamage = incomingDamage;
@@ -77,16 +80,17 @@ public final class GuardianBulwark {
             }
 
             boolean hitReserveLimit = available > 0.0f && redirectedAmount >= available - RESERVE_TOLERANCE;
-            if (!applyDamageToGuardian(guardian, source, redirectedAmount)) {
+            float adjustedRedirect = applyRedirectReduction(owner, guardian, redirectedAmount);
+            if (!applyDamageToGuardian(guardian, source, adjustedRedirect)) {
                 continue;
             }
 
             GuardianCore.recordSuccessfulRedirect(owner, guardian, component, incomingDamage, redirectedAmount,
-                reserveFraction, hitReserveLimit);
-            ownerDamage = Math.max(0.0f, ownerDamage - redirectedAmount);
+                reserveFraction, hitReserveLimit, adjustedRedirect);
+            ownerDamage = Math.max(0.0f, ownerDamage - adjustedRedirect);
         }
 
-        return ownerDamage;
+        return modifyOwnerDamage(owner, ownerDamage);
     }
 
     private static boolean isDisallowedSource(DamageSource source) {

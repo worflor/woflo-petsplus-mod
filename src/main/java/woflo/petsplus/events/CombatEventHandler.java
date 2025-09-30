@@ -39,6 +39,10 @@ import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
+import woflo.petsplus.roles.striker.StrikerExecution;
+import woflo.petsplus.roles.striker.StrikerExecution.ExecutionKillSummary;
+import woflo.petsplus.roles.striker.StrikerHuntManager;
+import woflo.petsplus.ui.UIFeedbackManager;
 
 import java.util.Comparator;
 import java.util.HashMap;
@@ -76,7 +80,8 @@ public class CombatEventHandler {
         // Register damage events
         ServerLivingEntityEvents.ALLOW_DAMAGE.register(CombatEventHandler::onDamageReceived);
         AttackEntityCallback.EVENT.register(CombatEventHandler::onPlayerAttack);
-        
+        ServerLivingEntityEvents.AFTER_DEATH.register(CombatEventHandler::onEntityDeath);
+
         Petsplus.LOGGER.info("Combat event handlers registered");
     }
     
@@ -237,7 +242,16 @@ public class CombatEventHandler {
         ).withData("victim", victim)
          .withData("damage", (double) modifiedDamage)
          .withData("victim_hp_pct", victimHealthPct);
-        
+
+        StrikerExecution.ExecutionResult preview = StrikerExecution.previewExecution(owner, victim, modifiedDamage);
+        if (preview.strikerLevel() > 0) {
+            context.withData("striker_level", preview.strikerLevel())
+                   .withData("striker_preview_threshold_pct", (double) preview.appliedThresholdPct())
+                   .withData("striker_preview_momentum_stacks", preview.momentumStacks())
+                   .withData("striker_preview_momentum_fill", (double) preview.momentumFill())
+                   .withData("striker_preview_ready", preview.triggered());
+        }
+
         // Trigger abilities for nearby pets
         triggerNearbyPetAbilities(owner, context);
 
@@ -419,6 +433,10 @@ public class CombatEventHandler {
     private static void triggerNearbyPetAbilities(PlayerEntity owner,
                                                   String eventType,
                                                   @Nullable Map<String, Object> data) {
+        if (owner == null) {
+            return;
+        }
+
         if (!(owner instanceof ServerPlayerEntity serverOwner)) {
             return;
         }
@@ -432,6 +450,60 @@ public class CombatEventHandler {
             ? null
             : new HashMap<>(data);
         StateManager.forWorld(serverWorld).dispatchAbilityTrigger(serverOwner, eventType, payload);
+    }
+
+    private static void onEntityDeath(LivingEntity entity, DamageSource damageSource) {
+        Entity attacker = damageSource.getAttacker();
+        PlayerEntity owner = null;
+
+        if (attacker instanceof PlayerEntity player) {
+            owner = player;
+        } else if (attacker instanceof MobEntity mobAttacker) {
+            PetComponent petComponent = PetComponent.get(mobAttacker);
+            if (petComponent != null) {
+                owner = petComponent.getOwner();
+            }
+        }
+
+        if (!(owner instanceof ServerPlayerEntity serverOwner)) {
+            return;
+        }
+        if (!(entity.getWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("victim", entity);
+        payload.put("victim_max_health", (double) Math.max(0f, entity.getMaxHealth()));
+        payload.put("victim_was_hostile", entity instanceof HostileEntity);
+
+        ExecutionKillSummary executionSummary = StrikerExecution.consumeExecutionKillData(owner, entity);
+        StrikerHuntManager huntManager = StrikerHuntManager.getInstance();
+        if (executionSummary != null) {
+            payload.put("execution_kill", true);
+            payload.put("execution_threshold_pct", (double) executionSummary.thresholdPct());
+            payload.put("execution_momentum_stacks", executionSummary.momentumStacks());
+            payload.put("execution_momentum_fill", (double) executionSummary.momentumFill());
+            payload.put("striker_level", executionSummary.strikerLevel());
+        } else {
+            payload.put("execution_kill", false);
+        }
+
+        boolean finisherConsumed = StrikerExecution.consumeFinisherKillFlag(owner, entity);
+        payload.put("finisher_mark_consumed", finisherConsumed);
+
+        if (executionSummary != null) {
+            huntManager.onExecutionKill(serverOwner, entity, executionSummary, finisherConsumed);
+        } else if (finisherConsumed) {
+            huntManager.onFinisherSpent(serverOwner, entity);
+        } else {
+            huntManager.onOwnerKill(serverOwner);
+        }
+
+        TriggerContext context = new TriggerContext(serverWorld, null, serverOwner, "owner_killed_entity");
+        payload.forEach(context::withData);
+
+        triggerNearbyPetAbilities(serverOwner, context);
     }
 
     /**

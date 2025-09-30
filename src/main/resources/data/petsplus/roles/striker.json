@@ -16,7 +16,9 @@
     "attack_max_bonus": 1.5
   },
   "default_abilities": [
-    "petsplus:finisher_mark"
+    "petsplus:finisher_mark",
+    "petsplus:execution_bonus",
+    "petsplus:bloodlust_surge"
   ],
   "tribute_defaults": {
     "10": "minecraft:gold_ingot",
@@ -51,7 +53,7 @@
       { "fallback": "The Decisive Blow" }
     ],
     "admin_summary": {
-      "fallback": "Aggressive fighter that marks weakened enemies for execution"
+      "fallback": "Aggressive finisher that chains executions into bloodlust surges"
     }
   }
 }

@@ -2,20 +2,25 @@
   "id": "petsplus:finisher_mark",
   "trigger": {
     "event": "owner_dealt_damage",
-    "target_hp_pct_below": 0.4,
-    "internal_cd_ticks": 200
+    "target_hp_pct_below": 0.45,
+    "internal_cd_ticks": 160
   },
   "effects": [
     {
+      "type": "striker_mark_feedback",
+      "particle_count": 10,
+      "particle_spread": 0.45
+    },
+    {
       "type": "tag_target",
       "key": "petsplus:finisher",
-      "duration_ticks": 80
+      "duration_ticks": 100
     },
     {
       "type": "owner_next_attack_bonus",
       "vs_tag": "petsplus:finisher",
-      "bonus_damage_pct": 0.2,
-      "expire_ticks": 100,
+      "bonus_damage_pct": 0.25,
+      "expire_ticks": 120,
       "on_hit_effect": {
         "type": "effect",
         "target": "victim",
@@ -28,7 +33,7 @@
       "type": "buff",
       "target": "mount",
       "id": "minecraft:speed",
-      "duration": 40,
+      "duration": 60,
       "amplifier": 0,
       "only_if_mounted": true
     }

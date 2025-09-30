@@ -14,7 +14,8 @@
     "speed_max_bonus": 0.6
   },
   "default_abilities": [
-    "petsplus:windlash_rider"
+    "petsplus:windlash_rider",
+    "petsplus:gust_upwards"
   ],
   "tribute_defaults": {
     "10": "minecraft:gold_ingot",

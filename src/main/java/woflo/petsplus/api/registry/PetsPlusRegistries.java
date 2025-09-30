@@ -1,5 +1,6 @@
 package woflo.petsplus.api.registry;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
@@ -22,6 +23,12 @@ import woflo.petsplus.data.PetRoleDataLoader;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.effects.AreaEffectEffect;
 import woflo.petsplus.effects.BuffEffect;
+import woflo.petsplus.effects.CursedOneDeathBurstEffect;
+import woflo.petsplus.effects.CursedOneSoulSacrificeEffect;
+import woflo.petsplus.effects.EnchantStripEffect;
+import woflo.petsplus.effects.GearSwapEffect;
+import woflo.petsplus.effects.GuardianAegisProtocolEffect;
+import woflo.petsplus.effects.GuardianFortressBondEffect;
 import woflo.petsplus.effects.HealOwnerFlatPctEffect;
 import woflo.petsplus.effects.KnockupEffect;
 import woflo.petsplus.effects.MagnetizeDropsAndXpEffect;
@@ -32,9 +39,15 @@ import woflo.petsplus.effects.OwnerNextAttackBonusEffect;
 import woflo.petsplus.effects.PerchPotionSipReductionEffect;
 import woflo.petsplus.effects.ProjectileDrForOwnerEffect;
 import woflo.petsplus.effects.RetargetNearestHostileEffect;
+import woflo.petsplus.effects.StrikerMarkFeedbackEffect;
+import woflo.petsplus.effects.SkyriderGustUpwardsEffect;
+import woflo.petsplus.effects.StrikerBloodlustSurgeEffect;
+import woflo.petsplus.effects.SupportPotionPulseEffect;
 import woflo.petsplus.effects.TagTargetEffect;
 import woflo.petsplus.util.TriggerConditions;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -216,6 +229,49 @@ public final class PetsPlusRegistries {
             .description("Triggered when the owner damages a target, optionally filtered by remaining HP.")
             .build());
 
+        registerTriggerSerializer(TriggerSerializer.builder(id("owner_killed_entity"), OwnerKilledEntityConfig.CODEC,
+            (abilityId, config) -> DataResult.success(new Trigger() {
+                private final Identifier triggerId = id("owner_killed_entity");
+                private final boolean requireExecution = config.requireExecution().orElse(false);
+                private final boolean requireFinisher = config.requireFinisherMark().orElse(false);
+                private final double thresholdMax = config.executionThresholdAtMost().orElse(1.0);
+                private final double thresholdMin = config.executionThresholdAtLeast().orElse(0.0);
+                private final int cooldown = config.cooldown().resolvedCooldown();
+
+                @Override
+                public Identifier getId() {
+                    return triggerId;
+                }
+
+                @Override
+                public int getInternalCooldownTicks() {
+                    return cooldown;
+                }
+
+                @Override
+                public boolean shouldActivate(TriggerContext context) {
+                    if (!Objects.equals(context.getEventType(), "owner_killed_entity")) {
+                        return false;
+                    }
+                    if (requireExecution && !context.wasExecutionKill()) {
+                        return false;
+                    }
+                    if (requireFinisher && !context.targetHadFinisherMark()) {
+                        return false;
+                    }
+                    double threshold = context.getExecutionThresholdPercent();
+                    if (thresholdMax < 1.0 && threshold > thresholdMax + 1.0e-5) {
+                        return false;
+                    }
+                    if (thresholdMin > 0.0 && threshold + 1.0e-5 < thresholdMin) {
+                        return false;
+                    }
+                    return true;
+                }
+            }))
+            .description("Triggered after the owner (or their pet) kills an entity, with optional execution filters.")
+            .build());
+
         registerTriggerSerializer(TriggerSerializer.builder(id("owner_begin_fall"), OwnerBeginFallConfig.CODEC,
             (abilityId, config) -> DataResult.success(new Trigger() {
                 private final Identifier triggerId = id("owner_begin_fall");
@@ -298,6 +354,11 @@ public final class PetsPlusRegistries {
             .description("Fires when the owner completes the crouch-and-hold proximity channel with their pet.")
             .build());
 
+        registerTriggerSerializer(TriggerSerializer.builder(id("owner_signal_shift_interact"), CooldownSettings.CODEC,
+            (abilityId, config) -> DataResult.success(simpleEventTrigger("owner_signal_shift_interact", config.resolvedCooldown())))
+            .description("Fires when the owner sneaks and interacts directly with their pet.")
+            .build());
+
         registerTriggerSerializer(TriggerSerializer.builder(id("owner_low_health"), OwnerLowHealthConfig.CODEC,
             (abilityId, config) -> DataResult.success(new Trigger() {
                 private final Identifier triggerId = id("owner_low_health");
@@ -331,6 +392,11 @@ public final class PetsPlusRegistries {
             (abilityId, config) -> DataResult.success(simpleEventTrigger("on_pet_resurrect", config.resolvedCooldown())))
             .description("Triggered when a pet is resurrected.")
             .build());
+
+        registerTriggerSerializer(TriggerSerializer.builder(id("on_pet_death"), CooldownSettings.CODEC,
+            (abilityId, config) -> DataResult.success(simpleEventTrigger("on_pet_death", config.resolvedCooldown())))
+            .description("Triggered when a pet dies permanently.")
+            .build());
     }
 
     private static void registerEffectSerializers() {
@@ -344,6 +410,21 @@ public final class PetsPlusRegistries {
                         config.vsTag().orElse(null), nested, config.expireTicks().orElse(100)));
             })
             .description("Applies a temporary rider to the owner's next attack.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("striker_mark_feedback"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new StrikerMarkFeedbackEffect(json)))
+            .description("Sends Striker mark UI and particle feedback when a finisher tag lands.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("striker_bloodlust_surge"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new StrikerBloodlustSurgeEffect(json)))
+            .description("Applies execution-fueled speed and strength buffs for Striker bloodlust.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("skyrider_gust_upwards"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new SkyriderGustUpwardsEffect(json)))
+            .description("Launches the owner upward with Skyrider gust slow-fall assistance.")
             .build());
 
         registerEffectSerializer(EffectSerializer.builder(id("tag_target"), TagTargetConfig.CODEC,
@@ -373,6 +454,105 @@ public final class PetsPlusRegistries {
             .description("Applies a vanilla status effect to a configured target.")
             .build());
 
+        registerEffectSerializer(EffectSerializer.builder(id("guardian_fortress_bond"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> {
+                double reduction = RegistryJsonHelper.getDouble(json, "reduction_pct", 0.5);
+                int duration = RegistryJsonHelper.getInt(json, "duration_ticks", 200);
+                return DataResult.success(new GuardianFortressBondEffect(reduction, duration));
+            })
+            .description("Activates the Guardian fortress bond barrier between owner and pet.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("guardian_aegis_protocol"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> {
+                int maxStacks = RegistryJsonHelper.getInt(json, "max_stacks", 3);
+                int duration = RegistryJsonHelper.getInt(json, "duration_ticks", 200);
+                return DataResult.success(new GuardianAegisProtocolEffect(maxStacks, duration));
+            })
+            .description("Applies Guardian Aegis Protocol defense stacks after a redirect.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("enchant_strip"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> {
+                int xpCost = RegistryJsonHelper.getInt(json, "xp_cost_levels", 3);
+                boolean preferMainHand = RegistryJsonHelper.getBoolean(json, "prefer_mainhand", true);
+                boolean allowOffhand = RegistryJsonHelper.getBoolean(json, "allow_offhand", true);
+                boolean dropBook = RegistryJsonHelper.getBoolean(json, "drop_as_book", true);
+                return DataResult.success(new EnchantStripEffect(xpCost, preferMainHand, allowOffhand, dropBook));
+            })
+            .description("Removes the strongest enchantment from the owner's held item for a level cost.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("gear_swap"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> {
+                String storeSoundId = RegistryJsonHelper.getString(json, "store_sound", "minecraft:item.armor.equip_chain");
+                String swapSoundId = RegistryJsonHelper.getString(json, "swap_sound", "minecraft:item.armor.equip_diamond");
+                return DataResult.success(GearSwapEffect.fromConfig(storeSoundId, swapSoundId));
+            })
+            .description("Swaps the owner's stored gear loadouts through their Enchantment-Bound pet.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("cursed_one_death_burst"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> {
+                double radius = RegistryJsonHelper.getDouble(json, "radius", 6.0);
+                double damage = RegistryJsonHelper.getDouble(json, "damage", 14.0);
+                boolean ignite = RegistryJsonHelper.getBoolean(json, "ignite", true);
+                JsonObject reanimation = RegistryJsonHelper.getObject(json, "reanimation");
+                double reanimationRadiusScale = reanimation != null
+                    ? RegistryJsonHelper.getDouble(reanimation, "radius_scale", 0.6)
+                    : 0.6;
+                double reanimationDamageScale = reanimation != null
+                    ? RegistryJsonHelper.getDouble(reanimation, "damage_scale", 0.5)
+                    : 0.5;
+                boolean reanimationIgnite = reanimation != null
+                    ? RegistryJsonHelper.getBoolean(reanimation, "ignite", false)
+                    : false;
+                double reanimationEffectScale = reanimation != null
+                    ? RegistryJsonHelper.getDouble(reanimation, "effect_duration_scale", 0.5)
+                    : 0.5;
+                JsonArray enemyEffectsJson = RegistryJsonHelper.getArray(json, "enemy_effects");
+                List<StatusEffectInstance> enemyEffects = new ArrayList<>();
+                if (enemyEffectsJson != null) {
+                    for (int i = 0; i < enemyEffectsJson.size(); i++) {
+                        if (!enemyEffectsJson.get(i).isJsonObject()) {
+                            continue;
+                        }
+                        StatusEffectInstance effect = RegistryJsonHelper.parseStatusEffect(enemyEffectsJson.get(i).getAsJsonObject());
+                        if (effect != null) {
+                            enemyEffects.add(effect);
+                        }
+                    }
+                }
+                return DataResult.success(new CursedOneDeathBurstEffect(radius, damage, ignite, enemyEffects,
+                    reanimationRadiusScale, reanimationDamageScale, reanimationIgnite, reanimationEffectScale));
+            })
+            .description("Detonates a cursed explosion when the pet dies.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("cursed_one_soul_sacrifice"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> {
+                int xpCost = RegistryJsonHelper.getInt(json, "xp_cost_levels", 4);
+                int duration = RegistryJsonHelper.getInt(json, "duration_ticks", 600);
+                double multiplier = RegistryJsonHelper.getDouble(json, "reanimation_multiplier", 2.0);
+                double healPct = RegistryJsonHelper.getDouble(json, "owner_heal_pct", 0.25);
+                JsonArray ownerEffectsJson = RegistryJsonHelper.getArray(json, "owner_effects");
+                List<StatusEffectInstance> ownerEffects = new ArrayList<>();
+                if (ownerEffectsJson != null) {
+                    for (int i = 0; i < ownerEffectsJson.size(); i++) {
+                        if (!ownerEffectsJson.get(i).isJsonObject()) {
+                            continue;
+                        }
+                        StatusEffectInstance effect = RegistryJsonHelper.parseStatusEffect(ownerEffectsJson.get(i).getAsJsonObject());
+                        if (effect != null) {
+                            ownerEffects.add(effect);
+                        }
+                    }
+                }
+                return DataResult.success(new CursedOneSoulSacrificeEffect(xpCost, duration, multiplier, healPct, ownerEffects));
+            })
+            .description("Channels soul sacrifice to trade XP for power and longer reanimation downtime.")
+            .build());
+
         registerEffectSerializer(EffectSerializer.builder(id("projectile_dr_for_owner"), ProjectileDrConfig.CODEC,
             (abilityId, config, context) -> DataResult.success(new ProjectileDrForOwnerEffect(
                 config.percent().orElse(0.10), config.durationTicks().orElse(40))))
@@ -382,6 +562,11 @@ public final class PetsPlusRegistries {
         registerEffectSerializer(EffectSerializer.builder(id("perch_potion_sip_reduction"), RegistryJsonHelper.JSON_OBJECT_CODEC,
             (abilityId, json, context) -> DataResult.success(new PerchPotionSipReductionEffect(json)))
             .description("Reduces potion consumption while perched.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("support_potion_pulse"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new SupportPotionPulseEffect(json)))
+            .description("Shares the Support pet's stored potion energy on demand.")
             .build());
 
         registerEffectSerializer(EffectSerializer.builder(id("mounted_cone_aura"), RegistryJsonHelper.JSON_OBJECT_CODEC,
@@ -444,12 +629,18 @@ public final class PetsPlusRegistries {
         // Register placeholder abilities that will be properly loaded from data later
         // This prevents role validation errors during startup
         registerAbilityType("shield_bash_rider", createPlaceholderAbility("shield_bash_rider"));
+        registerAbilityType("aegis_protocol", createPlaceholderAbility("aegis_protocol"));
+        registerAbilityType("fortress_bond", createPlaceholderAbility("fortress_bond"));
         registerAbilityType("finisher_mark", createPlaceholderAbility("finisher_mark"));
+        registerAbilityType("bloodlust_surge", createPlaceholderAbility("bloodlust_surge"));
         registerAbilityType("perch_potion_efficiency", createPlaceholderAbility("perch_potion_efficiency"));
         registerAbilityType("mounted_cone_aura", createPlaceholderAbility("mounted_cone_aura"));
         registerAbilityType("loot_wisp", createPlaceholderAbility("loot_wisp"));
         registerAbilityType("windlash_rider", createPlaceholderAbility("windlash_rider"));
+        registerAbilityType("gust_upwards", createPlaceholderAbility("gust_upwards"));
         registerAbilityType("doom_echo", createPlaceholderAbility("doom_echo"));
+        registerAbilityType("death_burst", createPlaceholderAbility("death_burst"));
+        registerAbilityType("soul_sacrifice", createPlaceholderAbility("soul_sacrifice"));
         registerAbilityType("voidbrand", createPlaceholderAbility("voidbrand"));
         registerAbilityType("phase_partner", createPlaceholderAbility("phase_partner"));
         registerAbilityType("perch_ping", createPlaceholderAbility("perch_ping"));
@@ -461,6 +652,8 @@ public final class PetsPlusRegistries {
         registerAbilityType("skybond_mount_extension", createPlaceholderAbility("skybond_mount_extension"));
         registerAbilityType("perched_haste_bonus", createPlaceholderAbility("perched_haste_bonus"));
         registerAbilityType("mounted_extra_rolls", createPlaceholderAbility("mounted_extra_rolls"));
+        registerAbilityType("enchant_strip", createPlaceholderAbility("enchant_strip"));
+        registerAbilityType("gear_swap", createPlaceholderAbility("gear_swap"));
         registerAbilityType("auto_resurrect_mount_buff", createPlaceholderAbility("auto_resurrect_mount_buff"));
         registerAbilityType("nap_time_radius", createPlaceholderAbility("nap_time_radius"));
         registerAbilityType("event_horizon", createPlaceholderAbility("event_horizon"));
@@ -538,6 +731,20 @@ public final class PetsPlusRegistries {
             Codec.DOUBLE.optionalFieldOf("target_hp_pct_below").forGetter(OwnerDealtDamageConfig::targetHpPctBelow),
             CooldownSettings.MAP_CODEC.forGetter(OwnerDealtDamageConfig::cooldown)
         ).apply(instance, OwnerDealtDamageConfig::new));
+    }
+
+    private record OwnerKilledEntityConfig(Optional<Boolean> requireExecution,
+                                           Optional<Boolean> requireFinisherMark,
+                                           Optional<Double> executionThresholdAtMost,
+                                           Optional<Double> executionThresholdAtLeast,
+                                           CooldownSettings cooldown) {
+        static final Codec<OwnerKilledEntityConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+            Codec.BOOL.optionalFieldOf("require_execution").forGetter(OwnerKilledEntityConfig::requireExecution),
+            Codec.BOOL.optionalFieldOf("require_finisher_mark").forGetter(OwnerKilledEntityConfig::requireFinisherMark),
+            Codec.DOUBLE.optionalFieldOf("max_execution_threshold_pct").forGetter(OwnerKilledEntityConfig::executionThresholdAtMost),
+            Codec.DOUBLE.optionalFieldOf("min_execution_threshold_pct").forGetter(OwnerKilledEntityConfig::executionThresholdAtLeast),
+            CooldownSettings.MAP_CODEC.forGetter(OwnerKilledEntityConfig::cooldown)
+        ).apply(instance, OwnerKilledEntityConfig::new));
     }
 
     private record OwnerBeginFallConfig(Optional<Double> minFall, CooldownSettings cooldown) {

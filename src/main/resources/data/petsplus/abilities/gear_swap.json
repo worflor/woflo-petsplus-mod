@@ -1,0 +1,14 @@
+{
+  "id": "petsplus:gear_swap",
+  "trigger": {
+    "event": "owner_signal_double_crouch",
+    "cooldown_ticks": 80
+  },
+  "effects": [
+    {
+      "type": "gear_swap",
+      "store_sound": "minecraft:item.armor.equip_chain",
+      "swap_sound": "minecraft:item.armor.equip_diamond"
+    }
+  ]
+}

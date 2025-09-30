@@ -5,6 +5,7 @@
 	"mixins": [
                 "PlayerDamageMixin",
                 "PlayerAttackMixin",
+                "LivingEntityDamageMixin",
                 "TameableEntityMixin",
                 "AnimalEntityMixin",
                 "MobEntityDataMixin",

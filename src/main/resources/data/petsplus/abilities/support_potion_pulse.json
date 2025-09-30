@@ -1,0 +1,14 @@
+{
+  "id": "petsplus:support_potion_pulse",
+  "required_level": 5,
+  "trigger": {
+    "event": "owner_signal_double_crouch",
+    "cooldown_ticks": 200
+  },
+  "effects": [
+    {
+      "type": "support_potion_pulse",
+      "charge_cost_multiplier": 1.5
+    }
+  ]
+}

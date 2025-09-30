@@ -10,7 +10,9 @@
     "learning": 0.06
   },
   "default_abilities": [
-    "petsplus:phase_partner"
+    "petsplus:phase_partner",
+    "petsplus:enchant_strip",
+    "petsplus:gear_swap"
   ],
   "tribute_defaults": {
     "10": "minecraft:gold_ingot",

@@ -1,0 +1,16 @@
+{
+  "id": "petsplus:fortress_bond",
+  "required_level": 5,
+  "trigger": {
+    "event": "owner_signal_proximity_channel",
+    "cooldown_ticks": 240,
+    "internal_cd_ticks": 240
+  },
+  "effects": [
+    {
+      "type": "guardian_fortress_bond",
+      "reduction_pct": 0.5,
+      "duration_ticks": 200
+    }
+  ]
+}

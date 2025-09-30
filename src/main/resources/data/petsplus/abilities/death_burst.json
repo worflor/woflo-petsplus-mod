@@ -1,0 +1,33 @@
+{
+  "id": "petsplus:death_burst",
+  "trigger": {
+    "event": "on_pet_death"
+  },
+  "effects": [
+    {
+      "type": "cursed_one_death_burst",
+      "radius": 6.0,
+      "damage": 14.0,
+      "ignite": true,
+      "reanimation": {
+        "radius_scale": 0.6,
+        "damage_scale": 0.5,
+        "ignite": false,
+        "effect_duration_scale": 0.5
+      },
+      "enemy_effects": [
+        {
+          "id": "minecraft:wither",
+          "duration": 100,
+          "amplifier": 0
+        },
+        {
+          "id": "minecraft:slowness",
+          "duration": 80,
+          "amplifier": 1
+        }
+      ]
+    }
+  ],
+  "required_level": 15
+}

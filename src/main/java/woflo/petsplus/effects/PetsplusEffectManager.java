@@ -19,12 +19,9 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
-import woflo.petsplus.advancement.AdvancementManager;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
-import woflo.petsplus.roles.support.SupportPotionUtils;
-import woflo.petsplus.roles.support.SupportPotionUtils.SupportPotionState;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetSwarmIndex;
 import woflo.petsplus.state.processing.OwnerSpatialResult;
@@ -70,23 +67,6 @@ public final class PetsplusEffectManager {
         }
 
         long nextCheckTick = applyPassiveAuras(world, pet, petComp, serverOwner, roleType, resolver, worldTime, swarmSnapshot, spatialResult);
-
-        PetRoleType.SupportPotionBehavior supportBehavior = roleType.supportPotionBehavior();
-        if (supportBehavior != null) {
-            long supportNext = applySupportPotionAura(
-                world,
-                pet,
-                petComp,
-                serverOwner,
-                roleType,
-                supportBehavior,
-                resolver,
-                worldTime,
-                swarmSnapshot,
-                spatialResult
-            );
-            nextCheckTick = Math.min(nextCheckTick, supportNext);
-        }
 
         return nextCheckTick;
     }
@@ -142,92 +122,6 @@ public final class PetsplusEffectManager {
         return nextCheckTick;
     }
 
-    private static long applySupportPotionAura(ServerWorld world, MobEntity pet, PetComponent petComp, ServerPlayerEntity owner,
-                                               PetRoleType roleType, PetRoleType.SupportPotionBehavior behavior,
-                                               AuraTargetResolver resolver, long worldTime,
-                                               @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot,
-                                               @Nullable OwnerSpatialResult spatialResult) {
-        if (!SupportPotionUtils.hasStoredPotion(petComp)) {
-            return Long.MAX_VALUE;
-        }
-        if (petComp.getLevel() < behavior.minLevel()) {
-            return Long.MAX_VALUE;
-        }
-        if (behavior.requireSitting() && !isPetSitting(pet)) {
-            return Long.MAX_VALUE;
-        }
-
-        PetsPlusConfig config = PetsPlusConfig.getInstance();
-        int interval = woflo.petsplus.roles.support.SupportPotionUtils.getScaledPulseInterval(
-            petComp,
-            behavior,
-            config.getSupportPotionInterval(roleType, behavior)
-        );
-        String auraKey = pet.getUuidAsString() + "|support_potion";
-        if (!shouldTriggerAura(auraKey, worldTime, interval)) {
-            return getNextAuraTick(auraKey, worldTime, interval);
-        }
-
-        SupportPotionState state = SupportPotionUtils.getStoredState(petComp);
-        if (!state.isValid()) {
-            return getNextAuraTick(auraKey, worldTime, interval);
-        }
-
-        int pulseDuration = woflo.petsplus.roles.support.SupportPotionUtils.getScaledAuraDuration(
-            petComp,
-            behavior,
-            state,
-            config.getSupportPotionDuration(roleType, behavior)
-        );
-        List<StatusEffectInstance> storedEffects = SupportPotionUtils.deserializeEffects(state.serializedEffects(), pulseDuration);
-        if (storedEffects.isEmpty() && behavior.fallbackEffect() != null) {
-            RegistryEntry<StatusEffect> fallback = Registries.STATUS_EFFECT.getEntry(behavior.fallbackEffect()).orElse(null);
-            if (fallback != null) {
-                storedEffects = List.of(new StatusEffectInstance(fallback, pulseDuration, 0, false, true, true));
-            }
-        }
-        if (storedEffects.isEmpty()) {
-            SupportPotionUtils.clearStoredPotion(petComp);
-            return getNextAuraTick(auraKey, worldTime, interval);
-        }
-
-        double radius = woflo.petsplus.roles.support.SupportPotionUtils.getScaledAuraRadius(
-            petComp,
-            behavior,
-            config.getSupportPotionRadius(roleType, behavior)
-        );
-        Set<LivingEntity> recipients = new LinkedHashSet<>(
-            resolveTargets(world, pet, petComp, owner, radius, PetRoleType.AuraTarget.OWNER_AND_ALLIES, resolver, swarmSnapshot, spatialResult)
-        );
-        if (config.isSupportPotionAppliedToPet(roleType, behavior)) {
-            recipients.add(pet);
-        }
-
-        if (recipients.isEmpty()) {
-            return getNextAuraTick(auraKey, worldTime, interval);
-        }
-
-        boolean appliedToAlly = false;
-        for (StatusEffectInstance instance : storedEffects) {
-            for (LivingEntity recipient : recipients) {
-                recipient.addStatusEffect(new StatusEffectInstance(instance));
-                if (recipient instanceof ServerPlayerEntity ally && ally != owner) {
-                    appliedToAlly = true;
-                    AdvancementManager.triggerSupportHealAllies(owner, ally);
-                }
-            }
-        }
-
-        if (appliedToAlly) {
-            sendConfiguredMessage(owner, behavior.message(), pet, "support_potion");
-        }
-        playSound(world, pet, behavior.sound());
-        emitParticles(world, pet, owner, recipients, radius, behavior.particleEvent());
-
-        double consumption = SupportPotionUtils.getConsumptionPerPulse(petComp);
-        SupportPotionUtils.consumeCharges(petComp, state, consumption);
-        return getNextAuraTick(auraKey, worldTime, interval);
-    }
 
     private static List<LivingEntity> applyAuraEffect(ServerWorld world, MobEntity pet, PetComponent petComp,
                                                       ServerPlayerEntity owner, double radius, PetRoleType.AuraEffect effect,

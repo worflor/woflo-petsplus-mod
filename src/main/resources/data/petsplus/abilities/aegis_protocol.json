@@ -1,0 +1,15 @@
+{
+  "id": "petsplus:aegis_protocol",
+  "required_level": 3,
+  "trigger": {
+    "event": "after_pet_redirect",
+    "internal_cd_ticks": 0
+  },
+  "effects": [
+    {
+      "type": "guardian_aegis_protocol",
+      "max_stacks": 3,
+      "duration_ticks": 200
+    }
+  ]
+}
