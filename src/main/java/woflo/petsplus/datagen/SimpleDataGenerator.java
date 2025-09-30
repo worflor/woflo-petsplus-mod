@@ -46,10 +46,12 @@ public class SimpleDataGenerator {
 
         // Striker abilities
         writeFile("abilities/finisher_mark.json", createFinisherMark());
+        writeFile("abilities/bloodlust_surge.json", createBloodlustSurge());
 
         // Support abilities
         writeFile("abilities/perch_potion_efficiency.json", createPerchPotionEfficiency());
         writeFile("abilities/mounted_cone_aura.json", createMountedConeAura());
+        writeFile("abilities/support_potion_pulse.json", createSupportPotionPulse());
 
         // Scout abilities
         writeFile("abilities/loot_wisp.json", createLootWisp());
@@ -57,9 +59,16 @@ public class SimpleDataGenerator {
 
         // Skyrider abilities
         writeFile("abilities/windlash_rider.json", createWindlashRider());
+        writeFile("abilities/gust_upwards.json", createGustUpwards());
 
         // Cursed One abilities
         writeFile("abilities/doom_echo.json", createDoomEcho());
+        writeFile("abilities/soul_sacrifice.json", createSoulSacrifice());
+        writeFile("abilities/death_burst.json", createDeathBurst());
+
+        // Enchantment-Bound abilities
+        writeFile("abilities/enchant_strip.json", createEnchantStrip());
+        writeFile("abilities/gear_swap.json", createGearSwap());
 
         // Eclipsed abilities
         writeFile("abilities/voidbrand.json", createVoidbrand());
@@ -125,29 +134,35 @@ public class SimpleDataGenerator {
     private static JsonObject createFinisherMark() {
         JsonObject ability = new JsonObject();
         ability.addProperty("id", "petsplus:finisher_mark");
-        
+
         JsonObject trigger = new JsonObject();
         trigger.addProperty("event", "owner_dealt_damage");
-        trigger.addProperty("target_hp_pct_below", 0.40);
-        trigger.addProperty("cooldown_ticks", 200);
+        trigger.addProperty("target_hp_pct_below", 0.45);
+        trigger.addProperty("cooldown_ticks", 160);
         ability.add("trigger", trigger);
-        
+
         JsonArray effects = new JsonArray();
-        
+
+        JsonObject feedback = new JsonObject();
+        feedback.addProperty("type", "striker_mark_feedback");
+        feedback.addProperty("particle_count", 10);
+        feedback.addProperty("particle_spread", 0.45);
+        effects.add(feedback);
+
         // Tag target
         JsonObject tagEffect = new JsonObject();
         tagEffect.addProperty("type", "tag_target");
         tagEffect.addProperty("key", "petsplus:finisher");
-        tagEffect.addProperty("duration_ticks", "${striker.finisherMarkDurationTicks}");
+        tagEffect.addProperty("duration_ticks", 100);
         effects.add(tagEffect);
-        
+
         // Owner attack bonus
         JsonObject attackBonus = new JsonObject();
         attackBonus.addProperty("type", "owner_next_attack_bonus");
         attackBonus.addProperty("vs_tag", "petsplus:finisher");
-        attackBonus.addProperty("bonus_damage_pct", "${striker.finisherMarkBonusPct}");
-        attackBonus.addProperty("expire_ticks", 100);
-        
+        attackBonus.addProperty("bonus_damage_pct", 0.25);
+        attackBonus.addProperty("expire_ticks", 120);
+
         JsonObject onHitEffect = new JsonObject();
         onHitEffect.addProperty("type", "effect");
         onHitEffect.addProperty("target", "victim");
@@ -162,11 +177,40 @@ public class SimpleDataGenerator {
         mountBuff.addProperty("type", "buff");
         mountBuff.addProperty("target", "mount");
         mountBuff.addProperty("id", "minecraft:speed");
-        mountBuff.addProperty("duration", 40);
+        mountBuff.addProperty("duration", 60);
         mountBuff.addProperty("amplifier", 0);
         mountBuff.addProperty("only_if_mounted", true);
         effects.add(mountBuff);
-        
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createBloodlustSurge() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:bloodlust_surge");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_killed_entity");
+        trigger.addProperty("require_execution", true);
+        trigger.addProperty("cooldown_ticks", 0);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject surge = new JsonObject();
+        surge.addProperty("type", "striker_bloodlust_surge");
+        surge.addProperty("base_duration_ticks", 100);
+        surge.addProperty("per_stack_duration_ticks", 40);
+        surge.addProperty("owner_strength_per_stack", 0.7);
+        surge.addProperty("owner_speed_per_stack", 0.5);
+        surge.addProperty("pet_strength_per_stack", 0.45);
+        surge.addProperty("pet_speed_per_stack", 0.35);
+        surge.addProperty("max_amplifier", 3);
+        surge.addProperty("swing_owner", true);
+        surge.addProperty("buff_pet", true);
+        surge.addProperty("play_feedback", true);
+        effects.add(surge);
+
         ability.add("effects", effects);
         return ability;
     }
@@ -246,11 +290,38 @@ public class SimpleDataGenerator {
         ability.add("effects", effects);
         return ability;
     }
-    
+
+    private static JsonObject createGustUpwards() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:gust_upwards");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_signal_shift_interact");
+        trigger.addProperty("cooldown_ticks", 160);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject gust = new JsonObject();
+        gust.addProperty("type", "skyrider_gust_upwards");
+        gust.addProperty("vertical_boost", 1.0);
+        gust.addProperty("forward_push", 0.25);
+        gust.addProperty("pet_lift_scale", 0.6);
+        gust.addProperty("owner_slowfall_ticks", 100);
+        gust.addProperty("pet_slowfall_ticks", 80);
+        gust.addProperty("lift_pet", true);
+        gust.addProperty("mount_inherit", true);
+        gust.addProperty("swing_owner", true);
+        gust.addProperty("play_feedback", true);
+        effects.add(gust);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
     private static JsonObject createDoomEcho() {
         JsonObject ability = new JsonObject();
         ability.addProperty("id", "petsplus:doom_echo");
-        
+
         JsonObject trigger = new JsonObject();
         trigger.addProperty("event", "on_owner_low_health");
         trigger.addProperty("owner_hp_pct_below", 0.35);
@@ -295,6 +366,99 @@ public class SimpleDataGenerator {
         effects.add(nauseaBuff);
         
         ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createSoulSacrifice() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:soul_sacrifice");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_signal_proximity_channel");
+        trigger.addProperty("cooldown_ticks", 1200);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject sacrifice = new JsonObject();
+        sacrifice.addProperty("type", "cursed_one_soul_sacrifice");
+        sacrifice.addProperty("xp_cost_levels", 4);
+        sacrifice.addProperty("duration_ticks", 600);
+        sacrifice.addProperty("reanimation_multiplier", 2.0);
+        sacrifice.addProperty("owner_heal_pct", 0.3);
+
+        JsonArray ownerEffects = new JsonArray();
+        JsonObject strength = new JsonObject();
+        strength.addProperty("id", "minecraft:strength");
+        strength.addProperty("duration", 600);
+        strength.addProperty("amplifier", 1);
+        ownerEffects.add(strength);
+
+        JsonObject resistance = new JsonObject();
+        resistance.addProperty("id", "minecraft:resistance");
+        resistance.addProperty("duration", 600);
+        resistance.addProperty("amplifier", 1);
+        ownerEffects.add(resistance);
+
+        JsonObject absorption = new JsonObject();
+        absorption.addProperty("id", "minecraft:absorption");
+        absorption.addProperty("duration", 200);
+        absorption.addProperty("amplifier", 2);
+        ownerEffects.add(absorption);
+
+        JsonObject speed = new JsonObject();
+        speed.addProperty("id", "minecraft:speed");
+        speed.addProperty("duration", 400);
+        speed.addProperty("amplifier", 1);
+        ownerEffects.add(speed);
+
+        sacrifice.add("owner_effects", ownerEffects);
+        effects.add(sacrifice);
+
+        ability.add("effects", effects);
+        ability.addProperty("required_level", 20);
+        return ability;
+    }
+
+    private static JsonObject createDeathBurst() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:death_burst");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "on_pet_death");
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject burst = new JsonObject();
+        burst.addProperty("type", "cursed_one_death_burst");
+        burst.addProperty("radius", 6.0);
+        burst.addProperty("damage", 14.0);
+        burst.addProperty("ignite", true);
+
+        JsonObject reanimation = new JsonObject();
+        reanimation.addProperty("radius_scale", 0.6);
+        reanimation.addProperty("damage_scale", 0.5);
+        reanimation.addProperty("ignite", false);
+        reanimation.addProperty("effect_duration_scale", 0.5);
+        burst.add("reanimation", reanimation);
+
+        JsonArray enemyEffects = new JsonArray();
+        JsonObject wither = new JsonObject();
+        wither.addProperty("id", "minecraft:wither");
+        wither.addProperty("duration", 100);
+        wither.addProperty("amplifier", 0);
+        enemyEffects.add(wither);
+
+        JsonObject slowness = new JsonObject();
+        slowness.addProperty("id", "minecraft:slowness");
+        slowness.addProperty("duration", 80);
+        slowness.addProperty("amplifier", 1);
+        enemyEffects.add(slowness);
+
+        burst.add("enemy_effects", enemyEffects);
+        effects.add(burst);
+
+        ability.add("effects", effects);
+        ability.addProperty("required_level", 15);
         return ability;
     }
     
@@ -385,6 +549,48 @@ public class SimpleDataGenerator {
         return ability;
     }
 
+    private static JsonObject createEnchantStrip() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:enchant_strip");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_signal_shift_interact");
+        trigger.addProperty("cooldown_ticks", 120);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject strip = new JsonObject();
+        strip.addProperty("type", "enchant_strip");
+        strip.addProperty("xp_cost_levels", 3);
+        strip.addProperty("prefer_mainhand", true);
+        strip.addProperty("allow_offhand", true);
+        strip.addProperty("drop_as_book", true);
+        effects.add(strip);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createGearSwap() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:gear_swap");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_signal_double_crouch");
+        trigger.addProperty("cooldown_ticks", 80);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject swap = new JsonObject();
+        swap.addProperty("type", "gear_swap");
+        swap.addProperty("store_sound", "minecraft:item.armor.equip_chain");
+        swap.addProperty("swap_sound", "minecraft:item.armor.equip_diamond");
+        effects.add(swap);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
     private static JsonObject createPerchPotionEfficiency() {
         JsonObject ability = new JsonObject();
         ability.addProperty("id", "petsplus:perch_potion_efficiency");
@@ -429,6 +635,27 @@ public class SimpleDataGenerator {
         return ability;
     }
 
+    private static JsonObject createSupportPotionPulse() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:support_potion_pulse");
+        ability.addProperty("description", "Manual potion aura release");
+        ability.addProperty("required_level", 5);
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_signal_double_crouch");
+        trigger.addProperty("cooldown_ticks", 200);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject pulse = new JsonObject();
+        pulse.addProperty("type", "support_potion_pulse");
+        pulse.addProperty("charge_cost_multiplier", 1.5);
+        effects.add(pulse);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
     private static JsonObject createPerchPing() {
         JsonObject ability = new JsonObject();
         ability.addProperty("id", "petsplus:perch_ping");
@@ -467,14 +694,14 @@ public class SimpleDataGenerator {
         role.addProperty("description", "Tank role with damage redirection and protection");
         
         JsonArray abilities = new JsonArray();
-        abilities.add("petsplus:shield_bash_rider");
-        abilities.add("petsplus:bulwark_redirect");
+        abilities.add("petsplus:aegis_protocol");
+        abilities.add("petsplus:fortress_bond");
         role.add("abilities", abilities);
-        
+
         JsonObject featureLevels = new JsonObject();
-        featureLevels.addProperty("3", "Basic bulwark redirect");
-        featureLevels.addProperty("10", "Shield bash rider with projectile DR");
-        featureLevels.addProperty("20", "Mount knockback resistance buff");
+        featureLevels.addProperty("3", "Aegis protocol defense stacks");
+        featureLevels.addProperty("7", "Fortress bond protective channel");
+        featureLevels.addProperty("15", "Mount knockback resistance buff");
         role.add("feature_levels", featureLevels);
         
         return role;
@@ -488,14 +715,16 @@ public class SimpleDataGenerator {
         JsonArray abilities = new JsonArray();
         abilities.add("petsplus:finisher_mark");
         abilities.add("petsplus:execution_bonus");
+        abilities.add("petsplus:bloodlust_surge");
         role.add("abilities", abilities);
-        
+
         JsonObject featureLevels = new JsonObject();
         featureLevels.addProperty("10", "Executioner fallback for low health targets");
         featureLevels.addProperty("15", "Finisher mark system with tagging");
+        featureLevels.addProperty("22", "Bloodlust surge momentum buffs");
         featureLevels.addProperty("25", "Enhanced execution bonuses");
         role.add("feature_levels", featureLevels);
-        
+
         return role;
     }
     
@@ -507,10 +736,12 @@ public class SimpleDataGenerator {
         JsonArray abilities = new JsonArray();
         abilities.add("petsplus:perch_potion_efficiency");
         abilities.add("petsplus:mounted_cone_aura");
+        abilities.add("petsplus:support_potion_pulse");
         role.add("abilities", abilities);
-        
+
         JsonObject featureLevels = new JsonObject();
         featureLevels.addProperty("5", "Perched potion sip reduction");
+        featureLevels.addProperty("9", "Manual stored potion pulse");
         featureLevels.addProperty("15", "Mounted cone bias aura system");
         role.add("feature_levels", featureLevels);
         
@@ -546,6 +777,7 @@ public class SimpleDataGenerator {
         JsonArray abilities = new JsonArray();
         abilities.add("petsplus:projectile_levitation");
         abilities.add("petsplus:windlash_rider");
+        abilities.add("petsplus:gust_upwards");
         abilities.add("petsplus:skybond_mount_extension");
         role.add("abilities", abilities);
         
@@ -562,18 +794,19 @@ public class SimpleDataGenerator {
         JsonObject role = new JsonObject();
         role.addProperty("name", "Enchantment-Bound");
         role.addProperty("description", "Owner-centric enchantment echoes");
-        
+
         JsonArray abilities = new JsonArray();
-        abilities.add("petsplus:perched_haste_bonus");
-        abilities.add("petsplus:mounted_extra_rolls");
+        abilities.add("petsplus:phase_partner");
+        abilities.add("petsplus:enchant_strip");
+        abilities.add("petsplus:gear_swap");
         role.add("abilities", abilities);
-        
+
         JsonObject featureLevels = new JsonObject();
-        featureLevels.addProperty("12", "Perched haste bonus extension");
-        featureLevels.addProperty("22", "Mounted extra rolls for lassoed mobs");
-        featureLevels.addProperty("28", "Trampled crop extra rolls");
+        featureLevels.addProperty("15", "Shift-strip enchantment channel");
+        featureLevels.addProperty("22", "Double crouch gear swap");
+        featureLevels.addProperty("30", "Enhanced phase partner tether");
         role.add("feature_levels", featureLevels);
-        
+
         return role;
     }
     
@@ -581,17 +814,20 @@ public class SimpleDataGenerator {
         JsonObject role = new JsonObject();
         role.addProperty("name", "Cursed One");
         role.addProperty("description", "Risk fantasy with doom mechanics");
-        
+
         JsonArray abilities = new JsonArray();
         abilities.add("petsplus:doom_echo");
+        abilities.add("petsplus:soul_sacrifice");
+        abilities.add("petsplus:death_burst");
         abilities.add("petsplus:auto_resurrect_mount_buff");
         role.add("abilities", abilities);
-        
+
         JsonObject featureLevels = new JsonObject();
-        featureLevels.addProperty("15", "Doom echo on low health");
+        featureLevels.addProperty("15", "Death burst detonates on final demise");
+        featureLevels.addProperty("20", "Soul sacrifice proximity channel");
         featureLevels.addProperty("25", "Auto-resurrect mount resistance");
         role.add("feature_levels", featureLevels);
-        
+
         return role;
     }
     

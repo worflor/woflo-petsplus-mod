@@ -13,6 +13,7 @@ import woflo.petsplus.api.event.OwnerAbilitySignalEvent;
 public final class OwnerAbilitySignalAbilityBridge {
     private static final String DOUBLE_CROUCH_EVENT = "owner_signal_double_crouch";
     private static final String PROXIMITY_EVENT = "owner_signal_proximity_channel";
+    private static final String SHIFT_INTERACT_EVENT = "owner_signal_shift_interact";
 
     private OwnerAbilitySignalAbilityBridge() {
     }
@@ -41,6 +42,7 @@ public final class OwnerAbilitySignalAbilityBridge {
         return switch (type) {
             case DOUBLE_CROUCH -> DOUBLE_CROUCH_EVENT;
             case PROXIMITY_CHANNEL -> PROXIMITY_EVENT;
+            case SHIFT_INTERACT -> SHIFT_INTERACT_EVENT;
         };
     }
 }

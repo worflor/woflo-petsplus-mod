@@ -1,0 +1,21 @@
+{
+  "id": "petsplus:gust_upwards",
+  "trigger": {
+    "event": "owner_signal_shift_interact",
+    "cooldown_ticks": 160
+  },
+  "effects": [
+    {
+      "type": "skyrider_gust_upwards",
+      "vertical_boost": 1.0,
+      "forward_push": 0.25,
+      "pet_lift_scale": 0.6,
+      "owner_slowfall_ticks": 100,
+      "pet_slowfall_ticks": 80,
+      "lift_pet": true,
+      "mount_inherit": true,
+      "swing_owner": true,
+      "play_feedback": true
+    }
+  ]
+}

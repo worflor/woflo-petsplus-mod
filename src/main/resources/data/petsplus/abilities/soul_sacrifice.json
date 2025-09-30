@@ -1,0 +1,39 @@
+{
+  "id": "petsplus:soul_sacrifice",
+  "trigger": {
+    "event": "owner_signal_proximity_channel",
+    "cooldown_ticks": 1200
+  },
+  "effects": [
+    {
+      "type": "cursed_one_soul_sacrifice",
+      "xp_cost_levels": 4,
+      "duration_ticks": 600,
+      "reanimation_multiplier": 2.0,
+      "owner_heal_pct": 0.3,
+      "owner_effects": [
+        {
+          "id": "minecraft:strength",
+          "duration": 600,
+          "amplifier": 1
+        },
+        {
+          "id": "minecraft:resistance",
+          "duration": 600,
+          "amplifier": 1
+        },
+        {
+          "id": "minecraft:absorption",
+          "duration": 200,
+          "amplifier": 2
+        },
+        {
+          "id": "minecraft:speed",
+          "duration": 400,
+          "amplifier": 1
+        }
+      ]
+    }
+  ],
+  "required_level": 20
+}

@@ -192,6 +192,12 @@ public class FeedbackConfig {
             new ParticleConfig(ParticleTypes.FIREWORK, 2, 0.3, 0.4, 0.3, 0.02, "upward", 0.5, false)
         ), new AudioConfig(SoundEvents.ITEM_ELYTRA_FLYING, 0.2f, 1.4f, 8.0), 0, true);
 
+        // Skyrider: Gust upwards escape
+        register("skyrider_gust", List.of(
+            new ParticleConfig(ParticleTypes.CLOUD, 12, 0.35, 0.25, 0.35, 0.03, "spiral", 1.2, true),
+            new ParticleConfig(ParticleTypes.END_ROD, 8, 0.2, 0.35, 0.2, 0.015, "upward", 0.7, false)
+        ), new AudioConfig(SoundEvents.ITEM_TRIDENT_RIPTIDE_1.value(), 0.35f, 1.3f, 10.0), 0, true);
+
         // Enchantment Bound: Echo triggered
         register("enchantment_bound_echo", List.of(
             new ParticleConfig(ParticleTypes.ENCHANT, 8, 0.4, 0.3, 0.4, 0.03, "spiral", 1.5, true),

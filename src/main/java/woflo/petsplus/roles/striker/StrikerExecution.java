@@ -3,6 +3,7 @@ package woflo.petsplus.roles.striker;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.Petsplus;
@@ -27,6 +28,14 @@ public class StrikerExecution {
     // Track recent damage stamps per target to validate execution window and ownership
     private static final Map<LivingEntity, DamageStamp> RECENT_DAMAGE = new WeakHashMap<>();
     private record DamageStamp(UUID ownerId, long tick) {}
+
+    private static final Map<LivingEntity, ExecutionKillData> EXECUTION_KILL_FLAGS = new WeakHashMap<>();
+    private static final Map<LivingEntity, FinisherConsumption> RECENT_FINISHER_FLAGS = new WeakHashMap<>();
+    private static final long EXECUTION_FLAG_TTL = 80L;
+    private static final long FINISHER_FLAG_TTL = 100L;
+    private record ExecutionKillData(UUID ownerId, long tick, float thresholdPct, int strikerLevel,
+                                     int momentumStacks, float momentumFill) {}
+    private record FinisherConsumption(UUID ownerId, long tick) {}
 
     // Track short-lived execution momentum stacks per owner for the temporary threshold bonus
     private static final Map<UUID, ExecutionMomentum> EXECUTION_MOMENTUM = new HashMap<>();
@@ -62,6 +71,9 @@ public class StrikerExecution {
             return baseDamage + bonusDamage;
         }
     }
+
+    public record ExecutionKillSummary(float thresholdPct, int strikerLevel,
+                                       int momentumStacks, float momentumFill) {}
 
     private record CachedExecution(UUID ownerId, UUID targetId, ExecutionResult result) {}
 
@@ -137,6 +149,10 @@ public class StrikerExecution {
 
     public static ExecutionResult evaluateExecution(PlayerEntity attacker, LivingEntity target, float baseDamage) {
         return evaluateExecution(attacker, target, baseDamage, true);
+    }
+
+    public static ExecutionResult previewExecution(PlayerEntity attacker, LivingEntity target, float baseDamage) {
+        return evaluateExecution(attacker, target, baseDamage, false);
     }
 
     public static ExecutionResult evaluateExecution(PlayerEntity attacker, LivingEntity target, float baseDamage, boolean applyMomentum) {
@@ -220,6 +236,8 @@ public class StrikerExecution {
                     String.format(Locale.ROOT, "%.1f", nextThreshold * 100.0),
                     resultingStacks,
                     String.format(Locale.ROOT, "%.1f", Math.max(0, nextThreshold - baseThreshold) * 100.0));
+
+            flagExecutionKill(attacker, target, (float) appliedThreshold, strikerLevel, resultingStacks, resultingFill);
         }
 
         return new ExecutionResult(bonusDamage, true, (float) appliedThreshold, strikerLevel, resultingStacks, resultingFill);
@@ -249,13 +267,14 @@ public class StrikerExecution {
      */
     public static void onAttackFinisherMark(PlayerEntity owner, LivingEntity target, float damage) {
         if (!hasFinisherMark(target)) return;
-        
+
         // Remove the mark after use
         TagTargetEffect.removeTag(target, "petsplus:finisher");
-        
+        flagFinisherConsumption(owner, target);
+
         // Apply bonus damage and effects (handled by OwnerNextAttackBonusEffect)
         double bonusPercent = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.STRIKER.id(), "finisherMarkBonusPct", 0.20);
-        
+
         Petsplus.LOGGER.debug("Finisher mark triggered: {}% bonus damage against {}", 
                              bonusPercent * 100, target.getName().getString());
     }
@@ -345,8 +364,43 @@ public class StrikerExecution {
         return new MomentumState(momentum.stacks(), momentum.normalizedFill(now));
     }
 
-    private static int getActiveMomentumStacks(PlayerEntity owner) {
+    public static int getActiveMomentumStacks(PlayerEntity owner) {
         return getMomentumState(owner).stacks();
+    }
+
+    public static float getActiveMomentumFill(PlayerEntity owner) {
+        return getMomentumState(owner).fill();
+    }
+
+    public static int getMomentumTicksRemaining(PlayerEntity owner) {
+        if (owner == null) {
+            return 0;
+        }
+        MomentumState state = getMomentumState(owner);
+        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+            return state.stacks() > 0 ? Integer.MAX_VALUE : 0;
+        }
+
+        ExecutionMomentum momentum = EXECUTION_MOMENTUM.get(owner.getUuid());
+        if (momentum == null) {
+            return 0;
+        }
+
+        long remaining = momentum.expiresAtTick() - serverWorld.getTime();
+        return (int) Math.max(0, Math.min(Integer.MAX_VALUE, remaining));
+    }
+
+    public static int getMomentumDurationTicks(PlayerEntity owner) {
+        if (owner == null) {
+            return 0;
+        }
+        MomentumState state = getMomentumState(owner);
+        if (state.stacks() <= 0) {
+            return 0;
+        }
+
+        ExecutionMomentum momentum = EXECUTION_MOMENTUM.get(owner.getUuid());
+        return momentum != null ? Math.max(0, momentum.durationTicks()) : 0;
     }
 
     private static MomentumState incrementMomentumStacks(PlayerEntity owner, int maxStacks, int durationTicks) {
@@ -371,6 +425,91 @@ public class StrikerExecution {
         ExecutionMomentum updated = new ExecutionMomentum(stacks, expiresAt, durationTicks);
         EXECUTION_MOMENTUM.put(owner.getUuid(), updated);
         return new MomentumState(updated.stacks(), updated.normalizedFill(now));
+    }
+
+    private static void flagExecutionKill(PlayerEntity owner, LivingEntity target, float thresholdPct,
+                                          int strikerLevel, int momentumStacks, float momentumFill) {
+        if (!(owner instanceof ServerPlayerEntity) || !(owner.getWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+
+        long now = serverWorld.getTime();
+        cleanupExecutionFlags(now);
+        EXECUTION_KILL_FLAGS.put(target, new ExecutionKillData(
+            owner.getUuid(), now, thresholdPct, strikerLevel, momentumStacks, momentumFill));
+    }
+
+    private static void cleanupExecutionFlags(long now) {
+        EXECUTION_KILL_FLAGS.entrySet().removeIf(entry -> now - entry.getValue().tick() > EXECUTION_FLAG_TTL);
+    }
+
+    private static void cleanupFinisherFlags(long now) {
+        RECENT_FINISHER_FLAGS.entrySet().removeIf(entry -> now - entry.getValue().tick() > FINISHER_FLAG_TTL);
+    }
+
+    public static ExecutionKillSummary consumeExecutionKillData(PlayerEntity owner, LivingEntity target) {
+        if (owner == null || target == null) {
+            return null;
+        }
+        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+            EXECUTION_KILL_FLAGS.remove(target);
+            return null;
+        }
+
+        long now = serverWorld.getTime();
+        cleanupExecutionFlags(now);
+        ExecutionKillData data = EXECUTION_KILL_FLAGS.get(target);
+        if (data == null) {
+            return null;
+        }
+        if (!owner.getUuid().equals(data.ownerId())) {
+            return null;
+        }
+
+        if (now - data.tick() > EXECUTION_FLAG_TTL) {
+            EXECUTION_KILL_FLAGS.remove(target);
+            return null;
+        }
+
+        EXECUTION_KILL_FLAGS.remove(target);
+        return new ExecutionKillSummary(data.thresholdPct(), data.strikerLevel(), data.momentumStacks(), data.momentumFill());
+    }
+
+    public static void flagFinisherConsumption(PlayerEntity owner, LivingEntity target) {
+        if (owner == null || target == null || !(owner.getWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+
+        long now = serverWorld.getTime();
+        cleanupFinisherFlags(now);
+        RECENT_FINISHER_FLAGS.put(target, new FinisherConsumption(owner.getUuid(), now));
+    }
+
+    public static boolean consumeFinisherKillFlag(PlayerEntity owner, LivingEntity target) {
+        if (owner == null || target == null) {
+            return false;
+        }
+        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+            RECENT_FINISHER_FLAGS.remove(target);
+            return false;
+        }
+
+        long now = serverWorld.getTime();
+        cleanupFinisherFlags(now);
+        FinisherConsumption flag = RECENT_FINISHER_FLAGS.get(target);
+        if (flag == null) {
+            return false;
+        }
+        if (!owner.getUuid().equals(flag.ownerId())) {
+            return false;
+        }
+        if (now - flag.tick() > FINISHER_FLAG_TTL) {
+            RECENT_FINISHER_FLAGS.remove(target);
+            return false;
+        }
+
+        RECENT_FINISHER_FLAGS.remove(target);
+        return true;
     }
 
     private static double clamp01(double v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }

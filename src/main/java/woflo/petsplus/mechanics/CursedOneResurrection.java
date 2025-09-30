@@ -14,9 +14,13 @@ import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.random.Random;
+import woflo.petsplus.abilities.AbilityManager;
+import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.ui.AfterimageManager;
+import woflo.petsplus.ui.UIFeedbackManager;
+import woflo.petsplus.roles.cursedone.CursedOneSoulSacrificeManager;
 
 import java.util.List;
 import java.util.Map;
@@ -37,8 +41,14 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class CursedOneResurrection {
     
-    // Track pets currently in reanimation state (UUID -> end time in world ticks)
-    private static final Map<UUID, Long> reanimatingPets = new ConcurrentHashMap<>();
+    // Track pets currently in reanimation state (UUID -> reanimation window)
+    private static final Map<UUID, ReanimationWindow> reanimatingPets = new ConcurrentHashMap<>();
+
+    private record ReanimationWindow(long endTime, int durationTicks) {
+        long startTime() {
+            return endTime - durationTicks;
+        }
+    }
     
     public static void initialize() {
         ServerLivingEntityEvents.ALLOW_DAMAGE.register(CursedOneResurrection::onEntityDamage);
@@ -73,21 +83,20 @@ public class CursedOneResurrection {
             return;
         }
 
-        Long reanimationEndTime = reanimatingPets.get(mob.getUuid());
-        if (reanimationEndTime == null) {
+        ReanimationWindow window = reanimatingPets.get(mob.getUuid());
+        if (window == null) {
             return;
         }
 
         long currentTime = world.getTime();
-        if (currentTime >= reanimationEndTime) {
-            completeReanimation(world, mob.getUuid());
+        if (currentTime >= window.endTime()) {
+            completeReanimation(world, mob.getUuid(), window);
             reanimatingPets.remove(mob.getUuid());
             return;
         }
 
-        long reanimationStartTime = reanimationEndTime - 300;
-        long timeInReanimation = currentTime - reanimationStartTime;
-        createProgressiveReanimationEffects(world, mob.getUuid(), timeInReanimation);
+        long timeInReanimation = Math.max(0, currentTime - window.startTime());
+        createProgressiveReanimationEffects(world, mob.getUuid(), timeInReanimation, window.durationTicks());
     }
     
     /**
@@ -100,10 +109,10 @@ public class CursedOneResurrection {
     /**
      * Complete the reanimation process and resurrect the pet
      */
-    private static void completeReanimation(ServerWorld world, UUID petUuid) {
+    private static void completeReanimation(ServerWorld world, UUID petUuid, ReanimationWindow window) {
         // Find the pet entity
         MobEntity pet = (MobEntity) world.getEntity(petUuid);
-        
+
         if (pet == null || !pet.isAlive()) {
             return; // Pet no longer exists or is dead
         }
@@ -115,6 +124,9 @@ public class CursedOneResurrection {
         
         // Release the glass afterimage with a final burst
         AfterimageManager.finishEncasement(pet, true);
+
+        // Detonate a lighter burst as the pet reforms
+        triggerReanimationBurst(world, pet, petComp);
 
         // Resurrect with 50% health
         float maxHealth = pet.getMaxHealth();
@@ -137,8 +149,8 @@ public class CursedOneResurrection {
         playResurrectionCompleteFeedback(pet, world);
         
         // Fire pet resurrection abilities
-        woflo.petsplus.api.TriggerContext context = new woflo.petsplus.api.TriggerContext(world, pet, petComp.getOwner(), "on_pet_resurrect");
-        woflo.petsplus.abilities.AbilityManager.triggerAbilities(pet, context);
+        TriggerContext context = new TriggerContext(world, pet, petComp.getOwner(), "on_pet_resurrect");
+        AbilityManager.triggerAbilities(pet, context);
         
         // Handle mount buff if owner is mounted and pet is level 25+
         if (petComp.getLevel() >= 25 && petComp.getOwner() != null) {
@@ -168,27 +180,39 @@ public class CursedOneResurrection {
         // Brief invulnerability period
         pet.timeUntilRegen = 40; // 2 seconds
     }
+
+    private static void triggerReanimationBurst(ServerWorld world, MobEntity pet, PetComponent component) {
+        if (world == null || pet == null || component == null) {
+            return;
+        }
+
+        TriggerContext context = new TriggerContext(world, pet, component.getOwner(), "on_pet_death")
+            .withData("death_burst_reason", "reanimation");
+        AbilityManager.triggerAbilities(pet, context);
+    }
     
     /**
      * Create progressive visual effects during reanimation that build up over time
      */
-    private static void createProgressiveReanimationEffects(ServerWorld world, UUID petUuid, long timeInReanimation) {
+    private static void createProgressiveReanimationEffects(ServerWorld world, UUID petUuid,
+                                                           long timeInReanimation, int totalDuration) {
         // Find the pet entity
         MobEntity pet = (MobEntity) world.getEntity(petUuid);
-        
+
         if (pet == null) {
             return; // Pet no longer exists
         }
-        
+
         double x = pet.getX();
         double y = pet.getY() + 0.5;
         double z = pet.getZ();
-        
+
         // Calculate progress (0.0 to 1.0) through the 15-second reanimation
-        float progress = Math.min(1.0f, timeInReanimation / 300.0f);
-        
+        int duration = Math.max(1, totalDuration);
+        float progress = Math.min(1.0f, timeInReanimation / (float) duration);
+
         // Generate a unique seed for this reanimation based on pet UUID and start time
-        long reanimationSeed = petUuid.getMostSignificantBits() ^ (timeInReanimation / 300);
+        long reanimationSeed = petUuid.getMostSignificantBits() ^ duration;
         Random random = Random.create(reanimationSeed);
 
         // Choose a reanimation pattern based on the seed (algorithmic variation)
@@ -814,15 +838,17 @@ public class CursedOneResurrection {
             cursedPet.setInvulnerable(true);
             cursedPet.setAiDisabled(true);
             
+            // Determine reanimation window (default 15 seconds, extended if soul sacrifice active)
+            int baseDuration = 300;
+            int reanimationDuration = CursedOneSoulSacrificeManager.resolveReanimationDuration(cursedPet, baseDuration);
+
             // Apply visual status effects to show the pet is "dead but not dead"
-            cursedPet.addStatusEffect(new StatusEffectInstance(StatusEffects.BLINDNESS, 300, 0)); // 15 seconds
-            cursedPet.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 300, 255)); // Max slowness for 15s
-            cursedPet.addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS, 300, 255)); // Max weakness for 15s
-            
-            // Add the pet to reanimation tracking (15 seconds = 300 ticks)
-            int reanimationDuration = 300;
+            cursedPet.addStatusEffect(new StatusEffectInstance(StatusEffects.BLINDNESS, reanimationDuration, 0));
+            cursedPet.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, reanimationDuration, 255));
+            cursedPet.addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS, reanimationDuration, 255));
+
             long reanimationEndTime = world.getTime() + reanimationDuration;
-            reanimatingPets.put(cursedPet.getUuid(), reanimationEndTime);
+            reanimatingPets.put(cursedPet.getUuid(), new ReanimationWindow(reanimationEndTime, reanimationDuration));
 
             // Visual and audio feedback for entering reanimation
             playReanimationStartFeedback(cursedPet, world);
@@ -847,9 +873,13 @@ public class CursedOneResurrection {
                         Text.of("§8✦ §5Reanimating... §8✦"),
                         true
                     );
+
+                    if (reanimationDuration > baseDuration && petComp.getOwner() instanceof ServerPlayerEntity owner) {
+                        UIFeedbackManager.sendCursedReanimationExtended(owner, cursedPet, reanimationDuration / 20);
+                    }
                 }
             }
-            
+
             return true;
 
         } catch (Exception e) {

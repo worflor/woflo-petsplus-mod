@@ -40,6 +40,7 @@ public final class OwnerAbilitySignalEvent {
     /** Supported manual trigger types. */
     public enum Type {
         DOUBLE_CROUCH,
-        PROXIMITY_CHANNEL
+        PROXIMITY_CHANNEL,
+        SHIFT_INTERACT
     }
 }

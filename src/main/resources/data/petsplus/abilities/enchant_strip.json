@@ -1,0 +1,16 @@
+{
+  "id": "petsplus:enchant_strip",
+  "trigger": {
+    "event": "owner_signal_shift_interact",
+    "cooldown_ticks": 120
+  },
+  "effects": [
+    {
+      "type": "enchant_strip",
+      "xp_cost_levels": 3,
+      "prefer_mainhand": true,
+      "allow_offhand": true,
+      "drop_as_book": true
+    }
+  ]
+}

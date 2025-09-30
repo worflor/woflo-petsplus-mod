@@ -6,43 +6,10 @@ This document outlines potential changes, improvements, and new mechanics for ex
 
 ---
 
-## Guardian
-**Current State**: Damage interception, strength priming, bulwark system
-**Potential Changes**:
-- **NEW**: Proximity Channel: "Fortress Bond" - Creates a protective dome around both you and the pet for 10 seconds, reducing damage by 50%
-- **REWORK**: "Aegis Protocol" - Each successful damage redirect builds "defense stacks" that provide escalating bonuses (replaces brief strength priming)
-
-## Striker
-**Current State**: Execution bonuses, finisher marks, damage scaling vs wounded targets
-**Potential Changes**:
-- **NEW**: Double Crouch: "Bloodlust Surge" - After killing an enemy, triggers brief damage and speed boost. Stacks if you get multiple kills quickly, turning Striker into a momentum-based combat role
-
-## Support
-**Current State**: Potion consumption reduction, beneficial auras, mounted cone projection
-**Potential Changes**:
-- **CHANGE**: Wire the existing potion sipping system into the new trigger framework
-
 ## Scout
 **Current State**: Threat detection, loot attraction, movement speed bonus
 **Potential Changes**:
 - **NEW**: Double Crouch: "Pulse Scan" - Reveals all mobs within 32 blocks through walls for 5 seconds
-
-## Skyrider
-**Current State**: Fall damage reduction, enemy knockup, wind-based abilities
-**Potential Changes**:
-- **NEW**: Proximity Channel or Shift Right-Click: "Gust Upwards" - Launches you upward with slowfall and negates fall damage for that specific fall instance
-
-## Enchantment-Bound
-**Current State**: Work-speed extensions, drop luck enhancement, gear echoes
-**Potential Changes**:
-- **NEW**: Shift Right-Click: "Enchant Strip" - Removes top enchantment from main/offhand tool (book/enchanted tool) for XP cost
-- **NEW**: Double Crouch: "Gear Swap" - Instantly swap between two complete gear sets stored in pet (drops all stored gear on pet death)
-
-## Cursed One
-**Current State**: Contractual obligation (pet sacrifices itself to save player from death), pet immortality with reanimation, mount resistance buffs
-**Potential Changes**:
-- **NEW**: Death Burst AoE - When pet actually dies, creates damaging explosion that hits nearby hostiles (enforces death-focused bomb playstyle)
-- **NEW**: Proximity Channel: "Soul Sacrifice" - Player sacrifices XP and forces pet into 2x reanimation time but gains massive temporary buffs. Bypasses death burst (you sacrifice that power for personal gain)
 
 ## Eepy Eeper
 **Current State**: Sleep-based healing auras, rest mechanics

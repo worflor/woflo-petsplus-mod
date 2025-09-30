@@ -2,16 +2,19 @@ package woflo.petsplus.roles.support;
 
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.PotionContentsComponent;
+import net.minecraft.entity.ItemEntity;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectCategory;
 import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.server.world.ServerWorld;
 import net.minecraft.registry.Registries;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.MathHelper;
 
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
@@ -22,6 +25,7 @@ import woflo.petsplus.util.PetPerchUtil;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Utilities for working with potion items for the Support role.
@@ -46,6 +50,10 @@ public final class SupportPotionUtils {
     private static final int DEFAULT_BASE_POTION_DURATION_TICKS = 3600;
     private static final double MIN_INITIAL_CHARGES = 1.0;
     private static final double EPSILON = 1.0E-4;
+    private static final String STATE_LAST_PULSE_TICK = "support_potion_last_pulse_tick";
+    private static final String STATE_LAST_SIGNATURE = "support_potion_last_signature";
+    private static final String STATE_PULSE_STREAK = "support_potion_pulse_streak";
+    private static final String STATE_LAST_RECIPIENT_COUNT = "support_potion_last_recipient_count";
 
     private SupportPotionUtils() {}
 
@@ -418,6 +426,155 @@ public final class SupportPotionUtils {
     }
 
     /**
+     * Determine the tuned radius/duration/cost for the next manual pulse based on player context.
+     */
+    public static PulseProfile computePulseProfile(
+        PetComponent component,
+        SupportPotionState state,
+        PetRoleType.SupportPotionBehavior behavior,
+        double configuredRadius,
+        int configuredDuration,
+        double configuredChargeCost,
+        ServerWorld world,
+        ServerPlayerEntity owner,
+        MobEntity pet,
+        Set<LivingEntity> recipients
+    ) {
+        double baseRadius = Math.max(0.25, configuredRadius);
+        int baseDuration = Math.max(20, configuredDuration);
+        double baseCost = Math.max(0.0, configuredChargeCost);
+        int recipientCount = recipients != null ? recipients.size() : 0;
+
+        long now = world != null ? world.getTime() : 0L;
+        Long lastTickObj = component != null ? component.getStateData(STATE_LAST_PULSE_TICK, Long.class) : null;
+        long lastTick = lastTickObj != null ? Math.max(0L, lastTickObj) : 0L;
+
+        Integer lastStreakObj = component != null ? component.getStateData(STATE_PULSE_STREAK, Integer.class) : null;
+        int lastStreak = lastStreakObj != null ? Math.max(0, lastStreakObj) : 0;
+
+        String lastSignature = component != null ? component.getStateData(STATE_LAST_SIGNATURE, String.class) : null;
+        String currentSignature = getPotionSignature(state);
+        boolean sameSignature = !currentSignature.isEmpty() && currentSignature.equals(lastSignature);
+
+        boolean rhythmActive = sameSignature && lastTick > 0L && now > 0L && now - lastTick <= 160L;
+        int streak = rhythmActive ? Math.min(5, Math.max(1, lastStreak + 1)) : 1;
+
+        boolean perched = component != null && PetPerchUtil.isPetPerched(component);
+
+        boolean clutchActive = false;
+        if (owner != null && owner.getMaxHealth() > 0.0f) {
+            clutchActive = owner.getHealth() <= owner.getMaxHealth() * 0.45f;
+        }
+
+        boolean comfortActive = false;
+        if (pet != null && pet.getMaxHealth() > 0.0f && owner != null && owner.getMaxHealth() > 0.0f) {
+            boolean petHealthy = pet.getHealth() >= pet.getMaxHealth() * 0.95f;
+            boolean ownerHealthy = owner.getHealth() >= owner.getMaxHealth() * 0.95f;
+            comfortActive = perched && petHealthy && ownerHealthy;
+        }
+
+        if (recipients != null) {
+            for (LivingEntity entity : recipients) {
+                if (entity == null) {
+                    continue;
+                }
+                float max = entity.getMaxHealth();
+                if (max <= 0.0f) {
+                    continue;
+                }
+                if (entity.getHealth() <= max * 0.4f) {
+                    clutchActive = true;
+                    break;
+                }
+            }
+        }
+
+        if (clutchActive) {
+            comfortActive = false;
+        }
+
+        double tunedRadius = baseRadius;
+        int tunedDuration = baseDuration;
+        double tunedCost = baseCost;
+
+        if (rhythmActive) {
+            double rhythmBonus = 0.35 + 0.2 * (streak - 1);
+            tunedRadius += Math.min(1.5, rhythmBonus);
+            tunedDuration += 20 + 10 * (streak - 1);
+            tunedCost *= Math.max(0.55, 0.9 - 0.05 * (streak - 1));
+        }
+
+        if (recipientCount >= 3) {
+            int extra = recipientCount - 2;
+            tunedRadius += Math.min(1.25, extra * 0.25);
+            tunedCost *= 1.0 + Math.min(0.45, extra * 0.08);
+        }
+
+        if (clutchActive) {
+            tunedRadius += 0.45;
+            tunedDuration += 40;
+            tunedCost *= 1.15;
+        }
+
+        if (comfortActive) {
+            tunedRadius += 0.2;
+            tunedDuration += 20;
+            tunedCost *= 0.85;
+        }
+
+        if (perched && behavior != null && behavior.requireSitting()) {
+            tunedCost *= 0.9;
+        }
+
+        double maxRadius = baseRadius + 3.0;
+        tunedRadius = MathHelper.clamp(tunedRadius, Math.max(0.5, baseRadius * 0.6), Math.max(0.5, maxRadius));
+        tunedDuration = MathHelper.clamp(tunedDuration, 40, 480);
+        tunedCost = MathHelper.clamp(tunedCost, 0.0, 12.0);
+
+        return new PulseProfile(tunedRadius, tunedDuration, tunedCost, streak, rhythmActive, clutchActive, comfortActive, recipientCount);
+    }
+
+    /**
+     * Persist contextual telemetry for the most recent pulse to inform future tuning.
+     */
+    public static void recordPulseTelemetry(
+        PetComponent component,
+        SupportPotionState state,
+        ServerWorld world,
+        PulseProfile profile
+    ) {
+        if (component == null || world == null || profile == null) {
+            return;
+        }
+
+        component.setStateData(STATE_LAST_PULSE_TICK, world.getTime());
+        component.setStateData(STATE_PULSE_STREAK, profile.streak());
+        component.setStateData(STATE_LAST_SIGNATURE, getPotionSignature(state));
+        component.setStateData(STATE_LAST_RECIPIENT_COUNT, profile.recipientCount());
+    }
+
+    /**
+     * Clear stored pulse telemetry when the reservoir empties or is reset.
+     */
+    public static void clearPulseTelemetry(PetComponent component) {
+        if (component == null) {
+            return;
+        }
+
+        component.clearStateData(STATE_LAST_PULSE_TICK);
+        component.clearStateData(STATE_PULSE_STREAK);
+        component.clearStateData(STATE_LAST_SIGNATURE);
+        component.clearStateData(STATE_LAST_RECIPIENT_COUNT);
+    }
+
+    private static String getPotionSignature(SupportPotionState state) {
+        if (state == null || state.serializedEffects().isEmpty()) {
+            return "";
+        }
+        return String.join(";", state.serializedEffects());
+    }
+
+    /**
      * Lightweight snapshot of stored potion data for reuse across helpers.
      */
     public record SupportPotionState(List<String> serializedEffects, int auraDurationTicks, ChargeState chargeState) {
@@ -433,6 +590,28 @@ public final class SupportPotionUtils {
 
         public SupportPotionState withChargeState(ChargeState newChargeState) {
             return new SupportPotionState(serializedEffects, auraDurationTicks, newChargeState);
+        }
+    }
+
+    /**
+     * Captures tuning data computed per pulse based on context (streaks, health, recipients).
+     */
+    public record PulseProfile(
+        double radius,
+        int durationTicks,
+        double chargeCost,
+        int streak,
+        boolean rhythmActive,
+        boolean clutchActive,
+        boolean comfortActive,
+        int recipientCount
+    ) {
+        public PulseProfile {
+            radius = Math.max(0.25, radius);
+            durationTicks = Math.max(20, durationTicks);
+            chargeCost = Math.max(0.0, chargeCost);
+            streak = Math.max(1, streak);
+            recipientCount = Math.max(0, recipientCount);
         }
     }
 
@@ -642,6 +821,7 @@ public final class SupportPotionUtils {
             return;
         }
         writeStoredState(component, EMPTY_STATE);
+        clearPulseTelemetry(component);
     }
 
     private static SupportPotionState readStoredStateInternal(PetComponent component) {

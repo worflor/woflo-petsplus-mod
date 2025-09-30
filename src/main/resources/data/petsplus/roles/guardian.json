@@ -16,7 +16,8 @@
     "health_max_bonus": 2.0
   },
   "default_abilities": [
-    "petsplus:shield_bash_rider"
+    "petsplus:aegis_protocol",
+    "petsplus:fortress_bond"
   ],
   "tribute_defaults": {
     "10": "minecraft:gold_ingot",

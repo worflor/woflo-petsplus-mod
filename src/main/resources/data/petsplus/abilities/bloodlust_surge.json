@@ -1,0 +1,23 @@
+{
+  "id": "petsplus:bloodlust_surge",
+  "trigger": {
+    "event": "owner_killed_entity",
+    "require_execution": true,
+    "cooldown_ticks": 0
+  },
+  "effects": [
+    {
+      "type": "striker_bloodlust_surge",
+      "base_duration_ticks": 100,
+      "per_stack_duration_ticks": 40,
+      "owner_strength_per_stack": 0.7,
+      "owner_speed_per_stack": 0.5,
+      "pet_strength_per_stack": 0.45,
+      "pet_speed_per_stack": 0.35,
+      "max_amplifier": 3,
+      "swing_owner": true,
+      "buff_pet": true,
+      "play_feedback": true
+    }
+  ]
+}

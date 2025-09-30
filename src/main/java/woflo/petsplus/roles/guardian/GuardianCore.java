@@ -1,26 +1,17 @@
 package woflo.petsplus.roles.guardian;
 
-import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.World;
-import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.abilities.AbilityManager;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PlayerTickDispatcher;
-import woflo.petsplus.state.PlayerTickListener;
 import woflo.petsplus.ui.FeedbackManager;
 import woflo.petsplus.ui.UIFeedbackManager;
 
@@ -35,31 +26,18 @@ import java.util.stream.Stream;
 /**
  * Core Guardian role systems for coordinating Bulwark redirection and blessing management.
  */
-public final class GuardianCore implements PlayerTickListener {
+public final class GuardianCore {
     private static final double GUARDIAN_SEARCH_RANGE = 16.0;
     private static final int BULWARK_COOLDOWN_TICKS = 200;
-    private static final int PRIMED_WINDOW_TICKS = 80;
-    private static final int OWNER_STRENGTH_TICKS = 60;
-    private static final int MOUNT_RESIST_TICKS = 60;
-    private static final int WEAKNESS_TICKS = 50; // 2.5 seconds
-    private static final String PRIMED_STATE_KEY = "guardian_bulwark_primed_until";
     private static final Comparator<GuardianCandidate> INTERCEPT_ORDER = Comparator
         .comparing(GuardianCandidate::spareHealth, Comparator.reverseOrder())
         .thenComparing(Comparator.comparingInt(GuardianCandidate::level).reversed())
         .thenComparing(GuardianCandidate::healthFraction, Comparator.reverseOrder());
 
     private static final Map<UUID, TimedEntry> guardianCooldowns = new ConcurrentHashMap<>();
-    private static final Map<UUID, GuardianPrimeState> primedOwners = new ConcurrentHashMap<>();
-    private static final Map<UUID, Long> NEXT_PRIME_CHECK_TICK = new ConcurrentHashMap<>();
-
-    private static final GuardianCore INSTANCE = new GuardianCore();
-
-    public static GuardianCore getInstance() {
-        return INSTANCE;
-    }
 
     public static void initialize() {
-        ServerLivingEntityEvents.AFTER_DAMAGE.register(GuardianCore::handleAfterDamage);
+        // Reserved for future Guardian initialization hooks.
     }
 
     /**
@@ -194,11 +172,11 @@ public final class GuardianCore implements PlayerTickListener {
     }
 
     /**
-     * Record a successful Bulwark redirect and prime the owner's blessing window.
+     * Record a successful Bulwark redirect, refreshing cooldowns and ability triggers.
      */
     public static void recordSuccessfulRedirect(ServerPlayerEntity owner, MobEntity guardian, PetComponent component,
                                                 float originalDamage, float redirectedAmount, float reserveFraction,
-                                                boolean hitReserveLimit) {
+                                                boolean hitReserveLimit, float finalRedirectedAmount) {
         ServerWorld world = (ServerWorld) owner.getWorld();
         long currentTick = world.getTime();
 
@@ -207,23 +185,8 @@ public final class GuardianCore implements PlayerTickListener {
         component.setStateData("guardian_bulwark_hit_reserve_limit", hitReserveLimit);
         component.setStateData("guardian_bulwark_reserve_fraction", (double) reserveFraction);
 
-        GuardianPrimeState primeState = new GuardianPrimeState(guardian.getUuid(), world.getRegistryKey(), currentTick + PRIMED_WINDOW_TICKS);
-        primedOwners.put(owner.getUuid(), primeState);
-
-        if (world.getServer() != null) {
-            long serverTick = world.getServer().getTicks();
-            NEXT_PRIME_CHECK_TICK.put(owner.getUuid(), serverTick);
-            PlayerTickDispatcher.requestImmediateRun(owner, INSTANCE);
-        }
-
         OwnerCombatState ownerState = OwnerCombatState.getOrCreate(owner);
-        ownerState.setTempState(PRIMED_STATE_KEY, currentTick + PRIMED_WINDOW_TICKS);
         ownerState.onHitTaken();
-
-        owner.addStatusEffect(new StatusEffectInstance(StatusEffects.STRENGTH, OWNER_STRENGTH_TICKS, 0));
-        if (owner.getVehicle() instanceof LivingEntity mount) {
-            mount.addStatusEffect(new StatusEffectInstance(StatusEffects.RESISTANCE, MOUNT_RESIST_TICKS, 0));
-        }
 
         FeedbackManager.emitGuardianDamageAbsorbed(guardian, world);
         UIFeedbackManager.sendGuardianBulwarkMessage(owner, getGuardianName(guardian));
@@ -231,114 +194,13 @@ public final class GuardianCore implements PlayerTickListener {
         TriggerContext context = new TriggerContext(world, guardian, owner, "after_pet_redirect")
             .withData("original_damage", (double) originalDamage)
             .withData("redirected_damage", (double) redirectedAmount)
+            .withData("redirected_damage_after_reduction", (double) finalRedirectedAmount)
             .withData("reserve_fraction", (double) reserveFraction)
             .withData("hit_reserve_limit", hitReserveLimit);
         AbilityManager.triggerAbilities(guardian, context);
 
         Petsplus.LOGGER.debug("Guardian {} absorbed {} of {} damage for {}", guardian.getName().getString(),
-            redirectedAmount, originalDamage, owner.getName().getString());
-    }
-
-    /**
-     * Consume the primed blessing immediately before a melee swing.
-     */
-    public static void handlePrimedPreAttack(PlayerEntity player, LivingEntity target) {
-        if (!(player instanceof ServerPlayerEntity serverPlayer)) {
-            return;
-        }
-        consumePrimedState(serverPlayer, target);
-    }
-
-    private static void handleAfterDamage(LivingEntity entity, DamageSource source, float baseAmount, float damageTaken, boolean blocked) {
-        if (!(source.getAttacker() instanceof ServerPlayerEntity attacker)) {
-            return;
-        }
-        consumePrimedState(attacker, entity);
-    }
-
-    private static void consumePrimedState(ServerPlayerEntity owner, @Nullable LivingEntity victim) {
-        GuardianPrimeState primeState = primedOwners.get(owner.getUuid());
-        if (primeState == null) {
-            return;
-        }
-
-        ServerWorld world = (ServerWorld) owner.getWorld();
-        if (!primeState.isActive(world)) {
-            primedOwners.remove(owner.getUuid());
-            NEXT_PRIME_CHECK_TICK.remove(owner.getUuid());
-            clearOwnerPrimedState(owner);
-            return;
-        }
-
-        primedOwners.remove(owner.getUuid());
-        NEXT_PRIME_CHECK_TICK.remove(owner.getUuid());
-        applyPrimedEffects(owner, victim);
-        clearOwnerPrimedState(owner);
-    }
-
-    private static void applyPrimedEffects(ServerPlayerEntity owner, @Nullable LivingEntity victim) {
-        ServerWorld world = (ServerWorld) owner.getWorld();
-        if (victim != null && victim.isAlive()) {
-            victim.addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS, WEAKNESS_TICKS, 0));
-        }
-        FeedbackManager.emitFeedback("guardian_shield_bash", victim != null ? victim : owner, world);
-    }
-
-    private static void clearOwnerPrimedState(ServerPlayerEntity owner) {
-        OwnerCombatState state = OwnerCombatState.get(owner);
-        if (state != null) {
-            state.clearTempState(PRIMED_STATE_KEY);
-        }
-    }
-
-    @Override
-    public long nextRunTick(ServerPlayerEntity player) {
-        if (player == null) {
-            return Long.MAX_VALUE;
-        }
-        return NEXT_PRIME_CHECK_TICK.getOrDefault(player.getUuid(), Long.MAX_VALUE);
-    }
-
-    @Override
-    public void run(ServerPlayerEntity player, long currentTick) {
-        if (player == null) {
-            return;
-        }
-
-        UUID playerId = player.getUuid();
-        GuardianPrimeState primeState = primedOwners.get(playerId);
-        if (primeState == null) {
-            NEXT_PRIME_CHECK_TICK.remove(playerId);
-            return;
-        }
-
-        if (!(player.getWorld() instanceof ServerWorld world)) {
-            NEXT_PRIME_CHECK_TICK.put(playerId, currentTick + 20L);
-            return;
-        }
-
-        if (!primeState.matches(world) || primeState.isExpired(world)) {
-            primedOwners.remove(playerId);
-            NEXT_PRIME_CHECK_TICK.remove(playerId);
-            clearOwnerPrimedState(player);
-            return;
-        }
-
-        long worldNow = world.getTime();
-        long ticksRemaining = Math.max(1L, primeState.expiryTick() - worldNow);
-        long recheckDelay = Math.min(20L, ticksRemaining);
-        NEXT_PRIME_CHECK_TICK.put(playerId, currentTick + recheckDelay);
-    }
-
-    @Override
-    public void onPlayerRemoved(ServerPlayerEntity player) {
-        if (player == null) {
-            return;
-        }
-
-        primedOwners.remove(player.getUuid());
-        NEXT_PRIME_CHECK_TICK.remove(player.getUuid());
-        clearOwnerPrimedState(player);
+            finalRedirectedAmount, originalDamage, owner.getName().getString());
     }
 
     public static boolean hasActiveGuardianProtection(ServerPlayerEntity player) {
@@ -378,37 +240,6 @@ public final class GuardianCore implements PlayerTickListener {
 
         boolean isExpired(ServerWorld world) {
             return matches(world) && world.getTime() >= expiryTick;
-        }
-    }
-
-    private static final class GuardianPrimeState {
-        private final UUID guardianId;
-        private final TimedEntry window;
-
-        GuardianPrimeState(UUID guardianId, RegistryKey<World> worldKey, long expiryTick) {
-            this.guardianId = guardianId;
-            this.window = new TimedEntry(worldKey, expiryTick);
-        }
-
-        boolean matches(ServerWorld world) {
-            return window.matches(world);
-        }
-
-        boolean isActive(ServerWorld world) {
-            return matches(world) && world.getTime() <= window.expiryTick;
-        }
-
-        boolean isExpired(ServerWorld world) {
-            return window.isExpired(world);
-        }
-
-        long expiryTick() {
-            return window.expiryTick;
-        }
-
-        @SuppressWarnings("unused")
-        public UUID guardianId() {
-            return guardianId;
         }
     }
 }

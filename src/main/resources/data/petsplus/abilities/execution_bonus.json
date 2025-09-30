@@ -2,20 +2,29 @@
   "id": "petsplus:execution_bonus",
   "trigger": {
     "event": "owner_killed_entity",
-    "target_had_tag": "petsplus:finisher",
-    "internal_cd_ticks": 60
+    "require_execution": true,
+    "require_finisher_mark": true,
+    "cooldown_ticks": 100,
+    "max_execution_threshold_pct": 0.45
   },
   "effects": [
     {
       "type": "owner_next_attack_bonus",
-      "bonus_damage_pct": 0.15,
+      "bonus_damage_pct": 0.18,
       "expire_ticks": 160
     },
     {
       "type": "buff",
       "target": "owner",
       "id": "minecraft:strength",
-      "duration": 100,
+      "duration": 120,
+      "amplifier": 0
+    },
+    {
+      "type": "buff",
+      "target": "owner",
+      "id": "minecraft:speed",
+      "duration": 80,
       "amplifier": 0
     }
   ]

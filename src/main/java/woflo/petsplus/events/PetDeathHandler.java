@@ -8,10 +8,13 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import woflo.petsplus.abilities.AbilityManager;
+import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.advancement.AdvancementManager;
 import woflo.petsplus.items.ProofOfExistence;
 import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.roles.enchantmentbound.EnchantmentBoundGearSwapManager;
 
 /**
  * Handles permanent pet death - pets that die are gone forever with no recovery.
@@ -34,18 +37,30 @@ public class PetDeathHandler {
         
         // All pets that reach this point die permanently
         // (Cursed One resurrection prevention is handled in CursedOneResurrection.java)
-        handlePermanentPetDeath(mobEntity, petComp, serverWorld);
+        handlePermanentPetDeath(mobEntity, petComp, serverWorld, damageSource);
     }
-    
+
     /**
      * Handle permanent pet death - the pet is gone forever.
      */
-    private static void handlePermanentPetDeath(MobEntity pet, PetComponent petComp, ServerWorld world) {
+    private static void handlePermanentPetDeath(MobEntity pet, PetComponent petComp, ServerWorld world,
+                                                DamageSource damageSource) {
         // Store info before removal
         String petName = pet.hasCustomName() ? pet.getCustomName().getString() : pet.getType().getName().getString();
         var owner = petComp.getOwner();
         ServerPlayerEntity serverOwner = owner instanceof ServerPlayerEntity ? (ServerPlayerEntity) owner : null;
-        
+
+        TriggerContext context = new TriggerContext(world, pet, serverOwner, "on_pet_death")
+            .withData("death_burst_reason", "permadeath");
+        if (damageSource != null) {
+            context.withData("damage_source", damageSource);
+        }
+        AbilityManager.triggerAbilities(pet, context);
+
+        if (petComp.hasRole(PetRoleType.ENCHANTMENT_BOUND)) {
+            EnchantmentBoundGearSwapManager.dropStoredGear(pet, petComp);
+        }
+
         // Drop the Proof of Existence memorial item
         ProofOfExistence.dropMemorial(pet, petComp, world);
         
