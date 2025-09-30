@@ -60,7 +60,10 @@ public class PetLevelCriterion extends AbstractCriterion<PetLevelCriterion.Condi
             }
 
             // Check role if specified
-            if (role.isPresent() && petRoleId != null) {
+            if (role.isPresent()) {
+                if (petRoleId == null) {
+                    return false;
+                }
                 return role.get().equals(petRoleId);
             }
 
