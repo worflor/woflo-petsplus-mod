@@ -17,7 +17,7 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.entry.RegistryEntry;
 import org.jetbrains.annotations.Nullable;
-import woflo.petsplus.advancement.AdvancementManager;
+import woflo.petsplus.advancement.AdvancementCriteriaRegistry;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
 import woflo.petsplus.api.registry.PetRoleType;
@@ -206,7 +206,17 @@ public class SupportPotionPulseEffect implements Effect {
                 applied = true;
                 if (recipient instanceof ServerPlayerEntity ally && ally != serverOwner) {
                     healedAlly = true;
-                    AdvancementManager.triggerSupportHealAllies(serverOwner, ally);
+                    // Track unique allies healed for advancement
+                    woflo.petsplus.state.PlayerAdvancementState advState = woflo.petsplus.state.PlayerAdvancementState.getOrCreate(serverOwner);
+                    long currentDay = world.getTimeOfDay() / 24000L;
+                    if (advState.trackAllyHealed(ally.getUuid(), currentDay)) {
+                        int uniqueAllies = advState.getUniqueAlliesHealed();
+                        woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_STAT_THRESHOLD.trigger(
+                            serverOwner,
+                            "allies_healed",
+                            (float) uniqueAllies
+                        );
+                    }
                 }
             }
         }

@@ -17,7 +17,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.particle.ParticleTypes;
-import woflo.petsplus.advancement.AdvancementManager;
+import woflo.petsplus.advancement.AdvancementCriteriaRegistry;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;

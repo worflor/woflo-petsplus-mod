@@ -18,7 +18,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.EntityHitResult;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
-import woflo.petsplus.advancement.AdvancementManager;
+import woflo.petsplus.advancement.AdvancementCriteriaRegistry;
 import woflo.petsplus.api.event.TributeCheckEvent;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
@@ -198,11 +198,18 @@ public class TributeHandler {
                 15, 0.4, 0.4, 0.4, 0.08
             );
 
-            // Trigger milestone advancement
-            AdvancementManager.triggerMilestoneUnlock(player, milestoneLevel);
+            // Trigger milestone advancement using the PET_LEVEL criterion
+            // The advancement JSON files will check for specific milestone levels
+            String roleIdStr = petComp.getRoleId() != null ? petComp.getRoleId().toString() : null;
+            AdvancementCriteriaRegistry.PET_LEVEL.trigger(player, milestoneLevel, roleIdStr);
 
+            // Trigger max-rank ability advancement when reaching level 30
             if (milestoneLevel == 30) {
-                AdvancementManager.triggerAbilityMaxRank(player);
+                AdvancementCriteriaRegistry.PET_STAT_THRESHOLD.trigger(
+                    player,
+                    "ability_max_rank",
+                    1.0f
+                );
             }
 
             // Start stargaze window for hidden advancement (120s window)
