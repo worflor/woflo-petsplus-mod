@@ -48,6 +48,7 @@ public class FocusedStudyGoal extends MoodBasedGoal {
 
     @Override
     public void start() {
+        super.start();
         studyTicks = 0;
         orbitTarget = null;
         lastNavigationTarget = null;
@@ -104,6 +105,7 @@ public class FocusedStudyGoal extends MoodBasedGoal {
 
     @Override
     public void stop() {
+        super.stop();
         studyTarget = null;
         studyApproachPos = null;
         orbitTarget = null;

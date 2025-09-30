@@ -39,6 +39,7 @@ public class BondedStayCloseGoal extends MoodBasedGoal {
 
     @Override
     public void start() {
+        super.start();
         // Start moving toward owner immediately
         PlayerEntity owner = petComponent.getOwner();
         if (owner != null) {
@@ -80,6 +81,7 @@ public class BondedStayCloseGoal extends MoodBasedGoal {
 
     @Override
     public void stop() {
+        super.stop();
         mob.getNavigation().stop();
     }
 }

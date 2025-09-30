@@ -72,6 +72,7 @@ public class PassionateChargeGoal extends MoodBasedGoal {
 
     @Override
     public void start() {
+        super.start();
         chargeTicks = 0;
         headingToResonance = mob.getRandom().nextBoolean();
         lastNavigationTarget = null;
@@ -109,6 +110,7 @@ public class PassionateChargeGoal extends MoodBasedGoal {
 
     @Override
     public void stop() {
+        super.stop();
         sparkPos = null;
         resonancePos = null;
         currentTarget = null;

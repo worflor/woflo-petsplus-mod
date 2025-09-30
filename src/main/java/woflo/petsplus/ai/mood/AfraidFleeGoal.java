@@ -27,25 +27,26 @@ public class AfraidFleeGoal extends MoodBasedGoal {
 
     @Override
     protected boolean canStartMoodBehavior() {
-        // Look for nearby threats (monsters, hostile entities, or low health)
-        boolean hasNearbyThreats = !mob.getWorld().getEntitiesByClass(
-            LivingEntity.class,
-            mob.getBoundingBox().expand(8),
-            entity -> entity instanceof HostileEntity
-        ).isEmpty();
-
-        boolean isLowHealth = mob.getHealth() / mob.getMaxHealth() < 0.5f;
-
-        return hasNearbyThreats || isLowHealth;
+        return isStillThreatened();
     }
 
     @Override
     protected boolean shouldContinueMoodBehavior() {
-        return fleeTicks < MAX_FLEE_TICKS && fleeDirection != null;
+        if (fleeDirection == null) {
+            return false;
+        }
+
+        return isStillThreatened();
+    }
+
+    @Override
+    protected boolean shouldBypassCooldown(boolean moodReady) {
+        return moodReady && isStillThreatened();
     }
 
     @Override
     public void start() {
+        super.start();
         // Calculate flee direction - away from threats, toward owner if possible
         Vec3d escapeDirection = calculateFleeDirection();
         if (escapeDirection != null) {
@@ -59,6 +60,14 @@ public class AfraidFleeGoal extends MoodBasedGoal {
         if (fleeDirection == null) return;
 
         fleeTicks++;
+
+        if (fleeTicks >= MAX_FLEE_TICKS && isStillThreatened()) {
+            fleeTicks = 0;
+            Vec3d refreshedDirection = calculateFleeDirection();
+            if (refreshedDirection != null) {
+                fleeDirection = refreshedDirection;
+            }
+        }
 
         // Move in flee direction
         Vec3d targetPos = mob.getPos().add(fleeDirection.multiply(2.0));
@@ -75,6 +84,7 @@ public class AfraidFleeGoal extends MoodBasedGoal {
 
     @Override
     public void stop() {
+        super.stop();
         fleeDirection = null;
         fleeTicks = 0;
         mob.getNavigation().stop();
@@ -113,5 +123,17 @@ public class AfraidFleeGoal extends MoodBasedGoal {
 
         // Otherwise, just flee away from threat
         return threatDirection != null ? threatDirection.negate() : null;
+    }
+
+    private boolean isStillThreatened() {
+        boolean hasNearbyThreats = !mob.getWorld().getEntitiesByClass(
+            LivingEntity.class,
+            mob.getBoundingBox().expand(8),
+            entity -> entity instanceof HostileEntity
+        ).isEmpty();
+
+        boolean isLowHealth = mob.getHealth() / mob.getMaxHealth() < 0.5f;
+
+        return hasNearbyThreats || isLowHealth;
     }
 }

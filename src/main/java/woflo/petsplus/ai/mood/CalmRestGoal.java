@@ -34,6 +34,7 @@ public class CalmRestGoal extends MoodBasedGoal {
 
     @Override
     public void start() {
+        super.start();
         restTicks = 0;
         restSpot = findPeacefulSpot();
 
@@ -82,6 +83,7 @@ public class CalmRestGoal extends MoodBasedGoal {
 
     @Override
     public void stop() {
+        super.stop();
         restSpot = null;
         restTicks = 0;
 

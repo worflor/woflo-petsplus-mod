@@ -39,6 +39,7 @@ public class CuriousExploreGoal extends MoodBasedGoal {
 
     @Override
     public void start() {
+        super.start();
         exploreTicks = 0;
         if (exploreTarget != null) {
             mob.getNavigation().startMovingTo(exploreTarget.getX() + 0.5, exploreTarget.getY(), exploreTarget.getZ() + 0.5, 0.9);
@@ -84,6 +85,7 @@ public class CuriousExploreGoal extends MoodBasedGoal {
 
     @Override
     public void stop() {
+        super.stop();
         exploreTarget = null;
         exploreTicks = 0;
         mob.getNavigation().stop();

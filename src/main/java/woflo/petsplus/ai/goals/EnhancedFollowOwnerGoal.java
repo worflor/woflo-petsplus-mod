@@ -84,6 +84,10 @@ public class EnhancedFollowOwnerGoal extends Goal {
 
         long now = owner.getWorld().getTime();
         boolean hesitating = OwnerAssistAttackGoal.isPetHesitating(petComponent, now);
+        boolean moodHoldActive = petComponent.isMoodFollowHoldActive(now);
+        float moodDistanceBonus = moodHoldActive ? petComponent.getMoodFollowDistanceBonus(now) : 0.0f;
+        float effectiveFollowDistance = baseFollowDistance + moodDistanceBonus;
+        double effectiveDistanceSq = effectiveFollowDistance * effectiveFollowDistance;
 
         if (scoutMode) {
             BlockPos currentOwnerPos = owner.getBlockPos();
@@ -94,7 +98,10 @@ public class EnhancedFollowOwnerGoal extends Goal {
             if (hesitating) {
                 return true;
             }
-            return ownerMoved || distance > (baseFollowDistance * baseFollowDistance);
+            if (moodHoldActive && !ownerMoved && distance <= effectiveDistanceSq) {
+                return false;
+            }
+            return ownerMoved || distance > effectiveDistanceSq;
         }
 
         if (hesitating) {
@@ -102,7 +109,10 @@ public class EnhancedFollowOwnerGoal extends Goal {
         }
 
         double distance = this.mob.squaredDistanceTo(owner);
-        return distance > (baseFollowDistance * baseFollowDistance);
+        if (moodHoldActive && distance <= effectiveDistanceSq) {
+            return false;
+        }
+        return distance > effectiveDistanceSq;
     }
 
     @Override
@@ -129,6 +139,9 @@ public class EnhancedFollowOwnerGoal extends Goal {
     public void start() {
         this.stuckCounter = 0;
         this.lastMoveTarget = null;
+        long now = this.mob.getWorld().getTime();
+        float moodDistanceBonus = petComponent.getMoodFollowDistanceBonus(now);
+        this.activeFollowDistance = baseFollowDistance + moodDistanceBonus + petComponent.getFollowSpacingPadding();
     }
 
     @Override
@@ -146,6 +159,8 @@ public class EnhancedFollowOwnerGoal extends Goal {
 
         long now = owner.getWorld().getTime();
         boolean hesitating = OwnerAssistAttackGoal.isPetHesitating(petComponent, now);
+        boolean moodHoldActive = petComponent.isMoodFollowHoldActive(now);
+        float moodDistanceBonus = moodHoldActive ? petComponent.getMoodFollowDistanceBonus(now) : 0.0f;
         double offsetX = petComponent.getFollowSpacingOffsetX();
         double offsetZ = petComponent.getFollowSpacingOffsetZ();
         float spacingPadding = petComponent.getFollowSpacingPadding();
@@ -154,7 +169,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
         if (owner.getWorld() instanceof ServerWorld serverWorld) {
             swarmIndex = StateManager.forWorld(serverWorld).getSwarmIndex();
         }
-        if (swarmIndex != null) {
+        if (swarmIndex != null && !moodHoldActive) {
             long lastSampleTick = petComponent.getFollowSpacingSampleTick();
             if (lastSampleTick == Long.MIN_VALUE || now - lastSampleTick >= FOLLOW_SAMPLE_INTERVAL) {
                 FollowSpacingResult spacing = computeSpacing(now, owner, swarmIndex);
@@ -167,13 +182,16 @@ public class EnhancedFollowOwnerGoal extends Goal {
             } else if (this.spacingFocus != null && (this.spacingFocus.isRemoved() || now > this.spacingFocusExpiryTick)) {
                 this.spacingFocus = null;
             }
-        } else {
+        } else if (swarmIndex == null) {
+            this.spacingFocus = null;
+        } else if (moodHoldActive && this.spacingFocus != null && (this.spacingFocus.isRemoved() || now > this.spacingFocusExpiryTick)) {
             this.spacingFocus = null;
         }
 
         float baseDistance = hesitating
             ? Math.max(HESITATION_CLEAR_DISTANCE, baseFollowDistance * HESITATION_DISTANCE_FACTOR)
             : baseFollowDistance;
+        baseDistance += moodDistanceBonus;
         this.activeFollowDistance = baseDistance + spacingPadding;
 
         float lookYaw = hesitating ? HESITATION_LOOK_YAW : 10.0f;
@@ -184,14 +202,23 @@ public class EnhancedFollowOwnerGoal extends Goal {
         this.mob.getLookControl().lookAt(lookTarget, lookYaw, this.mob.getMaxLookPitchChange());
 
         Vec3d moveTarget = owner.getPos().add(offsetX, 0.0, offsetZ);
+        double distanceToOwnerSq = this.mob.squaredDistanceTo(owner);
 
-        if (this.mob.squaredDistanceTo(owner) > (teleportDistance * teleportDistance)) {
+        if (moodHoldActive && !hesitating && distanceToOwnerSq <= (baseDistance * baseDistance)) {
+            if (!this.mob.getNavigation().isIdle()) {
+                this.mob.getNavigation().stop();
+            }
+            this.lastMoveTarget = null;
+            return;
+        }
+
+        if (distanceToOwnerSq > (teleportDistance * teleportDistance)) {
             this.mob.teleport(owner.getX(), owner.getY(), owner.getZ(), false);
             this.lastMoveTarget = null;
             return;
         }
 
-        if (hesitating && this.mob.squaredDistanceTo(owner) <= (HESITATION_CLEAR_DISTANCE * HESITATION_CLEAR_DISTANCE)) {
+        if (hesitating && distanceToOwnerSq <= (HESITATION_CLEAR_DISTANCE * HESITATION_CLEAR_DISTANCE)) {
             OwnerAssistAttackGoal.clearAssistHesitation(petComponent);
         }
 

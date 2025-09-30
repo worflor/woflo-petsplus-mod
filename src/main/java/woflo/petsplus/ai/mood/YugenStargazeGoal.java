@@ -61,6 +61,7 @@ public class YugenStargazeGoal extends MoodBasedGoal {
 
     @Override
     public void start() {
+        super.start();
         stargazeTicks = 0;
         if (stargazeSpot != null) {
             mob.getNavigation().startMovingTo(stargazeSpot.getX() + 0.5, stargazeSpot.getY(), stargazeSpot.getZ() + 0.5, 0.75);
@@ -92,6 +93,7 @@ public class YugenStargazeGoal extends MoodBasedGoal {
 
     @Override
     public void stop() {
+        super.stop();
         stargazeSpot = null;
         stargazeTicks = 0;
         mob.getNavigation().stop();

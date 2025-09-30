@@ -54,6 +54,7 @@ public class SaudadeWanderGoal extends MoodBasedGoal {
 
     @Override
     public void start() {
+        super.start();
         wanderTicks = 0;
         orbitAngleOffset = mob.getRandom().nextDouble() * Math.PI * 2;
         chooseNextOrbitTarget();
@@ -87,6 +88,7 @@ public class SaudadeWanderGoal extends MoodBasedGoal {
 
     @Override
     public void stop() {
+        super.stop();
         sentimentalAnchor = null;
         orbitTarget = null;
         wanderTicks = 0;
