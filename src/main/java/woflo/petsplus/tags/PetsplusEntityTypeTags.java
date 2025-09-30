@@ -15,6 +15,11 @@ public final class PetsplusEntityTypeTags {
         Identifier.of(Petsplus.MOD_ID, "flyers")
     );
 
+    public static final TagKey<EntityType<?>> CC_RESISTANT = TagKey.of(
+        RegistryKeys.ENTITY_TYPE,
+        Identifier.of(Petsplus.MOD_ID, "cc_resistant")
+    );
+
     private PetsplusEntityTypeTags() {
     }
 }

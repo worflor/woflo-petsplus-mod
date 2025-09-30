@@ -300,7 +300,11 @@ public class UIFeedbackManager {
     public static void sendEepyNapTimeMessage(ServerPlayerEntity player, String petName) {
         sendActionBarMessage(player, "petsplus.eepy.nap_time", petName);
     }
-    
+
+    public static void sendEepyDrowsyMistMessage(ServerPlayerEntity player, String petName) {
+        sendActionBarMessage(player, "petsplus.eepy.drowsy_mist", petName);
+    }
+
     // Eclipsed messages
     public static void sendEclipsedVoidbrandMessage(ServerPlayerEntity player, String petName) {
         sendActionBarMessage(player, "petsplus.eclipsed.voidbrand", petName);

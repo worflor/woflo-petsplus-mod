@@ -10,6 +10,7 @@
     "learning": 0.01
   },
   "default_abilities": [
+    "petsplus:drowsy_mist",
     "petsplus:perch_ping"
   ],
   "tribute_defaults": {

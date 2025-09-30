@@ -26,6 +26,7 @@ import woflo.petsplus.effects.BuffEffect;
 import woflo.petsplus.effects.CursedOneDeathBurstEffect;
 import woflo.petsplus.effects.CursedOneSoulSacrificeEffect;
 import woflo.petsplus.effects.EnchantStripEffect;
+import woflo.petsplus.effects.EepyDrowsyMistEffect;
 import woflo.petsplus.effects.GearSwapEffect;
 import woflo.petsplus.effects.GuardianAegisProtocolEffect;
 import woflo.petsplus.effects.GuardianFortressBondEffect;
@@ -579,6 +580,11 @@ public final class PetsPlusRegistries {
             .description("Pulls item drops and XP orbs toward the pet.")
             .build());
 
+        registerEffectSerializer(EffectSerializer.builder(id("eepy_drowsy_mist"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new EepyDrowsyMistEffect(json)))
+            .description("Blankets nearby hostiles in a lingering, sleep-inducing mist.")
+            .build());
+
         registerEffectSerializer(EffectSerializer.builder(id("open_ender_chest"), RegistryJsonHelper.JSON_OBJECT_CODEC,
             (abilityId, json, context) -> DataResult.success(new OpenEnderChestEffect()))
             .description("Opens the owner's ender chest.")
@@ -656,6 +662,7 @@ public final class PetsPlusRegistries {
         registerAbilityType("gear_swap", createPlaceholderAbility("gear_swap"));
         registerAbilityType("auto_resurrect_mount_buff", createPlaceholderAbility("auto_resurrect_mount_buff"));
         registerAbilityType("nap_time_radius", createPlaceholderAbility("nap_time_radius"));
+        registerAbilityType("drowsy_mist", createPlaceholderAbility("drowsy_mist"));
         registerAbilityType("event_horizon", createPlaceholderAbility("event_horizon"));
         registerAbilityType("edge_step", createPlaceholderAbility("edge_step"));
         registerAbilityType("void_storage", createPlaceholderAbility("void_storage"));

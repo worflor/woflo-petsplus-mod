@@ -1,0 +1,29 @@
+{
+  "id": "petsplus:drowsy_mist",
+  "required_level": 7,
+  "trigger": {
+    "event": "owner_signal_shift_interact",
+    "cooldown_ticks": 200
+  },
+  "effects": [
+    {
+      "type": "eepy_drowsy_mist",
+      "radius_base": 4.5,
+      "radius_per_level": 0.1,
+      "radius_max": 8.0,
+      "duration_base_ticks": 100,
+      "duration_per_level_ticks": 2,
+      "duration_max_ticks": 160,
+      "pulse_interval_ticks": 10,
+      "effect_pulse_ticks": 60,
+      "slowness_base_amplifier": 2,
+      "slowness_level_threshold": 24,
+      "slowness_max_amplifier": 3,
+      "weakness_level_threshold": 17,
+      "weakness_amplifier": 1,
+      "activation_range": 10.0,
+      "target_tag": "minecraft:hostile",
+      "immune_tag": "petsplus:cc_resistant"
+    }
+  ]
+}
