@@ -1,4 +1,4 @@
-# Pets+ dev-0.86-in-the-background (Pets Plus)
+# Pets+ dev-0.87-advancementget! (Pets Plus)
 A standalone style Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics. 
 
 
