@@ -107,9 +107,11 @@ The following entities are now tamable:
 
 
 ## Pet Death and Loss
-If your pet dies, it will drop all its items and be gone forever. Your tribute items and all that pet's experience are lost. 
+If your pet dies, it will drop all its items and be gone forever. Your tribute items and all that pet's experience are lost.
 
 Hey wait, memorialize that trauma! A **Proof of Existence** drops on every pet death.
+
+These keepsakes aren’t just tear-stained notes anymore—they catalog the pet’s role epithet, unlocked milestones, trait highlights, and the moment they slipped away. Stack them in a memorial chest, read back the legends, and keep the pack’s stories breathing.
 
 
 ## Advancements
