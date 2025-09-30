@@ -19,6 +19,7 @@ import net.minecraft.util.hit.EntityHitResult;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.advancement.AdvancementCriteriaRegistry;
+import woflo.petsplus.advancement.AdvancementStatKeys;
 import woflo.petsplus.api.event.TributeCheckEvent;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
@@ -207,8 +208,8 @@ public class TributeHandler {
             if (milestoneLevel == 30) {
                 AdvancementCriteriaRegistry.PET_STAT_THRESHOLD.trigger(
                     player,
-                    "ability_max_rank",
-                    1.0f
+                    AdvancementStatKeys.ABILITY_MAX_RANK,
+                    AdvancementStatKeys.ABILITY_MAX_RANK_UNLOCKED_VALUE
                 );
             }
 
