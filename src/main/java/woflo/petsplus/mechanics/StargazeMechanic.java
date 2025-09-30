@@ -11,9 +11,12 @@ import woflo.petsplus.advancement.AdvancementCriteriaRegistry;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PetSwarmIndex;
 import woflo.petsplus.state.PlayerTickDispatcher;
 import woflo.petsplus.state.PlayerTickListener;
+import woflo.petsplus.state.StateManager;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,14 +47,11 @@ public final class StargazeMechanic implements PlayerTickListener {
 
     private static class StargazeSession {
         final UUID petUuid;
-        final Vec3d startPosition;
         final long startTime;
         boolean completed = false;
-        long lastReminderTick = -1L;
 
-        StargazeSession(UUID petUuid, Vec3d startPosition, long startTime) {
+        StargazeSession(UUID petUuid, long startTime) {
             this.petUuid = petUuid;
-            this.startPosition = startPosition;
             this.startTime = startTime;
         }
     }
@@ -123,9 +123,13 @@ public final class StargazeMechanic implements PlayerTickListener {
         if (!sneaking) {
             StargazeSession session = activeSessions.remove(playerId);
             if (session != null && !session.completed) {
-                player.sendMessage(Text.translatable("petsplus.stargaze.interrupted"), true);
+                player.sendMessage(Text.translatable("petsplus.stargaze.interrupted"), false);
             }
             cancelScheduledRuns(player);
+            return;
+        }
+
+        if (isCrouchChannelActive(player, now)) {
             return;
         }
 
@@ -134,21 +138,21 @@ public final class StargazeMechanic implements PlayerTickListener {
         }
 
         if (!isNightTime((ServerWorld) player.getWorld())) {
-            player.sendMessage(Text.translatable("petsplus.stargaze.wait_for_night"), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.wait_for_night"), false);
             return;
         }
 
         MobEntity sittingPet = findNearbySittingPet(player);
         if (sittingPet == null) {
-            player.sendMessage(Text.translatable("petsplus.stargaze.pet_not_sitting"), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.pet_not_sitting"), false);
             return;
         }
 
         StargazeSession session = activeSessions.get(playerId);
         if (session == null || !session.petUuid.equals(sittingPet.getUuid())) {
-            session = new StargazeSession(sittingPet.getUuid(), player.getPos(), now);
+            session = new StargazeSession(sittingPet.getUuid(), now);
             activeSessions.put(playerId, session);
-            player.sendMessage(Text.translatable("petsplus.stargaze.session_start"), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.session_start"), false);
         }
 
         scheduleTick(player, resolveServerTick(player));
@@ -212,7 +216,7 @@ public final class StargazeMechanic implements PlayerTickListener {
     private static void tickSession(ServerPlayerEntity player, StargazeSession session, long now, boolean allowReminders) {
         if (!isWindowActive(player, now)) {
             activeSessions.remove(player.getUuid());
-            player.sendMessage(Text.translatable("petsplus.stargaze.window_expired"), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.window_expired"), false);
             cancelScheduledRuns(player);
             return;
         }
@@ -220,7 +224,7 @@ public final class StargazeMechanic implements PlayerTickListener {
         if (!player.isSneaking()) {
             activeSessions.remove(player.getUuid());
             if (!session.completed) {
-                player.sendMessage(Text.translatable("petsplus.stargaze.too_far"), true);
+                player.sendMessage(Text.translatable("petsplus.stargaze.too_far"), false);
             }
             cancelScheduledRuns(player);
             return;
@@ -229,7 +233,7 @@ public final class StargazeMechanic implements PlayerTickListener {
         ServerWorld world = (ServerWorld) player.getWorld();
         if (!isNightTime(world)) {
             activeSessions.remove(player.getUuid());
-            player.sendMessage(Text.translatable("petsplus.stargaze.wait_for_night"), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.wait_for_night"), false);
             cancelScheduledRuns(player);
             return;
         }
@@ -237,30 +241,30 @@ public final class StargazeMechanic implements PlayerTickListener {
         MobEntity pet = getSessionPet(world, session.petUuid);
         if (pet == null) {
             activeSessions.remove(player.getUuid());
-            player.sendMessage(Text.translatable("petsplus.stargaze.pet_not_sitting"), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.pet_not_sitting"), false);
             cancelScheduledRuns(player);
             return;
         }
 
         if (!pet.isAlive()) {
             activeSessions.remove(player.getUuid());
-            player.sendMessage(Text.translatable("petsplus.stargaze.interrupted"), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.interrupted"), false);
             cancelScheduledRuns(player);
             return;
         }
 
         double range = PetsPlusConfig.getInstance().getSectionDouble("bond", "stargazeRange", 3.0);
-        if (player.getPos().distanceTo(session.startPosition) > range
-            || pet.getPos().distanceTo(session.startPosition) > range) {
+        double maxDistance = range + 0.5;
+        if (player.getPos().distanceTo(pet.getPos()) > maxDistance) {
             activeSessions.remove(player.getUuid());
-            player.sendMessage(Text.translatable("petsplus.stargaze.too_far"), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.too_far"), false);
             cancelScheduledRuns(player);
             return;
         }
 
         if (pet instanceof PetsplusTameable tameable && !tameable.petsplus$isSitting()) {
             activeSessions.remove(player.getUuid());
-            player.sendMessage(Text.translatable("petsplus.stargaze.pet_not_sitting"), true);
+            player.sendMessage(Text.translatable("petsplus.stargaze.pet_not_sitting"), false);
             cancelScheduledRuns(player);
             return;
         }
@@ -275,14 +279,37 @@ public final class StargazeMechanic implements PlayerTickListener {
         }
 
         if (allowReminders && duration >= 0) {
-            if (session.lastReminderTick < 0 || now - session.lastReminderTick >= 100) {
-                session.lastReminderTick = now;
-                int secondsRemaining = (int) Math.max(0, (requiredDuration - duration) / 20);
-                if (secondsRemaining > 0) {
-                    player.sendMessage(Text.translatable("petsplus.stargaze.countdown", secondsRemaining), true);
-                }
-            }
+            emitAmbientParticles(world, player, pet);
         }
+    }
+
+    private static void emitAmbientParticles(ServerWorld world, ServerPlayerEntity player, MobEntity pet) {
+        Vec3d playerPos = player.getPos();
+        Vec3d petPos = pet.getPos();
+
+        world.spawnParticles(
+            net.minecraft.particle.ParticleTypes.ENCHANT,
+            playerPos.x,
+            playerPos.y + 1.2,
+            playerPos.z,
+            2,
+            0.15,
+            0.1,
+            0.15,
+            0.0
+        );
+
+        world.spawnParticles(
+            net.minecraft.particle.ParticleTypes.ENCHANT,
+            petPos.x,
+            petPos.y + 0.8,
+            petPos.z,
+            2,
+            0.15,
+            0.1,
+            0.15,
+            0.0
+        );
     }
 
     /**
@@ -416,6 +443,31 @@ public final class StargazeMechanic implements PlayerTickListener {
         }
     }
 
+    private static boolean isCrouchChannelActive(ServerPlayerEntity player, long now) {
+        if (!(player.getWorld() instanceof ServerWorld serverWorld)) {
+            return false;
+        }
+
+        StateManager stateManager = StateManager.forWorld(serverWorld);
+        if (stateManager == null) {
+            return false;
+        }
+
+        List<PetSwarmIndex.SwarmEntry> swarm = stateManager.getSwarmIndex().snapshotOwner(player.getUuid());
+        if (swarm.isEmpty()) {
+            return false;
+        }
+
+        for (PetSwarmIndex.SwarmEntry entry : swarm) {
+            PetComponent component = entry.component();
+            if (component != null && component.isCrouchCuddleActiveWith(player, now)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static void handlePetSittingChange(MobEntity pet, boolean sitting) {
         if (pet == null || sitting) {
             return;
@@ -436,7 +488,7 @@ public final class StargazeMechanic implements PlayerTickListener {
             iterator.remove();
             ServerPlayerEntity player = world.getServer().getPlayerManager().getPlayer(entry.getKey());
             if (player != null) {
-                player.sendMessage(Text.translatable("petsplus.stargaze.pet_not_sitting"), true);
+                player.sendMessage(Text.translatable("petsplus.stargaze.pet_not_sitting"), false);
                 cancelScheduledRuns(player);
             }
         }
