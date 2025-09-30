@@ -8,6 +8,7 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.World;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.abilities.AbilityManager;
+import woflo.petsplus.advancement.criteria.PetStatThresholdCriterion;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.state.OwnerCombatState;
@@ -205,7 +206,7 @@ public final class GuardianCore {
         float totalDamage = advState.getGuardianDamageRedirected();
         woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_STAT_THRESHOLD.trigger(
             owner,
-            "damage_taken",
+            PetStatThresholdCriterion.STAT_GUARDIAN_DAMAGE,
             totalDamage
         );
 
