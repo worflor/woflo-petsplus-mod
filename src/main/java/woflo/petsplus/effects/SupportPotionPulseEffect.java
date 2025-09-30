@@ -18,6 +18,7 @@ import net.minecraft.registry.Registries;
 import net.minecraft.registry.entry.RegistryEntry;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.advancement.AdvancementCriteriaRegistry;
+import woflo.petsplus.advancement.criteria.PetStatThresholdCriterion;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
 import woflo.petsplus.api.registry.PetRoleType;
@@ -213,7 +214,7 @@ public class SupportPotionPulseEffect implements Effect {
                         int uniqueAllies = advState.getUniqueAlliesHealed();
                         woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_STAT_THRESHOLD.trigger(
                             serverOwner,
-                            "allies_healed",
+                            PetStatThresholdCriterion.STAT_ALLIES_HEALED,
                             (float) uniqueAllies
                         );
                     }
