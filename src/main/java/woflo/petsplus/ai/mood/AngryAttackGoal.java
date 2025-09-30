@@ -1,6 +1,5 @@
 package woflo.petsplus.ai.mood;
 
-import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.mob.MobEntity;
@@ -8,16 +7,12 @@ import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.ai.MoodBasedGoal;
 import woflo.petsplus.state.PetComponent;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.EnumSet;
 
 /**
  * When pets are ANGRY, they become more aggressive and likely to attack nearby threats.
  */
 public class AngryAttackGoal extends MoodBasedGoal {
-    private static final Method SINGLE_ARG_TRY_ATTACK = resolveTryAttack(Entity.class);
-    private static final Method WORLD_AWARE_TRY_ATTACK = resolveWorldAwareTryAttack();
 
     private LivingEntity target;
     private int aggressionTicks;
@@ -121,37 +116,8 @@ public class AngryAttackGoal extends MoodBasedGoal {
             return;
         }
 
-        if (SINGLE_ARG_TRY_ATTACK != null) {
-            try {
-                SINGLE_ARG_TRY_ATTACK.invoke(mob, target);
-                return;
-            } catch (IllegalAccessException | InvocationTargetException ignored) {
-                // Fall back to the two-argument form if invocation fails
-            }
+        if (mob.getWorld() instanceof ServerWorld serverWorld) {
+            mob.tryAttack(serverWorld, target);
         }
-
-        if (WORLD_AWARE_TRY_ATTACK != null && mob.getWorld() instanceof ServerWorld serverWorld) {
-            try {
-                WORLD_AWARE_TRY_ATTACK.invoke(mob, serverWorld, target);
-            } catch (IllegalAccessException | InvocationTargetException ignored) {
-                // Give up if neither overload can be invoked successfully
-            }
-        }
-    }
-
-    private static Method resolveTryAttack(Class<?>... parameterTypes) {
-        try {
-            return MobEntity.class.getMethod("tryAttack", parameterTypes);
-        } catch (NoSuchMethodException ignored) {
-            return null;
-        }
-    }
-
-    private static Method resolveWorldAwareTryAttack() {
-        Method livingOverload = resolveTryAttack(ServerWorld.class, LivingEntity.class);
-        if (livingOverload != null) {
-            return livingOverload;
-        }
-        return resolveTryAttack(ServerWorld.class, Entity.class);
     }
 }
