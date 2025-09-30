@@ -63,7 +63,10 @@ public class PetMoodTransitionCriterion extends AbstractCriterion<PetMoodTransit
         public boolean matches(PetComponent.Mood from, int fromLvl,
                               PetComponent.Mood to, int toLvl, long ticks) {
             // Check from mood
-            if (fromMood.isPresent() && from != null) {
+            if (fromMood.isPresent()) {
+                if (from == null) {
+                    return false;
+                }
                 if (!fromMood.get().equalsIgnoreCase(from.name())) {
                     return false;
                 }
@@ -75,7 +78,10 @@ public class PetMoodTransitionCriterion extends AbstractCriterion<PetMoodTransit
             }
 
             // Check to mood
-            if (toMood.isPresent() && to != null) {
+            if (toMood.isPresent()) {
+                if (to == null) {
+                    return false;
+                }
                 if (!toMood.get().equalsIgnoreCase(to.name())) {
                     return false;
                 }
