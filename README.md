@@ -2,7 +2,7 @@
 A standalone style Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics. 
 
 
-## Pet Roles and Levelling
+## Pet Roles, Levelling, and Natures
 Each role has a unique set of abilities, and can be applied to *any* tamable/trustable entity. *So MaNY wAcKy CoMbInAtiOnS*!
 
 1. **Guardian** — a loyal shield that steps between you and the world. It absorbs punishment for you and steadies you against knockbacks and volleys.
@@ -19,6 +19,36 @@ Your pet shares your experience and grows alongside you. Feature levels (3, 7, 1
 - **Level 10 →** Gold Ingot  
 - **Level 20 →** Diamond  
 - **Level 30 →** Netherite Ingot
+
+Pets also come with distinct natures based on the conditions found when being tamed or born.
+### Wild Natures
+1. Frisky [ Colder climates ]
+2. Feral [ Neutral climates ]
+3. Fierce [ Hotter climates ]
+
+Born pets do not roll for tamed natures; tamed pets do not rolr for born natures. (wow)
+### Born Natures
+4. Radiant [ Daytime - Open sky - No weather ]
+5. Festival [ 3+ pets or players nearby ]
+6. Infernal [ In the Nether ]
+7. Otherworldly [ Any dimension; Besides Overworld and Nether ]
+8. Hearth [ i forgor ]
+9. Nocturne [ Nighttime - Full moon - Open sky ]
+10. Tempest [ Rain or thunder weather ]
+11. Solace [ Birthed in solitude ]
+12. Echoed [ Deep Dark biome ]
+13. Mycelial [ Mushroom biome ]
+14. Gilded [ Valuable blocks present ]
+15. Gloom [ i forgor ]
+16. Verdant [ Lush conditions present ]
+17. Summit [ Height ≥100 - Open sky ]
+18. Tidal [ Fully submerged in water - Ocean biome ]
+19. Molten [ Near fiery blocks ]
+20. Frosty [ Snowy biome ]
+21. Mire [ i forgor ]
+22. Relic [ Near strongholds / Ruins ]
+23. Unnatural [ Breeder owns neither parents ]
+
 
 
 ## Moods and Emotion
@@ -56,37 +86,6 @@ Mood intensity varies based on the strength of these emotional weights.
 Watch, in real time, as beating your pet make them upset - or happy if they're into it. 
 
 I also heard a rumour pets take note of... **gossip**... for later use..
-
-
-## Natures
-Pets come with distinct natures based on the conditions found when being tamed or born.
-### Wild Natures
-1. Frisky [ Colder climates ]
-2. Feral [ Neutral climates ]
-3. Fierce [ Hotter climates ]
-
-Born pets do not roll for tamed natures; tamed pets do not rolr for born natures. (wow)
-### Born Natures
-4. Radiant [ Daytime - Open sky - No weather ]
-5. Festival [ 3+ pets or players nearby ]
-6. Infernal [ In the Nether ]
-7. Otherworldly [ Any dimension; Besides Overworld and Nether ]
-8. Hearth [ i forgor ]
-9. Nocturne [ Nighttime - Full moon - Open sky ]
-10. Tempest [ Rain or thunder weather ]
-11. Solace [ Birthed in solitude ]
-12. Echoed [ Deep Dark biome ]
-13. Mycelial [ Mushroom biome ]
-14. Gilded [ Valuable blocks present ]
-15. Gloom [ i forgor ]
-16. Verdant [ Lush conditions present ]
-17. Summit [ Height ≥100 - Open sky ]
-18. Tidal [ Fully submerged in water - Ocean biome ]
-19. Molten [ Near fiery blocks ]
-20. Frosty [ Snowy biome ]
-21. Mire [ i forgor ]
-22. Relic [ Near strongholds / Ruins ]
-23. Unnatural [ Breeder owns neither parents ]
 
 
 ## New Friends
