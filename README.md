@@ -1,4 +1,11 @@
-# Pets+ dev-0.87-advancementget! (Pets Plus)
+<h1>
+  <img src="src/main/resources/assets/petsplus/icon.png"
+       alt="Pets+ icon"
+       height="48"
+       style="vertical-align:middle; margin-right:12px;">
+  Pets+ <small>dev-0.87-robust-down-thotiana</small>
+</h1>
+
 A standalone style Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics. 
 
 
