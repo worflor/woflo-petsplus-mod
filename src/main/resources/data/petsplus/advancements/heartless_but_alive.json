@@ -1,7 +1,9 @@
 {
+  "parent": "petsplus:at_what_cost",
   "display": {
     "icon": {
-      "item": "minecraft:black_bed"
+      "count": 1,
+      "id": "minecraft:wither_skeleton_skull"
     },
     "title": {
       "translate": "petsplus.adv.heartless_but_alive.title"
@@ -14,14 +16,18 @@
     "announce_to_chat": true,
     "hidden": false
   },
-  "parent": "petsplus:at_what_cost",
   "criteria": {
-    "requirement": {
-      "trigger": "petsplus:pet_stat_threshold",
+    "dream_escape_3": {
+      "trigger": "petsplus:pet_interaction",
       "conditions": {
-        "stat_type": "dream_escapes",
-        "min_value": 10.0
+        "interaction_type": "dream_escape",
+        "min_count": 3
       }
     }
-  }
+  },
+  "requirements": [
+    [
+      "dream_escape_3"
+    ]
+  ]
 }

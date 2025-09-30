@@ -1,7 +1,9 @@
 {
+  "parent": "petsplus:first_pet",
   "display": {
     "icon": {
-      "item": "minecraft:red_bed"
+      "count": 1,
+      "id": "minecraft:totem_of_undying"
     },
     "title": {
       "translate": "petsplus.adv.noo_luna.title"
@@ -9,19 +11,23 @@
     "description": {
       "translate": "petsplus.adv.noo_luna.desc"
     },
-    "frame": "goal",
+    "frame": "task",
     "show_toast": true,
     "announce_to_chat": true,
     "hidden": false
   },
-  "parent": "petsplus:trial_ready",
   "criteria": {
-    "requirement": {
-      "trigger": "petsplus:pet_stat_threshold",
+    "dream_escape": {
+      "trigger": "petsplus:pet_interaction",
       "conditions": {
-        "stat_type": "dream_escapes",
-        "min_value": 1.0
+        "interaction_type": "dream_escape",
+        "min_count": 1
       }
     }
-  }
+  },
+  "requirements": [
+    [
+      "dream_escape"
+    ]
+  ]
 }

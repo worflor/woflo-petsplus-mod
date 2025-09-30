@@ -1,7 +1,9 @@
 {
+  "parent": "petsplus:noo_luna",
   "display": {
     "icon": {
-      "item": "minecraft:gray_bed"
+      "count": 1,
+      "id": "minecraft:crying_obsidian"
     },
     "title": {
       "translate": "petsplus.adv.at_what_cost.title"
@@ -14,14 +16,18 @@
     "announce_to_chat": true,
     "hidden": false
   },
-  "parent": "petsplus:noo_luna",
   "criteria": {
-    "requirement": {
-      "trigger": "petsplus:pet_stat_threshold",
+    "dream_escape_2": {
+      "trigger": "petsplus:pet_interaction",
       "conditions": {
-        "stat_type": "dream_escapes",
-        "min_value": 3.0
+        "interaction_type": "dream_escape",
+        "min_count": 2
       }
     }
-  }
+  },
+  "requirements": [
+    [
+      "dream_escape_2"
+    ]
+  ]
 }
