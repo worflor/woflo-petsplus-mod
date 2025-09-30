@@ -53,7 +53,10 @@ public class PetMoodLevelCriterion extends AbstractCriterion<PetMoodLevelCriteri
 
         public boolean matches(PetComponent.Mood petMood, int moodLevel) {
             // Check mood type if specified
-            if (mood.isPresent() && petMood != null) {
+            if (mood.isPresent()) {
+                if (petMood == null) {
+                    return false;
+                }
                 if (!mood.get().equalsIgnoreCase(petMood.name())) {
                     return false;
                 }
