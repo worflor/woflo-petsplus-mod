@@ -186,6 +186,13 @@ public class FeedbackConfig {
             new ParticleConfig(ParticleTypes.END_ROD, 2, 0.1, 0.3, 0.1, 0.02, "spiral", 1.0, true)
         ), new AudioConfig(SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 0.3f, 0.8f, 12.0), 0, true);
 
+        // Eepy Eeper: Drowsy mist control burst
+        register("eepy_eeper_drowsy_mist", List.of(
+            new ParticleConfig(ParticleTypes.CLOUD, 10, 0.45, 0.08, 0.45, 0.01, "aura_radius_ground", 6.0, false),
+            new ParticleConfig(ParticleTypes.ENCHANT, 6, 0.3, 0.35, 0.3, 0.0, "aura_radius_edge", 6.0, false),
+            new ParticleConfig(ParticleTypes.FALLING_SPORE_BLOSSOM, 2, 0.25, 0.25, 0.25, 0.0, "area", 4.5, false)
+        ), new AudioConfig(SoundEvents.BLOCK_AMETHYST_BLOCK_RESONATE, 0.35f, 0.85f, 10.0), 0, true);
+
         // Skyrider: Wind assistance
         register("skyrider_windlash", List.of(
             new ParticleConfig(ParticleTypes.CLOUD, 8, 0.5, 0.2, 0.5, 0.05, "burst", 1.0, false),

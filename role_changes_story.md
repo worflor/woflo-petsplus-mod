@@ -14,7 +14,6 @@ This document outlines potential changes, improvements, and new mechanics for ex
 ## Eepy Eeper
 **Current State**: Sleep-based healing auras, rest mechanics
 **Potential Changes**:
-- **NEW**: Shift Right-Click: "Drowsy Mist" - Creates a lingering area effect that applies slowness to all nearby hostile mobs (starts at Slowness III, scales with pet level, range scales with level). Mist lingers for 5 seconds, affecting new mobs that enter and refreshing the effect on existing mobs for a few seconds
 
 ## Eclipsed
 **Current State**: Shadow protection, night vision, eclipse energy, darkness bonuses

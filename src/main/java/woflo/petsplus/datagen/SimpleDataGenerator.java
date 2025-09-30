@@ -61,6 +61,9 @@ public class SimpleDataGenerator {
         writeFile("abilities/windlash_rider.json", createWindlashRider());
         writeFile("abilities/gust_upwards.json", createGustUpwards());
 
+        // Eepy Eeper abilities
+        writeFile("abilities/drowsy_mist.json", createDrowsyMistAbility());
+
         // Cursed One abilities
         writeFile("abilities/doom_echo.json", createDoomEcho());
         writeFile("abilities/soul_sacrifice.json", createSoulSacrifice());
@@ -315,6 +318,42 @@ public class SimpleDataGenerator {
         effects.add(gust);
 
         ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createDrowsyMistAbility() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:drowsy_mist");
+        ability.addProperty("required_level", 7);
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_signal_shift_interact");
+        trigger.addProperty("cooldown_ticks", 200);
+        ability.add("trigger", trigger);
+
+        JsonObject effect = new JsonObject();
+        effect.addProperty("type", "eepy_drowsy_mist");
+        effect.addProperty("radius_base", 4.5);
+        effect.addProperty("radius_per_level", 0.1);
+        effect.addProperty("radius_max", 8.0);
+        effect.addProperty("duration_base_ticks", 100);
+        effect.addProperty("duration_per_level_ticks", 2);
+        effect.addProperty("duration_max_ticks", 160);
+        effect.addProperty("pulse_interval_ticks", 10);
+        effect.addProperty("effect_pulse_ticks", 60);
+        effect.addProperty("slowness_base_amplifier", 2);
+        effect.addProperty("slowness_level_threshold", 24);
+        effect.addProperty("slowness_max_amplifier", 3);
+        effect.addProperty("weakness_level_threshold", 17);
+        effect.addProperty("weakness_amplifier", 1);
+        effect.addProperty("activation_range", 10.0);
+        effect.addProperty("target_tag", "minecraft:hostile");
+        effect.addProperty("immune_tag", "petsplus:cc_resistant");
+
+        JsonArray effects = new JsonArray();
+        effects.add(effect);
+        ability.add("effects", effects);
+
         return ability;
     }
 
@@ -835,11 +874,12 @@ public class SimpleDataGenerator {
         JsonObject role = new JsonObject();
         role.addProperty("name", "Eepy Eeper");
         role.addProperty("description", "Cozy vibes everywhere");
-        
+
         JsonArray abilities = new JsonArray();
-        abilities.add("petsplus:nap_time_radius");
+        abilities.add("petsplus:drowsy_mist");
+        abilities.add("petsplus:perch_ping");
         role.add("abilities", abilities);
-        
+
         JsonObject featureLevels = new JsonObject();
         featureLevels.addProperty("8", "Nap time extra radius for sitting/perched pets");
         role.add("feature_levels", featureLevels);
