@@ -4,7 +4,7 @@
     "guardian_tank_damage": {
       "conditions": {
         "min_value": 1000.0,
-        "stat_type": "damage_taken"
+        "stat_type": "guardian_damage_redirected"
       },
       "trigger": "petsplus:pet_stat_threshold"
     }

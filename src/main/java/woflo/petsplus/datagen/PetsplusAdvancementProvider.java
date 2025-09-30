@@ -561,7 +561,7 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
             .criterion("guardian_tank_damage", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_STAT_THRESHOLD,
                 new PetStatThresholdCriterion.Conditions(
                     Optional.empty(),
-                    Optional.of("damage_taken"),
+                    Optional.of(PetStatThresholdCriterion.STAT_GUARDIAN_DAMAGE),
                     Optional.of(1000.0f),
                     Optional.empty()
                 )))
