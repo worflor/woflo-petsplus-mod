@@ -10,8 +10,9 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.command.CommandSource;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.registry.Registries;
+import net.minecraft.item.Item;
 import net.minecraft.registry.Registry;
+import net.minecraft.registry.Registries;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -40,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -365,13 +367,35 @@ public class PetsCommand {
         player.sendMessage(Text.literal("=== Tribute System ===").formatted(Formatting.GOLD), false);
         player.sendMessage(Text.literal("Pets require tributes to break level caps:")
             .formatted(Formatting.WHITE), false);
-        player.sendMessage(Text.literal("  • Level 10 → Gold Ingot").formatted(Formatting.YELLOW), false);
-        player.sendMessage(Text.literal("  • Level 20 → Diamond").formatted(Formatting.AQUA), false);
-        player.sendMessage(Text.literal("  • Level 30 → Netherite Ingot").formatted(Formatting.DARK_PURPLE), false);
+
+        Map<Integer, Identifier> tributeItems = PetsPlusConfig.getInstance().getResolvedGlobalTributeItems();
+        tributeItems.forEach((level, itemId) -> player.sendMessage(formatTributeLine(level, itemId), false));
+
         player.sendMessage(Text.literal("Sneak + right-click your pet with the required item.")
             .formatted(Formatting.GRAY), false);
-        
+
         return 1;
+    }
+
+    private static MutableText formatTributeLine(int level, Identifier itemId) {
+        Formatting itemColor = tributeFormattingForLevel(level);
+        MutableText line = Text.literal("  • Level " + level + " → ").formatted(Formatting.WHITE);
+        Item item = Registries.ITEM.get(itemId);
+        if (Registries.ITEM.getId(item).equals(itemId)) {
+            line.append(Text.translatable(item.getTranslationKey()).copy().formatted(itemColor));
+        } else {
+            line.append(Text.literal(itemId.toString()).formatted(Formatting.RED));
+        }
+        return line;
+    }
+
+    private static Formatting tributeFormattingForLevel(int level) {
+        return switch (level) {
+            case 10 -> Formatting.YELLOW;
+            case 20 -> Formatting.AQUA;
+            case 30 -> Formatting.DARK_PURPLE;
+            default -> Formatting.GOLD;
+        };
     }
     
     private static int showSpecificTributeInfo(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {

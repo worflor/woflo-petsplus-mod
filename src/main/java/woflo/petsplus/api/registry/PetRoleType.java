@@ -28,11 +28,22 @@ public final class PetRoleType {
         0.75f
     );
 
-    private static final Map<Integer, Identifier> DEFAULT_TRIBUTES = Map.of(
-        10, Identifier.of("minecraft", "gold_ingot"),
-        20, Identifier.of("minecraft", "diamond"),
-        30, Identifier.of("minecraft", "netherite_ingot")
-    );
+    private static final Map<Integer, Identifier> DEFAULT_TRIBUTES;
+
+    static {
+        Map<Integer, Identifier> tributes = new LinkedHashMap<>();
+        tributes.put(10, Identifier.of("minecraft", "gold_ingot"));
+        tributes.put(20, Identifier.of("minecraft", "diamond"));
+        tributes.put(30, Identifier.of("minecraft", "netherite_scrap"));
+        DEFAULT_TRIBUTES = Collections.unmodifiableMap(tributes);
+    }
+
+    /**
+     * Default tribute item mapping shared across registry-driven definitions and config fallbacks.
+     */
+    public static Map<Integer, Identifier> defaultTributeItems() {
+        return DEFAULT_TRIBUTES;
+    }
 
     public static final Identifier GUARDIAN_ID = Identifier.of(Petsplus.MOD_ID, "guardian");
     public static final Identifier STRIKER_ID = Identifier.of(Petsplus.MOD_ID, "striker");

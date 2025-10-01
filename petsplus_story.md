@@ -38,7 +38,7 @@
 
    * **Level 10** → **Gold Ingot**
    * **Level 20** → **Diamond**
-   * **Level 30** → **Netherite Ingot**
+   * **Level 30** → **Netherite Scrap**
 5. Level grants: small stat bumps every level, **ability slot** unlocks at select levels, **role milestone** perks at 10/20/30.
 
 ---
@@ -158,7 +158,7 @@
 
   * Preferred: **sneak-use** required item on the pet (zero scan).
   * Alt: **throw item** near pet; while `gate_pending`, run a **short, pet-local check** every \~10–20 ticks for ≤6s. Consume 1 item on match.
-* UI: action bar & brief bossbar **“Awaiting Tribute: Gold/Diamond/Netherite”**.
+* UI: action bar & brief bossbar **“Awaiting Tribute: Gold/Diamond/Netherite Scrap”**.
 
 ### 4.3 Per-Level Rewards (nonlinear, engaging)
 
@@ -324,7 +324,7 @@
 * **Quippy action bar lines** that stay readable: “{Pet} has your back (+Res I)” or “{Pet} spotted trouble (Glowing)”.
 * **Role banter**: Guardian damage soak flashes “The truest form of Sacrilege—holding the line.” Support crit heal plays “Mmmm healing magic!”; upgrade confirmations can wink “Is this designer? Absolutely.”
 * **Subtle emotes**: happy purr/bark + small heart burst on level-up; brief whine when low HP triggers a safeguard.
-* **Context hints**: when gated, a short bossbar + action bar “Awaiting Tribute: {Gold/Diamond/Netherite}”.
+* **Context hints**: when gated, a short bossbar + action bar “Awaiting Tribute: {Gold/Diamond/Netherite Scrap}”.
 * **Follow feel**: smooth follow distance and gentle owner-teleport to avoid pop-in; pets auto-sit when you open a container and stand when you leave.
 * **Ambient tells**: soft particles when auras pulse; brief dust trail when Scout speed bonus engages; arcane glint swirl when Arcane Focus surges; ash/smoke wisp on Cursed One death/resurrection; sleepy 'Z' wisps when Nap Time aura is active.
 * **Accessibility**: concise chat summaries with hover tooltips for numbers; no spam, capped frequency.
@@ -388,7 +388,7 @@
   "farmDampenScalar": 0.25,
 
   "featureLevels": [3,7,12,17,23,27],
-  "tributeItems": {"10":"minecraft:gold_ingot","20":"minecraft:diamond","30":"minecraft:netherite_ingot"},
+  "tributeItems": {"10":"minecraft:gold_ingot","20":"minecraft:diamond","30":"minecraft:netherite_scrap"},
   "bankXpWhileGated": true,
 
   "support": {

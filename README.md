@@ -27,7 +27,7 @@ Each role has a unique set of abilities, and can be applied to *any* tamable/tru
 Your pet shares your experience and grows alongside you. Feature levels (3, 7, 12, 17, 23, 27) unlock new abilities and bonuses. At tribute gates, offer a token to continue growing:
 - **Level 10 →** Gold Ingot  
 - **Level 20 →** Diamond  
-- **Level 30 →** Netherite Ingot
+- **Level 30 →** Netherite Scrap
 
 Pets also come with distinct natures based on the conditions found when being tamed or born.
 ### Wild Natures
