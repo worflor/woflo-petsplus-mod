@@ -19,10 +19,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Stream;
 
 /**
@@ -975,6 +977,37 @@ public class PetsPlusConfig {
 
     public Identifier getFallbackTributeItem(int level) {
         return DEFAULT_TRIBUTE_ITEMS.get(level);
+    }
+
+    public Map<Integer, Identifier> getResolvedGlobalTributeItems() {
+        Map<Integer, Identifier> resolved = new TreeMap<>(DEFAULT_TRIBUTE_ITEMS);
+        JsonObject global = getSection("tribute_items");
+        if (global != EMPTY_OBJECT) {
+            for (Map.Entry<String, JsonElement> entry : global.entrySet()) {
+                int level;
+                try {
+                    level = Integer.parseInt(entry.getKey());
+                } catch (NumberFormatException e) {
+                    Petsplus.LOGGER.warn(
+                        "PetsPlus tribute_items config has non-numeric level '{}'; ignoring.",
+                        entry.getKey()
+                    );
+                    continue;
+                }
+
+                Identifier parsed = parseIdentifier(entry.getValue());
+                if (parsed != null) {
+                    resolved.put(level, parsed);
+                } else {
+                    Petsplus.LOGGER.warn(
+                        "PetsPlus tribute_items config has invalid item id '{}' for level {}; ignoring.",
+                        entry.getValue(),
+                        level
+                    );
+                }
+            }
+        }
+        return Collections.unmodifiableMap(new LinkedHashMap<>(resolved));
     }
 
     public int getPettingCooldownTicks() {
