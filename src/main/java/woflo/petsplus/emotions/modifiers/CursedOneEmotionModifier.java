@@ -42,19 +42,25 @@ public class CursedOneEmotionModifier extends BaseRoleEmotionModifier {
             pet, petComp, source, amount, isOwnerAttacker, isPetVictim, baseEmotions
         );
         
+        // Validate damage amount - skip processing for zero/negative damage
+        if (amount <= 0.0f) {
+            return emotions;
+        }
+        
         // Cursed One enjoys owner hits - unique masochistic behavior
-        if (isOwnerAttacker && isPetVictim && isOwnerDamageSource(source, petComp)) {
+        // Fixed redundant condition check - simplified logic
+        if (isPetVictim && isOwnerCausedDamage(source, petComp)) {
             // Replace negative emotions with pleasure/pain enjoyment
             removeEmotion(emotions, PetComponent.Emotion.ANGST);
             removeEmotion(emotions, PetComponent.Emotion.FOREBODING);
             removeEmotion(emotions, PetComponent.Emotion.REGRET);
             
-            // Add enjoyment of pain
+            // Add enjoyment of pain with consistent scaling
             addEmotion(emotions, PetComponent.Emotion.GLEE, scaleByDamage(0.4f, amount));
             addEmotion(emotions, PetComponent.Emotion.KEFI, scaleByDamage(0.3f, amount));
             addEmotion(emotions, PetComponent.Emotion.STOIC, scaleByDamage(0.2f, amount));
             
-            Petsplus.LOGGER.debug("Cursed One pet {} enjoyed owner hit", pet.getUuidAsString());
+            Petsplus.LOGGER.debug("Cursed One pet {} enjoyed owner hit (damage: {})", pet.getUuidAsString(), amount);
         }
         
         // Enhanced response to combat and destruction
@@ -118,13 +124,16 @@ public class CursedOneEmotionModifier extends BaseRoleEmotionModifier {
             }
             
             case HEALING -> {
-                // Cursed One is ambivalent about healing
-                addEmotion(emotions, PetComponent.Emotion.ENNUI, 0.2f);
+                // Cursed One views healing as interruption of suffering
+                // More thematically appropriate masochistic response
+                addEmotion(emotions, PetComponent.Emotion.FRUSTRATION, 0.2f);
                 addEmotion(emotions, PetComponent.Emotion.MELANCHOLY, 0.15f);
+                addEmotion(emotions, PetComponent.Emotion.ENNUI, 0.1f);
                 
                 // Remove positive healing emotions
                 removeEmotion(emotions, PetComponent.Emotion.RELIEF);
                 removeEmotion(emotions, PetComponent.Emotion.UBUNTU);
+                removeEmotion(emotions, PetComponent.Emotion.CONTENT);
             }
         }
         
@@ -185,5 +194,32 @@ public class CursedOneEmotionModifier extends BaseRoleEmotionModifier {
         }
         
         return emotions;
+    }
+    
+    /**
+     * Check if the damage was caused by the owner, including indirect damage scenarios.
+     * This method handles environmental damage caused by the owner (e.g., fire, lava, etc.)
+     *
+     * @param source the damage source
+     * @param petComp the pet component
+     * @return true if the damage was caused by the owner (directly or indirectly)
+     */
+    private boolean isOwnerCausedDamage(DamageSource source, PetComponent petComp) {
+        // First check direct owner damage
+        if (isOwnerDamageSource(source, petComp)) {
+            return true;
+        }
+        
+        // Check for indirect owner-caused environmental damage
+        if (source != null && petComp != null) {
+            PlayerEntity owner = petComp.getOwner();
+            if (owner != null) {
+                // Check if damage source is owned by or created by the owner
+                return source.getSource() == owner ||
+                       (source.getAttacker() != null && source.getAttacker().getCommandTags().contains("owner_" + owner.getUuidAsString()));
+            }
+        }
+        
+        return false;
     }
 }

@@ -19,6 +19,8 @@ import woflo.petsplus.emotions.modifiers.EclipsedEmotionModifier;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Registry that manages role-based emotion modifiers.
@@ -30,8 +32,11 @@ public class RoleEmotionRegistry {
     private static final RoleEmotionRegistry INSTANCE = new RoleEmotionRegistry();
     
     private final Map<Identifier, List<RoleEmotionModifier>> modifiersByRole = new ConcurrentHashMap<>();
-    private final List<RoleEmotionModifier> allModifiers = new ArrayList<>();
-    private boolean initialized = false;
+    private final List<RoleEmotionModifier> allModifiers = new CopyOnWriteArrayList<>();
+    private volatile boolean initialized = false;
+    
+    private final ReentrantLock registerLock = new ReentrantLock();
+    private final ReentrantLock initializeLock = new ReentrantLock();
     
     private RoleEmotionRegistry() {}
     
@@ -52,44 +57,63 @@ public class RoleEmotionRegistry {
             return;
         }
         
-        Petsplus.LOGGER.info("Initializing RoleEmotionRegistry");
-        
-        // Register built-in role modifiers
-        register(new CursedOneEmotionModifier());
-        register(new EnchantmentBoundEmotionModifier());
-        register(new GuardianEmotionModifier());
-        register(new StrikerEmotionModifier());
-        register(new SupportEmotionModifier());
-        register(new ScoutEmotionModifier());
-        register(new SkyriderEmotionModifier());
-        register(new EepyEeperEmotionModifier());
-        register(new EclipsedEmotionModifier());
-        
-        initialized = true;
-        Petsplus.LOGGER.info("RoleEmotionRegistry initialized with {} modifiers", allModifiers.size());
+        initializeLock.lock();
+        try {
+            // Double-check locking pattern
+            if (initialized) {
+                return;
+            }
+            
+            Petsplus.LOGGER.info("Initializing RoleEmotionRegistry");
+            
+            // Register built-in role modifiers
+            register(new CursedOneEmotionModifier());
+            register(new EnchantmentBoundEmotionModifier());
+            register(new GuardianEmotionModifier());
+            register(new StrikerEmotionModifier());
+            register(new SupportEmotionModifier());
+            register(new ScoutEmotionModifier());
+            register(new SkyriderEmotionModifier());
+            register(new EepyEeperEmotionModifier());
+            register(new EclipsedEmotionModifier());
+            
+            initialized = true;
+            Petsplus.LOGGER.info("RoleEmotionRegistry initialized with {} modifiers", allModifiers.size());
+        } finally {
+            initializeLock.unlock();
+        }
     }
     
     /**
      * Register a role emotion modifier.
-     * 
+     *
      * @param modifier the modifier to register
      */
     public void register(RoleEmotionModifier modifier) {
-        Identifier roleId = modifier.getRoleId();
-        
-        // Add to role-specific list
-        modifiersByRole.computeIfAbsent(roleId, k -> new ArrayList<>()).add(modifier);
-        
-        // Sort modifiers by priority (highest first)
-        modifiersByRole.get(roleId).sort((a, b) -> Integer.compare(b.getPriority(), a.getPriority()));
-        
-        // Add to global list
-        allModifiers.add(modifier);
-        
-        // Sort global list by priority
-        allModifiers.sort((a, b) -> Integer.compare(b.getPriority(), a.getPriority()));
-        
-        Petsplus.LOGGER.debug("Registered role emotion modifier for role: {}", roleId);
+        registerLock.lock();
+        try {
+            Identifier roleId = modifier.getRoleId();
+            
+            // Add to role-specific list
+            List<RoleEmotionModifier> roleModifiers = modifiersByRole.computeIfAbsent(roleId, k -> new ArrayList<>());
+            
+            // Create a new list to avoid concurrent modification
+            List<RoleEmotionModifier> newRoleModifiers = new ArrayList<>(roleModifiers);
+            newRoleModifiers.add(modifier);
+            
+            // Sort modifiers by priority (highest first)
+            newRoleModifiers.sort((a, b) -> Integer.compare(b.getPriority(), a.getPriority()));
+            
+            // Replace the list atomically
+            modifiersByRole.put(roleId, newRoleModifiers);
+            
+            // Add to global list (CopyOnWriteArrayList handles thread safety)
+            allModifiers.add(modifier);
+            
+            Petsplus.LOGGER.debug("Registered role emotion modifier for role: {}", roleId);
+        } finally {
+            registerLock.unlock();
+        }
     }
     
     /**
@@ -214,7 +238,7 @@ public class RoleEmotionRegistry {
     
     /**
      * Get all applicable modifiers for a pet.
-     * 
+     *
      * @param pet the pet entity
      * @param petComp the pet component
      * @return list of applicable modifiers in priority order
@@ -222,8 +246,11 @@ public class RoleEmotionRegistry {
     private List<RoleEmotionModifier> getApplicableModifiers(MobEntity pet, PetComponent petComp) {
         List<RoleEmotionModifier> applicable = new ArrayList<>();
         
+        // Create a snapshot of allModifiers to avoid concurrent modification
+        List<RoleEmotionModifier> modifiersSnapshot = new ArrayList<>(allModifiers);
+        
         // Check all modifiers to see if they should apply
-        for (RoleEmotionModifier modifier : allModifiers) {
+        for (RoleEmotionModifier modifier : modifiersSnapshot) {
             if (modifier.shouldApply(pet, petComp)) {
                 applicable.add(modifier);
             }
@@ -267,8 +294,39 @@ public class RoleEmotionRegistry {
      * Clear all registered modifiers (for testing purposes).
      */
     public void clear() {
-        modifiersByRole.clear();
-        allModifiers.clear();
-        initialized = false;
+        registerLock.lock();
+        try {
+            modifiersByRole.clear();
+            allModifiers.clear();
+            initialized = false;
+        } finally {
+            registerLock.unlock();
+        }
+    }
+    
+    /**
+     * Shutdown the registry and clean up resources.
+     */
+    public void shutdown() {
+        initializeLock.lock();
+        try {
+            registerLock.lock();
+            try {
+                Petsplus.LOGGER.info("Shutting down RoleEmotionRegistry");
+                
+                // Clear all data structures
+                modifiersByRole.clear();
+                allModifiers.clear();
+                
+                // Reset initialization state
+                initialized = false;
+                
+                Petsplus.LOGGER.info("RoleEmotionRegistry shutdown complete");
+            } finally {
+                registerLock.unlock();
+            }
+        } finally {
+            initializeLock.unlock();
+        }
     }
 }

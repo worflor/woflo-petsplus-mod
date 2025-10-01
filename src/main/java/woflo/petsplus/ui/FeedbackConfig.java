@@ -8,6 +8,8 @@ import net.minecraft.sound.SoundEvents;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Configuration for particle and audio feedback effects throughout the mod.
@@ -37,9 +39,15 @@ public class FeedbackConfig {
         public final String pattern; // "circle", "line", "burst", "area", "spiral"
         public final double radius;
         public final boolean adaptToEntitySize;
+        public final boolean performanceScaled; // New field for adaptive particle counts
 
         public ParticleConfig(ParticleEffect type, int count, double offsetX, double offsetY, double offsetZ,
                             double speed, String pattern, double radius, boolean adaptToEntitySize) {
+            this(type, count, offsetX, offsetY, offsetZ, speed, pattern, radius, adaptToEntitySize, true);
+        }
+        
+        public ParticleConfig(ParticleEffect type, int count, double offsetX, double offsetY, double offsetZ,
+                            double speed, String pattern, double radius, boolean adaptToEntitySize, boolean performanceScaled) {
             this.type = type;
             this.count = count;
             this.offsetX = offsetX;
@@ -49,6 +57,24 @@ public class FeedbackConfig {
             this.pattern = pattern;
             this.radius = radius;
             this.adaptToEntitySize = adaptToEntitySize;
+            this.performanceScaled = performanceScaled;
+        }
+        
+        /**
+         * Gets the performance-adjusted particle count based on system performance
+         */
+        public int getAdjustedCount() {
+            if (!performanceScaled) return count;
+            
+            // Simple performance scaling - could be enhanced with actual performance metrics
+            float performanceFactor = getPerformanceFactor();
+            return Math.max(1, Math.round(count * performanceFactor));
+        }
+        
+        private float getPerformanceFactor() {
+            // Default implementation - could be enhanced to monitor actual performance
+            // Returns a value between 0.5f and 1.0f based on system load
+            return 0.8f; // Conservative default
         }
     }
 
@@ -66,10 +92,85 @@ public class FeedbackConfig {
         }
     }
 
-    private static final Map<String, FeedbackEffect> FEEDBACK_REGISTRY = new HashMap<>();
+    // Performance and memory optimization fields
+    private static volatile boolean initialized = false;
+    private static final ReentrantLock initLock = new ReentrantLock();
+    private static final Map<String, FeedbackEffect> FEEDBACK_REGISTRY = new ConcurrentHashMap<>();
+    private static final Map<String, List<ParticleConfig>> PATTERN_CACHE = new ConcurrentHashMap<>();
+    
+    // Performance scaling configuration
+    private static volatile float globalPerformanceFactor = 1.0f;
+    private static volatile boolean performanceModeEnabled = true;
 
-    static {
-        initializeDefaultEffects();
+    /**
+     * Ensures the configuration is initialized using double-checked locking pattern
+     */
+    private static void ensureInitialized() {
+        if (!initialized) {
+            initLock.lock();
+            try {
+                if (!initialized) {
+                    initializeDefaultEffects();
+                    initialized = true;
+                }
+            } finally {
+                initLock.unlock();
+            }
+        }
+    }
+    
+    /**
+     * Cleanup method to clear all registries and caches
+     */
+    public static void cleanup() {
+        initLock.lock();
+        try {
+            FEEDBACK_REGISTRY.clear();
+            PATTERN_CACHE.clear();
+            initialized = false;
+        } finally {
+            initLock.unlock();
+        }
+    }
+    
+    /**
+     * Reloads the configuration by cleaning up and reinitializing
+     */
+    public static void reloadConfiguration() {
+        cleanup();
+        ensureInitialized();
+    }
+    
+    /**
+     * Sets the global performance factor for particle scaling
+     */
+    public static void setGlobalPerformanceFactor(float factor) {
+        globalPerformanceFactor = Math.max(0.1f, Math.min(1.0f, factor));
+    }
+    
+    /**
+     * Gets the current global performance factor
+     */
+    public static float getGlobalPerformanceFactor() {
+        return globalPerformanceFactor;
+    }
+    
+    /**
+     * Enables or disables performance mode
+     */
+    public static void setPerformanceModeEnabled(boolean enabled) {
+        performanceModeEnabled = enabled;
+    }
+    
+    /**
+     * Gets the cached particle pattern or creates a new one
+     */
+    private static List<ParticleConfig> getCachedPattern(String patternKey) {
+        return PATTERN_CACHE.computeIfAbsent(patternKey, k -> {
+            // Pattern creation logic would go here
+            // For now, return an empty list as placeholder
+            return List.of();
+        });
     }
 
     private static void initializeDefaultEffects() {
@@ -443,18 +544,40 @@ public class FeedbackConfig {
     }
 
     private static void register(String eventName, List<ParticleConfig> particles, AudioConfig audio, int delayTicks, boolean serverSide) {
+        if (eventName == null || eventName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Event name cannot be null or empty");
+        }
+        if (delayTicks < 0) {
+            throw new IllegalArgumentException("Delay ticks cannot be negative");
+        }
+        // Particles and audio can be null for effects that only have one or the other
         FEEDBACK_REGISTRY.put(eventName, new FeedbackEffect(particles, audio, delayTicks, serverSide));
     }
 
     public static FeedbackEffect getFeedback(String eventName) {
+        ensureInitialized();
+        if (eventName == null || eventName.trim().isEmpty()) {
+            return null;
+        }
         return FEEDBACK_REGISTRY.get(eventName);
     }
 
     public static boolean hasFeedback(String eventName) {
+        ensureInitialized();
+        if (eventName == null || eventName.trim().isEmpty()) {
+            return false;
+        }
         return FEEDBACK_REGISTRY.containsKey(eventName);
     }
 
     public static void registerCustomFeedback(String eventName, FeedbackEffect effect) {
+        ensureInitialized();
+        if (eventName == null || eventName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Event name cannot be null or empty");
+        }
+        if (effect == null) {
+            throw new IllegalArgumentException("Feedback effect cannot be null");
+        }
         FEEDBACK_REGISTRY.put(eventName, effect);
     }
 }

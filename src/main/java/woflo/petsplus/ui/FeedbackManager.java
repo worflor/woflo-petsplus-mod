@@ -18,9 +18,11 @@ import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.events.TributeHandler;
 
 import java.util.UUID;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Centralized feedback system for visual and audio effects throughout the mod.
@@ -34,6 +36,19 @@ public class FeedbackManager {
         thread.setDaemon(true);
         return thread;
     });
+    
+    // Track pending tasks for proper cleanup
+    private static final Map<String, ScheduledFuture<?>> PENDING_TASKS = new ConcurrentHashMap<>();
+    private static final AtomicLong TASK_ID_GENERATOR = new AtomicLong(0);
+    private static final AtomicBoolean IS_SHUTTING_DOWN = new AtomicBoolean(false);
+    
+    // Static initialization block with shutdown hook registration
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            IS_SHUTTING_DOWN.set(true);
+            cleanup();
+        }, "PetsPlus-FeedbackShutdownHook"));
+    }
 
     /**
      * Emit feedback for a specific event at an entity's location.
@@ -72,19 +87,42 @@ public class FeedbackManager {
     private static void scheduleDelayedFeedback(FeedbackConfig.FeedbackEffect effect, Vec3d position,
                                                 ServerWorld world, Entity sourceEntity) {
         var server = world.getServer();
-        if (server == null) {
+        if (server == null || IS_SHUTTING_DOWN.get()) {
             return;
         }
 
         UUID sourceUuid = sourceEntity != null ? sourceEntity.getUuid() : null;
         long delayTicks = Math.max(1, effect.delayTicks);
-        FEEDBACK_EXECUTOR.schedule(() -> {
-            UUID uuidCopy = sourceUuid;
-            server.execute(() -> {
-                Entity resolvedSource = resolveEntity(world, uuidCopy);
-                executeImmediateFeedback(effect, position, world, resolvedSource);
-            });
-        }, delayTicks * 50L, TimeUnit.MILLISECONDS);
+        
+        // Generate unique task ID for tracking
+        String taskId = "feedback_" + TASK_ID_GENERATOR.incrementAndGet();
+        
+        try {
+            ScheduledFuture<?> future = FEEDBACK_EXECUTOR.schedule(() -> {
+                // Double-check server state before executing
+                if (IS_SHUTTING_DOWN.get() || server.isStopped()) {
+                    return;
+                }
+                
+                UUID uuidCopy = sourceUuid;
+                server.execute(() -> {
+                    // Final check before executing on server thread
+                    if (!IS_SHUTTING_DOWN.get() && !server.isStopped()) {
+                        Entity resolvedSource = resolveEntity(world, uuidCopy);
+                        executeImmediateFeedback(effect, position, world, resolvedSource);
+                    }
+                });
+                
+                // Remove task from tracking map after execution
+                PENDING_TASKS.remove(taskId);
+            }, delayTicks * 50L, TimeUnit.MILLISECONDS);
+            
+            // Track the task for potential cancellation
+            PENDING_TASKS.put(taskId, future);
+        } catch (RejectedExecutionException e) {
+            // Handle executor shutdown case gracefully
+            System.err.println("Failed to schedule feedback task: " + e.getMessage());
+        }
     }
 
     private static Entity resolveEntity(ServerWorld world, UUID uuid) {
@@ -498,10 +536,51 @@ public class FeedbackManager {
     }
 
     /**
+     * Cancel all pending feedback tasks.
+     * Useful for immediate cleanup without full shutdown.
+     */
+    public static void cancelFeedbackTasks() {
+        IS_SHUTTING_DOWN.set(true);
+        
+        // Cancel all pending tasks
+        for (Map.Entry<String, ScheduledFuture<?>> entry : PENDING_TASKS.entrySet()) {
+            ScheduledFuture<?> future = entry.getValue();
+            if (future != null && !future.isDone()) {
+                future.cancel(false);
+            }
+        }
+        
+        // Clear the task tracking map
+        PENDING_TASKS.clear();
+    }
+    
+    /**
      * Clean up all delayed tasks and resources.
      * Should be called during server shutdown to prevent watchdog timeouts.
      */
     public static void cleanup() {
-        FEEDBACK_EXECUTOR.shutdownNow();
+        if (IS_SHUTTING_DOWN.compareAndSet(false, true)) {
+            // Cancel all pending tasks first
+            cancelFeedbackTasks();
+            
+            // Shutdown executor gracefully
+            FEEDBACK_EXECUTOR.shutdown();
+            try {
+                // Wait for tasks to complete with timeout
+                if (!FEEDBACK_EXECUTOR.awaitTermination(5, TimeUnit.SECONDS)) {
+                    // Force shutdown if tasks don't complete in time
+                    FEEDBACK_EXECUTOR.shutdownNow();
+                    // Wait a bit more for forceful shutdown
+                    if (!FEEDBACK_EXECUTOR.awaitTermination(2, TimeUnit.SECONDS)) {
+                        System.err.println("Feedback executor did not terminate gracefully");
+                    }
+                }
+            } catch (InterruptedException e) {
+                // Restore interrupted status
+                Thread.currentThread().interrupt();
+                // Force shutdown on interruption
+                FEEDBACK_EXECUTOR.shutdownNow();
+            }
+        }
     }
 }

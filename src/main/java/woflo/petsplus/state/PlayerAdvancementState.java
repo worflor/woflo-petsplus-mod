@@ -5,9 +5,8 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtString;
-import net.minecraft.nbt.NbtString;
 
-
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -18,7 +17,7 @@ import java.util.WeakHashMap;
  * Manages advancement-related state for players.
  */
 public class PlayerAdvancementState {
-    private static final Map<PlayerEntity, PlayerAdvancementState> STATES = new WeakHashMap<>();
+    private static final Map<PlayerEntity, PlayerAdvancementState> STATES = Collections.synchronizedMap(new WeakHashMap<>());
 
     private UUID bestFriendForevererPetUuid = null;
     private long bestFriendForevererAwardedTs = 0;
@@ -35,15 +34,21 @@ public class PlayerAdvancementState {
     }
 
     public static PlayerAdvancementState getOrCreate(PlayerEntity player) {
-        return STATES.computeIfAbsent(player, PlayerAdvancementState::new);
+        synchronized (STATES) {
+            return STATES.computeIfAbsent(player, PlayerAdvancementState::new);
+        }
     }
 
     public static PlayerAdvancementState get(PlayerEntity player) {
-        return STATES.get(player);
+        synchronized (STATES) {
+            return STATES.get(player);
+        }
     }
 
     public static void remove(PlayerEntity player) {
-        STATES.remove(player);
+        synchronized (STATES) {
+            STATES.remove(player);
+        }
     }
 
     public UUID getBestFriendForevererPetUuid() {
@@ -182,44 +187,81 @@ public class PlayerAdvancementState {
             });
         }
         if (nbt.contains("best_friend_foreverer_awarded_ts")) {
-            nbt.getLong("best_friend_foreverer_awarded_ts").ifPresent(value -> this.bestFriendForevererAwardedTs = value);
+            nbt.getLong("best_friend_foreverer_awarded_ts").ifPresent(value -> {
+                // Validate timestamp - should not be in the future and should be reasonable
+                long currentTime = System.currentTimeMillis();
+                if (value > 0 && value <= currentTime) {
+                    this.bestFriendForevererAwardedTs = value;
+                } else {
+                    this.bestFriendForevererAwardedTs = 0;
+                }
+            });
         }
         if (nbt.contains("or_not_awarded")) {
             nbt.getBoolean("or_not_awarded").ifPresent(value -> this.orNotAwarded = value);
         }
         if (nbt.contains("dream_escape_count")) {
-            nbt.getInt("dream_escape_count").ifPresent(value -> this.dreamEscapeCount = value);
+            nbt.getInt("dream_escape_count").ifPresent(value -> {
+                // Validate count - should be non-negative and reasonable
+                this.dreamEscapeCount = Math.max(0, Math.min(value, 10000));
+            });
         }
         if (nbt.contains("pet_sacrifice_count")) {
-            nbt.getInt("pet_sacrifice_count").ifPresent(value -> this.petSacrificeCount = value);
+            nbt.getInt("pet_sacrifice_count").ifPresent(value -> {
+                // Validate count - should be non-negative and reasonable
+                this.petSacrificeCount = Math.max(0, Math.min(value, 10000));
+            });
         }
         if (nbt.contains("unique_allies_healed")) {
-            nbt.getInt("unique_allies_healed").ifPresent(value -> this.uniqueAlliesHealed = value);
+            nbt.getInt("unique_allies_healed").ifPresent(value -> {
+                // Validate count - should be non-negative and reasonable
+                this.uniqueAlliesHealed = Math.max(0, Math.min(value, 1000));
+            });
         }
         if (nbt.contains("unique_allies_healed_day")) {
-            nbt.getLong("unique_allies_healed_day").ifPresent(value -> this.uniqueAlliesHealedDay = value);
+            nbt.getLong("unique_allies_healed_day").ifPresent(value -> {
+                // Validate day - should be positive and reasonable (Minecraft days since epoch)
+                long currentDay = System.currentTimeMillis() / 24000; // Minecraft day length
+                if (value > 0 && value <= currentDay + 1) { // Allow current day + 1 for time zone differences
+                    this.uniqueAlliesHealedDay = value;
+                } else {
+                    this.uniqueAlliesHealedDay = 0;
+                }
+            });
         }
 
         this.healedAlliesToday.clear();
         if (nbt.contains("healed_allies_today")) {
             nbt.getList("healed_allies_today").ifPresent(list -> {
-                for (int i = 0; i < list.size(); i++) {
+                // Validate list size - should be reasonable
+                int maxAllies = Math.min(list.size(), 1000);
+                for (int i = 0; i < maxAllies; i++) {
                     NbtElement element = list.get(i);
                     if (element instanceof NbtString) {
                         element.asString().ifPresent(uuidStr -> {
                             try {
-                                this.healedAlliesToday.add(UUID.fromString(uuidStr));
+                                UUID uuid = UUID.fromString(uuidStr);
+                                this.healedAlliesToday.add(uuid);
                             } catch (IllegalArgumentException ignored) {
+                                // Invalid UUID, ignore
                             }
                         });
                     }
                 }
-                this.uniqueAlliesHealed = Math.max(this.uniqueAlliesHealed, this.healedAlliesToday.size());
+                // Fix data consistency: ensure uniqueAlliesHealed matches healedAlliesToday.size()
+                this.uniqueAlliesHealed = this.healedAlliesToday.size();
             });
         }
 
         if (nbt.contains("guardian_damage_redirected")) {
-            nbt.getFloat("guardian_damage_redirected").ifPresent(value -> this.guardianDamageRedirected = value);
+            nbt.getFloat("guardian_damage_redirected").ifPresent(value -> {
+                // Validate damage - should be non-negative and reasonable
+                if (value >= 0 && value <= Float.MAX_VALUE) {
+                    this.guardianDamageRedirected = value;
+                } else {
+                    this.guardianDamageRedirected = 0;
+                }
+            });
         }
     }
 }

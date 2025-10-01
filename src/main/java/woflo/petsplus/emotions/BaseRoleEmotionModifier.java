@@ -2,11 +2,13 @@ package woflo.petsplus.emotions;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.damage.DamageSource;
+import net.minecraft.entity.damage.DamageTypes;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.events.EmotionContextMapper;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -48,8 +50,18 @@ public abstract class BaseRoleEmotionModifier implements RoleEmotionModifier {
         boolean isPetVictim,
         Map<PetComponent.Emotion, Float> baseEmotions
     ) {
+        // Input validation
+        if (pet == null || petComp == null || baseEmotions == null) {
+            return Collections.emptyMap();
+        }
+        
+        // Validate amount is not NaN or infinite
+        if (Float.isNaN(amount) || Float.isInfinite(amount)) {
+            amount = 0.0f;
+        }
+        
         // Default implementation returns base emotions unchanged
-        return new HashMap<>(baseEmotions);
+        return Collections.unmodifiableMap(new HashMap<>(baseEmotions));
     }
     
     @Override
@@ -61,8 +73,13 @@ public abstract class BaseRoleEmotionModifier implements RoleEmotionModifier {
         Object context,
         Map<PetComponent.Emotion, Float> baseEmotions
     ) {
+        // Input validation
+        if (pet == null || petComp == null || type == null || baseEmotions == null) {
+            return Collections.emptyMap();
+        }
+        
         // Default implementation returns base emotions unchanged
-        return new HashMap<>(baseEmotions);
+        return Collections.unmodifiableMap(new HashMap<>(baseEmotions));
     }
     
     @Override
@@ -73,8 +90,13 @@ public abstract class BaseRoleEmotionModifier implements RoleEmotionModifier {
         Object context,
         Map<PetComponent.Emotion, Float> baseEmotions
     ) {
+        // Input validation
+        if (pet == null || petComp == null || eventType == null || baseEmotions == null) {
+            return Collections.emptyMap();
+        }
+        
         // Default implementation returns base emotions unchanged
-        return new HashMap<>(baseEmotions);
+        return Collections.unmodifiableMap(new HashMap<>(baseEmotions));
     }
     
     /**
@@ -85,12 +107,28 @@ public abstract class BaseRoleEmotionModifier implements RoleEmotionModifier {
      * @param amount the emotion amount
      * @param replace whether to replace existing value (true) or add to it (false)
      */
-    protected void modifyEmotion(Map<PetComponent.Emotion, Float> emotions, 
+    protected void modifyEmotion(Map<PetComponent.Emotion, Float> emotions,
                                 PetComponent.Emotion emotion, float amount, boolean replace) {
+        // Null safety checks
+        if (emotions == null || emotion == null) {
+            return;
+        }
+        
+        // Validate amount is not NaN or infinite
+        if (Float.isNaN(amount) || Float.isInfinite(amount)) {
+            return;
+        }
+        
+        // Bounds checking for amount
+        amount = Math.max(-100.0f, Math.min(100.0f, amount));
+        
         if (replace) {
             emotions.put(emotion, amount);
         } else {
             emotions.merge(emotion, amount, Float::sum);
+            // Ensure the result is also bounded
+            emotions.computeIfPresent(emotion, (k, v) ->
+                Math.max(-100.0f, Math.min(100.0f, v)));
         }
     }
     
@@ -124,8 +162,12 @@ public abstract class BaseRoleEmotionModifier implements RoleEmotionModifier {
      * @param emotions the emotion map to modify
      * @param emotion the emotion to remove
      */
-    protected void removeEmotion(Map<PetComponent.Emotion, Float> emotions, 
+    protected void removeEmotion(Map<PetComponent.Emotion, Float> emotions,
                                 PetComponent.Emotion emotion) {
+        // Null safety checks
+        if (emotions == null || emotion == null) {
+            return;
+        }
         emotions.remove(emotion);
     }
     
@@ -137,6 +179,11 @@ public abstract class BaseRoleEmotionModifier implements RoleEmotionModifier {
      * @return true if the damage source is from the owner
      */
     protected boolean isOwnerDamageSource(DamageSource source, PetComponent petComp) {
+        // Null safety checks
+        if (source == null || petComp == null) {
+            return false;
+        }
+        
         PlayerEntity owner = petComp.getOwner();
         return owner != null && source.getAttacker() == owner;
     }
@@ -148,10 +195,25 @@ public abstract class BaseRoleEmotionModifier implements RoleEmotionModifier {
      * @return true if the damage is magical
      */
     protected boolean isMagicalDamage(DamageSource source) {
-        return source.isOf(net.minecraft.entity.damage.DamageTypes.MAGIC) ||
-               source.isOf(net.minecraft.entity.damage.DamageTypes.INDIRECT_MAGIC) ||
-               source.isOf(net.minecraft.entity.damage.DamageTypes.WITHER) ||
-               source.isOf(net.minecraft.entity.damage.DamageTypes.DRAGON_BREATH);
+        // Null safety check
+        if (source == null) {
+            return false;
+        }
+        
+        return source.isOf(DamageTypes.MAGIC) ||
+               source.isOf(DamageTypes.INDIRECT_MAGIC) ||
+               source.isOf(DamageTypes.WITHER) ||
+               source.isOf(DamageTypes.DRAGON_BREATH) ||
+               source.isOf(DamageTypes.THORNS) ||
+               source.isOf(DamageTypes.SONIC_BOOM) ||
+               source.isOf(DamageTypes.FREEZE) ||
+               source.isOf(DamageTypes.ON_FIRE) ||
+               source.isOf(DamageTypes.IN_FIRE) ||
+               source.isOf(DamageTypes.LAVA) ||
+               source.isOf(DamageTypes.HOT_FLOOR) ||
+               source.isOf(DamageTypes.CAMPFIRE) ||
+               source.isOf(DamageTypes.FIREBALL) ||
+               source.isOf(DamageTypes.UNATTRIBUTED_FIREBALL);
     }
     
     /**
@@ -162,9 +224,24 @@ public abstract class BaseRoleEmotionModifier implements RoleEmotionModifier {
      * @return the scaled emotion amount
      */
     protected float scaleByLevel(float baseAmount, PetComponent petComp) {
+        // Input validation
+        if (petComp == null) {
+            return baseAmount;
+        }
+        
+        // Validate baseAmount is not NaN or infinite
+        if (Float.isNaN(baseAmount) || Float.isInfinite(baseAmount)) {
+            return 0.0f;
+        }
+        
         int level = petComp.getLevel();
-        // Scale emotions with level, but with diminishing returns
-        return baseAmount * (1.0f + (float) Math.log(level + 1) / 4.0f);
+        // Fixed mathematical formula for consistent scaling
+        // Using a more stable logarithmic scaling with proper bounds
+        float scaleFactor = 1.0f + (float) Math.log1p(level) / 4.0f;
+        // Ensure scale factor is reasonable
+        scaleFactor = Math.max(0.1f, Math.min(3.0f, scaleFactor));
+        
+        return baseAmount * scaleFactor;
     }
     
     /**
@@ -175,8 +252,22 @@ public abstract class BaseRoleEmotionModifier implements RoleEmotionModifier {
      * @return the scaled emotion amount
      */
     protected float scaleByDamage(float baseAmount, float damageAmount) {
+        // Input validation
+        if (Float.isNaN(baseAmount) || Float.isInfinite(baseAmount)) {
+            return 0.0f;
+        }
+        
+        if (Float.isNaN(damageAmount) || Float.isInfinite(damageAmount)) {
+            return baseAmount;
+        }
+        
+        // Handle negative damage amounts by using absolute value
+        float absDamage = Math.abs(damageAmount);
+        
         // Scale emotions with damage, but cap at reasonable limits
-        float damageFactor = Math.min(damageAmount / 10.0f, 2.0f);
+        // Fixed division by zero issue
+        float damageFactor = absDamage > 0.0f ? Math.min(absDamage / 10.0f, 2.0f) : 0.0f;
+        
         return baseAmount * damageFactor;
     }
 }
