@@ -663,11 +663,13 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                     Optional.empty(),
                     Optional.empty()
                 )))
-            .requirements(AdvancementRequirements.anyOf(
-                java.util.List.of("level_3", "night_interaction")))
+            .requirements(new AdvancementRequirements(new String[][]{
+                {"level_3"},
+                {"night_interaction"}
+            }))
             .build(consumer, Petsplus.MOD_ID + ":mystical_connections");
 
-        AdvancementEntry stargazerBond = Advancement.Builder.create()
+        AdvancementEntry iLoveYouAndMe = Advancement.Builder.create()
             .parent(mysticalConnections)
             .display(
                 Items.SPYGLASS,
@@ -687,7 +689,7 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 )))
             .build(consumer, Petsplus.MOD_ID + ":i_love_you_and_me");
 
-        // This advancement is now the parent stargazer_bond, so we don't need a separate child advancement
+        // The old "Stargazer Bond" advancement was merged into "I love you and me"
 
         AdvancementEntry dreamWalker = Advancement.Builder.create()
             .parent(mysticalConnections)

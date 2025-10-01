@@ -1,7 +1,8 @@
 {
+  "parent": "petsplus:mystical_connections",
   "display": {
     "icon": {
-      "item": "minecraft:pink_dye"
+      "item": "minecraft:spyglass"
     },
     "title": {
       "translate": "petsplus.adv.i_love_you_and_me.title"
@@ -9,19 +10,23 @@
     "description": {
       "translate": "petsplus.adv.i_love_you_and_me.desc"
     },
-    "frame": "goal",
+    "frame": "task",
     "show_toast": true,
     "announce_to_chat": true,
     "hidden": true
   },
-  "parent": "petsplus:trial_ready",
   "criteria": {
-    "requirement": {
+    "stargaze_complete": {
       "trigger": "petsplus:pet_interaction",
       "conditions": {
         "interaction_type": "stargazing",
         "min_count": 1
       }
     }
-  }
+  },
+  "requirements": [
+    [
+      "stargaze_complete"
+    ]
+  ]
 }
