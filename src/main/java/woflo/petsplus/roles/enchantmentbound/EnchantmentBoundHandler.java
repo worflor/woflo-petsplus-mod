@@ -28,6 +28,7 @@ import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PlayerTickListener;
 import woflo.petsplus.state.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
+import woflo.petsplus.util.ChanceValidationUtil;
 
 import java.util.Map;
 import java.util.UUID;
@@ -75,9 +76,12 @@ public final class EnchantmentBoundHandler implements PlayerTickListener {
 
             // Extra roll for blocks (ores/crops/etc.) using loot logic
             int fortune = getEnchantLevel(player, Enchantments.FORTUNE);
-            double baseChanceB = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.ENCHANTMENT_BOUND.id(), "extraDuplicationChanceBase", 0.05);
-            double chanceB = baseChanceB + fortune * 0.02;
-            if (serverWorld.getRandom().nextDouble() < chanceB) {
+            double baseChanceB = ChanceValidationUtil.getValidatedChance(
+                PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.ENCHANTMENT_BOUND.id(), "extraDuplicationChanceBase", 0.05),
+                "enchantment_bound.extraDuplicationChanceBase"
+            );
+            double chanceB = ChanceValidationUtil.validateChance(baseChanceB + fortune * 0.02);
+            if (ChanceValidationUtil.checkChance(chanceB, serverWorld.getRandom())) {
                 java.util.List<net.minecraft.item.ItemStack> drops = Block.getDroppedStacks(state, serverWorld, pos, world.getBlockEntity(pos), player, tool);
                 for (var drop : drops) {
                     Block.dropStack(serverWorld, pos, drop.copy());
@@ -119,15 +123,18 @@ public final class EnchantmentBoundHandler implements PlayerTickListener {
             
             // Calculate extra drop chance based on Looting level
             int looting = getEnchantLevel(owner, Enchantments.LOOTING);
-            double baseChance = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.ENCHANTMENT_BOUND.id(), "extraDuplicationChanceBase", 0.05);
-            double chance = baseChance + looting * 0.02;
+            double baseChance = ChanceValidationUtil.getValidatedChance(
+                PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.ENCHANTMENT_BOUND.id(), "extraDuplicationChanceBase", 0.05),
+                "enchantment_bound.extraDuplicationChanceBase"
+            );
+            double chance = ChanceValidationUtil.validateChance(baseChance + looting * 0.02);
             
             // Focus doubles the chance
             if (isFocusActive(owner, FocusBucket.COMBAT)) {
-                chance *= 2.0;
+                chance = ChanceValidationUtil.validateChance(chance * 2.0);
             }
             
-            if (context.getRandom().nextDouble() < chance) {
+            if (ChanceValidationUtil.checkChance(chance, context.getRandom())) {
                 // Duplicate a random existing drop from the table
                 if (!drops.isEmpty()) {
                     ItemStack toDuplicate = drops.get(context.getRandom().nextInt(drops.size()));
@@ -199,10 +206,15 @@ public final class EnchantmentBoundHandler implements PlayerTickListener {
             if (!hasRoleNearby(owner, PetRoleType.ENCHANTMENT_BOUND.id(), 16)) return false;
             if (tool == null || tool.isEmpty() || !tool.isDamageable()) return false;
 
-            double chance = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.ENCHANTMENT_BOUND.id(), "durabilityNoLossChance", 0.025);
+            double chance = ChanceValidationUtil.getValidatedChance(
+                PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.ENCHANTMENT_BOUND.id(), "durabilityNoLossChance", 0.025),
+                "enchantment_bound.durabilityNoLossChance"
+            );
             // Arcane Focus doubles the chance briefly when mining bucket is surging
-            if (isFocusActive(owner, FocusBucket.MINING)) chance *= 2.0;
-            return serverWorld.getRandom().nextDouble() < chance;
+            if (isFocusActive(owner, FocusBucket.MINING)) {
+                chance = ChanceValidationUtil.validateChance(chance * 2.0);
+            }
+            return ChanceValidationUtil.checkChance(chance, serverWorld.getRandom());
         } catch (Exception e) {
             System.err.println("EnchantmentBound durability prevention error: " + e.getMessage());
             return false;

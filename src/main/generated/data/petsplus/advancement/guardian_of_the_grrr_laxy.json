@@ -1,5 +1,5 @@
 {
-  "parent": "petsplus:first_pet",
+  "parent": "petsplus:complex_moods",
   "criteria": {
     "protective_level_3": {
       "conditions": {
@@ -15,7 +15,7 @@
     },
     "icon": {
       "count": 1,
-      "id": "minecraft:shield"
+      "id": "minecraft:netherite_chestplate"
     },
     "title": {
       "translate": "petsplus.adv.guardian_of_the_grrr_laxy.title"

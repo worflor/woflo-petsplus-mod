@@ -7,6 +7,7 @@ import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.OwnerCombatState;
+import woflo.petsplus.util.ChanceValidationUtil;
 
 /**
  * Skyrider role implementation for air control features.
@@ -46,7 +47,7 @@ public class SkyriderWinds {
 
         // Check chance for levitation trigger
         double chance = getProjLevitateChance();
-        boolean shouldTrigger = Math.random() < chance;
+        boolean shouldTrigger = ChanceValidationUtil.checkChance(chance, serverOwner.getRandom());
 
         if (shouldTrigger) {
             ownerState.setTempState(PROJ_LEVITATION_LAST_TRIGGER_KEY, currentTick);
@@ -89,7 +90,10 @@ public class SkyriderWinds {
      * Get the projectile levitation chance from config.
      */
     public static double getProjLevitateChance() {
-        return PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.SKYRIDER.id(), "ownerProjLevitateChance", 0.10);
+        return ChanceValidationUtil.getValidatedChance(
+            PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.SKYRIDER.id(), "ownerProjLevitateChance", 0.10),
+            "skyrider.ownerProjLevitateChance"
+        );
     }
     
     /**

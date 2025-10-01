@@ -1,5 +1,5 @@
 {
-  "parent": "petsplus:first_pet",
+  "parent": "petsplus:positive_moods",
   "criteria": {
     "curious_level_3": {
       "conditions": {

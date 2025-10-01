@@ -19,6 +19,9 @@ public class AdvancementCriteriaRegistry {
     public static final PetStatThresholdCriterion PET_STAT_THRESHOLD;
     public static final PetDeathCriterion PET_DEATH;
     public static final PetInteractionCriterion PET_INTERACTION;
+    public static final PetMoodVarietyCriterion PET_MOOD_VARIETY;
+    public static final PetRoleLevelCriterion PET_ROLE_LEVEL;
+    public static final PetInteractionComboCriterion PET_INTERACTION_COMBO;
 
     static {
         // Register criteria immediately in static initializer, just like vanilla Criteria class
@@ -28,6 +31,9 @@ public class AdvancementCriteriaRegistry {
         PET_STAT_THRESHOLD = registerCriterion("pet_stat_threshold", new PetStatThresholdCriterion());
         PET_DEATH = registerCriterion("pet_death", new PetDeathCriterion());
         PET_INTERACTION = registerCriterion("pet_interaction", new PetInteractionCriterion());
+        PET_MOOD_VARIETY = registerCriterion("pet_mood_variety", new PetMoodVarietyCriterion());
+        PET_ROLE_LEVEL = registerCriterion("pet_role_level", new PetRoleLevelCriterion());
+        PET_INTERACTION_COMBO = registerCriterion("pet_interaction_combo", new PetInteractionComboCriterion());
     }
 
     /**
@@ -38,7 +44,7 @@ public class AdvancementCriteriaRegistry {
         Petsplus.LOGGER.info("Registering custom advancement criteria...");
         // Trigger static initializer by accessing a field
         Class<?> unused = PET_LEVEL.getClass();
-        Petsplus.LOGGER.info("Successfully registered {} custom advancement criteria", 6);
+        Petsplus.LOGGER.info("Successfully registered {} custom advancement criteria", 9);
     }
 
     private static <T extends Criterion<?>> T registerCriterion(String id, T criterion) {

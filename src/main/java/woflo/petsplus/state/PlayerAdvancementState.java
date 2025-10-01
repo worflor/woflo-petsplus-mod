@@ -24,6 +24,7 @@ public class PlayerAdvancementState {
     private long bestFriendForevererAwardedTs = 0;
     private boolean orNotAwarded = false;
     private int dreamEscapeCount = 0;
+    private int petSacrificeCount = 0;
     private int uniqueAlliesHealed = 0;
     private long uniqueAlliesHealedDay = 0;
     private float guardianDamageRedirected = 0;
@@ -74,6 +75,14 @@ public class PlayerAdvancementState {
 
     public void incrementDreamEscapeCount() {
         this.dreamEscapeCount++;
+    }
+
+    public int getPetSacrificeCount() {
+        return petSacrificeCount;
+    }
+
+    public void incrementPetSacrificeCount() {
+        this.petSacrificeCount++;
     }
 
     public int getUniqueAlliesHealed() {
@@ -146,6 +155,7 @@ public class PlayerAdvancementState {
         nbt.putLong("best_friend_foreverer_awarded_ts", bestFriendForevererAwardedTs);
         nbt.putBoolean("or_not_awarded", orNotAwarded);
         nbt.putInt("dream_escape_count", dreamEscapeCount);
+        nbt.putInt("pet_sacrifice_count", petSacrificeCount);
         nbt.putInt("unique_allies_healed", uniqueAlliesHealed);
         nbt.putLong("unique_allies_healed_day", uniqueAlliesHealedDay);
 
@@ -179,6 +189,9 @@ public class PlayerAdvancementState {
         }
         if (nbt.contains("dream_escape_count")) {
             nbt.getInt("dream_escape_count").ifPresent(value -> this.dreamEscapeCount = value);
+        }
+        if (nbt.contains("pet_sacrifice_count")) {
+            nbt.getInt("pet_sacrifice_count").ifPresent(value -> this.petSacrificeCount = value);
         }
         if (nbt.contains("unique_allies_healed")) {
             nbt.getInt("unique_allies_healed").ifPresent(value -> this.uniqueAlliesHealed = value);

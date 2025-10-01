@@ -1,5 +1,5 @@
 {
-  "parent": "petsplus:trial_ready",
+  "parent": "petsplus:master_trainer",
   "criteria": {
     "ability_max_rank": {
       "conditions": {

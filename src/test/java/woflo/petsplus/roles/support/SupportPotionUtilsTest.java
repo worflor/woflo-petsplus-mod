@@ -12,7 +12,6 @@ import net.minecraft.entity.effect.StatusEffectCategory;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import woflo.petsplus.api.registry.PetRoleType;
-import woflo.petsplus.roles.support.SupportPotionUtils;
 import woflo.petsplus.roles.support.SupportPotionUtils.ChargeState;
 import woflo.petsplus.roles.support.SupportPotionUtils.MergeOutcome;
 import woflo.petsplus.roles.support.SupportPotionUtils.RejectionReason;

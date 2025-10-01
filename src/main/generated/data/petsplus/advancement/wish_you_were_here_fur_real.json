@@ -1,5 +1,5 @@
 {
-  "parent": "petsplus:first_pet",
+  "parent": "petsplus:complex_moods",
   "criteria": {
     "saudade_level_3": {
       "conditions": {

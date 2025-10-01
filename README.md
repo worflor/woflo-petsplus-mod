@@ -8,7 +8,7 @@
   Pets+ <small>dev-0.87-robust-down-thotiana</small>
 </h1>
 
-A standalone style Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics. 
+A standalone style Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
 
 
 ## Pet Roles, Levelling, and Natures
@@ -124,37 +124,72 @@ These keepsakes aren’t just tear-stained notes anymore—they catalog the pet�
 
 
 ## Advancements
-- "Best Friends Forever++" 
+The advancement tree has been reorganized into 6 main branches for better progression:
+
+### 🌱 Bonding Basics
+- "Bonding Basics" [ Pet 5 times OR reach Bonded I ]
 - "Boop" [ Pet your companion for the first time ]
 - "Devoted Companion" [ Pet your companion(s) a hundred times ]
-- "Trial-Ready" [ Max level a *Scout* pet ]
-- "The Melody of the Wind" [ Max level a *Skyrider* pet ]
-- "Edgewalker" [ Level 30 on *Eclisped* pet ]
-- "Even Bester Friends Foreverer!" [ Max level one pet ]
-- "Or not." [ the pet that acquired 'Even bester friends foreverer' dies.]
-- "The Truest Form of Sacrilege" [ Max level a *Guardian* pet ]
-- "Mmmm, Healing Magic!" [ Max level a *Support* pet ]
-- "Is This Designer?" [ Use a max level tribute item on a pet for the first time ]
-- "I love you and me" [ Share a moonlight moment with your pet ]
-- "Noo, Luna!" [ Utilize the *Dream's Escape* ability ]
+- "Bond Voyage!" [ Witness a pet's *Bonded Mood* at its most intense for the first time ]
+
+### ⚔️ Combat Provenance
+- "Combat Provenance" [ Reach level 5 OR deal 100 damage ]
+- "Trial-Ready" [ Pet reaches level 10 ]
+- "The Truest Form of Sacrilege" [ Guardian pet tanks 1000 damage ]
+- "Master Trainer" [ Pet reaches level 30 ]
+- "Is This Designer?" [ Use a max rank ability ]
+
+### 🎭 Emotional Journey
+- "Emotional Journey" [ Experience 5 different mood types ]
+- "Mood Explorer" [ Experience 10 different mood types ]
+- "Emotional Mastery" [ Reach level 3 in any mood ]
+- **Positive Moods:**
+  - "Here Comes the Sunbeam" [ Witness a pet's *Happy Mood* at its most intense for the first time ]
+  - "[please] F*CKING PLAY WITH ME NOW!" [ Witness a pet's *Playful Mood* at its most intense for the first time ]
+  - "Indiana Bones and the Temple of Zoomies" [ Witness a pet's *Curious Mood* at its most intense for the first time ] - CHANGE TO "Curiousity thrilled the cat"
+  - "Ride or Die (please don't die)" [ Witness a pet's *Passionate Mood* at its most intense for the first time ]
+- **Calm Moods:**
+  - "Be More Chilllllll" [ Witness a pet's *Calm Mood* at its most intense for the first time ]
+  - "(sighs) sigh…" [ Witness a pet's *Yūgen Mood* at its most intense for the first time ]
+  - "Finnish Him!" [ Witness a pet's *Sisu Mood* at its most intense for the first time ] -- CHANGE TO "SIpping Sisurp in my ride"
+- **Complex Moods:**
+  - "Wish you were Here (Fur Real)" [ Witness a pet's *Saudade Mood* at its most intense for the first time ]
+  - "Afraidiana Grande" [ Witness a pet's *Afraid Mood* at its most intense for the first time ]
+  - "Guardian of the Grrr-laxy" [ Witness a pet's *Protective Mood* at its most intense for the first time ]
+- **Mood Transitions:**
+  - "Restless, Sit, Glow" [ Witness a pet's *Restless Mood* transition to Happy ]
+  - "are you mad at me..?" [ Witness a pet's *Angry Mood* cooldown ]
+
+### ✨ Mystical Connections
+- "Mystical Connections" [ Reach level 3 OR complete night interaction ]
+- "I love you and me" [ Begin your celestial connection ]
+- "Stargazer Bond" [ Share a moonlight moment with your pet ]
+- "Noo, Luna!" [ Take your first steps into the dream realm ]
+- "Dream Walker" [ Utilize the *Dream's Escape* ability ]
+- "Void Touched" [ Utilize the *Dream's Escape* ability twice ]
 - "At what cost..." [ Utilize the *Dream's Escape* ability twice ]
 - "Heartless, but Alive." [ Utilize the *Dream's Escape* ability thrice ]
-- "Restless, Sit, Glow" [ Witniss a pet's *Restless Mood* at its most intense for the first time ]
-- "Here Comes the Sunbeam" [ Witniss a pet's *Happy Mood* at its most intense for the first time ]
-- "[please] F*CKING PLAY WITH ME NOW!" [ Witniss a pet's *Playful Mood* at its most intense for the first time ]
-- "Indiana Bones and the Temple of Zoomies" [ Witniss a pet's *Curious Mood* at its most intense for the first time ]
-- "Bond Voyage!" [ Witniss a pet's *Bonded Mood* at its most intense for the first time ]
-- "Be More Chilllllll" [ Witniss a pet's *Calm Mood* at its most intense for the first time ]
-- "Ride or Die (please don't die)" [ Witniss a pet's *Passionate Mood* at its most intense for the first time ]
+
+### 🛡️ Role Specialization
+- "Role Specialization" [ Have a pet reach level 10 with any role ]
+- **Guardian Path:**
+  - "Guardian Path" [ Guardian pet reaches level 15 ]
+  - "The Truest Form of Sacrilege" [ Guardian tanks 1000 damage ]
+- **Support Path:**
+  - "Support Path" [ Support pet reaches level 15 ]
+  - "Mmmm, Healing Magic!" [ Support heals 5 allies ]
+- **Skyrider Path:**
+  - "Skyrider Path" [ Skyrider pet reaches level 15 ]
+  - "The Melody of the Wind" [ Skyrider reaches level 20 ]
+- **Eclipsed Path:**
+  - "Eclipsed Path" [ Eclipsed pet reaches level 15 ]
+  - "Edgewalker" [ Eclipsed reaches level 30 ]
+
+### 💀 Ultimate Sacrifice
+- "Ultimate Sacrifice" [ Complete the dream path ]
+- "Eternal Bond" [ The pet that reached max level dies permanently ]
 
 
-
-- "(sighs) sigh…" [ Witniss a pet's *Yūgen Mood* at its most intense for the first time ]
-- "Finnish Him!" [ Witniss a pet's *Sisu Mood* at its most intense for the first time ] 
-- "Afraidiana Grande" [ Witniss a pet's *Afraid Mood* at its most intense for the first time ]
-- "Wish you were Here (Fur Real)" [ Witniss a pet's *Saudade Mood* at its most intense for the first time ]
-- "are you mad at me..?" [ Witniss a pet's *Angry Mood* at its most intense for the first time ]
-- "Guardian of the Grrr-laxy" [ Witniss a pet's *Protective Mood* at its most intense for the first time ]
 ### uninplemented yet:
 - "Another one, thank you." (get your second pet to level 30)
 - "is that... THE BITE OF '87?!!" - credits, colours_c(jamie) (witniss your pet fox do 100% of the damage on a kill)

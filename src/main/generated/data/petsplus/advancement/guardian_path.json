@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:role_specialization",
+  "criteria": {
+    "guardian_level_15": {
+      "conditions": {
+        "min_level": 15,
+        "role": "petsplus:guardian"
+      },
+      "trigger": "petsplus:pet_role_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.guardian_path.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:shield"
+    },
+    "title": {
+      "translate": "petsplus.adv.guardian_path.title"
+    }
+  },
+  "requirements": [
+    [
+      "guardian_level_15"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

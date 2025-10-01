@@ -1,5 +1,5 @@
 {
-  "parent": "petsplus:trial_ready",
+  "parent": "petsplus:eclipsed_path",
   "criteria": {
     "eclipsed_30": {
       "conditions": {

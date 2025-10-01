@@ -1,5 +1,5 @@
 {
-  "parent": "petsplus:first_pet",
+  "parent": "petsplus:calm_moods",
   "criteria": {
     "yugen_level_3": {
       "conditions": {

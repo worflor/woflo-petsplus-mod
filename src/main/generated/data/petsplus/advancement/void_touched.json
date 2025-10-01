@@ -1,0 +1,31 @@
+{
+  "parent": "petsplus:noo_luna",
+  "criteria": {
+    "dream_escape_2": {
+      "conditions": {
+        "interaction_type": "dream_escape",
+        "min_count": 2
+      },
+      "trigger": "petsplus:pet_interaction"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.void_touched.desc"
+    },
+    "frame": "goal",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:crying_obsidian"
+    },
+    "title": {
+      "translate": "petsplus.adv.void_touched.title"
+    }
+  },
+  "requirements": [
+    [
+      "dream_escape_2"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

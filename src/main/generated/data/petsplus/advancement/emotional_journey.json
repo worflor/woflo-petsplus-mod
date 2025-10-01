@@ -1,0 +1,29 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "mood_variety": {
+      "conditions": {
+        "min_variety": 5
+      },
+      "trigger": "petsplus:pet_mood_variety"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.emotional_journey.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:amethyst_shard"
+    },
+    "title": {
+      "translate": "petsplus.adv.emotional_journey.title"
+    }
+  },
+  "requirements": [
+    [
+      "mood_variety"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

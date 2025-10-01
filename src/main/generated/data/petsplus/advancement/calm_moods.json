@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:emotional_mastery",
+  "criteria": {
+    "calm_mood_iii": {
+      "conditions": {
+        "min_level": 3,
+        "mood": "CALM"
+      },
+      "trigger": "petsplus:pet_mood_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.calm_moods.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:lapis_lazuli"
+    },
+    "title": {
+      "translate": "petsplus.adv.calm_moods.title"
+    }
+  },
+  "requirements": [
+    [
+      "calm_mood_iii"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

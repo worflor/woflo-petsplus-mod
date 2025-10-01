@@ -1,5 +1,5 @@
 {
-  "parent": "petsplus:first_pet",
+  "parent": "petsplus:calm_moods",
   "criteria": {
     "sisu_level_3": {
       "conditions": {
@@ -15,7 +15,7 @@
     },
     "icon": {
       "count": 1,
-      "id": "minecraft:iron_chestplate"
+      "id": "minecraft:shield"
     },
     "title": {
       "translate": "petsplus.adv.finnish_him.title"

@@ -1,0 +1,29 @@
+{
+  "parent": "petsplus:emotional_journey",
+  "criteria": {
+    "mood_variety_5": {
+      "conditions": {
+        "min_variety": 10
+      },
+      "trigger": "petsplus:pet_mood_variety"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.mood_explorer.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:compass"
+    },
+    "title": {
+      "translate": "petsplus.adv.mood_explorer.title"
+    }
+  },
+  "requirements": [
+    [
+      "mood_variety_5"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

@@ -1,0 +1,38 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "bonded_level_1": {
+      "conditions": {
+        "min_level": 1,
+        "mood": "BONDED"
+      },
+      "trigger": "petsplus:pet_mood_level"
+    },
+    "pet_5_times": {
+      "conditions": {
+        "interaction_type": "petting",
+        "min_count": 5
+      },
+      "trigger": "petsplus:pet_interaction"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.bonding_basics.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:lead"
+    },
+    "title": {
+      "translate": "petsplus.adv.bonding_basics.title"
+    }
+  },
+  "requirements": [
+    [
+      "pet_5_times",
+      "bonded_level_1"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

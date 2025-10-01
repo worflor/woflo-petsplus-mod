@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:role_specialization",
+  "criteria": {
+    "skyrider_level_15": {
+      "conditions": {
+        "min_level": 15,
+        "role": "petsplus:skyrider"
+      },
+      "trigger": "petsplus:pet_role_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.skyrider_path.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:feather"
+    },
+    "title": {
+      "translate": "petsplus.adv.skyrider_path.title"
+    }
+  },
+  "requirements": [
+    [
+      "skyrider_level_15"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

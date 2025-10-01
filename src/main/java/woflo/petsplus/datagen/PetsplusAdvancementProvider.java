@@ -23,17 +23,35 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 /**
- * Data generator for PetsPlus advancements following Fabric 1.21.8 conventions.
- * Based on https://docs.fabricmc.net/develop/data-generation/advancements
+ * Data generator for PetsPlus advancements following the new 6-branch tree structure.
  * 
- * Advancement Tree Structure:
+ * New Tree Structure:
  * - Root: first_pet (bonding with first pet)
- *   ├─ Leveling Chain: trial_ready → even_bester → or_not, melody_wind, edgewalker
- *   ├─ Petting Chain: gentle_touch → devoted_companion
- *   ├─ Mood Cluster: All mood level 3 advancements (connected to root)
- *   ├─ Special Interactions: i_love_you_and_me, restless_sit_glow, are_you_mad_at_me
- *   ├─ Dream/Death Chain: noo_luna → at_what_cost → heartless_but_alive
- *   └─ Role/Ability Cluster: sacrilege, mmm_healing_magic, is_this_designer
+ *   ├─ 🌱 bonding_basics (Intermediate)
+ *   │   ├─ gentle_touch
+ *   │   ├─ devoted_companion
+ *   │   └─ bond_voyage
+ *   ├─ ⚔️ combat_provenance (Intermediate)
+ *   │   ├─ trial_ready
+ *   │   ├─ sacrilege
+ *   │   └─ even_bester
+ *   ├─ 🎭 emotional_journey (Intermediate)
+ *   │   ├─ mood_explorer
+ *   │   ├─ emotional_mastery
+ *   │   └─ mood_categories (12 mood advancements)
+ *   ├─ ✨ mystical_connections (Intermediate)
+ *   │   ├─ i_love_you_and_me
+ *   │   ├─ noo_luna
+ *   │   └─ void_touched
+ *   ├─ 🛡️ role_specialization (Intermediate)
+ *   │   ├─ guardian_path
+ *   │   ├─ support_path
+ *   │   ├─ skyrider_path
+ *   │   └─ eclipsed_path
+ *   └─ 💀 ultimate_sacrifice (Advanced)
+ *     ├─ at_what_cost
+ *     ├─ heartless_but_alive
+ *     └─ or_not
  */
 public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
 
@@ -65,108 +83,39 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
             .build(consumer, Petsplus.MOD_ID + ":first_pet");
 
         // ========================================
-        // LEVELING PROGRESSION CHAIN
+        // 🌱 BONDING BASICS BRANCH
         // ========================================
-        AdvancementEntry trialReady = Advancement.Builder.create()
+        AdvancementEntry bondingBasics = Advancement.Builder.create()
             .parent(firstPet)
             .display(
-                Items.GOLD_INGOT,
-                Text.translatable("petsplus.adv.trial_ready.title"),
-                Text.translatable("petsplus.adv.trial_ready.desc"),
+                Items.LEAD,
+                Text.translatable("petsplus.adv.bonding_basics.title"),
+                Text.translatable("petsplus.adv.bonding_basics.desc"),
                 null,
                 AdvancementFrame.TASK,
                 true, true, false
             )
-            .criterion("level_10", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_LEVEL,
-                new PetLevelCriterion.Conditions(
+            .criterion("pet_5_times", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_INTERACTION,
+                new PetInteractionCriterion.Conditions(
                     Optional.empty(),
-                    Optional.of(10),
-                    Optional.empty(),
-                    Optional.empty()
-                )))
-            .build(consumer, Petsplus.MOD_ID + ":trial_ready");
-
-        AdvancementEntry evenBester = Advancement.Builder.create()
-            .parent(trialReady)
-            .display(
-                Items.NETHERITE_INGOT,
-                Text.translatable("petsplus.adv.even_bester.title"),
-                Text.translatable("petsplus.adv.even_bester.desc"),
-                null,
-                AdvancementFrame.CHALLENGE,
-                true, true, false
-            )
-            .criterion("level_30", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_LEVEL,
-                new PetLevelCriterion.Conditions(
-                    Optional.empty(),
-                    Optional.of(30),
+                    Optional.of(PetInteractionCriterion.INTERACTION_PETTING),
+                    Optional.of(5),
                     Optional.empty(),
                     Optional.empty()
                 )))
-            .build(consumer, Petsplus.MOD_ID + ":even_bester");
-
-        AdvancementEntry orNot = Advancement.Builder.create()
-            .parent(evenBester)
-            .display(
-                Items.SKELETON_SKULL,
-                Text.translatable("petsplus.adv.or_not.title"),
-                Text.translatable("petsplus.adv.or_not.desc"),
-                null,
-                AdvancementFrame.GOAL,
-                true, true, false
-            )
-            .criterion("permanent_death", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_DEATH,
-                new PetDeathCriterion.Conditions(
+            .criterion("bonded_level_1", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_MOOD_LEVEL,
+                new PetMoodLevelCriterion.Conditions(
                     Optional.empty(),
+                    Optional.of("BONDED"),
                     Optional.of(1),
-                    Optional.of(true)
+                    Optional.empty()
                 )))
-            .build(consumer, Petsplus.MOD_ID + ":or_not");
+            .requirements(AdvancementRequirements.anyOf(
+                java.util.List.of("pet_5_times", "bonded_level_1")))
+            .build(consumer, Petsplus.MOD_ID + ":bonding_basics");
 
-        // Role-specific leveling milestones
-        AdvancementEntry melodyWind = Advancement.Builder.create()
-            .parent(trialReady)
-            .display(
-                Items.FEATHER,
-                Text.translatable("petsplus.adv.melody_wind.title"),
-                Text.translatable("petsplus.adv.melody_wind.desc"),
-                null,
-                AdvancementFrame.GOAL,
-                true, true, false
-            )
-            .criterion("skyrider_20", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_LEVEL,
-                new PetLevelCriterion.Conditions(
-                    Optional.empty(),
-                    Optional.of(20),
-                    Optional.empty(),
-                    Optional.of("petsplus:skyrider")
-                )))
-            .build(consumer, Petsplus.MOD_ID + ":melody_wind");
-
-        AdvancementEntry edgewalker = Advancement.Builder.create()
-            .parent(trialReady)
-            .display(
-                Items.ENDER_PEARL,
-                Text.translatable("petsplus.adv.edgewalker.title"),
-                Text.translatable("petsplus.adv.edgewalker.desc"),
-                null,
-                AdvancementFrame.GOAL,
-                true, true, false
-            )
-            .criterion("eclipsed_30", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_LEVEL,
-                new PetLevelCriterion.Conditions(
-                    Optional.empty(),
-                    Optional.of(30),
-                    Optional.empty(),
-                    Optional.of("petsplus:eclipsed")
-                )))
-            .build(consumer, Petsplus.MOD_ID + ":edgewalker");
-
-        // ========================================
-        // PETTING INTERACTION CHAIN
-        // ========================================
         AdvancementEntry gentleTouch = Advancement.Builder.create()
-            .parent(firstPet)
+            .parent(bondingBasics)
             .display(
                 Items.GOLDEN_CARROT,
                 Text.translatable("petsplus.adv.gentle_touch.title"),
@@ -186,7 +135,7 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
             .build(consumer, Petsplus.MOD_ID + ":gentle_touch");
 
         AdvancementEntry devotedCompanion = Advancement.Builder.create()
-            .parent(gentleTouch)
+            .parent(bondingBasics)
             .display(
                 Items.ENCHANTED_GOLDEN_APPLE,
                 Text.translatable("petsplus.adv.devoted_companion.title"),
@@ -205,11 +154,195 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 )))
             .build(consumer, Petsplus.MOD_ID + ":devoted_companion");
 
+        AdvancementEntry bondVoyage = Advancement.Builder.create()
+            .parent(bondingBasics)
+            .display(
+                Items.LEAD,
+                Text.translatable("petsplus.adv.bond_voyage.title"),
+                Text.translatable("petsplus.adv.bond_voyage.desc"),
+                null,
+                AdvancementFrame.GOAL,
+                true, true, false
+            )
+            .criterion("bonded_level_3", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_MOOD_LEVEL,
+                new PetMoodLevelCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of("BONDED"),
+                    Optional.of(3),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":bond_voyage");
+
         // ========================================
-        // MOOD LEVEL 3 CLUSTER
+        // ⚔️ COMBAT PROVENANCE BRANCH
         // ========================================
-        AdvancementEntry hereComesSunbeam = Advancement.Builder.create()
+        AdvancementEntry combatProvenance = Advancement.Builder.create()
             .parent(firstPet)
+            .display(
+                Items.IRON_SWORD,
+                Text.translatable("petsplus.adv.combat_provenance.title"),
+                Text.translatable("petsplus.adv.combat_provenance.desc"),
+                null,
+                AdvancementFrame.TASK,
+                true, true, false
+            )
+            .criterion("level_5", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_LEVEL,
+                new PetLevelCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of(5),
+                    Optional.empty(),
+                    Optional.empty()
+                )))
+            .criterion("combat_victory", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_LEVEL,
+                new PetLevelCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of(5),
+                    Optional.empty(),
+                    Optional.empty()
+                )))
+            .requirements(AdvancementRequirements.anyOf(
+                java.util.List.of("level_5", "combat_victory")))
+            .build(consumer, Petsplus.MOD_ID + ":combat_provenance");
+
+        AdvancementEntry trialReady = Advancement.Builder.create()
+            .parent(combatProvenance)
+            .display(
+                Items.GOLD_INGOT,
+                Text.translatable("petsplus.adv.trial_ready.title"),
+                Text.translatable("petsplus.adv.trial_ready.desc"),
+                null,
+                AdvancementFrame.TASK,
+                true, true, false
+            )
+            .criterion("level_10", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_LEVEL,
+                new PetLevelCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of(10),
+                    Optional.empty(),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":trial_ready");
+
+        AdvancementEntry sacrilege = Advancement.Builder.create()
+            .parent(combatProvenance)
+            .display(
+                Items.NETHERITE_CHESTPLATE,
+                Text.translatable("petsplus.adv.sacrilege.title"),
+                Text.translatable("petsplus.adv.sacrilege.desc"),
+                null,
+                AdvancementFrame.GOAL,
+                true, true, false
+            )
+            .criterion("guardian_tank_damage", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_STAT_THRESHOLD,
+                new PetStatThresholdCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of(PetStatThresholdCriterion.STAT_GUARDIAN_DAMAGE),
+                    Optional.of(1000.0f),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":sacrilege");
+
+        AdvancementEntry evenBester = Advancement.Builder.create()
+            .parent(combatProvenance)
+            .display(
+                Items.NETHERITE_INGOT,
+                Text.translatable("petsplus.adv.master_trainer.title"),
+                Text.translatable("petsplus.adv.master_trainer.desc"),
+                null,
+                AdvancementFrame.CHALLENGE,
+                true, true, false
+            )
+            .criterion("level_30", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_LEVEL,
+                new PetLevelCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of(30),
+                    Optional.empty(),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":master_trainer");
+
+        // ========================================
+        // 🎭 EMOTIONAL JOURNEY BRANCH
+        // ========================================
+        AdvancementEntry emotionalJourney = Advancement.Builder.create()
+            .parent(firstPet)
+            .display(
+                Items.AMETHYST_SHARD,
+                Text.translatable("petsplus.adv.emotional_journey.title"),
+                Text.translatable("petsplus.adv.emotional_journey.desc"),
+                null,
+                AdvancementFrame.TASK,
+                true, true, false
+            )
+            .criterion("mood_variety", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_MOOD_VARIETY,
+                new PetMoodVarietyCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of(5),
+                    Optional.empty(),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":emotional_journey");
+
+        AdvancementEntry moodExplorer = Advancement.Builder.create()
+            .parent(emotionalJourney)
+            .display(
+                Items.COMPASS,
+                Text.translatable("petsplus.adv.mood_explorer.title"),
+                Text.translatable("petsplus.adv.mood_explorer.desc"),
+                null,
+                AdvancementFrame.TASK,
+                true, true, false
+            )
+            .criterion("mood_variety_5", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_MOOD_VARIETY,
+                new PetMoodVarietyCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of(10),
+                    Optional.empty(),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":mood_explorer");
+
+        AdvancementEntry emotionalMastery = Advancement.Builder.create()
+            .parent(moodExplorer)
+            .display(
+                Items.DIAMOND,
+                Text.translatable("petsplus.adv.emotional_mastery.title"),
+                Text.translatable("petsplus.adv.emotional_mastery.desc"),
+                null,
+                AdvancementFrame.GOAL,
+                true, true, false
+            )
+            .criterion("any_mood_level_3", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_MOOD_LEVEL,
+                new PetMoodLevelCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.of(3),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":emotional_mastery");
+
+        // Positive Moods Sub-branch
+        AdvancementEntry positiveMoods = Advancement.Builder.create()
+            .parent(emotionalMastery)
+            .display(
+                Items.SUNFLOWER,
+                Text.translatable("petsplus.adv.positive_moods.title"),
+                Text.translatable("petsplus.adv.positive_moods.desc"),
+                null,
+                AdvancementFrame.TASK,
+                true, true, false
+            )
+            .criterion("positive_mood_iii", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_MOOD_LEVEL,
+                new PetMoodLevelCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of("HAPPY"),
+                    Optional.of(3),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":positive_moods");
+
+        AdvancementEntry raysOfSunshine = Advancement.Builder.create()
+            .parent(positiveMoods)
             .display(
                 Items.SUNFLOWER,
                 Text.translatable("petsplus.adv.here_comes_the_sunbeam.title"),
@@ -228,7 +361,7 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
             .build(consumer, Petsplus.MOD_ID + ":here_comes_the_sunbeam");
 
         AdvancementEntry playfulNow = Advancement.Builder.create()
-            .parent(firstPet)
+            .parent(positiveMoods)
             .display(
                 Items.SLIME_BALL,
                 Text.translatable("petsplus.adv.please_fcking_play_with_me_now.title"),
@@ -246,8 +379,8 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 )))
             .build(consumer, Petsplus.MOD_ID + ":please_fcking_play_with_me_now");
 
-        AdvancementEntry indianaBones = Advancement.Builder.create()
-            .parent(firstPet)
+        AdvancementEntry curiousExplorer = Advancement.Builder.create()
+            .parent(positiveMoods)
             .display(
                 Items.BRUSH,
                 Text.translatable("petsplus.adv.indiana_bones_zoomies.title"),
@@ -265,27 +398,47 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 )))
             .build(consumer, Petsplus.MOD_ID + ":indiana_bones_zoomies");
 
-        AdvancementEntry bondVoyage = Advancement.Builder.create()
-            .parent(firstPet)
+        AdvancementEntry passionateHeart = Advancement.Builder.create()
+            .parent(positiveMoods)
             .display(
-                Items.LEAD,
-                Text.translatable("petsplus.adv.bond_voyage.title"),
-                Text.translatable("petsplus.adv.bond_voyage.desc"),
+                Items.SLIME_BALL,
+                Text.translatable("petsplus.adv.please_fcking_play_with_me_now.title"),
+                Text.translatable("petsplus.adv.please_fcking_play_with_me_now.desc"),
                 null,
-                AdvancementFrame.GOAL,
+                AdvancementFrame.TASK,
                 true, true, false
             )
-            .criterion("bonded_level_3", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_MOOD_LEVEL,
+            .criterion("passionate_level_3", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_MOOD_LEVEL,
                 new PetMoodLevelCriterion.Conditions(
                     Optional.empty(),
-                    Optional.of("BONDED"),
+                    Optional.of("PLAYFUL"),
                     Optional.of(3),
                     Optional.empty()
                 )))
-            .build(consumer, Petsplus.MOD_ID + ":bond_voyage");
+            .build(consumer, Petsplus.MOD_ID + ":please_fcking_play_with_me_now");
 
-        AdvancementEntry beMoreChill = Advancement.Builder.create()
-            .parent(firstPet)
+        // Calm Moods Sub-branch
+        AdvancementEntry calmMoods = Advancement.Builder.create()
+            .parent(emotionalMastery)
+            .display(
+                Items.LAPIS_LAZULI,
+                Text.translatable("petsplus.adv.calm_moods.title"),
+                Text.translatable("petsplus.adv.calm_moods.desc"),
+                null,
+                AdvancementFrame.TASK,
+                true, true, false
+            )
+            .criterion("calm_mood_iii", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_MOOD_LEVEL,
+                new PetMoodLevelCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of("CALM"),
+                    Optional.of(3),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":calm_moods");
+
+        AdvancementEntry tranquilMind = Advancement.Builder.create()
+            .parent(calmMoods)
             .display(
                 Items.BLUE_ICE,
                 Text.translatable("petsplus.adv.be_more_chilllllll.title"),
@@ -303,27 +456,8 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 )))
             .build(consumer, Petsplus.MOD_ID + ":be_more_chilllllll");
 
-        AdvancementEntry heartsOnPyre = Advancement.Builder.create()
-            .parent(firstPet)
-            .display(
-                Items.BLAZE_POWDER,
-                Text.translatable("petsplus.adv.hearts_on_pyre.title"),
-                Text.translatable("petsplus.adv.hearts_on_pyre.desc"),
-                null,
-                AdvancementFrame.TASK,
-                true, true, false
-            )
-            .criterion("passionate_level_3", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_MOOD_LEVEL,
-                new PetMoodLevelCriterion.Conditions(
-                    Optional.empty(),
-                    Optional.of("PASSIONATE"),
-                    Optional.of(3),
-                    Optional.empty()
-                )))
-            .build(consumer, Petsplus.MOD_ID + ":hearts_on_pyre");
-
-        AdvancementEntry yugenSigh = Advancement.Builder.create()
-            .parent(firstPet)
+        AdvancementEntry yugenMoment = Advancement.Builder.create()
+            .parent(calmMoods)
             .display(
                 Items.AMETHYST_SHARD,
                 Text.translatable("petsplus.adv.yugen_sigh_sigh.title"),
@@ -341,12 +475,12 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 )))
             .build(consumer, Petsplus.MOD_ID + ":yugen_sigh_sigh");
 
-        AdvancementEntry finnishHim = Advancement.Builder.create()
-            .parent(firstPet)
+        AdvancementEntry sisuStrength = Advancement.Builder.create()
+            .parent(calmMoods)
             .display(
-                Items.IRON_CHESTPLATE,
-                Text.translatable("petsplus.adv.finnish_him.title"),
-                Text.translatable("petsplus.adv.finnish_him.desc"),
+                Items.SHIELD,
+                Text.translatable("petsplus.adv.sipping_sisurp_in_my_ride.title"),
+                Text.translatable("petsplus.adv.sipping_sisurp_in_my_ride.desc"),
                 null,
                 AdvancementFrame.TASK,
                 true, true, false
@@ -358,12 +492,32 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                     Optional.of(3),
                     Optional.empty()
                 )))
-            .build(consumer, Petsplus.MOD_ID + ":finnish_him");
+            .build(consumer, Petsplus.MOD_ID + ":sipping_sisurp_in_my_ride");
 
-        AdvancementEntry wishYouWereHere = Advancement.Builder.create()
-            .parent(firstPet)
+        // Complex Moods Sub-branch
+        AdvancementEntry complexMoods = Advancement.Builder.create()
+            .parent(emotionalMastery)
             .display(
-                Items.ECHO_SHARD,
+                Items.ENDER_PEARL,
+                Text.translatable("petsplus.adv.complex_moods.title"),
+                Text.translatable("petsplus.adv.complex_moods.desc"),
+                null,
+                AdvancementFrame.TASK,
+                true, true, false
+            )
+            .criterion("complex_mood_iii", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_MOOD_LEVEL,
+                new PetMoodLevelCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of("SAUDADE"),
+                    Optional.of(3),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":complex_moods");
+
+        AdvancementEntry saudadeLonging = Advancement.Builder.create()
+            .parent(complexMoods)
+            .display(
+                Items.AMETHYST_SHARD,
                 Text.translatable("petsplus.adv.wish_you_were_here_fur_real.title"),
                 Text.translatable("petsplus.adv.wish_you_were_here_fur_real.desc"),
                 null,
@@ -379,8 +533,8 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 )))
             .build(consumer, Petsplus.MOD_ID + ":wish_you_were_here_fur_real");
 
-        AdvancementEntry afraidiana = Advancement.Builder.create()
-            .parent(firstPet)
+        AdvancementEntry afraidButBrave = Advancement.Builder.create()
+            .parent(complexMoods)
             .display(
                 Items.PHANTOM_MEMBRANE,
                 Text.translatable("petsplus.adv.afraidiana_grande.title"),
@@ -398,10 +552,10 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 )))
             .build(consumer, Petsplus.MOD_ID + ":afraidiana_grande");
 
-        AdvancementEntry guardianGrrr = Advancement.Builder.create()
-            .parent(firstPet)
+        AdvancementEntry guardianSpirit = Advancement.Builder.create()
+            .parent(complexMoods)
             .display(
-                Items.SHIELD,
+                Items.NETHERITE_CHESTPLATE,
                 Text.translatable("petsplus.adv.guardian_of_the_grrr_laxy.title"),
                 Text.translatable("petsplus.adv.guardian_of_the_grrr_laxy.desc"),
                 null,
@@ -417,11 +571,30 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 )))
             .build(consumer, Petsplus.MOD_ID + ":guardian_of_the_grrr_laxy");
 
-        // ========================================
-        // SPECIAL MOOD INTERACTIONS
-        // ========================================
-        AdvancementEntry restlessSitGlow = Advancement.Builder.create()
-            .parent(firstPet)
+        // Mood Transitions Sub-branch
+        AdvancementEntry moodTransitions = Advancement.Builder.create()
+            .parent(emotionalMastery)
+            .display(
+                Items.CLOCK,
+                Text.translatable("petsplus.adv.mood_transitions.title"),
+                Text.translatable("petsplus.adv.mood_transitions.desc"),
+                null,
+                AdvancementFrame.TASK,
+                true, true, false
+            )
+            .criterion("any_transition", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_MOOD_TRANSITION,
+                new PetMoodTransitionCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":mood_transitions");
+
+        AdvancementEntry restlessToHappy = Advancement.Builder.create()
+            .parent(moodTransitions)
             .display(
                 Items.GLOW_BERRIES,
                 Text.translatable("petsplus.adv.restless_sit_glow.title"),
@@ -436,15 +609,15 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                     Optional.of("RESTLESS"),
                     Optional.of(3),
                     Optional.of("HAPPY"),
-                    Optional.of(3),
-                    Optional.empty()
+                    Optional.of(1),
+                    Optional.of(2000L)
                 )))
             .build(consumer, Petsplus.MOD_ID + ":restless_sit_glow");
 
-        AdvancementEntry areYouMadAtMe = Advancement.Builder.create()
-            .parent(firstPet)
+        AdvancementEntry angerManagement = Advancement.Builder.create()
+            .parent(moodTransitions)
             .display(
-                Items.ROSE_BUSH,
+                Items.FIRE_CHARGE,
                 Text.translatable("petsplus.adv.are_you_mad_at_me.title"),
                 Text.translatable("petsplus.adv.are_you_mad_at_me.desc"),
                 null,
@@ -456,23 +629,52 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                     Optional.empty(),
                     Optional.of("ANGRY"),
                     Optional.of(3),
-                    Optional.empty(),
-                    Optional.empty(),
-                    Optional.empty()
+                    Optional.of("CALM"),
+                    Optional.of(1),
+                    Optional.of(400L)
                 )))
             .build(consumer, Petsplus.MOD_ID + ":are_you_mad_at_me");
 
         // ========================================
-        // STARGAZE & SPECIAL INTERACTIONS
+        // ✨ MYSTICAL CONNECTIONS BRANCH
         // ========================================
-        AdvancementEntry iLoveYouAndMe = Advancement.Builder.create()
+        AdvancementEntry mysticalConnections = Advancement.Builder.create()
             .parent(firstPet)
+            .display(
+                Items.ENDER_EYE,
+                Text.translatable("petsplus.adv.mystical_connections.title"),
+                Text.translatable("petsplus.adv.mystical_connections.desc"),
+                null,
+                AdvancementFrame.TASK,
+                true, true, false
+            )
+            .criterion("level_3", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_LEVEL,
+                new PetLevelCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of(3),
+                    Optional.empty(),
+                    Optional.empty()
+                )))
+            .criterion("night_interaction", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_INTERACTION,
+                new PetInteractionCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of(PetInteractionCriterion.INTERACTION_STARGAZING),
+                    Optional.of(1),
+                    Optional.empty(),
+                    Optional.empty()
+                )))
+            .requirements(AdvancementRequirements.anyOf(
+                java.util.List.of("level_3", "night_interaction")))
+            .build(consumer, Petsplus.MOD_ID + ":mystical_connections");
+
+        AdvancementEntry stargazerBond = Advancement.Builder.create()
+            .parent(mysticalConnections)
             .display(
                 Items.SPYGLASS,
                 Text.translatable("petsplus.adv.i_love_you_and_me.title"),
                 Text.translatable("petsplus.adv.i_love_you_and_me.desc"),
                 null,
-                AdvancementFrame.GOAL,
+                AdvancementFrame.TASK,
                 true, true, false
             )
             .criterion("stargaze_complete", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_INTERACTION,
@@ -485,11 +687,10 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 )))
             .build(consumer, Petsplus.MOD_ID + ":i_love_you_and_me");
 
-        // ========================================
-        // DREAM ESCAPE / SACRIFICE CHAIN
-        // ========================================
-        AdvancementEntry nooLuna = Advancement.Builder.create()
-            .parent(firstPet)
+        // This advancement is now the parent stargazer_bond, so we don't need a separate child advancement
+
+        AdvancementEntry dreamWalker = Advancement.Builder.create()
+            .parent(mysticalConnections)
             .display(
                 Items.TOTEM_OF_UNDYING,
                 Text.translatable("petsplus.adv.noo_luna.title"),
@@ -508,8 +709,30 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 )))
             .build(consumer, Petsplus.MOD_ID + ":noo_luna");
 
+        // This advancement is now the parent dream_walker, so we don't need a separate child advancement
+
+        AdvancementEntry voidTouched = Advancement.Builder.create()
+            .parent(dreamWalker)
+            .display(
+                Items.CRYING_OBSIDIAN,
+                Text.translatable("petsplus.adv.void_touched.title"),
+                Text.translatable("petsplus.adv.void_touched.desc"),
+                null,
+                AdvancementFrame.GOAL,
+                true, true, false
+            )
+            .criterion("dream_escape_2", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_INTERACTION,
+                new PetInteractionCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of(PetInteractionCriterion.INTERACTION_DREAM_ESCAPE),
+                    Optional.of(2),
+                    Optional.empty(),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":void_touched");
+
         AdvancementEntry atWhatCost = Advancement.Builder.create()
-            .parent(nooLuna)
+            .parent(voidTouched)
             .display(
                 Items.CRYING_OBSIDIAN,
                 Text.translatable("petsplus.adv.at_what_cost.title"),
@@ -549,29 +772,67 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
             .build(consumer, Petsplus.MOD_ID + ":heartless_but_alive");
 
         // ========================================
-        // ROLE-SPECIFIC ACHIEVEMENTS
+        // 🛡️ ROLE SPECIALIZATION BRANCH
         // ========================================
-        AdvancementEntry sacrilege = Advancement.Builder.create()
+        AdvancementEntry roleSpecialization = Advancement.Builder.create()
             .parent(firstPet)
             .display(
-                Items.NETHERITE_CHESTPLATE,
-                Text.translatable("petsplus.adv.sacrilege.title"),
-                Text.translatable("petsplus.adv.sacrilege.desc"),
+                Items.DIAMOND_SWORD,
+                Text.translatable("petsplus.adv.role_specialization.title"),
+                Text.translatable("petsplus.adv.role_specialization.desc"),
                 null,
-                AdvancementFrame.GOAL,
+                AdvancementFrame.TASK,
                 true, true, false
             )
-            .criterion("guardian_tank_damage", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_STAT_THRESHOLD,
-                new PetStatThresholdCriterion.Conditions(
+            .criterion("level_10_with_role", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_ROLE_LEVEL,
+                new PetRoleLevelCriterion.Conditions(
                     Optional.empty(),
-                    Optional.of(PetStatThresholdCriterion.STAT_GUARDIAN_DAMAGE),
-                    Optional.of(1000.0f),
+                    Optional.empty(),
+                    Optional.of(10),
                     Optional.empty()
                 )))
-            .build(consumer, Petsplus.MOD_ID + ":sacrilege");
+            .build(consumer, Petsplus.MOD_ID + ":role_specialization");
+
+        AdvancementEntry guardianPath = Advancement.Builder.create()
+            .parent(roleSpecialization)
+            .display(
+                Items.SHIELD,
+                Text.translatable("petsplus.adv.guardian_path.title"),
+                Text.translatable("petsplus.adv.guardian_path.desc"),
+                null,
+                AdvancementFrame.TASK,
+                true, true, false
+            )
+            .criterion("guardian_level_15", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_ROLE_LEVEL,
+                new PetRoleLevelCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of("petsplus:guardian"),
+                    Optional.of(15),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":guardian_path");
+
+        AdvancementEntry supportPath = Advancement.Builder.create()
+            .parent(roleSpecialization)
+            .display(
+                Items.GLISTERING_MELON_SLICE,
+                Text.translatable("petsplus.adv.support_path.title"),
+                Text.translatable("petsplus.adv.support_path.desc"),
+                null,
+                AdvancementFrame.TASK,
+                true, true, false
+            )
+            .criterion("support_level_15", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_ROLE_LEVEL,
+                new PetRoleLevelCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of("petsplus:support"),
+                    Optional.of(15),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":support_path");
 
         AdvancementEntry healingMagic = Advancement.Builder.create()
-            .parent(firstPet)
+            .parent(supportPath)
             .display(
                 Items.GLISTERING_MELON_SLICE,
                 Text.translatable("petsplus.adv.mmm_healing_magic.title"),
@@ -589,8 +850,128 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 )))
             .build(consumer, Petsplus.MOD_ID + ":mmm_healing_magic");
 
+        AdvancementEntry skyriderPath = Advancement.Builder.create()
+            .parent(roleSpecialization)
+            .display(
+                Items.FEATHER,
+                Text.translatable("petsplus.adv.skyrider_path.title"),
+                Text.translatable("petsplus.adv.skyrider_path.desc"),
+                null,
+                AdvancementFrame.TASK,
+                true, true, false
+            )
+            .criterion("skyrider_level_15", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_ROLE_LEVEL,
+                new PetRoleLevelCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of("petsplus:skyrider"),
+                    Optional.of(15),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":skyrider_path");
+
+        AdvancementEntry melodyWind = Advancement.Builder.create()
+            .parent(skyriderPath)
+            .display(
+                Items.FEATHER,
+                Text.translatable("petsplus.adv.melody_wind.title"),
+                Text.translatable("petsplus.adv.melody_wind.desc"),
+                null,
+                AdvancementFrame.GOAL,
+                true, true, false
+            )
+            .criterion("skyrider_20", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_LEVEL,
+                new PetLevelCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of(20),
+                    Optional.empty(),
+                    Optional.of("petsplus:skyrider")
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":melody_wind");
+
+        AdvancementEntry eclipsedPath = Advancement.Builder.create()
+            .parent(roleSpecialization)
+            .display(
+                Items.ENDER_PEARL,
+                Text.translatable("petsplus.adv.eclipsed_path.title"),
+                Text.translatable("petsplus.adv.eclipsed_path.desc"),
+                null,
+                AdvancementFrame.TASK,
+                true, true, false
+            )
+            .criterion("eclipsed_level_15", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_ROLE_LEVEL,
+                new PetRoleLevelCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of("petsplus:eclipsed"),
+                    Optional.of(15),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":eclipsed_path");
+
+        AdvancementEntry edgewalker = Advancement.Builder.create()
+            .parent(eclipsedPath)
+            .display(
+                Items.ENDER_PEARL,
+                Text.translatable("petsplus.adv.edgewalker.title"),
+                Text.translatable("petsplus.adv.edgewalker.desc"),
+                null,
+                AdvancementFrame.GOAL,
+                true, true, false
+            )
+            .criterion("eclipsed_30", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_LEVEL,
+                new PetLevelCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of(30),
+                    Optional.empty(),
+                    Optional.of("petsplus:eclipsed")
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":edgewalker");
+
+        // ========================================
+        // 💀 ULTIMATE SACRIFICE BRANCH
+        // ========================================
+        AdvancementEntry ultimateSacrifice = Advancement.Builder.create()
+            .parent(firstPet)
+            .display(
+                Items.WITHER_SKELETON_SKULL,
+                Text.translatable("petsplus.adv.ultimate_sacrifice.title"),
+                Text.translatable("petsplus.adv.ultimate_sacrifice.desc"),
+                null,
+                AdvancementFrame.CHALLENGE,
+                true, true, false
+            )
+            .criterion("dream_path_complete", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_INTERACTION,
+                new PetInteractionCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of(PetInteractionCriterion.INTERACTION_DREAM_ESCAPE),
+                    Optional.of(2),
+                    Optional.empty(),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":ultimate_sacrifice");
+
+        AdvancementEntry orNot = Advancement.Builder.create()
+            .parent(ultimateSacrifice)
+            .display(
+                Items.SKELETON_SKULL,
+                Text.translatable("petsplus.adv.eternal_bond.title"),
+                Text.translatable("petsplus.adv.eternal_bond.desc"),
+                null,
+                AdvancementFrame.GOAL,
+                true, true, false
+            )
+            .criterion("permanent_death", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_DEATH,
+                new PetDeathCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of(1),
+                    Optional.of(true)
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":eternal_bond");
+
+        // ========================================
+        // ADDITIONAL ADVANCEMENTS
+        // ========================================
         AdvancementEntry isThisDesigner = Advancement.Builder.create()
-            .parent(trialReady)
+            .parent(evenBester)
             .display(
                 Items.ENCHANTED_BOOK,
                 Text.translatable("petsplus.adv.is_this_designer.title"),

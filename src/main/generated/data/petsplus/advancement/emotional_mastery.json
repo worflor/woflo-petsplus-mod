@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:mood_explorer",
+  "criteria": {
+    "any_mood_level_3": {
+      "conditions": {
+        "min_level": 3
+      },
+      "trigger": "petsplus:pet_mood_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.emotional_mastery.desc"
+    },
+    "frame": "goal",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:diamond"
+    },
+    "title": {
+      "translate": "petsplus.adv.emotional_mastery.title"
+    }
+  },
+  "requirements": [
+    [
+      "any_mood_level_3"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

@@ -1,29 +1,28 @@
 {
-  "parent": "petsplus:trial_ready",
+  "parent": "petsplus:first_pet",
   "criteria": {
-    "level_30": {
+    "combat_victory": {
       "conditions": {
-        "min_level": 30
+        "min_level": 5
       },
       "trigger": "petsplus:pet_level"
     }
   },
   "display": {
     "description": {
-      "translate": "petsplus.adv.even_bester.desc"
+      "translate": "petsplus.adv.combat_provenance.desc"
     },
-    "frame": "challenge",
     "icon": {
       "count": 1,
-      "id": "minecraft:netherite_ingot"
+      "id": "minecraft:iron_sword"
     },
     "title": {
-      "translate": "petsplus.adv.even_bester.title"
+      "translate": "petsplus.adv.combat_provenance.title"
     }
   },
   "requirements": [
     [
-      "level_30"
+      "combat_victory"
     ]
   ],
   "sends_telemetry_event": true

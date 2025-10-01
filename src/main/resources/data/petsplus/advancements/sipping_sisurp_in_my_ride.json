@@ -1,0 +1,27 @@
+{
+  "display": {
+    "icon": {
+      "item": "minecraft:shield"
+    },
+    "title": {
+      "translate": "petsplus.adv.sipping_sisurp_in_my_ride.title"
+    },
+    "description": {
+      "translate": "petsplus.adv.sipping_sisurp_in_my_ride.desc"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "requirement": {
+      "trigger": "petsplus:pet_mood_level",
+      "conditions": {
+        "mood": "SISU",
+        "min_level": 3
+      }
+    }
+  }
+}

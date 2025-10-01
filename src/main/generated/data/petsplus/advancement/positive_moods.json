@@ -1,29 +1,29 @@
 {
-  "parent": "petsplus:first_pet",
+  "parent": "petsplus:emotional_mastery",
   "criteria": {
-    "passionate_level_3": {
+    "positive_mood_iii": {
       "conditions": {
         "min_level": 3,
-        "mood": "PASSIONATE"
+        "mood": "HAPPY"
       },
       "trigger": "petsplus:pet_mood_level"
     }
   },
   "display": {
     "description": {
-      "translate": "petsplus.adv.hearts_on_pyre.desc"
+      "translate": "petsplus.adv.positive_moods.desc"
     },
     "icon": {
       "count": 1,
-      "id": "minecraft:blaze_powder"
+      "id": "minecraft:sunflower"
     },
     "title": {
-      "translate": "petsplus.adv.hearts_on_pyre.title"
+      "translate": "petsplus.adv.positive_moods.title"
     }
   },
   "requirements": [
     [
-      "passionate_level_3"
+      "positive_mood_iii"
     ]
   ],
   "sends_telemetry_event": true

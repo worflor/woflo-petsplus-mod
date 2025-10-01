@@ -1,5 +1,5 @@
 {
-  "parent": "petsplus:gentle_touch",
+  "parent": "petsplus:bonding_basics",
   "criteria": {
     "pet_100_times": {
       "conditions": {

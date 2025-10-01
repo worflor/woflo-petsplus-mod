@@ -465,6 +465,39 @@ public class FeedbackManager {
     }
 
     /**
+     * Emit contagion particle effects based on emotion type
+     */
+    public static void emitContagionFeedback(MobEntity pet, ServerWorld world, PetComponent.Emotion emotion) {
+        if (pet == null || world == null || emotion == null) return;
+        
+        String eventName = switch (emotion) {
+            // Positive emotions
+            case KEFI, RELIEF, GLEE, CONTENT, BLISSFUL, PRIDE -> "contagion_positive";
+            
+            // Negative emotions
+            case FOREBODING, ANGST, STARTLE, DISGUST -> "contagion_negative";
+            
+            // Combat emotions
+            case PROTECTIVENESS, PROTECTIVE, FOCUSED -> "contagion_combat";
+            
+            // Discovery emotions
+            case CURIOUS, YUGEN, MONO_NO_AWARE, FERNWEH -> "contagion_discovery";
+            
+            // Social emotions
+            case SOBREMESA, UBUNTU, LAGOM -> "contagion_social";
+            
+            // Neutral emotions
+            case STOIC, VIGILANT, GAMAN, HIRAETH, REGRET -> "contagion_neutral";
+            
+            default -> null;
+        };
+        
+        if (eventName != null) {
+            emitFeedback(eventName, pet, world);
+        }
+    }
+
+    /**
      * Clean up all delayed tasks and resources.
      * Should be called during server shutdown to prevent watchdog timeouts.
      */

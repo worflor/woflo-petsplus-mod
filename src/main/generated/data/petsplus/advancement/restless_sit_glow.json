@@ -1,12 +1,13 @@
 {
-  "parent": "petsplus:first_pet",
+  "parent": "petsplus:mood_transitions",
   "criteria": {
     "restless_to_happy": {
       "conditions": {
         "from_mood": "RESTLESS",
         "min_from_level": 3,
-        "min_to_level": 3,
-        "to_mood": "HAPPY"
+        "min_to_level": 1,
+        "to_mood": "HAPPY",
+        "max_ticks_elapsed": 2000
       },
       "trigger": "petsplus:pet_mood_transition"
     }

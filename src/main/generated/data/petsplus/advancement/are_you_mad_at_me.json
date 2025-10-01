@@ -1,10 +1,13 @@
 {
-  "parent": "petsplus:first_pet",
+  "parent": "petsplus:mood_transitions",
   "criteria": {
     "angry_cooldown": {
       "conditions": {
         "from_mood": "ANGRY",
-        "min_from_level": 3
+        "min_from_level": 3,
+        "to_mood": "CALM",
+        "min_to_level": 1,
+        "max_ticks_elapsed": 400
       },
       "trigger": "petsplus:pet_mood_transition"
     }
@@ -16,7 +19,7 @@
     "frame": "goal",
     "icon": {
       "count": 1,
-      "id": "minecraft:rose_bush"
+      "id": "minecraft:fire_charge"
     },
     "title": {
       "translate": "petsplus.adv.are_you_mad_at_me.title"

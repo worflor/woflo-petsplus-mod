@@ -1,5 +1,5 @@
 {
-  "parent": "petsplus:first_pet",
+  "parent": "petsplus:support_path",
   "criteria": {
     "support_heal_allies": {
       "conditions": {

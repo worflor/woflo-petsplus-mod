@@ -1,0 +1,29 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "level_10_with_role": {
+      "conditions": {
+        "min_level": 10
+      },
+      "trigger": "petsplus:pet_role_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.role_specialization.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:diamond_sword"
+    },
+    "title": {
+      "translate": "petsplus.adv.role_specialization.title"
+    }
+  },
+  "requirements": [
+    [
+      "level_10_with_role"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

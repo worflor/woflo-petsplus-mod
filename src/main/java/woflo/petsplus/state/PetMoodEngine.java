@@ -229,7 +229,7 @@ final class PetMoodEngine {
     }
 
     private void pushEmotion(PetComponent.Emotion emotion, float amount, long now) {
-        if (amount == 0f) {
+        if (Math.abs(amount) < EPSILON) {
             emotionRecords.remove(emotion);
             return;
         }
@@ -274,10 +274,14 @@ final class PetMoodEngine {
 
         // Rekindle boost: bring intensity toward new sample with spike bias
         float spikeBias = MathHelper.clamp(0.55f + 0.45f * (float) Math.exp(-delta / Math.max(1f, record.cadenceEMA)), 0.55f, 0.95f);
+        // Validate spikeBias is in reasonable range
+        spikeBias = MathHelper.clamp(spikeBias, 0.0f, 1.0f);
         record.intensity = MathHelper.clamp(MathHelper.lerp(spikeBias, record.intensity, sample), 0f, 1f);
 
         // Impact budget accrues using rekindle-aware boost
         float rekindleBoost = 1.0f + Math.min(0.6f, record.sensitisationGain - 1.0f);
+        // Validate rekindleBoost is in reasonable range
+        rekindleBoost = MathHelper.clamp(rekindleBoost, 0.0f, 2.0f);
         float impactGain = sample * rekindleBoost * resilienceMultiplier;
         record.impactBudget = Math.min(getImpactCap(), record.impactBudget + impactGain);
 
@@ -324,15 +328,19 @@ final class PetMoodEngine {
     }
 
     void addContagionShare(PetComponent.Emotion emotion, float amount, long now, float bondFactor) {
-        if (amount == 0f) {
+        if (Math.abs(amount) < EPSILON) {
             return;
         }
         EmotionRecord record = emotionRecords.computeIfAbsent(emotion, e -> new EmotionRecord(e, now));
         record.applyDecay(now, this);
 
         float spreadBias = getNatureContagionSpreadBias(emotion);
+        // Validate spreadBias is in reasonable range
+        spreadBias = MathHelper.clamp(spreadBias, 0.0f, 2.0f);
         float tunedAmount = amount * spreadBias;
-        float cap = computeContagionCap(MathHelper.clamp(bondFactor, 0.35f, 1.0f));
+        // Validate bondFactor is in reasonable range
+        bondFactor = MathHelper.clamp(bondFactor, 0.0f, 2.0f);
+        float cap = computeContagionCap(bondFactor);
         float tunedCap = cap * MathHelper.clamp(spreadBias, 0.7f, 1.35f);
         float minCap = Math.min(cap, 0.05f);
         float maxCap = Math.max(cap, 0.6f);
@@ -537,8 +545,8 @@ final class PetMoodEngine {
 
         ensureConfigCache();
         float epsilon = Math.max(EPSILON, cachedEpsilon);
-        float guardModifier = parent.getNatureGuardModifier();
-        float contagionModifier = parent.getNatureContagionModifier();
+        float guardModifier = MathHelper.clamp(parent.getNatureGuardModifier(), 0.1f, 3.0f);
+        float contagionModifier = MathHelper.clamp(parent.getNatureContagionModifier(), 0.1f, 3.0f);
         lastRelationshipGuardObserved = MathHelper.clamp(RELATIONSHIP_BASE * guardModifier, 0.6f, 1.6f);
         lastDangerWindowObserved = MathHelper.clamp(DANGER_BASE * guardModifier, 0.6f, 1.7f);
         float baseCap = DEFAULT_IMPACT_CAP * 0.1f * contagionModifier;
@@ -579,6 +587,8 @@ final class PetMoodEngine {
             EmotionRecord record = active.get(i);
             float freshness = computeFreshness(record, now);
             float freq = record.cadenceEMA > 0f ? MathHelper.clamp(cadenceMedian / record.cadenceEMA, 0f, 3.5f) : 0f;
+            // Validate frequency is in reasonable range
+            freq = MathHelper.clamp(freq, 0.0f, 5.0f);
             float signal = (record.intensity * (0.35f + 0.65f * freshness))
                     + (0.3f * (float) Math.sqrt(Math.max(0f, freq * record.impactBudget)));
             scratchSignals[i] = signal;
@@ -617,6 +627,8 @@ final class PetMoodEngine {
         for (Candidate candidate : survivors) {
             EmotionRecord record = candidate.record;
             float intensity = MathHelper.clamp(record.intensity, 0f, 1f);
+            // Double-check intensity bounds
+            intensity = MathHelper.clamp(intensity, 0.0f, 1.0f);
 
             // Base weight: intensity scaled by accumulated impact
             float baseWeight = intensity * (1.0f + MathHelper.clamp(record.impactBudget / impactCap, 0f, 1.5f));
@@ -628,6 +640,8 @@ final class PetMoodEngine {
                 // Strong boost for very fresh emotions (< 3 seconds)
                 recencyBoost = 0.4f * (1.0f - lastAge / 60f);
             }
+            // Validate recencyBoost is in reasonable range
+            recencyBoost = MathHelper.clamp(recencyBoost, 0.0f, 1.0f);
 
             // Persistence bonus: Ongoing conditions maintain weight
             float persistenceBonus = 0f;
@@ -635,6 +649,8 @@ final class PetMoodEngine {
                 // Condition still present, add sustained weight
                 persistenceBonus = 0.3f * intensity;
             }
+            // Validate persistenceBonus is in reasonable range
+            persistenceBonus = MathHelper.clamp(persistenceBonus, 0.0f, 1.0f);
 
             // Habituation penalty: Reduce weight if stimuli are too frequent
             float habituationPenalty = 0f;
@@ -642,13 +658,19 @@ final class PetMoodEngine {
                 // Very frequent stimuli (< 5 seconds) cause habituation
                 habituationPenalty = -0.2f * (1.0f - record.cadenceEMA / 100f);
             }
+            // Validate habituationPenalty is in reasonable range
+            habituationPenalty = MathHelper.clamp(habituationPenalty, -1.0f, 0.0f);
 
             // Context modulation: Emotion-specific boosts/penalties based on bond, danger, etc.
             refreshContextGuards(record, now, Math.max(1L, now - record.lastUpdateTime));
             float contextModulation = computeEmotionSpecificContextModulation(record, now);
+            // Validate contextModulation is in reasonable range
+            contextModulation = MathHelper.clamp(contextModulation, -1.0f, 1.0f);
 
             // Nature profile weighting
             float profileWeightBias = getNatureWeightBias(record.emotion);
+            // Validate profileWeightBias is in reasonable range
+            profileWeightBias = MathHelper.clamp(profileWeightBias, 0.0f, 2.0f);
 
             // Additive formula: sum components, then scale by profile
             float rawWeight = (baseWeight + recencyBoost + persistenceBonus + habituationPenalty + contextModulation + record.contagionShare) * profileWeightBias;
@@ -713,7 +735,7 @@ final class PetMoodEngine {
         // Adaptive momentum: low for fresh strong emotions (fast switch), high for weak/old ones (slow drift)
         // Fresh spike (freshness > 0.7, strong weight) -> momentum ~0.3 (fast)
         // Persistent weak (freshness < 0.3, weak weight) -> momentum ~0.75 (slow)
-        float baseMomentum = (float) cachedMomentum;
+        float baseMomentum = (float) MathHelper.clamp(cachedMomentum, 0.0, 1.0);
         float adaptiveMomentum;
         if (maxEmotionFreshness > 0.7f && maxEmotionWeight > 2.0f) {
             // Strong fresh spike: switch fast
@@ -726,6 +748,8 @@ final class PetMoodEngine {
             adaptiveMomentum = baseMomentum;
         }
         adaptiveMomentum = MathHelper.clamp(adaptiveMomentum, 0.15f, 0.85f);
+        // Final validation of adaptiveMomentum
+        adaptiveMomentum = MathHelper.clamp(adaptiveMomentum, 0.0f, 1.0f);
         
         for (PetComponent.Mood mood : PetComponent.Mood.values()) {
             float cur = moodBlend.getOrDefault(mood, 0f);
@@ -960,7 +984,7 @@ final class PetMoodEngine {
         List<PetComponent.WeightedEmotionColor> target = palette == null
                 ? Collections.emptyList()
                 : palette;
-        boolean matchesCurrent = computePaletteDelta(currentPaletteStops, target) <= 0.01f
+        boolean matchesCurrent = computePaletteDelta(currentPaletteStops, target) <= EPSILON
                 && target.size() == currentPaletteStops.size()
                 && target.equals(currentPaletteStops);
         if (matchesCurrent) {
@@ -969,7 +993,7 @@ final class PetMoodEngine {
             return;
         }
 
-        boolean matchesStaged = computePaletteDelta(stagedPaletteStops, target) <= 0.0005f
+        boolean matchesStaged = computePaletteDelta(stagedPaletteStops, target) <= EPSILON * 0.05f
                 && target.size() == stagedPaletteStops.size()
                 && target.equals(stagedPaletteStops);
         if (matchesStaged && hasPendingPalette) {
@@ -1099,6 +1123,8 @@ final class PetMoodEngine {
             }
 
             float transferFactor = Math.min(OPPONENT_TRANSFER_MAX, 0.15f + 0.1f * difference);
+            // Validate transferFactor is in reasonable range
+            transferFactor = MathHelper.clamp(transferFactor, 0.0f, 1.0f);
             float transfer = donor.signal * transferFactor;
             if (transfer <= EPSILON) continue;
 
@@ -1232,7 +1258,7 @@ final class PetMoodEngine {
     }
 
     private float smoothstep(float edge0, float edge1, float x) {
-        if (edge0 == edge1) {
+        if (Math.abs(edge0 - edge1) < EPSILON) {
             return x < edge0 ? 0f : 1f;
         }
         float t = MathHelper.clamp((x - edge0) / (edge1 - edge0), 0f, 1f);
@@ -1268,27 +1294,33 @@ final class PetMoodEngine {
     }
 
     private float getNatureStimulusBias(PetComponent.Emotion emotion) {
-        return getProfileScale(emotion, 0.55f, 0.35f, 0f, 0.65f, 1.75f);
+        float bias = getProfileScale(emotion, 0.55f, 0.35f, 0f, 0.65f, 1.75f);
+        return MathHelper.clamp(bias, 0.0f, 2.0f);
     }
 
     private float getNatureWeightBias(PetComponent.Emotion emotion) {
-        return getProfileScale(emotion, 0.5f, 0.3f, 0.15f, 0.6f, 1.65f);
+        float bias = getProfileScale(emotion, 0.5f, 0.3f, 0.15f, 0.6f, 1.65f);
+        return MathHelper.clamp(bias, 0.0f, 2.0f);
     }
 
     private float getNatureContagionSpreadBias(PetComponent.Emotion emotion) {
-        return getProfileScale(emotion, 0.45f, 0.25f, 0.2f, 0.6f, 1.6f);
+        float bias = getProfileScale(emotion, 0.45f, 0.25f, 0.2f, 0.6f, 1.6f);
+        return MathHelper.clamp(bias, 0.0f, 2.0f);
     }
 
     private float getNatureGuardBias(PetComponent.Emotion emotion) {
-        return getProfileScale(emotion, 0.25f, 0.15f, 0.1f, 0.7f, 1.4f);
+        float bias = getProfileScale(emotion, 0.25f, 0.15f, 0.1f, 0.7f, 1.4f);
+        return MathHelper.clamp(bias, 0.0f, 2.0f);
     }
 
     private float getNatureQuirkReboundModifier(PetComponent.Emotion emotion) {
-        return getProfileScale(emotion, 0f, 0f, -0.45f, 0.55f, 1.1f);
+        float modifier = getProfileScale(emotion, 0f, 0f, -0.45f, 0.55f, 1.1f);
+        return MathHelper.clamp(modifier, -1.0f, 2.0f);
     }
 
     private float getNatureQuirkContagionDecayModifier(PetComponent.Emotion emotion) {
-        return getProfileScale(emotion, 0f, 0f, 0.6f, 0.6f, 1.6f);
+        float modifier = getProfileScale(emotion, 0f, 0f, 0.6f, 0.6f, 1.6f);
+        return MathHelper.clamp(modifier, 0.1f, 3.0f); // Ensure positive decay modifier
     }
 
     /**
@@ -1343,6 +1375,8 @@ final class PetMoodEngine {
         // Bond strength effects (high bond amplifies attachment emotions)
         float bondStrength = parent.getBondStrength();
         float bondFactor = MathHelper.clamp(bondStrength / RELATIONSHIP_VARIANCE, 0f, 2f);
+        // Validate bondFactor is in reasonable range
+        bondFactor = MathHelper.clamp(bondFactor, 0.0f, 3.0f);
 
         switch (emotion) {
             case SAUDADE:
@@ -1367,6 +1401,8 @@ final class PetMoodEngine {
         // Danger window effects
         float dangerRecency = record.dangerWindow; // Already calculated in refreshContextGuards
         float dangerBoost = MathHelper.clamp((dangerRecency - 1.0f), -0.5f, 0.8f);
+        // Validate dangerBoost is in reasonable range
+        dangerBoost = MathHelper.clamp(dangerBoost, -1.0f, 1.0f);
 
         switch (emotion) {
             case FOREBODING:
@@ -1391,8 +1427,12 @@ final class PetMoodEngine {
 
         // Health effects
         float healthRatio = parent.getPet().getHealth() / parent.getPet().getMaxHealth();
+        // Validate healthRatio is in reasonable range
+        healthRatio = MathHelper.clamp(healthRatio, 0.0f, 1.0f);
         if (healthRatio < 0.4f) {
             float healthPenalty = (0.4f - healthRatio) / 0.4f; // 0 at 40% health, 1 at 0% health
+            // Validate healthPenalty is in reasonable range
+            healthPenalty = MathHelper.clamp(healthPenalty, 0.0f, 1.0f);
 
             switch (emotion) {
                 case ANGST:
@@ -1430,7 +1470,9 @@ final class PetMoodEngine {
         } else if (emotion == natureEmotionProfile.quirkEmotion()) {
             factor += natureEmotionProfile.quirkStrength() * quirkScale;
         }
-        return MathHelper.clamp(factor, min, max);
+        factor = MathHelper.clamp(factor, min, max);
+        // Additional validation to ensure factor is in reasonable range
+        return MathHelper.clamp(factor, 0.0f, 3.0f);
     }
 
     private Map<PetComponent.Mood, Float> getEmotionToMoodWeights(PetComponent.Emotion emotion) {
@@ -1500,6 +1542,8 @@ final class PetMoodEngine {
         for (PetComponent.Mood mood : PetComponent.Mood.values()) {
             float override = readFloat(emotionObj, mood.name().toLowerCase(), Float.NaN);
             if (!Float.isNaN(override)) {
+                // Validate override values are in reasonable range
+                override = MathHelper.clamp(override, 0.0f, 10.0f);
                 weights.put(mood, Math.max(0f, override));
                 sawOverride = true;
             }

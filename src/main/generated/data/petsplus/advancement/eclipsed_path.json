@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:role_specialization",
+  "criteria": {
+    "eclipsed_level_15": {
+      "conditions": {
+        "min_level": 15,
+        "role": "petsplus:eclipsed"
+      },
+      "trigger": "petsplus:pet_role_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.eclipsed_path.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:ender_pearl"
+    },
+    "title": {
+      "translate": "petsplus.adv.eclipsed_path.title"
+    }
+  },
+  "requirements": [
+    [
+      "eclipsed_level_15"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Implements Cursed One auto-resurrect and immortality mechanics.
@@ -43,6 +44,9 @@ public class CursedOneResurrection {
     
     // Track pets currently in reanimation state (UUID -> reanimation window)
     private static final Map<UUID, ReanimationWindow> reanimatingPets = new ConcurrentHashMap<>();
+    
+    // Synchronization lock for reanimation state management
+    private static final ReentrantLock reanimationLock = new ReentrantLock();
 
     private record ReanimationWindow(long endTime, int durationTicks) {
         long startTime() {
@@ -83,6 +87,7 @@ public class CursedOneResurrection {
             return;
         }
 
+        // Use atomic get operation for thread safety
         ReanimationWindow window = reanimatingPets.get(mob.getUuid());
         if (window == null) {
             return;
@@ -90,8 +95,18 @@ public class CursedOneResurrection {
 
         long currentTime = world.getTime();
         if (currentTime >= window.endTime()) {
-            completeReanimation(world, mob.getUuid(), window);
-            reanimatingPets.remove(mob.getUuid());
+            // Use synchronized block to prevent race conditions during completion
+            reanimationLock.lock();
+            try {
+                // Double-check that we're still reanimating and haven't been completed by another thread
+                ReanimationWindow currentWindow = reanimatingPets.get(mob.getUuid());
+                if (currentWindow != null && currentTime >= currentWindow.endTime()) {
+                    completeReanimation(world, mob.getUuid(), currentWindow);
+                    reanimatingPets.remove(mob.getUuid());
+                }
+            } finally {
+                reanimationLock.unlock();
+            }
             return;
         }
 
@@ -103,6 +118,8 @@ public class CursedOneResurrection {
      * Check if a pet is currently in reanimation state
      */
     public static boolean isReanimating(MobEntity pet) {
+        if (pet == null) return false;
+        // Use atomic containsKey operation for thread safety
         return reanimatingPets.containsKey(pet.getUuid());
     }
     
@@ -533,7 +550,7 @@ public class CursedOneResurrection {
         long interval = 40 + pattern * 10; // Different timing for each pattern
         
         if (timeInReanimation % interval == 0) {
-            float progress = Math.min(1.0f, timeInReanimation / 300.0f);
+            float progress = Math.min(1.0f, Math.max(0.0f, timeInReanimation / 300.0f));
             
             if (progress < 0.3f) {
                 // Early phase - subtle sounds
@@ -691,7 +708,7 @@ public class CursedOneResurrection {
                 for (int i = 0; i < 20; i++) {
                     double offsetX = (world.random.nextDouble() - 0.5) * 0.8;
                     double offsetZ = (world.random.nextDouble() - 0.5) * 0.8;
-                    double height = world.random.nextDouble() * 3.0;
+                    double height = Math.max(0.0, Math.min(3.0, world.random.nextDouble() * 3.0));
                     
                     world.spawnParticles(ParticleTypes.SOUL,
                         x + offsetX, y + height, z + offsetZ, 1, 0.0, 0.2, 0.0, 0.1);
@@ -743,7 +760,7 @@ public class CursedOneResurrection {
 
         // Check resurrection chance
         float resurrectionChance = getResurrectionChance(sacrificialPet);
-        if (serverWorld.getRandom().nextFloat() > resurrectionChance) {
+        if (resurrectionChance <= 0.0f || serverWorld.getRandom().nextFloat() > resurrectionChance) {
             return true; // Resurrection failed - allow death
         }
 
@@ -787,9 +804,15 @@ public class CursedOneResurrection {
         }
 
         // Don't prevent death if already reanimating (prevents infinite loop)
-        if (isReanimating(mobEntity)) {
-            woflo.petsplus.Petsplus.LOGGER.info("Cursed One pet is already reanimating, allowing death");
-            return true; // Allow death while reanimating
+        // Use synchronized check to prevent race conditions
+        reanimationLock.lock();
+        try {
+            if (isReanimating(mobEntity)) {
+                woflo.petsplus.Petsplus.LOGGER.info("Cursed One pet is already reanimating, allowing death");
+                return true; // Allow death while reanimating
+            }
+        } finally {
+            reanimationLock.unlock();
         }
 
         if (!(entity.getWorld() instanceof ServerWorld serverWorld)) {
@@ -797,27 +820,50 @@ public class CursedOneResurrection {
             return true;
         }
 
-        // Check resurrection cooldown (15 seconds)
+        // Check resurrection cooldown (15 seconds) - make atomic with synchronized block
         long currentTime = serverWorld.getTime();
-        Long lastResurrectTimeObj = petComp.getStateData("last_resurrect_time", Long.class);
-        long lastResurrectTime = lastResurrectTimeObj != null ? lastResurrectTimeObj : 0L;
-        long resurrectionCooldown = 15 * 20; // 15 seconds in ticks
+        final boolean[] onCooldown = {false};
+        
+        reanimationLock.lock();
+        try {
+            Long lastResurrectTimeObj = petComp.getStateData("last_resurrect_time", Long.class);
+            long lastResurrectTime = lastResurrectTimeObj != null ? lastResurrectTimeObj : 0L;
+            long resurrectionCooldown = 15 * 20; // 15 seconds in ticks
 
-        if (currentTime - lastResurrectTime < resurrectionCooldown) {
-            long cooldownRemaining = resurrectionCooldown - (currentTime - lastResurrectTime);
-            woflo.petsplus.Petsplus.LOGGER.info("Cursed One pet resurrection on cooldown for {} more ticks", cooldownRemaining);
-            return true; // Still on cooldown, allow death this time
+            if (currentTime - lastResurrectTime < resurrectionCooldown) {
+                long cooldownRemaining = resurrectionCooldown - (currentTime - lastResurrectTime);
+                woflo.petsplus.Petsplus.LOGGER.info("Cursed One pet resurrection on cooldown for {} more ticks", cooldownRemaining);
+                onCooldown[0] = true; // Still on cooldown, allow death this time
+            }
+        } finally {
+            reanimationLock.unlock();
+        }
+        
+        if (onCooldown[0]) {
+            return true;
         }
 
         woflo.petsplus.Petsplus.LOGGER.info("Attempting to enter reanimation state for Cursed One pet");
 
-        // Enter reanimation state instead of dying
-        boolean enteredReanimation = enterReanimationState(mobEntity, petComp, damageSource, serverWorld);
+        // Enter reanimation state instead of dying - use synchronized block to prevent race conditions
+        boolean enteredReanimation = false;
+        reanimationLock.lock();
+        try {
+            // Double-check that we're not already reanimating (prevent race condition)
+            if (!isReanimating(mobEntity)) {
+                enteredReanimation = enterReanimationState(mobEntity, petComp, damageSource, serverWorld);
+                
+                if (enteredReanimation) {
+                    // Update resurrection timestamp atomically
+                    petComp.setStateData("last_resurrect_time", currentTime);
+                    woflo.petsplus.Petsplus.LOGGER.info("Successfully entered reanimation state - preventing death");
+                }
+            }
+        } finally {
+            reanimationLock.unlock();
+        }
 
         if (enteredReanimation) {
-            // Update resurrection timestamp
-            petComp.setStateData("last_resurrect_time", currentTime);
-            woflo.petsplus.Petsplus.LOGGER.info("Successfully entered reanimation state - preventing death");
             return false; // Prevent death - entering reanimation
         }
 
@@ -848,6 +894,7 @@ public class CursedOneResurrection {
             cursedPet.addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS, reanimationDuration, 255));
 
             long reanimationEndTime = world.getTime() + reanimationDuration;
+            // Use atomic put operation for thread safety
             reanimatingPets.put(cursedPet.getUuid(), new ReanimationWindow(reanimationEndTime, reanimationDuration));
 
             // Visual and audio feedback for entering reanimation
@@ -1000,7 +1047,7 @@ public class CursedOneResurrection {
                 // Central distortion
                 for (int i = 0; i < 15; i++) {
                     double offsetX = (world.random.nextDouble() - 0.5) * 2.0;
-                    double offsetY = world.random.nextDouble() * 1.5;
+                    double offsetY = Math.max(0.0, Math.min(1.5, world.random.nextDouble() * 1.5));
                     double offsetZ = (world.random.nextDouble() - 0.5) * 2.0;
                     
                     world.spawnParticles(ParticleTypes.SOUL,
@@ -1085,6 +1132,16 @@ public class CursedOneResurrection {
             
             // Pet sacrifice - the pet dies in place of the owner
             sacrificePet(cursedPet, owner);
+            
+            // Trigger universal pet sacrifice advancement
+            woflo.petsplus.state.PlayerAdvancementState state = woflo.petsplus.state.PlayerAdvancementState.getOrCreate(owner);
+            state.incrementPetSacrificeCount();
+            int petSacrifices = state.getPetSacrificeCount();
+            woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_INTERACTION.trigger(
+                owner,
+                woflo.petsplus.advancement.criteria.PetInteractionCriterion.INTERACTION_PET_SACRIFICE,
+                petSacrifices
+            );
             
             // Visual and audio feedback
             playResurrectionFeedback(owner, cursedPet);
@@ -1203,6 +1260,11 @@ public class CursedOneResurrection {
      * Get the resurrection chance for a cursed pet based on level.
      */
     public static float getResurrectionChance(MobEntity cursedPet) {
+        // Input validation
+        if (cursedPet == null) {
+            return 0.0f;
+        }
+        
         PetComponent petComp = PetComponent.get(cursedPet);
         if (petComp == null) {
             return 0.0f;
@@ -1217,7 +1279,19 @@ public class CursedOneResurrection {
         float baseChance = 0.8f;
         float levelBonus = Math.max(0, level - 5) * 0.02f;
         
-        return Math.min(1.0f, baseChance + levelBonus);
+        float chance = Math.min(1.0f, baseChance + levelBonus);
+        
+        // Bounds checking - ensure chance is between 0.0 and 1.0
+        if (chance < 0.0f) {
+            woflo.petsplus.Petsplus.LOGGER.warn("Resurrection chance calculated below 0.0: {}, clamping to 0.0", chance);
+            return 0.0f;
+        }
+        if (chance > 1.0f) {
+            woflo.petsplus.Petsplus.LOGGER.warn("Resurrection chance calculated above 1.0: {}, clamping to 1.0", chance);
+            return 1.0f;
+        }
+        
+        return chance;
     }
 
     /**

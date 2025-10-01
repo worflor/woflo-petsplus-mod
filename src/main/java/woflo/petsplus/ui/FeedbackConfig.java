@@ -90,6 +90,9 @@ public class FeedbackConfig {
 
         // Petting feedback effects
         registerPettingFeedback();
+
+        // Contagion feedback effects
+        registerContagionFeedback();
     }
 
     private static void registerRoleParticles() {
@@ -399,6 +402,44 @@ public class FeedbackConfig {
             new ParticleConfig(ParticleTypes.NOTE, 3, 0.2, 0.3, 0.2, 0.01, "gentle_float", 0.8, true),
             new ParticleConfig(ParticleTypes.HAPPY_VILLAGER, 2, 0.1, 0.2, 0.1, 0.01, "burst", 0.4, true)
         ), new AudioConfig(SoundEvents.ENTITY_CAT_PURR, 0.3f, 0.8f, 6.0), 0, true);
+    }
+
+    private static void registerContagionFeedback() {
+        // Positive contagion - Green sparkles between pets (joy, relief, contentment)
+        register("contagion_positive", List.of(
+            new ParticleConfig(ParticleTypes.HAPPY_VILLAGER, 3, 0.2, 0.1, 0.2, 0.01, "circle", 0.8, true),
+            new ParticleConfig(ParticleTypes.END_ROD, 2, 0.1, 0.05, 0.1, 0.005, "burst", 0.3, false)
+        ), null, 0, true);
+
+        // Negative contagion - Red particles for fear/distress (foreboding, angst, startle)
+        register("contagion_negative", List.of(
+            new ParticleConfig(ParticleTypes.ANGRY_VILLAGER, 2, 0.15, 0.1, 0.15, 0.01, "circle", 0.6, true),
+            new ParticleConfig(ParticleTypes.SMOKE, 1, 0.1, 0.05, 0.1, 0.008, "burst", 0.2, false)
+        ), null, 0, true);
+
+        // Neutral contagion - White particles for curiosity/contentment (curious, vigilant, stoic)
+        register("contagion_neutral", List.of(
+            new ParticleConfig(ParticleTypes.WHITE_ASH, 3, 0.2, 0.1, 0.2, 0.01, "circle", 0.7, true),
+            new ParticleConfig(ParticleTypes.ENCHANT, 1, 0.1, 0.05, 0.1, 0.005, "burst", 0.2, false)
+        ), null, 0, true);
+
+        // Combat contagion - Orange/red for combat emotions (triumph, protectiveness)
+        register("contagion_combat", List.of(
+            new ParticleConfig(ParticleTypes.CRIT, 2, 0.2, 0.1, 0.2, 0.015, "circle", 0.8, true),
+            new ParticleConfig(ParticleTypes.FLAME, 1, 0.1, 0.05, 0.1, 0.008, "burst", 0.3, false)
+        ), null, 0, true);
+
+        // Discovery contagion - Blue/purple for exploration emotions (curiosity, wonder)
+        register("contagion_discovery", List.of(
+            new ParticleConfig(ParticleTypes.ENCHANT, 3, 0.2, 0.1, 0.2, 0.01, "circle", 0.8, true),
+            new ParticleConfig(ParticleTypes.PORTAL, 1, 0.1, 0.05, 0.1, 0.005, "burst", 0.2, false)
+        ), null, 0, true);
+
+        // Social contagion - Pink/hearts for social emotions (bonding, affection)
+        register("contagion_social", List.of(
+            new ParticleConfig(ParticleTypes.HEART, 2, 0.2, 0.1, 0.2, 0.01, "circle", 0.6, true),
+            new ParticleConfig(ParticleTypes.HAPPY_VILLAGER, 2, 0.1, 0.05, 0.1, 0.005, "burst", 0.3, false)
+        ), null, 0, true);
     }
 
     private static void register(String eventName, List<ParticleConfig> particles, AudioConfig audio, int delayTicks, boolean serverSide) {

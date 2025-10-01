@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:emotional_mastery",
+  "criteria": {
+    "complex_mood_iii": {
+      "conditions": {
+        "min_level": 3,
+        "mood": "SAUDADE"
+      },
+      "trigger": "petsplus:pet_mood_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.complex_moods.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:ender_pearl"
+    },
+    "title": {
+      "translate": "petsplus.adv.complex_moods.title"
+    }
+  },
+  "requirements": [
+    [
+      "complex_mood_iii"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

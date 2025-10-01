@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:combat_provenance",
+  "criteria": {
+    "level_30": {
+      "conditions": {
+        "min_level": 30
+      },
+      "trigger": "petsplus:pet_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.master_trainer.desc"
+    },
+    "frame": "challenge",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:netherite_ingot"
+    },
+    "title": {
+      "translate": "petsplus.adv.master_trainer.title"
+    }
+  },
+  "requirements": [
+    [
+      "level_30"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

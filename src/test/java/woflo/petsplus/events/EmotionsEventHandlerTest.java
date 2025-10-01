@@ -2,9 +2,7 @@ package woflo.petsplus.events;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -39,9 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.DoubleSupplier;
 
-import woflo.petsplus.events.StimulusSummary;
 import woflo.petsplus.mood.EmotionBaselineTracker;
-import woflo.petsplus.mood.MoodService;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetMoodEngineTestUtil;
 import woflo.petsplus.state.PetSwarmIndex;

@@ -1,5 +1,5 @@
 {
-  "parent": "petsplus:first_pet",
+  "parent": "petsplus:mystical_connections",
   "criteria": {
     "stargaze_complete": {
       "conditions": {
@@ -13,10 +13,9 @@
     "description": {
       "translate": "petsplus.adv.i_love_you_and_me.desc"
     },
-    "frame": "goal",
     "icon": {
       "count": 1,
-      "id": "minecraft:spyglass"
+      "id": "minecraft:pink_dye"
     },
     "title": {
       "translate": "petsplus.adv.i_love_you_and_me.title"

@@ -1,5 +1,5 @@
 {
-  "parent": "petsplus:trial_ready",
+  "parent": "petsplus:skyrider_path",
   "criteria": {
     "skyrider_20": {
       "conditions": {

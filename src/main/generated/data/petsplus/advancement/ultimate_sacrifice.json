@@ -1,0 +1,31 @@
+{
+  "parent": "petsplus:noo_luna",
+  "criteria": {
+    "pet_sacrifice_complete": {
+      "conditions": {
+        "interaction_type": "pet_sacrifice",
+        "min_count": 2
+      },
+      "trigger": "petsplus:pet_interaction"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.ultimate_sacrifice.desc"
+    },
+    "frame": "challenge",
+    "icon": {
+      "count": 1,
+      "id": "minecraft:wither_skeleton_skull"
+    },
+    "title": {
+      "translate": "petsplus.adv.ultimate_sacrifice.title"
+    }
+  },
+  "requirements": [
+    [
+      "pet_sacrifice_complete"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

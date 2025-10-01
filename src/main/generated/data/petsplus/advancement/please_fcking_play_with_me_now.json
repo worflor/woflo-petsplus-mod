@@ -1,7 +1,7 @@
 {
-  "parent": "petsplus:first_pet",
+  "parent": "petsplus:positive_moods",
   "criteria": {
-    "playful_level_3": {
+    "passionate_level_3": {
       "conditions": {
         "min_level": 3,
         "mood": "PLAYFUL"
@@ -23,7 +23,7 @@
   },
   "requirements": [
     [
-      "playful_level_3"
+      "passionate_level_3"
     ]
   ],
   "sends_telemetry_event": true

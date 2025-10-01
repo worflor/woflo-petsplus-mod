@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:role_specialization",
+  "criteria": {
+    "support_level_15": {
+      "conditions": {
+        "min_level": 15,
+        "role": "petsplus:support"
+      },
+      "trigger": "petsplus:pet_role_level"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.support_path.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:glistering_melon_slice"
+    },
+    "title": {
+      "translate": "petsplus.adv.support_path.title"
+    }
+  },
+  "requirements": [
+    [
+      "support_level_15"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

@@ -1,5 +1,5 @@
 {
-  "parent": "petsplus:first_pet",
+  "parent": "petsplus:combat_provenance",
   "criteria": {
     "level_10": {
       "conditions": {

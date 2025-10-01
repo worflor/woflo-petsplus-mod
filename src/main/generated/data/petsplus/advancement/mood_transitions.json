@@ -1,0 +1,26 @@
+{
+  "parent": "petsplus:emotional_mastery",
+  "criteria": {
+    "any_transition": {
+      "trigger": "petsplus:pet_mood_transition"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.mood_transitions.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:clock"
+    },
+    "title": {
+      "translate": "petsplus.adv.mood_transitions.title"
+    }
+  },
+  "requirements": [
+    [
+      "any_transition"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

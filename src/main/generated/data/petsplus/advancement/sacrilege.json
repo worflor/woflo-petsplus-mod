@@ -1,5 +1,5 @@
 {
-  "parent": "petsplus:first_pet",
+  "parent": "petsplus:guardian_path",
   "criteria": {
     "guardian_tank_damage": {
       "conditions": {

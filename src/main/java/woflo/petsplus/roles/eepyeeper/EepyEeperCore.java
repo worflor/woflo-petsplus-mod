@@ -23,6 +23,7 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PlayerTickListener;
+import woflo.petsplus.util.ChanceValidationUtil;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -206,11 +207,22 @@ public class EepyEeperCore implements PlayerTickListener {
             // Trigger advancement (track total dream escapes for the player)
             woflo.petsplus.state.PlayerAdvancementState state = woflo.petsplus.state.PlayerAdvancementState.getOrCreate(player);
             state.incrementDreamEscapeCount();
+            state.incrementPetSacrificeCount();
             int dreamEscapes = state.getDreamEscapeCount();
+            int petSacrifices = state.getPetSacrificeCount();
+            
+            // Track both dream escapes and universal pet sacrifice
             woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_INTERACTION.trigger(
                 player,
                 woflo.petsplus.advancement.criteria.PetInteractionCriterion.INTERACTION_DREAM_ESCAPE,
                 dreamEscapes
+            );
+            
+            // Trigger universal pet sacrifice criterion
+            woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_INTERACTION.trigger(
+                player,
+                woflo.petsplus.advancement.criteria.PetInteractionCriterion.INTERACTION_PET_SACRIFICE,
+                petSacrifices
             );
 
             // Create dramatic Dream's Escape visual/audio effects
@@ -369,8 +381,12 @@ public class EepyEeperCore implements PlayerTickListener {
 
             // Special Eepy Eeper sleep bonus: configurable chance to gain 1 level (balances slower learning rate)
             // Only applies if not at tribute gate and not max level
-            float sleepLevelUpChance = (float) PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.EEPY_EEPER.id(), "sleepLevelUpChance", 0.5);
-            if (petComp.getLevel() < 30 && !petComp.isWaitingForTribute() && world.random.nextFloat() < sleepLevelUpChance) {
+            float sleepLevelUpChance = ChanceValidationUtil.getValidatedChance(
+                (float) PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.EEPY_EEPER.id(), "sleepLevelUpChance", 0.5),
+                "eepy_eeper.sleepLevelUpChance"
+            );
+            if (petComp.getLevel() < 30 && !petComp.isWaitingForTribute() &&
+                ChanceValidationUtil.checkChance(sleepLevelUpChance, world.random)) {
                 boolean leveled = handleSleepLevelUp(petComp, player, pet, world);
                 if (leveled) {
                     String petName = pet.hasCustomName() ? pet.getCustomName().getString() : pet.getType().getName().getString();
