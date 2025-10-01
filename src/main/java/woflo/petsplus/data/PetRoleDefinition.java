@@ -43,11 +43,7 @@ public record PetRoleDefinition(
         0.75f
     );
 
-    private static final Map<Integer, Identifier> DEFAULT_TRIBUTES = Map.of(
-        10, Identifier.of("minecraft", "gold_ingot"),
-        20, Identifier.of("minecraft", "diamond"),
-        30, Identifier.of("minecraft", "netherite_ingot")
-    );
+    private static final Map<Integer, Identifier> DEFAULT_TRIBUTES = PetRoleType.defaultTributeItems();
 
     public PetRoleType.Definition toDefinition() {
         return new PetRoleType.Definition(

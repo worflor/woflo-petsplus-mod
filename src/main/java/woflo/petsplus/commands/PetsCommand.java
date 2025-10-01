@@ -367,7 +367,7 @@ public class PetsCommand {
             .formatted(Formatting.WHITE), false);
         player.sendMessage(Text.literal("  • Level 10 → Gold Ingot").formatted(Formatting.YELLOW), false);
         player.sendMessage(Text.literal("  • Level 20 → Diamond").formatted(Formatting.AQUA), false);
-        player.sendMessage(Text.literal("  • Level 30 → Netherite Ingot").formatted(Formatting.DARK_PURPLE), false);
+        player.sendMessage(Text.literal("  • Level 30 → Netherite Scrap").formatted(Formatting.DARK_PURPLE), false);
         player.sendMessage(Text.literal("Sneak + right-click your pet with the required item.")
             .formatted(Formatting.GRAY), false);
         

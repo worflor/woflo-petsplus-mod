@@ -31,8 +31,15 @@ public final class PetRoleType {
     private static final Map<Integer, Identifier> DEFAULT_TRIBUTES = Map.of(
         10, Identifier.of("minecraft", "gold_ingot"),
         20, Identifier.of("minecraft", "diamond"),
-        30, Identifier.of("minecraft", "netherite_ingot")
+        30, Identifier.of("minecraft", "netherite_scrap")
     );
+
+    /**
+     * Default tribute item mapping shared across registry-driven definitions and config fallbacks.
+     */
+    public static Map<Integer, Identifier> defaultTributeItems() {
+        return DEFAULT_TRIBUTES;
+    }
 
     public static final Identifier GUARDIAN_ID = Identifier.of(Petsplus.MOD_ID, "guardian");
     public static final Identifier STRIKER_ID = Identifier.of(Petsplus.MOD_ID, "striker");

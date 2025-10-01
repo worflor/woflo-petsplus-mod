@@ -54,11 +54,7 @@ public class PetsPlusConfig {
         Map.entry("eclipsed", PetRoleType.ECLIPSED_ID)
     );
 
-    private static final Map<Integer, Identifier> DEFAULT_TRIBUTE_ITEMS = Map.of(
-        10, Identifier.of("minecraft", "gold_ingot"),
-        20, Identifier.of("minecraft", "diamond"),
-        30, Identifier.of("minecraft", "netherite_ingot")
-    );
+    private static final Map<Integer, Identifier> DEFAULT_TRIBUTE_ITEMS = PetRoleType.defaultTributeItems();
 
     private static PetsPlusConfig instance;
 

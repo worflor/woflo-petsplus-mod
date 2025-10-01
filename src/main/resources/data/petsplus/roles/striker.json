@@ -23,7 +23,7 @@
   "tribute_defaults": {
     "10": "minecraft:gold_ingot",
     "20": "minecraft:diamond",
-    "30": "minecraft:netherite_ingot"
+    "30": "minecraft:netherite_scrap"
   },
   "xp_curve": {
     "max_level": 30,
