@@ -663,10 +663,8 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                     Optional.empty(),
                     Optional.empty()
                 )))
-            .requirements(new AdvancementRequirements(new String[][]{
-                {"level_3"},
-                {"night_interaction"}
-            }))
+            .requirements(AdvancementRequirements.anyOf(
+                java.util.List.of("level_3", "night_interaction")))
             .build(consumer, Petsplus.MOD_ID + ":mystical_connections");
 
         AdvancementEntry iLoveYouAndMe = Advancement.Builder.create()

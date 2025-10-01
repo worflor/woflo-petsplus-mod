@@ -29,9 +29,7 @@
   },
   "requirements": [
     [
-      "level_3"
-    ],
-    [
+      "level_3",
       "night_interaction"
     ]
   ],
