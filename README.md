@@ -35,7 +35,7 @@ Pets also come with distinct natures based on the conditions found when being ta
 2. Feral [ Neutral climates ]
 3. Fierce [ Hotter climates ]
 
-Born pets do not roll for tamed natures; tamed pets do not rolr for born natures. (wow)
+Born pets do not roll for tamed natures; tamed pets do not role for born natures. (wow)
 ### Born Natures
 4. Radiant [ Daytime - Open sky - No weather ]
 5. Festival [ 3+ pets or players nearby ]
