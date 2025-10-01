@@ -61,9 +61,9 @@ Born pets do not roll for tamed natures; tamed pets do not rolr for born natures
 
 
 ## Moods and Emotion
-Unfortunately, your new friend has developed feelings too. 
+Unfortunately, your *new friend* has developed *new feelings* too. 
 
-Behind the scenes, *30 emotions influence your pet's overall mood*. Various events and triggers cause these emotional weights to shift and combine, blending into your pet's current **mood state**.
+Behind the scenes, 30 emotions influence your pet's overall mood. Various events and triggers cause these emotional weights to shift and combine, blending into your pet's current **mood state**.
 ### Core Moods
 1. **Happy** [ joyful ]
 2. **Playful** [ energetic fun ]
