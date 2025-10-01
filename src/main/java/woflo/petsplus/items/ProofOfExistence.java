@@ -30,41 +30,41 @@ public class ProofOfExistence {
     
     // Memorial quote pools for variety
     private static final String[] OPENING_QUOTES = {
-        "\"was a faithful companion.\"",
-        "\"brought joy to every day.\"", 
-        "\"was always by your side.\"",
-        "\"made the world brighter.\"",
-        "\"was truly one of a kind.\"",
-        "\"had a heart of gold.\"",
-        "\"was loved beyond measure.\"",
-        "\"left pawprints on your heart.\"",
-        "\"was your greatest adventure.\"",
-        "\"shared countless memories.\"",
-        "\"was irreplaceable.\"",
-        "\"touched so many lives.\"",
-        "\"was pure loyalty incarnate.\"",
-        "\"brought warmth to cold nights.\"",
-        "\"was a beacon of hope.\"",
-        "\"made every moment special.\""
+        "was a faithful companion.",
+        "brought joy to every day.",
+        "was always by your side.",
+        "made the world brighter.",
+        "was truly one of a kind.",
+        "had a heart of gold.",
+        "was loved beyond measure.",
+        "left pawprints on your heart.",
+        "was your greatest adventure.",
+        "shared countless memories.",
+        "was irreplaceable.",
+        "touched so many lives.",
+        "was pure loyalty incarnate.",
+        "brought warmth to cold nights.",
+        "was a beacon of hope.",
+        "made every moment special."
     };
     
     private static final String[] CLOSING_EPITAPHS = {
-        "\"Gone but not forgotten.\"",
-        "\"Forever in our hearts.\"",
-        "\"Until we meet again.\"",
-        "\"Their spirit lives on.\"",
-        "\"Rest well, dear friend.\"",
-        "\"May they find peace.\"",
-        "\"A life well lived.\"",
-        "\"They gave their all.\"",
-        "\"Love never dies.\"",
-        "\"In memory eternal.\"",
-        "\"Their legend continues.\"",
-        "\"A bond unbroken.\"",
-        "\"Sleep well, warrior.\"",
-        "\"The journey continues.\"",
-        "\"Always remembered.\"",
-        "\"Their story endures.\""
+        "Gone but not forgotten.",
+        "Forever in our hearts.",
+        "Until we meet again.",
+        "Their spirit lives on.",
+        "Rest well, dear friend.",
+        "May they find peace.",
+        "A life well lived.",
+        "They gave their all.",
+        "Love never dies.",
+        "In memory eternal.",
+        "Their legend continues.",
+        "A bond unbroken.",
+        "Sleep well, warrior.",
+        "The journey continues.",
+        "Always remembered.",
+        "Their story endures."
     };
     
     private static final String[] LEVEL_DESCRIPTORS = {
@@ -93,6 +93,7 @@ public class ProofOfExistence {
         String openingQuote = OPENING_QUOTES[openingIndex];
         String closingEpitaph = CLOSING_EPITAPHS[epitaphIndex];
         
+        // Format with proper spacing - no quotes, just natural text flow
         return "§8" + petName + " " + openingQuote + " " + closingEpitaph;
     }
     
@@ -131,6 +132,7 @@ public class ProofOfExistence {
     private static String generateClosingEpitaph(PetComponent petComp, MobEntity pet) {
         long seed = pet.getUuid().getMostSignificantBits() ^ petComp.getExperience();
         int epitaphIndex = Math.abs((int) (seed % CLOSING_EPITAPHS.length));
+        // Return the epitaph without quotes - just the text itself
         return CLOSING_EPITAPHS[epitaphIndex];
     }
     

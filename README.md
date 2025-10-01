@@ -5,7 +5,7 @@
 </p>
 
 <h1 align="center">
-  Pets+ <small>dev-0.87-robust-down-thotiana</small>
+  Pets+ <small>dev-0.88-robust-down-thotiana</small>
 </h1>
 
 A standalone style Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
