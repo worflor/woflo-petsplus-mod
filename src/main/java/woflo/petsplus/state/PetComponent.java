@@ -38,6 +38,7 @@ import woflo.petsplus.state.gossip.PetGossipLedger;
 import woflo.petsplus.state.gossip.RumorEntry;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
 import woflo.petsplus.naming.AttributeKey;
+import woflo.petsplus.history.HistoryEvent;
 
 import net.minecraft.util.math.ChunkSectionPos;
 
@@ -54,6 +55,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.stream.Stream;
+import java.util.stream.Collectors;
 
 /**
  * Component that tracks pet-specific state including role and cooldowns.
@@ -126,7 +128,9 @@ public class PetComponent {
     private long xpFlashStartTick = -1;
     private static final int XP_FLASH_DURATION = 7; // 0.35 seconds
     
-
+    // Pet history tracking
+    private final List<HistoryEvent> petHistory = new ArrayList<>();
+    private static final int MAX_HISTORY_SIZE = 50; // Configurable limit
 
     // Mood/emotion state moved to PetMoodEngine
 
@@ -2181,7 +2185,100 @@ public class PetComponent {
     }
     
     /**
-     * Reset all pet abilities and return to base state.
+     * Adds a history event to the pet's history.
+     * Limits history size to prevent memory issues.
+     */
+    public void addHistoryEvent(HistoryEvent event) {
+        if (event == null) {
+            return;
+        }
+        
+        petHistory.add(event);
+        
+        // Limit history size to prevent bloat
+        if (petHistory.size() > MAX_HISTORY_SIZE) {
+            petHistory.remove(0); // Remove oldest
+        }
+    }
+    
+    /**
+     * Gets the pet's complete history.
+     */
+    public List<HistoryEvent> getHistory() {
+        return new ArrayList<>(petHistory);
+    }
+    
+    /**
+     * Gets history events for a specific owner.
+     */
+    public List<HistoryEvent> getHistoryForOwner(UUID ownerUuid) {
+        if (ownerUuid == null) {
+            return new ArrayList<>();
+        }
+        
+        return petHistory.stream()
+            .filter(event -> event.isWithOwner(ownerUuid))
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Gets history events of a specific type.
+     */
+    public List<HistoryEvent> getHistoryByType(String eventType) {
+        if (eventType == null) {
+            return new ArrayList<>();
+        }
+        
+        return petHistory.stream()
+            .filter(event -> event.isType(eventType))
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Counts events of a specific type for a specific owner.
+     */
+    public int getEventCount(String eventType, UUID ownerUuid) {
+        if (eventType == null) {
+            return 0;
+        }
+        
+        return (int) petHistory.stream()
+            .filter(event -> event.isType(eventType))
+            .filter(event -> ownerUuid == null || event.isWithOwner(ownerUuid))
+            .count();
+    }
+    
+    /**
+     * Counts events of a specific type across all owners.
+     */
+    public int getEventCount(String eventType) {
+        return getEventCount(eventType, null);
+    }
+    
+    /**
+     * Gets the number of unique owners this pet has had.
+     */
+    public int getUniqueOwnerCount() {
+        return (int) petHistory.stream()
+            .map(HistoryEvent::ownerUuid)
+            .distinct()
+            .count();
+    }
+    
+    /**
+     * Gets a map of owner UUIDs to their trade counts.
+     */
+    public Map<UUID, Integer> getOwnerTradeCounts() {
+        return petHistory.stream()
+            .filter(event -> event.isType(HistoryEvent.EventType.TRADE))
+            .collect(Collectors.groupingBy(
+                HistoryEvent::ownerUuid,
+                Collectors.collectingAndThen(Collectors.counting(), Math::toIntExact)
+            ));
+    }
+    
+    /**
+     * Resets all pet abilities and return to base state.
      * Used by respec tokens to allow re-allocation of progression.
      */
     public void resetAbilities() {
@@ -2370,6 +2467,21 @@ public class PetComponent {
             NbtCompound characteristicsNbt = new NbtCompound();
             characteristics.writeToNbt(characteristicsNbt);
             nbt.put("characteristics", characteristicsNbt);
+        }
+        
+        // Save pet history
+        if (!petHistory.isEmpty()) {
+            NbtList historyNbt = new NbtList();
+            for (HistoryEvent event : petHistory) {
+                NbtCompound eventNbt = new NbtCompound();
+                eventNbt.putLong("t", event.timestamp());
+                eventNbt.putString("e", event.eventType());
+                eventNbt.putString("o", event.ownerUuid().toString());
+                eventNbt.putString("n", event.ownerName());
+                eventNbt.putString("d", event.eventData());
+                historyNbt.add(eventNbt);
+            }
+            nbt.put("petHistory", historyNbt);
         }
     }
     
@@ -2562,6 +2674,38 @@ public class PetComponent {
         if (nbt.contains("characteristics")) {
             nbt.getCompound("characteristics").ifPresent(characteristicsNbt -> {
                 this.characteristics = PetCharacteristics.readFromNbt(characteristicsNbt);
+            });
+        }
+        
+        // Load pet history
+        if (nbt.contains("petHistory")) {
+            nbt.getList("petHistory").ifPresent(historyNbt -> {
+                petHistory.clear();
+                for (int i = 0; i < historyNbt.size(); i++) {
+                    historyNbt.getCompound(i).ifPresent(eventNbt -> {
+                        try {
+                            long timestamp = eventNbt.getLong("t").orElse(0L);
+                            String eventType = eventNbt.getString("e").orElse("");
+                            String ownerUuidStr = eventNbt.getString("o").orElse("");
+                            UUID ownerUuid = null;
+                            if (!ownerUuidStr.isEmpty()) {
+                                try {
+                                    ownerUuid = UUID.fromString(ownerUuidStr);
+                                } catch (IllegalArgumentException e) {
+                                    Petsplus.LOGGER.warn("Invalid UUID in history event: " + ownerUuidStr);
+                                    ownerUuid = null; // Use null for invalid UUIDs
+                                }
+                            }
+                            String ownerName = eventNbt.getString("n").orElse("");
+                            String eventData = eventNbt.getString("d").orElse("");
+                            
+                            HistoryEvent event = new HistoryEvent(timestamp, eventType, ownerUuid, ownerName, eventData);
+                            petHistory.add(event);
+                        } catch (Exception e) {
+                            Petsplus.LOGGER.warn("Failed to load history event for pet " + pet.getUuidAsString(), e);
+                        }
+                    });
+                }
             });
         }
     }

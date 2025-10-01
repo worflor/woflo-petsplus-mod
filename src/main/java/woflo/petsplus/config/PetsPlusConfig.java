@@ -199,6 +199,10 @@ public class PetsPlusConfig {
             core.add("named_attributes", createNamedAttributesDefaults());
             changed = true;
         }
+        if (!core.has("leash_trading") || !core.get("leash_trading").isJsonObject()) {
+            core.add("leash_trading", createLeashTradingDefaults());
+            changed = true;
+        }
         return changed;
     }
 
@@ -668,6 +672,18 @@ public class PetsPlusConfig {
         return namedAttributes;
     }
 
+    private static JsonObject createLeashTradingDefaults() {
+        JsonObject leashTrading = new JsonObject();
+        leashTrading.addProperty("enabled", true);
+        leashTrading.addProperty("max_distance", 15.0);
+        leashTrading.addProperty("max_eligible_pets", 10);
+        leashTrading.addProperty("require_sneak", true);
+        leashTrading.addProperty("consume_lead", true);
+        leashTrading.addProperty("mood_impact", true);
+        leashTrading.addProperty("role_compatibility_check", true);
+        return leashTrading;
+    }
+
     private static void mergeInto(JsonObject target, JsonObject additions) {
         for (Map.Entry<String, JsonElement> entry : additions.entrySet()) {
             target.add(entry.getKey(), entry.getValue());
@@ -816,6 +832,39 @@ public class PetsPlusConfig {
         JsonObject patterns = getObject(getNamedAttributesSection(), "patterns");
         JsonObject regex = getObject(patterns, "regex");
         return readBoolean(regex, "enabled", false);
+    }
+
+    // Leash Trading Configuration
+    public JsonObject getLeashTradingSection() {
+        return getSection("leash_trading");
+    }
+
+    public boolean isLeashTradingEnabled() {
+        return readBoolean(getLeashTradingSection(), "enabled", true);
+    }
+
+    public double getLeashTradingMaxDistance() {
+        return readDouble(getLeashTradingSection(), "max_distance", 15.0);
+    }
+
+    public int getLeashTradingMaxEligiblePets() {
+        return readInt(getLeashTradingSection(), "max_eligible_pets", 10);
+    }
+
+    public boolean isLeashTradingSneakRequired() {
+        return readBoolean(getLeashTradingSection(), "require_sneak", true);
+    }
+
+    public boolean isLeashTradingLeadConsumed() {
+        return readBoolean(getLeashTradingSection(), "consume_lead", true);
+    }
+
+    public boolean isLeashTradingMoodImpactEnabled() {
+        return readBoolean(getLeashTradingSection(), "mood_impact", true);
+    }
+
+    public boolean isLeashTradingRoleCompatibilityCheckEnabled() {
+        return readBoolean(getLeashTradingSection(), "role_compatibility_check", true);
     }
 
     public JsonObject getRoleOverrides(Identifier roleId) {

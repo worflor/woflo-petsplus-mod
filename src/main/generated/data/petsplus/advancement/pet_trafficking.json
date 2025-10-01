@@ -1,0 +1,30 @@
+{
+  "parent": "petsplus:first_pet",
+  "criteria": {
+    "first_trade": {
+      "conditions": {
+        "role": "initiator",
+        "exact_count": 1
+      },
+      "trigger": "petsplus:pet_trading"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "petsplus.adv.pet_trafficking.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "minecraft:lead"
+    },
+    "title": {
+      "translate": "petsplus.adv.pet_trafficking.title"
+    }
+  },
+  "requirements": [
+    [
+      "first_trade"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

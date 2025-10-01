@@ -79,6 +79,9 @@ public class InitializationManager {
         woflo.petsplus.events.TamingHandler.register();
         woflo.petsplus.interaction.OwnerAbilitySignalTracker.register();
         woflo.petsplus.interaction.OwnerAbilitySignalAbilityBridge.register();
+        
+        // Pet trading system - register handler
+        woflo.petsplus.handler.PetTradingHandler.register();
 
         // System event handlers
         woflo.petsplus.events.PetDetectionHandler.register();
