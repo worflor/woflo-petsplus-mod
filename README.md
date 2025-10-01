@@ -169,9 +169,6 @@ The advancement tree has been reorganized into 6 main branches for better progre
 - "At what cost..." [ Utilize the *Dream's Escape* ability twice ]
 - "Heartless, but Alive." [ Utilize the *Dream's Escape* ability thrice ]
 
-> **Night interaction?** After paying a tribute you receive a short “shimmer” window. If it’s night, crouch beside your seated pet for 30 uninterrupted seconds to share a stargazing scene—this hidden moment satisfies the night interaction for **Mystical Connections** and simultaneously unlocks **“I love you and me,”** the celestial connection.
->
-> **Where did “Stargazer Bond” go?** That older advancement was folded into **“I love you and me.”** The dedicated entry no longer exists in game, so earning the stargazing moment now awards only the celestial connection advancement.
 
 ### 🛡️ Role Specialization
 - "Role Specialization" [ Have a pet reach level 10 with any role ]
