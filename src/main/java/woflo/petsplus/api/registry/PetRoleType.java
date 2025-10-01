@@ -306,7 +306,6 @@ public final class PetRoleType {
                 "eclipsed_void_pulse",
                 "Reality flickers around your eclipsed companion",
                 List.of(
-                    "The Void Touched",
                     "The Shadow Walker",
                     "The Eclipse Born",
                     "The Dark Star"

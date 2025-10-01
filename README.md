@@ -164,11 +164,8 @@ The advancement tree has been reorganized into 6 main branches for better progre
   - "are you mad at me..?" [ Witness a pet's *Angry Mood* cooldown ]
 
 ### ✨ Mystical Connections
-- "Mystical Connections" [ Reach level 3 OR complete night interaction ]
 - "I love you and me" [ Begin your celestial connection ]
-- "Noo, Luna!" [ Take your first steps into the dream realm ]
-- "Dream Walker" [ Utilize the *Dream's Escape* ability ]
-- "Void Touched" [ Utilize the *Dream's Escape* ability twice ]
+- "Noo, Luna!" [ Utilize the *Dream's Escape* ability once ]
 - "At what cost..." [ Utilize the *Dream's Escape* ability twice ]
 - "Heartless, but Alive." [ Utilize the *Dream's Escape* ability thrice ]
 
