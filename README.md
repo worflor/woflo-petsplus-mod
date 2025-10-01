@@ -5,7 +5,7 @@
 </p>
 
 <h1 align="center">
-  Pets+ <small>dev-0.88-robust-down-thotiana</small>
+  Pets+ <small>dev-0.90-pet-trafficking!</small>
 </h1>
 
 A standalone style Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
@@ -80,7 +80,7 @@ Behind the scenes, 30 emotions influence your pet's overall mood. Various events
 13. **Afraid** [ scared ]
 14. **Angry** [ mad ]
 
-### Ultra-Rare Moods
+### Ultra-Rare Moods [ inimplemented | systems are in place, moods are not 'calculated' ]
 15. **Sankofa Resonance** [ Akan ] — ancestral pride awakens, fear fades.
 16. **Náttvörðr Vigil** [ Old Norse ] — silent guardian in dark hours
 17. **Chandralekha Reverie** [ Sanskrit ] — stargazing in perfect peace
@@ -104,7 +104,7 @@ The following entities are now tamable:
 3. Turtles with seagrass
 
 ### Pet Trading!
-Make your unwanted regrets someone else's problem! Sneak right clicking another player while your pet is on a leash, transfers the leash to the other player; trading ownership in the process.
+Make your unwanted regrets someone else's problem! Sneak right clicking another player while your pet is on a leash, transfers the leash to the other player; trading ownership in the process. The pet will remember this...
 
 ### being considered
 - Phantoms via Trust*
@@ -115,15 +115,15 @@ Make your unwanted regrets someone else's problem! Sneak right clicking another 
 - Every base passive mob via Trust* [ add emotions to all passive mobs ]
 
 ### Unimplimented 
-- Sniffers via a special 'Courting' system
+- Sniffers via a special 'Courting' system/mini-game
 
 
-## Pet Death and Loss
-If your pet dies, it will drop all its items and be gone forever. Your tribute items and all that pet's experience are lost.
+## Pet Life and Loss
+If your pet dies, it will drop all its items and be gone forever. Your tribute items and all that pet's experience are lost. If only those memories weren't gone forever...
 
 Hey wait, memorialize that trauma! A **Proof of Existence** drops on every pet death.
 
-These keepsakes aren’t just tear-stained notes anymore—they catalog the pet’s role epithet, unlocked milestones, trait highlights, and the moment they slipped away. Stack them in a memorial chest, read back the legends, and keep the pack’s stories breathing.
+These keepsakes aren’t just tear-stained notes anymore, they catalog the pet’s role daily life, unlocked milestones, trait highlights, and... the moment they slipped away. Stack them in a memorial chest, read back the legends, and keep the pack’s stories breathing.
 
 
 ## Advancements
@@ -154,7 +154,7 @@ The advancement tree has been reorganized into 6 main branches for better progre
 - **Calm Moods:**
   - "Be More Chilllllll" [ Witness a pet's *Calm Mood* at its most intense for the first time ]
   - "(sighs) sigh…" [ Witness a pet's *Yūgen Mood* at its most intense for the first time ]
-  - "Finnish Him!" [ Witness a pet's *Sisu Mood* at its most intense for the first time ] -- CHANGE TO "SIpping Sisurp in my ride"
+  - "Sipping Sisurp in my ride" [ Witness a pet's *Sisu Mood* at its most intense for the first time ]
 - **Complex Moods:**
   - "Wish you were Here (Fur Real)" [ Witness a pet's *Saudade Mood* at its most intense for the first time ]
   - "Afraidiana Grande" [ Witness a pet's *Afraid Mood* at its most intense for the first time ]
