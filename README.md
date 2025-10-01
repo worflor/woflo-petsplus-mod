@@ -8,7 +8,7 @@
   Pets+ <small>dev-0.90-pet-trafficking!</small>
 </h1>
 
-A standalone style Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
+A standalone Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
 
 
 ## Pet Roles, Levelling, and Natures
