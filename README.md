@@ -164,7 +164,7 @@ The advancement tree has been reorganized into 6 main branches for better progre
   - "are you mad at me..?" [ Witness a pet's *Angry Mood* cooldown ]
 
 ### ✨ Mystical Connections
-- "I love you and me" [ Begin your celestial connection ]
+- "I love you and me" [ Share the hidden stargazing moment with your bonded pet ]
 - "Noo, Luna!" [ Utilize the *Dream's Escape* ability once ]
 - "At what cost..." [ Utilize the *Dream's Escape* ability twice ]
 - "Heartless, but Alive." [ Utilize the *Dream's Escape* ability thrice ]
