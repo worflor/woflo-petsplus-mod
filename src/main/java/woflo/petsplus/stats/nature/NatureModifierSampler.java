@@ -6,6 +6,7 @@ import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetComponent.Emotion;
 import woflo.petsplus.stats.PetCharacteristics;
+import woflo.petsplus.util.BehaviorSeedUtil;
 
 import java.util.Map;
 import java.util.Random;
@@ -120,7 +121,9 @@ public final class NatureModifierSampler {
             return NatureAdjustment.NONE;
         }
 
-        Random random = new Random(seed ^ (long) natureId.hashCode());
+        long baseSeed = seed ^ (long) natureId.hashCode();
+        long enhancedSeed = BehaviorSeedUtil.mixBehaviorSeed(baseSeed, baseSeed);
+        Random random = new Random(enhancedSeed);
         float majorModifier = rollStatModifier(random, definition.majorBase());
         float minorModifier = rollStatModifier(random, definition.minorBase());
         NatureRoll majorRoll = new NatureRoll(definition.majorStat(), definition.majorBase(), majorModifier);

@@ -5,6 +5,7 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.util.BehaviorSeedUtil;
 
 import java.util.Random;
 import java.util.UUID;
@@ -45,7 +46,8 @@ public class PetCharacteristics {
      */
     public static PetCharacteristics generateForNewPet(MobEntity pet, long tameTime) {
         UUID petUuid = pet.getUuid();
-        long seed = petUuid.getMostSignificantBits() ^ petUuid.getLeastSignificantBits() ^ tameTime;
+        long baseHash = petUuid.getMostSignificantBits() ^ petUuid.getLeastSignificantBits();
+        long seed = BehaviorSeedUtil.mixBehaviorSeed(baseHash, tameTime);
         Random random = new Random(seed);
         
         return new PetCharacteristics(

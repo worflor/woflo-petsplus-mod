@@ -39,6 +39,7 @@ import woflo.petsplus.state.gossip.RumorEntry;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
 import woflo.petsplus.naming.AttributeKey;
 import woflo.petsplus.history.HistoryEvent;
+import woflo.petsplus.util.BehaviorSeedUtil;
 
 import net.minecraft.util.math.ChunkSectionPos;
 
@@ -1937,8 +1938,8 @@ public class PetComponent {
             }
             characteristics = PetCharacteristics.generateForNewPet(pet, tameTime);
 
-            // Apply attribute modifiers with the new characteristics
-            woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
+        // Apply attribute modifiers with the new characteristics
+        woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
         }
     }
 
@@ -2014,6 +2015,7 @@ public class PetComponent {
     private static long splitMix64(long seed) {
         long mixed = seed + 0x9E3779B97F4A7C15L;
         mixed = (mixed ^ (mixed >>> 30)) * 0xBF58476D1CE4E5B9L;
+        mixed = BehaviorSeedUtil.mixBehaviorSeed(mixed, mixed >>> 24);
         mixed = (mixed ^ (mixed >>> 27)) * 0x94D049BB133111EBL;
         return mixed ^ (mixed >>> 31);
     }
