@@ -103,6 +103,9 @@ The following entities are now tamable:
 2. Rabbits with carrots
 3. Turtles with seagrass
 
+### Pet Trading!
+Make your unwanted regrets someone else's problem! Sneak right clicking another player while your pet is on a leash, transfers the leash to the other player; trading ownership in the process.
+
 ### being considered
 - Phantoms via Trust*
 - tiny slimes and tiny magma cubes 
