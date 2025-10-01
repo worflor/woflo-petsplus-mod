@@ -24,8 +24,24 @@ public record HistoryEvent(
         public static final String MOOD_MILESTONE = "mood_milestone";
         public static final String OWNERSHIP_START = "ownership_start";
         public static final String ROLE_CHANGE = "role_change";
+        public static final String ACHIEVEMENT = "achievement";
         
         private EventType() {} // Utility class
+    }
+    
+    /**
+     * Achievement types that can be tracked in pet history.
+     * These are modular and can be extended for the wellbeing system.
+     */
+    public static final class AchievementType {
+        public static final String DREAM_ESCAPE = "dream_escape";
+        public static final String PET_SACRIFICE = "pet_sacrifice";
+        public static final String GUARDIAN_PROTECTION = "guardian_protection";
+        public static final String ALLY_HEALED = "ally_healed";
+        public static final String BEST_FRIEND_FOREVERER = "best_friend_foreverer";
+        public static final String OR_NOT = "or_not";
+        
+        private AchievementType() {} // Utility class
     }
     
     /**
@@ -81,6 +97,71 @@ public record HistoryEvent(
                                          String fromRole, String toRole) {
         String data = String.format("{\"from\":\"%s\",\"to\":\"%s\"}", fromRole, toRole);
         return new HistoryEvent(timestamp, EventType.ROLE_CHANGE, ownerUuid, ownerName, data);
+    }
+    
+    /**
+     * Creates a generic achievement event record.
+     * This is the foundation for modular achievement tracking.
+     */
+    public static HistoryEvent achievement(long timestamp, UUID ownerUuid, String ownerName, 
+                                          String achievementType, String additionalData) {
+        String data = String.format("{\"achievement_type\":\"%s\",\"data\":%s}", 
+            achievementType, additionalData);
+        return new HistoryEvent(timestamp, EventType.ACHIEVEMENT, ownerUuid, ownerName, data);
+    }
+    
+    /**
+     * Creates a dream escape achievement (Eepy Eeper).
+     */
+    public static HistoryEvent dreamEscape(long timestamp, UUID ownerUuid, String ownerName) {
+        String data = String.format("{\"achievement_type\":\"%s\"}", AchievementType.DREAM_ESCAPE);
+        return new HistoryEvent(timestamp, EventType.ACHIEVEMENT, ownerUuid, ownerName, data);
+    }
+    
+    /**
+     * Creates a pet sacrifice achievement (Cursed One).
+     */
+    public static HistoryEvent petSacrifice(long timestamp, UUID ownerUuid, String ownerName, 
+                                           float resurrectionHealth) {
+        String data = String.format("{\"achievement_type\":\"%s\",\"health\":%.2f}", 
+            AchievementType.PET_SACRIFICE, resurrectionHealth);
+        return new HistoryEvent(timestamp, EventType.ACHIEVEMENT, ownerUuid, ownerName, data);
+    }
+    
+    /**
+     * Creates a guardian protection achievement (Guardian).
+     */
+    public static HistoryEvent guardianProtection(long timestamp, UUID ownerUuid, String ownerName, 
+                                                  float damageRedirected) {
+        String data = String.format("{\"achievement_type\":\"%s\",\"damage\":%.2f}", 
+            AchievementType.GUARDIAN_PROTECTION, damageRedirected);
+        return new HistoryEvent(timestamp, EventType.ACHIEVEMENT, ownerUuid, ownerName, data);
+    }
+    
+    /**
+     * Creates an ally healed achievement (Support).
+     */
+    public static HistoryEvent allyHealed(long timestamp, UUID ownerUuid, String ownerName, 
+                                         UUID allyUuid, long day) {
+        String data = String.format("{\"achievement_type\":\"%s\",\"ally\":\"%s\",\"day\":%d}", 
+            AchievementType.ALLY_HEALED, allyUuid.toString(), day);
+        return new HistoryEvent(timestamp, EventType.ACHIEVEMENT, ownerUuid, ownerName, data);
+    }
+    
+    /**
+     * Creates a best friend foreverer achievement.
+     */
+    public static HistoryEvent bestFriendForeverer(long timestamp, UUID ownerUuid, String ownerName) {
+        String data = String.format("{\"achievement_type\":\"%s\"}", AchievementType.BEST_FRIEND_FOREVERER);
+        return new HistoryEvent(timestamp, EventType.ACHIEVEMENT, ownerUuid, ownerName, data);
+    }
+    
+    /**
+     * Creates an "or not" achievement (first permanent pet death).
+     */
+    public static HistoryEvent orNot(long timestamp, UUID ownerUuid, String ownerName) {
+        String data = String.format("{\"achievement_type\":\"%s\"}", AchievementType.OR_NOT);
+        return new HistoryEvent(timestamp, EventType.ACHIEVEMENT, ownerUuid, ownerName, data);
     }
     
     /**

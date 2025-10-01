@@ -204,26 +204,38 @@ public class EepyEeperCore implements PlayerTickListener {
 
             }
 
-            // Trigger advancement (track total dream escapes for the player)
-            woflo.petsplus.state.PlayerAdvancementState state = woflo.petsplus.state.PlayerAdvancementState.getOrCreate(player);
-            state.incrementDreamEscapeCount();
-            state.incrementPetSacrificeCount();
-            int dreamEscapes = state.getDreamEscapeCount();
-            int petSacrifices = state.getPetSacrificeCount();
+            // Track dream escape in pet's history (pet-centric modular history)
+            woflo.petsplus.history.HistoryManager.recordDreamEscape(pet, player);
             
-            // Track both dream escapes and universal pet sacrifice
-            woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_INTERACTION.trigger(
-                player,
-                woflo.petsplus.advancement.criteria.PetInteractionCriterion.INTERACTION_DREAM_ESCAPE,
-                dreamEscapes
-            );
+            // Also record as pet sacrifice since the pet "died" to save the player
+            woflo.petsplus.history.HistoryManager.recordPetSacrifice(pet, player, 1.0f);
             
-            // Trigger universal pet sacrifice criterion
-            woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_INTERACTION.trigger(
-                player,
-                woflo.petsplus.advancement.criteria.PetInteractionCriterion.INTERACTION_PET_SACRIFICE,
-                petSacrifices
-            );
+            // Calculate totals from pet's history
+            woflo.petsplus.state.PetComponent petComp = woflo.petsplus.state.PetComponent.get(pet);
+            if (petComp != null) {
+                long dreamEscapes = petComp.getAchievementCount(
+                    woflo.petsplus.history.HistoryEvent.AchievementType.DREAM_ESCAPE, 
+                    player.getUuid()
+                );
+                long petSacrifices = petComp.getAchievementCount(
+                    woflo.petsplus.history.HistoryEvent.AchievementType.PET_SACRIFICE, 
+                    player.getUuid()
+                );
+                
+                // Track both dream escapes and universal pet sacrifice
+                woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_INTERACTION.trigger(
+                    player,
+                    woflo.petsplus.advancement.criteria.PetInteractionCriterion.INTERACTION_DREAM_ESCAPE,
+                    (int) dreamEscapes
+                );
+                
+                // Trigger universal pet sacrifice criterion
+                woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_INTERACTION.trigger(
+                    player,
+                    woflo.petsplus.advancement.criteria.PetInteractionCriterion.INTERACTION_PET_SACRIFICE,
+                    (int) petSacrifices
+                );
+            }
 
             // Create dramatic Dream's Escape visual/audio effects
 

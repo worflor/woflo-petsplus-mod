@@ -8,7 +8,6 @@ import net.minecraft.predicate.entity.LootContextPredicate;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.Petsplus;
-import woflo.petsplus.state.PlayerAdvancementState;
 
 import java.util.Optional;
 import java.util.Set;

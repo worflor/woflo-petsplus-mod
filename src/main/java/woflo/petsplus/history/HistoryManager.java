@@ -219,6 +219,200 @@ public class HistoryManager {
     }
     
     /**
+     * Records a dream escape achievement (Eepy Eeper role).
+     * This is part of the modular achievement system that ties into owner history.
+     * 
+     * @param pet The Eepy Eeper pet that escaped death
+     * @param owner The owner at the time of the dream escape
+     */
+    public static void recordDreamEscape(MobEntity pet, PlayerEntity owner) {
+        if (pet == null || owner == null) {
+            return;
+        }
+        
+        try {
+            PetComponent component = PetComponent.get(pet);
+            if (component != null) {
+                long timestamp = pet.getWorld().getTime();
+                HistoryEvent event = HistoryEvent.dreamEscape(
+                    timestamp,
+                    owner.getUuid(),
+                    owner.getName().getString()
+                );
+                component.addHistoryEvent(event);
+                
+                Petsplus.LOGGER.debug("Recorded dream escape achievement for pet {}: owner {}", 
+                    pet.getUuidAsString(), owner.getName().getString());
+            }
+        } catch (Exception e) {
+            Petsplus.LOGGER.warn("Failed to record dream escape achievement for pet " + pet.getUuidAsString(), e);
+        }
+    }
+    
+    /**
+     * Records a pet sacrifice achievement (Cursed One role).
+     * This is part of the modular achievement system that ties into owner history.
+     * 
+     * @param pet The Cursed One pet that sacrificed itself
+     * @param owner The owner that was resurrected
+     * @param resurrectionHealth The health amount restored
+     */
+    public static void recordPetSacrifice(MobEntity pet, PlayerEntity owner, float resurrectionHealth) {
+        if (pet == null || owner == null) {
+            return;
+        }
+        
+        try {
+            PetComponent component = PetComponent.get(pet);
+            if (component != null) {
+                long timestamp = pet.getWorld().getTime();
+                HistoryEvent event = HistoryEvent.petSacrifice(
+                    timestamp,
+                    owner.getUuid(),
+                    owner.getName().getString(),
+                    resurrectionHealth
+                );
+                component.addHistoryEvent(event);
+                
+                Petsplus.LOGGER.debug("Recorded pet sacrifice achievement for pet {}: owner {} restored to {} health", 
+                    pet.getUuidAsString(), owner.getName().getString(), resurrectionHealth);
+            }
+        } catch (Exception e) {
+            Petsplus.LOGGER.warn("Failed to record pet sacrifice achievement for pet " + pet.getUuidAsString(), e);
+        }
+    }
+    
+    /**
+     * Records a guardian protection achievement (Guardian role).
+     * This is part of the modular achievement system that ties into owner history.
+     * 
+     * @param pet The Guardian pet that redirected damage
+     * @param owner The owner being protected
+     * @param damageRedirected The amount of damage redirected
+     */
+    public static void recordGuardianProtection(MobEntity pet, PlayerEntity owner, float damageRedirected) {
+        if (pet == null || owner == null) {
+            return;
+        }
+        
+        try {
+            PetComponent component = PetComponent.get(pet);
+            if (component != null) {
+                long timestamp = pet.getWorld().getTime();
+                HistoryEvent event = HistoryEvent.guardianProtection(
+                    timestamp,
+                    owner.getUuid(),
+                    owner.getName().getString(),
+                    damageRedirected
+                );
+                component.addHistoryEvent(event);
+                
+                Petsplus.LOGGER.debug("Recorded guardian protection achievement for pet {}: {} damage redirected for {}", 
+                    pet.getUuidAsString(), damageRedirected, owner.getName().getString());
+            }
+        } catch (Exception e) {
+            Petsplus.LOGGER.warn("Failed to record guardian protection achievement for pet " + pet.getUuidAsString(), e);
+        }
+    }
+    
+    /**
+     * Records an ally healed achievement (Support role).
+     * This is part of the modular achievement system that ties into owner history.
+     * 
+     * @param pet The Support pet that healed an ally
+     * @param owner The owner of the support pet
+     * @param allyUuid The UUID of the healed ally
+     * @param day The Minecraft day (for unique daily tracking)
+     */
+    public static void recordAllyHealed(MobEntity pet, PlayerEntity owner, UUID allyUuid, long day) {
+        if (pet == null || owner == null || allyUuid == null) {
+            return;
+        }
+        
+        try {
+            PetComponent component = PetComponent.get(pet);
+            if (component != null) {
+                long timestamp = pet.getWorld().getTime();
+                HistoryEvent event = HistoryEvent.allyHealed(
+                    timestamp,
+                    owner.getUuid(),
+                    owner.getName().getString(),
+                    allyUuid,
+                    day
+                );
+                component.addHistoryEvent(event);
+                
+                Petsplus.LOGGER.debug("Recorded ally healed achievement for pet {}: owner {}, ally {}", 
+                    pet.getUuidAsString(), owner.getName().getString(), allyUuid.toString());
+            }
+        } catch (Exception e) {
+            Petsplus.LOGGER.warn("Failed to record ally healed achievement for pet " + pet.getUuidAsString(), e);
+        }
+    }
+    
+    /**
+     * Records a best friend foreverer achievement.
+     * This is part of the modular achievement system that ties into owner history.
+     * 
+     * @param pet The pet that reached max friendship
+     * @param owner The owner who achieved max friendship
+     */
+    public static void recordBestFriendForeverer(MobEntity pet, PlayerEntity owner) {
+        if (pet == null || owner == null) {
+            return;
+        }
+        
+        try {
+            PetComponent component = PetComponent.get(pet);
+            if (component != null) {
+                long timestamp = pet.getWorld().getTime();
+                HistoryEvent event = HistoryEvent.bestFriendForeverer(
+                    timestamp,
+                    owner.getUuid(),
+                    owner.getName().getString()
+                );
+                component.addHistoryEvent(event);
+                
+                Petsplus.LOGGER.debug("Recorded best friend foreverer achievement for pet {}: owner {}", 
+                    pet.getUuidAsString(), owner.getName().getString());
+            }
+        } catch (Exception e) {
+            Petsplus.LOGGER.warn("Failed to record best friend foreverer achievement for pet " + pet.getUuidAsString(), e);
+        }
+    }
+    
+    /**
+     * Records an "or not" achievement (first permanent pet death).
+     * This is part of the modular achievement system that ties into owner history.
+     * 
+     * @param pet The pet that died permanently
+     * @param owner The owner at the time of death
+     */
+    public static void recordOrNot(MobEntity pet, PlayerEntity owner) {
+        if (pet == null || owner == null) {
+            return;
+        }
+        
+        try {
+            PetComponent component = PetComponent.get(pet);
+            if (component != null) {
+                long timestamp = pet.getWorld().getTime();
+                HistoryEvent event = HistoryEvent.orNot(
+                    timestamp,
+                    owner.getUuid(),
+                    owner.getName().getString()
+                );
+                component.addHistoryEvent(event);
+                
+                Petsplus.LOGGER.debug("Recorded 'or not' achievement for pet {}: owner {}", 
+                    pet.getUuidAsString(), owner.getName().getString());
+            }
+        } catch (Exception e) {
+            Petsplus.LOGGER.warn("Failed to record 'or not' achievement for pet " + pet.getUuidAsString(), e);
+        }
+    }
+    
+    /**
      * Gets the maximum history size limit.
      */
     public static int getMaxHistorySize() {

@@ -1133,14 +1133,20 @@ public class CursedOneResurrection {
             // Pet sacrifice - the pet dies in place of the owner
             sacrificePet(cursedPet, owner);
             
+            // Track pet sacrifice in pet's history (pet-centric modular history)
+            woflo.petsplus.history.HistoryManager.recordPetSacrifice(cursedPet, owner, resurrectionHealth);
+            
+            // Calculate total pet sacrifices from pet's history
+            long petSacrifices = petComp.getAchievementCount(
+                woflo.petsplus.history.HistoryEvent.AchievementType.PET_SACRIFICE,
+                owner.getUuid()
+            );
+            
             // Trigger universal pet sacrifice advancement
-            woflo.petsplus.state.PlayerAdvancementState state = woflo.petsplus.state.PlayerAdvancementState.getOrCreate(owner);
-            state.incrementPetSacrificeCount();
-            int petSacrifices = state.getPetSacrificeCount();
             woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_INTERACTION.trigger(
                 owner,
                 woflo.petsplus.advancement.criteria.PetInteractionCriterion.INTERACTION_PET_SACRIFICE,
-                petSacrifices
+                (int) petSacrifices
             );
             
             // Visual and audio feedback

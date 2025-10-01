@@ -2277,6 +2277,153 @@ public class PetComponent {
             ));
     }
     
+    // ==================== Achievement Query Methods (Modular Owner History) ====================
+    
+    /**
+     * Gets all achievement events for this pet.
+     * Part of the modular owner history system.
+     */
+    public List<HistoryEvent> getAchievements() {
+        return petHistory.stream()
+            .filter(event -> event.isType(HistoryEvent.EventType.ACHIEVEMENT))
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Gets all achievement events earned with a specific owner.
+     * Part of the modular owner history system.
+     */
+    public List<HistoryEvent> getAchievementsForOwner(UUID ownerUuid) {
+        if (ownerUuid == null) {
+            return new ArrayList<>();
+        }
+        
+        return petHistory.stream()
+            .filter(event -> event.isType(HistoryEvent.EventType.ACHIEVEMENT))
+            .filter(event -> event.isWithOwner(ownerUuid))
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Counts how many times a specific achievement was earned with a specific owner.
+     * Part of the modular owner history system.
+     * 
+     * @param achievementType The achievement type constant from HistoryEvent.AchievementType
+     * @param ownerUuid The owner's UUID, or null for all owners
+     * @return Count of matching achievements
+     */
+    public long getAchievementCount(String achievementType, UUID ownerUuid) {
+        if (achievementType == null) {
+            return 0;
+        }
+        
+        return petHistory.stream()
+            .filter(event -> event.isType(HistoryEvent.EventType.ACHIEVEMENT))
+            .filter(event -> ownerUuid == null || event.isWithOwner(ownerUuid))
+            .filter(event -> {
+                // Parse achievement_type from JSON eventData
+                String data = event.eventData();
+                return data != null && data.contains("\"achievement_type\":\"" + achievementType + "\"");
+            })
+            .count();
+    }
+    
+    /**
+     * Gets the total damage redirected by a Guardian pet for a specific owner.
+     * Part of the modular owner history system.
+     */
+    public double getTotalGuardianDamageForOwner(UUID ownerUuid) {
+        if (ownerUuid == null) {
+            return 0.0;
+        }
+        
+        return petHistory.stream()
+            .filter(event -> event.isType(HistoryEvent.EventType.ACHIEVEMENT))
+            .filter(event -> event.isWithOwner(ownerUuid))
+            .filter(event -> {
+                String data = event.eventData();
+                return data != null && data.contains("\"achievement_type\":\"" + HistoryEvent.AchievementType.GUARDIAN_PROTECTION + "\"");
+            })
+            .mapToDouble(event -> {
+                // Parse damage value from JSON
+                try {
+                    String data = event.eventData();
+                    int damageIdx = data.indexOf("\"damage\":");
+                    if (damageIdx != -1) {
+                        int start = damageIdx + 9;
+                        int end = data.indexOf(',', start);
+                        if (end == -1) end = data.indexOf('}', start);
+                        String damageStr = data.substring(start, end).trim();
+                        return Double.parseDouble(damageStr);
+                    }
+                } catch (Exception e) {
+                    // Ignore parse errors
+                }
+                return 0.0;
+            })
+            .sum();
+    }
+    
+    /**
+     * Gets the set of unique allies healed on a specific day by a Support pet.
+     * Part of the modular owner history system.
+     */
+    public java.util.Set<UUID> getUniqueAlliesHealedOnDay(UUID ownerUuid, long day) {
+        if (ownerUuid == null) {
+            return new java.util.HashSet<>();
+        }
+        
+        return petHistory.stream()
+            .filter(event -> event.isType(HistoryEvent.EventType.ACHIEVEMENT))
+            .filter(event -> event.isWithOwner(ownerUuid))
+            .filter(event -> {
+                String data = event.eventData();
+                if (data == null || !data.contains("\"achievement_type\":\"" + HistoryEvent.AchievementType.ALLY_HEALED + "\"")) {
+                    return false;
+                }
+                // Check if day matches
+                int dayIdx = data.indexOf("\"day\":");
+                if (dayIdx != -1) {
+                    try {
+                        int start = dayIdx + 6;
+                        int end = data.indexOf('}', start);
+                        String dayStr = data.substring(start, end).trim();
+                        long eventDay = Long.parseLong(dayStr);
+                        return eventDay == day;
+                    } catch (Exception e) {
+                        return false;
+                    }
+                }
+                return false;
+            })
+            .map(event -> {
+                // Parse ally UUID from JSON
+                try {
+                    String data = event.eventData();
+                    int allyIdx = data.indexOf("\"ally\":\"");
+                    if (allyIdx != -1) {
+                        int start = allyIdx + 8;
+                        int end = data.indexOf('"', start);
+                        String allyUuidStr = data.substring(start, end);
+                        return UUID.fromString(allyUuidStr);
+                    }
+                } catch (Exception e) {
+                    // Ignore parse errors
+                }
+                return null;
+            })
+            .filter(uuid -> uuid != null)
+            .collect(Collectors.toSet());
+    }
+    
+    /**
+     * Checks if this pet has earned a specific achievement with a specific owner.
+     * Part of the modular owner history system.
+     */
+    public boolean hasAchievement(String achievementType, UUID ownerUuid) {
+        return getAchievementCount(achievementType, ownerUuid) > 0;
+    }
+    
     /**
      * Resets all pet abilities and return to base state.
      * Used by respec tokens to allow re-allocation of progression.

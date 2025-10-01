@@ -207,17 +207,17 @@ public class SupportPotionPulseEffect implements Effect {
                 applied = true;
                 if (recipient instanceof ServerPlayerEntity ally && ally != serverOwner) {
                     healedAlly = true;
-                    // Track unique allies healed for advancement
-                    woflo.petsplus.state.PlayerAdvancementState advState = woflo.petsplus.state.PlayerAdvancementState.getOrCreate(serverOwner);
+                    // Track unique allies healed for advancement (pet-centric modular history)
                     long currentDay = world.getTimeOfDay() / 24000L;
-                    if (advState.trackAllyHealed(ally.getUuid(), currentDay)) {
-                        int uniqueAllies = advState.getUniqueAlliesHealed();
-                        woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_STAT_THRESHOLD.trigger(
-                            serverOwner,
-                            PetStatThresholdCriterion.STAT_ALLIES_HEALED,
-                            (float) uniqueAllies
-                        );
-                    }
+                    woflo.petsplus.history.HistoryManager.recordAllyHealed(pet, serverOwner, ally.getUuid(), currentDay);
+                    
+                    // Calculate unique allies healed today from pet's history
+                    java.util.Set<java.util.UUID> uniqueAllies = component.getUniqueAlliesHealedOnDay(serverOwner.getUuid(), currentDay);
+                    woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_STAT_THRESHOLD.trigger(
+                        serverOwner,
+                        PetStatThresholdCriterion.STAT_ALLIES_HEALED,
+                        (float) uniqueAllies.size()
+                    );
                 }
             }
         }

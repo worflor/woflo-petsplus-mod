@@ -200,15 +200,19 @@ public final class GuardianCore {
             .withData("hit_reserve_limit", hitReserveLimit);
         AbilityManager.triggerAbilities(guardian, context);
         
-        // Track damage redirected for Sacrilege advancement
-        woflo.petsplus.state.PlayerAdvancementState advState = woflo.petsplus.state.PlayerAdvancementState.getOrCreate(owner);
-        advState.addGuardianDamageRedirected(finalRedirectedAmount);
-        float totalDamage = advState.getGuardianDamageRedirected();
-        woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_STAT_THRESHOLD.trigger(
-            owner,
-            PetStatThresholdCriterion.STAT_GUARDIAN_DAMAGE,
-            totalDamage
-        );
+        // Track damage redirected for Sacrilege advancement (pet-centric modular history)
+        woflo.petsplus.history.HistoryManager.recordGuardianProtection(guardian, owner, finalRedirectedAmount);
+        
+        // Calculate total damage redirected from pet's history
+        woflo.petsplus.state.PetComponent petComp = woflo.petsplus.state.PetComponent.get(guardian);
+        if (petComp != null) {
+            double totalDamage = petComp.getTotalGuardianDamageForOwner(owner.getUuid());
+            woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_STAT_THRESHOLD.trigger(
+                owner,
+                PetStatThresholdCriterion.STAT_GUARDIAN_DAMAGE,
+                (float) totalDamage
+            );
+        }
 
         Petsplus.LOGGER.debug("Guardian {} absorbed {} of {} damage for {}", guardian.getName().getString(),
             finalRedirectedAmount, originalDamage, owner.getName().getString());
