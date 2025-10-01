@@ -1,0 +1,39 @@
+{
+  "parent": "petsplus:first_pet",
+  "display": {
+    "icon": {
+      "item": "minecraft:ender_eye"
+    },
+    "title": {
+      "translate": "petsplus.adv.mystical_connections.title"
+    },
+    "description": {
+      "translate": "petsplus.adv.mystical_connections.desc"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "level_3": {
+      "trigger": "petsplus:pet_level",
+      "conditions": {
+        "min_level": 3
+      }
+    },
+    "night_interaction": {
+      "trigger": "petsplus:pet_interaction",
+      "conditions": {
+        "interaction_type": "stargazing",
+        "min_count": 1
+      }
+    }
+  },
+  "requirements": [
+    [
+      "level_3",
+      "night_interaction"
+    ]
+  ]
+}
