@@ -41,16 +41,16 @@ import java.util.function.Consumer;
  *   │   └─ mood_categories (12 mood advancements)
  *   ├─ ✨ mystical_connections (Intermediate)
  *   │   ├─ i_love_you_and_me
- *   │   ├─ noo_luna
- *   │   └─ void_touched
+ *   │   └─ noo_luna
+ *   │       ├─ at_what_cost
+ *   │       └─ heartless_but_alive
  *   ├─ 🛡️ role_specialization (Intermediate)
  *   │   ├─ guardian_path
  *   │   ├─ support_path
  *   │   ├─ skyrider_path
  *   │   └─ eclipsed_path
  *   └─ 💀 ultimate_sacrifice (Advanced)
- *     ├─ at_what_cost
- *     ├─ heartless_but_alive
+ *     ├─ ultimate_sacrifice
  *     └─ or_not
  */
 public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
@@ -689,7 +689,7 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
 
         // This advancement is now the parent stargazer_bond, so we don't need a separate child advancement
 
-        AdvancementEntry dreamWalker = Advancement.Builder.create()
+        AdvancementEntry nooLuna = Advancement.Builder.create()
             .parent(mysticalConnections)
             .display(
                 Items.TOTEM_OF_UNDYING,
@@ -709,30 +709,8 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 )))
             .build(consumer, Petsplus.MOD_ID + ":noo_luna");
 
-        // This advancement is now the parent dream_walker, so we don't need a separate child advancement
-
-        AdvancementEntry voidTouched = Advancement.Builder.create()
-            .parent(dreamWalker)
-            .display(
-                Items.CRYING_OBSIDIAN,
-                Text.translatable("petsplus.adv.void_touched.title"),
-                Text.translatable("petsplus.adv.void_touched.desc"),
-                null,
-                AdvancementFrame.GOAL,
-                true, true, false
-            )
-            .criterion("dream_escape_2", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_INTERACTION,
-                new PetInteractionCriterion.Conditions(
-                    Optional.empty(),
-                    Optional.of(PetInteractionCriterion.INTERACTION_DREAM_ESCAPE),
-                    Optional.of(2),
-                    Optional.empty(),
-                    Optional.empty()
-                )))
-            .build(consumer, Petsplus.MOD_ID + ":void_touched");
-
         AdvancementEntry atWhatCost = Advancement.Builder.create()
-            .parent(voidTouched)
+            .parent(nooLuna)
             .display(
                 Items.CRYING_OBSIDIAN,
                 Text.translatable("petsplus.adv.at_what_cost.title"),
