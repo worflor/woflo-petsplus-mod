@@ -167,9 +167,7 @@ The advancement tree has been reorganized into 6 main branches for better progre
 - "Mystical Connections" [ Reach level 3 OR complete night interaction ]
 - "I love you and me" [ Begin your celestial connection ]
 - "Stargazer Bond" [ Share a moonlight moment with your pet ]
-- "Noo, Luna!" [ Take your first steps into the dream realm ]
-- "Dream Walker" [ Utilize the *Dream's Escape* ability ]
-- "Void Touched" [ Utilize the *Dream's Escape* ability twice ]
+- "Noo, Luna!" [ Utilize the *Dream's Escape* ability once ]
 - "At what cost..." [ Utilize the *Dream's Escape* ability twice ]
 - "Heartless, but Alive." [ Utilize the *Dream's Escape* ability thrice ]
 
