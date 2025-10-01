@@ -11,6 +11,7 @@ import woflo.petsplus.emotions.RoleEmotionRegistry;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Emotion processor that provides contextually appropriate emotional responses
@@ -21,6 +22,9 @@ public class EmotionProcessor {
     
     private static final float INTENSITY_DAMPENING_FACTOR = 0.6f;
     private static final float MIN_EMOTION_THRESHOLD = 0.05f;
+    
+    // Thread safety: Lock for synchronizing access to pet state
+    private static final ReentrantLock petStateLock = new ReentrantLock();
     
     // Custom exceptions for specific error handling
     public static class EmotionProcessingException extends Exception {
@@ -612,35 +616,46 @@ public class EmotionProcessor {
     }
     
     /**
-     * Applies emotions to the pet component
+     * Applies emotions to the pet component with thread safety
      */
-    private static void applyEmotions(PetComponent petComp, 
+    private static void applyEmotions(PetComponent petComp,
                                             Map<PetComponent.Emotion, Float> emotions) {
-        
-        for (Map.Entry<PetComponent.Emotion, Float> entry : emotions.entrySet()) {
-            PetComponent.Emotion emotion = entry.getKey();
-            float intensity = entry.getValue();
-            
-            // Only apply emotions above minimum threshold
-            if (intensity >= MIN_EMOTION_THRESHOLD) {
-                petComp.pushEmotion(emotion, intensity);
+        // Thread safety: Synchronize access to pet state to prevent race conditions
+        petStateLock.lock();
+        try {
+            for (Map.Entry<PetComponent.Emotion, Float> entry : emotions.entrySet()) {
+                PetComponent.Emotion emotion = entry.getKey();
+                float intensity = entry.getValue();
+                
+                // Only apply emotions above minimum threshold
+                if (intensity >= MIN_EMOTION_THRESHOLD) {
+                    petComp.pushEmotion(emotion, intensity);
+                }
             }
+            
+            // Update mood after all emotions are applied
+            petComp.updateMood();
+        } finally {
+            petStateLock.unlock();
         }
-        
-        // Update mood after all emotions are applied
-        petComp.updateMood();
     }
     
     /**
-     * Gets the current emotional state of the pet
+     * Gets the current emotional state of the pet with thread safety
      */
     private static Map<PetComponent.Emotion, Float> getCurrentEmotionalState(PetComponent petComp) {
-        Map<PetComponent.Emotion, Float> currentEmotions = new EnumMap<>(PetComponent.Emotion.class);
-        
-        // For now, return empty map as we don't have direct access to current emotional state
-        // This could be enhanced in the future to query the mood engine
-        
-        return currentEmotions;
+        // Thread safety: Synchronize access to pet state to prevent race conditions
+        petStateLock.lock();
+        try {
+            Map<PetComponent.Emotion, Float> currentEmotions = new EnumMap<>(PetComponent.Emotion.class);
+            
+            // For now, return empty map as we don't have direct access to current emotional state
+            // This could be enhanced in the future to query the mood engine
+            
+            return currentEmotions;
+        } finally {
+            petStateLock.unlock();
+        }
     }
     
     /**

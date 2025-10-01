@@ -24,8 +24,11 @@ import java.util.Map;
  */
 public class GuardianEmotionModifier extends BaseRoleEmotionModifier {
     
+    // Constants for magic numbers
+    private static final float HIGH_PRIORITY = 10.0f;
+    
     public GuardianEmotionModifier() {
-        super(PetRoleType.GUARDIAN_ID, 10); // High priority for strong role identity
+        super(PetRoleType.GUARDIAN_ID, (int) HIGH_PRIORITY); // High priority for strong role identity
     }
     
     @Override

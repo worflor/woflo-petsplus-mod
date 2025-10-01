@@ -24,8 +24,14 @@ import java.util.Map;
  */
 public class StrikerEmotionModifier extends BaseRoleEmotionModifier {
     
+    // Constants for magic numbers
+    private static final float HIGH_PRIORITY = 10.0f;
+    private static final float POWERFUL_ATTACK_THRESHOLD = 10.0f;
+    private static final float POWERFUL_ATTACK_GLEE_SCALE = 0.2f;
+    private static final float POWERFUL_ATTACK_FOCUS_SCALE = 0.15f;
+    
     public StrikerEmotionModifier() {
-        super(PetRoleType.STRIKER_ID, 10); // High priority for strong role identity
+        super(PetRoleType.STRIKER_ID, (int) HIGH_PRIORITY); // High priority for strong role identity
     }
     
     @Override
@@ -74,9 +80,9 @@ public class StrikerEmotionModifier extends BaseRoleEmotionModifier {
         }
         
         // Special response to powerful attacks
-        if (amount > 10.0f) {
-            addEmotion(emotions, PetComponent.Emotion.GLEE, 0.2f);
-            addEmotion(emotions, PetComponent.Emotion.FOCUSED, 0.15f);
+        if (amount > POWERFUL_ATTACK_THRESHOLD) {
+            addEmotion(emotions, PetComponent.Emotion.GLEE, POWERFUL_ATTACK_GLEE_SCALE);
+            addEmotion(emotions, PetComponent.Emotion.FOCUSED, POWERFUL_ATTACK_FOCUS_SCALE);
         }
         
         return emotions;

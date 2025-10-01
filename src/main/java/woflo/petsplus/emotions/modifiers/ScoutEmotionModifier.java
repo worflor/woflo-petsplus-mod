@@ -18,8 +18,14 @@ import java.util.Map;
  */
 public class ScoutEmotionModifier extends BaseRoleEmotionModifier {
     
+    // Constants for magic numbers
+    private static final float HIGH_PRIORITY = 10.0f;
+    private static final float WEAKNESS_DISCOVERY_THRESHOLD = 8.0f;
+    private static final float WEAKNESS_DISCOVERY_CURIOSITY_SCALE = 0.2f;
+    private static final float WEAKNESS_DISCOVERY_HOPE_SCALE = 0.15f;
+    
     public ScoutEmotionModifier() {
-        super(PetRoleType.SCOUT_ID, 10);
+        super(PetRoleType.SCOUT_ID, (int) HIGH_PRIORITY);
     }
     
     @Override
@@ -59,9 +65,9 @@ public class ScoutEmotionModifier extends BaseRoleEmotionModifier {
         }
         
         // Enhanced response to discovering enemy weaknesses
-        if (amount > 8.0f) {
-            addEmotion(emotions, PetComponent.Emotion.CURIOUS, 0.2f);
-            addEmotion(emotions, PetComponent.Emotion.HOPEFUL, 0.15f);
+        if (amount > WEAKNESS_DISCOVERY_THRESHOLD) {
+            addEmotion(emotions, PetComponent.Emotion.CURIOUS, WEAKNESS_DISCOVERY_CURIOSITY_SCALE);
+            addEmotion(emotions, PetComponent.Emotion.HOPEFUL, WEAKNESS_DISCOVERY_HOPE_SCALE);
         }
         
         return emotions;

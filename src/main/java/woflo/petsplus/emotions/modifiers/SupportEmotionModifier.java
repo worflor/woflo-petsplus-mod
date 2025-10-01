@@ -24,8 +24,12 @@ import java.util.Map;
  */
 public class SupportEmotionModifier extends BaseRoleEmotionModifier {
     
+    // Constants for magic numbers
+    private static final float HIGH_PRIORITY = 10.0f;
+    private static final float SIGNIFICANT_DAMAGE_THRESHOLD = 5.0f;
+    
     public SupportEmotionModifier() {
-        super(PetRoleType.SUPPORT_ID, 10); // High priority for strong role identity
+        super(PetRoleType.SUPPORT_ID, (int) HIGH_PRIORITY); // High priority for strong role identity
     }
     
     @Override
@@ -53,7 +57,7 @@ public class SupportEmotionModifier extends BaseRoleEmotionModifier {
         }
         
         // Support pets are relieved when combat ends successfully
-        if (!isPetVictim && amount > 5.0f) {
+        if (!isPetVictim && amount > SIGNIFICANT_DAMAGE_THRESHOLD) {
             addEmotion(emotions, PetComponent.Emotion.RELIEF, scaleByDamage(0.2f, amount));
             addEmotion(emotions, PetComponent.Emotion.UBUNTU, scaleByDamage(0.15f, amount));
         }

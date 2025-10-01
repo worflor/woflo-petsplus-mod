@@ -16,6 +16,7 @@ import woflo.petsplus.stats.PetCharacteristics;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Context-aware emotion mapping system that provides precise emotional responses
@@ -27,9 +28,29 @@ public class EmotionContextMapper {
     private static final ThreadLocal<Map<PetComponent.Emotion, Float>> REUSABLE_EMOTION_MAP = 
         ThreadLocal.withInitial(() -> new EnumMap<>(PetComponent.Emotion.class));
     
-    // Cache for expensive relationship strength calculations
-    private static final Map<String, Float> RELATIONSHIP_CACHE = new ConcurrentHashMap<>();
+    // Thread-safe cache for expensive relationship strength calculations with proper expiration
+    private static final Map<String, CacheEntry> RELATIONSHIP_CACHE = new ConcurrentHashMap<>();
     private static final long CACHE_EXPIRY_MS = 5000; // 5 seconds cache expiry
+    
+    // Thread safety: ReadWriteLock for cache operations to allow concurrent reads
+    private static final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock();
+    
+    /**
+     * Cache entry that includes both the value and timestamp for expiration
+     */
+    private static class CacheEntry {
+        final float value;
+        final long timestamp;
+        
+        CacheEntry(float value) {
+            this.value = value;
+            this.timestamp = System.currentTimeMillis();
+        }
+        
+        boolean isExpired() {
+            return System.currentTimeMillis() - timestamp > CACHE_EXPIRY_MS;
+        }
+    }
     
     /**
      * Context factors that influence emotion selection and intensity
@@ -380,16 +401,44 @@ public class EmotionContextMapper {
     private static float calculateRelationshipStrength(PetComponent petComp) {
         // Create a cache key based on pet component identity
         String cacheKey = petComp.getPet().getUuidAsString();
-        Long currentTime = System.currentTimeMillis();
         
-        // Check if we have a cached value that's still valid
-        Float cachedStrength = RELATIONSHIP_CACHE.get(cacheKey);
-        if (cachedStrength != null) {
-            // This is a simplified cache - in a real implementation, you'd store timestamps
-            // and check expiry, but for this example we'll just use the cached value
-            return cachedStrength;
+        // Thread safety: Use read lock for cache lookup to allow concurrent reads
+        cacheLock.readLock().lock();
+        try {
+            CacheEntry cachedEntry = RELATIONSHIP_CACHE.get(cacheKey);
+            if (cachedEntry != null && !cachedEntry.isExpired()) {
+                // Return cached value if it's still valid
+                return cachedEntry.value;
+            }
+        } finally {
+            cacheLock.readLock().unlock();
         }
         
+        // Thread safety: Use write lock for cache update to ensure thread safety
+        cacheLock.writeLock().lock();
+        try {
+            // Double-check pattern - another thread might have updated the cache while we waited for write lock
+            CacheEntry cachedEntry = RELATIONSHIP_CACHE.get(cacheKey);
+            if (cachedEntry != null && !cachedEntry.isExpired()) {
+                return cachedEntry.value;
+            }
+            
+            // Calculate the relationship strength
+            float baseStrength = calculateBaseRelationshipStrength(petComp);
+            
+            // Cache the result with current timestamp
+            RELATIONSHIP_CACHE.put(cacheKey, new CacheEntry(baseStrength));
+            
+            return baseStrength;
+        } finally {
+            cacheLock.writeLock().unlock();
+        }
+    }
+    
+    /**
+     * Calculates the base relationship strength without caching
+     */
+    private static float calculateBaseRelationshipStrength(PetComponent petComp) {
         // Base relationship on bond strength and interaction history
         long bondStrength = petComp.getBondStrength();
         float baseStrength = Math.min(1f, bondStrength / 5000f); // Max at 5000 bond
@@ -400,10 +449,20 @@ public class EmotionContextMapper {
             baseStrength = Math.min(1f, baseStrength + 0.2f);
         }
         
-        // Cache the result
-        RELATIONSHIP_CACHE.put(cacheKey, baseStrength);
-        
         return baseStrength;
+    }
+    
+    /**
+     * Clean up expired cache entries to prevent memory leaks
+     * This method should be called periodically (e.g., from a scheduled task)
+     */
+    public static void cleanupExpiredCacheEntries() {
+        cacheLock.writeLock().lock();
+        try {
+            RELATIONSHIP_CACHE.entrySet().removeIf(entry -> entry.getValue().isExpired());
+        } finally {
+            cacheLock.writeLock().unlock();
+        }
     }
     
     private static float calculateEventImportance(float damageAmount, boolean isHighIntensity) {

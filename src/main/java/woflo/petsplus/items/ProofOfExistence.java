@@ -28,6 +28,20 @@ import java.util.ArrayList;
  */
 public class ProofOfExistence {
     
+    // Constants for magic numbers
+    private static final int LEVEL_NOVICE_MAX = 10;
+    private static final int LEVEL_EXPERIENCED_MAX = 20;
+    private static final int LEVEL_MASTER_MAX = 30;
+    private static final int LEVEL_DESCRIPTOR_MASTER_OFFSET = 19;
+    private static final int SEED_MULTIPLIER = 31;
+    private static final int SEED_SHIFT = 8;
+    private static final float MODIFIER_THRESHOLD = 0.01f;
+    private static final float MODIFIER_MULTIPLIER = 100.0f;
+    private static final int PICKUP_DELAY_TICKS = 20;
+    private static final double UPWARD_VELOCITY = 0.2;
+    private static final int EXPERIENCE_MILLION = 1000000;
+    private static final int EXPERIENCE_THOUSAND = 1000;
+    
     // Memorial quote pools for variety
     private static final String[] OPENING_QUOTES = {
         "was a faithful companion.",
@@ -84,11 +98,11 @@ public class ProofOfExistence {
      */
     private static String generateMemorialQuote(String petName, PetComponent petComp, MobEntity pet) {
         // Use pet UUID and level as seed for deterministic variety
-        long seed = pet.getUuid().getMostSignificantBits() ^ (petComp.getLevel() * 31L);
+        long seed = pet.getUuid().getMostSignificantBits() ^ (petComp.getLevel() * SEED_MULTIPLIER);
         
         // Select quote components based on seed
         int openingIndex = Math.abs((int) (seed % OPENING_QUOTES.length));
-        int epitaphIndex = Math.abs((int) ((seed >> 8) % CLOSING_EPITAPHS.length));
+        int epitaphIndex = Math.abs((int) ((seed >> SEED_SHIFT) % CLOSING_EPITAPHS.length));
         
         String openingQuote = OPENING_QUOTES[openingIndex];
         String closingEpitaph = CLOSING_EPITAPHS[epitaphIndex];
@@ -117,12 +131,12 @@ public class ProofOfExistence {
      */
     private static String generateLevelDescriptor(int level) {
         // Map level to descriptor tier
-        if (level <= 10) {
+        if (level <= LEVEL_NOVICE_MAX) {
             return LEVEL_DESCRIPTORS[level - 1]; // 0-9 (Novice tier)
-        } else if (level <= 20) {
+        } else if (level <= LEVEL_EXPERIENCED_MAX) {
             return LEVEL_DESCRIPTORS[9 + (level - 11)]; // 10-19 (Experienced tier)
         } else {
-            return LEVEL_DESCRIPTORS[19 + Math.min(level - 21, 9)]; // 20-29 (Master tier)
+            return LEVEL_DESCRIPTORS[LEVEL_DESCRIPTOR_MASTER_OFFSET + Math.min(level - 21, 9)]; // 20-29 (Master tier)
         }
     }
     
@@ -155,7 +169,7 @@ public class ProofOfExistence {
                 }
             }
 
-            if (milestone >= 20) {
+            if (milestone >= LEVEL_EXPERIENCED_MAX) {
                 String summary = resolveMessageString(
                     roleType.presentation().adminSummary(),
                     PetRoleType.fallbackName(roleId)
@@ -166,7 +180,7 @@ public class ProofOfExistence {
             }
         }
 
-        if (milestone >= 20) {
+        if (milestone >= LEVEL_EXPERIENCED_MAX) {
             return baseName + " (" + PetRoleType.fallbackName(roleId) + ")";
         }
 
@@ -212,15 +226,15 @@ public class ProofOfExistence {
             float attack = chars.getAttackModifier(roleType);
             float defense = chars.getDefenseModifier(roleType);
 
-            if (Math.abs(vitality) > 0.01f) {
+            if (Math.abs(vitality) > MODIFIER_THRESHOLD) {
                 String vitalityDesc = vitality > 0 ? "Vigorous" : "Delicate";
                 lore.add(Text.literal("§8  " + vitalityDesc + ": " + formatModifier(vitality)));
             }
-            if (Math.abs(attack) > 0.01f) {
+            if (Math.abs(attack) > MODIFIER_THRESHOLD) {
                 String attackDesc = attack > 0 ? "Fierce" : "Gentle";
                 lore.add(Text.literal("§8  " + attackDesc + ": " + formatModifier(attack)));
             }
-            if (Math.abs(defense) > 0.01f) {
+            if (Math.abs(defense) > MODIFIER_THRESHOLD) {
                 String defenseDesc = defense > 0 ? "Resilient" : "Fragile";
                 lore.add(Text.literal("§8  " + defenseDesc + ": " + formatModifier(defense)));
             }
@@ -269,10 +283,10 @@ public class ProofOfExistence {
         // Create item entity at pet's location
         Vec3d pos = pet.getPos();
         ItemEntity itemEntity = new ItemEntity(world, pos.x, pos.y, pos.z, memorial);
-        itemEntity.setPickupDelay(20); // Short delay so owner can pick it up easily
+        itemEntity.setPickupDelay(PICKUP_DELAY_TICKS); // Short delay so owner can pick it up easily
         
         // Give it a gentle upward motion
-        itemEntity.setVelocity(0, 0.2, 0);
+        itemEntity.setVelocity(0, UPWARD_VELOCITY, 0);
         
         world.spawnEntity(itemEntity);
     }
@@ -325,19 +339,19 @@ public class ProofOfExistence {
     }
 
     private static String formatExperience(int exp) {
-        if (exp >= 1000000) {
-            return String.format("%.1fM", exp / 1000000.0);
-        } else if (exp >= 1000) {
-            return String.format("%.1fK", exp / 1000.0);
+        if (exp >= EXPERIENCE_MILLION) {
+            return String.format("%.1fM", exp / (double) EXPERIENCE_MILLION);
+        } else if (exp >= EXPERIENCE_THOUSAND) {
+            return String.format("%.1fK", exp / (double) EXPERIENCE_THOUSAND);
         }
         return String.valueOf(exp);
     }
     
     private static String formatModifier(float modifier) {
         if (modifier > 0) {
-            return String.format("§a+%.1f%%", modifier * 100);
+            return String.format("§a+%.1f%%", modifier * MODIFIER_MULTIPLIER);
         } else if (modifier < 0) {
-            return String.format("§c%.1f%%", modifier * 100);
+            return String.format("§c%.1f%%", modifier * MODIFIER_MULTIPLIER);
         } else {
             return "§7±0.0%";
         }

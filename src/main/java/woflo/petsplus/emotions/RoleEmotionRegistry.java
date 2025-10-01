@@ -53,35 +53,76 @@ public class RoleEmotionRegistry {
      * Initialize the registry and register all built-in modifiers.
      */
     public void initialize() {
+        // Fast path check without synchronization for already initialized case
         if (initialized) {
             return;
         }
         
         initializeLock.lock();
         try {
-            // Double-check locking pattern
+            // Double-check locking pattern - ensures only one thread performs initialization
             if (initialized) {
                 return;
             }
             
             Petsplus.LOGGER.info("Initializing RoleEmotionRegistry");
             
-            // Register built-in role modifiers
-            register(new CursedOneEmotionModifier());
-            register(new EnchantmentBoundEmotionModifier());
-            register(new GuardianEmotionModifier());
-            register(new StrikerEmotionModifier());
-            register(new SupportEmotionModifier());
-            register(new ScoutEmotionModifier());
-            register(new SkyriderEmotionModifier());
-            register(new EepyEeperEmotionModifier());
-            register(new EclipsedEmotionModifier());
+            // Register built-in role modifiers directly without going through register() method
+            // to avoid potential lock ordering issues during initialization
+            registerBuiltinModifiers();
             
+            // Set initialized flag last to ensure all initialization is complete
+            // before other threads can see the registry as initialized
             initialized = true;
             Petsplus.LOGGER.info("RoleEmotionRegistry initialized with {} modifiers", allModifiers.size());
         } finally {
             initializeLock.unlock();
         }
+    }
+    
+    /**
+     * Register built-in modifiers during initialization.
+     * This method is called while holding the initializeLock to ensure thread safety.
+     */
+    private void registerBuiltinModifiers() {
+        // Direct registration without additional locking since we're already under initializeLock
+        registerInternal(new CursedOneEmotionModifier());
+        registerInternal(new EnchantmentBoundEmotionModifier());
+        registerInternal(new GuardianEmotionModifier());
+        registerInternal(new StrikerEmotionModifier());
+        registerInternal(new SupportEmotionModifier());
+        registerInternal(new ScoutEmotionModifier());
+        registerInternal(new SkyriderEmotionModifier());
+        registerInternal(new EepyEeperEmotionModifier());
+        registerInternal(new EclipsedEmotionModifier());
+    }
+    
+    /**
+     * Internal registration method that doesn't acquire additional locks.
+     * Used during initialization when initializeLock is already held.
+     *
+     * @param modifier the modifier to register
+     */
+    private void registerInternal(RoleEmotionModifier modifier) {
+        Identifier roleId = modifier.getRoleId();
+        
+        // Add to role-specific list
+        List<RoleEmotionModifier> roleModifiers = modifiersByRole.computeIfAbsent(roleId, k -> new ArrayList<>());
+        
+        // Create a new list to avoid concurrent modification
+        List<RoleEmotionModifier> newRoleModifiers = new ArrayList<>(roleModifiers);
+        newRoleModifiers.add(modifier);
+        
+        // Sort modifiers by priority (highest first)
+        newRoleModifiers.sort((a, b) -> Integer.compare(b.getPriority(), a.getPriority()));
+        
+        // Replace the list atomically
+        modifiersByRole.put(roleId, newRoleModifiers);
+        
+        // Add to global list (CopyOnWriteArrayList handles thread safety)
+        allModifiers.add(modifier);
+        
+        Petsplus.LOGGER.debug("Registered role emotion modifier for role: {}", roleId);
     }
     
     /**
@@ -308,9 +349,11 @@ public class RoleEmotionRegistry {
      * Shutdown the registry and clean up resources.
      */
     public void shutdown() {
-        initializeLock.lock();
+        // Fix lock ordering: always acquire registerLock before initializeLock
+        // to prevent potential deadlocks with other operations
+        registerLock.lock();
         try {
-            registerLock.lock();
+            initializeLock.lock();
             try {
                 Petsplus.LOGGER.info("Shutting down RoleEmotionRegistry");
                 
@@ -323,10 +366,10 @@ public class RoleEmotionRegistry {
                 
                 Petsplus.LOGGER.info("RoleEmotionRegistry shutdown complete");
             } finally {
-                registerLock.unlock();
+                initializeLock.unlock();
             }
         } finally {
-            initializeLock.unlock();
+            registerLock.unlock();
         }
     }
 }

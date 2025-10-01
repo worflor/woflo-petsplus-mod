@@ -15,6 +15,9 @@ public final class MoodActionThrottle {
     private boolean active;
     private float chanceAccumulator;
     private long lastChanceTick = Long.MIN_VALUE / 4;
+    
+    // Synchronization lock to prevent race conditions when modifying shared state
+    private final Object stateLock = new Object();
 
     public MoodActionThrottle(MoodGoalThrottleConfig config) {
         this.config = config;
@@ -34,35 +37,38 @@ public final class MoodActionThrottle {
         if (config == null) {
             return true;
         }
-        if (active) {
-            long elapsed = now - lastStartTick;
-            if (elapsed < config.minActiveTicks()) {
-                return false;
+        
+        synchronized (stateLock) {
+            if (active) {
+                long elapsed = now - lastStartTick;
+                if (elapsed < config.minActiveTicks()) {
+                    return false;
+                }
             }
-        }
-        if (!bypassCooldown) {
-            long cooldownElapsed = now - lastStopTick;
-            if (cooldownElapsed < config.minCooldownTicks()) {
-                return false;
+            if (!bypassCooldown) {
+                long cooldownElapsed = now - lastStopTick;
+                if (cooldownElapsed < config.minCooldownTicks()) {
+                    return false;
+                }
             }
+            int rollBound = computeRollBound(component, mood, now);
+            if (rollBound <= 1) {
+                chanceAccumulator = 0.0f;
+                lastChanceTick = now;
+                return true;
+            }
+            if (now != lastChanceTick) {
+                float increment = 1.0f / (float) rollBound;
+                chanceAccumulator = MathHelper.clamp(chanceAccumulator + increment, 0.0f, 1.0f);
+                lastChanceTick = now;
+            }
+            float roll = mob.getRandom().nextFloat();
+            if (roll < chanceAccumulator) {
+                chanceAccumulator = 0.0f;
+                return true;
+            }
+            return false;
         }
-        int rollBound = computeRollBound(component, mood, now);
-        if (rollBound <= 1) {
-            chanceAccumulator = 0.0f;
-            lastChanceTick = now;
-            return true;
-        }
-        if (now != lastChanceTick) {
-            float increment = 1.0f / (float) rollBound;
-            chanceAccumulator = MathHelper.clamp(chanceAccumulator + increment, 0.0f, 1.0f);
-            lastChanceTick = now;
-        }
-        float roll = mob.getRandom().nextFloat();
-        if (roll < chanceAccumulator) {
-            chanceAccumulator = 0.0f;
-            return true;
-        }
-        return false;
     }
 
     private int computeRollBound(PetComponent component, PetComponent.Mood mood, long now) {
@@ -88,10 +94,13 @@ public final class MoodActionThrottle {
     }
 
     public void markStarted(long now, PetComponent component, PetComponent.Mood mood) {
-        active = true;
-        lastStartTick = now;
-        chanceAccumulator = 0.0f;
-        lastChanceTick = now;
+        synchronized (stateLock) {
+            active = true;
+            lastStartTick = now;
+            chanceAccumulator = 0.0f;
+            lastChanceTick = now;
+        }
+        
         if (Petsplus.DEBUG_MODE && component != null) {
             Petsplus.LOGGER.debug(
                 "[MoodAI] {} started {} (strength {:.2f}, cooldown {} ticks)",
@@ -104,10 +113,13 @@ public final class MoodActionThrottle {
     }
 
     public void markStopped(long now, PetComponent component, PetComponent.Mood mood) {
-        active = false;
-        lastStopTick = now;
-        chanceAccumulator = 0.0f;
-        lastChanceTick = now;
+        synchronized (stateLock) {
+            active = false;
+            lastStopTick = now;
+            chanceAccumulator = 0.0f;
+            lastChanceTick = now;
+        }
+        
         if (Petsplus.DEBUG_MODE && component != null) {
             Petsplus.LOGGER.debug(
                 "[MoodAI] {} stopped {} after {} ticks",
@@ -119,9 +131,15 @@ public final class MoodActionThrottle {
     }
 
     public boolean hasSatisfiedMinActive(long now) {
-        if (!active || config == null) {
+        if (config == null) {
             return true;
         }
-        return now - lastStartTick >= config.minActiveTicks();
+        
+        synchronized (stateLock) {
+            if (!active) {
+                return true;
+            }
+            return now - lastStartTick >= config.minActiveTicks();
+        }
     }
 }

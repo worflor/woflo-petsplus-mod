@@ -48,7 +48,6 @@ public class EnchantmentBoundEmotionModifier extends BaseRoleEmotionModifier {
             // Enchantment Bound pets are fascinated by magic, even when harmful
             addEmotion(emotions, PetComponent.Emotion.YUGEN, scaleByDamage(0.3f, amount));
             addEmotion(emotions, PetComponent.Emotion.CURIOUS, scaleByDamage(0.25f, amount));
-            addEmotion(emotions, PetComponent.Emotion.CURIOUS, scaleByDamage(0.2f, amount));
             
             // Less fear of magical damage
             removeEmotion(emotions, PetComponent.Emotion.ANGST);
@@ -141,7 +140,6 @@ public class EnchantmentBoundEmotionModifier extends BaseRoleEmotionModifier {
                 // General magical phenomena
                 addEmotion(emotions, PetComponent.Emotion.YUGEN, 0.3f);
                 addEmotion(emotions, PetComponent.Emotion.CURIOUS, 0.25f);
-                addEmotion(emotions, PetComponent.Emotion.CURIOUS, 0.2f);
             }
             
             case "bookshelf", "library" -> {
@@ -162,7 +160,6 @@ public class EnchantmentBoundEmotionModifier extends BaseRoleEmotionModifier {
                 // End magic is particularly fascinating
                 addEmotion(emotions, PetComponent.Emotion.YUGEN, 0.4f);
                 addEmotion(emotions, PetComponent.Emotion.CURIOUS, 0.35f);
-                addEmotion(emotions, PetComponent.Emotion.CURIOUS, 0.3f);
                 addEmotion(emotions, PetComponent.Emotion.FOREBODING, 0.1f); // Slight danger awareness
             }
             
@@ -183,7 +180,6 @@ public class EnchantmentBoundEmotionModifier extends BaseRoleEmotionModifier {
             case "mundane", "ordinary" -> {
                 // Enchantment Bound pets are bored by mundane things
                 addEmotion(emotions, PetComponent.Emotion.ENNUI, 0.2f);
-                addEmotion(emotions, PetComponent.Emotion.ENNUI, 0.15f);
                 
                 // Remove positive emotions
                 removeEmotion(emotions, PetComponent.Emotion.CHEERFUL);

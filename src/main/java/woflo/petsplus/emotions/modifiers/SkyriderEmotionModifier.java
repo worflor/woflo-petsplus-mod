@@ -18,8 +18,14 @@ import java.util.Map;
  */
 public class SkyriderEmotionModifier extends BaseRoleEmotionModifier {
     
+    // Constants for magic numbers
+    private static final float HIGH_PRIORITY = 10.0f;
+    private static final float AERIAL_ADVANTAGE_THRESHOLD = 10.0f;
+    private static final float AERIAL_ADVANTAGE_GLEE_SCALE = 0.2f;
+    private static final float AERIAL_ADVANTAGE_CONTENT_SCALE = 0.15f;
+    
     public SkyriderEmotionModifier() {
-        super(PetRoleType.SKYRIDER_ID, 10);
+        super(PetRoleType.SKYRIDER_ID, (int) HIGH_PRIORITY);
     }
     
     @Override
@@ -59,9 +65,9 @@ public class SkyriderEmotionModifier extends BaseRoleEmotionModifier {
         }
         
         // Enhanced response to aerial combat or high ground advantage
-        if (amount > 10.0f) {
-            addEmotion(emotions, PetComponent.Emotion.GLEE, 0.2f);
-            addEmotion(emotions, PetComponent.Emotion.CONTENT, 0.15f);
+        if (amount > AERIAL_ADVANTAGE_THRESHOLD) {
+            addEmotion(emotions, PetComponent.Emotion.GLEE, AERIAL_ADVANTAGE_GLEE_SCALE);
+            addEmotion(emotions, PetComponent.Emotion.CONTENT, AERIAL_ADVANTAGE_CONTENT_SCALE);
         }
         
         return emotions;

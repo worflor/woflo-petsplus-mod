@@ -18,8 +18,14 @@ import java.util.Map;
  */
 public class EclipsedEmotionModifier extends BaseRoleEmotionModifier {
     
+    // Constants for magic numbers
+    private static final float HIGH_PRIORITY = 10.0f;
+    private static final float VOID_POWER_THRESHOLD = 15.0f;
+    private static final float VOID_POWER_YUGEN_SCALE = 0.25f;
+    private static final float VOID_POWER_CONTENT_SCALE = 0.2f;
+    
     public EclipsedEmotionModifier() {
-        super(PetRoleType.ECLIPSED_ID, 10);
+        super(PetRoleType.ECLIPSED_ID, (int) HIGH_PRIORITY);
     }
     
     @Override
@@ -60,9 +66,9 @@ public class EclipsedEmotionModifier extends BaseRoleEmotionModifier {
         }
         
         // Enhanced response to shadow or void-related damage
-        if (amount > 15.0f) {
-            addEmotion(emotions, PetComponent.Emotion.YUGEN, 0.25f);
-            addEmotion(emotions, PetComponent.Emotion.CONTENT, 0.2f);
+        if (amount > VOID_POWER_THRESHOLD) {
+            addEmotion(emotions, PetComponent.Emotion.YUGEN, VOID_POWER_YUGEN_SCALE);
+            addEmotion(emotions, PetComponent.Emotion.CONTENT, VOID_POWER_CONTENT_SCALE);
         }
         
         return emotions;

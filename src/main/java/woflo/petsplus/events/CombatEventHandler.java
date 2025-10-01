@@ -59,6 +59,11 @@ import org.jetbrains.annotations.Nullable;
 public class CombatEventHandler {
 
     private static final Map<EntityType<?>, Boolean> FLYER_TYPE_CACHE = new ConcurrentHashMap<>();
+    
+    // Cache for expensive pet swarm operations to improve performance
+    private static final Map<java.util.UUID, List<PetSwarmIndex.SwarmEntry>> PET_SWARM_CACHE = new ConcurrentHashMap<>();
+    private static final Map<java.util.UUID, Long> PET_SWARM_CACHE_TIMESTAMPS = new ConcurrentHashMap<>();
+    private static final long PET_SWARM_CACHE_TTL = 100; // 5 seconds cache TTL (100 ticks)
 
     private static final String CHIP_DAMAGE_ACCUM_KEY = "restless_chip_accum";
     private static final String CHIP_DAMAGE_LAST_TICK_KEY = "restless_chip_last_tick";
@@ -84,6 +89,29 @@ public class CombatEventHandler {
         ServerLivingEntityEvents.AFTER_DEATH.register(CombatEventHandler::onEntityDeath);
 
         Petsplus.LOGGER.info("Combat event handlers registered");
+    }
+    
+    /**
+     * Invalidate cached pet swarm data for a specific owner
+     * Call this when pets are added/removed or when cache needs to be refreshed
+     */
+    public static void invalidatePetSwarmCache(java.util.UUID ownerUuid) {
+        PET_SWARM_CACHE.remove(ownerUuid);
+        PET_SWARM_CACHE_TIMESTAMPS.remove(ownerUuid);
+    }
+    
+    /**
+     * Clean up expired cache entries to prevent memory leaks
+     * This should be called periodically (e.g., in a server tick event)
+     */
+    public static void cleanupExpiredCacheEntries(long currentTime) {
+        PET_SWARM_CACHE_TIMESTAMPS.entrySet().removeIf(entry -> {
+            if (currentTime - entry.getValue() > PET_SWARM_CACHE_TTL) {
+                PET_SWARM_CACHE.remove(entry.getKey());
+                return true;
+            }
+            return false;
+        });
     }
     
     /**
@@ -130,7 +158,13 @@ public class CombatEventHandler {
      * Called when a player attacks an entity directly.
      */
     private static ActionResult onPlayerAttack(PlayerEntity player, World world, Hand hand, Entity target, EntityHitResult hitResult) {
+        // Ensure this only runs on the server side to prevent client-side execution
         if (world.isClient) {
+            return ActionResult.PASS;
+        }
+        
+        // Additional server validation - ensure player is valid and in proper state
+        if (!(player instanceof ServerPlayerEntity)) {
             return ActionResult.PASS;
         }
         
@@ -536,6 +570,7 @@ public class CombatEventHandler {
     private static void triggerNearbyPetAbilities(PlayerEntity owner,
                                                   String eventType,
                                                   @Nullable Map<String, Object> data) {
+        // Server-side validation to prevent client-side execution
         if (owner == null) {
             return;
         }
@@ -549,6 +584,12 @@ public class CombatEventHandler {
         if (eventType == null || eventType.isEmpty()) {
             return;
         }
+        
+        // Additional validation: ensure the player is still valid and in the world
+        if (!serverOwner.isAlive() || serverOwner.isRemoved()) {
+            return;
+        }
+        
         Map<String, Object> payload = (data == null || data.isEmpty())
             ? null
             : new HashMap<>(data);
@@ -613,8 +654,10 @@ public class CombatEventHandler {
      * Handle when a pet takes damage - triggers fear/anger emotions based on context
      */
     private static void handlePetDamageReceived(MobEntity pet, PetComponent petComponent, DamageSource damageSource, float amount) {
-        long now = pet.getWorld().getTime();
-        petComponent.setLastAttackTick(now);
+        // Ensure thread-safe access to pet state
+        synchronized (pet) {
+            long now = pet.getWorld().getTime();
+            petComponent.setLastAttackTick(now);
 
         float maxHealth = pet.getMaxHealth();
         float damageIntensity = damageIntensity(amount, maxHealth);
@@ -635,10 +678,13 @@ public class CombatEventHandler {
         if (attacker instanceof PlayerEntity playerAttacker) {
             if (owner != null && playerAttacker.equals(owner)) {
                 // Check cooldown to prevent emotion spam from rapid punching
+                // Use atomic check-and-set to prevent race condition in emotion processing
                 long lastEmotionTime = petComponent.getLastAttackTick();
                 if (now - lastEmotionTime < 40) { // 2 second cooldown (40 ticks)
                     return; // Skip emotion processing if too recent
                 }
+                // Update the last attack tick atomically to prevent race conditions
+                petComponent.setLastAttackTick(now);
                 // Realistic emotional responses to being hit by owner
                 if (damageIntensity < 0.15f && petIsCursed) {
                     // Only very light damage on cursed pets counts as "rough housing"
@@ -741,18 +787,21 @@ public class CombatEventHandler {
             petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, desperation * 0.7f);
             petComponent.pushEmotion(PetComponent.Emotion.FRUSTRATION, desperation);
         }
+        } // End synchronized block for pet state access
     }
 
     /**
      * Handle when a pet deals damage - triggers aggressive/triumphant emotions based on context
      */
     private static void handlePetDealtDamage(MobEntity pet, PetComponent petComponent, LivingEntity victim, float damage) {
-        long now = pet.getWorld().getTime();
-        petComponent.setLastAttackTick(now);
-
         float victimMaxHealth = Math.max(1f, victim.getMaxHealth());
         float damageIntensity = damageIntensity(damage, victimMaxHealth);
         PlayerEntity owner = petComponent.getOwner();
+        
+        // Ensure thread-safe access to pet state
+        synchronized (pet) {
+            long now = pet.getWorld().getTime();
+            petComponent.setLastAttackTick(now);
 
         float petHealthPercent = pet.getMaxHealth() > 0f ? MathHelper.clamp(pet.getHealth() / pet.getMaxHealth(), 0f, 1f) : 1f;
         float lowHealthFactor = missingHealthFactor(petHealthPercent, 0.5f);
@@ -852,6 +901,7 @@ public class CombatEventHandler {
                     if (owner == null || owner.squaredDistanceTo(pet) > 8 * 8) {
                         petComponent.pushEmotion(PetComponent.Emotion.REGRET, scaledAmount(0.08f, 0.25f, damageIntensity));
                     }
+                    } // End synchronized block for pet state access
                 }
                 Petsplus.LOGGER.debug("Pet {} fighting hostile mob, pushed combat emotions", pet.getName().getString());
             }
@@ -1380,8 +1430,35 @@ public class CombatEventHandler {
         if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
             return List.of();
         }
-        StateManager stateManager = StateManager.forWorld(serverWorld);
-        return stateManager.getSwarmIndex().snapshotOwner(serverOwner.getUuid());
+        
+        java.util.UUID ownerUuid = serverOwner.getUuid();
+        long now = serverWorld.getTime();
+        
+        // Check cache first to improve performance
+        Long cacheTimestamp = PET_SWARM_CACHE_TIMESTAMPS.get(ownerUuid);
+        if (cacheTimestamp != null && (now - cacheTimestamp) < PET_SWARM_CACHE_TTL) {
+            List<PetSwarmIndex.SwarmEntry> cachedSwarm = PET_SWARM_CACHE.get(ownerUuid);
+            if (cachedSwarm != null) {
+                return cachedSwarm;
+            }
+        }
+        
+        // Cache miss or expired - fetch fresh data
+        List<PetSwarmIndex.SwarmEntry> swarm;
+        synchronized (serverOwner) {
+            StateManager stateManager = StateManager.forWorld(serverWorld);
+            if (stateManager != null) {
+                swarm = stateManager.getSwarmIndex().snapshotOwner(ownerUuid);
+            } else {
+                swarm = List.of();
+            }
+        }
+        
+        // Update cache
+        PET_SWARM_CACHE.put(ownerUuid, swarm);
+        PET_SWARM_CACHE_TIMESTAMPS.put(ownerUuid, now);
+        
+        return swarm;
     }
 
     private static boolean withinRadius(PetSwarmIndex.SwarmEntry entry, Vec3d center, double radiusSq) {

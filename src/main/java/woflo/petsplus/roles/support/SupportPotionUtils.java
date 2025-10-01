@@ -54,6 +54,65 @@ public final class SupportPotionUtils {
     private static final String STATE_LAST_SIGNATURE = "support_potion_last_signature";
     private static final String STATE_PULSE_STREAK = "support_potion_pulse_streak";
     private static final String STATE_LAST_RECIPIENT_COUNT = "support_potion_last_recipient_count";
+    
+    // Additional constants for magic numbers
+    private static final int TICKS_PER_SECOND = 20;
+    private static final int SECONDS_PER_LEVEL = 1;
+    private static final int MIN_AURA_DURATION_TICKS = 60;
+    private static final int MIN_PULSE_DURATION_TICKS = 40;
+    private static final int MAX_PULSE_DURATION_TICKS = 80;
+    private static final int TICKS_PER_HALF_SECOND = 10;
+    private static final int MIN_LEVEL_BONUS_INTERVAL = 2;
+    private static final double FIRST_BONUS_INTERVAL_MULTIPLIER = 0.85;
+    private static final double SECOND_BONUS_INTERVAL_MULTIPLIER = 0.7;
+    private static final double RADIUS_PER_LEVEL = 0.05;
+    private static final double FIRST_BONUS_RADIUS = 0.75;
+    private static final double SECOND_BONUS_RADIUS = 0.75;
+    private static final double MAX_RADIUS_BONUS = 3.0;
+    private static final int DURATION_PER_LEVEL = 4;
+    private static final int FIRST_BONUS_DURATION = 40;
+    private static final int SECOND_BONUS_DURATION = 80;
+    private static final int MAX_AURA_DURATION = 400;
+    private static final double PICKUP_RADIUS_PER_LEVEL = 0.07;
+    private static final double FIRST_BONUS_PICKUP_RADIUS = 0.5;
+    private static final double SECOND_BONUS_PICKUP_RADIUS = 0.5;
+    private static final double MIN_PULSE_RADIUS = 0.25;
+    private static final double MIN_PULSE_COST = 0.0;
+    private static final double MAX_PULSE_COST = 12.0;
+    private static final int RHYTHM_TICK_THRESHOLD = 160;
+    private static final int MAX_STREAK = 5;
+    private static final double RHYTHM_BASE_BONUS = 0.35;
+    private static final double RHYTHM_STREAK_BONUS = 0.2;
+    private static final double MAX_RHYTHM_RADIUS_BONUS = 1.5;
+    private static final int RHYTHM_BASE_DURATION_BONUS = 20;
+    private static final int RHYTHM_STREAK_DURATION_BONUS = 10;
+    private static final double RHYTHM_BASE_COST_MULTIPLIER = 0.9;
+    private static final double RHYTHM_STREAK_COST_REDUCTION = 0.05;
+    private static final double MIN_RHYTHM_COST_MULTIPLIER = 0.55;
+    private static final int RECIPIENT_THRESHOLD = 3;
+    private static final double MAX_RECIPIENT_RADIUS_BONUS = 1.25;
+    private static final double RECIPIENT_RADIUS_PER_EXTRA = 0.25;
+    private static final double MAX_RECIPIENT_COST_MULTIPLIER = 0.45;
+    private static final double RECIPIENT_COST_PER_EXTRA = 0.08;
+    private static final double CLUTCH_RADIUS_BONUS = 0.45;
+    private static final int CLUTCH_DURATION_BONUS = 40;
+    private static final double CLUTCH_COST_MULTIPLIER = 1.15;
+    private static final double COMFORT_RADIUS_BONUS = 0.2;
+    private static final int COMFORT_DURATION_BONUS = 20;
+    private static final double COMFORT_COST_MULTIPLIER = 0.85;
+    private static final double PERCH_COST_MULTIPLIER = 0.9;
+    private static final double MIN_RADIUS_MULTIPLIER = 0.6;
+    private static final int MIN_PULSE_DURATION = 40;
+    private static final int MAX_PULSE_DURATION = 480;
+    private static final double CLUTCH_HEALTH_THRESHOLD = 0.45;
+    private static final double HEALTHY_THRESHOLD = 0.95;
+    private static final double LOW_HEALTH_THRESHOLD = 0.4;
+    private static final double BOTTLE_DROP_HEIGHT = 0.7;
+    private static final double BOTTLE_UPWARD_VELOCITY = 0.2;
+    private static final double BOTTLE_VELOCITY_SPREAD = 0.08;
+    private static final double PERCH_SIP_DISCOUNT_DEFAULT = 0.20;
+    private static final double MIN_MULTIPLIER = 0.0;
+    private static final double MAX_MULTIPLIER = 1.0;
 
     private SupportPotionUtils() {}
 

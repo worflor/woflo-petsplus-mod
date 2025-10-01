@@ -18,8 +18,14 @@ import java.util.Map;
  */
 public class EepyEeperEmotionModifier extends BaseRoleEmotionModifier {
     
+    // Constants for magic numbers
+    private static final float HIGH_PRIORITY = 10.0f;
+    private static final float WAKEUP_DAMAGE_THRESHOLD = 12.0f;
+    private static final float WAKEUP_STARTLE_SCALE = 0.2f;
+    private static final float WAKEUP_WORRIED_SCALE = 0.15f;
+    
     public EepyEeperEmotionModifier() {
-        super(PetRoleType.EEPY_EEPER_ID, 10);
+        super(PetRoleType.EEPY_EEPER_ID, (int) HIGH_PRIORITY);
     }
     
     @Override
@@ -60,9 +66,9 @@ public class EepyEeperEmotionModifier extends BaseRoleEmotionModifier {
         }
         
         // Enhanced response to being woken up by significant damage
-        if (amount > 12.0f) {
-            addEmotion(emotions, PetComponent.Emotion.STARTLE, 0.2f);
-            addEmotion(emotions, PetComponent.Emotion.WORRIED, 0.15f);
+        if (amount > WAKEUP_DAMAGE_THRESHOLD) {
+            addEmotion(emotions, PetComponent.Emotion.STARTLE, WAKEUP_STARTLE_SCALE);
+            addEmotion(emotions, PetComponent.Emotion.WORRIED, WAKEUP_WORRIED_SCALE);
         }
         
         return emotions;
