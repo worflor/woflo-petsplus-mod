@@ -191,9 +191,8 @@ The advancement tree has been reorganized into 6 main branches for better progre
   - "Edgewalker" [ Eclipsed reaches level 30 ]
 
 ### Special 💕
-- "Ultimate Sacrifice" [ Complete the dream path ] <-- **REMOVE THIS**
-- **add the "bestest friends foreevrerer" one here**
-- "Or not." [ Pet  ]
+- "Bestest Friends Forevererer" [ Get your first pet to level 30 ]
+- "Or Not." [ Let that Bestest Friend die permanently ]
 
 
 ### uninplemented yet:

@@ -1,5 +1,5 @@
 {
-  "parent": "petsplus:ultimate_sacrifice",
+  "parent": "petsplus:bestest_friends_forevererer",
   "criteria": {
     "permanent_death": {
       "conditions": {
@@ -11,7 +11,7 @@
   },
   "display": {
     "description": {
-      "translate": "petsplus.adv.eternal_bond.desc"
+      "translate": "petsplus.adv.or_not.desc"
     },
     "frame": "goal",
     "icon": {
@@ -19,7 +19,7 @@
       "id": "minecraft:skeleton_skull"
     },
     "title": {
-      "translate": "petsplus.adv.eternal_bond.title"
+      "translate": "petsplus.adv.or_not.title"
     }
   },
   "requirements": [

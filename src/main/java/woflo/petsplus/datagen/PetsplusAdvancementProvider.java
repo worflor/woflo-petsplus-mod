@@ -34,7 +34,9 @@ import java.util.function.Consumer;
  *   ├─ ⚔️ combat_provenance (Intermediate)
  *   │   ├─ trial_ready
  *   │   ├─ sacrilege
- *   │   └─ even_bester
+ *   │   └─ bestest_friends_forevererer (Challenge)
+ *   │       ├─ or_not
+ *   │       └─ is_this_designer
  *   ├─ 🎭 emotional_journey (Intermediate)
  *   │   ├─ mood_explorer
  *   │   ├─ emotional_mastery
@@ -49,9 +51,6 @@ import java.util.function.Consumer;
  *   │   ├─ support_path
  *   │   ├─ skyrider_path
  *   │   └─ eclipsed_path
- *   └─ 💀 ultimate_sacrifice (Advanced)
- *     ├─ ultimate_sacrifice
- *     └─ or_not
  */
 public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
 
@@ -242,12 +241,12 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 )))
             .build(consumer, Petsplus.MOD_ID + ":sacrilege");
 
-        AdvancementEntry evenBester = Advancement.Builder.create()
+        AdvancementEntry bestestFriends = Advancement.Builder.create()
             .parent(combatProvenance)
             .display(
                 Items.NETHERITE_INGOT,
-                Text.translatable("petsplus.adv.master_trainer.title"),
-                Text.translatable("petsplus.adv.master_trainer.desc"),
+                Text.translatable("petsplus.adv.bestest_friends_forevererer.title"),
+                Text.translatable("petsplus.adv.bestest_friends_forevererer.desc"),
                 null,
                 AdvancementFrame.CHALLENGE,
                 true, true, false
@@ -259,7 +258,7 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                     Optional.empty(),
                     Optional.empty()
                 )))
-            .build(consumer, Petsplus.MOD_ID + ":master_trainer");
+            .build(consumer, Petsplus.MOD_ID + ":bestest_friends_forevererer");
 
         // ========================================
         // 🎭 EMOTIONAL JOURNEY BRANCH
@@ -905,34 +904,14 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
             .build(consumer, Petsplus.MOD_ID + ":edgewalker");
 
         // ========================================
-        // 💀 ULTIMATE SACRIFICE BRANCH
+        // 💔 "OR NOT." BRANCH
         // ========================================
-        AdvancementEntry ultimateSacrifice = Advancement.Builder.create()
-            .parent(firstPet)
-            .display(
-                Items.WITHER_SKELETON_SKULL,
-                Text.translatable("petsplus.adv.ultimate_sacrifice.title"),
-                Text.translatable("petsplus.adv.ultimate_sacrifice.desc"),
-                null,
-                AdvancementFrame.CHALLENGE,
-                true, true, false
-            )
-            .criterion("dream_path_complete", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_INTERACTION,
-                new PetInteractionCriterion.Conditions(
-                    Optional.empty(),
-                    Optional.of(PetInteractionCriterion.INTERACTION_DREAM_ESCAPE),
-                    Optional.of(2),
-                    Optional.empty(),
-                    Optional.empty()
-                )))
-            .build(consumer, Petsplus.MOD_ID + ":ultimate_sacrifice");
-
         AdvancementEntry orNot = Advancement.Builder.create()
-            .parent(ultimateSacrifice)
+            .parent(bestestFriends)
             .display(
                 Items.SKELETON_SKULL,
-                Text.translatable("petsplus.adv.eternal_bond.title"),
-                Text.translatable("petsplus.adv.eternal_bond.desc"),
+                Text.translatable("petsplus.adv.or_not.title"),
+                Text.translatable("petsplus.adv.or_not.desc"),
                 null,
                 AdvancementFrame.GOAL,
                 true, true, false
@@ -943,13 +922,13 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                     Optional.of(1),
                     Optional.of(true)
                 )))
-            .build(consumer, Petsplus.MOD_ID + ":eternal_bond");
+            .build(consumer, Petsplus.MOD_ID + ":or_not");
 
         // ========================================
         // ADDITIONAL ADVANCEMENTS
         // ========================================
         AdvancementEntry isThisDesigner = Advancement.Builder.create()
-            .parent(evenBester)
+            .parent(bestestFriends)
             .display(
                 Items.ENCHANTED_BOOK,
                 Text.translatable("petsplus.adv.is_this_designer.title"),
