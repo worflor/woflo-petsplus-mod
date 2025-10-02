@@ -919,7 +919,7 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
             .criterion("permanent_death", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_DEATH,
                 new PetDeathCriterion.Conditions(
                     Optional.empty(),
-                    Optional.of(1),
+                    Optional.of(30),
                     Optional.of(true)
                 )))
             .build(consumer, Petsplus.MOD_ID + ":or_not");
