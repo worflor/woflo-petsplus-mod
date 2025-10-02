@@ -159,8 +159,9 @@ public class XpEventHandler {
                 }
 
                 if (previousLevel < 30 && petComp.getLevel() >= 30) {
-                    BestFriendTracker tracker = BestFriendTracker.get((ServerWorld) owner.getWorld());
-                    if (tracker.registerBestFriend(owner.getUuid(), pet.getUuid())) {
+                    ServerWorld ownerWorld = (ServerWorld) owner.getWorld();
+                    BestFriendTracker tracker = BestFriendTracker.get(ownerWorld);
+                    if (tracker.registerBestFriend(ownerWorld, owner.getUuid(), pet.getUuid())) {
                         HistoryManager.recordBestFriendForeverer(pet, owner);
                     }
                 }

@@ -1,6 +1,9 @@
 package woflo.petsplus.advancement;
 
 import com.mojang.serialization.Codec;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.world.PersistentState;
 import net.minecraft.world.PersistentStateManager;
@@ -9,6 +12,8 @@ import net.minecraft.world.PersistentStateType;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+
+import woflo.petsplus.state.PetComponent;
 
 /**
  * Stores which pet earned the "Bestest Friends Forevererer" advancement for each player.
@@ -33,7 +38,16 @@ public class BestFriendTracker extends PersistentState {
     }
 
     public static BestFriendTracker get(ServerWorld world) {
-        ServerWorld storageWorld = world.getServer().getOverworld();
+        if (world == null) {
+            throw new IllegalArgumentException("ServerWorld cannot be null when accessing BestFriendTracker");
+        }
+
+        MinecraftServer server = world.getServer();
+        if (server == null) {
+            throw new IllegalStateException("Cannot access BestFriendTracker before the server is ready");
+        }
+
+        ServerWorld storageWorld = server.getOverworld();
         PersistentStateManager manager = storageWorld.getPersistentStateManager();
         return manager.getOrCreate(TYPE);
     }
@@ -53,16 +67,53 @@ public class BestFriendTracker extends PersistentState {
      *
      * @return {@code true} if the pet was stored as the new best friend.
      */
-    public boolean registerBestFriend(UUID ownerUuid, UUID petUuid) {
-        if (ownerUuid == null || petUuid == null) {
+    public boolean registerBestFriend(ServerWorld world, UUID ownerUuid, UUID petUuid) {
+        if (world == null || ownerUuid == null || petUuid == null) {
             return false;
         }
-        if (trackedBestFriends.containsKey(ownerUuid)) {
-            return false;
+
+        UUID trackedPet = trackedBestFriends.get(ownerUuid);
+        if (trackedPet != null) {
+            if (trackedPet.equals(petUuid)) {
+                return false;
+            }
+
+            if (isTrackedPetStillOwnedByPlayer(world, ownerUuid, trackedPet)) {
+                return false;
+            }
         }
+
         trackedBestFriends.put(ownerUuid, petUuid);
         markDirty();
         return true;
+    }
+
+    private boolean isTrackedPetStillOwnedByPlayer(ServerWorld world, UUID ownerUuid, UUID petUuid) {
+        MinecraftServer server = world.getServer();
+        if (server == null) {
+            return true;
+        }
+
+        for (ServerWorld serverWorld : server.getWorlds()) {
+            Entity entity = serverWorld.getEntity(petUuid);
+            if (!(entity instanceof MobEntity mob)) {
+                continue;
+            }
+
+            if (!mob.isAlive()) {
+                return false;
+            }
+
+            PetComponent component = PetComponent.get(mob);
+            if (component == null) {
+                return false;
+            }
+
+            UUID currentOwner = component.getOwnerUuid();
+            return ownerUuid.equals(currentOwner);
+        }
+
+        return false;
     }
 
     /**

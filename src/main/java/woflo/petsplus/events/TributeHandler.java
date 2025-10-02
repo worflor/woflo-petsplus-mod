@@ -218,8 +218,9 @@ public class TributeHandler {
             }
 
             if (previousLevel < 30 && petComp.getLevel() >= 30) {
-                BestFriendTracker tracker = BestFriendTracker.get((ServerWorld) pet.getWorld());
-                if (tracker.registerBestFriend(player.getUuid(), pet.getUuid())) {
+                ServerWorld serverWorld = (ServerWorld) pet.getWorld();
+                BestFriendTracker tracker = BestFriendTracker.get(serverWorld);
+                if (tracker.registerBestFriend(serverWorld, player.getUuid(), pet.getUuid())) {
                     HistoryManager.recordBestFriendForeverer(pet, player);
                 }
             }
