@@ -30,16 +30,14 @@ import java.util.function.Consumer;
  *   ├─ 🌱 bonding_basics (Intermediate)
  *   │   ├─ gentle_touch
  *   │   ├─ devoted_companion
- *   │   └─ bond_voyage
- *   ├─ ⚔️ combat_provenance (Intermediate)
- *   │   ├─ trial_ready
- *   │   ├─ sacrilege
- *   │   └─ bestest_friends_forevererer (Challenge)
- *   │       ├─ or_not
- *   │       └─ is_this_designer
+ *   │   └─ trial_ready
+ *   │       └─ bestest_friends_forevererer (Challenge)
+ *   │           ├─ or_not
+ *   │           └─ is_this_designer
  *   ├─ 🎭 emotional_journey (Intermediate)
  *   │   ├─ mood_explorer
  *   │   ├─ emotional_mastery
+ *   │   ├─ bond_voyage
  *   │   └─ mood_categories (12 mood advancements)
  *   ├─ ✨ mystical_connections (Intermediate)
  *   │   ├─ i_love_you_and_me
@@ -153,58 +151,8 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 )))
             .build(consumer, Petsplus.MOD_ID + ":devoted_companion");
 
-        AdvancementEntry bondVoyage = Advancement.Builder.create()
-            .parent(bondingBasics)
-            .display(
-                Items.LEAD,
-                Text.translatable("petsplus.adv.bond_voyage.title"),
-                Text.translatable("petsplus.adv.bond_voyage.desc"),
-                null,
-                AdvancementFrame.GOAL,
-                true, true, false
-            )
-            .criterion("bonded_level_3", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_MOOD_LEVEL,
-                new PetMoodLevelCriterion.Conditions(
-                    Optional.empty(),
-                    Optional.of("BONDED"),
-                    Optional.of(3),
-                    Optional.empty()
-                )))
-            .build(consumer, Petsplus.MOD_ID + ":bond_voyage");
-
-        // ========================================
-        // ⚔️ COMBAT PROVENANCE BRANCH
-        // ========================================
-        AdvancementEntry combatProvenance = Advancement.Builder.create()
-            .parent(firstPet)
-            .display(
-                Items.IRON_SWORD,
-                Text.translatable("petsplus.adv.combat_provenance.title"),
-                Text.translatable("petsplus.adv.combat_provenance.desc"),
-                null,
-                AdvancementFrame.TASK,
-                true, true, false
-            )
-            .criterion("level_5", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_LEVEL,
-                new PetLevelCriterion.Conditions(
-                    Optional.empty(),
-                    Optional.of(5),
-                    Optional.empty(),
-                    Optional.empty()
-                )))
-            .criterion("combat_victory", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_LEVEL,
-                new PetLevelCriterion.Conditions(
-                    Optional.empty(),
-                    Optional.of(5),
-                    Optional.empty(),
-                    Optional.empty()
-                )))
-            .requirements(AdvancementRequirements.anyOf(
-                java.util.List.of("level_5", "combat_victory")))
-            .build(consumer, Petsplus.MOD_ID + ":combat_provenance");
-
         AdvancementEntry trialReady = Advancement.Builder.create()
-            .parent(combatProvenance)
+            .parent(bondingBasics)
             .display(
                 Items.GOLD_INGOT,
                 Text.translatable("petsplus.adv.trial_ready.title"),
@@ -222,27 +170,8 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 )))
             .build(consumer, Petsplus.MOD_ID + ":trial_ready");
 
-        AdvancementEntry sacrilege = Advancement.Builder.create()
-            .parent(combatProvenance)
-            .display(
-                Items.NETHERITE_CHESTPLATE,
-                Text.translatable("petsplus.adv.sacrilege.title"),
-                Text.translatable("petsplus.adv.sacrilege.desc"),
-                null,
-                AdvancementFrame.GOAL,
-                true, true, false
-            )
-            .criterion("guardian_tank_damage", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_STAT_THRESHOLD,
-                new PetStatThresholdCriterion.Conditions(
-                    Optional.empty(),
-                    Optional.of(PetStatThresholdCriterion.STAT_GUARDIAN_DAMAGE),
-                    Optional.of(1000.0f),
-                    Optional.empty()
-                )))
-            .build(consumer, Petsplus.MOD_ID + ":sacrilege");
-
         AdvancementEntry bestestFriends = Advancement.Builder.create()
-            .parent(combatProvenance)
+            .parent(trialReady)
             .display(
                 Items.NETHERITE_INGOT,
                 Text.translatable("petsplus.adv.bestest_friends_forevererer.title"),
@@ -320,6 +249,25 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 )))
             .build(consumer, Petsplus.MOD_ID + ":emotional_mastery");
 
+        AdvancementEntry bondVoyage = Advancement.Builder.create()
+            .parent(emotionalMastery)
+            .display(
+                Items.LEAD,
+                Text.translatable("petsplus.adv.bond_voyage.title"),
+                Text.translatable("petsplus.adv.bond_voyage.desc"),
+                null,
+                AdvancementFrame.GOAL,
+                true, true, false
+            )
+            .criterion("bonded_level_3", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_MOOD_LEVEL,
+                new PetMoodLevelCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of("BONDED"),
+                    Optional.of(3),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":bond_voyage");
+
         // Positive Moods Sub-branch
         AdvancementEntry positiveMoods = Advancement.Builder.create()
             .parent(emotionalMastery)
@@ -382,8 +330,8 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
             .parent(positiveMoods)
             .display(
                 Items.BRUSH,
-                Text.translatable("petsplus.adv.indiana_bones_zoomies.title"),
-                Text.translatable("petsplus.adv.indiana_bones_zoomies.desc"),
+                Text.translatable("petsplus.adv.curiousity_thrilled_the_cat.title"),
+                Text.translatable("petsplus.adv.curiousity_thrilled_the_cat.desc"),
                 null,
                 AdvancementFrame.TASK,
                 true, true, false
@@ -395,7 +343,7 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                     Optional.of(3),
                     Optional.empty()
                 )))
-            .build(consumer, Petsplus.MOD_ID + ":indiana_bones_zoomies");
+            .build(consumer, Petsplus.MOD_ID + ":curiousity_thrilled_the_cat");
 
         AdvancementEntry passionateHeart = Advancement.Builder.create()
             .parent(positiveMoods)
@@ -788,6 +736,25 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                     Optional.empty()
                 )))
             .build(consumer, Petsplus.MOD_ID + ":guardian_path");
+
+        AdvancementEntry sacrilege = Advancement.Builder.create()
+            .parent(guardianPath)
+            .display(
+                Items.NETHERITE_CHESTPLATE,
+                Text.translatable("petsplus.adv.sacrilege.title"),
+                Text.translatable("petsplus.adv.sacrilege.desc"),
+                null,
+                AdvancementFrame.GOAL,
+                true, true, false
+            )
+            .criterion("guardian_tank_damage", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_STAT_THRESHOLD,
+                new PetStatThresholdCriterion.Conditions(
+                    Optional.empty(),
+                    Optional.of(PetStatThresholdCriterion.STAT_GUARDIAN_DAMAGE),
+                    Optional.of(1000.0f),
+                    Optional.empty()
+                )))
+            .build(consumer, Petsplus.MOD_ID + ":sacrilege");
 
         AdvancementEntry supportPath = Advancement.Builder.create()
             .parent(roleSpecialization)

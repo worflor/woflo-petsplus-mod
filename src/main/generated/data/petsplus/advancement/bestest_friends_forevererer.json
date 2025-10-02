@@ -1,5 +1,5 @@
 {
-  "parent": "petsplus:combat_provenance",
+  "parent": "petsplus:trial_ready",
   "criteria": {
     "level_30": {
       "conditions": {

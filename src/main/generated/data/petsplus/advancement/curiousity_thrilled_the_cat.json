@@ -11,14 +11,14 @@
   },
   "display": {
     "description": {
-      "translate": "petsplus.adv.indiana_bones_zoomies.desc"
+      "translate": "petsplus.adv.curiousity_thrilled_the_cat.desc"
     },
     "icon": {
       "count": 1,
       "id": "minecraft:brush"
     },
     "title": {
-      "translate": "petsplus.adv.indiana_bones_zoomies.title"
+      "translate": "petsplus.adv.curiousity_thrilled_the_cat.title"
     }
   },
   "requirements": [
