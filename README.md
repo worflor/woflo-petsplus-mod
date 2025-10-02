@@ -123,7 +123,7 @@ If your pet dies, it will drop all its items and be gone forever. Your tribute i
 
 Hey wait, memorialize that trauma! A **Proof of Existence** drops on every pet death.
 
-These keepsakes aren’t just tear-stained notes anymore; they catalog the pet’s life, unlocked milestones, trait highlights, all until the moment they slipped away. Stack them in a memorial chest, read back the legends, and keep the pack’s stories breathing.
+These keepsakes aren’t just tear-stained notes; they catalog the pet’s life, unlocked milestones, trait highlights, all until the moment they slipped away. Stack them in a memorial chest, read back the legends, and keep the pack’s stories breathing.
 
 ### unimplemented yet
 1. Nuzlocke / Hardcore mode - Each player can only tame one of each entity type per save. Or, locked to one per biome.
