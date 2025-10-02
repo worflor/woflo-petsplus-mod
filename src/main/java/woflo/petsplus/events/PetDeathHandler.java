@@ -13,6 +13,7 @@ import woflo.petsplus.abilities.AbilityManager;
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.advancement.AdvancementCriteriaRegistry;
+import woflo.petsplus.advancement.BestFriendTracker;
 import woflo.petsplus.history.HistoryManager;
 import woflo.petsplus.items.ProofOfExistence;
 import woflo.petsplus.mechanics.CursedOneResurrection;
@@ -21,6 +22,7 @@ import woflo.petsplus.state.PetComponent;
 
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Handles permanent pet death - pets that die are gone forever with no recovery.
@@ -81,7 +83,13 @@ public class PetDeathHandler {
         int petLevel = petComp.getLevel();
         var owner = petComp.getOwner();
         ServerPlayerEntity serverOwner = owner instanceof ServerPlayerEntity ? (ServerPlayerEntity) owner : null;
-        if (petLevel >= 30 && owner instanceof PlayerEntity playerOwner) {
+        UUID ownerUuid = petComp.getOwnerUuid();
+        boolean bestFriendDeath = false;
+        if (ownerUuid != null) {
+            bestFriendDeath = BestFriendTracker.get(world).clearIfBestFriend(ownerUuid, pet.getUuid());
+        }
+
+        if (bestFriendDeath && owner instanceof PlayerEntity playerOwner) {
             HistoryManager.recordOrNot(pet, playerOwner);
         }
 
@@ -126,7 +134,9 @@ public class PetDeathHandler {
                 }
 
                 // Trigger advancement criterion for permanent pet death
-                AdvancementCriteriaRegistry.PET_DEATH.trigger(serverOwner, petLevel, true);
+                if (bestFriendDeath) {
+                    AdvancementCriteriaRegistry.PET_DEATH.trigger(serverOwner, petLevel, true);
+                }
             }
         }
         

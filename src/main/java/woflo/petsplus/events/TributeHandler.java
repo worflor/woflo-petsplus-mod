@@ -20,9 +20,11 @@ import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.advancement.AdvancementCriteriaRegistry;
 import woflo.petsplus.advancement.AdvancementStatKeys;
+import woflo.petsplus.advancement.BestFriendTracker;
 import woflo.petsplus.api.event.TributeCheckEvent;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
+import woflo.petsplus.history.HistoryManager;
 import woflo.petsplus.mechanics.StargazeMechanic;
 import woflo.petsplus.state.PetComponent;
 
@@ -174,6 +176,8 @@ public class TributeHandler {
                 stack.decrement(1);
             }
 
+            int previousLevel = petComp.getLevel();
+
             // Unlock milestone
             petComp.unlockMilestone(milestoneLevel);
 
@@ -211,6 +215,13 @@ public class TributeHandler {
                     AdvancementStatKeys.ABILITY_MAX_RANK,
                     AdvancementStatKeys.ABILITY_MAX_RANK_UNLOCKED_VALUE
                 );
+            }
+
+            if (previousLevel < 30 && petComp.getLevel() >= 30) {
+                BestFriendTracker tracker = BestFriendTracker.get((ServerWorld) pet.getWorld());
+                if (tracker.registerBestFriend(player.getUuid(), pet.getUuid())) {
+                    HistoryManager.recordBestFriendForeverer(pet, player);
+                }
             }
 
             // Start stargaze window for hidden advancement (120s window)
