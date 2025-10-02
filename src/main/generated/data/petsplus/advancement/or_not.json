@@ -3,7 +3,6 @@
   "criteria": {
     "permanent_death": {
       "conditions": {
-        "min_level": 30,
         "permanent_death": true
       },
       "trigger": "petsplus:pet_death"

@@ -19,7 +19,9 @@ import woflo.petsplus.api.event.PetLevelUpEvent;
 import woflo.petsplus.api.event.XpAwardEvent;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.advancement.AdvancementCriteriaRegistry;
+import woflo.petsplus.advancement.BestFriendTracker;
 import woflo.petsplus.Petsplus;
+import woflo.petsplus.history.HistoryManager;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
@@ -154,6 +156,14 @@ public class XpEventHandler {
 
                 if (!levelContext.isDefaultCelebrationSuppressed()) {
                     handlePetLevelUp(owner, pet, petComp);
+                }
+
+                if (previousLevel < 30 && petComp.getLevel() >= 30) {
+                    ServerWorld ownerWorld = (ServerWorld) owner.getWorld();
+                    BestFriendTracker tracker = BestFriendTracker.get(ownerWorld);
+                    if (tracker.registerBestFriend(ownerWorld, owner.getUuid(), pet.getUuid())) {
+                        HistoryManager.recordBestFriendForeverer(pet, owner);
+                    }
                 }
             }
         }

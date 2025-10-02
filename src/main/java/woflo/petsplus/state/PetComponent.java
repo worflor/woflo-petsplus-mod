@@ -28,6 +28,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
+import woflo.petsplus.advancement.BestFriendTracker;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.component.PetsplusComponents;
@@ -873,8 +874,14 @@ public class PetComponent {
     }
 
     public void setOwner(@Nullable PlayerEntity owner) {
+        UUID previousOwnerUuid = this.ownerUuid;
+        UUID newOwnerUuid = owner != null ? owner.getUuid() : null;
+        if (!Objects.equals(previousOwnerUuid, newOwnerUuid)) {
+            clearTrackedBestFriend(previousOwnerUuid);
+        }
+
         this.owner = owner;
-        this.ownerUuid = owner != null ? owner.getUuid() : null;
+        this.ownerUuid = newOwnerUuid;
         setStateData("petsplus:owner_uuid", owner != null ? owner.getUuidAsString() : "");
         if (stateManager != null) {
             stateManager.unscheduleAllTasks(this);
@@ -886,6 +893,11 @@ public class PetComponent {
     }
 
     public void setOwnerUuid(@Nullable UUID ownerUuid) {
+        UUID previousOwnerUuid = this.ownerUuid;
+        if (!Objects.equals(previousOwnerUuid, ownerUuid)) {
+            clearTrackedBestFriend(previousOwnerUuid);
+        }
+
         this.ownerUuid = ownerUuid;
         setStateData("petsplus:owner_uuid", ownerUuid != null ? ownerUuid.toString() : "");
         if (ownerUuid == null) {
@@ -907,6 +919,18 @@ public class PetComponent {
             stateManager.unscheduleAllTasks(this);
         }
         markSchedulingUninitialized();
+    }
+
+    private void clearTrackedBestFriend(@Nullable UUID previousOwnerUuid) {
+        if (previousOwnerUuid == null) {
+            return;
+        }
+        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+
+        BestFriendTracker tracker = BestFriendTracker.get(serverWorld);
+        tracker.clearIfBestFriend(previousOwnerUuid, pet.getUuid());
     }
 
     public void ensureSchedulingInitialized(long currentTick) {
