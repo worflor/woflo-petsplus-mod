@@ -139,7 +139,7 @@ The advancement tree has been reorganized into 6 main branches for better progre
 - "Boop" [ Pet your companion for the first time ]
 - "Devoted Companion" [ Pet your companion(s) a hundred times ]
 - "Trial-Ready" [ Pet reaches level 10 ]
-- "Bestest Friends Forevererer" [ Get that first pet to level 30 ]
+- "Bestest Friends Forevererer" [ Get a pet to level 30 ]
 - "Is This Designer?" [ Use a max rank ability ]
 
 ### Emotional Journey 🗿
