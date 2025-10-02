@@ -1,26 +1,25 @@
 {
   "display": {
     "icon": {
-      "item": "minecraft:feather"
+      "item": "minecraft:writable_book"
     },
     "title": {
-      "translate": "petsplus.adv.melody_wind.title"
+      "translate": "petsplus.adv.role_specialization.title"
     },
     "description": {
-      "translate": "petsplus.adv.melody_wind.desc"
+      "translate": "petsplus.adv.role_specialization.desc"
     },
-    "frame": "goal",
+    "frame": "task",
     "show_toast": true,
     "announce_to_chat": true,
     "hidden": false
   },
-  "parent": "petsplus:role_specialization",
+  "parent": "petsplus:trial_ready",
   "criteria": {
     "requirement": {
       "trigger": "petsplus:pet_level",
       "conditions": {
-        "min_level": 20,
-        "role": "petsplus:skyrider"
+        "min_level": 10
       }
     }
   }

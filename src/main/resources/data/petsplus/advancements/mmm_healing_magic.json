@@ -15,7 +15,7 @@
     "announce_to_chat": true,
     "hidden": false
   },
-  "parent": "petsplus:trial_ready",
+  "parent": "petsplus:role_specialization",
   "criteria": {
     "requirement": {
       "trigger": "petsplus:pet_stat_threshold",

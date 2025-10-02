@@ -14,16 +14,13 @@
     "announce_to_chat": true,
     "hidden": false
   },
-  "parent": "petsplus:first_pet",
+  "parent": "petsplus:complex_moods",
   "criteria": {
     "requirement": {
-      "trigger": "petsplus:pet_mood_transition",
+      "trigger": "petsplus:pet_mood_level",
       "conditions": {
-        "from_mood": "ANGRY",
-        "min_from_level": 3,
-        "to_mood": "CALM",
-        "min_to_level": 1,
-        "max_ticks_elapsed": 400
+        "mood": "ANGRY",
+        "min_level": 3
       }
     }
   }

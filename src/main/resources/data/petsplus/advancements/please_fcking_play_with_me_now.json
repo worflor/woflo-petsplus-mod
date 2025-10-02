@@ -14,7 +14,7 @@
     "announce_to_chat": true,
     "hidden": false
   },
-  "parent": "petsplus:first_pet",
+  "parent": "petsplus:positive_moods",
   "criteria": {
     "requirement": {
       "trigger": "petsplus:pet_mood_level",

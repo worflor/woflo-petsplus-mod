@@ -4,23 +4,23 @@
       "item": "minecraft:feather"
     },
     "title": {
-      "translate": "petsplus.adv.melody_wind.title"
+      "translate": "petsplus.adv.gentle_touch.title"
     },
     "description": {
-      "translate": "petsplus.adv.melody_wind.desc"
+      "translate": "petsplus.adv.gentle_touch.desc"
     },
-    "frame": "goal",
+    "frame": "task",
     "show_toast": true,
     "announce_to_chat": true,
     "hidden": false
   },
-  "parent": "petsplus:role_specialization",
+  "parent": "petsplus:bonding_basics",
   "criteria": {
     "requirement": {
-      "trigger": "petsplus:pet_level",
+      "trigger": "petsplus:pet_interaction",
       "conditions": {
-        "min_level": 20,
-        "role": "petsplus:skyrider"
+        "interaction_type": "pet",
+        "min_count": 1
       }
     }
   }

@@ -14,7 +14,7 @@
     "announce_to_chat": true,
     "hidden": false
   },
-  "parent": "petsplus:even_bester",
+  "parent": "petsplus:bestest_friends_forevererer",
   "criteria": {
     "requirement": {
       "trigger": "petsplus:pet_death",

@@ -92,7 +92,7 @@ Mood intensity varies based on the strength of these emotional weights.
 - reflective / neutral
 - longing / resilient / aspiration
 
-Watch, in real time, as beating your pet make them upset - or happy if they're into it. 
+Watch, in real time, as beating your pet make them upset - or happy if they're into it.
 
 I also heard a rumour pets take note of... **gossip**... for later use..
 
@@ -108,10 +108,10 @@ Make your unwanted regrets someone else's problem! Sneak right clicking another 
 
 ### being considered
 - Phantoms via Trust*
-- tiny slimes and tiny magma cubes 
+- tiny slimes and tiny magma cubes
 - Camels
 - Llamas
-- Fully taming foxes 
+- Fully taming foxes
 - Every base passive mob via Trust* [ add emotions to all passive mobs ]
 
 ### Unimplimented 
@@ -134,58 +134,52 @@ These keepsakes aren’t just tear-stained notes; they catalog the pet’s life,
 ## Advancements
 The advancement tree has been reorganized into 6 main branches for better progression:
 
-### Bonding Basics 🦊
-- "Bonding Basics" [ Pet 5 times OR reach Bonded I ]
+### 🦊 Bonding Basics
+- "Bonding Basics" [ Reach Bonded I ]
 - "Boop" [ Pet your companion for the first time ]
 - "Devoted Companion" [ Pet your companion(s) a hundred times ]
 - "Trial-Ready" [ Pet reaches level 10 ]
 - "Is This Designer?" [ Use a max rank ability ]
 
-### Emotional Journey 🗿
-- "Emotional Journey" [ Experience 5 different mood types ]
-- "Mood Explorer" [ Experience 10 different mood types ]
-- "Emotional Mastery" [ Reach level 3 in any mood ]
-- "Bond Voyage!" [ Witness a pet's *Bonded Mood* at its most intense for the first time ]
-- **Positive Moods:**
-  - "Here Comes the Sunbeam" [ Witness a pet's *Happy Mood* at its most intense for the first time ]
-  - "[please] F*CKING PLAY WITH ME NOW!" [ Witness a pet's *Playful Mood* at its most intense for the first time ]
-  - "Curiousity [thrilled] the cat" [ Witness a pet's *Curious Mood* at its most intense for the first time ]
-  - "Ride or Die (please don't die)" [ Witness a pet's *Passionate Mood* at its most intense for the first time ]
-- **Calm Moods:**
-  - "Be More Chilllllll" [ Witness a pet's *Calm Mood* at its most intense for the first time ]
-  - "(sighs) sigh…" [ Witness a pet's *Yūgen Mood* at its most intense for the first time ]
-  - "Sipping Sisurp in my ride" [ Witness a pet's *Sisu Mood* at its most intense for the first time ]
-- **Complex Moods:**
-  - "Wish you were Here (Fur Real)" [ Witness a pet's *Saudade Mood* at its most intense for the first time ]
-  - "Afraidiana Grande" [ Witness a pet's *Afraid Mood* at its most intense for the first time ]
-  - "Guardian of the Grrr-laxy" [ Witness a pet's *Protective Mood* at its most intense for the first time ]
-- **Mood Transitions:**
-  - "Restless, Sit, Glow" [ Witness a pet's *Restless Mood* transition to Happy ]
-  - "are you mad at me..?" [ Witness a pet's *Angry Mood* at it's most intense for the first time ]
+### 🗿 Emotional Journey
+- "Moody" [ Experience 5 different mood types ]
 
-### Mystical Connections 💜
+**Positive Moods:**
+- "Here Comes the Sunbeam" [ Witness a pet's *Happy Mood* at its most intense for the first time ]
+- "[please] F*CKING PLAY WITH ME NOW!" [ Witness a pet's *Playful Mood* at its most intense for the first time ]
+- "Curiousity [thrilled] the cat" [ Witness a pet's *Curious Mood* at its most intense for the first time ]
+- "Ride or Die (please don't die)" [ Witness a pet's *Passionate Mood* at its most intense for the first time ]
+
+**Calm Moods:**
+- "Be More Chilllllll" [ Witness a pet's *Calm Mood* at its most intense for the first time ]
+- "(sighs) sigh…" [ Witness a pet's *Yūgen Mood* at its most intense for the first time ]
+- "Sipping Sisurp in my ride" [ Witness a pet's *Sisu Mood* at its most intense for the first time ]
+- "Bond Voyage!" [ Witness a pet's *Bonded Mood* at its most intense for the first time ]
+
+**Complex Moods:**
+- "Wish you were Here (Fur Real)" [ Witness a pet's *Saudade Mood* at its most intense for the first time ]
+- "Afraidiana Grande" [ Witness a pet's *Afraid Mood* at its most intense for the first time ]
+- "Guardian of the Grrr-laxy" [ Witness a pet's *Protective Mood* at its most intense for the first time ]
+- "are you mad at me..?" [ Witness a pet's *Angry Mood* at it's most intense for the first time ]
+
+**Mood Transitions:**
+- "Restless, Sit, Glow" [ Witness a pet's *Restless Mood* transition to Happy ]
+
+### 💜 Mystical Connections
 - "I love you and me" [ Share a stargazing moment with your bonded pet ]
 - "Noo, Luna!" [ Utilize the *Dream's Escape* ability once ]
 - "At what cost..." [ Utilize the *Dream's Escape* ability twice ]
 - "Heartless, but Alive." [ Utilize the *Dream's Escape* ability thrice ]
 
 
-### Role Specialization 🤓
+### 🤓 Role Specialization
 - "Role Specialization" [ Have a pet reach level 10 with any role ]
-- **Guardian Path:**
-  - "Guardian Path" [ Guardian pet reaches level 15 ]
-  - "The Truest Form of Sacrilege" [ Guardian tanks 1000 damage ]
-- **Support Path:**
-  - "Support Path" [ Support pet reaches level 15 ]
-  - "Mmmm, Healing Magic!" [ Support heals 5 allies ]
-- **Skyrider Path:**
-  - "Skyrider Path" [ Skyrider pet reaches level 15 ]
-  - "The Melody of the Wind" [ Skyrider reaches level 30 ]
-- **Eclipsed Path:**
-  - "Eclipsed Path" [ Eclipsed pet reaches level 15 ]
-  - "Edgewalker" [ Eclipsed reaches level 30 ]
+- "The Truest Form of Sacrilege" [ Guardian tanks 1000 damage ]
+- "Mmmm, Healing Magic!" [ Support heals 5 allies ]
+- "The Melody of the Wind" [ Skyrider reaches level 30 ]
+- "Edgewalker" [ Eclipsed reaches level 30 ]
 
-### Special 💕
+### 💕 Special
 - "Best Friends Forever++" [ Bond with your first Pets+ companion; awarded silently to avoid duplicating the vanilla toast ]
 - "Pet Trafficking!" [ Trade one of your leashed pets to another player ]
 - "Bestest Friends Forevererer" [ Get a pet to level 30 ]

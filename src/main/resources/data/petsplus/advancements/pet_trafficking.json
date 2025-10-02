@@ -4,23 +4,22 @@
       "item": "minecraft:lead"
     },
     "title": {
-      "translate": "petsplus.adv.bond_voyage.title"
+      "translate": "petsplus.adv.pet_trafficking.title"
     },
     "description": {
-      "translate": "petsplus.adv.bond_voyage.desc"
+      "translate": "petsplus.adv.pet_trafficking.desc"
     },
     "frame": "goal",
     "show_toast": true,
     "announce_to_chat": true,
     "hidden": false
   },
-  "parent": "petsplus:calm_moods",
+  "parent": "petsplus:first_pet",
   "criteria": {
     "requirement": {
-      "trigger": "petsplus:pet_mood_level",
+      "trigger": "petsplus:pet_trading",
       "conditions": {
-        "mood": "BONDED",
-        "min_level": 3
+        "min_trades": 1
       }
     }
   }

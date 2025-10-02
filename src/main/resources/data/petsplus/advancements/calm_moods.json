@@ -1,26 +1,26 @@
 {
   "display": {
     "icon": {
-      "item": "minecraft:blue_ice"
+      "item": "minecraft:lily_of_the_valley"
     },
     "title": {
-      "translate": "petsplus.adv.be_more_chilllllll.title"
+      "translate": "petsplus.adv.calm_moods.title"
     },
     "description": {
-      "translate": "petsplus.adv.be_more_chilllllll.desc"
+      "translate": "petsplus.adv.calm_moods.desc"
     },
-    "frame": "goal",
+    "frame": "task",
     "show_toast": true,
     "announce_to_chat": true,
     "hidden": false
   },
-  "parent": "petsplus:calm_moods",
+  "parent": "petsplus:emotional_journey",
   "criteria": {
-    "requirement": {
+    "calm": {
       "trigger": "petsplus:pet_mood_level",
       "conditions": {
         "mood": "CALM",
-        "min_level": 3
+        "min_level": 1
       }
     }
   }

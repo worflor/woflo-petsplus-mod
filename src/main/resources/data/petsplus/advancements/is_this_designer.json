@@ -14,7 +14,7 @@
     "announce_to_chat": true,
     "hidden": false
   },
-  "parent": "petsplus:trial_ready",
+  "parent": "petsplus:bonding_basics",
   "criteria": {
     "ability_max_rank": {
       "trigger": "petsplus:pet_stat_threshold",

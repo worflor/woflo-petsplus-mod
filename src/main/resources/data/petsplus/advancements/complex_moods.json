@@ -1,26 +1,26 @@
 {
   "display": {
     "icon": {
-      "item": "minecraft:amethyst_shard"
+      "item": "minecraft:crying_obsidian"
     },
     "title": {
-      "translate": "petsplus.adv.wish_you_were_here_fur_real.title"
+      "translate": "petsplus.adv.complex_moods.title"
     },
     "description": {
-      "translate": "petsplus.adv.wish_you_were_here_fur_real.desc"
+      "translate": "petsplus.adv.complex_moods.desc"
     },
-    "frame": "goal",
+    "frame": "task",
     "show_toast": true,
     "announce_to_chat": true,
     "hidden": false
   },
-  "parent": "petsplus:complex_moods",
+  "parent": "petsplus:emotional_journey",
   "criteria": {
-    "requirement": {
+    "saudade": {
       "trigger": "petsplus:pet_mood_level",
       "conditions": {
         "mood": "SAUDADE",
-        "min_level": 3
+        "min_level": 1
       }
     }
   }

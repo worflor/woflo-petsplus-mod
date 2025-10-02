@@ -1,26 +1,26 @@
 {
   "display": {
     "icon": {
-      "item": "minecraft:shield"
+      "item": "minecraft:heart_of_the_sea"
     },
     "title": {
-      "translate": "petsplus.adv.finnish_him.title"
+      "translate": "petsplus.adv.bonding_basics.title"
     },
     "description": {
-      "translate": "petsplus.adv.finnish_him.desc"
+      "translate": "petsplus.adv.bonding_basics.desc"
     },
-    "frame": "goal",
+    "frame": "task",
     "show_toast": true,
     "announce_to_chat": true,
     "hidden": false
   },
   "parent": "petsplus:first_pet",
   "criteria": {
-    "requirement": {
+    "bonded_level_1": {
       "trigger": "petsplus:pet_mood_level",
       "conditions": {
-        "mood": "SISU",
-        "min_level": 3
+        "mood": "BONDED",
+        "min_level": 1
       }
     }
   }

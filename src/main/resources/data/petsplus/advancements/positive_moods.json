@@ -1,26 +1,26 @@
 {
   "display": {
     "icon": {
-      "item": "minecraft:sunflower"
+      "item": "minecraft:glow_berries"
     },
     "title": {
-      "translate": "petsplus.adv.here_comes_the_sunbeam.title"
+      "translate": "petsplus.adv.positive_moods.title"
     },
     "description": {
-      "translate": "petsplus.adv.here_comes_the_sunbeam.desc"
+      "translate": "petsplus.adv.positive_moods.desc"
     },
-    "frame": "goal",
+    "frame": "task",
     "show_toast": true,
     "announce_to_chat": true,
     "hidden": false
   },
-  "parent": "petsplus:positive_moods",
+  "parent": "petsplus:emotional_journey",
   "criteria": {
-    "requirement": {
+    "happy": {
       "trigger": "petsplus:pet_mood_level",
       "conditions": {
         "mood": "HAPPY",
-        "min_level": 3
+        "min_level": 1
       }
     }
   }

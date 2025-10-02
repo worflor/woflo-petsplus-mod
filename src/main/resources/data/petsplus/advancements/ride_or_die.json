@@ -1,25 +1,25 @@
 {
   "display": {
     "icon": {
-      "item": "minecraft:shield"
+      "item": "minecraft:blaze_powder"
     },
     "title": {
-      "translate": "petsplus.adv.sipping_sisurp_in_my_ride.title"
+      "translate": "petsplus.adv.ride_or_die.title"
     },
     "description": {
-      "translate": "petsplus.adv.sipping_sisurp_in_my_ride.desc"
+      "translate": "petsplus.adv.ride_or_die.desc"
     },
     "frame": "goal",
     "show_toast": true,
     "announce_to_chat": true,
     "hidden": false
   },
-  "parent": "petsplus:calm_moods",
+  "parent": "petsplus:positive_moods",
   "criteria": {
     "requirement": {
       "trigger": "petsplus:pet_mood_level",
       "conditions": {
-        "mood": "SISU",
+        "mood": "PASSIONATE",
         "min_level": 3
       }
     }
