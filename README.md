@@ -5,7 +5,7 @@
 </p>
 
 <h1 align="center">
-  Pets+ <small>dev-0.90-pet-trafficking!</small>
+  Pets+ <small>dev-0.91-pet-trafficking!</small>
 </h1>
 
 A standalone Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.

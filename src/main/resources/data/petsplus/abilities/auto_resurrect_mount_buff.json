@@ -3,7 +3,7 @@
   "trigger": {
     "event": "on_pet_resurrect",
     "require_mounted_owner": true,
-    "min_level": 25,
+    "min_level": 27,
     "internal_cd_ticks": 0
   },
   "effects": [

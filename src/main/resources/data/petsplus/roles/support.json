@@ -38,7 +38,7 @@
       "id": "support_companion_rest",
       "interval": 60,
       "radius": 6.0,
-      "min_level": 1,
+      "min_level": 3,
       "require_sitting": true,
       "effects": [
         {
@@ -54,7 +54,7 @@
   "support_potion": {
     "interval": 140,
     "radius": 6.0,
-    "min_level": 5,
+    "min_level": 7,
     "require_sitting": true,
     "effect_duration": 120,
     "apply_to_pet": true,
