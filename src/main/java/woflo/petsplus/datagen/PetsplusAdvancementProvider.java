@@ -70,7 +70,7 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
                 Text.translatable("petsplus.adv.first_pet.desc"),
                 Identifier.ofVanilla("textures/block/smooth_stone.png"),
                 AdvancementFrame.TASK,
-                true, true, false
+                false, false, false
             )
             .criterion("has_pet", new AdvancementCriterion<>(AdvancementCriteriaRegistry.PET_LEVEL, 
                 new PetLevelCriterion.Conditions(

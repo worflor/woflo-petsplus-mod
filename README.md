@@ -191,6 +191,8 @@ The advancement tree has been reorganized into 6 main branches for better progre
   - "Edgewalker" [ Eclipsed reaches level 30 ]
 
 ### Special 💕
+- "Best Friends Forever++" [ Bond with your first Pets+ companion; awarded silently to avoid duplicating the vanilla toast ]
+- "Pet Trafficking!" [ Trade one of your leashed pets to another player ]
 - "Bestest Friends Forevererer" [ Get your first pet to level 30 ]
 - "Or Not." [ Let that Bestest Friend die permanently ]
 
