@@ -139,7 +139,6 @@ The advancement tree has been reorganized into 6 main branches for better progre
 - "Boop" [ Pet your companion for the first time ]
 - "Devoted Companion" [ Pet your companion(s) a hundred times ]
 - "Trial-Ready" [ Pet reaches level 10 ]
-- "Bestest Friends Forevererer" [ Get a pet to level 30 ]
 - "Is This Designer?" [ Use a max rank ability ]
 
 ### Emotional Journey 🗿
@@ -162,10 +161,10 @@ The advancement tree has been reorganized into 6 main branches for better progre
   - "Guardian of the Grrr-laxy" [ Witness a pet's *Protective Mood* at its most intense for the first time ]
 - **Mood Transitions:**
   - "Restless, Sit, Glow" [ Witness a pet's *Restless Mood* transition to Happy ]
-  - "are you mad at me..?" [ Witness a pet's *Angry Mood* cooldown ]
+  - "are you mad at me..?" [ Witness a pet's *Angry Mood* at it's most intense for the first time ]
 
 ### Mystical Connections 💜
-- "I love you and me" [ Share the hidden stargazing moment with your bonded pet ]
+- "I love you and me" [ Share a stargazing moment with your bonded pet ]
 - "Noo, Luna!" [ Utilize the *Dream's Escape* ability once ]
 - "At what cost..." [ Utilize the *Dream's Escape* ability twice ]
 - "Heartless, but Alive." [ Utilize the *Dream's Escape* ability thrice ]
@@ -189,7 +188,7 @@ The advancement tree has been reorganized into 6 main branches for better progre
 ### Special 💕
 - "Best Friends Forever++" [ Bond with your first Pets+ companion; awarded silently to avoid duplicating the vanilla toast ]
 - "Pet Trafficking!" [ Trade one of your leashed pets to another player ]
-- "Bestest Friends Forevererer" [ Get your first pet to level 30 ]
+- "Bestest Friends Forevererer" [ Get a pet to level 30 ]
 - "Or Not." [ Let that Bestest Friend die permanently ]
 
 
