@@ -1,5 +1,5 @@
 {
-  "parent": "petsplus:combat_provenance",
+  "parent": "petsplus:trial_ready",
   "criteria": {
     "level_30": {
       "conditions": {
@@ -10,7 +10,7 @@
   },
   "display": {
     "description": {
-      "translate": "petsplus.adv.master_trainer.desc"
+      "translate": "petsplus.adv.bestest_friends_forevererer.desc"
     },
     "frame": "challenge",
     "icon": {
@@ -18,7 +18,7 @@
       "id": "minecraft:netherite_ingot"
     },
     "title": {
-      "translate": "petsplus.adv.master_trainer.title"
+      "translate": "petsplus.adv.bestest_friends_forevererer.title"
     }
   },
   "requirements": [

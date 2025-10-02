@@ -1,5 +1,5 @@
 {
-  "parent": "petsplus:bonding_basics",
+  "parent": "petsplus:emotional_mastery",
   "criteria": {
     "bonded_level_3": {
       "conditions": {

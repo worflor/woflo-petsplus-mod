@@ -16,6 +16,8 @@
       "count": 1,
       "id": "minecraft:bone"
     },
+    "show_toast": false,
+    "announce_to_chat": false,
     "title": {
       "translate": "petsplus.adv.first_pet.title"
     }

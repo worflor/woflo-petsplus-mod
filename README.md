@@ -138,23 +138,19 @@ The advancement tree has been reorganized into 6 main branches for better progre
 - "Bonding Basics" [ Pet 5 times OR reach Bonded I ]
 - "Boop" [ Pet your companion for the first time ]
 - "Devoted Companion" [ Pet your companion(s) a hundred times ]
-- "Bond Voyage!" [ Witness a pet's *Bonded Mood* at its most intense for the first time ]
-
-### Combat Provenance 🤺
-- "Combat Provenance" [ Reach level 5 OR deal 100 damage ]
 - "Trial-Ready" [ Pet reaches level 10 ]
-- "The Truest Form of Sacrilege" [ Guardian pet tanks 1000 damage ]
-- "Master Trainer" [ Pet reaches level 30 ]
+- "Bestest Friends Forevererer" [ Get that first pet to level 30 ]
 - "Is This Designer?" [ Use a max rank ability ]
 
 ### Emotional Journey 🗿
 - "Emotional Journey" [ Experience 5 different mood types ]
 - "Mood Explorer" [ Experience 10 different mood types ]
 - "Emotional Mastery" [ Reach level 3 in any mood ]
+- "Bond Voyage!" [ Witness a pet's *Bonded Mood* at its most intense for the first time ]
 - **Positive Moods:**
   - "Here Comes the Sunbeam" [ Witness a pet's *Happy Mood* at its most intense for the first time ]
   - "[please] F*CKING PLAY WITH ME NOW!" [ Witness a pet's *Playful Mood* at its most intense for the first time ]
-  - "Indiana Bones and the Temple of Zoomies" [ Witness a pet's *Curious Mood* at its most intense for the first time ] - CHANGE TO "Curiousity thrilled the cat"
+  - "Curiousity [thrilled] the cat" [ Witness a pet's *Curious Mood* at its most intense for the first time ]
   - "Ride or Die (please don't die)" [ Witness a pet's *Passionate Mood* at its most intense for the first time ]
 - **Calm Moods:**
   - "Be More Chilllllll" [ Witness a pet's *Calm Mood* at its most intense for the first time ]
@@ -191,9 +187,10 @@ The advancement tree has been reorganized into 6 main branches for better progre
   - "Edgewalker" [ Eclipsed reaches level 30 ]
 
 ### Special 💕
-- "Ultimate Sacrifice" [ Complete the dream path ] <-- **REMOVE THIS**
-- **add the "bestest friends foreevrerer" one here**
-- "Or not." [ Pet  ]
+- "Best Friends Forever++" [ Bond with your first Pets+ companion; awarded silently to avoid duplicating the vanilla toast ]
+- "Pet Trafficking!" [ Trade one of your leashed pets to another player ]
+- "Bestest Friends Forevererer" [ Get your first pet to level 30 ]
+- "Or Not." [ Let that Bestest Friend die permanently ]
 
 
 ### uninplemented yet:
