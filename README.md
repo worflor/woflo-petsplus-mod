@@ -134,20 +134,20 @@ These keepsakes aren’t just tear-stained notes; they catalog the pet’s life,
 ## Advancements
 The advancement tree has been reorganized into 6 main branches for better progression:
 
-### 🌱 Bonding Basics
+### Bonding Basics 🦊
 - "Bonding Basics" [ Pet 5 times OR reach Bonded I ]
 - "Boop" [ Pet your companion for the first time ]
 - "Devoted Companion" [ Pet your companion(s) a hundred times ]
 - "Bond Voyage!" [ Witness a pet's *Bonded Mood* at its most intense for the first time ]
 
-### ⚔️ Combat Provenance
+### Combat Provenance 🤺
 - "Combat Provenance" [ Reach level 5 OR deal 100 damage ]
 - "Trial-Ready" [ Pet reaches level 10 ]
 - "The Truest Form of Sacrilege" [ Guardian pet tanks 1000 damage ]
 - "Master Trainer" [ Pet reaches level 30 ]
 - "Is This Designer?" [ Use a max rank ability ]
 
-### 🎭 Emotional Journey
+### Emotional Journey 🗿
 - "Emotional Journey" [ Experience 5 different mood types ]
 - "Mood Explorer" [ Experience 10 different mood types ]
 - "Emotional Mastery" [ Reach level 3 in any mood ]
@@ -168,14 +168,14 @@ The advancement tree has been reorganized into 6 main branches for better progre
   - "Restless, Sit, Glow" [ Witness a pet's *Restless Mood* transition to Happy ]
   - "are you mad at me..?" [ Witness a pet's *Angry Mood* cooldown ]
 
-### ✨ Mystical Connections
+### Mystical Connections 💜
 - "I love you and me" [ Share the hidden stargazing moment with your bonded pet ]
 - "Noo, Luna!" [ Utilize the *Dream's Escape* ability once ]
 - "At what cost..." [ Utilize the *Dream's Escape* ability twice ]
 - "Heartless, but Alive." [ Utilize the *Dream's Escape* ability thrice ]
 
 
-### 🛡️ Role Specialization
+### Role Specialization 🤓
 - "Role Specialization" [ Have a pet reach level 10 with any role ]
 - **Guardian Path:**
   - "Guardian Path" [ Guardian pet reaches level 15 ]
@@ -185,14 +185,15 @@ The advancement tree has been reorganized into 6 main branches for better progre
   - "Mmmm, Healing Magic!" [ Support heals 5 allies ]
 - **Skyrider Path:**
   - "Skyrider Path" [ Skyrider pet reaches level 15 ]
-  - "The Melody of the Wind" [ Skyrider reaches level 20 ]
+  - "The Melody of the Wind" [ Skyrider reaches level 30 ]
 - **Eclipsed Path:**
   - "Eclipsed Path" [ Eclipsed pet reaches level 15 ]
   - "Edgewalker" [ Eclipsed reaches level 30 ]
 
-### 💀 Ultimate Sacrifice
-- "Ultimate Sacrifice" [ Complete the dream path ]
-- "Eternal Bond" [ The pet that reached max level dies permanently ]
+### Special 💕
+- "Ultimate Sacrifice" [ Complete the dream path ] <-- **REMOVE THIS**
+- **add the "bestest friends foreevrerer" one here**
+- "Or not." [ Pet  ]
 
 
 ### uninplemented yet:
