@@ -158,6 +158,8 @@ public class CombatEventHandler {
                 boolean damageApplied = ownerOutcome.manual();
                 if (damageApplied) {
                     applyManualDamage(player, damageSource, appliedAmount);
+                    appliedDamage = appliedAmount;
+                    targetManual = false;
                     allowDamage = false;
                 }
                 if (appliedAmount > 0.0F) {
