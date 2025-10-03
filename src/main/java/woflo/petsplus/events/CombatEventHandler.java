@@ -68,6 +68,7 @@ public class CombatEventHandler {
     private static final Map<java.util.UUID, List<PetSwarmIndex.SwarmEntry>> PET_SWARM_CACHE = new ConcurrentHashMap<>();
     private static final Map<java.util.UUID, Long> PET_SWARM_CACHE_TIMESTAMPS = new ConcurrentHashMap<>();
     private static final long PET_SWARM_CACHE_TTL = 100; // 5 seconds cache TTL (100 ticks)
+    private static final ThreadLocal<Boolean> SUPPRESS_INTERCEPTION = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     private static final String CHIP_DAMAGE_ACCUM_KEY = "restless_chip_accum";
     private static final String CHIP_DAMAGE_LAST_TICK_KEY = "restless_chip_last_tick";
@@ -122,6 +123,9 @@ public class CombatEventHandler {
      * Called when any living entity receives damage.
      */
     private static boolean onDamageReceived(LivingEntity entity, DamageSource damageSource, float amount) {
+        if (Boolean.TRUE.equals(SUPPRESS_INTERCEPTION.get())) {
+            return true;
+        }
         if (amount <= 0.0F) {
             return true;
         }
@@ -422,8 +426,32 @@ public class CombatEventHandler {
         if (amount <= 0.0F || entity == null) {
             return;
         }
-        float newHealth = Math.max(0.0F, entity.getHealth() - amount);
-        entity.setHealth(newHealth);
+        if (Boolean.TRUE.equals(SUPPRESS_INTERCEPTION.get())) {
+            float newHealth = Math.max(0.0F, entity.getHealth() - amount);
+            entity.setHealth(newHealth);
+            if (newHealth <= 0.0F && !entity.isDead()) {
+                entity.onDeath(damageSource);
+            }
+            return;
+        }
+
+        boolean previous = SUPPRESS_INTERCEPTION.get();
+        SUPPRESS_INTERCEPTION.set(true);
+        try {
+            boolean applied = false;
+            if (entity.getWorld() instanceof ServerWorld serverWorld) {
+                applied = entity.damage(serverWorld, damageSource, amount);
+            }
+            if (!applied) {
+                float newHealth = Math.max(0.0F, entity.getHealth() - amount);
+                entity.setHealth(newHealth);
+                if (newHealth <= 0.0F && !entity.isDead()) {
+                    entity.onDeath(damageSource);
+                }
+            }
+        } finally {
+            SUPPRESS_INTERCEPTION.set(previous);
+        }
     }
 
     private record DamageProcessingOutcome(boolean cancelled, boolean manual, float damage) {
