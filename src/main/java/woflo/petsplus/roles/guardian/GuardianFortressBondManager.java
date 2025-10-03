@@ -6,6 +6,7 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
+import woflo.petsplus.api.DamageInterceptionResult;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PlayerTickDispatcher;
 import woflo.petsplus.state.PlayerTickListener;
@@ -27,7 +28,6 @@ public final class GuardianFortressBondManager {
 
     private static final Map<UUID, BondState> OWNER_BONDS = new ConcurrentHashMap<>();
     private static final Map<UUID, BondState> PET_BONDS = new ConcurrentHashMap<>();
-    private static final Map<UUID, Integer> SKIP_NEXT_PET_REDUCTION = new ConcurrentHashMap<>();
     private static final GuardianBondTicker BOND_TICKER = new GuardianBondTicker();
 
     private GuardianFortressBondManager() {}
@@ -64,7 +64,6 @@ public final class GuardianFortressBondManager {
         BondState state = new BondState(owner.getUuid(), pet.getUuid(), ownerWorld.getRegistryKey(), clampedReduction, expiryTick);
         OWNER_BONDS.put(owner.getUuid(), state);
         PET_BONDS.put(pet.getUuid(), state);
-        SKIP_NEXT_PET_REDUCTION.remove(pet.getUuid());
         BOND_TICKER.schedule(owner, ownerWorld.getServer().getTicks());
         return true;
     }
@@ -85,10 +84,10 @@ public final class GuardianFortressBondManager {
     }
 
     /**
-     * Apply fortress bond reduction to the redirected damage hitting the guardian pet.
-     * This registers a skip so the global mob damage mixin doesn't apply the reduction twice.
+     * Computes the redirected damage amount after fortress bond reduction but
+     * without mutating any shared state.
      */
-    public static float applyRedirectReduction(ServerPlayerEntity owner, MobEntity pet, float amount) {
+    public static float computeRedirectedDamage(ServerPlayerEntity owner, MobEntity pet, float amount) {
         if (amount <= 0.0f || pet == null || owner == null) {
             return amount;
         }
@@ -97,57 +96,44 @@ public final class GuardianFortressBondManager {
             return amount;
         }
 
-        float adjusted = applyReduction(amount, state.reductionPct());
-        if (adjusted != amount) {
-            registerSkip(pet);
-        }
-        return adjusted;
+        return applyReduction(amount, state.reductionPct());
     }
 
     /**
-     * Apply fortress bond reduction to arbitrary damage taken by the pet.
+     * Applies fortress bond reduction to incoming pet damage using the shared
+     * interception result.
      */
-    public static float modifyPetDamage(MobEntity pet, float amount) {
-        if (amount <= 0.0f || pet == null) {
-            return amount;
+    public static boolean applyPetDamageReduction(ServerPlayerEntity owner,
+                                                  MobEntity pet,
+                                                  DamageInterceptionResult result) {
+        if (pet == null || result == null) {
+            return false;
         }
         if (!(pet.getWorld() instanceof ServerWorld petWorld)) {
-            return amount;
-        }
-        if (shouldSkip(pet)) {
-            return amount;
+            return false;
         }
 
-        BondState state = resolvePetBond(pet, petWorld);
+        BondState state = owner != null ? resolveBond(owner, pet) : null;
         if (state == null) {
-            return amount;
+            state = resolvePetBond(pet, petWorld);
+            if (state == null) {
+                return false;
+            }
         }
 
-        return applyReduction(amount, state.reductionPct());
+        double remaining = result.getRemainingDamageAmount();
+        float reducedAmount = applyReduction((float) remaining, state.reductionPct());
+        if (reducedAmount >= remaining) {
+            return false;
+        }
+
+        result.setRemainingDamageAmount(reducedAmount);
+        return true;
     }
 
     private static float applyReduction(float amount, double reductionPct) {
         double multiplier = 1.0 - Math.min(1.0, Math.max(0.0, reductionPct));
         return (float) Math.max(0.0, amount * multiplier);
-    }
-
-    private static void registerSkip(MobEntity pet) {
-        UUID id = pet.getUuid();
-        SKIP_NEXT_PET_REDUCTION.merge(id, 1, Integer::sum);
-    }
-
-    private static boolean shouldSkip(MobEntity pet) {
-        UUID id = pet.getUuid();
-        Integer remaining = SKIP_NEXT_PET_REDUCTION.get(id);
-        if (remaining == null) {
-            return false;
-        }
-        if (remaining <= 1) {
-            SKIP_NEXT_PET_REDUCTION.remove(id);
-        } else {
-            SKIP_NEXT_PET_REDUCTION.put(id, remaining - 1);
-        }
-        return true;
     }
 
     @Nullable
@@ -248,7 +234,6 @@ public final class GuardianFortressBondManager {
                                  BondEndReason reason) {
         OWNER_BONDS.remove(state.ownerId());
         PET_BONDS.remove(state.petId());
-        SKIP_NEXT_PET_REDUCTION.remove(state.petId());
 
         if (pet == null && owner != null && owner.getWorld() instanceof ServerWorld serverWorld && state.matches(serverWorld)) {
             pet = state.resolvePet(serverWorld);
@@ -277,7 +262,6 @@ public final class GuardianFortressBondManager {
         BondState state = OWNER_BONDS.remove(owner.getUuid());
         if (state != null) {
             PET_BONDS.remove(state.petId());
-            SKIP_NEXT_PET_REDUCTION.remove(state.petId());
             if (owner.getWorld() instanceof ServerWorld ownerWorld && state.matches(ownerWorld)) {
                 MobEntity pet = ownerWorld.getEntity(state.petId()) instanceof MobEntity mob ? mob : null;
                 if (pet != null) {

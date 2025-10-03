@@ -1,5 +1,6 @@
 package woflo.petsplus.abilities;
 
+import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -7,6 +8,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.Ability;
+import woflo.petsplus.api.DamageInterceptionResult;
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.api.event.AbilityActivationEvent;
 import woflo.petsplus.api.registry.AbilityType;
@@ -24,6 +26,11 @@ import org.jetbrains.annotations.Nullable;
  * Manages all abilities and their activation for pets.
  */
 public class AbilityManager {
+    private static final String EVENT_DAMAGE = "damage";
+    private static final String EVENT_DAMAGE_SOURCE = "damage_source";
+    private static final String EVENT_LETHAL_DAMAGE = "lethal_damage";
+    private static final String EVENT_INTERCEPT_DAMAGE = "intercept_damage";
+    private static final String EVENT_DAMAGE_RESULT = "damage_result";
     private static final Map<Identifier, List<Ability>> ROLE_ABILITIES = new HashMap<>();
     private static final Map<Identifier, Ability> ALL_ABILITIES = new HashMap<>();
     private static final Map<Identifier, RoleAbilityCache> ROLE_EVENT_CACHES = new HashMap<>();
@@ -93,14 +100,14 @@ public class AbilityManager {
     /**
      * Trigger abilities for a pet based on the given context.
      */
-    public static void triggerAbilities(MobEntity pet, TriggerContext context) {
+    public static AbilityTriggerResult triggerAbilities(MobEntity pet, TriggerContext context) {
         if (pet == null) {
-            return;
+            return AbilityTriggerResult.empty();
         }
 
         PetComponent component = PetComponent.get(pet);
         if (component == null) {
-            return;
+            return AbilityTriggerResult.empty();
         }
 
         Identifier roleId = component.getRoleId();
@@ -113,28 +120,28 @@ public class AbilityManager {
             if (PetsPlusRegistries.petRoleTypeRegistry().get(roleId) == null) {
                 Petsplus.LOGGER.warn("Pet {} has role {} without a registered definition; skipping ability triggers.", pet.getUuid(), roleId);
             }
-            return;
+            return AbilityTriggerResult.empty();
         }
 
         TriggerContext petContext = cloneContextForPet(pet, context);
-        executeCompiledAbilities(component, component.getRoleType(false), compiledAbilities, petContext);
+        return executeCompiledAbilities(component, component.getRoleType(false), compiledAbilities, petContext);
     }
 
     /**
      * Triggers a compiled ability batch for an owner-scoped event by grouping pets by
      * role and reusing compiled ability metadata for the entire swarm.
      */
-    public static void triggerAbilitiesForOwnerEvent(ServerWorld world,
-                                                     @Nullable ServerPlayerEntity ownerHint,
-                                                     List<PetComponent> pets,
-                                                     String triggerId,
-                                                     Map<String, Object> eventData) {
+    public static AbilityTriggerResult triggerAbilitiesForOwnerEvent(ServerWorld world,
+                                                                     @Nullable ServerPlayerEntity ownerHint,
+                                                                     List<PetComponent> pets,
+                                                                     String triggerId,
+                                                                     Map<String, Object> eventData) {
         if (world == null || triggerId == null) {
-            return;
+            return AbilityTriggerResult.empty();
         }
         String trimmedTrigger = triggerId.trim();
         if (trimmedTrigger.isEmpty() || pets == null || pets.isEmpty()) {
-            return;
+            return AbilityTriggerResult.empty();
         }
 
         Map<Identifier, RoleAbilityGroup> groups = new HashMap<>();
@@ -185,19 +192,38 @@ public class AbilityManager {
         }
 
         if (groups.isEmpty()) {
-            return;
+            return AbilityTriggerResult.empty();
         }
 
         Map<String, Object> sharedData = eventData == null ? Map.of() : eventData;
+        DamageContext damageContext = resolveDamageContext(sharedData);
+        boolean anyActivated = false;
+
         for (RoleAbilityGroup group : groups.values()) {
             for (RoleAbilityGroup.Member member : group.members()) {
                 TriggerContext context = new TriggerContext(world, member.pet(), member.owner(), trimmedTrigger);
                 if (!sharedData.isEmpty()) {
                     context.getEventData().putAll(sharedData);
                 }
-                executeCompiledAbilities(member.component(), group.roleType(), group.compiledAbilities(), context);
+                if (damageContext.hasContext()) {
+                    context.withDamageContext(
+                        damageContext.source(),
+                        damageContext.damageAmount(),
+                        damageContext.lethal(),
+                        damageContext.result()
+                    );
+                }
+                AbilityTriggerResult result = executeCompiledAbilities(
+                    member.component(),
+                    group.roleType(),
+                    group.compiledAbilities(),
+                    context
+                );
+                anyActivated |= result.anyActivated();
             }
         }
+
+        return AbilityTriggerResult.of(anyActivated, damageContext.result());
     }
 
     public static AbilityExecutionPlan prepareOwnerExecutionPlan(OwnerBatchSnapshot snapshot,
@@ -239,24 +265,24 @@ public class AbilityManager {
         return AbilityExecutionPlan.fromEntries(executions);
     }
 
-    public static void applyOwnerExecutionPlan(AbilityExecutionPlan plan,
-                                               StateManager stateManager,
-                                               AbilityTriggerPayload payload,
-                                               @Nullable UUID ownerId) {
+    public static AbilityTriggerResult applyOwnerExecutionPlan(AbilityExecutionPlan plan,
+                                                               StateManager stateManager,
+                                                               AbilityTriggerPayload payload,
+                                                               @Nullable UUID ownerId) {
         if (plan == null || plan.isEmpty() || stateManager == null) {
-            return;
+            return AbilityTriggerResult.empty();
         }
 
         ServerWorld world = stateManager.world();
         if (world == null) {
-            return;
+            return AbilityTriggerResult.empty();
         }
 
         List<PetSwarmIndex.SwarmEntry> swarm = ownerId != null
             ? stateManager.getSwarmIndex().snapshotOwner(ownerId)
             : List.of();
         if (swarm.isEmpty()) {
-            return;
+            return AbilityTriggerResult.empty();
         }
 
         long applicationTick = world.getTime();
@@ -273,6 +299,10 @@ public class AbilityManager {
         }
 
         ServerPlayerEntity owner = stateManager.findOnlineOwner(ownerId);
+
+        Map<String, Object> payloadData = payload.hasData() ? payload.eventData() : Map.of();
+        DamageContext damageContext = resolveDamageContext(payloadData);
+        boolean anyActivated = false;
 
         for (AbilityExecutionPlan.PetExecution execution : plan.executions()) {
             PetComponent component = componentsById.get(execution.petUuid());
@@ -295,11 +325,26 @@ public class AbilityManager {
                 continue;
             }
             TriggerContext context = new TriggerContext(world, pet, owner, payload.eventType());
-            if (payload.hasData()) {
-                context.getEventData().putAll(payload.eventData());
+            if (!payloadData.isEmpty()) {
+                context.getEventData().putAll(payloadData);
             }
-            executeCompiledAbilities(component, component.getRoleType(false), readyAbilities, context);
+            if (damageContext.hasContext()) {
+                context.withDamageContext(
+                    damageContext.source(),
+                    damageContext.damageAmount(),
+                    damageContext.lethal(),
+                    damageContext.result()
+                );
+            }
+            AbilityTriggerResult result = executeCompiledAbilities(
+                component,
+                component.getRoleType(false),
+                readyAbilities,
+                context
+            );
+            anyActivated |= result.anyActivated();
         }
+        return AbilityTriggerResult.of(anyActivated, damageContext.result());
     }
 
     /**
@@ -475,16 +520,68 @@ public class AbilityManager {
         if (!context.getEventData().isEmpty()) {
             petContext.getEventData().putAll(context.getEventData());
         }
+        if (context.hasDamageContext()) {
+            petContext.withDamageContext(
+                context.getIncomingDamageSource(),
+                context.getIncomingDamageAmount(),
+                context.isLethalDamage(),
+                context.getDamageResult()
+            );
+        }
         return petContext;
     }
 
-    private static void executeCompiledAbilities(PetComponent component,
-                                                 @Nullable PetRoleType roleType,
-                                                 List<RoleAbilityCache.CompiledAbility> compiledAbilities,
-                                                 TriggerContext context) {
-        if (compiledAbilities == null || compiledAbilities.isEmpty()) {
-            return;
+    private static DamageContext resolveDamageContext(@Nullable Map<String, Object> eventData) {
+        if (eventData == null || eventData.isEmpty()) {
+            return DamageContext.EMPTY;
         }
+        DamageSource source = null;
+        Object sourceObject = eventData.get(EVENT_DAMAGE_SOURCE);
+        if (sourceObject instanceof DamageSource damageSource) {
+            source = damageSource;
+        }
+        double amount = 0.0D;
+        Object amountObject = eventData.get(EVENT_DAMAGE);
+        if (amountObject instanceof Number number) {
+            amount = number.doubleValue();
+        }
+        boolean lethal = Boolean.TRUE.equals(eventData.get(EVENT_LETHAL_DAMAGE));
+        boolean intercept = Boolean.TRUE.equals(eventData.get(EVENT_INTERCEPT_DAMAGE));
+        DamageInterceptionResult existingResult = null;
+        Object resultObject = eventData.get(EVENT_DAMAGE_RESULT);
+        if (resultObject instanceof DamageInterceptionResult interceptionResult) {
+            existingResult = interceptionResult;
+        }
+        DamageInterceptionResult result = existingResult;
+        if (result == null && (lethal || intercept)) {
+            result = new DamageInterceptionResult(amount);
+        }
+        if (source == null && amount <= 0.0D && !lethal && !intercept && result == null) {
+            return DamageContext.EMPTY;
+        }
+        return new DamageContext(source, Math.max(0.0D, amount), lethal, result);
+    }
+
+    private record DamageContext(@Nullable DamageSource source,
+                                 double damageAmount,
+                                 boolean lethal,
+                                 @Nullable DamageInterceptionResult result) {
+        private static final DamageContext EMPTY = new DamageContext(null, 0.0D, false, null);
+
+        boolean hasContext() {
+            return source != null || damageAmount > 0.0D || lethal || result != null;
+        }
+    }
+
+    private static AbilityTriggerResult executeCompiledAbilities(PetComponent component,
+                                                                 @Nullable PetRoleType roleType,
+                                                                 List<RoleAbilityCache.CompiledAbility> compiledAbilities,
+                                                                 TriggerContext context) {
+        if (compiledAbilities == null || compiledAbilities.isEmpty()) {
+            return AbilityTriggerResult.empty();
+        }
+
+        boolean anyActivated = false;
 
         for (RoleAbilityCache.CompiledAbility entry : compiledAbilities) {
             Ability ability = entry.ability();
@@ -532,7 +629,12 @@ public class AbilityManager {
                     component.clearCooldown(cooldownKey);
                 }
             }
+
+            if (eventContext.didSucceed()) {
+                anyActivated = true;
+            }
         }
+        return AbilityTriggerResult.of(anyActivated, context.getDamageResult());
     }
 
     @Nullable

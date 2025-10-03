@@ -29,11 +29,11 @@ public final class OwnerAbilityEventBridge implements OwnerEventListener {
 
     @FunctionalInterface
     interface AbilityExecutor {
-        void trigger(ServerWorld world,
-                     @Nullable ServerPlayerEntity owner,
-                     List<PetComponent> pets,
-                     String triggerId,
-                     Map<String, Object> eventData);
+        AbilityTriggerResult trigger(ServerWorld world,
+                                     @Nullable ServerPlayerEntity owner,
+                                     List<PetComponent> pets,
+                                     String triggerId,
+                                     Map<String, Object> eventData);
     }
 
     private static volatile AbilityExecutor abilityExecutor = AbilityManager::triggerAbilitiesForOwnerEvent;
@@ -62,15 +62,16 @@ public final class OwnerAbilityEventBridge implements OwnerEventListener {
         OwnerBatchSnapshot snapshot = frame.snapshot();
         boolean asyncEnabled = AsyncProcessingSettings.asyncAbilitiesEnabled();
         boolean shadowEnabled = AsyncProcessingSettings.asyncAbilitiesShadowEnabled();
+        boolean requiresSync = payload.requiresSynchronousResult();
 
-        if (asyncEnabled && snapshot != null && snapshot.ownerId() != null) {
+        if (!requiresSync && asyncEnabled && snapshot != null && snapshot.ownerId() != null) {
             dispatchAsync(manager, frame, snapshot, payload, triggerId);
             return;
         }
 
         dispatchSynchronously(frame, payload, triggerId);
 
-        if (shadowEnabled && snapshot != null && snapshot.ownerId() != null) {
+        if (!requiresSync && shadowEnabled && snapshot != null && snapshot.ownerId() != null) {
             dispatchShadow(manager, snapshot, payload);
         }
     }
@@ -85,15 +86,25 @@ public final class OwnerAbilityEventBridge implements OwnerEventListener {
         CompletableFuture<AbilityManager.AbilityExecutionPlan> future = coordinator.submitOwnerBatch(
             snapshot,
             snap -> AbilityManager.prepareOwnerExecutionPlan(snap, payload),
-            plan -> AbilityManager.applyOwnerExecutionPlan(plan, manager, payload, snapshot.ownerId())
+            plan -> {
+                AbilityTriggerResult result = AbilityManager.applyOwnerExecutionPlan(
+                    plan,
+                    manager,
+                    payload,
+                    snapshot.ownerId()
+                );
+                payload.completeResult(result);
+            }
         );
         future.exceptionally(error -> {
             Throwable cause = unwrap(error);
             if (cause instanceof RejectedExecutionException) {
                 Petsplus.LOGGER.debug("Async ability execution rejected for {}, falling back to synchronous", triggerId);
-                dispatchSynchronously(fallback);
+                AbilityTriggerResult result = executeSynchronously(fallback);
+                payload.completeResult(result);
             } else {
                 Petsplus.LOGGER.error("Async ability execution failed for {}", triggerId, cause);
+                payload.completeExceptionally(cause);
             }
             return null;
         });
@@ -120,23 +131,27 @@ public final class OwnerAbilityEventBridge implements OwnerEventListener {
         });
     }
 
-    private void dispatchSynchronously(OwnerEventFrame frame,
-                                       AbilityTriggerPayload payload,
-                                       String triggerId) {
-        dispatchSynchronously(FallbackContext.capture(frame, payload, triggerId));
+    private AbilityTriggerResult dispatchSynchronously(OwnerEventFrame frame,
+                                                       AbilityTriggerPayload payload,
+                                                       String triggerId) {
+        AbilityTriggerResult result = executeSynchronously(FallbackContext.capture(frame, payload, triggerId));
+        payload.completeResult(result);
+        return result;
     }
 
-    private void dispatchSynchronously(FallbackContext context) {
+    private AbilityTriggerResult executeSynchronously(FallbackContext context) {
         try {
-            abilityExecutor.trigger(
+            AbilityTriggerResult result = abilityExecutor.trigger(
                 context.world(),
                 context.owner(),
                 context.pets(),
                 context.triggerId(),
                 context.eventData()
             );
+            return result == null ? AbilityTriggerResult.empty() : result;
         } catch (Exception ex) {
             Petsplus.LOGGER.error("Failed to trigger owner ability batch for {}", context.triggerId(), ex);
+            return AbilityTriggerResult.empty();
         }
     }
 

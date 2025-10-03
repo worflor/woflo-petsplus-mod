@@ -4,12 +4,14 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import woflo.petsplus.api.registry.PetRoleType;
-import woflo.petsplus.roles.eepyeeper.EepyEeperCore;
 import woflo.petsplus.stats.nature.NatureFlavorHandler;
 import woflo.petsplus.stats.nature.NatureFlavorHandler.Trigger;
+import woflo.petsplus.state.StateManager;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -65,23 +67,31 @@ public class SleepEventHandler {
             return;
         }
 
-        long sleepDuration = player.getWorld().getTime() - startTime;
+        ServerWorld world = player.getWorld();
+        long sleepDuration = world.getTime() - startTime;
 
         // A full sleep cycle is typically 100 ticks (5 seconds) minimum
         if (sleepDuration >= 100) {
-            onSuccessfulSleep(player);
+            onSuccessfulSleep(player, world, sleepDuration, false);
         }
     }
 
     /**
      * Handle successful sleep completion
      */
-    private static void onSuccessfulSleep(ServerPlayerEntity player) {
-        // Trigger Eepy Eeper sleep mechanics
-        EepyEeperCore.triggerSleepEvent(player);
+    private static void onSuccessfulSleep(ServerPlayerEntity player,
+                                          ServerWorld world,
+                                          long sleepDuration,
+                                          boolean viaAnchor) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("sleep_duration_ticks", sleepDuration);
+        payload.put("sleep_world_time", world.getTime());
+        payload.put("via_anchor", viaAnchor);
+        payload.put("sleep_event_id", UUID.randomUUID());
+        StateManager.forWorld(world).dispatchAbilityTrigger(player, "owner_sleep_complete", payload);
 
         // Push calming emotions to nearby owned pets
-        player.getWorld().getEntitiesByClass(net.minecraft.entity.mob.MobEntity.class,
+        world.getEntitiesByClass(net.minecraft.entity.mob.MobEntity.class,
             player.getBoundingBox().expand(32),
             mob -> {
                 woflo.petsplus.state.PetComponent pc = woflo.petsplus.state.PetComponent.get(mob);
@@ -119,7 +129,7 @@ public class SleepEventHandler {
             // Check if respawn was from a respawn anchor in the Nether
             if (newPlayer.getWorld().getRegistryKey().getValue().getPath().equals("the_nether")) {
                 // Trigger sleep-like benefits for respawn anchor usage
-                EepyEeperCore.triggerSleepEvent(newPlayer);
+                onSuccessfulSleep(newPlayer, newPlayer.getWorld(), 100L, true);
                 EmotionContextCues.sendCue(newPlayer,
                     "sleep.anchor",
                     Text.translatable("petsplus.emotion_cue.sleep.anchor"),
@@ -134,7 +144,7 @@ public class SleepEventHandler {
      * Manual trigger for sleep events (for testing or special cases)
      */
     public static void triggerSleepEvent(ServerPlayerEntity player) {
-        onSuccessfulSleep(player);
+        onSuccessfulSleep(player, player.getWorld(), 100L, false);
     }
 
     /**
@@ -172,7 +182,7 @@ public class SleepEventHandler {
      * Force trigger sleep completion for a player (admin/debug use)
      */
     public static void forceSleepCompletion(ServerPlayerEntity player) {
-        onSuccessfulSleep(player);
+        onSuccessfulSleep(player, player.getWorld(), 100L, false);
     }
-    
+
 }

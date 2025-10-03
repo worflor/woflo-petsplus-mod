@@ -7,12 +7,8 @@ import woflo.petsplus.events.PlayerStateTracker;
 import woflo.petsplus.interaction.OwnerAbilitySignalTracker;
 import woflo.petsplus.mechanics.StargazeMechanic;
 import woflo.petsplus.roles.eclipsed.EclipsedCore;
-import woflo.petsplus.roles.eepyeeper.EepyEeperCore;
-import woflo.petsplus.roles.enchantmentbound.EnchantmentBoundCore;
-import woflo.petsplus.roles.enchantmentbound.EnchantmentBoundHandler;
 import woflo.petsplus.roles.guardian.GuardianFortressBondManager;
 import woflo.petsplus.roles.scout.ScoutCore;
-import woflo.petsplus.roles.skyrider.SkyriderCore;
 import woflo.petsplus.roles.striker.StrikerHuntManager;
 import woflo.petsplus.ui.ActionBarCueManager;
 import woflo.petsplus.ui.BossBarManager;
@@ -49,15 +45,9 @@ public final class PlayerTickListeners {
 
         PlayerTickDispatcher.register(EclipsedCore.getInstance());
 
-        PlayerTickDispatcher.register(SkyriderCore.getInstance());
-
-        PlayerTickDispatcher.register(EepyEeperCore.getInstance());
 
         PlayerTickDispatcher.register(ScoutCore.getInstance());
 
-        PlayerTickDispatcher.register(EnchantmentBoundCore.getInstance());
-
-        PlayerTickDispatcher.register(EnchantmentBoundHandler.getInstance());
 
         PlayerTickDispatcher.register(GuardianFortressBondManager.ticker());
 

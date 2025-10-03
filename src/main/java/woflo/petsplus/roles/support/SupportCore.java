@@ -15,7 +15,7 @@ import java.util.List;
  * Core Features:
  * - Baseline: Potion Carrier - load potions, emit aura pulses at reduced potency
  * - L5 Perch Potion Efficiency: Reduced consumption while perched
- * - L15 Mounted Cone Aura: Projects cone aura from mount
+ * - Higher tiers intentionally unfilled while we explore richer mounted support options
  * 
  * Design Philosophy:
  * - Support archetype focused on sustaining owner and allies
@@ -62,11 +62,5 @@ public class SupportCore {
     public static double getSupportPotionDiscount(ServerPlayerEntity player) {
         return SupportBehaviors.getPotionSipDiscount(player);
     }
-    
-    /**
-     * Get the mounted aura radius bonus from Support pets.
-     */
-    public static double getSupportMountedAuraBonus(ServerPlayerEntity player) {
-        return SupportBehaviors.getMountedAuraExtraRadius(player);
-    }
+
 }

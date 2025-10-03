@@ -1,5 +1,6 @@
 {
   "id": "petsplus:windlash_rider",
+  "required_level": 7,
   "trigger": {
     "event": "owner_begin_fall",
     "min_fall": 3.0,
@@ -7,21 +8,18 @@
   },
   "effects": [
     {
-      "type": "buff",
-      "target": "owner",
-      "id": "minecraft:jump_boost",
-      "duration": 40,
-      "amplifier": 0
-    },
-    {
-      "type": "owner_next_attack_bonus",
+      "type": "skyrider_windlash",
+      "radius": 16.0,
+      "min_level": 7,
+      "min_fall_distance": 3.0,
+      "jump_boost_duration_ticks": 40,
+      "jump_boost_amplifier": 0,
       "bonus_damage_pct": 0.15,
-      "expire_ticks": 100,
-      "on_hit_effect": {
-        "type": "knockup",
-        "target": "victim",
-        "strength": 0.35
-      }
+      "bonus_expire_ticks": 100,
+      "knockup_strength": 0.35,
+      "owner_slowfall_ticks": 60,
+      "duplicate_gate_ticks": 5,
+      "send_message": true
     }
   ]
 }

@@ -43,41 +43,62 @@ public class SimpleDataGenerator {
     private static void generateAbilities() throws IOException {
         // Guardian abilities
         writeFile("abilities/shield_bash_rider.json", createShieldBashRider());
+        writeFile("abilities/bulwark_redirect.json", createBulwarkRedirectAbility());
+        writeFile("abilities/fortress_bond.json", createFortressBondAbility());
+        writeFile("abilities/fortress_bond_pet_guard.json", createFortressBondPetGuardAbility());
 
         // Striker abilities
         writeFile("abilities/finisher_mark.json", createFinisherMark());
+        writeFile("abilities/striker_execution.json", createStrikerExecutionAbility());
         writeFile("abilities/bloodlust_surge.json", createBloodlustSurge());
 
         // Support abilities
         writeFile("abilities/perch_potion_efficiency.json", createPerchPotionEfficiency());
-        writeFile("abilities/mounted_cone_aura.json", createMountedConeAura());
         writeFile("abilities/support_potion_pulse.json", createSupportPotionPulse());
 
         // Scout abilities
         writeFile("abilities/loot_wisp.json", createLootWisp());
+        writeFile("abilities/spotter_fallback.json", createSpotterFallback());
         writeFile("abilities/scout_backpack.json", createScoutBackpack());
 
         // Skyrider abilities
+        writeFile("abilities/projectile_levitation.json", createSkyriderProjectileLevitation());
         writeFile("abilities/windlash_rider.json", createWindlashRider());
         writeFile("abilities/gust_upwards.json", createGustUpwards());
+        writeFile("abilities/skyrider_fall_guard_owner.json", createSkyriderFallGuardOwner());
+        writeFile("abilities/skyrider_fall_guard_pet.json", createSkyriderFallGuardPet());
 
         // Eepy Eeper abilities
         writeFile("abilities/drowsy_mist.json", createDrowsyMistAbility());
+        writeFile("abilities/nap_time_radius.json", createNapTimeRadiusAbility());
+        writeFile("abilities/restful_dreams.json", createRestfulDreamsAbility());
 
         // Cursed One abilities
         writeFile("abilities/doom_echo.json", createDoomEcho());
         writeFile("abilities/soul_sacrifice.json", createSoulSacrifice());
         writeFile("abilities/death_burst.json", createDeathBurst());
+        writeFile("abilities/cursed_reanimation.json", createCursedReanimation());
+        writeFile("abilities/cursed_mount_resilience.json", createCursedMountResilience());
 
         // Enchantment-Bound abilities
         writeFile("abilities/enchant_strip.json", createEnchantStrip());
         writeFile("abilities/gear_swap.json", createGearSwap());
+        writeFile("abilities/enchantment_magic_guard.json", createEnchantmentMagicGuard());
+        writeFile("abilities/enchantment_mining_echo.json", createEnchantmentMiningEcho());
+        writeFile("abilities/enchantment_combat_focus.json", createEnchantmentCombatFocus());
+        writeFile("abilities/enchantment_swim_echo.json", createEnchantmentSwimEcho());
+        writeFile("abilities/enchantment_extra_loot.json", createEnchantmentExtraLoot());
+        writeFile("abilities/perched_haste_bonus.json", createEnchantmentPerchedHaste());
 
         // Eclipsed abilities
         writeFile("abilities/voidbrand.json", createVoidbrand());
         writeFile("abilities/void_storage.json", createVoidStorage());
         writeFile("abilities/phase_partner.json", createPhasePartner());
         writeFile("abilities/perch_ping.json", createPerchPing());
+        writeFile("abilities/eclipsed_darkness_owner.json", createEclipsedDarknessOwner());
+        writeFile("abilities/eclipsed_darkness_pet.json", createEclipsedDarknessPet());
+        writeFile("abilities/event_horizon.json", createEventHorizon());
+        writeFile("abilities/edge_step.json", createEdgeStep());
     }
     
     private static void generateRoles() throws IOException {
@@ -108,7 +129,7 @@ public class SimpleDataGenerator {
     private static JsonObject createShieldBashRider() {
         JsonObject ability = new JsonObject();
         ability.addProperty("id", "petsplus:shield_bash_rider");
-        
+
         JsonObject trigger = new JsonObject();
         trigger.addProperty("event", "after_pet_redirect");
         trigger.addProperty("internal_cd_ticks", 120);
@@ -127,10 +148,102 @@ public class SimpleDataGenerator {
         onHitEffect.addProperty("duration", 40);
         onHitEffect.addProperty("amplifier", 0);
         attackBonus.add("on_hit_effect", onHitEffect);
-        
+
         effects.add(attackBonus);
         ability.add("effects", effects);
-        
+
+        return ability;
+    }
+
+    private static JsonObject createBulwarkRedirectAbility() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:bulwark_redirect");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_incoming_damage");
+        trigger.addProperty("internal_cd_ticks", 40);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+
+        JsonObject redirect = new JsonObject();
+        redirect.addProperty("type", "guardian_bulwark_redirect");
+        effects.add(redirect);
+
+        JsonObject petReduction = new JsonObject();
+        petReduction.addProperty("type", "guardian_fortress_bond_pet_dr");
+        effects.add(petReduction);
+
+        JsonObject projectileDr = new JsonObject();
+        projectileDr.addProperty("type", "projectile_dr_for_owner");
+        projectileDr.addProperty("percent", 0.25);
+        projectileDr.addProperty("duration_ticks", 100);
+        projectileDr.addProperty("require_data_flag", "guardian_bulwark_redirect_success");
+        effects.add(projectileDr);
+
+        JsonObject petResistance = new JsonObject();
+        petResistance.addProperty("type", "buff");
+        petResistance.addProperty("target", "pet");
+        petResistance.addProperty("id", "minecraft:resistance");
+        petResistance.addProperty("duration", 60);
+        petResistance.addProperty("amplifier", 0);
+        petResistance.addProperty("require_data_flag", "guardian_bulwark_redirect_success");
+        effects.add(petResistance);
+
+        JsonObject retarget = new JsonObject();
+        retarget.addProperty("type", "retarget_nearest_hostile");
+        retarget.addProperty("radius", 6.0);
+        retarget.addProperty("require_data_flag", "guardian_bulwark_redirect_success");
+        effects.add(retarget);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createFortressBondAbility() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:fortress_bond");
+        ability.addProperty("required_level", 7);
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_signal_proximity_channel");
+        trigger.addProperty("cooldown_ticks", 240);
+        trigger.addProperty("internal_cd_ticks", 240);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+
+        JsonObject bond = new JsonObject();
+        bond.addProperty("type", "guardian_fortress_bond");
+        bond.addProperty("reduction_pct", 0.5);
+        bond.addProperty("duration_ticks", 200);
+        effects.add(bond);
+
+        JsonObject petReduction = new JsonObject();
+        petReduction.addProperty("type", "guardian_fortress_bond_pet_dr");
+        effects.add(petReduction);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createFortressBondPetGuardAbility() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:fortress_bond_pet_guard");
+        ability.addProperty("required_level", 7);
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "pet_incoming_damage");
+        trigger.addProperty("internal_cd_ticks", 0);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+
+        JsonObject petReduction = new JsonObject();
+        petReduction.addProperty("type", "guardian_fortress_bond_pet_dr");
+        effects.add(petReduction);
+
+        ability.add("effects", effects);
         return ability;
     }
     
@@ -189,6 +302,234 @@ public class SimpleDataGenerator {
         return ability;
     }
 
+    private static JsonObject createStrikerExecutionAbility() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:striker_execution");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_outgoing_damage");
+        trigger.addProperty("cooldown_ticks", 0);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject effect = new JsonObject();
+        effect.addProperty("type", "striker_execution");
+        effect.addProperty("emit_feedback", true);
+        effect.addProperty("publish_preview", true);
+        effects.add(effect);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createEnchantmentMagicGuard() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:enchantment_magic_guard");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "pet_incoming_damage");
+        trigger.addProperty("cooldown_ticks", 10);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject effect = new JsonObject();
+        effect.addProperty("type", "magic_damage_shield");
+        effect.addProperty("max_damage", 1.0);
+        effects.add(effect);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createEnchantmentMiningEcho() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:enchantment_mining_echo");
+        ability.addProperty("required_level", 1);
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_broke_block");
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+
+        JsonObject focus = new JsonObject();
+        focus.addProperty("type", "enchantment_arcane_focus");
+        focus.addProperty("bucket", "mining");
+        focus.addProperty("duration_ticks", 200);
+        focus.addProperty("cooldown_ticks", 1200);
+        focus.addProperty("charges_at_level_30", 2);
+        effects.add(focus);
+
+        JsonObject haste = new JsonObject();
+        haste.addProperty("type", "enchantment_mining_haste");
+        haste.addProperty("base_duration_ticks", 40);
+        effects.add(haste);
+
+        JsonObject durability = new JsonObject();
+        durability.addProperty("type", "enchantment_durability_refund");
+        durability.addProperty("base_chance", 0.025);
+        durability.addProperty("focus_multiplier", 2.0);
+        effects.add(durability);
+
+        JsonObject extra = new JsonObject();
+        extra.addProperty("type", "enchantment_extra_drops");
+        extra.addProperty("mode", "block");
+        extra.addProperty("base_chance", 0.05);
+        extra.addProperty("per_level_bonus", 0.02);
+        extra.addProperty("focus_multiplier", 2.0);
+        effects.add(extra);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createEnchantmentCombatFocus() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:enchantment_combat_focus");
+        ability.addProperty("required_level", 20);
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_killed_entity");
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject focus = new JsonObject();
+        focus.addProperty("type", "enchantment_arcane_focus");
+        focus.addProperty("bucket", "combat");
+        focus.addProperty("duration_ticks", 200);
+        focus.addProperty("cooldown_ticks", 1200);
+        focus.addProperty("charges_at_level_30", 2);
+        focus.addProperty("play_sound", true);
+        focus.addProperty("require_hostile_victim", true);
+        effects.add(focus);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createEnchantmentSwimEcho() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:enchantment_swim_echo");
+        ability.addProperty("required_level", 1);
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "interval_while_active");
+        trigger.addProperty("ticks", 10);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+
+        JsonObject swim = new JsonObject();
+        swim.addProperty("type", "enchantment_swim_grace");
+        swim.addProperty("duration_ticks", 40);
+        swim.addProperty("min_level", 1);
+        effects.add(swim);
+
+        JsonObject focus = new JsonObject();
+        focus.addProperty("type", "enchantment_arcane_focus");
+        focus.addProperty("bucket", "swim");
+        focus.addProperty("duration_ticks", 200);
+        focus.addProperty("cooldown_ticks", 1200);
+        focus.addProperty("charges_at_level_30", 2);
+        focus.addProperty("play_sound", true);
+        effects.add(focus);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createEnchantmentExtraLoot() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:enchantment_extra_loot");
+        ability.addProperty("required_level", 1);
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "loot_table_modify");
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject extra = new JsonObject();
+        extra.addProperty("type", "enchantment_extra_drops");
+        extra.addProperty("mode", "mob");
+        extra.addProperty("base_chance", 0.05);
+        extra.addProperty("per_level_bonus", 0.02);
+        extra.addProperty("focus_multiplier", 2.0);
+        extra.addProperty("require_hostile", true);
+        extra.addProperty("play_feedback", true);
+        effects.add(extra);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createEnchantmentPerchedHaste() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:perched_haste_bonus");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "interval_while_active");
+        trigger.addProperty("ticks", 200);
+        trigger.addProperty("internal_cd_ticks", 200);
+        trigger.addProperty("require_perched", true);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject haste = new JsonObject();
+        haste.addProperty("type", "enchantment_perched_haste");
+        haste.addProperty("base_duration", 140);
+        haste.addProperty("amplifier", 1);
+        effects.add(haste);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createSkyriderFallGuardOwner() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:skyrider_fall_guard_owner");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_incoming_damage");
+        trigger.addProperty("internal_cd_ticks", 10);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject effect = new JsonObject();
+        effect.addProperty("type", "skyrider_fall_guard");
+        effect.addProperty("mode", "owner");
+        effect.addProperty("radius", 16.0);
+        effect.addProperty("max_damage", 4.0);
+        effect.addProperty("min_fall_distance", 3.0);
+        effect.addProperty("apply_to_mount", true);
+        effect.addProperty("mount_slowfall_ticks", 100);
+        effect.addProperty("pet_slowfall_ticks", 80);
+        effects.add(effect);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createSkyriderFallGuardPet() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:skyrider_fall_guard_pet");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "pet_incoming_damage");
+        trigger.addProperty("internal_cd_ticks", 10);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject effect = new JsonObject();
+        effect.addProperty("type", "skyrider_fall_guard");
+        effect.addProperty("mode", "pet");
+        effect.addProperty("max_damage", 2.0);
+        effect.addProperty("pet_slowfall_ticks", 80);
+        effects.add(effect);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
     private static JsonObject createBloodlustSurge() {
         JsonObject ability = new JsonObject();
         ability.addProperty("id", "petsplus:bloodlust_surge");
@@ -226,14 +567,38 @@ public class SimpleDataGenerator {
         trigger.addProperty("event", "on_combat_end");
         trigger.addProperty("cooldown_ticks", 200);
         ability.add("trigger", trigger);
-        
+
         JsonArray effects = new JsonArray();
         JsonObject magnetize = new JsonObject();
         magnetize.addProperty("type", "magnetize_drops_and_xp");
         magnetize.addProperty("radius", 12);
         magnetize.addProperty("duration_ticks", "${scout.lootWispDurationTicks}");
         effects.add(magnetize);
-        
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createSpotterFallback() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:spotter_fallback");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_dealt_damage");
+        trigger.addProperty("internal_cd_ticks", 5);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject effect = new JsonObject();
+        effect.addProperty("type", "scout_spotter_fallback");
+        effect.addProperty("radius", 16.0);
+        effect.addProperty("min_level", 10);
+        effect.addProperty("idle_ticks", 60);
+        effect.addProperty("cooldown_ticks", 300);
+        effect.addProperty("glow_duration_ticks", 20);
+        effect.addProperty("send_message", true);
+        effects.add(effect);
+
         ability.add("effects", effects);
         return ability;
     }
@@ -260,36 +625,59 @@ public class SimpleDataGenerator {
     private static JsonObject createWindlashRider() {
         JsonObject ability = new JsonObject();
         ability.addProperty("id", "petsplus:windlash_rider");
+        ability.addProperty("required_level", 7);
 
         JsonObject trigger = new JsonObject();
         trigger.addProperty("event", "owner_begin_fall");
         trigger.addProperty("min_fall", 3);
-        trigger.addProperty("cooldown_ticks", 120);
+        trigger.addProperty("internal_cd_ticks", 120);
         ability.add("trigger", trigger);
-        
+
         JsonArray effects = new JsonArray();
-        
-        // Jump boost
-        JsonObject jumpBuff = new JsonObject();
-        jumpBuff.addProperty("type", "buff");
-        jumpBuff.addProperty("target", "owner");
-        jumpBuff.addProperty("id", "minecraft:jump_boost");
-        jumpBuff.addProperty("duration", 40);
-        jumpBuff.addProperty("amplifier", 0);
-        effects.add(jumpBuff);
-        
-        // Knockup on next hit
-        JsonObject attackBonus = new JsonObject();
-        attackBonus.addProperty("type", "owner_next_attack_bonus");
-        attackBonus.addProperty("expire_ticks", 100);
-        
-        JsonObject knockupEffect = new JsonObject();
-        knockupEffect.addProperty("type", "knockup");
-        knockupEffect.addProperty("target", "victim");
-        knockupEffect.addProperty("strength", 0.35);
-        attackBonus.add("on_hit_effect", knockupEffect);
-        effects.add(attackBonus);
-        
+        JsonObject windlash = new JsonObject();
+        windlash.addProperty("type", "skyrider_windlash");
+        windlash.addProperty("radius", 16.0);
+        windlash.addProperty("min_level", 7);
+        windlash.addProperty("min_fall_distance", 3.0);
+        windlash.addProperty("jump_boost_duration_ticks", 40);
+        windlash.addProperty("jump_boost_amplifier", 0);
+        windlash.addProperty("bonus_damage_pct", 0.15);
+        windlash.addProperty("bonus_expire_ticks", 100);
+        windlash.addProperty("knockup_strength", 0.35);
+        windlash.addProperty("owner_slowfall_ticks", 60);
+        windlash.addProperty("duplicate_gate_ticks", 5);
+        windlash.addProperty("send_message", true);
+        effects.add(windlash);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createSkyriderProjectileLevitation() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:projectile_levitation");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_shot_projectile");
+        trigger.addProperty("projectile_type", "arrow");
+        trigger.addProperty("internal_cd_ticks", 60);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject levitation = new JsonObject();
+        levitation.addProperty("type", "skyrider_projectile_levitation");
+        levitation.addProperty("radius", 16.0);
+        levitation.addProperty("chance", 0.1);
+        levitation.addProperty("require_critical", true);
+        levitation.addProperty("victim_duration_ticks", 40);
+        levitation.addProperty("splash_radius", 5.0);
+        levitation.addProperty("splash_duration_ticks", 40);
+        levitation.addProperty("owner_slowfall_ticks", 80);
+        levitation.addProperty("pet_slowfall_ticks", 80);
+        levitation.addProperty("duplicate_gate_ticks", 5);
+        levitation.addProperty("send_message", true);
+        effects.add(levitation);
+
         ability.add("effects", effects);
         return ability;
     }
@@ -354,6 +742,54 @@ public class SimpleDataGenerator {
         effects.add(effect);
         ability.add("effects", effects);
 
+        return ability;
+    }
+
+    private static JsonObject createNapTimeRadiusAbility() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:nap_time_radius");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "interval_while_active");
+        trigger.addProperty("ticks", 100);
+        trigger.addProperty("internal_cd_ticks", 100);
+        ability.add("trigger", trigger);
+
+        JsonObject aura = new JsonObject();
+        aura.addProperty("type", "eepy_nap_aura");
+        aura.addProperty("radius", 4.0);
+        aura.addProperty("duration_ticks", 120);
+        aura.addProperty("amplifier", 0);
+        aura.addProperty("min_level", 10);
+        aura.addProperty("require_sitting", true);
+        aura.addProperty("message_interval_ticks", 200);
+
+        JsonArray effects = new JsonArray();
+        effects.add(aura);
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createRestfulDreamsAbility() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:restful_dreams");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_sleep_complete");
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject restful = new JsonObject();
+        restful.addProperty("type", "eepy_restful_dreams");
+        restful.addProperty("search_radius", 16.0);
+        restful.addProperty("owner_regen_duration_ticks", 200);
+        restful.addProperty("owner_regen_amplifier", 0);
+        restful.addProperty("owner_saturation_duration_ticks", 200);
+        restful.addProperty("owner_saturation_amplifier", 1);
+        restful.addProperty("pet_resistance_duration_ticks", 200);
+        restful.addProperty("pet_resistance_amplifier", 0);
+        effects.add(restful);
+        ability.add("effects", effects);
         return ability;
     }
 
@@ -455,6 +891,45 @@ public class SimpleDataGenerator {
 
         ability.add("effects", effects);
         ability.addProperty("required_level", 20);
+        return ability;
+    }
+
+    private static JsonObject createCursedReanimation() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:cursed_reanimation");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "pet_lethal_damage");
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject effect = new JsonObject();
+        effect.addProperty("type", "cursed_one_reanimation");
+        effects.add(effect);
+        ability.add("effects", effects);
+
+        return ability;
+    }
+
+    private static JsonObject createCursedMountResilience() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:cursed_mount_resilience");
+        ability.addProperty("required_level", 25);
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_respawn");
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject buff = new JsonObject();
+        buff.addProperty("type", "cursed_mount_resilience");
+        buff.addProperty("search_radius", 16.0);
+        buff.addProperty("duration_ticks", 60);
+        buff.addProperty("amplifier", 0);
+        buff.addProperty("require_death_respawn", true);
+        effects.add(buff);
+        ability.add("effects", effects);
+
         return ability;
     }
 
@@ -567,23 +1042,96 @@ public class SimpleDataGenerator {
         JsonObject trigger = new JsonObject();
         trigger.addProperty("event", "on_combat_end");
         trigger.addProperty("cooldown_ticks", 200);
+        trigger.addProperty("internal_cd_ticks", 200);
         ability.add("trigger", trigger);
 
+        JsonObject effect = new JsonObject();
+        effect.addProperty("type", "eclipsed_phase_partner");
+        effect.addProperty("radius", 12.0);
+        effect.addProperty("tag_duration_ticks", 80);
+        effect.addProperty("min_level", 23);
+        effect.addProperty("require_perched", true);
+
         JsonArray effects = new JsonArray();
+        effects.add(effect);
+        ability.add("effects", effects);
+        return ability;
+    }
 
-        JsonObject retarget = new JsonObject();
-        retarget.addProperty("type", "retarget_nearest_hostile");
-        retarget.addProperty("radius", 12);
-        retarget.addProperty("store_as", "pp_target");
-        effects.add(retarget);
+    private static JsonObject createEventHorizon() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:event_horizon");
 
-        JsonObject tagEffect = new JsonObject();
-        tagEffect.addProperty("type", "tag_target");
-        tagEffect.addProperty("target", "pp_target");
-        tagEffect.addProperty("key", "petsplus:phase_partner");
-        tagEffect.addProperty("duration_ticks", 80);
-        effects.add(tagEffect);
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_low_health");
+        trigger.addProperty("owner_hp_pct_below", 0.3);
+        trigger.addProperty("internal_cd_ticks", 600);
+        ability.add("trigger", trigger);
 
+        JsonObject effect = new JsonObject();
+        effect.addProperty("type", "eclipsed_event_horizon");
+        effect.addProperty("radius", 6.0);
+        effect.addProperty("enemy_effect_duration_ticks", 100);
+
+        JsonArray enemyEffects = new JsonArray();
+        JsonObject blind = new JsonObject();
+        blind.addProperty("id", "minecraft:blindness");
+        blind.addProperty("duration", 80);
+        blind.addProperty("amplifier", 0);
+        enemyEffects.add(blind);
+        effect.add("enemy_effects", enemyEffects);
+
+        JsonArray ownerEffects = new JsonArray();
+        JsonObject invis = new JsonObject();
+        invis.addProperty("id", "minecraft:invisibility");
+        invis.addProperty("duration", 100);
+        invis.addProperty("amplifier", 0);
+        ownerEffects.add(invis);
+
+        JsonObject speed = new JsonObject();
+        speed.addProperty("id", "minecraft:speed");
+        speed.addProperty("duration", 120);
+        speed.addProperty("amplifier", 2);
+        ownerEffects.add(speed);
+        effect.add("owner_effects", ownerEffects);
+
+        effect.addProperty("heal_flat", 4.0);
+        effect.addProperty("heal_percent", 0.15);
+        effect.addProperty("projectile_dr", 0.25);
+        effect.addProperty("projectile_dr_duration_ticks", 100);
+        effect.addProperty("min_level", 30);
+        effect.addProperty("require_perched", false);
+
+        JsonArray effects = new JsonArray();
+        effects.add(effect);
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createEdgeStep() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:edge_step");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_incoming_damage");
+        trigger.addProperty("cooldown_ticks", 20);
+        trigger.addProperty("internal_cd_ticks", 100);
+        ability.add("trigger", trigger);
+
+        JsonObject effect = new JsonObject();
+        effect.addProperty("type", "eclipsed_edge_step");
+        effect.addProperty("reduction_pct", 0.25);
+        effect.addProperty("min_fall_distance", 3.0);
+        effect.addProperty("min_level", 27);
+        effect.addProperty("require_perched", true);
+        effect.addProperty("slow_falling_duration_ticks", 60);
+        effect.addProperty("speed_duration_ticks", 80);
+        effect.addProperty("speed_amplifier", 1);
+        effect.addProperty("heal_flat", 2.0);
+        effect.addProperty("heal_percent", 0.0);
+
+        JsonArray effects = new JsonArray();
+        effects.add(effect);
         ability.add("effects", effects);
         return ability;
     }
@@ -645,30 +1193,8 @@ public class SimpleDataGenerator {
         JsonObject potionReduction = new JsonObject();
         potionReduction.addProperty("type", "perch_potion_sip_reduction");
         potionReduction.addProperty("discount_percent", 0.2);
+        potionReduction.addProperty("linger_ticks", 80);
         effects.add(potionReduction);
-
-        ability.add("effects", effects);
-        return ability;
-    }
-
-    private static JsonObject createMountedConeAura() {
-        JsonObject ability = new JsonObject();
-        ability.addProperty("id", "petsplus:mounted_cone_aura");
-        ability.addProperty("description", "Mounted support aura");
-
-        JsonObject trigger = new JsonObject();
-        trigger.addProperty("event", "interval_while_active");
-        trigger.addProperty("ticks", 40);
-        ability.add("trigger", trigger);
-
-        JsonArray effects = new JsonArray();
-        JsonObject coneAura = new JsonObject();
-        coneAura.addProperty("type", "mounted_cone_aura");
-        coneAura.addProperty("base_radius", 8.0);
-        coneAura.addProperty("extra_radius", 2);
-        coneAura.addProperty("effect_duration", 60);
-        coneAura.addProperty("effect_amplifier", 0);
-        effects.add(coneAura);
 
         ability.add("effects", effects);
         return ability;
@@ -725,7 +1251,51 @@ public class SimpleDataGenerator {
         ability.add("effects", effects);
         return ability;
     }
-    
+
+    private static JsonObject createEclipsedDarknessOwner() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:eclipsed_darkness_owner");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "owner_incoming_damage");
+        trigger.addProperty("cooldown_ticks", 20);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject effect = new JsonObject();
+        effect.addProperty("type", "darkness_damage_shield");
+        effect.addProperty("mode", "owner");
+        effect.addProperty("max_damage", 3.0);
+        effect.addProperty("radius", 16.0);
+        effect.addProperty("require_owner_darkness", true);
+        effect.addProperty("require_pet_darkness", false);
+        effects.add(effect);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
+    private static JsonObject createEclipsedDarknessPet() {
+        JsonObject ability = new JsonObject();
+        ability.addProperty("id", "petsplus:eclipsed_darkness_pet");
+
+        JsonObject trigger = new JsonObject();
+        trigger.addProperty("event", "pet_incoming_damage");
+        trigger.addProperty("cooldown_ticks", 10);
+        ability.add("trigger", trigger);
+
+        JsonArray effects = new JsonArray();
+        JsonObject effect = new JsonObject();
+        effect.addProperty("type", "darkness_damage_shield");
+        effect.addProperty("mode", "pet");
+        effect.addProperty("max_damage", 2.0);
+        effect.addProperty("require_pet_darkness", true);
+        effects.add(effect);
+
+        ability.add("effects", effects);
+        return ability;
+    }
+
     // Role creators
     private static JsonObject createGuardianRole() {
         JsonObject role = new JsonObject();
@@ -735,6 +1305,7 @@ public class SimpleDataGenerator {
         JsonArray abilities = new JsonArray();
         abilities.add("petsplus:aegis_protocol");
         abilities.add("petsplus:fortress_bond");
+        abilities.add("petsplus:fortress_bond_pet_guard");
         role.add("abilities", abilities);
 
         JsonObject featureLevels = new JsonObject();
@@ -752,6 +1323,7 @@ public class SimpleDataGenerator {
         role.addProperty("description", "Execution specialist without pet DPS dependency");
         
         JsonArray abilities = new JsonArray();
+        abilities.add("petsplus:striker_execution");
         abilities.add("petsplus:finisher_mark");
         abilities.add("petsplus:execution_bonus");
         abilities.add("petsplus:bloodlust_surge");
@@ -774,14 +1346,12 @@ public class SimpleDataGenerator {
         
         JsonArray abilities = new JsonArray();
         abilities.add("petsplus:perch_potion_efficiency");
-        abilities.add("petsplus:mounted_cone_aura");
         abilities.add("petsplus:support_potion_pulse");
         role.add("abilities", abilities);
 
         JsonObject featureLevels = new JsonObject();
         featureLevels.addProperty("5", "Perched potion sip reduction");
         featureLevels.addProperty("9", "Manual stored potion pulse");
-        featureLevels.addProperty("15", "Mounted cone bias aura system");
         role.add("feature_levels", featureLevels);
         
         return role;
@@ -817,6 +1387,8 @@ public class SimpleDataGenerator {
         abilities.add("petsplus:projectile_levitation");
         abilities.add("petsplus:windlash_rider");
         abilities.add("petsplus:gust_upwards");
+        abilities.add("petsplus:skyrider_fall_guard_owner");
+        abilities.add("petsplus:skyrider_fall_guard_pet");
         abilities.add("petsplus:skybond_mount_extension");
         role.add("abilities", abilities);
         
@@ -838,6 +1410,12 @@ public class SimpleDataGenerator {
         abilities.add("petsplus:phase_partner");
         abilities.add("petsplus:enchant_strip");
         abilities.add("petsplus:gear_swap");
+        abilities.add("petsplus:enchantment_magic_guard");
+        abilities.add("petsplus:enchantment_mining_echo");
+        abilities.add("petsplus:enchantment_combat_focus");
+        abilities.add("petsplus:enchantment_swim_echo");
+        abilities.add("petsplus:enchantment_extra_loot");
+        abilities.add("petsplus:perched_haste_bonus");
         role.add("abilities", abilities);
 
         JsonObject featureLevels = new JsonObject();
@@ -857,8 +1435,10 @@ public class SimpleDataGenerator {
         JsonArray abilities = new JsonArray();
         abilities.add("petsplus:doom_echo");
         abilities.add("petsplus:soul_sacrifice");
+        abilities.add("petsplus:auto_resurrect_owner");
+        abilities.add("petsplus:cursed_reanimation");
         abilities.add("petsplus:death_burst");
-        abilities.add("petsplus:auto_resurrect_mount_buff");
+        abilities.add("petsplus:cursed_mount_resilience");
         role.add("abilities", abilities);
 
         JsonObject featureLevels = new JsonObject();
@@ -876,8 +1456,11 @@ public class SimpleDataGenerator {
         role.addProperty("description", "Cozy vibes everywhere");
 
         JsonArray abilities = new JsonArray();
+        abilities.add("petsplus:nap_time_radius");
         abilities.add("petsplus:drowsy_mist");
         abilities.add("petsplus:perch_ping");
+        abilities.add("petsplus:restful_dreams");
+        abilities.add("petsplus:dream_escape");
         role.add("abilities", abilities);
 
         JsonObject featureLevels = new JsonObject();
@@ -896,6 +1479,9 @@ public class SimpleDataGenerator {
         abilities.add("petsplus:voidbrand");
         abilities.add("petsplus:void_storage");
         abilities.add("petsplus:phase_partner");
+        abilities.add("petsplus:void_save");
+        abilities.add("petsplus:eclipsed_darkness_owner");
+        abilities.add("petsplus:eclipsed_darkness_pet");
         abilities.add("petsplus:perch_ping");
         abilities.add("petsplus:event_horizon");
         abilities.add("petsplus:edge_step");

@@ -1,6 +1,7 @@
 package woflo.petsplus.api;
 
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -51,7 +52,29 @@ public class EffectContext {
         this.effectData.put(key, value);
         return this;
     }
-    
+
+    public boolean hasDamageContext() {
+        return triggerContext.hasDamageContext();
+    }
+
+    @Nullable
+    public DamageSource getIncomingDamageSource() {
+        return triggerContext.getIncomingDamageSource();
+    }
+
+    public double getIncomingDamageAmount() {
+        return triggerContext.getIncomingDamageAmount();
+    }
+
+    public boolean isLethalDamage() {
+        return triggerContext.isLethalDamage();
+    }
+
+    @Nullable
+    public DamageInterceptionResult getDamageResult() {
+        return triggerContext.getDamageResult();
+    }
+
     @SuppressWarnings("unchecked")
     @Nullable
     public <T> T getData(String key, Class<T> type) {

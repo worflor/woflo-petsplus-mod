@@ -2,36 +2,18 @@
   "id": "petsplus:nap_time_radius",
   "trigger": {
     "event": "interval_while_active",
-    "ticks": 400,
-    "internal_cd_ticks": 400
+    "ticks": 100,
+    "internal_cd_ticks": 100
   },
   "effects": [
     {
-      "type": "area_effect",
-      "radius": 8.0,
-      "effects": [
-        {
-          "id": "minecraft:regeneration",
-          "duration": 120,
-          "amplifier": 0
-        }
-      ]
-    },
-    {
-      "type": "area_effect",
-      "radius": 6.0,
-      "effects": [
-        {
-          "id": "minecraft:slowness",
-          "duration": 100,
-          "amplifier": 1
-        }
-      ]
-    },
-    {
-      "type": "heal_owner_flat_pct",
-      "flat_amount": 3.0,
-      "pct_amount": 0.1
+      "type": "eepy_nap_aura",
+      "radius": 4.0,
+      "duration_ticks": 120,
+      "amplifier": 0,
+      "min_level": 10,
+      "require_sitting": true,
+      "message_interval_ticks": 200
     }
   ]
 }

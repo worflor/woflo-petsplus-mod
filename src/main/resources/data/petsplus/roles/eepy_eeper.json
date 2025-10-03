@@ -10,8 +10,11 @@
     "learning": 0.01
   },
   "default_abilities": [
+    "petsplus:nap_time_radius",
     "petsplus:drowsy_mist",
-    "petsplus:perch_ping"
+    "petsplus:perch_ping",
+    "petsplus:restful_dreams",
+    "petsplus:dream_escape"
   ],
   "tribute_defaults": {
     "10": "minecraft:gold_ingot",
@@ -32,24 +35,6 @@
     "ambient_event": "eepy_eeper_ambient",
     "ability_event_prefix": "eepy_eeper"
   },
-  "passive_auras": [
-    {
-      "id": "nap_time",
-      "interval": 120,
-      "radius": 4.0,
-      "min_level": 12,
-      "require_sitting": true,
-      "effects": [
-        {
-          "effect": "minecraft:regeneration",
-          "target": "owner_and_allies",
-          "duration": 120,
-          "amplifier": 0
-        }
-      ],
-      "particle_event": "nap_time"
-    }
-  ],
   "presentation": {
     "petting": {
       "feedback_event": "eepy_sleepy_contentment",

@@ -17,7 +17,8 @@
   },
   "default_abilities": [
     "petsplus:aegis_protocol",
-    "petsplus:fortress_bond"
+    "petsplus:fortress_bond",
+    "petsplus:fortress_bond_pet_guard"
   ],
   "tribute_defaults": {
     "10": "minecraft:gold_ingot",

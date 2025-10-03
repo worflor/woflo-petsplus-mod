@@ -1,0 +1,18 @@
+{
+  "id": "petsplus:enchantment_combat_focus",
+  "required_level": 20,
+  "trigger": {
+    "event": "owner_killed_entity"
+  },
+  "effects": [
+    {
+      "type": "enchantment_arcane_focus",
+      "bucket": "combat",
+      "duration_ticks": 200,
+      "cooldown_ticks": 1200,
+      "charges_at_level_30": 2,
+      "play_sound": true,
+      "require_hostile_victim": true
+    }
+  ]
+}

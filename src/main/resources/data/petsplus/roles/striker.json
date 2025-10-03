@@ -16,6 +16,7 @@
     "attack_max_bonus": 1.5
   },
   "default_abilities": [
+    "petsplus:striker_execution",
     "petsplus:finisher_mark",
     "petsplus:execution_bonus",
     "petsplus:bloodlust_surge"

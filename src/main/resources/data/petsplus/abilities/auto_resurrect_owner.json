@@ -1,0 +1,15 @@
+{
+  "id": "petsplus:auto_resurrect_owner",
+  "required_level": 15,
+  "trigger": {
+    "event": "owner_lethal_damage",
+    "internal_cd_ticks": 20
+  },
+  "effects": [
+    {
+      "type": "cursed_one_sacrificial_rescue",
+      "activation_radius": 16.0,
+      "min_level": 15
+    }
+  ]
+}

@@ -124,10 +124,6 @@ public class UIFeedbackManager {
         sendActionBarMessage(player, "petsplus.support.potion_sip");
     }
 
-    public static void sendSupportConeAuraMessage(ServerPlayerEntity player) {
-        sendActionBarMessage(player, "petsplus.support.cone_aura");
-    }
-
     public static void sendSupportPotionLocked(ServerPlayerEntity player, MobEntity pet, int requiredLevel) {
         sendActionBarMessage(player, pet, "petsplus.support.potion_locked", pet.getDisplayName(), Math.max(1, requiredLevel));
     }

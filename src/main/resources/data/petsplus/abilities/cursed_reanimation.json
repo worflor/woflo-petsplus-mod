@@ -1,0 +1,11 @@
+{
+  "id": "petsplus:cursed_reanimation",
+  "trigger": {
+    "event": "pet_lethal_damage"
+  },
+  "effects": [
+    {
+      "type": "cursed_one_reanimation"
+    }
+  ]
+}

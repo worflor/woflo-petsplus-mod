@@ -4,6 +4,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.util.Identifier;
+import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
 import woflo.petsplus.api.TriggerContext;
@@ -24,14 +25,30 @@ public class BuffEffect implements Effect {
     private final StatusEffectInstance statusEffect;
     private final boolean onlyIfMounted;
     private final boolean onlyIfPerched;
-    
+    @Nullable
+    private final String requiredDataFlag;
+    private final boolean requiredDataValue;
+    private final boolean requireFlag;
+
     public BuffEffect(Target target, StatusEffectInstance statusEffect, boolean onlyIfMounted, boolean onlyIfPerched) {
+        this(target, statusEffect, onlyIfMounted, onlyIfPerched, null, true);
+    }
+
+    public BuffEffect(Target target,
+                      StatusEffectInstance statusEffect,
+                      boolean onlyIfMounted,
+                      boolean onlyIfPerched,
+                      @Nullable String requiredDataFlag,
+                      boolean requiredDataValue) {
         this.target = target;
         this.statusEffect = statusEffect;
         this.onlyIfMounted = onlyIfMounted;
         this.onlyIfPerched = onlyIfPerched;
+        this.requiredDataFlag = requiredDataFlag == null || requiredDataFlag.isEmpty() ? null : requiredDataFlag;
+        this.requiredDataValue = requiredDataValue;
+        this.requireFlag = this.requiredDataFlag != null;
     }
-    
+
     public BuffEffect(Target target, StatusEffectInstance statusEffect) {
         this(target, statusEffect, false, false);
     }
@@ -43,6 +60,14 @@ public class BuffEffect implements Effect {
     
     @Override
     public boolean execute(EffectContext context) {
+        if (requireFlag) {
+            Boolean flagValue = context.getData(requiredDataFlag, Boolean.class);
+            boolean matches = flagValue != null && flagValue;
+            if (matches != requiredDataValue) {
+                return false;
+            }
+        }
+
         // Check guards
         if (onlyIfMounted) {
             LivingEntity owner = context.getOwner();

@@ -19,7 +19,7 @@ class AbilityTriggerRegistrationTest {
     @Test
     void edgeStepAbilityUsesNewFallDamageTriggerId() throws IOException {
         JsonObject trigger = loadAbilityTrigger("edge_step.json");
-        assertEquals("owner_took_fall_damage", trigger.get("event").getAsString());
+        assertEquals("owner_incoming_damage", trigger.get("event").getAsString());
     }
 
     @Test
@@ -29,9 +29,15 @@ class AbilityTriggerRegistrationTest {
     }
 
     @Test
-    void spotterFallbackAbilityUsesBlockBreakTriggerId() throws IOException {
+    void spotterFallbackAbilityUsesOwnerDamageTriggerId() throws IOException {
         JsonObject trigger = loadAbilityTrigger("spotter_fallback.json");
-        assertEquals("owner_broke_block", trigger.get("event").getAsString());
+        assertEquals("owner_dealt_damage", trigger.get("event").getAsString());
+    }
+
+    @Test
+    void strikerExecutionAbilityUsesOutgoingDamageTriggerId() throws IOException {
+        JsonObject trigger = loadAbilityTrigger("striker_execution.json");
+        assertEquals("owner_outgoing_damage", trigger.get("event").getAsString());
     }
 
     @Test
@@ -55,8 +61,17 @@ class AbilityTriggerRegistrationTest {
     @Test
     void bulwarkRedirectUsesPercentFieldForProjectileDr() throws IOException {
         JsonObject ability = loadAbilityJson("bulwark_redirect.json");
+        JsonObject trigger = ability.getAsJsonObject("trigger");
+        assertNotNull(trigger, "Bulwark Redirect should define a trigger");
+        assertEquals("owner_incoming_damage", trigger.get("event").getAsString());
+
         JsonArray effects = ability.getAsJsonArray("effects");
         assertNotNull(effects, "Bulwark Redirect should define effects");
+
+        JsonObject redirectEffect = effects.get(0).getAsJsonObject();
+        assertEquals("guardian_bulwark_redirect", redirectEffect.get("type").getAsString(),
+            "First effect should run the guardian bulwark redirect handler");
+
         JsonObject drEffect = null;
         for (int i = 0; i < effects.size(); i++) {
             JsonObject effect = effects.get(i).getAsJsonObject();
@@ -69,6 +84,8 @@ class AbilityTriggerRegistrationTest {
         assertNotNull(drEffect, "Bulwark Redirect should include projectile DR effect");
         assertTrue(drEffect.has("percent"), "Projectile DR effect should use percent field");
         assertEquals(0.25, drEffect.get("percent").getAsDouble(), 1.0E-6);
+        assertEquals("guardian_bulwark_redirect_success", drEffect.get("require_data_flag").getAsString(),
+            "Projectile DR should require bulwark success flag");
     }
 
     private static JsonObject loadAbilityTrigger(String fileName) throws IOException {

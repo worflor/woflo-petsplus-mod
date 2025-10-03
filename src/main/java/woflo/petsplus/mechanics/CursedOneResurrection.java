@@ -56,13 +56,9 @@ public class CursedOneResurrection {
     
     public static void initialize() {
         ServerLivingEntityEvents.ALLOW_DAMAGE.register(CursedOneResurrection::onEntityDamage);
-        ServerLivingEntityEvents.ALLOW_DEATH.register((entity, damageSource, damageAmount) ->
-            CursedOneResurrection.onOwnerDeath(entity, damageSource, damageAmount));
-        ServerLivingEntityEvents.ALLOW_DEATH.register((entity, damageSource, damageAmount) ->
-            CursedOneResurrection.onPetDeath(entity, damageSource, damageAmount));
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, damageSource) ->
             CursedOneResurrection.onOwnerActualDeath(entity, damageSource));
-        
+
     }
     
     /**
@@ -196,6 +192,21 @@ public class CursedOneResurrection {
         
         // Brief invulnerability period
         pet.timeUntilRegen = 40; // 2 seconds
+    }
+
+    private static boolean isOnReanimationCooldown(PetComponent petComp, long currentTime) {
+        if (petComp == null) {
+            return false;
+        }
+        reanimationLock.lock();
+        try {
+            Long lastResurrectTimeObj = petComp.getStateData("last_resurrect_time", Long.class);
+            long lastResurrectTime = lastResurrectTimeObj != null ? lastResurrectTimeObj : 0L;
+            long resurrectionCooldown = 15 * 20L;
+            return currentTime - lastResurrectTime < resurrectionCooldown;
+        } finally {
+            reanimationLock.unlock();
+        }
     }
 
     private static void triggerReanimationBurst(ServerWorld world, MobEntity pet, PetComponent component) {
@@ -737,138 +748,54 @@ public class CursedOneResurrection {
         });
     }
     
-    private static boolean onOwnerDeath(LivingEntity entity, DamageSource damageSource, float damageAmount) {
-        if (!(entity instanceof ServerPlayerEntity owner)) {
-            return true; // Not a player, allow death
-        }
-        
-        if (!(entity.getWorld() instanceof ServerWorld serverWorld)) {
-            return true;
-        }
-        
-        // Find nearby Cursed One pets
-        List<MobEntity> cursedPets = findNearbyCursedOnePets(owner, serverWorld);
-        if (cursedPets.isEmpty()) {
-            return true; // No cursed pets nearby, allow death
-        }
-        
-        // Check if any cursed pet can resurrect the owner
-        MobEntity sacrificialPet = findBestResurrectionPet(cursedPets);
-        if (sacrificialPet == null) {
-            return true; // No suitable pet for resurrection
-        }
-
-        // Check resurrection chance
-        float resurrectionChance = getResurrectionChance(sacrificialPet);
-        if (resurrectionChance <= 0.0f || serverWorld.getRandom().nextFloat() > resurrectionChance) {
-            return true; // Resurrection failed - allow death
-        }
-
-        // Perform the resurrection
-        boolean resurrected = performAutoResurrection(owner, sacrificialPet, damageSource);
-        
-        if (resurrected) {
-            return false; // Prevent death
-        }
-        
-        return true; // Allow death if resurrection failed
-    }
-
     /**
-     * Prevent Cursed One pets from dying (immortality mechanic).
-     * They enter a 15-second reanimation state instead of dying.
+     * Attempts to enter the cursed reanimation state for the supplied pet. Returns {@code true}
+     * when reanimation successfully begins and the lethal damage should be cancelled.
      */
-    private static boolean onPetDeath(LivingEntity entity, DamageSource damageSource, float damageAmount) {
-        if (!(entity instanceof MobEntity mobEntity)) {
-            return true; // Not a mob, allow death
+    public static boolean tryBeginReanimation(MobEntity mobEntity,
+                                              PetComponent petComp,
+                                              DamageSource damageSource) {
+        if (mobEntity == null || petComp == null) {
+            return false;
         }
-
-        PetComponent petComp = PetComponent.get(mobEntity);
-        if (petComp == null) {
-            return true; // No pet component, allow death
-        }
-        
         if (!petComp.hasRole(PetRoleType.CURSED_ONE)) {
-            return true; // Not a Cursed One pet, allow death
+            return false;
         }
-
-        // Debug logging
-        woflo.petsplus.Petsplus.LOGGER.info("Cursed One pet {} is dying - Level: {}, Health: {}/{}", 
-            mobEntity.hasCustomName() ? mobEntity.getCustomName().getString() : mobEntity.getType().getName().getString(),
-            petComp.getLevel(), mobEntity.getHealth(), mobEntity.getMaxHealth());
-
-        // Require level 15+ for immortality (matches doom echo unlock level)
         if (petComp.getLevel() < 15) {
-            woflo.petsplus.Petsplus.LOGGER.info("Cursed One pet level {} is too low for immortality (needs 15+)", petComp.getLevel());
-            return true; // Too low level for immortality, allow death
+            return false;
+        }
+        if (!(mobEntity.getWorld() instanceof ServerWorld serverWorld)) {
+            return false;
         }
 
-        // Don't prevent death if already reanimating (prevents infinite loop)
-        // Use synchronized check to prevent race conditions
         reanimationLock.lock();
         try {
             if (isReanimating(mobEntity)) {
-                woflo.petsplus.Petsplus.LOGGER.info("Cursed One pet is already reanimating, allowing death");
-                return true; // Allow death while reanimating
+                return false;
             }
         } finally {
             reanimationLock.unlock();
         }
 
-        if (!(entity.getWorld() instanceof ServerWorld serverWorld)) {
-            woflo.petsplus.Petsplus.LOGGER.warn("Cursed One pet death occurred in non-server world");
-            return true;
-        }
-
-        // Check resurrection cooldown (15 seconds) - make atomic with synchronized block
         long currentTime = serverWorld.getTime();
-        final boolean[] onCooldown = {false};
-        
-        reanimationLock.lock();
-        try {
-            Long lastResurrectTimeObj = petComp.getStateData("last_resurrect_time", Long.class);
-            long lastResurrectTime = lastResurrectTimeObj != null ? lastResurrectTimeObj : 0L;
-            long resurrectionCooldown = 15 * 20; // 15 seconds in ticks
-
-            if (currentTime - lastResurrectTime < resurrectionCooldown) {
-                long cooldownRemaining = resurrectionCooldown - (currentTime - lastResurrectTime);
-                woflo.petsplus.Petsplus.LOGGER.info("Cursed One pet resurrection on cooldown for {} more ticks", cooldownRemaining);
-                onCooldown[0] = true; // Still on cooldown, allow death this time
-            }
-        } finally {
-            reanimationLock.unlock();
-        }
-        
-        if (onCooldown[0]) {
-            return true;
+        if (isOnReanimationCooldown(petComp, currentTime)) {
+            return false;
         }
 
-        woflo.petsplus.Petsplus.LOGGER.info("Attempting to enter reanimation state for Cursed One pet");
-
-        // Enter reanimation state instead of dying - use synchronized block to prevent race conditions
         boolean enteredReanimation = false;
         reanimationLock.lock();
         try {
-            // Double-check that we're not already reanimating (prevent race condition)
             if (!isReanimating(mobEntity)) {
                 enteredReanimation = enterReanimationState(mobEntity, petComp, damageSource, serverWorld);
-                
                 if (enteredReanimation) {
-                    // Update resurrection timestamp atomically
                     petComp.setStateData("last_resurrect_time", currentTime);
-                    woflo.petsplus.Petsplus.LOGGER.info("Successfully entered reanimation state - preventing death");
                 }
             }
         } finally {
             reanimationLock.unlock();
         }
 
-        if (enteredReanimation) {
-            return false; // Prevent death - entering reanimation
-        }
-
-        woflo.petsplus.Petsplus.LOGGER.warn("Failed to enter reanimation state - allowing death");
-        return true; // Allow death if reanimation failed
+        return enteredReanimation;
     }
 
     /**
@@ -1074,13 +1001,13 @@ public class CursedOneResurrection {
         }
     }
 
-    private static List<MobEntity> findNearbyCursedOnePets(PlayerEntity owner, ServerWorld world) {
+    public static List<MobEntity> findNearbyCursedOnePets(PlayerEntity owner, ServerWorld world, double radius) {
         return world.getEntitiesByClass(
             MobEntity.class,
-            owner.getBoundingBox().expand(16), // 16 block radius
+            owner.getBoundingBox().expand(radius),
             entity -> {
                 PetComponent petComp = PetComponent.get(entity);
-                return petComp != null && 
+                return petComp != null &&
                        petComp.hasRole(PetRoleType.CURSED_ONE) &&
                        petComp.isOwnedBy(owner) &&
                        entity.isAlive() &&
@@ -1089,7 +1016,7 @@ public class CursedOneResurrection {
         );
     }
     
-    private static MobEntity findBestResurrectionPet(List<MobEntity> cursedPets) {
+    public static MobEntity findBestResurrectionPet(List<MobEntity> cursedPets) {
         if (cursedPets.isEmpty()) {
             return null;
         }
@@ -1109,7 +1036,7 @@ public class CursedOneResurrection {
         return bestPet;
     }
     
-    private static boolean performAutoResurrection(ServerPlayerEntity owner, MobEntity cursedPet, DamageSource damageSource) {
+    public static boolean performAutoResurrection(ServerPlayerEntity owner, MobEntity cursedPet, DamageSource damageSource) {
         try {
             PetComponent petComp = PetComponent.get(cursedPet);
             if (petComp == null) {

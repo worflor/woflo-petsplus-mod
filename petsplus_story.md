@@ -79,7 +79,7 @@
 * **Current Kit**
 
   * **L5 – Perch Potion Efficiency**: While perched on your shoulder (parrots or any vanilla shoulder-perch state), the pet “sips” less per pulse, extending potion lifespan.
-  * **L15 – Mounted Cone Aura**: From the owner's **saddled mount**, projects a short cone aura that shares the stored potion briefly.
+  * **L15 – (open slot)**: The old mounted cone aura has been retired for now, leaving room to explore a more flavorful mounted support fantasy in a future update.
 
 > No periodic heal-on-kill loop. No duration refresh gimmicks. Numbers configurable.
 

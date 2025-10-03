@@ -1,6 +1,5 @@
 package woflo.petsplus.roles.eclipsed;
 
-import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.MobEntity;
@@ -45,9 +44,6 @@ public class EclipsedCore implements PlayerTickListener {
     }
 
     public static void initialize() {
-        // Register damage events for shadow protection
-        ServerLivingEntityEvents.ALLOW_DAMAGE.register(EclipsedCore::onEntityDamage);
-
     }
 
     @Override
@@ -90,38 +86,6 @@ public class EclipsedCore implements PlayerTickListener {
         }
     }
     
-    /**
-     * Handle damage events for shadow protection and eclipse abilities.
-     */
-    private static boolean onEntityDamage(LivingEntity entity, net.minecraft.entity.damage.DamageSource damageSource, float damageAmount) {
-        // Handle Eclipsed pet shadow protection
-        if (entity instanceof MobEntity mobEntity) {
-            PetComponent petComp = PetComponent.get(mobEntity);
-            if (petComp != null && petComp.hasRole(PetRoleType.ECLIPSED)) {
-                // Shadow protection in darkness
-                if (isInDarkness(mobEntity)) {
-                    return damageAmount <= 2.0f; // Absorb small damage in darkness
-                }
-                
-                // Eclipse energy and void abilities
-                if (petComp.getOwner() instanceof ServerPlayerEntity owner &&
-                    mobEntity instanceof PetsplusTameable) {
-                    EclipsedVoid.onServerTick(mobEntity, owner);
-                }
-            }
-        }
-        
-        // Handle owner shadow protection from nearby Eclipsed
-        if (entity instanceof ServerPlayerEntity player) {
-            if (hasNearbyEclipsed(player) && isInDarkness(player)) {
-                // Eclipsed provides shadow protection to owner in darkness
-                return damageAmount <= 3.0f; // Absorb moderate damage
-            }
-        }
-        
-        return true; // Allow damage
-    }
-    
     private static void processEclipseEffects(ServerPlayerEntity player, List<MobEntity> eclipsedPets) {
         for (MobEntity eclipsedPet : eclipsedPets) {
             PetComponent petComp = PetComponent.get(eclipsedPet);
@@ -130,9 +94,6 @@ public class EclipsedCore implements PlayerTickListener {
             }
 
             EclipsedVoid.onServerTick(eclipsedPet, player);
-            if (petComp.getLevel() >= 7) {
-                EclipsedAdvancedAbilities.createEventHorizon(player, eclipsedPet.getPos());
-            }
         }
     }
     
@@ -271,10 +232,6 @@ public class EclipsedCore implements PlayerTickListener {
                 // Trigger void abilities when entering darkness
                 EclipsedVoid.onServerTick(eclipsedPet, player);
                 
-                // Apply edge step effects for fall damage reduction
-                if (EclipsedAdvancedAbilities.shouldTriggerEdgeStep(player, 3.0)) {
-                    // Edge step activated
-                }
             }
         });
     }

@@ -1,0 +1,15 @@
+{
+  "id": "petsplus:dream_escape",
+  "required_level": 30,
+  "trigger": {
+    "event": "owner_lethal_damage",
+    "internal_cd_ticks": 20
+  },
+  "effects": [
+    {
+      "type": "eepy_dream_escape_rescue",
+      "activation_radius": 8.0,
+      "blindness_duration_ticks": 600
+    }
+  ]
+}

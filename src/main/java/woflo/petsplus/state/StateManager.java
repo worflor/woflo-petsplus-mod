@@ -17,6 +17,7 @@ import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.abilities.AbilityTriggerPayload;
+import woflo.petsplus.abilities.AbilityTriggerResult;
 import woflo.petsplus.abilities.OwnerAbilityEventBridge;
 import woflo.petsplus.effects.AuraTargetResolver;
 import woflo.petsplus.effects.PetsplusEffectManager;
@@ -1402,22 +1403,32 @@ public class StateManager {
         }
     }
 
-    public void dispatchAbilityTrigger(ServerPlayerEntity owner,
-                                       String triggerId,
-                                       @Nullable Map<String, Object> eventData) {
+    public AbilityTriggerResult dispatchAbilityTrigger(ServerPlayerEntity owner,
+                                                       String triggerId,
+                                                       @Nullable Map<String, Object> eventData) {
         if (owner == null || owner.isRemoved()) {
-            return;
+            return AbilityTriggerResult.empty();
         }
         if (triggerId == null || triggerId.isEmpty()) {
-            return;
+            return AbilityTriggerResult.empty();
         }
         if (!hasOwnerEventListeners(OwnerEventType.ABILITY_TRIGGER)) {
-            return;
+            return AbilityTriggerResult.empty();
         }
         EnumSet<OwnerEventType> events = EnumSet.of(OwnerEventType.ABILITY_TRIGGER);
         EnumMap<OwnerEventType, Object> payload = new EnumMap<>(OwnerEventType.class);
-        payload.put(OwnerEventType.ABILITY_TRIGGER, AbilityTriggerPayload.of(triggerId, eventData));
+        CompletableFuture<AbilityTriggerResult> resultFuture = new CompletableFuture<>();
+        payload.put(OwnerEventType.ABILITY_TRIGGER, AbilityTriggerPayload.of(triggerId, eventData, resultFuture));
         dispatchOwnerEvents(owner, events, payload);
+        if (!resultFuture.isDone()) {
+            resultFuture.complete(AbilityTriggerResult.empty());
+        }
+        try {
+            return resultFuture.join();
+        } catch (CompletionException exception) {
+            Petsplus.LOGGER.error("Ability trigger {} failed for owner {}", triggerId, owner.getName().getString(), exception);
+            return AbilityTriggerResult.empty();
+        }
     }
 
     public void requestEmotionEvent(ServerPlayerEntity owner,

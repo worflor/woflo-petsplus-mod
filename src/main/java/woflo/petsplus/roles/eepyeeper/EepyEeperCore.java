@@ -1,47 +1,39 @@
 package woflo.petsplus.roles.eepyeeper;
 
-import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.mob.PhantomEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
 import net.minecraft.particle.ParticleTypes;
-import woflo.petsplus.advancement.AdvancementCriteriaRegistry;
-import woflo.petsplus.api.entity.PetsplusTameable;
+import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PlayerTickListener;
 import woflo.petsplus.util.ChanceValidationUtil;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.jetbrains.annotations.Nullable;
 /**
 
  * Core Eepy Eeper mechanics implementation following the story requirements.
 
  */
 
-public class EepyEeperCore implements PlayerTickListener {
+public class EepyEeperCore {
 
     private static final Map<UUID, Integer> sleepCyclesRemaining = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> lastSleepTime = new ConcurrentHashMap<>();
-    private static final Map<UUID, Long> nextNapAuraTick = new ConcurrentHashMap<>();
-
-    private static final long NAP_AURA_INTERVAL_TICKS = 100L;
-    private static final long IDLE_RECHECK_TICKS = 200L;
+    private static final Map<UUID, UUID> lastSleepEventIds = new ConcurrentHashMap<>();
 
     private static final EepyEeperCore INSTANCE = new EepyEeperCore();
 
@@ -52,628 +44,57 @@ public class EepyEeperCore implements PlayerTickListener {
     }
 
     public static void initialize() {
-
-        ServerLivingEntityEvents.ALLOW_DAMAGE.register(EepyEeperCore::onEntityDamage);
-
-
+        // Intentionally left blank; legacy damage interception now handled by abilities.
     }
 
-    /**
-
-     * Handle Eepy Eeper damage interception and Dream's Escape
-
-     */
-
-    private static boolean onEntityDamage(LivingEntity entity, DamageSource damageSource, float damageAmount) {
-
-        // Handle Dream's Escape for lethal damage
-
-        if (entity instanceof ServerPlayerEntity player) {
-
-            return handleDreamEscape(player, damageSource, damageAmount);
-
+    public static boolean beginSleepEvent(ServerPlayerEntity player, @Nullable UUID eventId, long worldTime) {
+        if (player == null) {
+            return false;
         }
-
-        // Handle Phantom immunity
-
-        if (entity instanceof PlayerEntity player && damageSource.getAttacker() instanceof PhantomEntity) {
-
-            return handlePhantomImmunity(player);
-
-        }
-
-        return true; // Allow damage
-
-    }
-
-    /**
-
-     * Handle Dream's Escape mechanic - L30 ability
-
-     */
-
-    private static boolean handleDreamEscape(ServerPlayerEntity player, DamageSource damageSource, float damageAmount) {
-
-        // Check if this would be lethal damage
-
-        if (player.getHealth() - damageAmount > 0) {
-
-            return true; // Not lethal, allow damage
-
-        }
-
-        // Find nearby Eepy Eeper pets at L30
-
-        List<MobEntity> eepyPets = findNearbyEepyEepers(player, 8.0);
-
-        MobEntity dreamEscapePet = null;
-
-        for (MobEntity pet : eepyPets) {
-
-            PetComponent petComp = PetComponent.get(pet);
-
-            if (petComp != null && petComp.getLevel() >= 30) {
-
-                // Check if pet is not knocked out
-
-                if (!isPetKnockedOut(pet.getUuid())) {
-
-                    dreamEscapePet = pet;
-
-                    break;
-
-                }
-
+        UUID ownerId = player.getUuid();
+        if (eventId != null) {
+            UUID previous = lastSleepEventIds.put(ownerId, eventId);
+            if (eventId.equals(previous)) {
+                return false;
             }
-
+        } else {
+            Long previous = lastSleepTime.get(ownerId);
+            if (previous != null && previous == worldTime) {
+                return false;
+            }
         }
-
-        if (dreamEscapePet == null) {
-
-            return true; // No suitable pet, allow death
-
-        }
-
-        // Check cooldown (once per 3 sleep cycles)
-
-        if (!canUseDreamEscape(player)) {
-
-            return true; // On cooldown, allow death
-
-        }
-
-        // Perform Dream's Escape
-
-        return performDreamEscape(player, dreamEscapePet, damageSource, damageAmount);
-
+        lastSleepTime.put(ownerId, worldTime);
+        return true;
     }
 
-    /**
-
-     * Perform the Dream's Escape rescue
-
-     */
-
-    private static boolean performDreamEscape(ServerPlayerEntity player, MobEntity pet, DamageSource damageSource, float damageAmount) {
-
-        try {
-
-            // Cancel death and heal to minimal health
-
-            player.setHealth(1.0f);
-
-            // Apply Blindness I (30s) and remove all XP
-
-            player.addStatusEffect(new StatusEffectInstance(StatusEffects.BLINDNESS, 600, 0));
-
-            player.totalExperience = 0;
-
-            player.experienceLevel = 0;
-
-            player.experienceProgress = 0.0f;
-
-            // Teleport to respawn point
-
-            net.minecraft.server.network.ServerPlayerEntity.Respawn respawn = player.getRespawn();
-
-            ServerWorld serverWorld = player.getWorld();
-
-            if (respawn != null) {
-
-                // Use respawn position
-
-                BlockPos respawnPos = respawn.pos();
-
-                player.teleport(serverWorld,
-
-                    respawnPos.getX() + 0.5, respawnPos.getY() + 1, respawnPos.getZ() + 0.5,
-
-                    java.util.Set.of(), respawn.angle(), 0.0f, false);
-
+    public static void processSleepRecovery(ServerPlayerEntity player, ServerWorld world) {
+        if (player == null || world == null) {
+            return;
+        }
+        Iterator<Map.Entry<UUID, Integer>> iterator = sleepCyclesRemaining.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<UUID, Integer> entry = iterator.next();
+            int remaining = entry.getValue();
+            if (remaining <= 0) {
+                iterator.remove();
+                continue;
+            }
+            remaining--;
+            if (remaining <= 0) {
+                iterator.remove();
+                player.sendMessage(Text.of("A6Your knocked out Eepy Eeper stirs... they're ready to protect you again!"), false);
+                Entity entity = world.getEntity(entry.getKey());
+                if (entity instanceof MobEntity recoveredPet) {
+                    playPetRecoveryCue(world, recoveredPet);
+                }
             } else {
-
-                // Teleport to world spawn if no respawn set
-
-                BlockPos worldSpawn = serverWorld.getSpawnPos();
-
-                player.teleport(serverWorld,
-
-                    worldSpawn.getX() + 0.5, worldSpawn.getY() + 1, worldSpawn.getZ() + 0.5,
-
-                    java.util.Set.of(), player.getYaw(), player.getPitch(), false);
-
-            }
-
-            // Track dream escape in pet's history (pet-centric modular history)
-            woflo.petsplus.history.HistoryManager.recordDreamEscape(pet, player);
-            
-            // Also record as pet sacrifice since the pet "died" to save the player
-            woflo.petsplus.history.HistoryManager.recordPetSacrifice(pet, player, 1.0f);
-            
-            // Calculate totals from pet's history
-            woflo.petsplus.state.PetComponent petComp = woflo.petsplus.state.PetComponent.get(pet);
-            if (petComp != null) {
-                long dreamEscapes = petComp.getAchievementCount(
-                    woflo.petsplus.history.HistoryEvent.AchievementType.DREAM_ESCAPE, 
-                    player.getUuid()
-                );
-                long petSacrifices = petComp.getAchievementCount(
-                    woflo.petsplus.history.HistoryEvent.AchievementType.PET_SACRIFICE, 
-                    player.getUuid()
-                );
-                
-                // Track both dream escapes and universal pet sacrifice
-                woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_INTERACTION.trigger(
-                    player,
-                    woflo.petsplus.advancement.criteria.PetInteractionCriterion.INTERACTION_DREAM_ESCAPE,
-                    (int) dreamEscapes
-                );
-                
-                // Trigger universal pet sacrifice criterion
-                woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_INTERACTION.trigger(
-                    player,
-                    woflo.petsplus.advancement.criteria.PetInteractionCriterion.INTERACTION_PET_SACRIFICE,
-                    (int) petSacrifices
-                );
-            }
-
-            // Create dramatic Dream's Escape visual/audio effects
-
-            createDreamEscapeEffects(player, pet, serverWorld);
-
-            playPetKnockoutEffect(serverWorld, pet);
-
-            sacrificeDreamEscapePet(serverWorld, player, pet);
-
-            return false; // Prevent death
-
-        } catch (Exception e) {
-
-            woflo.petsplus.Petsplus.LOGGER.error("Dream's Escape failed", e);
-
-            return true; // Allow death if escape fails
-
-        }
-
-    }
-
-    private static void sacrificeDreamEscapePet(ServerWorld world, ServerPlayerEntity player, MobEntity pet) {
-
-        if (!pet.isAlive()) {
-
-            sleepCyclesRemaining.remove(pet.getUuid());
-
-            return;
-
-        }
-
-        sleepCyclesRemaining.remove(pet.getUuid());
-
-        String petName = pet.hasCustomName()
-            ? pet.getCustomName().getString()
-            : pet.getType().getName().getString();
-
-        pet.damage(world, pet.getDamageSources().magic(), Float.MAX_VALUE);
-
-        player.sendMessage(Text.translatable("petsplus.eepyeeper.dream_sacrifice", petName), false);
-
-    }
-
-    /**
-
-     * Handle phantom immunity for players with living Eepy Eeper pets
-
-     */
-
-    private static boolean handlePhantomImmunity(PlayerEntity player) {
-
-        List<MobEntity> eepyPets = findNearbyEepyEepers(player, Double.MAX_VALUE); // Check all loaded eepy pets
-
-        for (MobEntity pet : eepyPets) {
-
-            PetComponent petComp = PetComponent.get(pet);
-
-            if (petComp != null && pet.isAlive()) {
-
-                // Player has living Eepy Eeper, immune to phantoms
-
-                createPhantomProtectionEffect(player, pet, (ServerWorld) player.getWorld());
-
-                player.sendMessage(Text.translatable("petsplus.eepyeeper.phantom_ward"), true);
-
-                return false; // Prevent phantom damage
-
-            }
-
-        }
-
-        return true; // No living eepy pets, allow phantom damage
-
-    }
-
-    // ---- Visual/audio helpers (stubs) -------------------------------------------------
-
-    private static void createDreamEscapeEffects(ServerPlayerEntity player, MobEntity pet, ServerWorld world) {
-
-        world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.BLOCK_CHORUS_FLOWER_GROW, SoundCategory.PLAYERS, 0.6f, 1.2f);
-
-        world.playSound(null, pet.getX(), pet.getY(), pet.getZ(), SoundEvents.BLOCK_AMETHYST_BLOCK_RESONATE, SoundCategory.NEUTRAL, 0.4f, 1.4f);
-
-        for (int i = 0; i < 18; i++) {
-
-            double ox = (world.random.nextDouble() - 0.5) * 1.6;
-
-            double oy = world.random.nextDouble() * 1.2;
-
-            double oz = (world.random.nextDouble() - 0.5) * 1.6;
-
-            world.spawnParticles(ParticleTypes.GLOW, player.getX() + ox, player.getY() + 0.8 + oy, player.getZ() + oz, 1, 0.0, 0.0, 0.0, 0.0);
-
-        }
-
-        world.spawnParticles(ParticleTypes.SPORE_BLOSSOM_AIR,
-
-            pet.getX(), pet.getY() + 0.7, pet.getZ(),
-
-            8, 0.4, 0.25, 0.4, 0.012);
-
-    }
-
-    private static void createPhantomProtectionEffect(PlayerEntity player, MobEntity pet, ServerWorld world) {
-
-        world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.ENTITY_ALLAY_AMBIENT_WITH_ITEM, SoundCategory.PLAYERS, 0.3f, 1.5f);
-
-        world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.BLOCK_SPORE_BLOSSOM_STEP, SoundCategory.PLAYERS, 0.2f, 1.6f);
-
-        Vec3d p = pet.getPos();
-
-        world.spawnParticles(ParticleTypes.END_ROD, p.x, p.y + 1.2, p.z, 10, 0.4, 0.3, 0.4, 0.02);
-
-        world.spawnParticles(ParticleTypes.GLOW,
-
-            player.getX(), player.getY() + 1.2, player.getZ(),
-
-            6, 0.35, 0.45, 0.35, 0.01);
-
-    }
-
-    /**
-
-     * Handle sleep events for Eepy Eeper mechanics
-
-     */
-
-    public static void onPlayerSleep(ServerPlayerEntity player) {
-
-        List<MobEntity> eepyPets = findNearbyEepyEepers(player, 16.0);
-
-        if (!(player.getWorld() instanceof ServerWorld world)) {
-
-            return;
-
-        }
-
-        boolean sharedAny = false;
-
-        boolean restfulDreamsActive = false;
-
-        for (MobEntity pet : eepyPets) {
-
-            PetComponent petComp = PetComponent.get(pet);
-
-            if (petComp == null) continue;
-
-            // Heal pet to full and restore owner hunger (baseline)
-
-            pet.setHealth(pet.getMaxHealth());
-
-            player.getHungerManager().setFoodLevel(20);
-
-            player.getHungerManager().setSaturationLevel(20.0f);
-
-            // Special Eepy Eeper sleep bonus: configurable chance to gain 1 level (balances slower learning rate)
-            // Only applies if not at tribute gate and not max level
-            float sleepLevelUpChance = ChanceValidationUtil.getValidatedChance(
-                (float) PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.EEPY_EEPER.id(), "sleepLevelUpChance", 0.5),
-                "eepy_eeper.sleepLevelUpChance"
-            );
-            if (petComp.getLevel() < 30 && !petComp.isWaitingForTribute() &&
-                ChanceValidationUtil.checkChance(sleepLevelUpChance, world.random)) {
-                boolean leveled = handleSleepLevelUp(petComp, player, pet, world);
-                if (leveled) {
-                    String petName = pet.hasCustomName() ? pet.getCustomName().getString() : pet.getType().getName().getString();
-                    player.sendMessage(Text.of("§6✨ " + petName + " §egained a level while dreaming! Sweet dreams grant wisdom. §6✨"), false);
-                    
-                    // Play special sleep level-up sound
-                    world.playSound(null, pet.getX(), pet.getY(), pet.getZ(), 
-                        net.minecraft.sound.SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 
-                        net.minecraft.sound.SoundCategory.NEUTRAL, 0.8f, 1.5f);
-                    
-                    // Simple particle effect for sleep level-up
-                    world.spawnParticles(net.minecraft.particle.ParticleTypes.HAPPY_VILLAGER,
-                        pet.getX(), pet.getY() + pet.getHeight() * 0.8, pet.getZ(),
-                        8, 0.5, 0.3, 0.5, 0.05);
-                }
-            }
-
-            boolean empowered = petComp.getLevel() >= 20;
-
-            // L20+ Restful Dreams bonuses
-
-            if (empowered) {
-
-                // Grant Regeneration I (10s) and Saturation II (10s) to owner
-
-                player.addStatusEffect(new StatusEffectInstance(StatusEffects.REGENERATION, 200, 0));
-
-                player.addStatusEffect(new StatusEffectInstance(StatusEffects.SATURATION, 200, 1));
-
-                // Grant Resistance I (10s) to pet
-
-                pet.addStatusEffect(new StatusEffectInstance(StatusEffects.RESISTANCE, 200, 0));
-
-                // Grant bonus Pet XP
-
-                int bonusXP = PetsPlusConfig.getInstance().getRoleInt(PetRoleType.EEPY_EEPER.id(), "bonusPetXpPerSleep", 25);
-
-                petComp.addExperience(bonusXP);
-
-                player.sendMessage(Text.translatable("petsplus.eepyeeper.sleep_bonus"), true);
-
-                restfulDreamsActive = true;
-
-            }
-
-            emitSleepLinkParticles(player, pet, empowered);
-
-            sharedAny = true;
-
-        }
-
-        if (sharedAny) {
-
-            playSleepShareSound(world, player, restfulDreamsActive);
-
-        }
-
-        // Handle knocked out pets - reduce sleep cycles needed
-
-        for (UUID petUuid : sleepCyclesRemaining.keySet()) {
-
-            int remaining = sleepCyclesRemaining.get(petUuid);
-
-            if (remaining > 0) {
-
-                remaining--;
-
-                if (remaining <= 0) {
-
-                    sleepCyclesRemaining.remove(petUuid);
-
-                    player.sendMessage(Text.of("A6Your knocked out Eepy Eeper stirs... they're ready to protect you again!"), false);
-
-                    Entity entity = world.getEntity(petUuid);
-
-                    if (entity instanceof MobEntity recoveredPet) {
-
-                        playPetRecoveryCue(world, recoveredPet);
-
-                    }
-
-                } else {
-
-                    sleepCyclesRemaining.put(petUuid, remaining);
-
-                    player.sendMessage(Text.translatable("petsplus.eepyeeper.recovery_progress", remaining), true);
-
-                }
-
-            }
-
-        }
-
-        // Update last sleep time for cooldown tracking
-
-        lastSleepTime.put(player.getUuid(), world.getTime());
-
-    }
-
-    @Override
-    public long nextRunTick(ServerPlayerEntity player) {
-        if (player == null) {
-            return Long.MAX_VALUE;
-        }
-        return nextNapAuraTick.getOrDefault(player.getUuid(), 0L);
-    }
-
-    @Override
-    public void run(ServerPlayerEntity player, long currentTick) {
-        if (player == null) {
-            return;
-        }
-
-        UUID playerId = player.getUuid();
-        nextNapAuraTick.put(playerId, currentTick + IDLE_RECHECK_TICKS);
-
-        if (!(player.getWorld() instanceof ServerWorld world)) {
-            return;
-        }
-
-        nextNapAuraTick.put(playerId, currentTick + NAP_AURA_INTERVAL_TICKS);
-        emitNapAuraForPlayer(world, player);
-    }
-
-    @Override
-    public void onPlayerRemoved(ServerPlayerEntity player) {
-        if (player != null) {
-            nextNapAuraTick.remove(player.getUuid());
-        }
-    }
-
-    private static void emitNapAuraForPlayer(ServerWorld world, ServerPlayerEntity player) {
-        List<MobEntity> eepyPets = findNearbyEepyEepers(player, 16.0);
-        for (MobEntity pet : eepyPets) {
-            PetComponent petComp = PetComponent.get(pet);
-            if (petComp == null || petComp.getLevel() < 10) {
-                continue;
-            }
-
-            boolean isSitting = false;
-            if (pet instanceof PetsplusTameable tameable) {
-                isSitting = tameable.petsplus$isSitting();
-            }
-
-            if (!isSitting) {
-                continue;
-            }
-
-            double radius = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.EEPY_EEPER.id(), "napRegenRadius", 4.0);
-            List<LivingEntity> nearbyEntities = world.getEntitiesByClass(
-                LivingEntity.class,
-                pet.getBoundingBox().expand(radius),
-                entity -> entity != pet &&
-                         (entity instanceof PlayerEntity ||
-                          (entity instanceof MobEntity mob && PetComponent.get(mob) != null))
-            );
-
-            for (LivingEntity entity : nearbyEntities) {
-                entity.addStatusEffect(new StatusEffectInstance(StatusEffects.REGENERATION, 120, 0));
-            }
-
-            if (world.getTime() % 200 == 0) {
-                player.sendMessage(Text.translatable("petsplus.eepyeeper.nap_aura_expand"), true);
-            }
-
-            if (world.getTime() % 20 == 0) {
-                Vec3d petPos = pet.getPos();
-                world.spawnParticles(net.minecraft.particle.ParticleTypes.END_ROD,
-                    petPos.x, petPos.y + 1, petPos.z,
-                    3, 0.5, 0.3, 0.5, 0.02);
+                entry.setValue(remaining);
+                player.sendMessage(Text.translatable("petsplus.eepyeeper.recovery_progress", remaining), true);
             }
         }
     }
 
-    /**
-
-     * World tick handler for passive effects
-
-     */
-
-    private static void onWorldTick(ServerWorld world) {
-
-        // Handle Nap Time aura every 5 seconds (100 ticks)
-
-        if (world.getTime() % 100 == 0) {
-
-            handleNapTimeAura(world);
-
-        }
-
-    }
-
-    /**
-
-     * Handle L10 Nap Time - sitting pet radiates Regeneration I in 4-block radius
-
-     */
-
-    private static void handleNapTimeAura(ServerWorld world) {
-
-        for (ServerPlayerEntity player : world.getPlayers()) {
-
-            List<MobEntity> eepyPets = findNearbyEepyEepers(player, 16.0);
-
-            for (MobEntity pet : eepyPets) {
-
-                PetComponent petComp = PetComponent.get(pet);
-
-                if (petComp == null || petComp.getLevel() < 10) continue;
-
-                // Check if pet is sitting
-
-                boolean isSitting = false;
-
-                if (pet instanceof PetsplusTameable tameable) {
-                    isSitting = tameable.petsplus$isSitting();
-                }
-
-                if (isSitting) {
-
-                    // Apply Regeneration I to allies and pets within 4 blocks
-
-                    double radius = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.EEPY_EEPER.id(), "napRegenRadius", 4.0);
-
-                    List<LivingEntity> nearbyEntities = world.getEntitiesByClass(
-
-                        LivingEntity.class,
-
-                        pet.getBoundingBox().expand(radius),
-
-                        entity -> entity != pet &&
-
-                                 (entity instanceof PlayerEntity ||
-
-                                  (entity instanceof MobEntity mob && PetComponent.get(mob) != null))
-
-                    );
-
-                    for (LivingEntity entity : nearbyEntities) {
-
-                        entity.addStatusEffect(new StatusEffectInstance(StatusEffects.REGENERATION, 120, 0)); // 6s
-
-                    }
-
-                    // Visual feedback
-
-                    if (world.getTime() % 200 == 0) { // Every 10 seconds
-
-                        player.sendMessage(Text.translatable("petsplus.eepyeeper.nap_aura_expand"), true);
-
-                    }
-
-                    // Particle effects (Z particles for sleep)
-
-                    if (world.getTime() % 20 == 0) {
-
-                        Vec3d petPos = pet.getPos();
-
-                        world.spawnParticles(net.minecraft.particle.ParticleTypes.END_ROD,
-
-                            petPos.x, petPos.y + 1, petPos.z,
-
-                            3, 0.5, 0.3, 0.5, 0.02);
-
-                    }
-
-                }
-
-            }
-
-        }
-
-    }
-
-    private static void emitSleepLinkParticles(ServerPlayerEntity player, MobEntity pet, boolean empowered) {
+    public static void emitSleepLinkParticles(ServerPlayerEntity player, MobEntity pet, boolean empowered) {
 
         ServerWorld world = player.getWorld();
 
@@ -697,7 +118,7 @@ public class EepyEeperCore implements PlayerTickListener {
 
     }
 
-    private static void playSleepShareSound(ServerWorld world, ServerPlayerEntity player, boolean restfulDreamsActive) {
+    public static void playSleepShareSound(ServerWorld world, ServerPlayerEntity player, boolean restfulDreamsActive) {
 
         world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.ENTITY_FOX_SLEEP, SoundCategory.PLAYERS, 0.3f, 0.9f);
 
@@ -709,45 +130,7 @@ public class EepyEeperCore implements PlayerTickListener {
 
     }
 
-    private static void playNapTimeAmbient(ServerWorld world, MobEntity pet) {
-
-        world.playSound(null, pet.getX(), pet.getY(), pet.getZ(), SoundEvents.ENTITY_CAT_PURR, SoundCategory.NEUTRAL, 0.25f, 0.75f + world.random.nextFloat() * 0.1f);
-
-        Vec3d petPos = pet.getPos();
-
-        world.spawnParticles(ParticleTypes.SPORE_BLOSSOM_AIR,
-
-            petPos.x, petPos.y + 0.9, petPos.z,
-
-            6, 0.45, 0.25, 0.45, 0.01);
-
-        world.spawnParticles(ParticleTypes.END_ROD,
-
-            petPos.x, petPos.y + 1.1, petPos.z,
-
-            3, 0.35, 0.2, 0.35, 0.006);
-
-    }
-
-    private static void playPetKnockoutEffect(ServerWorld world, MobEntity pet) {
-
-        world.playSound(null, pet.getX(), pet.getY(), pet.getZ(), SoundEvents.ENTITY_FOX_SLEEP, SoundCategory.NEUTRAL, 0.6f, 0.9f);
-
-        world.spawnParticles(ParticleTypes.SPORE_BLOSSOM_AIR,
-
-            pet.getX(), pet.getY() + 0.4, pet.getZ(),
-
-            10, 0.35, 0.3, 0.35, 0.01);
-
-        world.spawnParticles(ParticleTypes.SOUL,
-
-            pet.getX(), pet.getY() + 0.7, pet.getZ(),
-
-            4, 0.25, 0.2, 0.25, 0.005);
-
-    }
-
-    private static void playPetRecoveryCue(ServerWorld world, MobEntity pet) {
+    public static void playPetRecoveryCue(ServerWorld world, MobEntity pet) {
 
         world.playSound(null, pet.getX(), pet.getY(), pet.getZ(), SoundEvents.ENTITY_CAT_PURR, SoundCategory.NEUTRAL, 0.6f, 1.2f);
 
@@ -783,7 +166,7 @@ public class EepyEeperCore implements PlayerTickListener {
 
      */
 
-    private static List<MobEntity> findNearbyEepyEepers(PlayerEntity owner, double radius) {
+    public static List<MobEntity> findNearbyEepyEepers(PlayerEntity owner, double radius) {
 
         if (!(owner.getWorld() instanceof ServerWorld world)) {
 
@@ -821,7 +204,7 @@ public class EepyEeperCore implements PlayerTickListener {
 
      */
 
-    private static boolean canUseDreamEscape(ServerPlayerEntity player) {
+    public static boolean canUseDreamEscape(ServerPlayerEntity player) {
 
         // Check if enough sleep cycles have passed since last use
 
@@ -843,25 +226,19 @@ public class EepyEeperCore implements PlayerTickListener {
 
     /**
 
-     * Knock out a pet for a certain number of sleep cycles
-
-     */
-
-    private static void knockOutPet(UUID petUuid, int sleepCycles) {
-
-        sleepCyclesRemaining.put(petUuid, sleepCycles);
-
-    }
-
-    /**
-
      * Check if a pet is knocked out
 
      */
 
-    private static boolean isPetKnockedOut(UUID petUuid) {
+    public static boolean isPetKnockedOut(UUID petUuid) {
 
         return sleepCyclesRemaining.containsKey(petUuid) && sleepCyclesRemaining.get(petUuid) > 0;
+
+    }
+
+    public static void clearKnockout(UUID petUuid) {
+
+        sleepCyclesRemaining.remove(petUuid);
 
     }
 
@@ -878,23 +255,11 @@ public class EepyEeperCore implements PlayerTickListener {
     }
 
     /**
-
-     * Public method to trigger sleep events from other systems
-
-     */
-
-    public static void triggerSleepEvent(ServerPlayerEntity player) {
-
-        onPlayerSleep(player);
-
-    }
-    
-    /**
      * Handle sleep-based level up for Eepy Eeper pets.
-     * This gives them a chance to gain a level while their owner sleeps, 
+     * This gives them a chance to gain a level while their owner sleeps,
      * helping to balance their slower XP learning rate.
      */
-    private static boolean handleSleepLevelUp(PetComponent petComp, ServerPlayerEntity player, MobEntity pet, ServerWorld world) {
+    public static boolean handleSleepLevelUp(PetComponent petComp, ServerPlayerEntity player, MobEntity pet, ServerWorld world) {
         int currentLevel = petComp.getLevel();
         int targetLevel = currentLevel + 1;
         

@@ -45,10 +45,18 @@ public class EnchantmentBoundEchoes {
      * Apply enhanced Haste effect with perch bonus.
      */
     public static void applyEnhancedHaste(PlayerEntity owner, int baseDuration) {
+        applyEnhancedHaste(owner, baseDuration, 0);
+    }
+
+    public static void applyEnhancedHaste(PlayerEntity owner, int baseDuration, int amplifier) {
+        if (owner == null) {
+            return;
+        }
+
         int bonusTicks = getPerchedHasteBonusTicks(owner);
-        int totalDuration = baseDuration + bonusTicks;
-        
-        owner.addStatusEffect(new StatusEffectInstance(StatusEffects.HASTE, totalDuration, 0));
+        int totalDuration = Math.max(1, baseDuration + bonusTicks);
+
+        owner.addStatusEffect(new StatusEffectInstance(StatusEffects.HASTE, totalDuration, Math.max(0, amplifier)));
     }
     
     /**

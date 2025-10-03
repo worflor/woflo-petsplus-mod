@@ -1,0 +1,32 @@
+{
+  "id": "petsplus:enchantment_mining_echo",
+  "required_level": 1,
+  "trigger": {
+    "event": "owner_broke_block"
+  },
+  "effects": [
+    {
+      "type": "enchantment_arcane_focus",
+      "bucket": "mining",
+      "duration_ticks": 200,
+      "cooldown_ticks": 1200,
+      "charges_at_level_30": 2
+    },
+    {
+      "type": "enchantment_mining_haste",
+      "base_duration_ticks": 40
+    },
+    {
+      "type": "enchantment_durability_refund",
+      "base_chance": 0.025,
+      "focus_multiplier": 2.0
+    },
+    {
+      "type": "enchantment_extra_drops",
+      "mode": "block",
+      "base_chance": 0.05,
+      "per_level_bonus": 0.02,
+      "focus_multiplier": 2.0
+    }
+  ]
+}
