@@ -175,9 +175,13 @@ class CombatEventHandlerTest {
     }
 
     private static void invokeHandleOwnerDamageReceived(PlayerEntity owner, DamageSource damageSource, float amount) throws Exception {
-        Method method = CombatEventHandler.class.getDeclaredMethod("handleOwnerDamageReceived", PlayerEntity.class, DamageSource.class, float.class);
+        invokeHandleOwnerDamageReceived(owner, damageSource, amount, false);
+    }
+
+    private static void invokeHandleOwnerDamageReceived(PlayerEntity owner, DamageSource damageSource, float amount, boolean damageAlreadyApplied) throws Exception {
+        Method method = CombatEventHandler.class.getDeclaredMethod("handleOwnerDamageReceived", PlayerEntity.class, DamageSource.class, float.class, boolean.class);
         method.setAccessible(true);
-        method.invoke(null, owner, damageSource, amount);
+        method.invoke(null, owner, damageSource, amount, damageAlreadyApplied);
     }
 
     private static void invokeHandleProjectileDamage(PlayerEntity shooter, LivingEntity target, float damage, PersistentProjectileEntity projectile) throws Exception {

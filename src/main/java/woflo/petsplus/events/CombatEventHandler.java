@@ -155,12 +155,13 @@ public class CombatEventHandler {
                 allowDamage = false;
             } else {
                 float appliedAmount = ownerOutcome.damage();
-                if (ownerOutcome.manual()) {
+                boolean damageApplied = ownerOutcome.manual();
+                if (damageApplied) {
                     applyManualDamage(player, damageSource, appliedAmount);
                     allowDamage = false;
                 }
                 if (appliedAmount > 0.0F) {
-                    handleOwnerDamageReceived(player, damageSource, appliedAmount);
+                    handleOwnerDamageReceived(player, damageSource, appliedAmount, damageApplied);
                 }
             }
         }
@@ -493,7 +494,10 @@ public class CombatEventHandler {
         return ActionResult.PASS;
     }
     
-    private static void handleOwnerDamageReceived(PlayerEntity owner, DamageSource damageSource, float amount) {
+    private static void handleOwnerDamageReceived(PlayerEntity owner,
+                                                  DamageSource damageSource,
+                                                  float amount,
+                                                  boolean damageAlreadyApplied) {
         OwnerCombatState combatState = OwnerCombatState.getOrCreate(owner);
         combatState.onHitTaken();
         long now = owner.getWorld().getTime();
@@ -509,7 +513,8 @@ public class CombatEventHandler {
         }
 
         // Trigger low health events if needed
-        float healthAfter = Math.max(0f, owner.getHealth() - amount);
+        float currentHealth = Math.max(0f, owner.getHealth());
+        float healthAfter = damageAlreadyApplied ? currentHealth : Math.max(0f, currentHealth - amount);
         float maxHealth = Math.max(1f, owner.getMaxHealth());
         double healthPct = healthAfter / maxHealth;
         
