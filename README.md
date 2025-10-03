@@ -5,7 +5,7 @@
 </p>
 
 <h1 align="center">
-  Pets+ <small>dev-0.92-besties-and-captive-allies</small>
+  Pets+ <small>dev-0.92-besties-and-captive-allies-hate-spaghetti</small>
 </h1>
 
 A standalone Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
