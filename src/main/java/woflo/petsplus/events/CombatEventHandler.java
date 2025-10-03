@@ -197,11 +197,27 @@ public class CombatEventHandler {
             }
         }
 
-        // Check if a pet dealt damage
+        // Check if a pet dealt damage - process outgoing damage modification first
         if (damageSource.getAttacker() instanceof MobEntity attackerMob) {
             PetComponent petComponent = PetComponent.get(attackerMob);
-            if (petComponent != null) {
-                handlePetDealtDamage(attackerMob, petComponent, entity, appliedDamage);
+            if (petComponent != null && entity instanceof LivingEntity victim) {
+                // Process pet outgoing damage for modification before damage is applied
+                DamageProcessingOutcome petOutgoingOutcome = processPetOutgoingDamage(attackerMob, petComponent, victim, damageSource, appliedDamage);
+                if (petOutgoingOutcome.cancelled()) {
+                    targetCancelled = true;
+                    appliedDamage = 0.0F;
+                } else {
+                    appliedDamage = petOutgoingOutcome.damage();
+                    targetManual |= petOutgoingOutcome.manual();
+                }
+            }
+        }
+
+        // Fire post-damage trigger for pets after damage calculation is complete
+        if (damageSource.getAttacker() instanceof MobEntity attackerMob && !targetCancelled && appliedDamage > 0.0F) {
+            PetComponent petComponent = PetComponent.get(attackerMob);
+            if (petComponent != null && entity instanceof LivingEntity victim) {
+                handlePetDealtDamage(attackerMob, petComponent, victim, appliedDamage);
             }
         }
 
@@ -345,6 +361,78 @@ public class CombatEventHandler {
             return DamageProcessingOutcome.cancelledOutcome();
         }
 
+        if (result.isModified()) {
+            return DamageProcessingOutcome.manualOutcome(finalAmount);
+        }
+        return DamageProcessingOutcome.allowOutcome(finalAmount);
+    }
+
+    private static DamageProcessingOutcome processPetOutgoingDamage(MobEntity pet,
+                                                                     PetComponent component,
+                                                                     LivingEntity victim,
+                                                                     DamageSource damageSource,
+                                                                     float amount) {
+        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
+            return DamageProcessingOutcome.allowOutcome(amount);
+        }
+        if (amount <= 0.0F) {
+            return DamageProcessingOutcome.allowOutcome(0.0F);
+        }
+
+        PlayerEntity owner = component.getOwner();
+        if (!(owner instanceof ServerPlayerEntity serverOwner)) {
+            return DamageProcessingOutcome.allowOutcome(amount);
+        }
+
+        boolean lethalPreCheck = victim.getHealth() - amount <= 0.0F;
+        double victimHpPct = Math.max(0.0F, victim.getHealth()) / Math.max(1.0F, victim.getMaxHealth());
+
+        // Build trigger context with comprehensive data
+        TriggerContext ctx = new TriggerContext(serverWorld, pet, serverOwner, "pet_outgoing_damage")
+            .withData("damage", (double) amount)
+            .withData("damage_source", damageSource)
+            .withData("intercept_damage", true)
+            .withData("victim", victim)
+            .withData("victim_hp_pct", victimHpPct)
+            .withData("pet_health_pct", (double) (pet.getHealth() / pet.getMaxHealth()));
+
+        if (lethalPreCheck) {
+            ctx.withData("lethal_damage", true);
+        }
+
+        // Add light level data for darkness-based abilities
+        int lightLevel = serverWorld.getLightLevel(pet.getBlockPos());
+        ctx.withData("light_level", lightLevel)
+           .withData("in_darkness", lightLevel <= 7);
+
+        // Create damage interception result
+        DamageInterceptionResult interception = new DamageInterceptionResult(amount);
+        ctx.withData("damage_result", interception);
+
+        // Trigger abilities
+        AbilityTriggerResult triggerResult = AbilityManager.triggerAbilities(pet, ctx);
+        DamageInterceptionResult result = triggerResult.damageResult();
+        if (result == null) {
+            result = interception;
+        }
+
+        // Handle cancellation
+        if (result.isCancelled() || result.getRemainingDamageAmount() <= 0.0D) {
+            return DamageProcessingOutcome.cancelledOutcome();
+        }
+
+        // Get final damage amount
+        double remaining = result.getRemainingDamageAmount();
+        if (remaining <= 0.0D) {
+            return DamageProcessingOutcome.cancelledOutcome();
+        }
+
+        float finalAmount = (float) remaining;
+        if (finalAmount <= 0.0F) {
+            return DamageProcessingOutcome.cancelledOutcome();
+        }
+
+        // Return modified or unmodified outcome
         if (result.isModified()) {
             return DamageProcessingOutcome.manualOutcome(finalAmount);
         }
@@ -1232,6 +1320,23 @@ public class CombatEventHandler {
         if (damage > pet.getAttributeValue(net.minecraft.entity.attribute.EntityAttributes.ATTACK_DAMAGE) * 1.5f) {
             float celebration = scaledAmount(0.10f, 0.25f, damageIntensity);
             petComponent.pushEmotion(PetComponent.Emotion.CHEERFUL, celebration);
+        }
+
+        // Fire pet_dealt_damage trigger for abilities
+        if (owner instanceof ServerPlayerEntity serverOwner && pet.getWorld() instanceof ServerWorld serverWorld) {
+            TriggerContext ctx = new TriggerContext(serverWorld, pet, serverOwner, "pet_dealt_damage")
+                .withData("victim_hp_pct", (double) (victim.getHealth() / victimMaxHealth))
+                .withData("damage", (double) damage)
+                .withData("victim", victim);
+            
+            // Add Guardian-specific data if available (for abilities that trigger after redirect)
+            Boolean hitReserveLimit = petComponent.getStateData("guardian_bulwark_hit_reserve_limit", Boolean.class);
+            if (hitReserveLimit != null) {
+                ctx.withData("guardian_recently_redirected", true)
+                   .withData("guardian_hit_reserve_limit", hitReserveLimit);
+            }
+            
+            AbilityManager.triggerAbilities(pet, ctx);
         }
 
         if (victim.getHealth() - damage <= 0) {

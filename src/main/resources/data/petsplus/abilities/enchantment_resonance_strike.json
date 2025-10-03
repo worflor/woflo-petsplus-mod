@@ -1,0 +1,36 @@
+{
+  "id": "petsplus:enchantment_resonance_strike",
+  "description": "Owner attacks during resonance window create magical arcs to nearby enemies. Perfect timing removes cooldown.",
+  "trigger": {
+    "event": "petsplus:owner_dealt_damage",
+    "internal_cd_ticks": 60
+  },
+  "effects": [
+    {
+      "type": "enchantment_resonance_arc",
+      "arc_range": 4.0,
+      "max_targets": 2,
+      "base_damage_percent": 0.35,
+      "perfect_damage_percent": 0.5,
+      "resonance_window_key": "enchantment_resonance_window",
+      "perfect_window_key": "enchantment_perfect_window",
+      "particle_type": "minecraft:enchant",
+      "arc_particle_count": 12
+    },
+    {
+      "type": "sound_effect",
+      "sound": "note_chime",
+      "target": "owner",
+      "volume": 0.3,
+      "pitch": 1.3
+    },
+    {
+      "type": "clear_owner_state_data",
+      "key": "enchantment_resonance_window"
+    },
+    {
+      "type": "clear_owner_state_data",
+      "key": "enchantment_perfect_window"
+    }
+  ]
+}

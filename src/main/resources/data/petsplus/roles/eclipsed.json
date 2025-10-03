@@ -9,19 +9,51 @@
     "attack": 0.03,
     "learning": 0.05
   },
-  "default_abilities": [
-    "petsplus:voidbrand",
-    "petsplus:void_storage",
-    "petsplus:phase_partner",
-    "petsplus:void_save",
-    "petsplus:eclipsed_darkness_owner",
-    "petsplus:eclipsed_darkness_pet",
-    "petsplus:perch_ping"
-  ],
-  "tribute_defaults": {
-    "10": "minecraft:gold_ingot",
-    "20": "minecraft:diamond",
-    "30": "minecraft:netherite_scrap"
+  "default_abilities": [],
+  "level_rewards": {
+    "1": [
+      { "type": "ability_unlock", "ability": "petsplus:voidbrand" },
+      { "type": "ability_unlock", "ability": "petsplus:perch_ping" }
+    ],
+    "3": [
+      { "type": "ability_unlock", "ability": "petsplus:void_storage" },
+      { "type": "stat_boost", "stat": "attack", "amount": 2.0 }
+    ],
+    "7": [
+      { "type": "ability_unlock", "ability": "petsplus:eclipsed_darkness_owner" },
+      { "type": "stat_boost", "stat": "attack", "amount": 2.5 },
+      { "type": "stat_boost", "stat": "speed", "amount": 0.02 }
+    ],
+    "10": [
+      { "type": "tribute_required", "item": "minecraft:gold_ingot" }
+    ],
+    "12": [
+      { "type": "ability_unlock", "ability": "petsplus:eclipsed_darkness_pet" },
+      { "type": "ability_unlock", "ability": "petsplus:eclipsed_void_strike" },
+      { "type": "stat_boost", "stat": "attack", "amount": 3.0 },
+      { "type": "stat_boost", "stat": "health", "amount": 2.0 }
+    ],
+    "17": [
+      { "type": "ability_unlock", "ability": "petsplus:void_save" },
+      { "type": "stat_boost", "stat": "attack", "amount": 3.5 },
+      { "type": "stat_boost", "stat": "speed", "amount": 0.03 }
+    ],
+    "20": [
+      { "type": "tribute_required", "item": "minecraft:diamond" }
+    ],
+    "23": [
+      { "type": "ability_unlock", "ability": "petsplus:phase_partner" },
+      { "type": "stat_boost", "stat": "attack", "amount": 4.0 },
+      { "type": "stat_boost", "stat": "health", "amount": 3.0 }
+    ],
+    "27": [
+      { "type": "stat_boost", "stat": "attack", "amount": 3.0 },
+      { "type": "stat_boost", "stat": "speed", "amount": 0.04 }
+    ],
+    "30": [
+      { "type": "tribute_required", "item": "minecraft:netherite_scrap" },
+      { "type": "stat_boost", "stat": "defense", "amount": 2.0 }
+    ]
   },
   "xp_curve": {
     "max_level": 30,

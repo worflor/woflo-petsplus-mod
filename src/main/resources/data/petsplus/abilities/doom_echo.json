@@ -32,6 +32,35 @@
       "id": "minecraft:nausea",
       "duration": 20,
       "amplifier": 0
+    },
+    {
+      "type": "particle_effect",
+      "particle": "smoke",
+      "target": "owner",
+      "count": 8,
+      "offset_x": 0.4,
+      "offset_y": 0.3,
+      "offset_z": 0.4,
+      "speed": 0.02,
+      "height_offset": 0.6
+    },
+    {
+      "type": "particle_effect",
+      "particle": "soul",
+      "target": "pet",
+      "count": 5,
+      "offset_x": 0.3,
+      "offset_y": 0.3,
+      "offset_z": 0.3,
+      "speed": 0.01,
+      "height_offset": 0.5
+    },
+    {
+      "type": "sound_effect",
+      "sound": "note_bass",
+      "target": "owner",
+      "volume": 0.3,
+      "pitch": 0.6
     }
   ]
 }

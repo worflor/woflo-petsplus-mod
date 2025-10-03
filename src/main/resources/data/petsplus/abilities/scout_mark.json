@@ -1,0 +1,40 @@
+{
+  "id": "petsplus:scout_mark",
+  "trigger": {
+    "event": "petsplus:pet_dealt_damage",
+    "internal_cd_ticks": 30
+  },
+  "effects": [
+    {
+      "type": "apply_potion_to_victim",
+      "effect": "minecraft:glowing",
+      "duration": 100,
+      "amplifier": 0
+    },
+    {
+      "type": "apply_potion_to_victim",
+      "effect": "minecraft:weakness",
+      "duration": 100,
+      "amplifier": 0
+    },
+    {
+      "type": "particle_effect",
+      "particle": "cloud",
+      "target": "victim",
+      "count": 4,
+      "offset_x": 0.25,
+      "offset_y": 0.15,
+      "offset_z": 0.25,
+      "speed": 0.01,
+      "height_offset": 0.5
+    },
+    {
+      "type": "sound_effect",
+      "sound": "note_bit",
+      "target": "victim",
+      "volume": 0.3,
+      "pitch": 0.8,
+      "category": "neutral"
+    }
+  ]
+}

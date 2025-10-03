@@ -9,17 +9,48 @@
     "vitality": 0.05,
     "learning": 0.01
   },
-  "default_abilities": [
-    "petsplus:nap_time_radius",
-    "petsplus:drowsy_mist",
-    "petsplus:perch_ping",
-    "petsplus:restful_dreams",
-    "petsplus:dream_escape"
-  ],
-  "tribute_defaults": {
-    "10": "minecraft:gold_ingot",
-    "20": "minecraft:diamond",
-    "30": "minecraft:netherite_scrap"
+  "default_abilities": [],
+  "level_rewards": {
+    "1": [
+      { "type": "ability_unlock", "ability": "petsplus:perch_ping" }
+    ],
+    "3": [
+      { "type": "ability_unlock", "ability": "petsplus:restful_dreams" },
+      { "type": "stat_boost", "stat": "health", "amount": 4.0 }
+    ],
+    "7": [
+      { "type": "ability_unlock", "ability": "petsplus:nap_time_radius" },
+      { "type": "stat_boost", "stat": "health", "amount": 5.0 },
+      { "type": "stat_boost", "stat": "defense", "amount": 2.0 }
+    ],
+    "10": [
+      { "type": "tribute_required", "item": "minecraft:gold_ingot" }
+    ],
+    "12": [
+      { "type": "ability_unlock", "ability": "petsplus:drowsy_mist" },
+      { "type": "stat_boost", "stat": "health", "amount": 5.0 },
+      { "type": "stat_boost", "stat": "defense", "amount": 3.0 }
+    ],
+    "17": [
+      { "type": "stat_boost", "stat": "health", "amount": 6.0 },
+      { "type": "stat_boost", "stat": "defense", "amount": 2.0 }
+    ],
+    "20": [
+      { "type": "tribute_required", "item": "minecraft:diamond" }
+    ],
+    "23": [
+      { "type": "ability_unlock", "ability": "petsplus:dream_escape" },
+      { "type": "stat_boost", "stat": "health", "amount": 6.0 },
+      { "type": "stat_boost", "stat": "defense", "amount": 3.0 }
+    ],
+    "27": [
+      { "type": "stat_boost", "stat": "health", "amount": 5.0 },
+      { "type": "stat_boost", "stat": "speed", "amount": 0.01 }
+    ],
+    "30": [
+      { "type": "tribute_required", "item": "minecraft:netherite_scrap" },
+      { "type": "stat_boost", "stat": "defense", "amount": 4.0 }
+    ]
   },
   "xp_curve": {
     "max_level": 30,

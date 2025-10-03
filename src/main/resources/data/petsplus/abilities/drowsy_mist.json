@@ -24,6 +24,24 @@
       "activation_range": 10.0,
       "target_tag": "minecraft:hostile",
       "immune_tag": "petsplus:cc_resistant"
+    },
+    {
+      "type": "particle_effect",
+      "particle": "mycelium",
+      "target": "pet",
+      "count": 10,
+      "offset_x": 0.5,
+      "offset_y": 0.2,
+      "offset_z": 0.5,
+      "speed": 0.01,
+      "height_offset": 0.3
+    },
+    {
+      "type": "sound_effect",
+      "sound": "note_flute",
+      "target": "pet",
+      "volume": 0.25,
+      "pitch": 0.8
     }
   ]
 }

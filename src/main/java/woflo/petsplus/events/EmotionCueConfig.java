@@ -1,5 +1,7 @@
 package woflo.petsplus.events;
 
+import woflo.petsplus.api.registry.RegistryJsonHelper;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
@@ -254,12 +256,12 @@ public final class EmotionCueConfig {
         if (object == null) {
             return new Defaults(24d, 200L, 80L, 120L, 0.05f, true);
         }
-        double radius = readDouble(object, "radius", 24d);
-        long cooldown = readLong(object, "cooldown", 200L);
-        long categoryCooldown = readLong(object, "category_cooldown", 80L);
-        long digestWindow = readLong(object, "digest_window", 120L);
-        float minDelta = readFloat(object, "min_delta", 0.05f);
-        boolean highlightHud = readBoolean(object, "highlight_hud", true);
+        double radius = RegistryJsonHelper.getDouble(object, "radius", 24d);
+        long cooldown = RegistryJsonHelper.getLong(object, "cooldown", 200L);
+        long categoryCooldown = RegistryJsonHelper.getLong(object, "category_cooldown", 80L);
+        long digestWindow = RegistryJsonHelper.getLong(object, "digest_window", 120L);
+        float minDelta = RegistryJsonHelper.getFloat(object, "min_delta", 0.05f);
+        boolean highlightHud = RegistryJsonHelper.getBoolean(object, "highlight_hud", true);
         return new Defaults(radius, cooldown, categoryCooldown, digestWindow, minDelta, highlightHud);
     }
 
@@ -274,10 +276,10 @@ public final class EmotionCueConfig {
             }
             JsonObject json = entry.getValue().getAsJsonObject();
             String id = entry.getKey();
-            long cooldown = readLong(json, "cooldown", defaults.cooldown);
-            long categoryCooldown = readLong(json, "category_cooldown", defaults.categoryCooldown);
-            long digestWindow = readLong(json, "digest_window", defaults.digestWindow);
-            float minDelta = readFloat(json, "min_delta", defaults.minDelta);
+            long cooldown = RegistryJsonHelper.getLong(json, "cooldown", defaults.cooldown);
+            long categoryCooldown = RegistryJsonHelper.getLong(json, "category_cooldown", defaults.categoryCooldown);
+            long digestWindow = RegistryJsonHelper.getLong(json, "digest_window", defaults.digestWindow);
+            float minDelta = RegistryJsonHelper.getFloat(json, "min_delta", defaults.minDelta);
             boolean highlight = json.has("highlight_hud") ? json.get("highlight_hud").getAsBoolean()
                 : defaults.highlightHud;
             categories.put(id, new CueCategory(id, cooldown, categoryCooldown, digestWindow, minDelta, highlight));
@@ -295,7 +297,7 @@ public final class EmotionCueConfig {
                 continue;
             }
             JsonObject json = entry.getValue().getAsJsonObject();
-            double radius = readDouble(json, "radius", Double.NaN);
+            double radius = RegistryJsonHelper.getDouble(json, "radius", Double.NaN);
             EnumMap<PetComponent.Emotion, Float> emotions = readEmotionMap(json.getAsJsonObject("emotions"));
             profiles.put(entry.getKey(), new EmotionCueProfile(entry.getKey(), radius, emotions));
         }
@@ -315,12 +317,12 @@ public final class EmotionCueConfig {
                 continue;
             }
             JsonObject json = entry.getValue().getAsJsonObject();
-            float cooldownScale = readFloat(json, "cooldown_scale", 1f);
-            float categoryScale = readFloat(json, "category_cooldown_scale", cooldownScale);
-            float digestScale = readFloat(json, "digest_scale", 1f);
-            float minDeltaScale = readFloat(json, "min_delta_scale", 1f);
-            boolean forceShow = readBoolean(json, "force_show", false);
-            boolean debugOverlay = readBoolean(json, "debug_overlay", false);
+            float cooldownScale = RegistryJsonHelper.getFloat(json, "cooldown_scale", 1f);
+            float categoryScale = RegistryJsonHelper.getFloat(json, "category_cooldown_scale", cooldownScale);
+            float digestScale = RegistryJsonHelper.getFloat(json, "digest_scale", 1f);
+            float minDeltaScale = RegistryJsonHelper.getFloat(json, "min_delta_scale", 1f);
+            boolean forceShow = RegistryJsonHelper.getBoolean(json, "force_show", false);
+            boolean debugOverlay = RegistryJsonHelper.getBoolean(json, "debug_overlay", false);
             modes.put(entry.getKey(), new CueModeSettings(cooldownScale, categoryScale, digestScale,
                 minDeltaScale, forceShow, debugOverlay));
         }
@@ -346,7 +348,7 @@ public final class EmotionCueConfig {
             }
             String id = entry.getKey();
             JsonObject json = entry.getValue().getAsJsonObject();
-            String categoryId = readString(json, "category", guessCategory(id));
+            String categoryId = RegistryJsonHelper.getString(json, "category", guessCategory(id));
             CueCategory category = categories.getOrDefault(categoryId,
                 new CueCategory(categoryId, defaults.cooldown, defaults.categoryCooldown,
                     defaults.digestWindow, defaults.minDelta, defaults.highlightHud));
@@ -356,12 +358,12 @@ public final class EmotionCueConfig {
                 profile = EmotionCueProfile.EMPTY;
             }
 
-            long cooldown = scaleLong(readLong(json, "cooldown", category.cooldownTicks()), mode.cooldownScale());
-            long categoryCooldown = scaleLong(readLong(json, "category_cooldown", category.categoryCooldownTicks()),
+            long cooldown = scaleLong(RegistryJsonHelper.getLong(json, "cooldown", category.cooldownTicks()), mode.cooldownScale());
+            long categoryCooldown = scaleLong(RegistryJsonHelper.getLong(json, "category_cooldown", category.categoryCooldownTicks()),
                 mode.categoryCooldownScale());
-            long digestWindow = scaleLong(readLong(json, "digest_window", category.digestWindowTicks()),
+            long digestWindow = scaleLong(RegistryJsonHelper.getLong(json, "digest_window", category.digestWindowTicks()),
                 mode.digestScale());
-            float minDelta = readFloat(json, "min_delta", category.minDelta()) * mode.minDeltaScale();
+            float minDelta = RegistryJsonHelper.getFloat(json, "min_delta", category.minDelta()) * mode.minDeltaScale();
             if (minOverride >= 0) {
                 minDelta = (float) minOverride;
             }
@@ -371,9 +373,9 @@ public final class EmotionCueConfig {
 
             boolean highlightHud = json.has("highlight_hud") ? json.get("highlight_hud").getAsBoolean()
                 : category.highlightHud();
-            boolean digestEnabled = readBoolean(json, "digest", true);
-            boolean forceShow = readBoolean(json, "force_show", mode.forceShow());
-            boolean alwaysJournal = readBoolean(json, "journal", false);
+            boolean digestEnabled = RegistryJsonHelper.getBoolean(json, "digest", true);
+            boolean forceShow = RegistryJsonHelper.getBoolean(json, "force_show", mode.forceShow());
+            boolean alwaysJournal = RegistryJsonHelper.getBoolean(json, "journal", false);
 
             double radius = json.has("radius") ? json.get("radius").getAsDouble()
                 : (!Double.isNaN(profile.radius()) ? profile.radius() : defaults.radius);
@@ -408,7 +410,7 @@ public final class EmotionCueConfig {
                     continue;
                 }
                 JsonObject matcher = element.getAsJsonObject();
-                String definition = readString(matcher, "definition", null);
+                String definition = RegistryJsonHelper.getString(matcher, "definition", null);
                 if (definition == null) {
                     continue;
                 }
@@ -434,11 +436,11 @@ public final class EmotionCueConfig {
                     continue;
                 }
                 JsonObject matcher = element.getAsJsonObject();
-                String definition = readString(matcher, "definition", null);
+                String definition = RegistryJsonHelper.getString(matcher, "definition", null);
                 if (definition == null) {
                     continue;
                 }
-                boolean requiresFood = readBoolean(matcher, "requires_food", false);
+                boolean requiresFood = RegistryJsonHelper.getBoolean(matcher, "requires_food", false);
                 List<TagKey<Item>> tags = parseItemTags(matcher.get("item_tags"));
                 Set<Identifier> items = parseIdentifierSet(matcher.get("items"));
                 matchers.add(new ItemStimulus(definition, requiresFood, tags, items));
@@ -461,7 +463,7 @@ public final class EmotionCueConfig {
                     continue;
                 }
                 JsonObject matcher = element.getAsJsonObject();
-                String definition = readString(matcher, "definition", null);
+                String definition = RegistryJsonHelper.getString(matcher, "definition", null);
                 if (definition == null) {
                     continue;
                 }
@@ -469,7 +471,7 @@ public final class EmotionCueConfig {
                 Set<Identifier> entityTypes = parseIdentifierSet(matcher.get("entity_types"));
                 List<TagKey<Item>> itemTags = parseItemTags(matcher.get("item_tags"));
                 Set<Identifier> items = parseIdentifierSet(matcher.get("items"));
-                boolean requireMob = readBoolean(matcher, "requires_mob", false);
+                boolean requireMob = RegistryJsonHelper.getBoolean(matcher, "requires_mob", false);
                 matchers.add(new EntityStimulus(definition, entityTags, entityTypes, itemTags, items, requireMob));
             }
         }
@@ -591,41 +593,6 @@ public final class EmotionCueConfig {
             Petsplus.LOGGER.warn("Unknown emotion key '{}' in emotion cue config", key);
             return null;
         }
-    }
-
-    private static double readDouble(JsonObject object, String key, double fallback) {
-        JsonElement element = object.get(key);
-        return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()
-            ? element.getAsDouble()
-            : fallback;
-    }
-
-    private static float readFloat(JsonObject object, String key, float fallback) {
-        JsonElement element = object.get(key);
-        return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()
-            ? element.getAsFloat()
-            : fallback;
-    }
-
-    private static long readLong(JsonObject object, String key, long fallback) {
-        JsonElement element = object.get(key);
-        return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()
-            ? element.getAsLong()
-            : fallback;
-    }
-
-    private static boolean readBoolean(JsonObject object, String key, boolean fallback) {
-        JsonElement element = object.get(key);
-        return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isBoolean()
-            ? element.getAsBoolean()
-            : fallback;
-    }
-
-    private static String readString(JsonObject object, String key, String fallback) {
-        JsonElement element = object.get(key);
-        return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()
-            ? element.getAsString()
-            : fallback;
     }
 
     private static String guessCategory(String id) {

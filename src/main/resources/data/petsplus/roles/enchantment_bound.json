@@ -9,21 +9,54 @@
     "agility": 0.03,
     "learning": 0.06
   },
-  "default_abilities": [
-    "petsplus:phase_partner",
-    "petsplus:enchant_strip",
-    "petsplus:gear_swap",
-    "petsplus:enchantment_magic_guard",
-    "petsplus:enchantment_mining_echo",
-    "petsplus:enchantment_combat_focus",
-    "petsplus:enchantment_swim_echo",
-    "petsplus:enchantment_extra_loot",
-    "petsplus:perched_haste_bonus"
-  ],
-  "tribute_defaults": {
-    "10": "minecraft:gold_ingot",
-    "20": "minecraft:diamond",
-    "30": "minecraft:netherite_scrap"
+  "default_abilities": [],
+  "level_rewards": {
+    "1": [
+      { "type": "ability_unlock", "ability": "petsplus:enchantment_mining_echo" },
+      { "type": "ability_unlock", "ability": "petsplus:enchantment_swim_echo" }
+    ],
+    "3": [
+      { "type": "ability_unlock", "ability": "petsplus:perched_haste_bonus" },
+      { "type": "ability_unlock", "ability": "petsplus:enchantment_pet_resonance_mark" },
+      { "type": "ability_unlock", "ability": "petsplus:enchantment_resonance_strike" },
+      { "type": "stat_boost", "stat": "health", "amount": 3.0 }
+    ],
+    "7": [
+      { "type": "ability_unlock", "ability": "petsplus:enchantment_magic_guard" },
+      { "type": "stat_boost", "stat": "health", "amount": 3.0 },
+      { "type": "stat_boost", "stat": "speed", "amount": 0.02 }
+    ],
+    "10": [
+      { "type": "tribute_required", "item": "minecraft:gold_ingot" }
+    ],
+    "12": [
+      { "type": "ability_unlock", "ability": "petsplus:gear_swap" },
+      { "type": "stat_boost", "stat": "health", "amount": 4.0 },
+      { "type": "stat_boost", "stat": "defense", "amount": 2.0 }
+    ],
+    "17": [
+      { "type": "ability_unlock", "ability": "petsplus:enchant_strip" },
+      { "type": "stat_boost", "stat": "health", "amount": 4.0 },
+      { "type": "stat_boost", "stat": "speed", "amount": 0.02 }
+    ],
+    "20": [
+      { "type": "tribute_required", "item": "minecraft:diamond" }
+    ],
+    "23": [
+      { "type": "ability_unlock", "ability": "petsplus:enchantment_combat_focus" },
+      { "type": "stat_boost", "stat": "health", "amount": 5.0 },
+      { "type": "stat_boost", "stat": "defense", "amount": 2.0 }
+    ],
+    "27": [
+      { "type": "ability_unlock", "ability": "petsplus:enchantment_extra_loot" },
+      { "type": "ability_unlock", "ability": "petsplus:phase_partner" },
+      { "type": "stat_boost", "stat": "health", "amount": 4.0 },
+      { "type": "stat_boost", "stat": "speed", "amount": 0.03 }
+    ],
+    "30": [
+      { "type": "tribute_required", "item": "minecraft:netherite_scrap" },
+      { "type": "stat_boost", "stat": "attack", "amount": 2.0 }
+    ]
   },
   "xp_curve": {
     "max_level": 30,

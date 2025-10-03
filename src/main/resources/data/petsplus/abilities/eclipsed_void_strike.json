@@ -1,0 +1,39 @@
+{
+  "id": "petsplus:eclipsed_void_strike",
+  "description": "Eclipsed pets attacking in darkness deal 50% bonus damage with their strikes.",
+  "trigger": {
+    "event": "petsplus:pet_outgoing_damage",
+    "internal_cd_ticks": 20
+  },
+  "conditions": [
+    {
+      "type": "require_data_flag",
+      "key": "in_darkness",
+      "value": true
+    }
+  ],
+  "effects": [
+    {
+      "type": "eclipsed_void_strike",
+      "multiplier": 1.5
+    },
+    {
+      "type": "particle_effect",
+      "particle": "portal",
+      "target": "victim",
+      "count": 8,
+      "offset_x": 0.5,
+      "offset_y": 0.5,
+      "offset_z": 0.5,
+      "speed": 0.05,
+      "height_offset": 0.5
+    },
+    {
+      "type": "sound_effect",
+      "sound": "note_didgeridoo",
+      "target": "victim",
+      "volume": 0.25,
+      "pitch": 0.7
+    }
+  ]
+}

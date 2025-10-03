@@ -1,14 +1,8 @@
 package woflo.petsplus.data;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParseException;
-import com.google.gson.JsonParser;
-import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
-import net.minecraft.resource.Resource;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.Petsplus;
@@ -19,56 +13,30 @@ import woflo.petsplus.api.registry.AbilityType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
 
-import java.io.IOException;
-import java.io.Reader;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 import java.util.function.Supplier;
 
 /**
  * Loads ability definitions from datapacks and registers them into the ability registry.
  */
-public class AbilityDataLoader implements SimpleSynchronousResourceReloadListener {
-    private static final Gson GSON = new GsonBuilder().setLenient().create();
-    private static final String ROOT_PATH = "abilities";
-    private static final Identifier FABRIC_ID = Identifier.of(Petsplus.MOD_ID, "ability_data");
+public class AbilityDataLoader extends BaseJsonDataLoader<Ability> {
 
-    @Override
-    public Identifier getFabricId() {
-        return FABRIC_ID;
+    public AbilityDataLoader() {
+        super("abilities", "ability_data");
     }
 
     @Override
-    public void reload(ResourceManager manager) {
-        Map<Identifier, JsonElement> prepared = new LinkedHashMap<>();
-        Map<Identifier, Resource> resources = manager.findResources(ROOT_PATH, id -> id.getPath().endsWith(".json"));
-        for (Identifier resourceId : resources.keySet()) {
-            Optional<Resource> resource = manager.getResource(resourceId);
-            if (resource.isEmpty()) {
-                Petsplus.LOGGER.warn("No primary resource found for ability definition {}", resourceId);
-                continue;
-            }
-
-            try (Reader reader = resource.get().getReader()) {
-                JsonElement json = JsonParser.parseReader(reader);
-                prepared.put(toAbilityId(resourceId), json);
-            } catch (IOException | JsonParseException e) {
-                Petsplus.LOGGER.error("Failed to parse ability data from {}", resourceId, e);
-            }
-        }
-
-        apply(prepared, manager);
+    protected String getResourceTypeName() {
+        return "ability";
     }
 
-    private void apply(Map<Identifier, JsonElement> prepared, ResourceManager manager) {
+    @Override
+    protected void apply(Map<Identifier, JsonElement> prepared, ResourceManager manager) {
         Map<Identifier, LoadedAbility> definitions = new LinkedHashMap<>();
         Map<Identifier, String> abilitySources = new HashMap<>();
-        Set<Identifier> staleCandidates = new HashSet<>(PetsPlusRegistries.abilityTypeRegistry().getIds());
 
         for (Map.Entry<Identifier, JsonElement> entry : prepared.entrySet()) {
             Identifier fileId = entry.getKey();
@@ -161,29 +129,25 @@ public class AbilityDataLoader implements SimpleSynchronousResourceReloadListene
             if (previousSource != null && !previousSource.equals(source)) {
                 Petsplus.LOGGER.debug("Ability {} in {} overrides definition from {}", abilityId, source, previousSource);
             }
-            staleCandidates.remove(abilityId);
         }
 
         int updated = 0;
+        int skipped = 0;
         for (LoadedAbility ability : definitions.values()) {
             AbilityType existing = PetsPlusRegistries.abilityTypeRegistry().get(ability.id());
             if (existing != null) {
                 existing.update(ability.factory(), ability.description());
                 updated++;
             } else {
-                // Skip registration of new abilities during resource reload to avoid registry freeze crash
-                // New abilities must be registered during mod initialization, not during resource reloads
-                Petsplus.LOGGER.warn("Skipping registration of new ability {} during resource reload - new abilities must be registered during mod initialization", ability.id());
+                // Ability not pre-registered - this shouldn't happen if placeholder registration worked
+                Petsplus.LOGGER.warn("Ability {} has no placeholder registration, skipping (add the JSON file before mod loads)", ability.id());
+                skipped++;
             }
         }
 
-        for (Identifier staleId : staleCandidates) {
-            Petsplus.LOGGER.warn("Ability {} remains registered but has no JSON definition after reload", staleId);
-        }
-
         if (!definitions.isEmpty()) {
-            Petsplus.LOGGER.info("Loaded {} ability definitions ({} updated)",
-                definitions.size(), updated);
+            Petsplus.LOGGER.info("Loaded {} ability definitions ({} updated, {} skipped)",
+                definitions.size(), updated, skipped);
         } else {
             Petsplus.LOGGER.warn("No ability definitions were loaded from datapacks; using existing registry entries.");
         }
@@ -211,21 +175,6 @@ public class AbilityDataLoader implements SimpleSynchronousResourceReloadListene
             return Identifier.of(value);
         }
         return Identifier.of(Petsplus.MOD_ID, value);
-    }
-
-    private static String describeSource(Identifier fileId) {
-        return fileId.getNamespace() + ":" + ROOT_PATH + "/" + fileId.getPath() + ".json";
-    }
-
-    private static Identifier toAbilityId(Identifier resourceId) {
-        String path = resourceId.getPath();
-        if (path.startsWith(ROOT_PATH + "/")) {
-            path = path.substring(ROOT_PATH.length() + 1);
-        }
-        if (path.endsWith(".json")) {
-            path = path.substring(0, path.length() - 5);
-        }
-        return Identifier.of(resourceId.getNamespace(), path);
     }
 
     private static Ability duplicateAbility(Ability template) {

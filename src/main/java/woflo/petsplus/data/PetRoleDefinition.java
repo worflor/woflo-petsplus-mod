@@ -5,6 +5,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.Petsplus;
+import woflo.petsplus.api.LevelReward;
+import woflo.petsplus.api.rewards.LevelRewardParser;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
 
@@ -24,7 +26,6 @@ public record PetRoleDefinition(
     String translationKey,
     Map<String, Float> baseStatScalars,
     List<Identifier> defaultAbilities,
-    Map<Integer, Identifier> tributeItems,
     PetRoleType.XpCurve xpCurve,
     PetRoleType.Visual visual,
     Map<String, Float> statAffinities,
@@ -32,7 +33,8 @@ public record PetRoleDefinition(
     List<PetRoleType.PassiveAura> passiveAuras,
     PetRoleType.SupportPotionBehavior supportPotionBehavior,
     List<PetRoleType.MilestoneAdvancement> milestoneAdvancements,
-    PetRoleType.Presentation presentation
+    PetRoleType.Presentation presentation,
+    Map<Integer, List<LevelReward>> levelRewards
 ) {
     private static final PetRoleType.XpCurve DEFAULT_XP_CURVE = new PetRoleType.XpCurve(
         30,
@@ -43,15 +45,12 @@ public record PetRoleDefinition(
         0.75f
     );
 
-    private static final Map<Integer, Identifier> DEFAULT_TRIBUTES = PetRoleType.defaultTributeItems();
-
     public PetRoleType.Definition toDefinition() {
         return new PetRoleType.Definition(
             id,
             translationKey,
             baseStatScalars,
             defaultAbilities,
-            new PetRoleType.TributeDefaults(tributeItems),
             xpCurve,
             visual,
             statAffinities,
@@ -59,7 +58,8 @@ public record PetRoleDefinition(
             passiveAuras,
             supportPotionBehavior,
             milestoneAdvancements,
-            presentation
+            presentation,
+            levelRewards
         );
     }
 
@@ -69,7 +69,6 @@ public record PetRoleDefinition(
 
         Map<String, Float> scalars = parseScalars(json, sourceDescription);
         List<Identifier> abilities = parseAbilityList(json, sourceDescription);
-        Map<Integer, Identifier> tributes = parseTributes(json, sourceDescription);
         PetRoleType.XpCurve xpCurve = parseXpCurve(json, sourceDescription);
         PetRoleType.Visual visual = parseVisual(json, sourceDescription);
         Map<String, Float> statAffinities = parseStatAffinities(json, sourceDescription);
@@ -78,6 +77,15 @@ public record PetRoleDefinition(
         PetRoleType.SupportPotionBehavior supportPotionBehavior = parseSupportPotion(json, sourceDescription);
         List<PetRoleType.MilestoneAdvancement> milestoneAdvancements = parseMilestoneAdvancements(json, sourceDescription);
         PetRoleType.Presentation presentation = parsePresentation(json, sourceDescription);
+        
+        // Parse level rewards using LevelRewardParser
+        Map<Integer, List<LevelReward>> levelRewards = Map.of();
+        if (json.has("level_rewards")) {
+            JsonObject levelRewardsJson = RegistryJsonHelper.getObject(json, "level_rewards");
+            if (levelRewardsJson != null) {
+                levelRewards = LevelRewardParser.parseRewards(levelRewardsJson, sourceDescription);
+            }
+        }
 
         if (abilities.isEmpty()) {
             Petsplus.LOGGER.warn("Role {} from {} defines no default abilities; pets will not have loadout entries until datapacks provide them.", id, sourceDescription);
@@ -88,7 +96,6 @@ public record PetRoleDefinition(
             translationKey,
             scalars,
             abilities,
-            tributes,
             xpCurve,
             visual,
             statAffinities,
@@ -96,7 +103,8 @@ public record PetRoleDefinition(
             passiveAuras,
             supportPotionBehavior,
             milestoneAdvancements,
-            presentation
+            presentation,
+            levelRewards
         );
     }
 
@@ -154,32 +162,6 @@ public record PetRoleDefinition(
             abilities.add(abilityId);
         }
         return abilities;
-    }
-
-    private static Map<Integer, Identifier> parseTributes(JsonObject json, String source) {
-        Map<Integer, Identifier> tributes = new LinkedHashMap<>(DEFAULT_TRIBUTES);
-        JsonObject tributeObject = RegistryJsonHelper.getObject(json, "tribute_defaults");
-        if (tributeObject == null) {
-            return tributes;
-        }
-
-        for (Map.Entry<String, JsonElement> entry : tributeObject.entrySet()) {
-            try {
-                int milestone = Integer.parseInt(entry.getKey());
-                String itemId = entry.getValue().getAsString();
-                Identifier identifier = Identifier.tryParse(itemId);
-                if (identifier == null) {
-                    Petsplus.LOGGER.error("Role definition at {} has invalid tribute item '{}' for level {}", source, itemId, milestone);
-                    continue;
-                }
-                tributes.put(milestone, identifier);
-            } catch (NumberFormatException e) {
-                Petsplus.LOGGER.error("Role definition at {} has non-numeric tribute milestone '{}': {}", source, entry.getKey(), e.getMessage());
-            } catch (Exception e) {
-                Petsplus.LOGGER.error("Role definition at {} failed to parse tribute entry '{}': {}", source, entry.getKey(), e.getMessage());
-            }
-        }
-        return tributes;
     }
 
     private static Map<String, Float> parseStatAffinities(JsonObject json, String source) {

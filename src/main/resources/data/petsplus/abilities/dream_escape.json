@@ -10,6 +10,24 @@
       "type": "eepy_dream_escape_rescue",
       "activation_radius": 8.0,
       "blindness_duration_ticks": 600
+    },
+    {
+      "type": "particle_effect",
+      "particle": "portal",
+      "target": "owner",
+      "count": 15,
+      "offset_x": 0.6,
+      "offset_y": 0.6,
+      "offset_z": 0.6,
+      "speed": 0.08,
+      "height_offset": 0.5
+    },
+    {
+      "type": "sound_effect",
+      "sound": "note_pling",
+      "target": "owner",
+      "volume": 0.4,
+      "pitch": 1.5
     }
   ]
 }

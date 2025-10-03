@@ -13,7 +13,7 @@ import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.effects.TagTargetEffect;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.util.BossSafetyUtil;
+import woflo.petsplus.util.TriggerConditions;
 
 import java.util.Comparator;
 import java.util.HashMap;
@@ -196,7 +196,7 @@ public class StrikerExecution {
         if (attacker.isTeammate(target)) {
             return new ExecutionResult(0.0f, false, 0.0f, strikerLevel, 0, 0.0f);
         }
-        if (BossSafetyUtil.isBossEntity(target)) {
+        if (TriggerConditions.isBossEntity(target)) {
             return new ExecutionResult(0.0f, false, 0.0f, strikerLevel, 0, 0.0f);
         }
 

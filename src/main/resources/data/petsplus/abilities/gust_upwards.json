@@ -16,6 +16,24 @@
       "mount_inherit": true,
       "swing_owner": true,
       "play_feedback": true
+    },
+    {
+      "type": "particle_effect",
+      "particle": "white_smoke",
+      "target": "owner",
+      "count": 8,
+      "offset_x": 0.3,
+      "offset_y": 0.2,
+      "offset_z": 0.3,
+      "speed": 0.05,
+      "height_offset": 0.1
+    },
+    {
+      "type": "sound_effect",
+      "sound": "note_flute",
+      "target": "owner",
+      "volume": 0.35,
+      "pitch": 1.4
     }
   ]
 }

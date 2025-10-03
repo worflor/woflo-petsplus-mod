@@ -1,0 +1,15 @@
+{
+  "id": "petsplus:striker_pet_execution",
+  "description": "Striker pets execute marked enemies below the execution threshold.",
+  "trigger": {
+    "event": "petsplus:pet_outgoing_damage",
+    "internal_cd_ticks": 0
+  },
+  "effects": [
+    {
+      "type": "striker_pet_execution",
+      "emit_feedback": true,
+      "require_finisher_mark": true
+    }
+  ]
+}

@@ -10,6 +10,7 @@ import net.minecraft.text.TextColor;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
+import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.ui.UIStyle;
 
@@ -1491,15 +1492,15 @@ final class PetMoodEngine {
         cachedWeightSection = getObject(cachedMoodsSection, "weight");
         cachedOpponentSection = getObject(cachedMoodsSection, "opponents");
         cachedAnimationSection = getObject(cachedMoodsSection, "animation");
-        cachedMomentum = readDouble(cachedMoodsSection, "momentum", 0.35d);
-        cachedSwitchMargin = readDouble(cachedMoodsSection, "switchMargin", 0.05d);
-        cachedHysteresisTicks = readInt(cachedMoodsSection, "hysteresisTicks", 60);
-        cachedEpsilon = readFloat(cachedMoodsSection, "epsilon", 0.05f);
+        cachedMomentum = RegistryJsonHelper.getDouble(cachedMoodsSection, "momentum", 0.35d);
+        cachedSwitchMargin = RegistryJsonHelper.getDouble(cachedMoodsSection, "switchMargin", 0.05d);
+        cachedHysteresisTicks = RegistryJsonHelper.getInt(cachedMoodsSection, "hysteresisTicks", 60);
+        cachedEpsilon = RegistryJsonHelper.getFloat(cachedMoodsSection, "epsilon", 0.05f);
         cachedLevelThresholds = parseLevelThresholds(cachedMoodsSection);
-        cachedBaseAnimationUpdateInterval = readInt(cachedAnimationSection, "baseAnimationUpdateInterval", 16);
-        cachedAnimationSpeedMultiplier = readDouble(cachedAnimationSection, "animationSpeedMultiplier", 0.15d);
-        cachedMinAnimationInterval = readInt(cachedAnimationSection, "minAnimationInterval", 4);
-        cachedMaxAnimationInterval = readInt(cachedAnimationSection, "maxAnimationInterval", 40);
+        cachedBaseAnimationUpdateInterval = RegistryJsonHelper.getInt(cachedAnimationSection, "baseAnimationUpdateInterval", 16);
+        cachedAnimationSpeedMultiplier = RegistryJsonHelper.getDouble(cachedAnimationSection, "animationSpeedMultiplier", 0.15d);
+        cachedMinAnimationInterval = RegistryJsonHelper.getInt(cachedAnimationSection, "minAnimationInterval", 4);
+        cachedMaxAnimationInterval = RegistryJsonHelper.getInt(cachedAnimationSection, "maxAnimationInterval", 40);
         rebuildOpponentPairs();
     }
 
@@ -1540,7 +1541,7 @@ final class PetMoodEngine {
         }
         boolean sawOverride = false;
         for (PetComponent.Mood mood : PetComponent.Mood.values()) {
-            float override = readFloat(emotionObj, mood.name().toLowerCase(), Float.NaN);
+            float override = RegistryJsonHelper.getFloat(emotionObj, mood.name().toLowerCase(), Float.NaN);
             if (!Float.isNaN(override)) {
                 // Validate override values are in reasonable range
                 override = MathHelper.clamp(override, 0.0f, 10.0f);
@@ -1773,44 +1774,7 @@ final class PetMoodEngine {
     }
 
     private static JsonObject getObject(JsonObject parent, String key) {
-        if (parent == null || !parent.has(key)) {
-            return null;
-        }
-        JsonElement element = parent.get(key);
-        return element.isJsonObject() ? element.getAsJsonObject() : null;
-    }
-
-    private static double readDouble(JsonObject object, String key, double defaultValue) {
-        if (object == null || !object.has(key)) {
-            return defaultValue;
-        }
-        JsonElement element = object.get(key);
-        if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
-            return defaultValue;
-        }
-        return element.getAsDouble();
-    }
-
-    private static float readFloat(JsonObject object, String key, float defaultValue) {
-        if (object == null || !object.has(key)) {
-            return defaultValue;
-        }
-        JsonElement element = object.get(key);
-        if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
-            return defaultValue;
-        }
-        return element.getAsFloat();
-    }
-
-    private static int readInt(JsonObject object, String key, int defaultValue) {
-        if (object == null || !object.has(key)) {
-            return defaultValue;
-        }
-        JsonElement element = object.get(key);
-        if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
-            return defaultValue;
-        }
-        return element.getAsInt();
+        return RegistryJsonHelper.getObject(parent, key);
     }
 
     // --------------------------------------------------------------------------------------------

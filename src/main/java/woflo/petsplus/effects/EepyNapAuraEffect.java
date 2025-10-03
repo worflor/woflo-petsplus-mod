@@ -22,6 +22,7 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.ui.UIFeedbackManager;
+import woflo.petsplus.util.EffectConfigHelper;
 
 /**
  * Emits the nap time regeneration aura for sitting Eepy Eeper companions.
@@ -39,13 +40,13 @@ public class EepyNapAuraEffect implements Effect {
     private final int messageIntervalTicks;
 
     public EepyNapAuraEffect(JsonObject json) {
-        this.radius = Math.max(0.25D, RegistryJsonHelper.getDouble(json, "radius", 4.0D));
-        this.durationTicks = Math.max(1, RegistryJsonHelper.getInt(json, "duration_ticks", 120));
-        this.amplifier = Math.max(0, RegistryJsonHelper.getInt(json, "amplifier", 0));
-        this.minLevel = Math.max(1, RegistryJsonHelper.getInt(json, "min_level", 10));
+        this.radius = EffectConfigHelper.parseRadius(json, "radius", 4.0);
+        this.durationTicks = EffectConfigHelper.parseDuration(json, "duration_ticks", 120);
+        this.amplifier = EffectConfigHelper.parseAmplifier(json, "amplifier", 0);
+        this.minLevel = EffectConfigHelper.parseMinLevel(json, "min_level", 10);
         this.requireSitting = RegistryJsonHelper.getBoolean(json, "require_sitting", true);
-        this.particleCount = Math.max(0, RegistryJsonHelper.getInt(json, "particle_count", 4));
-        this.messageIntervalTicks = Math.max(1, RegistryJsonHelper.getInt(json, "message_interval_ticks", 200));
+        this.particleCount = EffectConfigHelper.parseParticleCount(json, "particle_count", 4);
+        this.messageIntervalTicks = EffectConfigHelper.parseDuration(json, "message_interval_ticks", 200);
     }
 
     public EepyNapAuraEffect() {

@@ -7,7 +7,6 @@ import woflo.petsplus.api.registry.PetRoleType;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * Builds per-role configuration templates derived from datapack definitions.
@@ -29,7 +28,6 @@ public final class RoleConfigTemplate {
             "_comment",
             "Overrides for role '" + roleType.id() + "'. Remove keys you don't tweak to keep datapack defaults."
         );
-        template.add("tribute_items", roleTributeJson(roleType.tributeDefaults()));
         template.add("passive_auras", passiveAuras(roleType.passiveAuras()));
         template.add("support_potion", supportPotion(roleType.supportPotionBehavior()));
         addAbilityHints(template, roleType.defaultAbilities());
@@ -41,10 +39,6 @@ public final class RoleConfigTemplate {
         template.addProperty(
             "_comment",
             "Overrides for role '" + roleId + "'. Add or remove keys to customise behaviour."
-        );
-        template.add(
-            "tribute_items",
-            placeholderObject("Map level milestones to item IDs. Delete to fall back to datapack defaults.")
         );
         template.add(
             "passive_auras",
@@ -61,19 +55,6 @@ public final class RoleConfigTemplate {
         JsonObject placeholder = new JsonObject();
         placeholder.addProperty("_comment", comment);
         return placeholder;
-    }
-
-    private static JsonObject roleTributeJson(PetRoleType.TributeDefaults defaults) {
-        JsonObject tributes = placeholderObject("Override milestone tribute items (level -> item id).");
-        if (defaults != null) {
-            for (Map.Entry<Integer, Identifier> entry : defaults.milestoneItems().entrySet()) {
-                Identifier itemId = entry.getValue();
-                if (itemId != null) {
-                    tributes.addProperty(Integer.toString(entry.getKey()), itemId.toString());
-                }
-            }
-        }
-        return tributes;
     }
 
     private static JsonObject passiveAuras(List<PetRoleType.PassiveAura> passiveAuras) {

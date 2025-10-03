@@ -1,0 +1,57 @@
+{
+  "id": "petsplus:guardian_bash_strike",
+  "description": "Guardian pets who recently redirected damage apply weakness and slowness with their attacks.",
+  "trigger": {
+    "event": "petsplus:pet_dealt_damage",
+    "internal_cd_ticks": 80
+  },
+  "conditions": [
+    {
+      "type": "require_data_flag",
+      "key": "guardian_recently_redirected",
+      "value": true,
+      "comment": "Only trigger if the guardian recently used Bulwark"
+    },
+    {
+      "type": "require_data_flag",
+      "key": "guardian_hit_reserve_limit",
+      "value": false,
+      "comment": "Only trigger if the redirect didn't deplete the pet's health reserve"
+    }
+  ],
+  "effects": [
+    {
+      "type": "effect",
+      "target": "victim",
+      "id": "minecraft:weakness",
+      "duration": 60,
+      "amplifier": 0
+    },
+    {
+      "type": "effect",
+      "target": "victim",
+      "id": "minecraft:slowness",
+      "duration": 60,
+      "amplifier": 0
+    },
+    {
+      "type": "particle_effect",
+      "particle": "damage_indicator",
+      "target": "victim",
+      "count": 5,
+      "offset_x": 0.3,
+      "offset_y": 0.4,
+      "offset_z": 0.3,
+      "speed": 0.1,
+      "height_offset": 0.6
+    },
+    {
+      "type": "sound_effect",
+      "sound": "note_bass",
+      "target": "victim",
+      "volume": 0.35,
+      "pitch": 0.5,
+      "category": "hostile"
+    }
+  ]
+}

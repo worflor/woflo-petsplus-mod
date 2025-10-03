@@ -1,0 +1,43 @@
+{
+  "id": "petsplus:release_the_hounds",
+  "trigger": {
+    "event": "owner_signal_double_crouch",
+    "cooldown_ticks": 200
+  },
+  "effects": [
+    {
+      "type": "retarget_nearest_hostile",
+      "radius": 24.0
+    },
+    {
+      "type": "apply_potion_to_self",
+      "effect": "minecraft:speed",
+      "duration": 100,
+      "amplifier": 1
+    },
+    {
+      "type": "set_pet_state_data",
+      "key": "scout_enhanced_mark",
+      "duration_ticks": 100
+    },
+    {
+      "type": "particle_effect",
+      "particle": "cloud",
+      "target": "pet",
+      "count": 12,
+      "offset_x": 0.4,
+      "offset_y": 0.2,
+      "offset_z": 0.4,
+      "speed": 0.05,
+      "height_offset": 0.3
+    },
+    {
+      "type": "sound_effect",
+      "sound": "note_bass",
+      "target": "pet",
+      "volume": 0.4,
+      "pitch": 0.6,
+      "category": "neutral"
+    }
+  ]
+}

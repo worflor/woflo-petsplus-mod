@@ -2,6 +2,7 @@ package woflo.petsplus.api.registry;
 
 import net.minecraft.util.Identifier;
 import woflo.petsplus.Petsplus;
+import woflo.petsplus.api.LevelReward;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,23 +28,6 @@ public final class PetRoleType {
         8,
         0.75f
     );
-
-    private static final Map<Integer, Identifier> DEFAULT_TRIBUTES;
-
-    static {
-        Map<Integer, Identifier> tributes = new LinkedHashMap<>();
-        tributes.put(10, Identifier.of("minecraft", "gold_ingot"));
-        tributes.put(20, Identifier.of("minecraft", "diamond"));
-        tributes.put(30, Identifier.of("minecraft", "netherite_scrap"));
-        DEFAULT_TRIBUTES = Collections.unmodifiableMap(tributes);
-    }
-
-    /**
-     * Default tribute item mapping shared across registry-driven definitions and config fallbacks.
-     */
-    public static Map<Integer, Identifier> defaultTributeItems() {
-        return DEFAULT_TRIBUTES;
-    }
 
     public static final Identifier GUARDIAN_ID = Identifier.of(Petsplus.MOD_ID, "guardian");
     public static final Identifier STRIKER_ID = Identifier.of(Petsplus.MOD_ID, "striker");
@@ -94,7 +78,6 @@ public final class PetRoleType {
                 .healthMaxBonus(2.0f)
                 .build()
             )
-            .withDefaultAbilities(List.of(ability("shield_bash_rider")))
             .withVisual(new Visual(0x4AA3F0, 0x1F6DB5, "guardian_ambient", "guardian"))
             .withPresentation(defaultPresentation(
                 "guardian_protection_stance",
@@ -124,7 +107,6 @@ public final class PetRoleType {
                 .attackMaxBonus(1.5f)
                 .build()
             )
-            .withDefaultAbilities(List.of(ability("finisher_mark")))
             .withVisual(new Visual(0xE23A3A, 0x8B1E1E, "striker_ambient", "striker"))
             .withPresentation(defaultPresentation(
                 "striker_eagerness",
@@ -147,9 +129,6 @@ public final class PetRoleType {
             .withStatAffinity("vitality", 0.05f)
             .withStatAffinity("health", 0.03f)
             .withStatAffinity("learning", 0.04f)
-            .withDefaultAbilities(List.of(
-                ability("perch_potion_efficiency")
-            ))
             .withVisual(new Visual(0x64F5A4, 0x2E9B66, "support_ambient", "support"))
             .withPresentation(defaultPresentation(
                 "support_gentle_aura",
@@ -177,7 +156,6 @@ public final class PetRoleType {
                 .speedMaxBonus(0.6f)
                 .build()
             )
-            .withDefaultAbilities(List.of(ability("loot_wisp")))
             .withVisual(new Visual(0xF7C64C, 0xA37516, "scout_ambient", "scout"))
             .withPresentation(defaultPresentation(
                 "scout_alertness",
@@ -205,7 +183,6 @@ public final class PetRoleType {
                 .speedMaxBonus(0.6f)
                 .build()
             )
-            .withDefaultAbilities(List.of(ability("windlash_rider")))
             .withVisual(new Visual(0xFFFFFF, 0xD8E7FF, "skyrider_ambient", "skyrider"))
             .withPresentation(defaultPresentation(
                 "skyrider_wind_dance",
@@ -247,7 +224,6 @@ public final class PetRoleType {
         CURSED_ONE_ID,
         builder(CURSED_ONE_ID)
             .withBaseStatScalar("curse", 0.02f)
-            .withDefaultAbilities(List.of(ability("doom_echo")))
             .withStatAffinity("attack", 0.03f)
             .withStatAffinity("vitality", 0.03f)
             .withStatAffinity("learning", 0.04f)
@@ -292,11 +268,6 @@ public final class PetRoleType {
         ECLIPSED_ID,
         builder(ECLIPSED_ID)
             .withBaseStatScalar("disruption", 0.02f)
-            .withDefaultAbilities(List.of(
-                ability("voidbrand"),
-                ability("phase_partner"),
-                ability("perch_ping")
-            ))
             .withStatAffinity("speed", 0.03f)
             .withStatAffinity("attack", 0.03f)
             .withStatAffinity("learning", 0.05f)
@@ -345,11 +316,6 @@ public final class PetRoleType {
     /** Ability identifiers that should be unlocked by default for this role. */
     public List<Identifier> defaultAbilities() {
         return definition.defaultAbilities();
-    }
-
-    /** Default tribute items required to bypass milestone caps. */
-    public TributeDefaults tributeDefaults() {
-        return definition.tributeDefaults();
     }
 
     /** XP progression metadata backing {@link woflo.petsplus.state.PetComponent}. */
@@ -402,10 +368,6 @@ public final class PetRoleType {
 
     private static String translationKey(Identifier id) {
         return Petsplus.MOD_ID + ".role." + id.getPath();
-    }
-
-    private static Identifier ability(String path) {
-        return Identifier.of(Petsplus.MOD_ID, path);
     }
 
     /**
@@ -466,10 +428,6 @@ public final class PetRoleType {
         return builder.length() == 0 ? path : builder.toString();
     }
 
-    private static TributeDefaults defaultTributes() {
-        return new TributeDefaults(DEFAULT_TRIBUTES);
-    }
-
     private static XpCurve defaultXpCurve() {
         return DEFAULT_XP_CURVE;
     }
@@ -515,7 +473,6 @@ public final class PetRoleType {
         private final Map<String, Float> scalars = new LinkedHashMap<>();
         private final Map<String, Float> statAffinities = new LinkedHashMap<>();
         private List<Identifier> defaultAbilities = List.of();
-        private TributeDefaults tributeDefaults = defaultTributes();
         private XpCurve xpCurve = defaultXpCurve();
         private Visual visual = Visual.DEFAULT;
         private AttributeScaling attributeScaling = AttributeScaling.DEFAULT;
@@ -523,6 +480,7 @@ public final class PetRoleType {
         private SupportPotionBehavior supportPotionBehavior = null;
         private List<MilestoneAdvancement> milestoneAdvancements = List.of();
         private Presentation presentation = Presentation.DEFAULT;
+        private Map<Integer, List<LevelReward>> levelRewards = Map.of();
 
         DefinitionBuilder(Identifier id, String translationKey) {
             this.id = id;
@@ -551,11 +509,6 @@ public final class PetRoleType {
 
         public DefinitionBuilder withDefaultAbilities(List<Identifier> abilities) {
             this.defaultAbilities = List.copyOf(abilities);
-            return this;
-        }
-
-        public DefinitionBuilder withTributeDefaults(Map<Integer, Identifier> tributes) {
-            this.tributeDefaults = new TributeDefaults(tributes);
             return this;
         }
 
@@ -588,6 +541,11 @@ public final class PetRoleType {
             this.presentation = presentation == null ? Presentation.DEFAULT : presentation;
             return this;
         }
+        
+        public DefinitionBuilder withLevelRewards(Map<Integer, List<LevelReward>> levelRewards) {
+            this.levelRewards = levelRewards == null ? Map.of() : levelRewards;
+            return this;
+        }
 
         public Definition build() {
             return new Definition(
@@ -595,7 +553,6 @@ public final class PetRoleType {
                 translationKey,
                 scalars,
                 defaultAbilities,
-                tributeDefaults,
                 xpCurve,
                 visual,
                 statAffinities,
@@ -603,7 +560,8 @@ public final class PetRoleType {
                 passiveAuras,
                 supportPotionBehavior,
                 milestoneAdvancements,
-                presentation
+                presentation,
+                levelRewards
             );
         }
     }
@@ -614,7 +572,6 @@ public final class PetRoleType {
         String translationKey,
         Map<String, Float> baseStatScalars,
         List<Identifier> defaultAbilities,
-        TributeDefaults tributeDefaults,
         XpCurve xpCurve,
         Visual visual,
         Map<String, Float> statAffinities,
@@ -622,7 +579,8 @@ public final class PetRoleType {
         List<PassiveAura> passiveAuras,
         SupportPotionBehavior supportPotionBehavior,
         List<MilestoneAdvancement> milestoneAdvancements,
-        Presentation presentation
+        Presentation presentation,
+        Map<Integer, List<LevelReward>> levelRewards
     ) {
         public Definition {
             Objects.requireNonNull(id, "id");
@@ -631,7 +589,6 @@ public final class PetRoleType {
             );
             baseStatScalars = Collections.unmodifiableMap(new LinkedHashMap<>(baseStatScalars));
             defaultAbilities = List.copyOf(defaultAbilities);
-            tributeDefaults = Objects.requireNonNullElseGet(tributeDefaults, PetRoleType::defaultTributes);
             xpCurve = Objects.requireNonNullElseGet(xpCurve, PetRoleType::defaultXpCurve);
             visual = Objects.requireNonNullElse(visual, Visual.DEFAULT);
             statAffinities = Collections.unmodifiableMap(new LinkedHashMap<>(statAffinities));
@@ -640,20 +597,23 @@ public final class PetRoleType {
             supportPotionBehavior = supportPotionBehavior;
             milestoneAdvancements = List.copyOf(milestoneAdvancements == null ? List.of() : milestoneAdvancements);
             presentation = Objects.requireNonNullElse(presentation, Presentation.DEFAULT);
+            levelRewards = Collections.unmodifiableMap(
+                levelRewards == null ? Map.of() :
+                levelRewards.entrySet().stream()
+                    .collect(java.util.stream.Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> List.copyOf(e.getValue()),
+                        (a, b) -> a,
+                        LinkedHashMap::new
+                    ))
+            );
         }
-    }
-
-    /**
-     * Default tribute metadata for a role. Stored as a dedicated type to make
-     * future expansion (grace periods, per-level overrides, etc.) easier.
-     */
-    public record TributeDefaults(Map<Integer, Identifier> milestoneItems) {
-        public TributeDefaults {
-            milestoneItems = Collections.unmodifiableMap(new LinkedHashMap<>(milestoneItems));
-        }
-
-        public Identifier itemForLevel(int level) {
-            return milestoneItems.get(level);
+        
+        /**
+         * Get the rewards for a specific level.
+         */
+        public List<LevelReward> getRewardsForLevel(int level) {
+            return levelRewards.getOrDefault(level, List.of());
         }
     }
 

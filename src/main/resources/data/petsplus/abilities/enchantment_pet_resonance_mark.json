@@ -1,0 +1,33 @@
+{
+  "id": "petsplus:enchantment_pet_resonance_mark",
+  "description": "Pet attacks open a resonance window for enchantment synergy.",
+  "trigger": {
+    "event": "petsplus:pet_dealt_damage",
+    "internal_cd_ticks": 0
+  },
+  "effects": [
+    {
+      "type": "set_owner_state_data",
+      "key": "enchantment_resonance_window",
+      "value": true,
+      "duration_ticks": 30
+    },
+    {
+      "type": "set_owner_state_data",
+      "key": "enchantment_perfect_window",
+      "value": true,
+      "duration_ticks": 10
+    },
+    {
+      "type": "particle_effect",
+      "particle": "minecraft:enchant",
+      "target": "pet",
+      "count": 3,
+      "offset_x": 0.3,
+      "offset_y": 0.3,
+      "offset_z": 0.3,
+      "speed": 0.05,
+      "height_offset": 0.5
+    }
+  ]
+}

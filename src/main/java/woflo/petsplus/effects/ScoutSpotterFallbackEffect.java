@@ -21,6 +21,7 @@ import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.ui.UIFeedbackManager;
+import woflo.petsplus.util.EffectConfigHelper;
 
 /**
  * Applies the Scout spotter fallback glowing pulse when the owner has been without pet assists
@@ -41,10 +42,10 @@ public class ScoutSpotterFallbackEffect implements Effect {
     public ScoutSpotterFallbackEffect(JsonObject json) {
         double radius = RegistryJsonHelper.getDouble(json, "radius", 16.0D);
         this.radiusSq = radius <= 0 ? Double.POSITIVE_INFINITY : radius * radius;
-        this.minimumLevel = Math.max(1, RegistryJsonHelper.getInt(json, "min_level", 10));
-        this.idleTicks = Math.max(1, RegistryJsonHelper.getInt(json, "idle_ticks", 60));
-        this.cooldownTicks = Math.max(1, RegistryJsonHelper.getInt(json, "cooldown_ticks", 300));
-        this.glowDurationTicks = Math.max(1, RegistryJsonHelper.getInt(json, "glow_duration_ticks", 20));
+        this.minimumLevel = EffectConfigHelper.parseMinLevel(json, "min_level", 10);
+        this.idleTicks = EffectConfigHelper.parseDuration(json, "idle_ticks", 60);
+        this.cooldownTicks = EffectConfigHelper.parseDuration(json, "cooldown_ticks", 300);
+        this.glowDurationTicks = EffectConfigHelper.parseDuration(json, "glow_duration_ticks", 20);
         this.sendMessage = RegistryJsonHelper.getBoolean(json, "send_message", true);
     }
 

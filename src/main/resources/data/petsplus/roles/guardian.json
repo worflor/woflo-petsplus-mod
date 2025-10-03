@@ -15,15 +15,81 @@
     "health_softcap_level": 20,
     "health_max_bonus": 2.0
   },
-  "default_abilities": [
-    "petsplus:aegis_protocol",
-    "petsplus:fortress_bond",
-    "petsplus:fortress_bond_pet_guard"
-  ],
-  "tribute_defaults": {
-    "10": "minecraft:gold_ingot",
-    "20": "minecraft:diamond",
-    "30": "minecraft:netherite_scrap"
+  "default_abilities": [],
+  "level_rewards": {
+    "1": [
+      { "type": "ability_unlock", "ability": "petsplus:fortress_bond" }
+    ],
+    "3": [
+      { "type": "stat_boost", "stat": "health", "amount": 4.0 }
+    ],
+    "7": [
+      { "type": "ability_unlock", "ability": "petsplus:fortress_bond_pet_guard" },
+      { "type": "stat_boost", "stat": "defense", "amount": 2.0 }
+    ],
+    "10": [
+      {
+        "type": "tribute_required",
+        "item": "minecraft:gold_ingot"
+      }
+    ],
+    "12": [
+      {
+        "type": "ability_unlock",
+        "ability": "petsplus:guardian_bash_strike"
+      },
+      {
+        "type": "stat_boost",
+        "stat": "health",
+        "amount": 6.0
+      }
+    ],
+    "17": [
+      { "type": "ability_unlock", "ability": "petsplus:aegis_protocol" },
+      { "type": "stat_boost", "stat": "attack", "amount": 1.5 },
+      { "type": "stat_boost", "stat": "defense", "amount": 3.0 }
+    ],
+    "20": [
+      {
+        "type": "tribute_required",
+        "item": "minecraft:diamond"
+      }
+    ],
+    "23": [
+      {
+        "type": "stat_boost",
+        "stat": "health",
+        "amount": 8.0
+      }
+    ],
+    "27": [
+      {
+        "type": "stat_boost",
+        "stat": "defense",
+        "amount": 4.0
+      },
+      {
+        "type": "stat_boost",
+        "stat": "speed",
+        "amount": 0.02
+      }
+    ],
+    "30": [
+      {
+        "type": "tribute_required",
+        "item": "minecraft:netherite_scrap"
+      },
+      {
+        "type": "stat_boost",
+        "stat": "health",
+        "amount": 10.0
+      },
+      {
+        "type": "stat_boost",
+        "stat": "defense",
+        "amount": 5.0
+      }
+    ]
   },
   "xp_curve": {
     "max_level": 30,
@@ -44,7 +110,6 @@
       "id": "guardian_shield",
       "interval": 160,
       "radius": 8.0,
-      "min_level": 3,
       "effects": [
         {
           "effect": "minecraft:resistance",
@@ -56,8 +121,7 @@
           "effect": "minecraft:absorption",
           "target": "owner",
           "duration": 120,
-          "amplifier": 0,
-          "min_level": 12
+          "amplifier": 0
         }
       ],
       "message": {

@@ -20,6 +20,24 @@
       "owner_slowfall_ticks": 60,
       "duplicate_gate_ticks": 5,
       "send_message": true
+    },
+    {
+      "type": "particle_effect",
+      "particle": "cloud",
+      "target": "owner",
+      "count": 12,
+      "offset_x": 0.8,
+      "offset_y": 0.3,
+      "offset_z": 0.8,
+      "speed": 0.1,
+      "height_offset": 0.2
+    },
+    {
+      "type": "sound_effect",
+      "sound": "note_didgeridoo",
+      "target": "owner",
+      "volume": 0.3,
+      "pitch": 1.2
     }
   ]
 }

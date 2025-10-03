@@ -61,6 +61,36 @@ public final class RegistryJsonHelper {
         return defaultValue;
     }
 
+    public static float getFloat(JsonObject json, String key, float defaultValue) {
+        if (!json.has(key)) {
+            return defaultValue;
+        }
+
+        JsonElement element = json.get(key);
+        if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()) {
+            return element.getAsFloat();
+        }
+
+        if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
+            return (float) parseConfigVariable(element.getAsString(), defaultValue);
+        }
+
+        return defaultValue;
+    }
+
+    public static long getLong(JsonObject json, String key, long defaultValue) {
+        if (!json.has(key)) {
+            return defaultValue;
+        }
+
+        JsonElement element = json.get(key);
+        if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()) {
+            return element.getAsLong();
+        }
+
+        return defaultValue;
+    }
+
     public static boolean getBoolean(JsonObject json, String key, boolean defaultValue) {
         if (!json.has(key)) {
             return defaultValue;
@@ -90,7 +120,7 @@ public final class RegistryJsonHelper {
 
     @Nullable
     public static JsonObject getObject(JsonObject json, String key) {
-        if (!json.has(key)) {
+        if (json == null || !json.has(key)) {
             return null;
         }
 

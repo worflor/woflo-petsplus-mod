@@ -9,8 +9,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
@@ -61,6 +59,7 @@ public class TributeHandler {
         PetRoleType roleType = petComp.getRoleType();
         TributeInfo tributeInfo = getTributeInfo(petComp);
 
+        // Capture level at check time to prevent race conditions
         Item requiredItem = tributeInfo != null ? tributeInfo.item : null;
         int milestoneLevel = tributeInfo != null ? tributeInfo.level : petComp.getLevel();
 
@@ -109,7 +108,31 @@ public class TributeHandler {
         if (roleType == null) {
             return null;
         }
+        
+        // First check if this level has a tribute milestone from level rewards
+        if (petComp.hasTributeMilestone(level)) {
+            if (petComp.isMilestoneUnlocked(level)) {
+                return null; // Already paid
+            }
+            
+            Identifier tributeItemId = petComp.getTributeMilestone(level);
+            if (tributeItemId == null) {
+                Petsplus.LOGGER.error("Tribute milestone at level {} has null item ID", level);
+                // Fall through to legacy system
+            } else {
+                Item item = lookupItem(tributeItemId);
+                if (item == null) {
+                    Petsplus.LOGGER.error("Tribute item '{}' at level {} does not exist in registry! " +
+                        "Check your role JSON file. Falling back to legacy tribute system.", 
+                        tributeItemId, level);
+                    // Fall through to legacy system
+                } else {
+                    return new TributeInfo(level, item);
+                }
+            }
+        }
 
+        // Fall back to legacy tribute system
         if (!roleType.xpCurve().tributeMilestones().contains(level)) {
             return null;
         }
@@ -124,10 +147,9 @@ public class TributeHandler {
 
     private static Item resolveTributeItem(PetRoleType roleType, int level) {
         PetsPlusConfig config = PetsPlusConfig.getInstance();
-        Identifier datapackDefault = roleType.tributeDefaults().itemForLevel(level);
-        Identifier roleOverride = config.getRoleTributeOverride(roleType.id(), level);
         Identifier resolvedId = config.resolveTributeItem(roleType, level);
         if (resolvedId == null) {
+            Petsplus.LOGGER.error("No tribute item defined for role {} level {} - check level_rewards in datapack", roleType.id(), level);
             return null;
         }
 
@@ -135,15 +157,6 @@ public class TributeHandler {
         if (item == null) {
             Petsplus.LOGGER.error("Unable to resolve tribute item {} for role {} level {}", resolvedId, roleType.id(), level);
             return null;
-        }
-
-        if (roleOverride != null && !resolvedId.equals(datapackDefault)) {
-            Petsplus.LOGGER.warn("Role {} tribute level {} overridden via config to {}", roleType.id(), level, resolvedId);
-        } else if (datapackDefault == null) {
-            Identifier fallback = config.getFallbackTributeItem(level);
-            if (fallback != null && fallback.equals(resolvedId)) {
-                Petsplus.LOGGER.warn("Role {} missing tribute metadata for level {}; using fallback item {}", roleType.id(), level, resolvedId);
-            }
         }
 
         return item;

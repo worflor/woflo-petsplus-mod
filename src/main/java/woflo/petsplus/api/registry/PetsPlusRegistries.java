@@ -14,7 +14,6 @@ import net.minecraft.resource.ResourceType;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.abilities.AbilityManager;
-import woflo.petsplus.api.Ability;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.Trigger;
 import woflo.petsplus.api.TriggerContext;
@@ -22,14 +21,21 @@ import woflo.petsplus.data.AbilityDataLoader;
 import woflo.petsplus.data.PetRoleDataLoader;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.effects.AreaEffectEffect;
+import woflo.petsplus.effects.ApplyPotionToSelfEffect;
+import woflo.petsplus.effects.ApplyPotionToVictimEffect;
 import woflo.petsplus.effects.BuffEffect;
+import woflo.petsplus.effects.ClearPetStateDataEffect;
 import woflo.petsplus.effects.CursedOneDeathBurstEffect;
 import woflo.petsplus.effects.CursedOneMountResilienceEffect;
 import woflo.petsplus.effects.CursedOneSacrificialRescueEffect;
+import woflo.petsplus.effects.ParticleEffect;
+import woflo.petsplus.effects.SoundEffect;
 import woflo.petsplus.effects.CursedOneReanimationEffect;
 import woflo.petsplus.effects.CursedOneSoulSacrificeEffect;
+import woflo.petsplus.effects.ClearOwnerStateDataEffect;
 import woflo.petsplus.effects.DarknessDamageShieldEffect;
 import woflo.petsplus.effects.EclipsedVoidRescueEffect;
+import woflo.petsplus.effects.EclipsedVoidStrikeEffect;
 import woflo.petsplus.effects.EclipsedEventHorizonEffect;
 import woflo.petsplus.effects.EclipsedPhasePartnerEffect;
 import woflo.petsplus.effects.EclipsedEdgeStepEffect;
@@ -44,6 +50,7 @@ import woflo.petsplus.effects.EnchantmentBoundDurabilityEffect;
 import woflo.petsplus.effects.EnchantmentBoundExtraDropsEffect;
 import woflo.petsplus.effects.EnchantmentBoundMiningHasteEffect;
 import woflo.petsplus.effects.EnchantmentBoundSwimGraceEffect;
+import woflo.petsplus.effects.EnchantmentResonanceArcEffect;
 import woflo.petsplus.effects.GearSwapEffect;
 import woflo.petsplus.effects.GuardianAegisProtocolEffect;
 import woflo.petsplus.effects.GuardianBulwarkRedirectEffect;
@@ -59,7 +66,10 @@ import woflo.petsplus.effects.OwnerNextAttackBonusEffect;
 import woflo.petsplus.effects.PerchPotionSipReductionEffect;
 import woflo.petsplus.effects.ProjectileDrForOwnerEffect;
 import woflo.petsplus.effects.RetargetNearestHostileEffect;
+import woflo.petsplus.effects.ScoutEnhancedMarkEffect;
 import woflo.petsplus.effects.ScoutSpotterFallbackEffect;
+import woflo.petsplus.effects.SetOwnerStateDataEffect;
+import woflo.petsplus.effects.SetPetStateDataEffect;
 import woflo.petsplus.effects.SkyriderFallGuardEffect;
 import woflo.petsplus.effects.SkyriderGustUpwardsEffect;
 import woflo.petsplus.effects.SkyriderProjectileLevitationEffect;
@@ -67,6 +77,7 @@ import woflo.petsplus.effects.SkyriderWindlashEffect;
 import woflo.petsplus.effects.StrikerBloodlustSurgeEffect;
 import woflo.petsplus.effects.StrikerExecutionEffect;
 import woflo.petsplus.effects.StrikerMarkFeedbackEffect;
+import woflo.petsplus.effects.StrikerPetExecutionEffect;
 import woflo.petsplus.effects.SupportPotionPulseEffect;
 import woflo.petsplus.effects.TagTargetEffect;
 import woflo.petsplus.util.TriggerConditions;
@@ -123,7 +134,7 @@ public final class PetsPlusRegistries {
         registerTriggerSerializers();
         registerEffectSerializers();
         registerLevelRewardTypes();
-        registerDefaultAbilities();
+        registerAbilityPlaceholders();
 
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
             .registerReloadListener(new PetRoleDataLoader());
@@ -645,6 +656,142 @@ public final class PetsPlusRegistries {
             .description("Fires immediately before lethal pet damage is applied, enabling interception abilities.")
             .build());
 
+        registerTriggerSerializer(TriggerSerializer.builder(id("pet_dealt_damage"), OwnerDealtDamageConfig.CODEC,
+            (abilityId, config) -> DataResult.success(new Trigger() {
+                private final Identifier triggerId = id("pet_dealt_damage");
+                private final double hpThreshold = config.targetHpPctBelow().orElse(-1.0);
+                private final int cooldown = config.cooldown().resolvedCooldown();
+
+                @Override
+                public Identifier getId() {
+                    return triggerId;
+                }
+
+                @Override
+                public int getInternalCooldownTicks() {
+                    return cooldown;
+                }
+
+                @Override
+                public boolean shouldActivate(TriggerContext context) {
+                    if (!Objects.equals(context.getEventType(), "pet_dealt_damage")) {
+                        return false;
+                    }
+                    return hpThreshold < 0 || context.getVictimHpPercent() <= hpThreshold;
+                }
+            }))
+            .description("Triggered when the pet damages a target, optionally filtered by remaining HP.")
+            .build());
+
+        registerTriggerSerializer(TriggerSerializer.builder(id("pet_outgoing_damage"), OwnerDealtDamageConfig.CODEC,
+            (abilityId, config) -> DataResult.success(new Trigger() {
+                private final Identifier triggerId = id("pet_outgoing_damage");
+                private final double hpThreshold = config.targetHpPctBelow().orElse(-1.0);
+                private final int cooldown = config.cooldown().resolvedCooldown();
+
+                @Override
+                public Identifier getId() {
+                    return triggerId;
+                }
+
+                @Override
+                public int getInternalCooldownTicks() {
+                    return cooldown;
+                }
+
+                @Override
+                public boolean shouldActivate(TriggerContext context) {
+                    if (!Objects.equals(context.getEventType(), "pet_outgoing_damage")) {
+                        return false;
+                    }
+                    return hpThreshold < 0 || context.getVictimHpPercent() <= hpThreshold;
+                }
+            }))
+            .description("Triggered before the pet applies damage, allowing damage modification. Optionally filtered by target HP.")
+            .build());
+
+        registerTriggerSerializer(TriggerSerializer.builder(id("pet_killed_entity"), OwnerKilledEntityConfig.CODEC,
+            (abilityId, config) -> DataResult.success(new Trigger() {
+                private final Identifier triggerId = id("pet_killed_entity");
+                private final boolean requireExecution = config.requireExecution().orElse(false);
+                private final boolean requireFinisher = config.requireFinisherMark().orElse(false);
+                private final double thresholdMax = config.executionThresholdAtMost().orElse(1.0);
+                private final double thresholdMin = config.executionThresholdAtLeast().orElse(0.0);
+                private final int cooldown = config.cooldown().resolvedCooldown();
+
+                @Override
+                public Identifier getId() {
+                    return triggerId;
+                }
+
+                @Override
+                public int getInternalCooldownTicks() {
+                    return cooldown;
+                }
+
+                @Override
+                public boolean shouldActivate(TriggerContext context) {
+                    if (!Objects.equals(context.getEventType(), "pet_killed_entity")) {
+                        return false;
+                    }
+                    if (requireExecution && !context.wasExecutionKill()) {
+                        return false;
+                    }
+                    if (requireFinisher && !context.targetHadFinisherMark()) {
+                        return false;
+                    }
+                    double threshold = context.getExecutionThresholdPercent();
+                    if (thresholdMax < 1.0 && threshold > thresholdMax + 1.0e-5) {
+                        return false;
+                    }
+                    if (thresholdMin > 0.0 && threshold + 1.0e-5 < thresholdMin) {
+                        return false;
+                    }
+                    return true;
+                }
+            }))
+            .description("Triggered after a pet kills an entity, with optional execution filters.")
+            .build());
+
+        registerTriggerSerializer(TriggerSerializer.builder(id("pet_low_health"), OwnerLowHealthConfig.CODEC,
+            (abilityId, config) -> DataResult.success(new Trigger() {
+                private final Identifier triggerId = id("pet_low_health");
+                private final int cooldown = config.cooldown().resolvedCooldown();
+                private final double threshold = config.ownerHpPctBelow().orElse(1.0);
+
+                @Override
+                public Identifier getId() {
+                    return triggerId;
+                }
+
+                @Override
+                public int getInternalCooldownTicks() {
+                    return cooldown;
+                }
+
+                @Override
+                public boolean shouldActivate(TriggerContext context) {
+                    String event = context.getEventType();
+                    if (!Objects.equals(event, "pet_low_health") && !Objects.equals(event, "on_pet_low_health")) {
+                        return false;
+                    }
+                    Double petHpPct = context.getData("pet_hp_pct", Double.class);
+                    return petHpPct == null || petHpPct <= threshold;
+                }
+            }))
+            .description("Pet reaches a low health threshold.")
+            .build());
+
+        registerTriggerSerializer(TriggerSerializer.builder(id("owner_mounted_pet"), CooldownSettings.CODEC,
+            (abilityId, config) -> DataResult.success(simpleEventTrigger("owner_mounted_pet", config.resolvedCooldown())))
+            .description("Fires when the owner mounts or shoulder-perches a pet.")
+            .build());
+
+        registerTriggerSerializer(TriggerSerializer.builder(id("owner_dismounted_pet"), CooldownSettings.CODEC,
+            (abilityId, config) -> DataResult.success(simpleEventTrigger("owner_dismounted_pet", config.resolvedCooldown())))
+            .description("Fires when the owner dismounts or releases a shoulder-perched pet.")
+            .build());
+
         registerTriggerSerializer(TriggerSerializer.builder(id("on_pet_resurrect"), CooldownSettings.CODEC,
             (abilityId, config) -> DataResult.success(simpleEventTrigger("on_pet_resurrect", config.resolvedCooldown())))
             .description("Triggered when a pet is resurrected.")
@@ -679,9 +826,29 @@ public final class PetsPlusRegistries {
             .description("Calculates and applies the Striker execution damage bonus before hits resolve.")
             .build());
 
+        registerEffectSerializer(EffectSerializer.builder(id("striker_pet_execution"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new StrikerPetExecutionEffect(json)))
+            .description("Pet execution effect - allows striker pets to execute marked low-health targets.")
+            .build());
+
         registerEffectSerializer(EffectSerializer.builder(id("striker_bloodlust_surge"), RegistryJsonHelper.JSON_OBJECT_CODEC,
             (abilityId, json, context) -> DataResult.success(new StrikerBloodlustSurgeEffect(json)))
             .description("Applies execution-fueled speed and strength buffs for Striker bloodlust.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("enchantment_resonance_arc"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new EnchantmentResonanceArcEffect(json)))
+            .description("Creates enchantment arcs to nearby enemies during resonance windows. Perfect timing deals more damage and refunds cooldown.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("set_owner_state_data"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new SetOwnerStateDataEffect(json)))
+            .description("Sets temporary state data on the owner for timing windows and synergy tracking.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("clear_owner_state_data"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new ClearOwnerStateDataEffect(json)))
+            .description("Clears state data from the owner.")
             .build());
 
         registerEffectSerializer(EffectSerializer.builder(id("cursed_one_reanimation"), RegistryJsonHelper.JSON_OBJECT_CODEC,
@@ -692,6 +859,11 @@ public final class PetsPlusRegistries {
         registerEffectSerializer(EffectSerializer.builder(id("darkness_damage_shield"), RegistryJsonHelper.JSON_OBJECT_CODEC,
             (abilityId, json, context) -> DataResult.success(new DarknessDamageShieldEffect(json)))
             .description("Cancels small hits while the Eclipsed duo remains in darkness.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("eclipsed_void_strike"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new EclipsedVoidStrikeEffect(json)))
+            .description("Applies bonus damage to Eclipsed pet attacks when striking in darkness.")
             .build());
 
         registerEffectSerializer(EffectSerializer.builder(id("magic_damage_shield"), RegistryJsonHelper.JSON_OBJECT_CODEC,
@@ -722,6 +894,48 @@ public final class PetsPlusRegistries {
         registerEffectSerializer(EffectSerializer.builder(id("scout_spotter_fallback"), RegistryJsonHelper.JSON_OBJECT_CODEC,
             (abilityId, json, context) -> DataResult.success(new ScoutSpotterFallbackEffect(json)))
             .description("Applies the Scout spotter fallback glow after a lull in pet attacks.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("apply_potion_to_victim"), ApplyPotionToVictimConfig.CODEC,
+            (abilityId, config, context) -> DataResult.success(new ApplyPotionToVictimEffect(
+                config.effect(), config.duration(), config.amplifier())))
+            .description("Applies a potion effect to the victim entity.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("apply_potion_to_self"), ApplyPotionToSelfConfig.CODEC,
+            (abilityId, config, context) -> DataResult.success(new ApplyPotionToSelfEffect(
+                config.effect(), config.duration(), config.amplifier())))
+            .description("Applies a potion effect to the pet itself.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("set_pet_state_data"), SetPetStateDataConfig.CODEC,
+            (abilityId, config, context) -> DataResult.success(new SetPetStateDataEffect(
+                config.key(), config.durationTicks())))
+            .description("Sets temporary state data on the pet with an expiration time.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("clear_pet_state_data"), ClearPetStateDataConfig.CODEC,
+            (abilityId, config, context) -> DataResult.success(new ClearPetStateDataEffect(config.key())))
+            .description("Clears temporary state data from the pet.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("scout_enhanced_mark"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new ScoutEnhancedMarkEffect()))
+            .description("Scout: Applies enhanced mark if pet has scout_enhanced_mark state.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("particle_effect"), ParticleEffectConfig.CODEC,
+            (abilityId, config, context) -> DataResult.success(new ParticleEffect(
+                config.particle(), config.target(), config.count(),
+                config.offsetX(), config.offsetY(), config.offsetZ(),
+                config.speed(), config.heightOffset())))
+            .description("Spawns particles at an entity location for visual feedback.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("sound_effect"), SoundEffectConfig.CODEC,
+            (abilityId, config, context) -> DataResult.success(new SoundEffect(
+                config.sound(), config.target(), config.volume(), config.pitch(), config.category())))
+            .description("Plays a sound at an entity location for audio feedback.")
             .build());
 
         registerEffectSerializer(EffectSerializer.builder(id("tag_target"), TagTargetConfig.CODEC,
@@ -1018,68 +1232,92 @@ public final class PetsPlusRegistries {
             new LevelRewardType(id("ability_unlock"), "Unlocks a new ability at a milestone level."));
     }
 
-    private static void registerDefaultAbilities() {
-        // Register placeholder abilities that will be properly loaded from data later
-        // This prevents role validation errors during startup
-        registerAbilityType("shield_bash_rider", createPlaceholderAbility("shield_bash_rider"));
-        registerAbilityType("aegis_protocol", createPlaceholderAbility("aegis_protocol"));
-        registerAbilityType("fortress_bond", createPlaceholderAbility("fortress_bond"));
-        registerAbilityType("fortress_bond_pet_guard", createPlaceholderAbility("fortress_bond_pet_guard"));
-        registerAbilityType("finisher_mark", createPlaceholderAbility("finisher_mark"));
-        registerAbilityType("bloodlust_surge", createPlaceholderAbility("bloodlust_surge"));
-        registerAbilityType("striker_execution", createPlaceholderAbility("striker_execution"));
-        registerAbilityType("perch_potion_efficiency", createPlaceholderAbility("perch_potion_efficiency"));
-        registerAbilityType("support_potion_pulse", createPlaceholderAbility("support_potion_pulse"));
-        registerAbilityType("loot_wisp", createPlaceholderAbility("loot_wisp"));
-        registerAbilityType("windlash_rider", createPlaceholderAbility("windlash_rider"));
-        registerAbilityType("gust_upwards", createPlaceholderAbility("gust_upwards"));
-        registerAbilityType("skyrider_fall_guard_owner", createPlaceholderAbility("skyrider_fall_guard_owner"));
-        registerAbilityType("skyrider_fall_guard_pet", createPlaceholderAbility("skyrider_fall_guard_pet"));
-        registerAbilityType("doom_echo", createPlaceholderAbility("doom_echo"));
-        registerAbilityType("death_burst", createPlaceholderAbility("death_burst"));
-        registerAbilityType("soul_sacrifice", createPlaceholderAbility("soul_sacrifice"));
-        registerAbilityType("voidbrand", createPlaceholderAbility("voidbrand"));
-        registerAbilityType("void_save", createPlaceholderAbility("void_save"));
-        registerAbilityType("phase_partner", createPlaceholderAbility("phase_partner"));
-        registerAbilityType("perch_ping", createPlaceholderAbility("perch_ping"));
-        registerAbilityType("bulwark_redirect", createPlaceholderAbility("bulwark_redirect"));
-        registerAbilityType("execution_bonus", createPlaceholderAbility("execution_bonus"));
-        registerAbilityType("spotter_fallback", createPlaceholderAbility("spotter_fallback"));
-        registerAbilityType("gale_pace", createPlaceholderAbility("gale_pace"));
-        registerAbilityType("projectile_levitation", createPlaceholderAbility("projectile_levitation"));
-        registerAbilityType("skybond_mount_extension", createPlaceholderAbility("skybond_mount_extension"));
-        registerAbilityType("perched_haste_bonus", createPlaceholderAbility("perched_haste_bonus"));
-        registerAbilityType("mounted_extra_rolls", createPlaceholderAbility("mounted_extra_rolls"));
-        registerAbilityType("enchant_strip", createPlaceholderAbility("enchant_strip"));
-        registerAbilityType("gear_swap", createPlaceholderAbility("gear_swap"));
-        registerAbilityType("enchantment_mining_echo", createPlaceholderAbility("enchantment_mining_echo"));
-        registerAbilityType("enchantment_combat_focus", createPlaceholderAbility("enchantment_combat_focus"));
-        registerAbilityType("enchantment_swim_echo", createPlaceholderAbility("enchantment_swim_echo"));
-        registerAbilityType("enchantment_extra_loot", createPlaceholderAbility("enchantment_extra_loot"));
-        registerAbilityType("enchantment_magic_guard", createPlaceholderAbility("enchantment_magic_guard"));
-        registerAbilityType("cursed_mount_resilience", createPlaceholderAbility("cursed_mount_resilience"));
-        registerAbilityType("auto_resurrect_owner", createPlaceholderAbility("auto_resurrect_owner"));
-        registerAbilityType("cursed_reanimation", createPlaceholderAbility("cursed_reanimation"));
-        registerAbilityType("nap_time_radius", createPlaceholderAbility("nap_time_radius"));
-        registerAbilityType("restful_dreams", createPlaceholderAbility("restful_dreams"));
-        registerAbilityType("drowsy_mist", createPlaceholderAbility("drowsy_mist"));
-        registerAbilityType("dream_escape", createPlaceholderAbility("dream_escape"));
-        registerAbilityType("event_horizon", createPlaceholderAbility("event_horizon"));
-        registerAbilityType("edge_step", createPlaceholderAbility("edge_step"));
-        registerAbilityType("eclipsed_darkness_owner", createPlaceholderAbility("eclipsed_darkness_owner"));
-        registerAbilityType("eclipsed_darkness_pet", createPlaceholderAbility("eclipsed_darkness_pet"));
-        registerAbilityType("void_storage", createPlaceholderAbility("void_storage"));
-        registerAbilityType("scout_backpack", createPlaceholderAbility("scout_backpack"));
+    /**
+     * Scans ability JSON files and registers placeholder ability types before registry freeze.
+     * Uses Fabric's mod container API - works in dev, production, and datapack environments.
+     */
+    private static void registerAbilityPlaceholders() {
+        try {
+            net.fabricmc.loader.api.FabricLoader fabricLoader = net.fabricmc.loader.api.FabricLoader.getInstance();
+            var modContainer = fabricLoader.getModContainer(Petsplus.MOD_ID);
+            
+            if (modContainer.isEmpty()) {
+                Petsplus.LOGGER.error("Could not find mod container for {}. Ability placeholders will not be registered.", Petsplus.MOD_ID);
+                return;
+            }
+            
+            var mod = modContainer.get();
+            var abilitiesPathOptional = mod.findPath("data/petsplus/abilities");
+            
+            if (abilitiesPathOptional.isEmpty()) {
+                Petsplus.LOGGER.warn("Abilities directory not found in mod resources. Ensure abilities are packaged correctly.");
+                return;
+            }
+            
+            java.nio.file.Path abilitiesPath = abilitiesPathOptional.get();
+            int registeredCount = 0;
+            
+            try (java.util.stream.Stream<java.nio.file.Path> paths = java.nio.file.Files.walk(abilitiesPath)) {
+                var jsonFiles = paths.filter(java.nio.file.Files::isRegularFile)
+                                    .filter(p -> p.toString().endsWith(".json"))
+                                    .toList();
+                
+                for (java.nio.file.Path path : jsonFiles) {
+                    try {
+                        String content = java.nio.file.Files.readString(path);
+                        if (registerPlaceholderFromJson(content, path.getFileName().toString())) {
+                            registeredCount++;
+                        }
+                    } catch (Exception e) {
+                        Petsplus.LOGGER.warn("Failed to pre-scan ability file {}: {}", path.getFileName(), e.getMessage());
+                    }
+                }
+                
+                Petsplus.LOGGER.info("Registered {} ability placeholders from bundled resources", registeredCount);
+            }
+        } catch (Exception e) {
+            Petsplus.LOGGER.error("Failed to scan abilities directory for placeholder registration", e);
+        }
     }
 
-    private static AbilityType createPlaceholderAbility(String name) {
-        return new AbilityType(id(name), () -> createFallbackAbility(name), "Placeholder for " + name);
+    private static boolean registerPlaceholderFromJson(String content, String fileName) {
+        try {
+            com.google.gson.JsonObject json = com.google.gson.JsonParser.parseString(content).getAsJsonObject();
+            
+            if (!json.has("id")) {
+                Petsplus.LOGGER.warn("Ability file {} missing 'id' field, skipping placeholder registration", fileName);
+                return false;
+            }
+            
+            String idStr = json.get("id").getAsString();
+            Identifier abilityId = Identifier.tryParse(idStr);
+            
+            if (abilityId == null) {
+                Petsplus.LOGGER.warn("Invalid ability ID '{}' in file {}, skipping", idStr, fileName);
+                return false;
+            }
+            
+            if (ABILITY_TYPES.get(abilityId) != null) {
+                Petsplus.LOGGER.debug("Ability {} already registered, skipping placeholder", abilityId);
+                return false;
+            }
+            
+            registerAbilityType(abilityId, createPlaceholderAbilityType(abilityId));
+            Petsplus.LOGGER.debug("Registered placeholder for ability {}", abilityId);
+            return true;
+        } catch (Exception e) {
+            Petsplus.LOGGER.warn("Failed to parse ability JSON from {}: {}", fileName, e.getMessage());
+            return false;
+        }
     }
 
-    private static Ability createFallbackAbility(String name) {
-        // Create a fallback ability that will work temporarily until data loading replaces it
-        Identifier abilityId = id(name);
-        Trigger fallbackTrigger = new Trigger() {
+    private static AbilityType createPlaceholderAbilityType(Identifier id) {
+        return new AbilityType(id, () -> createPlaceholderAbility(id), "Auto-registered from JSON");
+    }
+
+    private static woflo.petsplus.api.Ability createPlaceholderAbility(Identifier abilityId) {
+        // Placeholder ability that does nothing until replaced by JSON data
+        Trigger placeholderTrigger = new Trigger() {
             @Override
             public Identifier getId() {
                 return abilityId;
@@ -1092,12 +1330,14 @@ public final class PetsPlusRegistries {
 
             @Override
             public boolean shouldActivate(TriggerContext context) {
-                return false; // Placeholder abilities don't activate
+                return false;
             }
         };
-
-        return new woflo.petsplus.api.Ability(abilityId, fallbackTrigger, java.util.List.of(), new com.google.gson.JsonObject());
+        
+        return new woflo.petsplus.api.Ability(abilityId, placeholderTrigger, java.util.List.of(), new com.google.gson.JsonObject());
     }
+
+
 
     private static Trigger simpleEventTrigger(String eventType, int cooldown) {
         Identifier triggerId = id(eventType);
@@ -1265,5 +1505,59 @@ public final class PetsPlusRegistries {
             Codec.STRING.optionalFieldOf("target").forGetter(KnockupConfig::target)
         ).apply(instance, KnockupConfig::new));
 
+    }
+
+    private record ApplyPotionToVictimConfig(String effect, int duration, int amplifier) {
+        static final Codec<ApplyPotionToVictimConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+            Codec.STRING.fieldOf("effect").forGetter(ApplyPotionToVictimConfig::effect),
+            Codec.INT.optionalFieldOf("duration", 100).forGetter(ApplyPotionToVictimConfig::duration),
+            Codec.INT.optionalFieldOf("amplifier", 0).forGetter(ApplyPotionToVictimConfig::amplifier)
+        ).apply(instance, ApplyPotionToVictimConfig::new));
+    }
+
+    private record ApplyPotionToSelfConfig(String effect, int duration, int amplifier) {
+        static final Codec<ApplyPotionToSelfConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+            Codec.STRING.fieldOf("effect").forGetter(ApplyPotionToSelfConfig::effect),
+            Codec.INT.optionalFieldOf("duration", 100).forGetter(ApplyPotionToSelfConfig::duration),
+            Codec.INT.optionalFieldOf("amplifier", 0).forGetter(ApplyPotionToSelfConfig::amplifier)
+        ).apply(instance, ApplyPotionToSelfConfig::new));
+    }
+
+    private record SetPetStateDataConfig(String key, int durationTicks) {
+        static final Codec<SetPetStateDataConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+            Codec.STRING.fieldOf("key").forGetter(SetPetStateDataConfig::key),
+            Codec.INT.fieldOf("duration_ticks").forGetter(SetPetStateDataConfig::durationTicks)
+        ).apply(instance, SetPetStateDataConfig::new));
+    }
+
+    private record ClearPetStateDataConfig(String key) {
+        static final Codec<ClearPetStateDataConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+            Codec.STRING.fieldOf("key").forGetter(ClearPetStateDataConfig::key)
+        ).apply(instance, ClearPetStateDataConfig::new));
+    }
+
+    private record ParticleEffectConfig(String particle, String target, int count,
+                                       double offsetX, double offsetY, double offsetZ,
+                                       double speed, double heightOffset) {
+        static final Codec<ParticleEffectConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+            Codec.STRING.fieldOf("particle").forGetter(ParticleEffectConfig::particle),
+            Codec.STRING.optionalFieldOf("target", "victim").forGetter(ParticleEffectConfig::target),
+            Codec.INT.optionalFieldOf("count", 5).forGetter(ParticleEffectConfig::count),
+            Codec.DOUBLE.optionalFieldOf("offset_x", 0.3).forGetter(ParticleEffectConfig::offsetX),
+            Codec.DOUBLE.optionalFieldOf("offset_y", 0.3).forGetter(ParticleEffectConfig::offsetY),
+            Codec.DOUBLE.optionalFieldOf("offset_z", 0.3).forGetter(ParticleEffectConfig::offsetZ),
+            Codec.DOUBLE.optionalFieldOf("speed", 0.05).forGetter(ParticleEffectConfig::speed),
+            Codec.DOUBLE.optionalFieldOf("height_offset", 0.5).forGetter(ParticleEffectConfig::heightOffset)
+        ).apply(instance, ParticleEffectConfig::new));
+    }
+
+    private record SoundEffectConfig(String sound, String target, float volume, float pitch, String category) {
+        static final Codec<SoundEffectConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+            Codec.STRING.fieldOf("sound").forGetter(SoundEffectConfig::sound),
+            Codec.STRING.optionalFieldOf("target", "victim").forGetter(SoundEffectConfig::target),
+            Codec.FLOAT.optionalFieldOf("volume", 0.5f).forGetter(SoundEffectConfig::volume),
+            Codec.FLOAT.optionalFieldOf("pitch", 1.0f).forGetter(SoundEffectConfig::pitch),
+            Codec.STRING.optionalFieldOf("category", "neutral").forGetter(SoundEffectConfig::category)
+        ).apply(instance, SoundEffectConfig::new));
     }
 }

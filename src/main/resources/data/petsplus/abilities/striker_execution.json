@@ -1,5 +1,6 @@
 {
   "id": "petsplus:striker_execution",
+  "description": "Owner attacks build execution momentum stacks for their striker pet's executions.",
   "trigger": {
     "event": "owner_outgoing_damage",
     "cooldown_ticks": 0
@@ -7,8 +8,9 @@
   "effects": [
     {
       "type": "striker_execution",
-      "emit_feedback": true,
-      "publish_preview": true
+      "emit_feedback": false,
+      "publish_preview": true,
+      "owner_cannot_execute": true
     }
   ]
 }

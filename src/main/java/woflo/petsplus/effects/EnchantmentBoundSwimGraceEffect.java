@@ -20,6 +20,7 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.roles.enchantmentbound.EnchantmentBoundFocusHelper;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.util.EffectConfigHelper;
 
 /**
  * Applies the Enchantment-Bound swim aura, granting brief Dolphin's Grace.
@@ -32,8 +33,8 @@ public class EnchantmentBoundSwimGraceEffect implements Effect {
     private final boolean triggerFocus;
 
     public EnchantmentBoundSwimGraceEffect(JsonObject json) {
-        this.durationTicks = Math.max(1, RegistryJsonHelper.getInt(json, "duration_ticks", 40));
-        this.minimumLevel = Math.max(1, RegistryJsonHelper.getInt(json, "min_level", 1));
+        this.durationTicks = EffectConfigHelper.parseDuration(json, "duration_ticks", 40);
+        this.minimumLevel = EffectConfigHelper.parseMinLevel(json, "min_level", 1);
         this.triggerFocus = RegistryJsonHelper.getBoolean(json, "trigger_focus", false);
     }
 

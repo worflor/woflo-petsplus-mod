@@ -141,9 +141,19 @@ public class XpEventHandler {
             boolean leveledUp = petComp.addExperience(awardedXp);
 
             if (leveledUp) {
-                // Trigger pet level criterion only when leveling up
+                int newLevel = petComp.getLevel();
+                
+                // Handle multiple level-ups (e.g., massive XP gain)
+                for (int level = previousLevel + 1; level <= newLevel; level++) {
+                    applyLevelRewards(pet, petComp, owner, level);
+                }
+                
+                // Recalculate attributes ONCE after all rewards applied
+                PetAttributeManager.applyAttributeModifiers(pet, petComp);
+                
+                // Trigger pet level criterion for final level reached
                 String roleIdStr = petComp.getRoleId() != null ? petComp.getRoleId().toString() : null;
-                AdvancementCriteriaRegistry.PET_LEVEL.trigger(owner, petComp.getLevel(), roleIdStr);
+                AdvancementCriteriaRegistry.PET_LEVEL.trigger(owner, newLevel, roleIdStr);
                 PetLevelUpEvent.Context levelContext = new PetLevelUpEvent.Context(
                     owner,
                     pet,
@@ -370,5 +380,37 @@ public class XpEventHandler {
             return;
         }
         owner.getWorld().playSound(null, pet.getX(), pet.getY(), pet.getZ(), entry.value(), SoundCategory.NEUTRAL, cue.volume(), cue.pitch());
+    }
+    
+    /**
+     * Apply level rewards from the role definition.
+     * Note: Attribute recalculation is handled by the caller to batch multiple level-ups.
+     */
+    private static void applyLevelRewards(MobEntity pet, PetComponent petComp, ServerPlayerEntity owner, int level) {
+        PetRoleType roleType = petComp.getRoleType(false);
+        if (roleType == null) {
+            return;
+        }
+        
+        PetRoleType.Definition definition = roleType.definition();
+        if (definition == null) {
+            return;
+        }
+        
+        java.util.List<woflo.petsplus.api.LevelReward> rewards = definition.getRewardsForLevel(level);
+        if (rewards.isEmpty()) {
+            return;
+        }
+        
+        Petsplus.LOGGER.debug("Applying {} reward(s) for pet {} at level {}", rewards.size(), pet.getDisplayName().getString(), level);
+        
+        for (woflo.petsplus.api.LevelReward reward : rewards) {
+            try {
+                reward.apply(pet, petComp, owner, level);
+                Petsplus.LOGGER.debug("  ✓ {}", reward.getDescription());
+            } catch (Exception e) {
+                Petsplus.LOGGER.error("  ✗ Failed to apply {}: {}", reward.getDescription(), e.getMessage(), e);
+            }
+        }
     }
 }

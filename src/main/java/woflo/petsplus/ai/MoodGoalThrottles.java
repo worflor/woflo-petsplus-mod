@@ -1,5 +1,7 @@
 package woflo.petsplus.ai;
 
+import woflo.petsplus.api.registry.RegistryJsonHelper;
+
 import com.google.gson.JsonObject;
 import java.util.EnumMap;
 import java.util.Locale;
@@ -108,17 +110,17 @@ public final class MoodGoalThrottles {
         if (override == null) {
             return base;
         }
-        int minCooldown = readInt(override, "min_cooldown_ticks", base != null ? base.minCooldownTicks() : 0);
-        int minActive = readInt(override, "min_active_ticks", base != null ? base.minActiveTicks() : 0);
-        int baseChance = readInt(override, "base_chance", base != null ? base.baseChance() : 1);
-        int strengthBonus = readInt(override, "strength_chance_bonus", base != null ? base.strengthChanceBonus() : 0);
-        int pressureInterval = readInt(override, "pressure_interval_ticks", base != null ? base.pressureIntervalTicks() : 0);
-        int pressureBonus = readInt(override, "pressure_chance_bonus", base != null ? base.pressureChanceBonus() : 0);
-        int maxPressure = readInt(override, "max_pressure_bonus", base != null ? base.maxPressureBonus() : 0);
-        int minRoll = readInt(override, "min_roll", base != null ? base.minRollBound() : 1);
-        int maxRoll = readInt(override, "max_roll", base != null ? base.maxRollBound() : Math.max(minRoll, 1));
-        int followHold = readInt(override, "follow_hold_ticks", base != null ? base.followHoldTicks() : 0);
-        float followBonus = readFloat(override, "follow_distance_bonus", base != null ? base.followDistanceBonus() : 0.0f);
+        int minCooldown = RegistryJsonHelper.getInt(override, "min_cooldown_ticks", base != null ? base.minCooldownTicks() : 0);
+        int minActive = RegistryJsonHelper.getInt(override, "min_active_ticks", base != null ? base.minActiveTicks() : 0);
+        int baseChance = RegistryJsonHelper.getInt(override, "base_chance", base != null ? base.baseChance() : 1);
+        int strengthBonus = RegistryJsonHelper.getInt(override, "strength_chance_bonus", base != null ? base.strengthChanceBonus() : 0);
+        int pressureInterval = RegistryJsonHelper.getInt(override, "pressure_interval_ticks", base != null ? base.pressureIntervalTicks() : 0);
+        int pressureBonus = RegistryJsonHelper.getInt(override, "pressure_chance_bonus", base != null ? base.pressureChanceBonus() : 0);
+        int maxPressure = RegistryJsonHelper.getInt(override, "max_pressure_bonus", base != null ? base.maxPressureBonus() : 0);
+        int minRoll = RegistryJsonHelper.getInt(override, "min_roll", base != null ? base.minRollBound() : 1);
+        int maxRoll = RegistryJsonHelper.getInt(override, "max_roll", base != null ? base.maxRollBound() : Math.max(minRoll, 1));
+        int followHold = RegistryJsonHelper.getInt(override, "follow_hold_ticks", base != null ? base.followHoldTicks() : 0);
+        float followBonus = RegistryJsonHelper.getFloat(override, "follow_distance_bonus", base != null ? base.followDistanceBonus() : 0.0f);
         MoodGoalThrottleConfig config = new MoodGoalThrottleConfig(
             minCooldown,
             minActive,
@@ -136,28 +138,6 @@ public final class MoodGoalThrottles {
             Petsplus.LOGGER.debug("[MoodAI] Loaded throttle override for {}: {}", mood, config);
         }
         return config;
-    }
-
-    private static int readInt(JsonObject object, String key, int fallback) {
-        if (object.has(key) && object.get(key).isJsonPrimitive()) {
-            try {
-                return object.get(key).getAsInt();
-            } catch (NumberFormatException ignored) {
-                Petsplus.LOGGER.warn("Invalid integer for mood throttle key '{}'", key);
-            }
-        }
-        return fallback;
-    }
-
-    private static float readFloat(JsonObject object, String key, float fallback) {
-        if (object.has(key) && object.get(key).isJsonPrimitive()) {
-            try {
-                return object.get(key).getAsFloat();
-            } catch (NumberFormatException ignored) {
-                Petsplus.LOGGER.warn("Invalid float for mood throttle key '{}'", key);
-            }
-        }
-        return fallback;
     }
 
     public static MoodActionThrottle createThrottle(PetComponent.Mood mood) {

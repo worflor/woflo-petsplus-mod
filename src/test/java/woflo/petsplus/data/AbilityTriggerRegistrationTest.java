@@ -29,12 +29,6 @@ class AbilityTriggerRegistrationTest {
     }
 
     @Test
-    void spotterFallbackAbilityUsesOwnerDamageTriggerId() throws IOException {
-        JsonObject trigger = loadAbilityTrigger("spotter_fallback.json");
-        assertEquals("owner_dealt_damage", trigger.get("event").getAsString());
-    }
-
-    @Test
     void strikerExecutionAbilityUsesOutgoingDamageTriggerId() throws IOException {
         JsonObject trigger = loadAbilityTrigger("striker_execution.json");
         assertEquals("owner_outgoing_damage", trigger.get("event").getAsString());

@@ -27,12 +27,14 @@ public final class StrikerExecutionEffect implements Effect {
 
     private final boolean emitFeedback;
     private final boolean publishPreview;
+    private final boolean ownerCannotExecute;
     @Nullable
     private final ExecutionTuning overrides;
 
     public StrikerExecutionEffect(JsonObject json) {
         this.emitFeedback = RegistryJsonHelper.getBoolean(json, "emit_feedback", true);
         this.publishPreview = RegistryJsonHelper.getBoolean(json, "publish_preview", true);
+        this.ownerCannotExecute = RegistryJsonHelper.getBoolean(json, "owner_cannot_execute", false);
 
         Double baseThreshold = readOptionalDouble(json, "override_threshold_pct");
         Double chainBonusPerStack = readOptionalDouble(json, "override_chain_bonus_per_stack_pct");
@@ -81,6 +83,17 @@ public final class StrikerExecutionEffect implements Effect {
 
         if (!execution.triggered()) {
             return false;
+        }
+
+        // If owner cannot execute, just build momentum but don't apply damage
+        if (ownerCannotExecute) {
+            trigger.withData(DATA_APPLIED_FLAG, Boolean.TRUE)
+                   .withData("execution_threshold_pct", (double) execution.appliedThresholdPct())
+                   .withData("execution_momentum_stacks", execution.momentumStacks())
+                   .withData("execution_momentum_fill", (double) execution.momentumFill())
+                   .withData("striker_level", execution.strikerLevel())
+                   .withData("owner_momentum_only", Boolean.TRUE);
+            return true;
         }
 
         DamageInterceptionResult result = context.getDamageResult();

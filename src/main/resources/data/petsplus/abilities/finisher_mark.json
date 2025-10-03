@@ -1,41 +1,35 @@
 {
   "id": "petsplus:finisher_mark",
+  "description": "Owner attacks on low-health enemies build execution momentum for the pet.",
   "trigger": {
     "event": "owner_dealt_damage",
     "target_hp_pct_below": 0.45,
-    "internal_cd_ticks": 160
+    "internal_cd_ticks": 100
   },
   "effects": [
     {
       "type": "striker_mark_feedback",
-      "particle_count": 10,
-      "particle_spread": 0.45
+      "particle_count": 6,
+      "particle_spread": 0.3
     },
     {
-      "type": "tag_target",
-      "key": "petsplus:finisher",
-      "duration_ticks": 100
+      "type": "particle_effect",
+      "particle": "crit",
+      "target": "victim",
+      "count": 3,
+      "offset_x": 0.2,
+      "offset_y": 0.3,
+      "offset_z": 0.2,
+      "speed": 0.05,
+      "height_offset": 0.7
     },
     {
-      "type": "owner_next_attack_bonus",
-      "vs_tag": "petsplus:finisher",
-      "bonus_damage_pct": 0.25,
-      "expire_ticks": 120,
-      "on_hit_effect": {
-        "type": "effect",
-        "target": "victim",
-        "id": "minecraft:slowness",
-        "duration": 40,
-        "amplifier": 0
-      }
-    },
-    {
-      "type": "buff",
-      "target": "mount",
-      "id": "minecraft:speed",
-      "duration": 60,
-      "amplifier": 0,
-      "only_if_mounted": true
+      "type": "sound_effect",
+      "sound": "note_hat",
+      "target": "victim",
+      "volume": 0.25,
+      "pitch": 1.4,
+      "category": "neutral"
     }
   ]
 }

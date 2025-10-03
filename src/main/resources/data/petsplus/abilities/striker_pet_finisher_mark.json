@@ -1,0 +1,20 @@
+{
+  "id": "petsplus:striker_pet_finisher_mark",
+  "description": "Striker pets mark enemies with their attacks, setting them up for execution.",
+  "trigger": {
+    "event": "petsplus:pet_dealt_damage",
+    "internal_cd_ticks": 100
+  },
+  "effects": [
+    {
+      "type": "striker_mark_feedback",
+      "particle_count": 8,
+      "particle_spread": 0.4
+    },
+    {
+      "type": "tag_target",
+      "key": "petsplus:finisher",
+      "duration_ticks": 100
+    }
+  ]
+}

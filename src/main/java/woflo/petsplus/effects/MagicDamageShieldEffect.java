@@ -11,8 +11,8 @@ import woflo.petsplus.api.DamageInterceptionResult;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
 import woflo.petsplus.api.registry.PetRoleType;
-import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.util.EffectConfigHelper;
 
 /**
  * Cancels small bursts of magical damage for Enchantment-Bound pets.
@@ -24,8 +24,8 @@ public class MagicDamageShieldEffect implements Effect {
     private final int minimumLevel;
 
     public MagicDamageShieldEffect(JsonObject json) {
-        this.maxDamage = Math.max(0.0D, RegistryJsonHelper.getDouble(json, "max_damage", 1.0D));
-        this.minimumLevel = Math.max(1, RegistryJsonHelper.getInt(json, "min_level", 1));
+        this.maxDamage = EffectConfigHelper.parseDamage(json, "max_damage", 1.0);
+        this.minimumLevel = EffectConfigHelper.parseMinLevel(json, "min_level", 1);
     }
 
     public MagicDamageShieldEffect() {

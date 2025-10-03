@@ -10,9 +10,9 @@ import woflo.petsplus.api.DamageInterceptionResult;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
 import woflo.petsplus.api.registry.PetRoleType;
-import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.mechanics.CursedOneResurrection;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.util.EffectConfigHelper;
 
 /**
  * Ability effect that transitions a Cursed One pet into its reanimation state when lethal damage
@@ -24,7 +24,7 @@ public class CursedOneReanimationEffect implements Effect {
     private final int minimumLevel;
 
     public CursedOneReanimationEffect(JsonObject json) {
-        this.minimumLevel = Math.max(1, RegistryJsonHelper.getInt(json, "min_level", 15));
+        this.minimumLevel = EffectConfigHelper.parseMinLevel(json, "min_level", 15);
     }
 
     public CursedOneReanimationEffect() {

@@ -1,0 +1,24 @@
+{
+  "id": "petsplus:striker_pet_bloodlust",
+  "description": "Striker pets surge with power when they execute enemies, gaining stacking speed and strength.",
+  "trigger": {
+    "event": "petsplus:pet_killed_entity",
+    "require_execution": true,
+    "internal_cd_ticks": 0
+  },
+  "effects": [
+    {
+      "type": "striker_bloodlust_surge",
+      "base_duration_ticks": 100,
+      "per_stack_duration_ticks": 40,
+      "owner_strength_per_stack": 0.0,
+      "owner_speed_per_stack": 0.0,
+      "pet_strength_per_stack": 0.6,
+      "pet_speed_per_stack": 0.5,
+      "max_amplifier": 4,
+      "swing_owner": false,
+      "buff_pet": true,
+      "play_feedback": true
+    }
+  ]
+}

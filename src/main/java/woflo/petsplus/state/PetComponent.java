@@ -86,6 +86,10 @@ public class PetComponent {
     private int level;
     private int experience;
     private final Map<Integer, Boolean> unlockedMilestones;
+    // Level reward tracking
+    private final Map<Identifier, Boolean> unlockedAbilities;
+    private final Map<String, Float> permanentStatBoosts;
+    private final Map<Integer, Identifier> tributeMilestones;
     private PetCharacteristics characteristics;
     private UUID crouchCuddleOwnerId;
     private long crouchCuddleExpiryTick;
@@ -366,6 +370,9 @@ public class PetComponent {
         this.level = 1; // Start at level 1
         this.experience = 0;
         this.unlockedMilestones = new HashMap<>();
+        this.unlockedAbilities = new HashMap<>();
+        this.permanentStatBoosts = new HashMap<>();
+        this.tributeMilestones = new HashMap<>();
         this.characteristics = null; // Will be generated when pet is first tamed
         this.cachedSpeciesDescriptor = null;
 
@@ -1726,6 +1733,73 @@ public class PetComponent {
         this.experience = Math.max(0, experience);
     }
     
+    // ===== Level Reward System =====
+    
+    /**
+     * Unlock an ability for this pet. Called by AbilityUnlockReward.
+     */
+    public void unlockAbility(Identifier abilityId) {
+        if (abilityId == null) {
+            Petsplus.LOGGER.warn("Attempted to unlock null ability for pet {}", pet.getUuidAsString());
+            return;
+        }
+        unlockedAbilities.put(abilityId, true);
+        Petsplus.LOGGER.debug("Unlocked ability {} for pet {}", abilityId, pet.getUuidAsString());
+    }
+    
+    /**
+     * Check if an ability is unlocked.
+     */
+    public boolean isAbilityUnlocked(Identifier abilityId) {
+        return unlockedAbilities.getOrDefault(abilityId, false);
+    }
+    
+    /**
+     * Add a permanent stat boost. Called by StatBoostReward.
+     * These boosts stack if the same stat is boosted multiple times.
+     */
+    public void addPermanentStatBoost(String statName, float amount) {
+        if (statName == null || statName.isEmpty()) {
+            Petsplus.LOGGER.warn("Attempted to add stat boost with null/empty stat name for pet {}", pet.getUuidAsString());
+            return;
+        }
+        permanentStatBoosts.merge(statName, amount, Float::sum);
+    }
+    
+    /**
+     * Get the total permanent boost for a given stat.
+     */
+    public float getPermanentStatBoost(String statName) {
+        return permanentStatBoosts.getOrDefault(statName, 0f);
+    }
+    
+    /**
+     * Set a tribute milestone requirement. Called by TributeRequiredReward.
+     */
+    public void setTributeMilestone(int level, Identifier itemId) {
+        if (itemId == null) {
+            Petsplus.LOGGER.warn("Attempted to set tribute milestone with null item ID at level {} for pet {}", level, pet.getUuidAsString());
+            return;
+        }
+        tributeMilestones.put(level, itemId);
+        Petsplus.LOGGER.debug("Set tribute milestone at level {} to {} for pet {}", level, itemId, pet.getUuidAsString());
+    }
+    
+    /**
+     * Get the tribute item required for a specific level, if any.
+     */
+    @Nullable
+    public Identifier getTributeMilestone(int level) {
+        return tributeMilestones.get(level);
+    }
+    
+    /**
+     * Check if a level has a tribute requirement.
+     */
+    public boolean hasTributeMilestone(int level) {
+        return tributeMilestones.containsKey(level);
+    }
+    
     /**
      * Get the pet's unique characteristics.
      */
@@ -2547,6 +2621,33 @@ public class PetComponent {
         }
         nbt.put("milestones", milestonesNbt);
         
+        // Save unlocked abilities (only if not empty)
+        if (!unlockedAbilities.isEmpty()) {
+            NbtCompound abilitiesNbt = new NbtCompound();
+            for (Map.Entry<Identifier, Boolean> entry : unlockedAbilities.entrySet()) {
+                abilitiesNbt.putBoolean(entry.getKey().toString(), entry.getValue());
+            }
+            nbt.put("unlockedAbilities", abilitiesNbt);
+        }
+        
+        // Save permanent stat boosts (only if not empty)
+        if (!permanentStatBoosts.isEmpty()) {
+            NbtCompound statBoostsNbt = new NbtCompound();
+            for (Map.Entry<String, Float> entry : permanentStatBoosts.entrySet()) {
+                statBoostsNbt.putFloat(entry.getKey(), entry.getValue());
+            }
+            nbt.put("permanentStatBoosts", statBoostsNbt);
+        }
+        
+        // Save tribute milestones (only if not empty)
+        if (!tributeMilestones.isEmpty()) {
+            NbtCompound tributesNbt = new NbtCompound();
+            for (Map.Entry<Integer, Identifier> entry : tributeMilestones.entrySet()) {
+                tributesNbt.putString(entry.getKey().toString(), entry.getValue().toString());
+            }
+            nbt.put("tributeMilestones", tributesNbt);
+        }
+        
         // Save cooldowns
         NbtCompound cooldownsNbt = new NbtCompound();
         for (Map.Entry<String, Long> entry : cooldowns.entrySet()) {
@@ -2741,6 +2842,51 @@ public class PetComponent {
                             unlockedMilestones.put(level, unlocked));
                     } catch (NumberFormatException ignored) {
                         // Skip invalid milestone keys
+                    }
+                }
+            });
+        }
+        
+        // Load unlocked abilities
+        if (nbt.contains("unlockedAbilities")) {
+            nbt.getCompound("unlockedAbilities").ifPresent(abilitiesNbt -> {
+                unlockedAbilities.clear();
+                for (String key : abilitiesNbt.getKeys()) {
+                    Identifier abilityId = Identifier.tryParse(key);
+                    if (abilityId != null) {
+                        abilitiesNbt.getBoolean(key).ifPresent(unlocked ->
+                            unlockedAbilities.put(abilityId, unlocked));
+                    }
+                }
+            });
+        }
+        
+        // Load permanent stat boosts
+        if (nbt.contains("permanentStatBoosts")) {
+            nbt.getCompound("permanentStatBoosts").ifPresent(statBoostsNbt -> {
+                permanentStatBoosts.clear();
+                for (String key : statBoostsNbt.getKeys()) {
+                    statBoostsNbt.getFloat(key).ifPresent(boost ->
+                        permanentStatBoosts.put(key, boost));
+                }
+            });
+        }
+        
+        // Load tribute milestones
+        if (nbt.contains("tributeMilestones")) {
+            nbt.getCompound("tributeMilestones").ifPresent(tributesNbt -> {
+                tributeMilestones.clear();
+                for (String key : tributesNbt.getKeys()) {
+                    try {
+                        int level = Integer.parseInt(key);
+                        tributesNbt.getString(key).ifPresent(itemIdStr -> {
+                            Identifier itemId = Identifier.tryParse(itemIdStr);
+                            if (itemId != null) {
+                                tributeMilestones.put(level, itemId);
+                            }
+                        });
+                    } catch (NumberFormatException ignored) {
+                        // Skip invalid tribute level keys
                     }
                 }
             });

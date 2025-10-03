@@ -29,6 +29,12 @@ public class PetAttributeManager {
     private static final Identifier CHAR_HEALTH_ID = Identifier.of("petsplus", "char_health");
     private static final Identifier CHAR_SPEED_ID = Identifier.of("petsplus", "char_speed");
     private static final Identifier CHAR_ATTACK_ID = Identifier.of("petsplus", "char_attack");
+    
+    // Permanent stat boost modifiers from level rewards
+    private static final Identifier BOOST_HEALTH_ID = Identifier.of("petsplus", "boost_health");
+    private static final Identifier BOOST_SPEED_ID = Identifier.of("petsplus", "boost_speed");
+    private static final Identifier BOOST_ATTACK_ID = Identifier.of("petsplus", "boost_attack");
+    private static final Identifier BOOST_DEFENSE_ID = Identifier.of("petsplus", "boost_defense");
 
     private static final Identifier NATURE_HEALTH_ID = Identifier.of("petsplus", "nature_health");
     private static final Identifier NATURE_VITALITY_ID = Identifier.of("petsplus", "nature_vitality");
@@ -76,6 +82,9 @@ public class PetAttributeManager {
         if (characteristics != null) {
             applyCharacteristicModifiers(pet, characteristics, roleType);
         }
+        
+        // Apply permanent stat boosts from level rewards
+        applyPermanentStatBoosts(pet, petComponent);
 
         applyNatureModifiers(pet, petComponent);
 
@@ -107,6 +116,20 @@ public class PetAttributeManager {
         }
         if (pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE) != null) {
             pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).removeModifier(CHAR_ATTACK_ID);
+        }
+        
+        // Remove permanent stat boost modifiers
+        if (pet.getAttributeInstance(EntityAttributes.MAX_HEALTH) != null) {
+            pet.getAttributeInstance(EntityAttributes.MAX_HEALTH).removeModifier(BOOST_HEALTH_ID);
+        }
+        if (pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED) != null) {
+            pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED).removeModifier(BOOST_SPEED_ID);
+        }
+        if (pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE) != null) {
+            pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).removeModifier(BOOST_ATTACK_ID);
+        }
+        if (pet.getAttributeInstance(EntityAttributes.ARMOR) != null) {
+            pet.getAttributeInstance(EntityAttributes.ARMOR).removeModifier(BOOST_DEFENSE_ID);
         }
 
         if (pet.getAttributeInstance(EntityAttributes.MAX_HEALTH) != null) {
@@ -253,6 +276,59 @@ public class PetAttributeManager {
                 pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).addPersistentModifier(modifier);
             }
         }
+    }
+    
+    /**
+     * Apply permanent stat boosts from level rewards.
+     * These are flat additive bonuses granted by the level reward system.
+     */
+    private static void applyPermanentStatBoosts(MobEntity pet, PetComponent petComponent) {
+        // Health boost
+        float healthBoost = petComponent.getPermanentStatBoost("health");
+        if (healthBoost > 0 && pet.getAttributeInstance(EntityAttributes.MAX_HEALTH) != null) {
+            EntityAttributeModifier modifier = new EntityAttributeModifier(
+                BOOST_HEALTH_ID,
+                healthBoost,
+                EntityAttributeModifier.Operation.ADD_VALUE
+            );
+            pet.getAttributeInstance(EntityAttributes.MAX_HEALTH).addPersistentModifier(modifier);
+        }
+        
+        // Speed boost
+        float speedBoost = petComponent.getPermanentStatBoost("speed");
+        if (speedBoost > 0 && pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED) != null) {
+            EntityAttributeModifier modifier = new EntityAttributeModifier(
+                BOOST_SPEED_ID,
+                speedBoost,
+                EntityAttributeModifier.Operation.ADD_VALUE
+            );
+            pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED).addPersistentModifier(modifier);
+        }
+        
+        // Attack boost
+        float attackBoost = petComponent.getPermanentStatBoost("attack");
+        if (attackBoost > 0 && pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE) != null) {
+            EntityAttributeModifier modifier = new EntityAttributeModifier(
+                BOOST_ATTACK_ID,
+                attackBoost,
+                EntityAttributeModifier.Operation.ADD_VALUE
+            );
+            pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).addPersistentModifier(modifier);
+        }
+        
+        // Defense boost (armor)
+        float defenseBoost = petComponent.getPermanentStatBoost("defense");
+        if (defenseBoost > 0 && pet.getAttributeInstance(EntityAttributes.ARMOR) != null) {
+            EntityAttributeModifier modifier = new EntityAttributeModifier(
+                BOOST_DEFENSE_ID,
+                defenseBoost,
+                EntityAttributeModifier.Operation.ADD_VALUE
+            );
+            pet.getAttributeInstance(EntityAttributes.ARMOR).addPersistentModifier(modifier);
+        }
+        
+        // Note: Learning boosts are stored in PetComponent and applied during XP calculation,
+        // not as entity attributes like the stats above.
     }
 
     private static void applyNatureModifier(

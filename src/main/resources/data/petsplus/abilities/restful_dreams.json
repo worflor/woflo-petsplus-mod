@@ -13,6 +13,24 @@
       "owner_saturation_amplifier": 1,
       "pet_resistance_duration_ticks": 200,
       "pet_resistance_amplifier": 0
+    },
+    {
+      "type": "particle_effect",
+      "particle": "heart",
+      "target": "owner",
+      "count": 6,
+      "offset_x": 0.4,
+      "offset_y": 0.3,
+      "offset_z": 0.4,
+      "speed": 0.02,
+      "height_offset": 0.8
+    },
+    {
+      "type": "sound_effect",
+      "sound": "note_harp",
+      "target": "owner",
+      "volume": 0.3,
+      "pitch": 1.0
     }
   ]
 }

@@ -56,7 +56,11 @@ public class PetsPlusConfig {
         Map.entry("eclipsed", PetRoleType.ECLIPSED_ID)
     );
 
-    private static final Map<Integer, Identifier> DEFAULT_TRIBUTE_ITEMS = PetRoleType.defaultTributeItems();
+    private static final Map<Integer, Identifier> DEFAULT_TRIBUTE_ITEMS = Map.of(
+        10, Identifier.of("minecraft", "gold_ingot"),
+        20, Identifier.of("minecraft", "diamond"),
+        30, Identifier.of("minecraft", "netherite_scrap")
+    );
 
     private static PetsPlusConfig instance;
 
@@ -937,26 +941,6 @@ public class PetsPlusConfig {
         return readString(getSection(section), key, defaultValue);
     }
 
-    @Deprecated
-    public double getDouble(String section, String key, double defaultValue) {
-        return getSectionDouble(section, key, defaultValue);
-    }
-
-    @Deprecated
-    public int getInt(String section, String key, int defaultValue) {
-        return getSectionInt(section, key, defaultValue);
-    }
-
-    @Deprecated
-    public boolean getBoolean(String section, String key, boolean defaultValue) {
-        return getSectionBoolean(section, key, defaultValue);
-    }
-
-    @Deprecated
-    public String getString(String section, String key, String defaultValue) {
-        return getSectionString(section, key, defaultValue);
-    }
-
     public double resolveScopedDouble(String scope, String key, double defaultValue) {
         Identifier id = Identifier.tryParse(scope);
         if (id != null) {
@@ -1003,13 +987,6 @@ public class PetsPlusConfig {
         Identifier override = findRoleTributeOverride(roleType != null ? roleType.id() : null, level);
         if (override != null) {
             return override;
-        }
-
-        if (roleType != null) {
-            Identifier datapackDefault = roleType.tributeDefaults().itemForLevel(level);
-            if (datapackDefault != null) {
-                return datapackDefault;
-            }
         }
 
         Identifier globalOverride = getGlobalTributeOverride(level);

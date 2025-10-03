@@ -28,6 +28,7 @@ import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.ui.FeedbackManager;
 import woflo.petsplus.ui.UIFeedbackManager;
+import woflo.petsplus.util.EffectConfigHelper;
 
 /**
  * Launches the owner upward in a controlled gust, optionally lifting their mount and pet
@@ -50,16 +51,16 @@ public class SkyriderGustUpwardsEffect implements Effect {
         PetsPlusConfig config = PetsPlusConfig.getInstance();
         Identifier skyriderId = PetRoleType.SKYRIDER.id();
 
-        this.verticalBoost = Math.max(0.2, RegistryJsonHelper.getDouble(json, "vertical_boost",
-            config.getRoleDouble(skyriderId, "gustVerticalBoost", 1.0)));
-        this.forwardPush = Math.max(0.0, RegistryJsonHelper.getDouble(json, "forward_push",
-            config.getRoleDouble(skyriderId, "gustForwardPush", 0.25)));
-        this.petLiftScale = MathHelper.clamp(RegistryJsonHelper.getDouble(json, "pet_lift_scale",
-            config.getRoleDouble(skyriderId, "gustPetLiftScale", 0.65)), 0.0, 1.5);
-        this.ownerSlowFallTicks = Math.max(0, RegistryJsonHelper.getInt(json, "owner_slowfall_ticks",
-            config.getRoleInt(skyriderId, "gustOwnerSlowfallTicks", 100)));
-        this.petSlowFallTicks = Math.max(0, RegistryJsonHelper.getInt(json, "pet_slowfall_ticks",
-            config.getRoleInt(skyriderId, "gustPetSlowfallTicks", 80)));
+        this.verticalBoost = EffectConfigHelper.parseNonNegativeDouble(json, "vertical_boost",
+            config.getRoleDouble(skyriderId, "gustVerticalBoost", 1.0));
+        this.forwardPush = EffectConfigHelper.parseNonNegativeDouble(json, "forward_push",
+            config.getRoleDouble(skyriderId, "gustForwardPush", 0.25));
+        this.petLiftScale = EffectConfigHelper.parseClampedDouble(json, "pet_lift_scale",
+            config.getRoleDouble(skyriderId, "gustPetLiftScale", 0.65), 0.0, 1.5);
+        this.ownerSlowFallTicks = EffectConfigHelper.parseNonNegativeInt(json, "owner_slowfall_ticks",
+            config.getRoleInt(skyriderId, "gustOwnerSlowfallTicks", 100));
+        this.petSlowFallTicks = EffectConfigHelper.parseNonNegativeInt(json, "pet_slowfall_ticks",
+            config.getRoleInt(skyriderId, "gustPetSlowfallTicks", 80));
         this.includePet = RegistryJsonHelper.getBoolean(json, "lift_pet", true);
         this.includeMount = RegistryJsonHelper.getBoolean(json, "mount_inherit", true);
         this.swingOwner = RegistryJsonHelper.getBoolean(json, "swing_owner", true);

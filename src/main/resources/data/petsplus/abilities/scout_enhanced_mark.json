@@ -1,0 +1,12 @@
+{
+  "id": "petsplus:scout_enhanced_mark",
+  "trigger": {
+    "event": "petsplus:pet_dealt_damage",
+    "internal_cd_ticks": 0
+  },
+  "effects": [
+    {
+      "type": "scout_enhanced_mark"
+    }
+  ]
+}

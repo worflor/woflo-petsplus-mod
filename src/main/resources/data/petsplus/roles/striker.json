@@ -15,16 +15,84 @@
     "attack_softcap_level": 15,
     "attack_max_bonus": 1.5
   },
-  "default_abilities": [
-    "petsplus:striker_execution",
-    "petsplus:finisher_mark",
-    "petsplus:execution_bonus",
-    "petsplus:bloodlust_surge"
-  ],
-  "tribute_defaults": {
-    "10": "minecraft:gold_ingot",
-    "20": "minecraft:diamond",
-    "30": "minecraft:netherite_scrap"
+  "default_abilities": [],
+  "level_rewards": {
+    "1": [
+      { "type": "ability_unlock", "ability": "petsplus:striker_pet_finisher_mark" },
+      { "type": "ability_unlock", "ability": "petsplus:finisher_mark" }
+    ],
+    "3": [
+      { "type": "ability_unlock", "ability": "petsplus:striker_pet_execution" },
+      { "type": "ability_unlock", "ability": "petsplus:striker_execution" },
+      { "type": "stat_boost", "stat": "attack", "amount": 2.0 }
+    ],
+    "7": [
+      {
+        "type": "stat_boost",
+        "stat": "speed",
+        "amount": 0.03
+      }
+    ],
+    "10": [
+      {
+        "type": "tribute_required",
+        "item": "minecraft:gold_ingot"
+      }
+    ],
+    "12": [
+      { "type": "stat_boost", "stat": "attack", "amount": 3.0 },
+      { "type": "stat_boost", "stat": "speed", "amount": 0.02 }
+    ],
+    "17": [
+      {
+        "type": "stat_boost",
+        "stat": "attack",
+        "amount": 4.0
+      },
+      {
+        "type": "stat_boost",
+        "stat": "speed",
+        "amount": 0.04
+      }
+    ],
+    "20": [
+      {
+        "type": "tribute_required",
+        "item": "minecraft:diamond"
+      }
+    ],
+    "23": [
+      { "type": "ability_unlock", "ability": "petsplus:striker_pet_bloodlust" },
+      { "type": "stat_boost", "stat": "attack", "amount": 5.0 }
+    ],
+    "27": [
+      {
+        "type": "stat_boost",
+        "stat": "attack",
+        "amount": 6.0
+      },
+      {
+        "type": "stat_boost",
+        "stat": "health",
+        "amount": 4.0
+      }
+    ],
+    "30": [
+      {
+        "type": "tribute_required",
+        "item": "minecraft:netherite_scrap"
+      },
+      {
+        "type": "stat_boost",
+        "stat": "attack",
+        "amount": 8.0
+      },
+      {
+        "type": "stat_boost",
+        "stat": "speed",
+        "amount": 0.05
+      }
+    ]
   },
   "xp_curve": {
     "max_level": 30,

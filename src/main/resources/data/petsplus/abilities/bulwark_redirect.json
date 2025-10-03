@@ -26,6 +26,27 @@
       "require_data_flag": "guardian_bulwark_redirect_success"
     },
     {
+      "type": "particle_effect",
+      "particle": "cloud",
+      "target": "pet",
+      "count": 8,
+      "offset_x": 0.4,
+      "offset_y": 0.3,
+      "offset_z": 0.4,
+      "speed": 0.02,
+      "height_offset": 0.5,
+      "require_data_flag": "guardian_bulwark_redirect_success"
+    },
+    {
+      "type": "sound_effect",
+      "sound": "note_bass",
+      "target": "pet",
+      "volume": 0.4,
+      "pitch": 0.7,
+      "category": "neutral",
+      "require_data_flag": "guardian_bulwark_redirect_success"
+    },
+    {
       "type": "retarget_nearest_hostile",
       "radius": 6.0,
       "require_data_flag": "guardian_bulwark_redirect_success"

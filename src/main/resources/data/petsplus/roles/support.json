@@ -9,14 +9,45 @@
     "health": 0.03,
     "learning": 0.04
   },
-  "default_abilities": [
-    "petsplus:perch_potion_efficiency",
-    "petsplus:support_potion_pulse"
-  ],
-  "tribute_defaults": {
-    "10": "minecraft:gold_ingot",
-    "20": "minecraft:diamond",
-    "30": "minecraft:netherite_scrap"
+  "default_abilities": [],
+  "level_rewards": {
+    "1": [
+      { "type": "ability_unlock", "ability": "petsplus:perch_potion_efficiency" }
+    ],
+    "3": [
+      { "type": "stat_boost", "stat": "health", "amount": 3.0 }
+    ],
+    "7": [
+      { "type": "ability_unlock", "ability": "petsplus:support_potion_pulse" },
+      { "type": "stat_boost", "stat": "health", "amount": 4.0 },
+      { "type": "stat_boost", "stat": "defense", "amount": 2.0 }
+    ],
+    "10": [
+      { "type": "tribute_required", "item": "minecraft:gold_ingot" }
+    ],
+    "12": [
+      { "type": "stat_boost", "stat": "health", "amount": 5.0 },
+      { "type": "stat_boost", "stat": "speed", "amount": 0.01 }
+    ],
+    "17": [
+      { "type": "stat_boost", "stat": "health", "amount": 5.0 },
+      { "type": "stat_boost", "stat": "defense", "amount": 3.0 }
+    ],
+    "20": [
+      { "type": "tribute_required", "item": "minecraft:diamond" }
+    ],
+    "23": [
+      { "type": "stat_boost", "stat": "health", "amount": 6.0 },
+      { "type": "stat_boost", "stat": "defense", "amount": 2.0 }
+    ],
+    "27": [
+      { "type": "stat_boost", "stat": "health", "amount": 5.0 },
+      { "type": "stat_boost", "stat": "speed", "amount": 0.01 }
+    ],
+    "30": [
+      { "type": "tribute_required", "item": "minecraft:netherite_scrap" },
+      { "type": "stat_boost", "stat": "defense", "amount": 3.0 }
+    ]
   },
   "xp_curve": {
     "max_level": 30,
@@ -37,7 +68,6 @@
       "id": "support_companion_rest",
       "interval": 60,
       "radius": 6.0,
-      "min_level": 3,
       "require_sitting": true,
       "effects": [
         {
@@ -53,7 +83,6 @@
   "support_potion": {
     "interval": 140,
     "radius": 6.0,
-    "min_level": 7,
     "require_sitting": true,
     "effect_duration": 120,
     "apply_to_pet": true,
