@@ -1,0 +1,18 @@
+{
+  "id": "petsplus:enchantment_extra_loot",
+  "required_level": 1,
+  "trigger": {
+    "event": "loot_table_modify"
+  },
+  "effects": [
+    {
+      "type": "enchantment_extra_drops",
+      "mode": "mob",
+      "base_chance": 0.05,
+      "per_level_bonus": 0.02,
+      "focus_multiplier": 2.0,
+      "require_hostile": true,
+      "play_feedback": true
+    }
+  ]
+}

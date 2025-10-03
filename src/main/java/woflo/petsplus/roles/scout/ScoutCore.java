@@ -3,12 +3,11 @@ package woflo.petsplus.roles.scout;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import woflo.petsplus.api.registry.PetRoleType;
-import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PlayerTickListener;
+import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.PetSwarmIndex;
 
 import java.util.Map;
 import java.util.UUID;
@@ -16,12 +15,12 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Implements Scout role mechanics: detection pings and loot attraction.
- * 
+ *
  * Core Features:
  * - Baseline: +Move Speed scalar, occasional Glowing ping on nearby hostiles
  * - L3 Loot Wisp: Nearby drops and XP drift toward owner after combat
  * - Detection abilities and positioning advantages
- * 
+ *
  * Design Philosophy:
  * - Information advantage and mobility archetype
  * - Reveals threats and improves resource collection
@@ -33,7 +32,7 @@ public class ScoutCore implements PlayerTickListener {
         // Register combat events for loot wisp and detection
         ServerLivingEntityEvents.AFTER_DEATH.register(ScoutCore::onEntityDeath);
     }
-    
+
     /**
      * Handle entity death for Loot Wisp mechanics.
      */
@@ -42,16 +41,11 @@ public class ScoutCore implements PlayerTickListener {
         if (!(damageSource.getAttacker() instanceof ServerPlayerEntity player)) {
             return;
         }
-        
-        // Check if player has nearby Scout pets with Loot Wisp (L3+)
-        if (!hasNearbyScoutWithLootWisp(player)) {
-            return;
-        }
-        
-        // Scout behaviors handle detection and spotting
-        ScoutBehaviors.checkSpotterFallback(player);
+
+        // Maintain detection bookkeeping for loot-focused perks
+        hasNearbyScoutWithLootWisp(player);
     }
-    
+
     /**
      * World tick handler for detection pings and passive effects.
      */
@@ -90,7 +84,6 @@ public class ScoutCore implements PlayerTickListener {
 
         if (hasActiveScoutDetection(player)) {
             nextDetectionTick.put(playerId, currentTick + DETECTION_INTERVAL_TICKS);
-            ScoutBehaviors.checkSpotterFallback(player);
         }
     }
 
@@ -100,7 +93,7 @@ public class ScoutCore implements PlayerTickListener {
             nextDetectionTick.remove(player.getUuid());
         }
     }
-    
+
     /**
      * Check if player has a nearby Scout pet with Loot Wisp ability (L3+).
      */
@@ -108,23 +101,16 @@ public class ScoutCore implements PlayerTickListener {
         if (!(player.getWorld() instanceof ServerWorld world)) {
             return false;
         }
-        
-        double searchRadius = 16.0;
-        return world.getEntitiesByClass(
-            MobEntity.class,
-            player.getBoundingBox().expand(searchRadius),
-            entity -> {
-                PetComponent component = PetComponent.get(entity);
-                return component != null &&
-                       component.hasRole(PetRoleType.SCOUT) &&
-                       component.getLevel() >= 3 && // L3+ for Loot Wisp
-                       entity.isAlive() &&
-                       component.isOwnedBy(player) &&
-                       entity.squaredDistanceTo(player) <= searchRadius * searchRadius;
-            }
-        ).size() > 0;
+        StateManager manager = StateManager.forWorld(world);
+        if (manager == null) {
+            return false;
+        }
+        return ScoutBehaviors.collectScoutEntries(manager, player, 16.0D * 16.0D)
+            .stream()
+            .map(PetSwarmIndex.SwarmEntry::component)
+            .anyMatch(component -> component != null && component.getLevel() >= 3);
     }
-    
+
     /**
      * Check if a player has active Scout detection coverage.
      */
@@ -132,30 +118,21 @@ public class ScoutCore implements PlayerTickListener {
         if (!(player.getWorld() instanceof ServerWorld world)) {
             return false;
         }
-        
-        double detectionRadius = 16.0;
-        return world.getEntitiesByClass(
-            MobEntity.class,
-            player.getBoundingBox().expand(detectionRadius),
-            entity -> {
-                PetComponent component = PetComponent.get(entity);
-                return component != null &&
-                       component.hasRole(PetRoleType.SCOUT) &&
-                       entity.isAlive() &&
-                       component.isOwnedBy(player) &&
-                       entity.squaredDistanceTo(player) <= detectionRadius * detectionRadius;
-            }
-        ).size() > 0;
+        StateManager manager = StateManager.forWorld(world);
+        if (manager == null) {
+            return false;
+        }
+        return !ScoutBehaviors.collectScoutEntries(manager, player, 16.0D * 16.0D).isEmpty();
     }
-    
+
     /**
      * Get the movement speed bonus from nearby Scout pets.
      */
     public static float getScoutSpeedBonus(ServerPlayerEntity player) {
-        if (!hasActiveScoutDetection(player)) {
+        if (!ScoutBehaviors.hasNearbyScout(player)) {
             return 0.0f;
         }
-        
+
         // Scout pets provide inherent speed bonus through their presence
         return 0.1f; // 10% speed bonus when Scout is nearby
     }

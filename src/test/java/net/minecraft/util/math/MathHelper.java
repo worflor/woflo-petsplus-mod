@@ -42,4 +42,22 @@ public final class MathHelper {
         }
         return wrapped;
     }
+
+    public static int smallestEncompassingPowerOfTwo(int value) {
+        if (value <= 1) {
+            return 1;
+        }
+        int result = 1;
+        while (result < value) {
+            result <<= 1;
+        }
+        return result;
+    }
+
+    public static int floorLog2(int value) {
+        if (value <= 0) {
+            return 0;
+        }
+        return 31 - Integer.numberOfLeadingZeros(value);
+    }
 }

@@ -1,0 +1,13 @@
+{
+  "id": "petsplus:enchantment_magic_guard",
+  "trigger": {
+    "event": "pet_incoming_damage",
+    "cooldown_ticks": 10
+  },
+  "effects": [
+    {
+      "type": "magic_damage_shield",
+      "max_damage": 1.0
+    }
+  ]
+}

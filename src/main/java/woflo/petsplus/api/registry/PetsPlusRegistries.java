@@ -24,25 +24,49 @@ import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.effects.AreaEffectEffect;
 import woflo.petsplus.effects.BuffEffect;
 import woflo.petsplus.effects.CursedOneDeathBurstEffect;
+import woflo.petsplus.effects.CursedOneMountResilienceEffect;
+import woflo.petsplus.effects.CursedOneSacrificialRescueEffect;
+import woflo.petsplus.effects.CursedOneReanimationEffect;
 import woflo.petsplus.effects.CursedOneSoulSacrificeEffect;
+import woflo.petsplus.effects.DarknessDamageShieldEffect;
+import woflo.petsplus.effects.EclipsedVoidRescueEffect;
+import woflo.petsplus.effects.EclipsedEventHorizonEffect;
+import woflo.petsplus.effects.EclipsedPhasePartnerEffect;
+import woflo.petsplus.effects.EclipsedEdgeStepEffect;
+import woflo.petsplus.effects.DreamEscapeRescueEffect;
+import woflo.petsplus.effects.EnchantmentBoundPerchedHasteEffect;
 import woflo.petsplus.effects.EnchantStripEffect;
 import woflo.petsplus.effects.EepyDrowsyMistEffect;
+import woflo.petsplus.effects.EepyNapAuraEffect;
+import woflo.petsplus.effects.EepyRestfulDreamsEffect;
+import woflo.petsplus.effects.EnchantmentBoundArcaneFocusEffect;
+import woflo.petsplus.effects.EnchantmentBoundDurabilityEffect;
+import woflo.petsplus.effects.EnchantmentBoundExtraDropsEffect;
+import woflo.petsplus.effects.EnchantmentBoundMiningHasteEffect;
+import woflo.petsplus.effects.EnchantmentBoundSwimGraceEffect;
 import woflo.petsplus.effects.GearSwapEffect;
 import woflo.petsplus.effects.GuardianAegisProtocolEffect;
+import woflo.petsplus.effects.GuardianBulwarkRedirectEffect;
 import woflo.petsplus.effects.GuardianFortressBondEffect;
+import woflo.petsplus.effects.GuardianFortressBondPetDrEffect;
 import woflo.petsplus.effects.HealOwnerFlatPctEffect;
 import woflo.petsplus.effects.KnockupEffect;
+import woflo.petsplus.effects.MagicDamageShieldEffect;
 import woflo.petsplus.effects.MagnetizeDropsAndXpEffect;
-import woflo.petsplus.effects.MountedConeAuraEffect;
 import woflo.petsplus.effects.OpenEnderChestEffect;
 import woflo.petsplus.effects.OpenPetBackpackEffect;
 import woflo.petsplus.effects.OwnerNextAttackBonusEffect;
 import woflo.petsplus.effects.PerchPotionSipReductionEffect;
 import woflo.petsplus.effects.ProjectileDrForOwnerEffect;
 import woflo.petsplus.effects.RetargetNearestHostileEffect;
-import woflo.petsplus.effects.StrikerMarkFeedbackEffect;
+import woflo.petsplus.effects.ScoutSpotterFallbackEffect;
+import woflo.petsplus.effects.SkyriderFallGuardEffect;
 import woflo.petsplus.effects.SkyriderGustUpwardsEffect;
+import woflo.petsplus.effects.SkyriderProjectileLevitationEffect;
+import woflo.petsplus.effects.SkyriderWindlashEffect;
 import woflo.petsplus.effects.StrikerBloodlustSurgeEffect;
+import woflo.petsplus.effects.StrikerExecutionEffect;
+import woflo.petsplus.effects.StrikerMarkFeedbackEffect;
 import woflo.petsplus.effects.SupportPotionPulseEffect;
 import woflo.petsplus.effects.TagTargetEffect;
 import woflo.petsplus.util.TriggerConditions;
@@ -273,6 +297,11 @@ public final class PetsPlusRegistries {
             .description("Triggered after the owner (or their pet) kills an entity, with optional execution filters.")
             .build());
 
+        registerTriggerSerializer(TriggerSerializer.builder(id("loot_table_modify"), CooldownSettings.CODEC,
+            (abilityId, config) -> DataResult.success(simpleEventTrigger("loot_table_modify", config.resolvedCooldown())))
+            .description("Runs while owner-related loot drops are being processed, enabling drop modification effects.")
+            .build());
+
         registerTriggerSerializer(TriggerSerializer.builder(id("owner_begin_fall"), OwnerBeginFallConfig.CODEC,
             (abilityId, config) -> DataResult.success(new Trigger() {
                 private final Identifier triggerId = id("owner_begin_fall");
@@ -447,6 +476,16 @@ public final class PetsPlusRegistries {
             .description("Fires when the owner sneaks and interacts directly with their pet.")
             .build());
 
+        registerTriggerSerializer(TriggerSerializer.builder(id("owner_sleep_complete"), CooldownSettings.CODEC,
+            (abilityId, config) -> DataResult.success(simpleEventTrigger("owner_sleep_complete", config.resolvedCooldown())))
+            .description("Owner completes a full sleep cycle or equivalent rest event.")
+            .build());
+
+        registerTriggerSerializer(TriggerSerializer.builder(id("owner_respawn"), CooldownSettings.CODEC,
+            (abilityId, config) -> DataResult.success(simpleEventTrigger("owner_respawn", config.resolvedCooldown())))
+            .description("Owner respawns after death or via a respawn anchor.")
+            .build());
+
         Identifier ownerBrokeBlockId = id("owner_broke_block");
         registerTriggerSerializer(TriggerSerializer.builder(ownerBrokeBlockId, OwnerBrokeBlockConfig.CODEC,
             (abilityId, config) -> DataResult.success(OwnerBrokeBlockTriggerFactory.create(ownerBrokeBlockId,
@@ -483,6 +522,129 @@ public final class PetsPlusRegistries {
             .description("Owner reaches a low health threshold.")
             .build());
 
+        registerTriggerSerializer(TriggerSerializer.builder(id("owner_lethal_damage"), CooldownSettings.CODEC,
+            (abilityId, config) -> DataResult.success(new Trigger() {
+                private final Identifier triggerId = id("owner_lethal_damage");
+                private final int cooldown = config.resolvedCooldown();
+
+                @Override
+                public Identifier getId() {
+                    return triggerId;
+                }
+
+                @Override
+                public int getInternalCooldownTicks() {
+                    return cooldown;
+                }
+
+                @Override
+                public boolean shouldActivate(TriggerContext context) {
+                    if (!Objects.equals(context.getEventType(), "owner_lethal_damage")) {
+                        return false;
+                    }
+                    return context.hasDamageContext() && context.isLethalDamage();
+                }
+            }))
+            .description("Fires immediately before lethal owner damage is applied, enabling interception abilities.")
+            .build());
+
+        registerTriggerSerializer(TriggerSerializer.builder(id("owner_outgoing_damage"), CooldownSettings.CODEC,
+            (abilityId, config) -> DataResult.success(new Trigger() {
+                private final Identifier triggerId = id("owner_outgoing_damage");
+                private final int cooldown = config.resolvedCooldown();
+
+                @Override
+                public Identifier getId() {
+                    return triggerId;
+                }
+
+                @Override
+                public int getInternalCooldownTicks() {
+                    return cooldown;
+                }
+
+                @Override
+                public boolean shouldActivate(TriggerContext context) {
+                    return context.hasDamageContext()
+                        && Objects.equals(context.getEventType(), "owner_outgoing_damage");
+                }
+            }))
+            .description("Runs before owner damage is applied, enabling executions to modify the hit.")
+            .build());
+
+        registerTriggerSerializer(TriggerSerializer.builder(id("owner_incoming_damage"), CooldownSettings.CODEC,
+            (abilityId, config) -> DataResult.success(new Trigger() {
+                private final Identifier triggerId = id("owner_incoming_damage");
+                private final int cooldown = config.resolvedCooldown();
+
+                @Override
+                public Identifier getId() {
+                    return triggerId;
+                }
+
+                @Override
+                public int getInternalCooldownTicks() {
+                    return cooldown;
+                }
+
+                @Override
+                public boolean shouldActivate(TriggerContext context) {
+                    return context.hasDamageContext()
+                        && Objects.equals(context.getEventType(), "owner_incoming_damage");
+                }
+            }))
+            .description("Runs whenever the owner is about to take damage, before lethal checks.")
+            .build());
+
+        registerTriggerSerializer(TriggerSerializer.builder(id("pet_incoming_damage"), CooldownSettings.CODEC,
+            (abilityId, config) -> DataResult.success(new Trigger() {
+                private final Identifier triggerId = id("pet_incoming_damage");
+                private final int cooldown = config.resolvedCooldown();
+
+                @Override
+                public Identifier getId() {
+                    return triggerId;
+                }
+
+                @Override
+                public int getInternalCooldownTicks() {
+                    return cooldown;
+                }
+
+                @Override
+                public boolean shouldActivate(TriggerContext context) {
+                    return context.hasDamageContext()
+                        && Objects.equals(context.getEventType(), "pet_incoming_damage");
+                }
+            }))
+            .description("Runs whenever a pet is about to take damage, before lethal checks.")
+            .build());
+
+        registerTriggerSerializer(TriggerSerializer.builder(id("pet_lethal_damage"), CooldownSettings.CODEC,
+            (abilityId, config) -> DataResult.success(new Trigger() {
+                private final Identifier triggerId = id("pet_lethal_damage");
+                private final int cooldown = config.resolvedCooldown();
+
+                @Override
+                public Identifier getId() {
+                    return triggerId;
+                }
+
+                @Override
+                public int getInternalCooldownTicks() {
+                    return cooldown;
+                }
+
+                @Override
+                public boolean shouldActivate(TriggerContext context) {
+                    return context.hasDamageContext()
+                        && context.isLethalDamage()
+                        && Objects.equals(context.getEventType(), "pet_lethal_damage");
+                }
+            }))
+            .description("Fires immediately before lethal pet damage is applied, enabling interception abilities.")
+            .build());
+
         registerTriggerSerializer(TriggerSerializer.builder(id("on_pet_resurrect"), CooldownSettings.CODEC,
             (abilityId, config) -> DataResult.success(simpleEventTrigger("on_pet_resurrect", config.resolvedCooldown())))
             .description("Triggered when a pet is resurrected.")
@@ -512,14 +674,54 @@ public final class PetsPlusRegistries {
             .description("Sends Striker mark UI and particle feedback when a finisher tag lands.")
             .build());
 
+        registerEffectSerializer(EffectSerializer.builder(id("striker_execution"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new StrikerExecutionEffect(json)))
+            .description("Calculates and applies the Striker execution damage bonus before hits resolve.")
+            .build());
+
         registerEffectSerializer(EffectSerializer.builder(id("striker_bloodlust_surge"), RegistryJsonHelper.JSON_OBJECT_CODEC,
             (abilityId, json, context) -> DataResult.success(new StrikerBloodlustSurgeEffect(json)))
             .description("Applies execution-fueled speed and strength buffs for Striker bloodlust.")
             .build());
 
+        registerEffectSerializer(EffectSerializer.builder(id("cursed_one_reanimation"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new CursedOneReanimationEffect(json)))
+            .description("Places a Cursed One pet into its reanimation state when lethal damage is intercepted.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("darkness_damage_shield"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new DarknessDamageShieldEffect(json)))
+            .description("Cancels small hits while the Eclipsed duo remains in darkness.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("magic_damage_shield"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new MagicDamageShieldEffect(json)))
+            .description("Cancels minor magical damage for Enchantment-Bound pets.")
+            .build());
+
         registerEffectSerializer(EffectSerializer.builder(id("skyrider_gust_upwards"), RegistryJsonHelper.JSON_OBJECT_CODEC,
             (abilityId, json, context) -> DataResult.success(new SkyriderGustUpwardsEffect(json)))
             .description("Launches the owner upward with Skyrider gust slow-fall assistance.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("skyrider_windlash"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new SkyriderWindlashEffect(json)))
+            .description("Primes the owner with a jump surge and attack rider after a dramatic fall start.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("skyrider_projectile_levitation"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new SkyriderProjectileLevitationEffect(json)))
+            .description("Applies the Skyrider projectile levitation pulse and supportive slow-fall effects.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("skyrider_fall_guard"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new SkyriderFallGuardEffect(json)))
+            .description("Cancels or reduces fall impacts for Skyrider pairs and their mounts.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("scout_spotter_fallback"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new ScoutSpotterFallbackEffect(json)))
+            .description("Applies the Scout spotter fallback glow after a lull in pet attacks.")
             .build());
 
         registerEffectSerializer(EffectSerializer.builder(id("tag_target"), TagTargetConfig.CODEC,
@@ -530,7 +732,10 @@ public final class PetsPlusRegistries {
 
         registerEffectSerializer(EffectSerializer.builder(id("retarget_nearest_hostile"), RetargetNearestHostileConfig.CODEC,
             (abilityId, config, context) -> DataResult.success(new RetargetNearestHostileEffect(
-                config.radius().orElse(8.0), config.storeAs().orElse("target"))))
+                config.radius().orElse(8.0),
+                config.storeAs().orElse("target"),
+                config.requireDataFlag().orElse(null),
+                config.requireDataValue().orElse(Boolean.TRUE))))
             .description("Retargets nearby hostiles and stores the result in the trigger context.")
             .build());
 
@@ -544,9 +749,16 @@ public final class PetsPlusRegistries {
                     RegistryJsonHelper.getString(json, "target", "owner"));
                 boolean onlyIfMounted = RegistryJsonHelper.getBoolean(json, "only_if_mounted", false);
                 boolean onlyIfPerched = RegistryJsonHelper.getBoolean(json, "only_if_perched", false);
-                return DataResult.success(new BuffEffect(target, instance, onlyIfMounted, onlyIfPerched));
+                String requireFlag = RegistryJsonHelper.getString(json, "require_data_flag", null);
+                boolean requireValue = RegistryJsonHelper.getBoolean(json, "require_data_value", true);
+                return DataResult.success(new BuffEffect(target, instance, onlyIfMounted, onlyIfPerched, requireFlag, requireValue));
             })
             .description("Applies a vanilla status effect to a configured target.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("guardian_bulwark_redirect"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new GuardianBulwarkRedirectEffect(json)))
+            .description("Redirects incoming owner damage through nearby Guardian protectors before applying follow-up buffs.")
             .build());
 
         registerEffectSerializer(EffectSerializer.builder(id("guardian_fortress_bond"), RegistryJsonHelper.JSON_OBJECT_CODEC,
@@ -556,6 +768,11 @@ public final class PetsPlusRegistries {
                 return DataResult.success(new GuardianFortressBondEffect(reduction, duration));
             })
             .description("Activates the Guardian fortress bond barrier between owner and pet.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("guardian_fortress_bond_pet_dr"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new GuardianFortressBondPetDrEffect(json)))
+            .description("Reduces bonded guardian damage through the pet incoming damage trigger.")
             .build());
 
         registerEffectSerializer(EffectSerializer.builder(id("guardian_aegis_protocol"), RegistryJsonHelper.JSON_OBJECT_CODEC,
@@ -585,6 +802,31 @@ public final class PetsPlusRegistries {
                 return DataResult.success(GearSwapEffect.fromConfig(storeSoundId, swapSoundId));
             })
             .description("Swaps the owner's stored gear loadouts through their Enchantment-Bound pet.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("enchantment_mining_haste"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new EnchantmentBoundMiningHasteEffect(json)))
+            .description("Applies the Enchantment-Bound mining haste pulse when the owner breaks blocks.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("enchantment_durability_refund"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new EnchantmentBoundDurabilityEffect(json)))
+            .description("Provides the Enchantment-Bound durability refund echo for owner tools.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("enchantment_arcane_focus"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new EnchantmentBoundArcaneFocusEffect(json)))
+            .description("Activates Arcane Focus surges for Enchantment-Bound owners.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("enchantment_extra_drops"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new EnchantmentBoundExtraDropsEffect(json)))
+            .description("Duplicates drops for Enchantment-Bound mining and combat echoes.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("enchantment_swim_grace"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new EnchantmentBoundSwimGraceEffect(json)))
+            .description("Applies the Enchantment-Bound swim grace aura to the owner.")
             .build());
 
         registerEffectSerializer(EffectSerializer.builder(id("cursed_one_death_burst"), RegistryJsonHelper.JSON_OBJECT_CODEC,
@@ -648,9 +890,22 @@ public final class PetsPlusRegistries {
             .description("Channels soul sacrifice to trade XP for power and longer reanimation downtime.")
             .build());
 
+        registerEffectSerializer(EffectSerializer.builder(id("cursed_one_sacrificial_rescue"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new CursedOneSacrificialRescueEffect(json)))
+            .description("Allows a Cursed One pet to sacrifice itself to save the owner from lethal damage.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("cursed_mount_resilience"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new CursedOneMountResilienceEffect(json)))
+            .description("Applies a brief resistance buff to the owner's mount after a nearby Cursed One rescues them.")
+            .build());
+
         registerEffectSerializer(EffectSerializer.builder(id("projectile_dr_for_owner"), ProjectileDrConfig.CODEC,
             (abilityId, config, context) -> DataResult.success(new ProjectileDrForOwnerEffect(
-                config.percent().orElse(0.10), config.durationTicks().orElse(40))))
+                config.percent().orElse(0.10),
+                config.durationTicks().orElse(40),
+                config.requireDataFlag().orElse(null),
+                config.requireDataValue().orElse(Boolean.TRUE))))
             .description("Grants temporary projectile damage reduction to the owner.")
             .build());
 
@@ -659,19 +914,29 @@ public final class PetsPlusRegistries {
             .description("Reduces potion consumption while perched.")
             .build());
 
+        registerEffectSerializer(EffectSerializer.builder(id("enchantment_perched_haste"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new EnchantmentBoundPerchedHasteEffect(json)))
+            .description("Applies the Enchantment-Bound perched haste aura when the pet remains perched.")
+            .build());
+
         registerEffectSerializer(EffectSerializer.builder(id("support_potion_pulse"), RegistryJsonHelper.JSON_OBJECT_CODEC,
             (abilityId, json, context) -> DataResult.success(new SupportPotionPulseEffect(json)))
             .description("Shares the Support pet's stored potion energy on demand.")
             .build());
 
-        registerEffectSerializer(EffectSerializer.builder(id("mounted_cone_aura"), RegistryJsonHelper.JSON_OBJECT_CODEC,
-            (abilityId, json, context) -> DataResult.success(new MountedConeAuraEffect(json)))
-            .description("Emits a buff cone while the pet is mounted.")
-            .build());
-
         registerEffectSerializer(EffectSerializer.builder(id("magnetize_drops_and_xp"), RegistryJsonHelper.JSON_OBJECT_CODEC,
             (abilityId, json, context) -> DataResult.success(new MagnetizeDropsAndXpEffect(json)))
             .description("Pulls item drops and XP orbs toward the pet.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("eepy_dream_escape_rescue"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new DreamEscapeRescueEffect(json)))
+            .description("Intercepts lethal owner damage to perform the Dream's Escape rescue.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("eclipsed_void_rescue"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new EclipsedVoidRescueEffect(json)))
+            .description("Pulls the owner from the void when an Eclipsed pet intercepts lethal damage.")
             .build());
 
         registerEffectSerializer(EffectSerializer.builder(id("eepy_drowsy_mist"), RegistryJsonHelper.JSON_OBJECT_CODEC,
@@ -721,6 +986,31 @@ public final class PetsPlusRegistries {
                 config.strength().orElse(0.35), config.target().orElse("victim"))))
             .description("Applies a vertical knockback impulse.")
             .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("eepy_nap_aura"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new EepyNapAuraEffect(json)))
+            .description("Applies the Eepy nap-time regeneration aura around a sitting companion.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("eepy_restful_dreams"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new EepyRestfulDreamsEffect(json)))
+            .description("Distributes Restful Dreams healing and buffs after the owner completes a sleep cycle.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("eclipsed_event_horizon"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new EclipsedEventHorizonEffect(json)))
+            .description("Spawns the Event Horizon zone and grants the owner eclipse protections.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("eclipsed_phase_partner"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new EclipsedPhasePartnerEffect(json)))
+            .description("Marks a nearby hostile for the Eclipsed phase partner tether.")
+            .build());
+
+        registerEffectSerializer(EffectSerializer.builder(id("eclipsed_edge_step"), RegistryJsonHelper.JSON_OBJECT_CODEC,
+            (abilityId, json, context) -> DataResult.success(new EclipsedEdgeStepEffect(json)))
+            .description("Reduces fall damage for the owner when an Eclipsed pet cushions the landing.")
+            .build());
     }
 
     private static void registerLevelRewardTypes() {
@@ -738,7 +1028,6 @@ public final class PetsPlusRegistries {
         registerAbilityType("bloodlust_surge", createPlaceholderAbility("bloodlust_surge"));
         registerAbilityType("perch_potion_efficiency", createPlaceholderAbility("perch_potion_efficiency"));
         registerAbilityType("support_potion_pulse", createPlaceholderAbility("support_potion_pulse"));
-        registerAbilityType("mounted_cone_aura", createPlaceholderAbility("mounted_cone_aura"));
         registerAbilityType("loot_wisp", createPlaceholderAbility("loot_wisp"));
         registerAbilityType("windlash_rider", createPlaceholderAbility("windlash_rider"));
         registerAbilityType("gust_upwards", createPlaceholderAbility("gust_upwards"));
@@ -758,8 +1047,13 @@ public final class PetsPlusRegistries {
         registerAbilityType("mounted_extra_rolls", createPlaceholderAbility("mounted_extra_rolls"));
         registerAbilityType("enchant_strip", createPlaceholderAbility("enchant_strip"));
         registerAbilityType("gear_swap", createPlaceholderAbility("gear_swap"));
-        registerAbilityType("auto_resurrect_mount_buff", createPlaceholderAbility("auto_resurrect_mount_buff"));
+        registerAbilityType("enchantment_mining_echo", createPlaceholderAbility("enchantment_mining_echo"));
+        registerAbilityType("enchantment_combat_focus", createPlaceholderAbility("enchantment_combat_focus"));
+        registerAbilityType("enchantment_swim_echo", createPlaceholderAbility("enchantment_swim_echo"));
+        registerAbilityType("enchantment_extra_loot", createPlaceholderAbility("enchantment_extra_loot"));
+        registerAbilityType("cursed_mount_resilience", createPlaceholderAbility("cursed_mount_resilience"));
         registerAbilityType("nap_time_radius", createPlaceholderAbility("nap_time_radius"));
+        registerAbilityType("restful_dreams", createPlaceholderAbility("restful_dreams"));
         registerAbilityType("drowsy_mist", createPlaceholderAbility("drowsy_mist"));
         registerAbilityType("event_horizon", createPlaceholderAbility("event_horizon"));
         registerAbilityType("edge_step", createPlaceholderAbility("edge_step"));
@@ -918,18 +1212,28 @@ public final class PetsPlusRegistries {
         ).apply(instance, TagTargetConfig::new));
     }
 
-    private record RetargetNearestHostileConfig(Optional<Double> radius, Optional<String> storeAs) {
+    private record RetargetNearestHostileConfig(Optional<Double> radius,
+                                                Optional<String> storeAs,
+                                                Optional<String> requireDataFlag,
+                                                Optional<Boolean> requireDataValue) {
         static final Codec<RetargetNearestHostileConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Codec.DOUBLE.optionalFieldOf("radius").forGetter(RetargetNearestHostileConfig::radius),
-            Codec.STRING.optionalFieldOf("store_as").forGetter(RetargetNearestHostileConfig::storeAs)
+            Codec.STRING.optionalFieldOf("store_as").forGetter(RetargetNearestHostileConfig::storeAs),
+            Codec.STRING.optionalFieldOf("require_data_flag").forGetter(RetargetNearestHostileConfig::requireDataFlag),
+            Codec.BOOL.optionalFieldOf("require_data_value").forGetter(RetargetNearestHostileConfig::requireDataValue)
         ).apply(instance, RetargetNearestHostileConfig::new));
 
     }
 
-    private record ProjectileDrConfig(Optional<Double> percent, Optional<Integer> durationTicks) {
+    private record ProjectileDrConfig(Optional<Double> percent,
+                                      Optional<Integer> durationTicks,
+                                      Optional<String> requireDataFlag,
+                                      Optional<Boolean> requireDataValue) {
         static final Codec<ProjectileDrConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Codec.DOUBLE.optionalFieldOf("percent").forGetter(ProjectileDrConfig::percent),
-            Codec.INT.optionalFieldOf("duration_ticks").forGetter(ProjectileDrConfig::durationTicks)
+            Codec.INT.optionalFieldOf("duration_ticks").forGetter(ProjectileDrConfig::durationTicks),
+            Codec.STRING.optionalFieldOf("require_data_flag").forGetter(ProjectileDrConfig::requireDataFlag),
+            Codec.BOOL.optionalFieldOf("require_data_value").forGetter(ProjectileDrConfig::requireDataValue)
         ).apply(instance, ProjectileDrConfig::new));
 
     }

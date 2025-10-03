@@ -11,7 +11,6 @@
   },
   "default_abilities": [
     "petsplus:perch_potion_efficiency",
-    "petsplus:mounted_cone_aura",
     "petsplus:support_potion_pulse"
   ],
   "tribute_defaults": {

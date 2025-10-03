@@ -1,0 +1,14 @@
+{
+  "id": "petsplus:striker_execution",
+  "trigger": {
+    "event": "owner_outgoing_damage",
+    "cooldown_ticks": 0
+  },
+  "effects": [
+    {
+      "type": "striker_execution",
+      "emit_feedback": true,
+      "publish_preview": true
+    }
+  ]
+}

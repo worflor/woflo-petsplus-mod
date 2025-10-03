@@ -1,0 +1,23 @@
+{
+  "id": "petsplus:enchantment_swim_echo",
+  "required_level": 1,
+  "trigger": {
+    "event": "interval_while_active",
+    "ticks": 10
+  },
+  "effects": [
+    {
+      "type": "enchantment_swim_grace",
+      "duration_ticks": 40,
+      "min_level": 1
+    },
+    {
+      "type": "enchantment_arcane_focus",
+      "bucket": "swim",
+      "duration_ticks": 200,
+      "cooldown_ticks": 1200,
+      "charges_at_level_30": 2,
+      "play_sound": true
+    }
+  ]
+}

@@ -13,6 +13,9 @@
     "petsplus:voidbrand",
     "petsplus:void_storage",
     "petsplus:phase_partner",
+    "petsplus:void_save",
+    "petsplus:eclipsed_darkness_owner",
+    "petsplus:eclipsed_darkness_pet",
     "petsplus:perch_ping"
   ],
   "tribute_defaults": {

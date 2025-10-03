@@ -1,26 +1,34 @@
 {
   "id": "petsplus:bulwark_redirect",
   "trigger": {
-    "event": "after_pet_redirect",
+    "event": "owner_incoming_damage",
     "internal_cd_ticks": 40
   },
   "effects": [
     {
+      "type": "guardian_bulwark_redirect"
+    },
+    {
+      "type": "guardian_fortress_bond_pet_dr"
+    },
+    {
       "type": "projectile_dr_for_owner",
       "percent": 0.25,
       "duration_ticks": 100,
-      "radius": 8.0
+      "require_data_flag": "guardian_bulwark_redirect_success"
     },
     {
       "type": "buff",
       "target": "pet",
       "id": "minecraft:resistance",
       "duration": 60,
-      "amplifier": 0
+      "amplifier": 0,
+      "require_data_flag": "guardian_bulwark_redirect_success"
     },
     {
       "type": "retarget_nearest_hostile",
-      "radius": 6.0
+      "radius": 6.0,
+      "require_data_flag": "guardian_bulwark_redirect_success"
     }
   ]
 }

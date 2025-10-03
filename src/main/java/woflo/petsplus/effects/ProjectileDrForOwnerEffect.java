@@ -4,6 +4,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.world.World;
+import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
 
@@ -19,10 +20,24 @@ public class ProjectileDrForOwnerEffect implements Effect {
     
     private final double percent;
     private final int durationTicks;
-    
+    @Nullable
+    private final String requiredDataFlag;
+    private final boolean requiredDataValue;
+    private final boolean requireFlag;
+
     public ProjectileDrForOwnerEffect(double percent, int durationTicks) {
+        this(percent, durationTicks, null, true);
+    }
+
+    public ProjectileDrForOwnerEffect(double percent,
+                                      int durationTicks,
+                                      @Nullable String requiredDataFlag,
+                                      boolean requiredDataValue) {
         this.percent = percent;
         this.durationTicks = durationTicks;
+        this.requiredDataFlag = requiredDataFlag == null || requiredDataFlag.isEmpty() ? null : requiredDataFlag;
+        this.requiredDataValue = requiredDataValue;
+        this.requireFlag = this.requiredDataFlag != null;
     }
     
     @Override
@@ -33,6 +48,14 @@ public class ProjectileDrForOwnerEffect implements Effect {
     @Override
     public boolean execute(EffectContext context) {
         cleanupRemovedOwners();
+
+        if (requireFlag) {
+            Boolean flagValue = context.getData(requiredDataFlag, Boolean.class);
+            boolean matches = flagValue != null && flagValue;
+            if (matches != requiredDataValue) {
+                return false;
+            }
+        }
 
         PlayerEntity owner = context.getOwner();
         if (owner == null || owner.isRemoved() || !owner.isAlive()) {

@@ -59,6 +59,7 @@ class OwnerAbilityEventBridgeTest {
             dispatchedTrigger.set(trigger);
             dispatchedData.set(data);
             latch.countDown();
+            return AbilityTriggerResult.empty();
         });
 
         try {

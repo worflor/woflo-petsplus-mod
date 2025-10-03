@@ -7,6 +7,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.Identifier;
 import net.minecraft.registry.tag.BlockTags;
@@ -343,7 +344,7 @@ class EmotionsEventHandlerTest {
             events.add(inv.getArgument(1));
             payloads.add(inv.getArgument(2));
             return null;
-        }).when(stateManager).dispatchAbilityTrigger(any(ServerPlayerEntity.class), anyString(), any());
+        }).when(stateManager).fireAbilityTrigger(any(ServerPlayerEntity.class), anyString(), any());
 
         EmotionCueConfig config = mock(EmotionCueConfig.class);
         when(config.findBlockBreakDefinition(any())).thenReturn(null);
@@ -359,7 +360,7 @@ class EmotionsEventHandlerTest {
             configStatic.when(EmotionCueConfig::get).thenReturn(config);
             natureStatic.when(() -> NatureFlavorHandler.triggerForOwner(any(), anyInt(), any())).thenAnswer(inv -> null);
 
-            EmotionsEventHandler.emitOwnerBrokeBlockTrigger(player, state);
+            EmotionsEventHandler.emitOwnerBrokeBlockTrigger(player, BlockPos.ORIGIN, state);
         }
 
         int idx = events.indexOf("owner_broke_block");
@@ -367,6 +368,8 @@ class EmotionsEventHandlerTest {
         Map<String, Object> payload = payloads.get(idx);
         assertNotNull(payload, "Block break payload should not be null");
         assertEquals(Boolean.TRUE, payload.get("block_valuable"), "Valuable ores should set block_valuable flag");
+        assertEquals(BlockPos.ORIGIN, payload.get("block_pos"), "Payload should include block position");
+        assertEquals(state, payload.get("block_state"), "Payload should include block state snapshot");
         assertEquals(blockId, payload.get("block_identifier"), "Payload should include block identifier instance");
         assertEquals(blockId.toString(), payload.get("block_id"), "Payload should include namespaced string identifier");
         assertEquals(blockId.getPath(), payload.get("block_id_no_namespace"),
@@ -387,7 +390,7 @@ class EmotionsEventHandlerTest {
             events.add(inv.getArgument(1));
             payloads.add(inv.getArgument(2));
             return null;
-        }).when(stateManager).dispatchAbilityTrigger(any(ServerPlayerEntity.class), anyString(), any());
+        }).when(stateManager).fireAbilityTrigger(any(ServerPlayerEntity.class), anyString(), any());
 
         EmotionCueConfig config = mock(EmotionCueConfig.class);
         when(config.findBlockBreakDefinition(any())).thenReturn(null);
@@ -403,7 +406,7 @@ class EmotionsEventHandlerTest {
             configStatic.when(EmotionCueConfig::get).thenReturn(config);
             natureStatic.when(() -> NatureFlavorHandler.triggerForOwner(any(), anyInt(), any())).thenAnswer(inv -> null);
 
-            EmotionsEventHandler.emitOwnerBrokeBlockTrigger(player, state);
+            EmotionsEventHandler.emitOwnerBrokeBlockTrigger(player, BlockPos.ORIGIN, state);
         }
 
         int idx = events.indexOf("owner_broke_block");
@@ -411,6 +414,8 @@ class EmotionsEventHandlerTest {
         Map<String, Object> payload = payloads.get(idx);
         assertNotNull(payload, "Block break payload should not be null");
         assertEquals(Boolean.FALSE, payload.get("block_valuable"), "Non-valuable blocks should clear block_valuable flag");
+        assertEquals(BlockPos.ORIGIN, payload.get("block_pos"), "Payload should include block position");
+        assertEquals(state, payload.get("block_state"), "Payload should include block state snapshot");
         assertEquals(blockId, payload.get("block_identifier"), "Payload should include block identifier instance");
         assertEquals(blockId.toString(), payload.get("block_id"), "Payload should include namespaced string identifier");
         assertEquals(blockId.getPath(), payload.get("block_id_no_namespace"),

@@ -1,0 +1,17 @@
+{
+  "id": "petsplus:eclipsed_darkness_owner",
+  "trigger": {
+    "event": "owner_incoming_damage",
+    "cooldown_ticks": 20
+  },
+  "effects": [
+    {
+      "type": "darkness_damage_shield",
+      "mode": "owner",
+      "max_damage": 3.0,
+      "radius": 16.0,
+      "require_owner_darkness": true,
+      "require_pet_darkness": false
+    }
+  ]
+}

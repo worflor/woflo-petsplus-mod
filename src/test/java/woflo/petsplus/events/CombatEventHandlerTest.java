@@ -60,7 +60,7 @@ class CombatEventHandlerTest {
             events.add(invocation.getArgument(1));
             payloads.add(invocation.getArgument(2));
             return null;
-        }).when(stateManager).dispatchAbilityTrigger(any(ServerPlayerEntity.class), any(String.class), any());
+        }).when(stateManager).fireAbilityTrigger(any(ServerPlayerEntity.class), any(String.class), any());
 
         try (MockedStatic<StateManager> stateManagerStatic = mockStatic(StateManager.class)) {
             stateManagerStatic.when(() -> StateManager.forWorld(world)).thenReturn(stateManager);
@@ -107,7 +107,7 @@ class CombatEventHandlerTest {
             events.add(invocation.getArgument(1));
             payloads.add(invocation.getArgument(2));
             return null;
-        }).when(stateManager).dispatchAbilityTrigger(any(ServerPlayerEntity.class), any(String.class), any());
+        }).when(stateManager).fireAbilityTrigger(any(ServerPlayerEntity.class), any(String.class), any());
 
         PersistentProjectileEntity projectile = new PersistentProjectileEntity(world);
         projectile.setCritical(false);
@@ -175,9 +175,13 @@ class CombatEventHandlerTest {
     }
 
     private static void invokeHandleOwnerDamageReceived(PlayerEntity owner, DamageSource damageSource, float amount) throws Exception {
-        Method method = CombatEventHandler.class.getDeclaredMethod("handleOwnerDamageReceived", PlayerEntity.class, DamageSource.class, float.class);
+        invokeHandleOwnerDamageReceived(owner, damageSource, amount, false);
+    }
+
+    private static void invokeHandleOwnerDamageReceived(PlayerEntity owner, DamageSource damageSource, float amount, boolean damageAlreadyApplied) throws Exception {
+        Method method = CombatEventHandler.class.getDeclaredMethod("handleOwnerDamageReceived", PlayerEntity.class, DamageSource.class, float.class, boolean.class);
         method.setAccessible(true);
-        method.invoke(null, owner, damageSource, amount);
+        method.invoke(null, owner, damageSource, amount, damageAlreadyApplied);
     }
 
     private static void invokeHandleProjectileDamage(PlayerEntity shooter, LivingEntity target, float damage, PersistentProjectileEntity projectile) throws Exception {

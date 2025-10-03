@@ -14,8 +14,11 @@
     "speed_max_bonus": 0.6
   },
   "default_abilities": [
+    "petsplus:projectile_levitation",
     "petsplus:windlash_rider",
-    "petsplus:gust_upwards"
+    "petsplus:gust_upwards",
+    "petsplus:skyrider_fall_guard_owner",
+    "petsplus:skyrider_fall_guard_pet"
   ],
   "tribute_defaults": {
     "10": "minecraft:gold_ingot",

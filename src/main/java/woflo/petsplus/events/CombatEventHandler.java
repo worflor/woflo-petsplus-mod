@@ -35,11 +35,15 @@ import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.ai.goals.OwnerAssistAttackGoal;
+import woflo.petsplus.api.DamageInterceptionResult;
+import woflo.petsplus.abilities.AbilityManager;
+import woflo.petsplus.abilities.AbilityTriggerResult;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
+import woflo.petsplus.roles.guardian.GuardianBulwark;
 import woflo.petsplus.roles.striker.StrikerExecution;
 import woflo.petsplus.roles.striker.StrikerExecution.ExecutionKillSummary;
 import woflo.petsplus.roles.striker.StrikerHuntManager;
@@ -64,6 +68,7 @@ public class CombatEventHandler {
     private static final Map<java.util.UUID, List<PetSwarmIndex.SwarmEntry>> PET_SWARM_CACHE = new ConcurrentHashMap<>();
     private static final Map<java.util.UUID, Long> PET_SWARM_CACHE_TIMESTAMPS = new ConcurrentHashMap<>();
     private static final long PET_SWARM_CACHE_TTL = 100; // 5 seconds cache TTL (100 ticks)
+    private static final ThreadLocal<Boolean> SUPPRESS_INTERCEPTION = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     private static final String CHIP_DAMAGE_ACCUM_KEY = "restless_chip_accum";
     private static final String CHIP_DAMAGE_LAST_TICK_KEY = "restless_chip_last_tick";
@@ -118,28 +123,77 @@ public class CombatEventHandler {
      * Called when any living entity receives damage.
      */
     private static boolean onDamageReceived(LivingEntity entity, DamageSource damageSource, float amount) {
-        // Check if the damaged entity is a player (owner)
+        if (Boolean.TRUE.equals(SUPPRESS_INTERCEPTION.get())) {
+            return true;
+        }
+        if (amount <= 0.0F) {
+            return true;
+        }
+
+        boolean allowDamage = true;
+        float appliedDamage = amount;
+        boolean targetManual = false;
+        boolean targetCancelled = false;
+        PlayerEntity attackingOwner = damageSource.getAttacker() instanceof PlayerEntity
+            ? (PlayerEntity) damageSource.getAttacker()
+            : null;
+
+        if (attackingOwner != null) {
+            DamageProcessingOutcome outgoingOutcome = processOwnerOutgoingDamage(attackingOwner, entity, damageSource, appliedDamage);
+            if (outgoingOutcome.cancelled()) {
+                targetCancelled = true;
+                appliedDamage = 0.0F;
+            } else {
+                appliedDamage = outgoingOutcome.damage();
+                targetManual |= outgoingOutcome.manual();
+            }
+        }
+
         if (entity instanceof PlayerEntity player) {
-            handleOwnerDamageReceived(player, damageSource, amount);
+            DamageProcessingOutcome ownerOutcome = processOwnerDamage(player, damageSource, appliedDamage);
+            if (ownerOutcome.cancelled()) {
+                allowDamage = false;
+            } else {
+                float appliedAmount = ownerOutcome.damage();
+                boolean damageApplied = ownerOutcome.manual();
+                if (damageApplied) {
+                    applyManualDamage(player, damageSource, appliedAmount);
+                    appliedDamage = appliedAmount;
+                    targetManual = false;
+                    allowDamage = false;
+                }
+                if (appliedAmount > 0.0F) {
+                    handleOwnerDamageReceived(player, damageSource, appliedAmount, damageApplied);
+                }
+            }
         }
 
         // Check if the damage was dealt by a player
-        if (damageSource.getAttacker() instanceof PlayerEntity attacker) {
-            handleOwnerDealtDamage(attacker, entity, amount);
+        if (attackingOwner != null && !targetCancelled && appliedDamage > 0.0F) {
+            handleOwnerDealtDamage(attackingOwner, entity, appliedDamage);
         }
 
         // Check if damage was from a projectile shot by a player
         if (damageSource.getSource() instanceof PersistentProjectileEntity projectile) {
-            if (projectile.getOwner() instanceof PlayerEntity shooter) {
-                handleProjectileDamage(shooter, entity, amount, projectile);
+            if (projectile.getOwner() instanceof PlayerEntity shooter && !targetCancelled) {
+                handleProjectileDamage(shooter, entity, appliedDamage, projectile);
             }
         }
 
-        // Check if a pet took damage
         if (entity instanceof MobEntity mobEntity) {
             PetComponent petComponent = PetComponent.get(mobEntity);
             if (petComponent != null) {
-                handlePetDamageReceived(mobEntity, petComponent, damageSource, amount);
+                DamageProcessingOutcome petOutcome = processPetDamage(mobEntity, petComponent, damageSource, appliedDamage);
+                if (petOutcome.cancelled()) {
+                    targetCancelled = true;
+                    appliedDamage = 0.0F;
+                } else {
+                    appliedDamage = petOutcome.damage();
+                    targetManual |= petOutcome.manual();
+                    if (appliedDamage > 0.0F) {
+                        handlePetDamageReceived(mobEntity, petComponent, damageSource, appliedDamage);
+                    }
+                }
             }
         }
 
@@ -147,13 +201,276 @@ public class CombatEventHandler {
         if (damageSource.getAttacker() instanceof MobEntity attackerMob) {
             PetComponent petComponent = PetComponent.get(attackerMob);
             if (petComponent != null) {
-                handlePetDealtDamage(attackerMob, petComponent, entity, amount);
+                handlePetDealtDamage(attackerMob, petComponent, entity, appliedDamage);
             }
         }
 
-        return true; // Allow damage
+        if (targetCancelled) {
+            allowDamage = false;
+        } else if (targetManual) {
+            applyManualDamage(entity, damageSource, appliedDamage);
+            allowDamage = false;
+        }
+
+        return allowDamage;
     }
-    
+
+    private static DamageProcessingOutcome processOwnerDamage(PlayerEntity owner,
+                                                              DamageSource damageSource,
+                                                              float amount) {
+        if (!(owner instanceof ServerPlayerEntity serverOwner)) {
+            return DamageProcessingOutcome.allowOutcome(amount);
+        }
+        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+            return DamageProcessingOutcome.allowOutcome(amount);
+        }
+        if (amount <= 0.0F) {
+            return DamageProcessingOutcome.allowOutcome(0.0F);
+        }
+
+        boolean lethalPreCheck = owner.getHealth() - amount <= 0.0F;
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("damage", (double) amount);
+        payload.put("damage_source", damageSource);
+        payload.put("intercept_damage", true);
+        if (damageSource.isOf(DamageTypes.FALL)) {
+            payload.put("fall_distance", (double) owner.fallDistance);
+        }
+        if (lethalPreCheck) {
+            payload.put("lethal_damage", true);
+        }
+
+        if (!payload.containsKey(GuardianBulwark.STATE_DATA_KEY)) {
+            payload.put(GuardianBulwark.STATE_DATA_KEY, new GuardianBulwark.SharedState());
+        }
+
+        DamageInterceptionResult interception = new DamageInterceptionResult(amount);
+        payload.put("damage_result", interception);
+
+        StateManager manager = StateManager.forWorld(serverWorld);
+        AbilityTriggerResult incoming = manager.dispatchAbilityTrigger(serverOwner, "owner_incoming_damage", payload);
+        DamageInterceptionResult result = incoming.damageResult();
+        if (result == null) {
+            result = interception;
+        }
+
+        if (result.isCancelled() || result.getRemainingDamageAmount() <= 0.0D) {
+            return DamageProcessingOutcome.cancelledOutcome();
+        }
+
+        double remaining = result.getRemainingDamageAmount();
+        if (remaining <= 0.0D) {
+            return DamageProcessingOutcome.cancelledOutcome();
+        }
+
+        if (remaining >= owner.getHealth()) {
+            Map<String, Object> lethalPayload = new HashMap<>();
+            lethalPayload.put("damage", remaining);
+            lethalPayload.put("damage_source", damageSource);
+            lethalPayload.put("lethal_damage", true);
+            lethalPayload.put("intercept_damage", true);
+            lethalPayload.put("damage_result", result);
+
+            AbilityTriggerResult lethalResult = manager.dispatchAbilityTrigger(serverOwner, "owner_lethal_damage", lethalPayload);
+            DamageInterceptionResult lethalInterception = lethalResult.damageResult();
+            if (lethalInterception != null) {
+                result = lethalInterception;
+            }
+            if (result.isCancelled() || result.getRemainingDamageAmount() <= 0.0D) {
+                return DamageProcessingOutcome.cancelledOutcome();
+            }
+            remaining = result.getRemainingDamageAmount();
+        }
+
+        float finalAmount = (float) remaining;
+        if (finalAmount <= 0.0F) {
+            return DamageProcessingOutcome.cancelledOutcome();
+        }
+
+        if (result.isModified()) {
+            return DamageProcessingOutcome.manualOutcome(finalAmount);
+        }
+        return DamageProcessingOutcome.allowOutcome(finalAmount);
+    }
+
+    private static DamageProcessingOutcome processOwnerOutgoingDamage(PlayerEntity attacker,
+                                                                      LivingEntity victim,
+                                                                      DamageSource damageSource,
+                                                                      float amount) {
+        if (!(attacker instanceof ServerPlayerEntity serverAttacker)) {
+            return DamageProcessingOutcome.allowOutcome(amount);
+        }
+        if (!(attacker.getWorld() instanceof ServerWorld serverWorld)) {
+            return DamageProcessingOutcome.allowOutcome(amount);
+        }
+        if (amount <= 0.0F) {
+            return DamageProcessingOutcome.allowOutcome(0.0F);
+        }
+
+        boolean lethalPreCheck = victim.getHealth() - amount <= 0.0F;
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("damage", (double) amount);
+        payload.put("damage_source", damageSource);
+        payload.put("intercept_damage", true);
+        payload.put("victim", victim);
+        double victimHpPct = Math.max(0.0F, victim.getHealth()) / Math.max(1.0F, victim.getMaxHealth());
+        payload.put("victim_hp_pct", victimHpPct);
+        if (lethalPreCheck) {
+            payload.put("lethal_damage", true);
+        }
+
+        DamageInterceptionResult interception = new DamageInterceptionResult(amount);
+        payload.put("damage_result", interception);
+
+        StateManager manager = StateManager.forWorld(serverWorld);
+        AbilityTriggerResult outgoing = manager.dispatchAbilityTrigger(serverAttacker, "owner_outgoing_damage", payload);
+        DamageInterceptionResult result = outgoing.damageResult();
+        if (result == null) {
+            result = interception;
+        }
+
+        if (result.isCancelled() || result.getRemainingDamageAmount() <= 0.0D) {
+            return DamageProcessingOutcome.cancelledOutcome();
+        }
+
+        double remaining = result.getRemainingDamageAmount();
+        if (remaining <= 0.0D) {
+            return DamageProcessingOutcome.cancelledOutcome();
+        }
+
+        float finalAmount = (float) remaining;
+        if (finalAmount <= 0.0F) {
+            return DamageProcessingOutcome.cancelledOutcome();
+        }
+
+        if (result.isModified()) {
+            return DamageProcessingOutcome.manualOutcome(finalAmount);
+        }
+        return DamageProcessingOutcome.allowOutcome(finalAmount);
+    }
+
+    private static DamageProcessingOutcome processPetDamage(MobEntity pet,
+                                                            PetComponent component,
+                                                            DamageSource damageSource,
+                                                            float amount) {
+        if (!(pet.getWorld() instanceof ServerWorld world)) {
+            return DamageProcessingOutcome.allowOutcome(amount);
+        }
+        if (amount <= 0.0F) {
+            return DamageProcessingOutcome.allowOutcome(0.0F);
+        }
+
+        PlayerEntity owner = component.getOwner();
+        ServerPlayerEntity serverOwner = owner instanceof ServerPlayerEntity ? (ServerPlayerEntity) owner : null;
+        boolean lethalPreCheck = pet.getHealth() - amount <= 0.0F;
+
+        DamageInterceptionResult interception = new DamageInterceptionResult(amount);
+
+        TriggerContext incomingContext = new TriggerContext(world, pet, serverOwner, "pet_incoming_damage")
+            .withData("damage", (double) amount)
+            .withData("damage_source", damageSource)
+            .withData("lethal_damage", lethalPreCheck)
+            .withData("intercept_damage", true)
+            .withDamageContext(damageSource, amount, lethalPreCheck, interception);
+        if (damageSource.isOf(DamageTypes.FALL)) {
+            incomingContext.withData("fall_distance", (double) pet.fallDistance);
+        }
+
+        AbilityTriggerResult incomingResult = AbilityManager.triggerAbilities(pet, incomingContext);
+        DamageInterceptionResult result = incomingResult.damageResult();
+        if (result == null) {
+            result = interception;
+        }
+
+        if (result.isCancelled() || result.getRemainingDamageAmount() <= 0.0D) {
+            return DamageProcessingOutcome.cancelledOutcome();
+        }
+
+        double remaining = result.getRemainingDamageAmount();
+        if (remaining <= 0.0D) {
+            return DamageProcessingOutcome.cancelledOutcome();
+        }
+
+        if (remaining >= pet.getHealth()) {
+            TriggerContext lethalContext = new TriggerContext(world, pet, serverOwner, "pet_lethal_damage")
+                .withData("damage", remaining)
+                .withData("damage_source", damageSource)
+                .withData("lethal_damage", true)
+                .withData("intercept_damage", true)
+                .withDamageContext(damageSource, remaining, true, result);
+
+            AbilityTriggerResult lethalResult = AbilityManager.triggerAbilities(pet, lethalContext);
+            DamageInterceptionResult lethalInterception = lethalResult.damageResult();
+            if (lethalInterception != null) {
+                result = lethalInterception;
+            }
+        if (result.isCancelled() || result.getRemainingDamageAmount() <= 0.0D) {
+            return DamageProcessingOutcome.cancelledOutcome();
+        }
+            remaining = result.getRemainingDamageAmount();
+        }
+
+        float finalAmount = (float) remaining;
+        if (finalAmount <= 0.0F) {
+            return DamageProcessingOutcome.cancelledOutcome();
+        }
+
+        if (result.isModified()) {
+            return DamageProcessingOutcome.manualOutcome(finalAmount);
+        }
+        return DamageProcessingOutcome.allowOutcome(finalAmount);
+    }
+
+    private static void applyManualDamage(LivingEntity entity,
+                                          DamageSource damageSource,
+                                          float amount) {
+        if (amount <= 0.0F || entity == null) {
+            return;
+        }
+        if (Boolean.TRUE.equals(SUPPRESS_INTERCEPTION.get())) {
+            float newHealth = Math.max(0.0F, entity.getHealth() - amount);
+            entity.setHealth(newHealth);
+            if (newHealth <= 0.0F && !entity.isDead()) {
+                entity.onDeath(damageSource);
+            }
+            return;
+        }
+
+        boolean previous = SUPPRESS_INTERCEPTION.get();
+        SUPPRESS_INTERCEPTION.set(true);
+        try {
+            boolean applied = false;
+            if (entity.getWorld() instanceof ServerWorld serverWorld) {
+                applied = entity.damage(serverWorld, damageSource, amount);
+            }
+            if (!applied) {
+                float newHealth = Math.max(0.0F, entity.getHealth() - amount);
+                entity.setHealth(newHealth);
+                if (newHealth <= 0.0F && !entity.isDead()) {
+                    entity.onDeath(damageSource);
+                }
+            }
+        } finally {
+            SUPPRESS_INTERCEPTION.set(previous);
+        }
+    }
+
+    private record DamageProcessingOutcome(boolean cancelled, boolean manual, float damage) {
+        static DamageProcessingOutcome cancelledOutcome() {
+            return new DamageProcessingOutcome(true, false, 0.0F);
+        }
+
+        static DamageProcessingOutcome manualOutcome(float damage) {
+            return new DamageProcessingOutcome(false, true, Math.max(0.0F, damage));
+        }
+
+        static DamageProcessingOutcome allowOutcome(float damage) {
+            return new DamageProcessingOutcome(false, false, Math.max(0.0F, damage));
+        }
+    }
+
     /**
      * Called when a player attacks an entity directly.
      */
@@ -179,7 +496,10 @@ public class CombatEventHandler {
         return ActionResult.PASS;
     }
     
-    private static void handleOwnerDamageReceived(PlayerEntity owner, DamageSource damageSource, float amount) {
+    private static void handleOwnerDamageReceived(PlayerEntity owner,
+                                                  DamageSource damageSource,
+                                                  float amount,
+                                                  boolean damageAlreadyApplied) {
         OwnerCombatState combatState = OwnerCombatState.getOrCreate(owner);
         combatState.onHitTaken();
         long now = owner.getWorld().getTime();
@@ -195,7 +515,8 @@ public class CombatEventHandler {
         }
 
         // Trigger low health events if needed
-        float healthAfter = Math.max(0f, owner.getHealth() - amount);
+        float currentHealth = Math.max(0f, owner.getHealth());
+        float healthAfter = damageAlreadyApplied ? currentHealth : Math.max(0f, currentHealth - amount);
         float maxHealth = Math.max(1f, owner.getMaxHealth());
         double healthPct = healthAfter / maxHealth;
         
@@ -263,11 +584,12 @@ public class CombatEventHandler {
         long now = owner.getWorld().getTime();
         combatState.markOwnerInterference(now);
 
-        // Apply Striker execution fallback
-        float modifiedDamage = woflo.petsplus.roles.striker.StrikerExecutionFallback.applyOwnerExecuteBonus(owner, victim, damage);
-        
-        // Apply Scout spotter fallback
-        woflo.petsplus.roles.scout.ScoutBehaviors.applySpotterGlowing(owner, victim);
+        float modifiedDamage = damage;
+
+        StrikerExecution.noteOwnerDamage(victim, owner);
+        if (StrikerExecution.hasFinisherMark(victim)) {
+            StrikerExecution.onAttackFinisherMark(owner, victim, modifiedDamage);
+        }
         
         // Calculate victim health percentage after damage
         float victimHealthAfter = victim.getHealth() - modifiedDamage;
@@ -593,7 +915,7 @@ public class CombatEventHandler {
         Map<String, Object> payload = (data == null || data.isEmpty())
             ? null
             : new HashMap<>(data);
-        StateManager.forWorld(serverWorld).dispatchAbilityTrigger(serverOwner, eventType, payload);
+        StateManager.forWorld(serverWorld).fireAbilityTrigger(serverOwner, eventType, payload);
     }
 
     private static void onEntityDeath(LivingEntity entity, DamageSource damageSource) {

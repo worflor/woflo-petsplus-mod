@@ -1,6 +1,7 @@
 package woflo.petsplus.api;
 
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -18,6 +19,10 @@ public class TriggerContext {
     private final PlayerEntity owner;
     private final String eventType;
     private final Map<String, Object> eventData;
+    private DamageSource incomingDamageSource;
+    private double incomingDamageAmount;
+    private boolean lethalDamage;
+    private DamageInterceptionResult damageResult;
     
     public TriggerContext(ServerWorld world, MobEntity pet, PlayerEntity owner, String eventType) {
         this.world = world;
@@ -46,7 +51,40 @@ public class TriggerContext {
     public Map<String, Object> getEventData() {
         return eventData;
     }
-    
+
+    public boolean hasDamageContext() {
+        return damageResult != null;
+    }
+
+    public TriggerContext withDamageContext(@Nullable DamageSource damageSource,
+                                            double damageAmount,
+                                            boolean lethal,
+                                            @Nullable DamageInterceptionResult result) {
+        this.incomingDamageSource = damageSource;
+        this.incomingDamageAmount = Math.max(0.0D, damageAmount);
+        this.lethalDamage = lethal;
+        this.damageResult = result;
+        return this;
+    }
+
+    @Nullable
+    public DamageSource getIncomingDamageSource() {
+        return incomingDamageSource;
+    }
+
+    public double getIncomingDamageAmount() {
+        return incomingDamageAmount;
+    }
+
+    public boolean isLethalDamage() {
+        return lethalDamage;
+    }
+
+    @Nullable
+    public DamageInterceptionResult getDamageResult() {
+        return damageResult;
+    }
+
     public TriggerContext withData(String key, Object value) {
         this.eventData.put(key, value);
         return this;

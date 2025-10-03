@@ -203,7 +203,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.BREAK_SNOW);
         }
 
-        emitOwnerBrokeBlockTrigger(sp, state);
+        emitOwnerBrokeBlockTrigger(sp, pos, state);
         
         // Add contagion for valuable block discovery
         if (isValuableBlock(state)) {
@@ -216,10 +216,16 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         }
     }
 
-    static void emitOwnerBrokeBlockTrigger(ServerPlayerEntity player, BlockState state) {
+    static void emitOwnerBrokeBlockTrigger(ServerPlayerEntity player, BlockPos pos, BlockState state) {
         Map<String, Object> payload = new HashMap<>();
         boolean blockValuable = isValuableBlock(state);
         payload.put("block_valuable", blockValuable);
+        if (pos != null) {
+            payload.put("block_pos", pos.toImmutable());
+        }
+        if (state != null) {
+            payload.put("block_state", state);
+        }
         resolveBlockIdentifier(state).ifPresent(blockId -> {
             payload.put("block_identifier", blockId);
             payload.put("block_id", blockId.toString());

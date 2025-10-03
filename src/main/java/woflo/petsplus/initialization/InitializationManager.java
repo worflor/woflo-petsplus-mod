@@ -6,10 +6,8 @@ import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.events.ServerEventHandler;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.roles.guardian.GuardianCore;
-import woflo.petsplus.roles.striker.StrikerCore;
 import woflo.petsplus.roles.support.SupportCore;
 import woflo.petsplus.roles.scout.ScoutCore;
-import woflo.petsplus.roles.skyrider.SkyriderCore;
 import woflo.petsplus.roles.enchantmentbound.EnchantmentBoundCore;
 import woflo.petsplus.roles.eclipsed.EclipsedCore;
 
@@ -100,19 +98,16 @@ public class InitializationManager {
     public static void initializeRoleSystems() {
         // Combat-focused roles
         GuardianCore.initialize();
-        StrikerCore.initialize();
         
         // Support and utility roles  
         SupportCore.initialize();
         ScoutCore.initialize();
         
         // Specialized movement and magic roles
-        SkyriderCore.initialize();
         EnchantmentBoundCore.initialize();
         EclipsedCore.initialize();
         
         // Special role handlers
-        woflo.petsplus.roles.enchantmentbound.EnchantmentBoundHandler.initialize();
         woflo.petsplus.roles.eepyeeper.EepyEeperCore.initialize();
         
         // Initialize ability system
@@ -125,7 +120,6 @@ public class InitializationManager {
     public static void initializeMechanics() {
         // Role-specific mechanics
         woflo.petsplus.mechanics.CursedOneResurrection.initialize();
-        woflo.petsplus.mechanics.EclipsedVoidSave.initialize();
         
         // Special mechanics
         woflo.petsplus.mechanics.StargazeMechanic.initialize();

@@ -12,7 +12,13 @@
   "default_abilities": [
     "petsplus:phase_partner",
     "petsplus:enchant_strip",
-    "petsplus:gear_swap"
+    "petsplus:gear_swap",
+    "petsplus:enchantment_magic_guard",
+    "petsplus:enchantment_mining_echo",
+    "petsplus:enchantment_combat_focus",
+    "petsplus:enchantment_swim_echo",
+    "petsplus:enchantment_extra_loot",
+    "petsplus:perched_haste_bonus"
   ],
   "tribute_defaults": {
     "10": "minecraft:gold_ingot",

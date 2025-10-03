@@ -1,89 +1,85 @@
 package woflo.petsplus.roles.scout;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.api.registry.PetRoleType;
-import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.StateManager;
 
 /**
- * Scout role fallback behaviors when pet isn't attacking.
+ * Shared Scout helpers for effects and role behaviours.
  */
-public class ScoutBehaviors {
-    
-    /**
-     * Apply Spotter fallback: Glowing to next target hit by owner if no pet attack within 60 ticks.
-     */
-    public static void checkSpotterFallback(PlayerEntity owner) {
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
-            return;
-        }
-        
-        OwnerCombatState combatState = OwnerCombatState.get(owner);
-        if (combatState == null || !combatState.isInCombat()) {
-            return;
-        }
-        
-        // Check if we have Scout pets
-        boolean hasScoutPet = !serverWorld.getEntitiesByClass(
-            MobEntity.class,
-            owner.getBoundingBox().expand(16),
-            entity -> {
-                PetComponent component = PetComponent.get(entity);
-                return component != null &&
-                       component.hasRole(PetRoleType.SCOUT) &&
-                       component.isOwnedBy(owner) &&
-                       entity.isAlive();
-            }
-        ).isEmpty();
-        
-        if (!hasScoutPet) {
-            return;
-        }
-        
-        // Check if no pet attack in last 60 ticks since combat start
-        long combatStartTime = combatState.getLastHitTick();
-        long timeSinceCombatStart = owner.getWorld().getTime() - combatStartTime;
-        
-        if (timeSinceCombatStart >= 60) {
-            // Mark that next target hit by owner should get glowing (ICD 15s)
-            long lastSpotterTime = combatState.getTempState("last_spotter_fallback");
-            long currentTime = owner.getWorld().getTime();
-            
-            if (currentTime - lastSpotterTime >= 300) { // 15s ICD
-                combatState.setTempState("spotter_fallback_ready", currentTime);
-                combatState.setTempState("last_spotter_fallback", currentTime);
-            }
-        }
+public final class ScoutBehaviors {
+    private static final double DEFAULT_RADIUS_SQ = 16.0D * 16.0D;
+
+    private ScoutBehaviors() {
     }
-    
+
     /**
-     * Apply glowing effect to target if spotter fallback is ready.
+     * Collects the nearby Scout pets owned by the specified player within the provided radius.
      */
-    public static void applySpotterGlowing(PlayerEntity owner, net.minecraft.entity.LivingEntity target) {
-        OwnerCombatState combatState = OwnerCombatState.get(owner);
-        if (combatState == null) {
-            return;
+    public static List<PetSwarmIndex.SwarmEntry> collectScoutEntries(StateManager stateManager,
+                                                                     ServerPlayerEntity owner,
+                                                                     double radiusSq) {
+        if (stateManager == null || owner == null) {
+            return Collections.emptyList();
         }
-        
-        if (combatState.hasTempState("spotter_fallback_ready")) {
-            target.addStatusEffect(new StatusEffectInstance(StatusEffects.GLOWING, 20, 0)); // 1 second
-            combatState.setTempState("spotter_fallback_ready", 0); // Clear the flag
+        PetSwarmIndex index = stateManager.getSwarmIndex();
+        if (index == null) {
+            return Collections.emptyList();
         }
+        List<PetSwarmIndex.SwarmEntry> snapshot = index.snapshotOwner(owner.getUuid());
+        if (snapshot.isEmpty()) {
+            return Collections.emptyList();
+        }
+        double maxDistanceSq = radiusSq <= 0 ? Double.POSITIVE_INFINITY : radiusSq;
+        List<PetSwarmIndex.SwarmEntry> results = new ArrayList<>();
+        for (PetSwarmIndex.SwarmEntry entry : snapshot) {
+            PetComponent component = entry.component();
+            if (component == null || !component.isOwnedBy(owner) || !component.hasRole(PetRoleType.SCOUT)) {
+                continue;
+            }
+            LivingEntity pet = entry.pet();
+            if (pet == null || pet.isRemoved()) {
+                continue;
+            }
+            if (maxDistanceSq != Double.POSITIVE_INFINITY && pet.squaredDistanceTo(owner) > maxDistanceSq) {
+                continue;
+            }
+            results.add(entry);
+        }
+        return results;
     }
-    
+
     /**
-     * Apply Gale Pace speed to mount instead of owner if mounted.
+     * Returns {@code true} if the owner has an eligible Scout companion within the default radius.
+     */
+    public static boolean hasNearbyScout(ServerPlayerEntity owner) {
+        if (owner == null) {
+            return false;
+        }
+        ServerWorld world = owner.getWorld() instanceof ServerWorld serverWorld ? serverWorld : null;
+        StateManager manager = StateManager.forWorld(world);
+        if (manager == null) {
+            return false;
+        }
+        return !collectScoutEntries(manager, owner, DEFAULT_RADIUS_SQ).isEmpty();
+    }
+
+    /**
+     * Apply Gale Pace speed to a mount instead of the owner when mounted.
      */
     public static void applyGalePaceToMount(PlayerEntity owner, StatusEffectInstance speedEffect) {
-        if (owner.getVehicle() instanceof net.minecraft.entity.LivingEntity mount) {
-            // Apply speed to mount instead of owner
+        if (owner.getVehicle() instanceof LivingEntity mount) {
             mount.addStatusEffect(speedEffect);
         } else {
-            // Apply to owner normally
             owner.addStatusEffect(speedEffect);
         }
     }

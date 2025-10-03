@@ -28,7 +28,6 @@
   "petsplus.striker.finisher_confirm": "Finisher claimed: %s",
   "petsplus.striker.mark_spent": "Finisher spent on %s",
   "petsplus.support.potion_sip": "Perched potion efficiency active",
-  "petsplus.support.cone_aura": "Mounted cone aura active",
   "petsplus.support.potion_locked": "%s needs to reach level %s before sharing stored potions",
   "petsplus.support.potion_needs_sit": "Have %s sit to channel stored potions",
   "petsplus.support.potion_empty": "%s has no stored potion energy",

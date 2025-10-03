@@ -7,34 +7,34 @@
   },
   "effects": [
     {
-      "type": "area_effect",
+      "type": "eclipsed_event_horizon",
       "radius": 6.0,
-      "effects": [
+      "enemy_effect_duration_ticks": 100,
+      "enemy_effects": [
         {
           "id": "minecraft:blindness",
           "duration": 80,
           "amplifier": 0
         }
-      ]
-    },
-    {
-      "type": "buff",
-      "target": "owner",
-      "id": "minecraft:invisibility",
-      "duration": 100,
-      "amplifier": 0
-    },
-    {
-      "type": "buff",
-      "target": "owner",
-      "id": "minecraft:speed",
-      "duration": 120,
-      "amplifier": 2
-    },
-    {
-      "type": "heal_owner_flat_pct",
-      "flat_amount": 4.0,
-      "pct_amount": 0.15
+      ],
+      "owner_effects": [
+        {
+          "id": "minecraft:invisibility",
+          "duration": 100,
+          "amplifier": 0
+        },
+        {
+          "id": "minecraft:speed",
+          "duration": 120,
+          "amplifier": 2
+        }
+      ],
+      "heal_flat": 4.0,
+      "heal_percent": 0.15,
+      "projectile_dr": 0.25,
+      "projectile_dr_duration_ticks": 100,
+      "min_level": 30,
+      "require_perched": false
     }
   ]
 }

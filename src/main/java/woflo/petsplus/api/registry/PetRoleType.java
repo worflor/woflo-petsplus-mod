@@ -148,8 +148,7 @@ public final class PetRoleType {
             .withStatAffinity("health", 0.03f)
             .withStatAffinity("learning", 0.04f)
             .withDefaultAbilities(List.of(
-                ability("perch_potion_efficiency"),
-                ability("mounted_cone_aura")
+                ability("perch_potion_efficiency")
             ))
             .withVisual(new Visual(0x64F5A4, 0x2E9B66, "support_ambient", "support"))
             .withPresentation(defaultPresentation(

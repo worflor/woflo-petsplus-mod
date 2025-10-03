@@ -1,0 +1,18 @@
+{
+  "id": "petsplus:void_save",
+  "required_level": 4,
+  "trigger": {
+    "event": "owner_lethal_damage",
+    "internal_cd_ticks": 20
+  },
+  "effects": [
+    {
+      "type": "eclipsed_void_rescue",
+      "min_level": 4,
+      "void_y_threshold": -64,
+      "cooldown_ticks": 6000,
+      "base_range": 128.0,
+      "range_per_level": 32.0
+    }
+  ]
+}

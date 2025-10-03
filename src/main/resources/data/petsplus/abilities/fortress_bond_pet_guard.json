@@ -1,0 +1,13 @@
+{
+  "id": "petsplus:fortress_bond_pet_guard",
+  "required_level": 7,
+  "trigger": {
+    "event": "pet_incoming_damage",
+    "internal_cd_ticks": 0
+  },
+  "effects": [
+    {
+      "type": "guardian_fortress_bond_pet_dr"
+    }
+  ]
+}

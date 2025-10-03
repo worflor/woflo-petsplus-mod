@@ -1,0 +1,18 @@
+{
+  "id": "petsplus:restful_dreams",
+  "trigger": {
+    "event": "owner_sleep_complete"
+  },
+  "effects": [
+    {
+      "type": "eepy_restful_dreams",
+      "search_radius": 16.0,
+      "owner_regen_duration_ticks": 200,
+      "owner_regen_amplifier": 0,
+      "owner_saturation_duration_ticks": 200,
+      "owner_saturation_amplifier": 1,
+      "pet_resistance_duration_ticks": 200,
+      "pet_resistance_amplifier": 0
+    }
+  ]
+}

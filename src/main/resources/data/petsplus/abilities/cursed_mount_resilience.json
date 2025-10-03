@@ -1,0 +1,16 @@
+{
+  "id": "petsplus:cursed_mount_resilience",
+  "required_level": 25,
+  "trigger": {
+    "event": "owner_respawn"
+  },
+  "effects": [
+    {
+      "type": "cursed_mount_resilience",
+      "search_radius": 16.0,
+      "duration_ticks": 60,
+      "amplifier": 0,
+      "require_death_respawn": true
+    }
+  ]
+}

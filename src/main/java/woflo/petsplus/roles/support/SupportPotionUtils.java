@@ -8,6 +8,7 @@ import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectCategory;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
@@ -19,6 +20,8 @@ import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.StateManager;
 import woflo.petsplus.stats.PetAttributeManager;
 import woflo.petsplus.util.PetPerchUtil;
 
@@ -54,6 +57,10 @@ public final class SupportPotionUtils {
     private static final String STATE_LAST_SIGNATURE = "support_potion_last_signature";
     private static final String STATE_PULSE_STREAK = "support_potion_pulse_streak";
     private static final String STATE_LAST_RECIPIENT_COUNT = "support_potion_last_recipient_count";
+
+    public static final String STATE_PERCH_SIP_DISCOUNT = "support_perch_sip_discount";
+    public static final String STATE_PERCH_SIP_MULTIPLIER = "support_perch_sip_multiplier";
+    public static final String STATE_PERCH_SIP_EXPIRY_TICK = "support_perch_sip_discount_expiry";
     
     // Additional constants for magic numbers
     private static final int TICKS_PER_SECOND = 20;
@@ -859,17 +866,81 @@ public final class SupportPotionUtils {
      * Determine how many charges a single pulse should consume given current stance/perch bonuses.
      */
     public static double getConsumptionPerPulse(PetComponent component) {
-        double consumption = 1.0;
-        if (component != null &&
-            component.hasRole(PetRoleType.SUPPORT) &&
-            PetPerchUtil.isPetPerched(component)) {
-            double discount = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.SUPPORT.id(), "perchSipDiscount", 0.20);
-            double multiplier = 1.0 - discount;
-            if (multiplier < 0.0) multiplier = 0.0;
-            if (multiplier > 1.0) multiplier = 1.0;
-            consumption *= multiplier;
+        if (component == null) {
+            return 1.0;
         }
-        return consumption;
+
+        MobEntity pet = component.getPetEntity();
+        ServerWorld world = pet != null && pet.getWorld() instanceof ServerWorld sw ? sw : null;
+        long now = world != null ? world.getTime() : Long.MIN_VALUE;
+
+        Double multiplierSnapshot = component.getStateData(STATE_PERCH_SIP_MULTIPLIER, Double.class);
+        Long expiry = component.getStateData(STATE_PERCH_SIP_EXPIRY_TICK, Long.class);
+        if (multiplierSnapshot != null && expiry != null && now != Long.MIN_VALUE && expiry >= now) {
+            return MathHelper.clamp(multiplierSnapshot, MIN_MULTIPLIER, MAX_MULTIPLIER);
+        }
+
+        Double storedDiscount = component.getStateData(STATE_PERCH_SIP_DISCOUNT, Double.class);
+        if (storedDiscount != null && expiry != null && now != Long.MIN_VALUE && expiry >= now) {
+            double sanitizedDiscount = MathHelper.clamp(storedDiscount, MIN_MULTIPLIER, MAX_MULTIPLIER);
+            return MathHelper.clamp(1.0 - sanitizedDiscount, MIN_MULTIPLIER, MAX_MULTIPLIER);
+        }
+
+        if (component.hasRole(PetRoleType.SUPPORT) && PetPerchUtil.isPetPerched(component)) {
+            double fallbackDiscount = PetsPlusConfig.getInstance().getRoleDouble(PetRoleType.SUPPORT.id(), "perchSipDiscount", PERCH_SIP_DISCOUNT_DEFAULT);
+            return MathHelper.clamp(1.0 - fallbackDiscount, MIN_MULTIPLIER, MAX_MULTIPLIER);
+        }
+
+        return 1.0;
+    }
+
+    public static double resolvePerchSipDiscount(PlayerEntity owner) {
+        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+            return 0.0;
+        }
+
+        StateManager stateManager = StateManager.forWorld(serverWorld);
+        List<PetSwarmIndex.SwarmEntry> swarm = stateManager.getSwarmIndex().snapshotOwner(owner.getUuid());
+        long now = serverWorld.getTime();
+        double best = 0.0;
+
+        for (PetSwarmIndex.SwarmEntry entry : swarm) {
+            PetComponent component = entry.component();
+            if (component == null || !component.hasRole(PetRoleType.SUPPORT) || !component.isOwnedBy(owner)) {
+                continue;
+            }
+
+            double discount = getActivePerchSipDiscount(component, now);
+            if (discount > best) {
+                best = discount;
+            }
+        }
+
+        return best;
+    }
+
+    public static double getActivePerchSipDiscount(PetComponent component, long now) {
+        if (component == null) {
+            return 0.0;
+        }
+
+        Long expiry = component.getStateData(STATE_PERCH_SIP_EXPIRY_TICK, Long.class);
+        if (expiry == null || expiry < now) {
+            return 0.0;
+        }
+
+        Double storedDiscount = component.getStateData(STATE_PERCH_SIP_DISCOUNT, Double.class);
+        if (storedDiscount != null) {
+            return MathHelper.clamp(storedDiscount, MIN_MULTIPLIER, MAX_MULTIPLIER);
+        }
+
+        Double storedMultiplier = component.getStateData(STATE_PERCH_SIP_MULTIPLIER, Double.class);
+        if (storedMultiplier != null) {
+            double multiplier = MathHelper.clamp(storedMultiplier, MIN_MULTIPLIER, MAX_MULTIPLIER);
+            return MathHelper.clamp(1.0 - multiplier, MIN_MULTIPLIER, MAX_MULTIPLIER);
+        }
+
+        return 0.0;
     }
 
     /**

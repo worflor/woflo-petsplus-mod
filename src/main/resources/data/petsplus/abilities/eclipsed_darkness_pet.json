@@ -1,0 +1,15 @@
+{
+  "id": "petsplus:eclipsed_darkness_pet",
+  "trigger": {
+    "event": "pet_incoming_damage",
+    "cooldown_ticks": 10
+  },
+  "effects": [
+    {
+      "type": "darkness_damage_shield",
+      "mode": "pet",
+      "max_damage": 2.0,
+      "require_pet_darkness": true
+    }
+  ]
+}

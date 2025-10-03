@@ -9,7 +9,8 @@
   "effects": [
     {
       "type": "perch_potion_sip_reduction",
-      "discount_percent": 0.2
+      "discount_percent": 0.2,
+      "linger_ticks": 80
     }
   ]
 }

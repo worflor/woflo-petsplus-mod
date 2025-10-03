@@ -3,10 +3,7 @@
 	"package": "woflo.petsplus.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"mixins": [
-	               "PlayerDamageMixin",
-	               "PlayerAttackMixin",
-	               "LivingEntityDamageMixin",
-	               "TameableEntityMixin",
+                       "TameableEntityMixin",
 	               "AnimalEntityMixin",
 	               "MobEntityDataMixin",
 	               "MobEntityAccessor",

@@ -4,12 +4,13 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import woflo.petsplus.Petsplus;
-import woflo.petsplus.roles.skyrider.SkyriderCore;
 import woflo.petsplus.roles.skyrider.SkyriderWinds;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PlayerTickDispatcher;
 import woflo.petsplus.state.PlayerTickListener;
+import woflo.petsplus.state.StateManager;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -117,10 +118,10 @@ public final class PlayerStateTracker implements PlayerTickListener {
         }
 
         // Trigger any resurrection abilities if it was a death respawn
-        if (!alive) {
-            // Check for Cursed One mount resistance
-            woflo.petsplus.roles.cursedone.CursedOneMountBehaviors.applyMountResistanceOnResurrect(newPlayer);
-        }
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("death_respawn", !alive);
+        payload.put("respawn_dimension", newPlayer.getWorld().getRegistryKey().getValue().toString());
+        StateManager.forWorld(newPlayer.getWorld()).fireAbilityTrigger(newPlayer, "owner_respawn", payload);
     }
     
     /**
@@ -138,17 +139,7 @@ public final class PlayerStateTracker implements PlayerTickListener {
      * Track fall damage for Edge Step and other fall-related abilities.
      */
     public static float modifyFallDamage(PlayerEntity player, float fallDamage, double fallDistance) {
-        float modifiedDamage = fallDamage;
-        
-        // Apply Eclipsed Edge Step reduction
-        if (woflo.petsplus.roles.eclipsed.EclipsedAdvancedAbilities.shouldTriggerEdgeStep(player, fallDistance)) {
-            modifiedDamage = woflo.petsplus.roles.eclipsed.EclipsedAdvancedAbilities.applyEdgeStepFallReduction(player, modifiedDamage);
-        }
-        
-        // Apply Skyrider mount fall reduction
-        modifiedDamage = woflo.petsplus.roles.skyrider.SkyriderMountBehaviors.applyMountFallReduction(player, modifiedDamage);
-        
-        return modifiedDamage;
+        return fallDamage;
     }
     
     /**
@@ -170,7 +161,6 @@ public final class PlayerStateTracker implements PlayerTickListener {
                     String.format("%.2f", fallDistance),
                     mounted ? "mounted" : "on foot"
                 );
-                SkyriderCore.onOwnerStartFalling(serverPlayer);
             }
         }
     }

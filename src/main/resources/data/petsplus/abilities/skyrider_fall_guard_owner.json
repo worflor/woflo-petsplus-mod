@@ -1,0 +1,20 @@
+{
+  "id": "petsplus:skyrider_fall_guard_owner",
+  "trigger": {
+    "event": "owner_incoming_damage",
+    "internal_cd_ticks": 10
+  },
+  "effects": [
+    {
+      "type": "skyrider_fall_guard",
+      "mode": "owner",
+      "radius": 16.0,
+      "max_damage": 4.0,
+      "min_level": 1,
+      "min_fall_distance": 3.0,
+      "apply_to_mount": true,
+      "mount_slowfall_ticks": 100,
+      "pet_slowfall_ticks": 80
+    }
+  ]
+}

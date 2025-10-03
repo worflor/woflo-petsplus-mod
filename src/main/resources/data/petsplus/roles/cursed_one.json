@@ -12,7 +12,10 @@
   "default_abilities": [
     "petsplus:doom_echo",
     "petsplus:soul_sacrifice",
-    "petsplus:death_burst"
+    "petsplus:auto_resurrect_owner",
+    "petsplus:cursed_reanimation",
+    "petsplus:death_burst",
+    "petsplus:cursed_mount_resilience"
   ],
   "tribute_defaults": {
     "10": "minecraft:gold_ingot",

@@ -11,6 +11,9 @@
       "type": "guardian_fortress_bond",
       "reduction_pct": 0.5,
       "duration_ticks": 200
+    },
+    {
+      "type": "guardian_fortress_bond_pet_dr"
     }
   ]
 }

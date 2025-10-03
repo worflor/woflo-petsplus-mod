@@ -1,54 +1,36 @@
 package woflo.petsplus.roles.cursedone;
 
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
 /**
- * Cursed One mount-specific behaviors.
+ * Shared helpers for Cursed One mount-related logic.
  */
-public class CursedOneMountBehaviors {
-    
+public final class CursedOneMountBehaviors {
+    private CursedOneMountBehaviors() {
+    }
+
     /**
-     * Apply Resistance buff to mount when owner auto-resurrects.
+     * Returns true if the owner has at least one active Cursed One pet within the given radius.
      */
-    public static void applyMountResistanceOnResurrect(PlayerEntity owner) {
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
-            return;
+    public static boolean hasNearbyCursedOne(ServerPlayerEntity owner, double radius) {
+        if (owner == null || !(owner.getWorld() instanceof ServerWorld world)) {
+            return false;
         }
-        
-        // Check if owner is mounted
-        if (!(owner.getVehicle() instanceof net.minecraft.entity.LivingEntity mount)) {
-            return;
-        }
-        
-        // Check if we have Cursed One pets
-        boolean hasCursedOnePet = !serverWorld.getEntitiesByClass(
+        double effectiveRadius = Math.max(0.0D, radius);
+        return !world.getEntitiesByClass(
             MobEntity.class,
-            owner.getBoundingBox().expand(16),
+            owner.getBoundingBox().expand(effectiveRadius),
             entity -> {
                 PetComponent component = PetComponent.get(entity);
-                return component != null &&
-                       component.hasRole(PetRoleType.CURSED_ONE) &&
-                       component.isOwnedBy(owner) &&
-                       entity.isAlive();
+                return component != null
+                    && component.hasRole(PetRoleType.CURSED_ONE)
+                    && component.isOwnedBy(owner)
+                    && entity.isAlive();
             }
         ).isEmpty();
-        
-        if (hasCursedOnePet) {
-            // Apply Resistance I for 60 ticks (3 seconds)
-            mount.addStatusEffect(new StatusEffectInstance(StatusEffects.RESISTANCE, 60, 0));
-        }
-    }
-    
-    /**
-     * Check if auto-resurrect should apply mount resistance.
-     */
-    public static boolean shouldApplyMountResistance(PlayerEntity owner) {
-        return owner.getVehicle() instanceof net.minecraft.entity.LivingEntity;
     }
 }

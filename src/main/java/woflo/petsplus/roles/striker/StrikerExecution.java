@@ -6,6 +6,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.MathHelper;
+import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
@@ -76,6 +77,11 @@ public class StrikerExecution {
                                        int momentumStacks, float momentumFill) {}
 
     private record CachedExecution(UUID ownerId, UUID targetId, ExecutionResult result) {}
+
+    public record ExecutionTuning(@Nullable Double baseThresholdPct,
+                                  @Nullable Double chainBonusPerStackPct,
+                                  @Nullable Integer chainMaxStacks,
+                                  @Nullable Integer chainDurationTicks) {}
 
     private static final ThreadLocal<CachedExecution> LAST_EXECUTION = new ThreadLocal<>();
 
@@ -148,14 +154,25 @@ public class StrikerExecution {
     }
 
     public static ExecutionResult evaluateExecution(PlayerEntity attacker, LivingEntity target, float baseDamage) {
-        return evaluateExecution(attacker, target, baseDamage, true);
+        return evaluateExecution(attacker, target, baseDamage, true, null);
     }
 
     public static ExecutionResult previewExecution(PlayerEntity attacker, LivingEntity target, float baseDamage) {
-        return evaluateExecution(attacker, target, baseDamage, false);
+        return evaluateExecution(attacker, target, baseDamage, false, null);
     }
 
-    public static ExecutionResult evaluateExecution(PlayerEntity attacker, LivingEntity target, float baseDamage, boolean applyMomentum) {
+    public static ExecutionResult evaluateExecution(PlayerEntity attacker,
+                                                    LivingEntity target,
+                                                    float baseDamage,
+                                                    boolean applyMomentum) {
+        return evaluateExecution(attacker, target, baseDamage, applyMomentum, null);
+    }
+
+    public static ExecutionResult evaluateExecution(PlayerEntity attacker,
+                                                    LivingEntity target,
+                                                    float baseDamage,
+                                                    boolean applyMomentum,
+                                                    @Nullable ExecutionTuning overrides) {
         if (attacker == null || target == null || baseDamage <= 0) {
             return new ExecutionResult(0.0f, false, 0.0f, 0, 0, 0.0f);
         }
@@ -184,14 +201,25 @@ public class StrikerExecution {
         }
 
         PetsPlusConfig config = PetsPlusConfig.getInstance();
-        double baseThreshold = clamp01(config.getRoleDouble(PetRoleType.STRIKER.id(), "executeThresholdPct", 0.35));
+        double baseThreshold = overrides != null && overrides.baseThresholdPct() != null
+            ? clamp01(overrides.baseThresholdPct())
+            : clamp01(config.getRoleDouble(PetRoleType.STRIKER.id(), "executeThresholdPct", 0.35));
         baseThreshold = Math.min(baseThreshold, MAX_EXECUTE_THRESHOLD);
 
-        double chainBonusPerStack = clamp01(config.getRoleDouble(PetRoleType.STRIKER.id(), "executeChainBonusPerStackPct", DEFAULT_CHAIN_STACK_BONUS));
+        double configuredChainBonus = overrides != null && overrides.chainBonusPerStackPct() != null
+            ? overrides.chainBonusPerStackPct()
+            : config.getRoleDouble(PetRoleType.STRIKER.id(), "executeChainBonusPerStackPct", DEFAULT_CHAIN_STACK_BONUS);
+        double chainBonusPerStack = clamp01(configuredChainBonus);
         double leveledBonusPerStack = Math.min(MAX_EXECUTE_THRESHOLD,
                 chainBonusPerStack * (1.0 + 0.25 * levelProgress));
-        int chainMaxStacks = Math.max(0, config.getRoleInt(PetRoleType.STRIKER.id(), "executeChainMaxStacks", DEFAULT_CHAIN_MAX_STACKS));
-        int baseChainDurationTicks = Math.max(1, config.getRoleInt(PetRoleType.STRIKER.id(), "executeChainDurationTicks", DEFAULT_CHAIN_DURATION_TICKS));
+        int configuredMaxStacks = overrides != null && overrides.chainMaxStacks() != null
+            ? overrides.chainMaxStacks()
+            : config.getRoleInt(PetRoleType.STRIKER.id(), "executeChainMaxStacks", DEFAULT_CHAIN_MAX_STACKS);
+        int chainMaxStacks = Math.max(0, configuredMaxStacks);
+        int configuredDuration = overrides != null && overrides.chainDurationTicks() != null
+            ? overrides.chainDurationTicks()
+            : config.getRoleInt(PetRoleType.STRIKER.id(), "executeChainDurationTicks", DEFAULT_CHAIN_DURATION_TICKS);
+        int baseChainDurationTicks = Math.max(1, configuredDuration);
         int leveledChainDurationTicks = Math.max(baseChainDurationTicks,
                 (int) Math.round(baseChainDurationTicks * (1.0 + 0.25 * levelProgress)));
 

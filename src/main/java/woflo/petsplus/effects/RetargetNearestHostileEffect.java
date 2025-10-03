@@ -5,6 +5,7 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Box;
+import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
 
@@ -18,10 +19,24 @@ public class RetargetNearestHostileEffect implements Effect {
     
     private final double radius;
     private final String storeAs;
-    
+    @Nullable
+    private final String requiredDataFlag;
+    private final boolean requiredDataValue;
+    private final boolean requireFlag;
+
     public RetargetNearestHostileEffect(double radius, String storeAs) {
+        this(radius, storeAs, null, true);
+    }
+
+    public RetargetNearestHostileEffect(double radius,
+                                        String storeAs,
+                                        @Nullable String requiredDataFlag,
+                                        boolean requiredDataValue) {
         this.radius = radius;
         this.storeAs = storeAs;
+        this.requiredDataFlag = requiredDataFlag == null || requiredDataFlag.isEmpty() ? null : requiredDataFlag;
+        this.requiredDataValue = requiredDataValue;
+        this.requireFlag = this.requiredDataFlag != null;
     }
     
     @Override
@@ -32,7 +47,15 @@ public class RetargetNearestHostileEffect implements Effect {
     @Override
     public boolean execute(EffectContext context) {
         Entity pet = context.getPet();
-        
+
+        if (requireFlag) {
+            Boolean flagValue = context.getData(requiredDataFlag, Boolean.class);
+            boolean matches = flagValue != null && flagValue;
+            if (matches != requiredDataValue) {
+                return false;
+            }
+        }
+
         // Create bounding box around pet
         Box searchBox = Box.of(pet.getPos(), radius * 2, radius * 2, radius * 2);
         

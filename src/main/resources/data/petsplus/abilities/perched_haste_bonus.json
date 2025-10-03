@@ -3,33 +3,14 @@
   "trigger": {
     "event": "interval_while_active",
     "ticks": 200,
-    "internal_cd_ticks": 200
+    "internal_cd_ticks": 200,
+    "require_perched": true
   },
   "effects": [
     {
-      "type": "buff",
-      "target": "owner",
-      "id": "minecraft:haste",
-      "duration": 140,
+      "type": "enchantment_perched_haste",
+      "base_duration": 140,
       "amplifier": 1
-    },
-    {
-      "type": "buff",
-      "target": "pet",
-      "id": "minecraft:resistance",
-      "duration": 140,
-      "amplifier": 0
-    },
-    {
-      "type": "area_effect",
-      "radius": 5.0,
-      "effects": [
-        {
-          "id": "minecraft:haste",
-          "duration": 100,
-          "amplifier": 0
-        }
-      ]
     }
   ]
 }
