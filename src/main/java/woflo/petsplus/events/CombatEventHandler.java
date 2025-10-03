@@ -150,7 +150,7 @@ public class CombatEventHandler {
         }
 
         if (entity instanceof PlayerEntity player) {
-            DamageProcessingOutcome ownerOutcome = processOwnerDamage(player, damageSource, amount);
+            DamageProcessingOutcome ownerOutcome = processOwnerDamage(player, damageSource, appliedDamage);
             if (ownerOutcome.cancelled()) {
                 allowDamage = false;
             } else {
