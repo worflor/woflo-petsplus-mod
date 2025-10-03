@@ -344,7 +344,7 @@ class EmotionsEventHandlerTest {
             events.add(inv.getArgument(1));
             payloads.add(inv.getArgument(2));
             return null;
-        }).when(stateManager).dispatchAbilityTrigger(any(ServerPlayerEntity.class), anyString(), any());
+        }).when(stateManager).fireAbilityTrigger(any(ServerPlayerEntity.class), anyString(), any());
 
         EmotionCueConfig config = mock(EmotionCueConfig.class);
         when(config.findBlockBreakDefinition(any())).thenReturn(null);
@@ -390,7 +390,7 @@ class EmotionsEventHandlerTest {
             events.add(inv.getArgument(1));
             payloads.add(inv.getArgument(2));
             return null;
-        }).when(stateManager).dispatchAbilityTrigger(any(ServerPlayerEntity.class), anyString(), any());
+        }).when(stateManager).fireAbilityTrigger(any(ServerPlayerEntity.class), anyString(), any());
 
         EmotionCueConfig config = mock(EmotionCueConfig.class);
         when(config.findBlockBreakDefinition(any())).thenReturn(null);

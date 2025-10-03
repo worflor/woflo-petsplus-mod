@@ -60,7 +60,7 @@ class CombatEventHandlerTest {
             events.add(invocation.getArgument(1));
             payloads.add(invocation.getArgument(2));
             return null;
-        }).when(stateManager).dispatchAbilityTrigger(any(ServerPlayerEntity.class), any(String.class), any());
+        }).when(stateManager).fireAbilityTrigger(any(ServerPlayerEntity.class), any(String.class), any());
 
         try (MockedStatic<StateManager> stateManagerStatic = mockStatic(StateManager.class)) {
             stateManagerStatic.when(() -> StateManager.forWorld(world)).thenReturn(stateManager);
@@ -107,7 +107,7 @@ class CombatEventHandlerTest {
             events.add(invocation.getArgument(1));
             payloads.add(invocation.getArgument(2));
             return null;
-        }).when(stateManager).dispatchAbilityTrigger(any(ServerPlayerEntity.class), any(String.class), any());
+        }).when(stateManager).fireAbilityTrigger(any(ServerPlayerEntity.class), any(String.class), any());
 
         PersistentProjectileEntity projectile = new PersistentProjectileEntity(world);
         projectile.setCritical(false);

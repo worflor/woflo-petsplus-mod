@@ -1403,6 +1403,25 @@ public class StateManager {
         }
     }
 
+    public void fireAbilityTrigger(ServerPlayerEntity owner,
+                                   String triggerId,
+                                   @Nullable Map<String, Object> eventData) {
+        if (owner == null || owner.isRemoved()) {
+            return;
+        }
+        if (triggerId == null || triggerId.isEmpty()) {
+            return;
+        }
+        if (!hasOwnerEventListeners(OwnerEventType.ABILITY_TRIGGER)) {
+            return;
+        }
+
+        EnumSet<OwnerEventType> events = EnumSet.of(OwnerEventType.ABILITY_TRIGGER);
+        EnumMap<OwnerEventType, Object> payload = new EnumMap<>(OwnerEventType.class);
+        payload.put(OwnerEventType.ABILITY_TRIGGER, AbilityTriggerPayload.of(triggerId, eventData));
+        dispatchOwnerEvents(owner, events, payload);
+    }
+
     public AbilityTriggerResult dispatchAbilityTrigger(ServerPlayerEntity owner,
                                                        String triggerId,
                                                        @Nullable Map<String, Object> eventData) {

@@ -121,7 +121,7 @@ public final class PlayerStateTracker implements PlayerTickListener {
         Map<String, Object> payload = new HashMap<>();
         payload.put("death_respawn", !alive);
         payload.put("respawn_dimension", newPlayer.getWorld().getRegistryKey().getValue().toString());
-        StateManager.forWorld(newPlayer.getWorld()).dispatchAbilityTrigger(newPlayer, "owner_respawn", payload);
+        StateManager.forWorld(newPlayer.getWorld()).fireAbilityTrigger(newPlayer, "owner_respawn", payload);
     }
     
     /**

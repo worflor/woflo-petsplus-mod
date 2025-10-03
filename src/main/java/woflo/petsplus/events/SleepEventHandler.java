@@ -88,7 +88,7 @@ public class SleepEventHandler {
         payload.put("sleep_world_time", world.getTime());
         payload.put("via_anchor", viaAnchor);
         payload.put("sleep_event_id", UUID.randomUUID());
-        StateManager.forWorld(world).dispatchAbilityTrigger(player, "owner_sleep_complete", payload);
+        StateManager.forWorld(world).fireAbilityTrigger(player, "owner_sleep_complete", payload);
 
         // Push calming emotions to nearby owned pets
         world.getEntitiesByClass(net.minecraft.entity.mob.MobEntity.class,

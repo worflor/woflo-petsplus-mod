@@ -46,7 +46,7 @@ public final class EnchantmentBoundAbilityHooks {
                 payload.put("victim_was_hostile", victim instanceof HostileEntity);
             }
 
-            StateManager.forWorld(world).dispatchAbilityTrigger(owner, "loot_table_modify", payload);
+            StateManager.forWorld(world).fireAbilityTrigger(owner, "loot_table_modify", payload);
         });
     }
 

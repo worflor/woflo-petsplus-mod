@@ -908,7 +908,7 @@ public class CombatEventHandler {
         Map<String, Object> payload = (data == null || data.isEmpty())
             ? null
             : new HashMap<>(data);
-        StateManager.forWorld(serverWorld).dispatchAbilityTrigger(serverOwner, eventType, payload);
+        StateManager.forWorld(serverWorld).fireAbilityTrigger(serverOwner, eventType, payload);
     }
 
     private static void onEntityDeath(LivingEntity entity, DamageSource damageSource) {
