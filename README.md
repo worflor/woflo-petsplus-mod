@@ -5,7 +5,7 @@
 </p>
 
 <h1 align="center">Pets+</h1>
-<h3 align="center">v0.92-docuwumentation</h3>
+<h3 align="center">dev-0.92-docuwumentation</h3>
 
 ---
 
