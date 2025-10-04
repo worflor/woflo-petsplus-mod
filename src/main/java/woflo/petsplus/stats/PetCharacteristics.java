@@ -19,6 +19,18 @@ public class PetCharacteristics {
     // Base modifier ranges (as percentages)
     private static final float MIN_MODIFIER = -0.15f; // -15%
     private static final float MAX_MODIFIER = 0.15f;  // +15%
+
+    private static final String[] STAT_KEYS = java.util.Arrays.stream(StatType.values())
+        .map(StatType::key)
+        .toArray(String[]::new);
+
+    @FunctionalInterface
+    public interface RoleAffinityLookup {
+        float getBonus(@Nullable PetRoleType roleType, String statKey);
+    }
+
+    @Nullable
+    private RoleAffinityLookup affinityLookup;
     
     // Individual characteristic modifiers
     private final float healthModifier;
@@ -209,7 +221,11 @@ public class PetCharacteristics {
             return 0.0f;
         }
 
-        return roleType.statAffinities().getOrDefault(statType.key(), 0.0f);
+        float base = roleType.statAffinities().getOrDefault(statType.key(), 0.0f);
+        if (affinityLookup != null) {
+            base += affinityLookup.getBonus(roleType, statType.key());
+        }
+        return base;
     }
 
     /**
@@ -321,5 +337,13 @@ public class PetCharacteristics {
         public String key() {
             return key;
         }
+    }
+
+    public void setRoleAffinityLookup(@Nullable RoleAffinityLookup lookup) {
+        this.affinityLookup = lookup;
+    }
+
+    public static String[] statKeyArray() {
+        return STAT_KEYS.clone();
     }
 }

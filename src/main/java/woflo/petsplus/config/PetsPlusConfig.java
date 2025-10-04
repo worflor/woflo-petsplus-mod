@@ -12,6 +12,7 @@ import net.minecraft.util.Identifier;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
+import woflo.petsplus.naming.NameParser;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -1081,6 +1082,7 @@ public class PetsPlusConfig {
     public void reload() {
         Petsplus.LOGGER.info("Reloading PetsPlus configuration...");
         loadConfig();
+        NameParser.clearAllCache();
     }
 
     private JsonObject lookupRoleOverrides(Identifier roleId) {

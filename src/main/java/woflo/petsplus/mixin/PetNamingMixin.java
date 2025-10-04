@@ -70,6 +70,7 @@ public class PetNamingMixin {
             } else {
                 // Clear attributes if name is set to null
                 component.setNameAttributes(List.of());
+                component.resetRoleAffinityBonuses();
                 NameParser.clearCache(mob.getUuid());
 
                 Petsplus.LOGGER.debug("Cleared name attributes for pet {} (name set to null)", mob.getUuid());

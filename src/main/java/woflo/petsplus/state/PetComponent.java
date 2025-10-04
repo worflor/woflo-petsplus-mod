@@ -71,6 +71,17 @@ public class PetComponent {
     private static final long MIN_GOSSIP_DECAY_DELAY = 40L;
     private static final int GOSSIP_OPT_OUT_MIN_DURATION = 120;
     private static final int GOSSIP_OPT_OUT_MAX_DURATION = 220;
+    private static final String[] ROLE_AFFINITY_KEYS = PetCharacteristics.statKeyArray();
+    private static final Map<String, Integer> ROLE_AFFINITY_INDEX = createRoleAffinityIndex();
+    private static final float ROLE_AFFINITY_EPSILON = 1.0e-5f;
+
+    private static Map<String, Integer> createRoleAffinityIndex() {
+        Map<String, Integer> index = new HashMap<>();
+        for (int i = 0; i < ROLE_AFFINITY_KEYS.length; i++) {
+            index.put(ROLE_AFFINITY_KEYS[i].toLowerCase(Locale.ROOT), i);
+        }
+        return index;
+    }
 
     // (legacy mood keys removed)
 
@@ -89,6 +100,7 @@ public class PetComponent {
     // Level reward tracking
     private final Map<Identifier, Boolean> unlockedAbilities;
     private final Map<String, Float> permanentStatBoosts;
+    private final Map<Identifier, float[]> roleAffinityBonuses;
     private final Map<Integer, Identifier> tributeMilestones;
     private PetCharacteristics characteristics;
     private UUID crouchCuddleOwnerId;
@@ -382,6 +394,7 @@ public class PetComponent {
         this.unlockedMilestones = new HashMap<>();
         this.unlockedAbilities = new HashMap<>();
         this.permanentStatBoosts = new HashMap<>();
+        this.roleAffinityBonuses = new HashMap<>();
         this.tributeMilestones = new HashMap<>();
         this.characteristics = null; // Will be generated when pet is first tamed
         this.cachedSpeciesDescriptor = null;
@@ -598,6 +611,97 @@ public class PetComponent {
 
     public void clearNameAttributes() {
         nameAttributes.clear();
+    }
+
+    public void resetRoleAffinityBonuses() {
+        if (roleAffinityBonuses.isEmpty()) {
+            syncCharacteristicAffinityLookup();
+            return;
+        }
+        roleAffinityBonuses.clear();
+        syncCharacteristicAffinityLookup();
+    }
+
+    public void applyRoleAffinityBonuses(Identifier roleId, String[] statKeys, float[] bonuses) {
+        if (roleId == null || statKeys == null || bonuses == null) {
+            return;
+        }
+        int length = Math.min(statKeys.length, bonuses.length);
+        if (length == 0) {
+            return;
+        }
+
+        boolean created = !roleAffinityBonuses.containsKey(roleId);
+        float[] vector = roleAffinityBonuses.computeIfAbsent(roleId, id -> new float[ROLE_AFFINITY_KEYS.length]);
+        boolean changed = false;
+        for (int i = 0; i < length; i++) {
+            String rawKey = statKeys[i];
+            if (rawKey == null) {
+                continue;
+            }
+            Integer index = ROLE_AFFINITY_INDEX.get(rawKey.toLowerCase(Locale.ROOT));
+            if (index == null) {
+                continue;
+            }
+            float delta = bonuses[i];
+            if (Math.abs(delta) <= ROLE_AFFINITY_EPSILON) {
+                continue;
+            }
+            vector[index] += delta;
+            changed = true;
+        }
+        if (changed) {
+            syncCharacteristicAffinityLookup();
+        } else if (created) {
+            roleAffinityBonuses.remove(roleId, vector);
+        }
+    }
+
+    public void addRoleAffinityBonus(@Nullable PetRoleType roleType, float bonus) {
+        if (roleType == null || Math.abs(bonus) <= ROLE_AFFINITY_EPSILON) {
+            return;
+        }
+        String[] keys;
+        if (roleType.statAffinities().isEmpty()) {
+            keys = PetCharacteristics.statKeyArray();
+        } else {
+            keys = roleType.statAffinities().keySet().toArray(String[]::new);
+        }
+        float[] values = new float[keys.length];
+        for (int i = 0; i < keys.length; i++) {
+            values[i] = bonus;
+        }
+        applyRoleAffinityBonuses(roleType.id(), keys, values);
+    }
+
+    public void addRoleAffinityBonus(PetRoleType[] roles, float bonus) {
+        if (roles == null || roles.length == 0) {
+            return;
+        }
+        for (PetRoleType role : roles) {
+            addRoleAffinityBonus(role, bonus);
+        }
+    }
+
+    private float resolveRoleAffinityBonus(@Nullable PetRoleType roleType, String statKey) {
+        if (roleType == null || statKey == null) {
+            return 0.0f;
+        }
+        float[] vector = roleAffinityBonuses.get(roleType.id());
+        if (vector == null) {
+            return 0.0f;
+        }
+        Integer index = ROLE_AFFINITY_INDEX.get(statKey.toLowerCase(Locale.ROOT));
+        if (index == null) {
+            return 0.0f;
+        }
+        return vector[index];
+    }
+
+    private void syncCharacteristicAffinityLookup() {
+        if (characteristics != null) {
+            characteristics.setRoleAffinityLookup(this::resolveRoleAffinityBonus);
+        }
     }
 
     public boolean hasNameAttribute(String type) {
@@ -1361,6 +1465,71 @@ public class PetComponent {
         setStateDataInternal(key, value, false);
     }
 
+    private void migrateLegacyStateData() {
+        migrateLegacyDevCrownFlag();
+    }
+
+    private void migrateLegacyDevCrownFlag() {
+        if (Boolean.TRUE.equals(getStateData("special_tag_creator", Boolean.class, null))) {
+            return;
+        }
+
+        boolean promote = false;
+        List<String> toRemove = new ArrayList<>();
+        for (Map.Entry<String, Object> entry : new ArrayList<>(stateData.entrySet())) {
+            String key = entry.getKey();
+            if (key == null) {
+                continue;
+            }
+
+            String normalized = key.toLowerCase(Locale.ROOT);
+            if (!normalized.contains("dev_crown")) {
+                continue;
+            }
+
+            if (!toRemove.contains(key)) {
+                toRemove.add(key);
+            }
+
+            if (promote) {
+                continue;
+            }
+
+            Object value = entry.getValue();
+            if (value instanceof Boolean boolValue) {
+                promote = boolValue;
+            } else if (value instanceof Number numberValue) {
+                promote = Math.abs(numberValue.doubleValue()) > 1.0e-6;
+            } else if (value instanceof String stringValue) {
+                promote = parseLegacyBoolean(stringValue);
+            }
+        }
+
+        for (String legacyKey : toRemove) {
+            stateData.remove(legacyKey);
+        }
+
+        if (promote) {
+            setStateDataSilently("special_tag_creator", true);
+        }
+    }
+
+    private static boolean parseLegacyBoolean(String value) {
+        if (value == null) {
+            return false;
+        }
+
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        if (normalized.isEmpty()) {
+            return false;
+        }
+
+        return normalized.equals("true")
+            || normalized.equals("yes")
+            || normalized.equals("on")
+            || normalized.equals("1");
+    }
+
     private void setStateDataInternal(String key, Object value, boolean invalidateCaches) {
         stateData.put(key, value);
         if (!invalidateCaches) {
@@ -1823,6 +1992,7 @@ public class PetComponent {
      */
     public void setCharacteristics(@Nullable PetCharacteristics characteristics) {
         this.characteristics = characteristics;
+        syncCharacteristicAffinityLookup();
     }
     
 
@@ -2648,6 +2818,29 @@ public class PetComponent {
             }
             nbt.put("permanentStatBoosts", statBoostsNbt);
         }
+
+        if (!roleAffinityBonuses.isEmpty()) {
+            NbtCompound affinityNbt = new NbtCompound();
+            for (Map.Entry<Identifier, float[]> entry : roleAffinityBonuses.entrySet()) {
+                float[] vector = entry.getValue();
+                if (vector == null) {
+                    continue;
+                }
+                NbtCompound vectorNbt = new NbtCompound();
+                for (int i = 0; i < ROLE_AFFINITY_KEYS.length; i++) {
+                    float value = vector[i];
+                    if (Math.abs(value) > ROLE_AFFINITY_EPSILON) {
+                        vectorNbt.putFloat(ROLE_AFFINITY_KEYS[i], value);
+                    }
+                }
+                if (!vectorNbt.isEmpty()) {
+                    affinityNbt.put(entry.getKey().toString(), vectorNbt);
+                }
+            }
+            if (!affinityNbt.isEmpty()) {
+                nbt.put("dynamicRoleAffinities", affinityNbt);
+            }
+        }
         
         // Save tribute milestones (only if not empty)
         if (!tributeMilestones.isEmpty()) {
@@ -2881,6 +3074,37 @@ public class PetComponent {
                 }
             });
         }
+
+        roleAffinityBonuses.clear();
+        if (nbt.contains("dynamicRoleAffinities")) {
+            nbt.getCompound("dynamicRoleAffinities").ifPresent(affinityNbt -> {
+                for (String roleKey : affinityNbt.getKeys()) {
+                    Identifier roleId = Identifier.tryParse(roleKey);
+                    if (roleId == null) {
+                        continue;
+                    }
+                    affinityNbt.getCompound(roleKey).ifPresent(vectorNbt -> {
+                        float[] vector = new float[ROLE_AFFINITY_KEYS.length];
+                        boolean[] changed = new boolean[1];
+                        for (String statKey : vectorNbt.getKeys()) {
+                            Integer index = ROLE_AFFINITY_INDEX.get(statKey.toLowerCase(Locale.ROOT));
+                            if (index == null) {
+                                continue;
+                            }
+                            vectorNbt.getFloat(statKey).ifPresent(value -> {
+                                if (Math.abs(value) > ROLE_AFFINITY_EPSILON) {
+                                    vector[index] = value;
+                                    changed[0] = true;
+                                }
+                            });
+                        }
+                        if (changed[0]) {
+                            roleAffinityBonuses.put(roleId, vector);
+                        }
+                    });
+                }
+            });
+        }
         
         // Load tribute milestones
         if (nbt.contains("tributeMilestones")) {
@@ -2938,6 +3162,7 @@ public class PetComponent {
                 }
             });
         }
+        migrateLegacyStateData();
         refreshSpeciesDescriptor();
 
         String ownerId = getStateData("petsplus:owner_uuid", String.class, "");
@@ -3005,6 +3230,8 @@ public class PetComponent {
                 this.characteristics = PetCharacteristics.readFromNbt(characteristicsNbt);
             });
         }
+
+        syncCharacteristicAffinityLookup();
         
         // Load pet history
         if (nbt.contains("petHistory")) {
