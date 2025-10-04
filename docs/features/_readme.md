@@ -45,6 +45,8 @@ Five branches reward different playstyles: Bonding Basics for first steps, Emoti
 
 **Social System** — Pets gossip in circles when grouped, whisper one-on-one when alone. They remember first meetings, notice long separations, and respond when packmates show strong emotions.
 
+**More tames** - Frogs with slimeballs, Rabbits with carrots, and turtles with seagrass.
+
 **Pet Trading** — Sneak and right-click another player while holding a leash to transfer ownership. Your pet remembers.
 
 ## How Systems Connect
