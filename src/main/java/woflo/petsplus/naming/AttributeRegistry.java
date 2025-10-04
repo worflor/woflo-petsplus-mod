@@ -5,6 +5,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import woflo.petsplus.Petsplus;
+import woflo.petsplus.naming.NameAffinityDefinitions.RoleAffinityVector;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.List;
@@ -99,6 +100,8 @@ public class AttributeRegistry {
         if (pet == null || attributes == null || component == null) {
             return;
         }
+
+        component.resetRoleAffinityBonuses();
 
         if (attributes.isEmpty()) {
             Petsplus.LOGGER.debug("No attributes to apply for pet: {}", pet.getUuid());
@@ -309,10 +312,30 @@ public class AttributeRegistry {
             }
         });
 
-        // Direct "rei" name detection (special name, not creator/dev)
-        registerHandler("rei", (pet, attr, comp) -> {
-            comp.setStateData("special_tag_rei", true);
-            Petsplus.LOGGER.info("Pet {} granted special tag: rei", pet.getUuid());
+        // Name affinity profiles drive dynamic role bonuses from pet names
+        registerHandler("name_affinity", (pet, attr, comp) -> {
+            String affinityKey = attr.normalizedValue();
+            if (affinityKey.isEmpty()) {
+                return;
+            }
+
+            List<RoleAffinityVector> vectors = NameAffinityDefinitions.resolveVectors(affinityKey);
+            if (vectors.isEmpty()) {
+                Petsplus.LOGGER.debug("No affinity profile configured for key '{}' on pet {}", affinityKey, pet.getUuid());
+                return;
+            }
+
+            comp.setStateData("special_tag_" + affinityKey, true);
+
+            int applied = 0;
+            for (RoleAffinityVector vector : vectors) {
+                comp.applyRoleAffinityBonuses(vector.roleId(), vector.statKeys(), vector.bonuses());
+                applied++;
+            }
+
+            if (applied > 0) {
+                Petsplus.LOGGER.info("Pet {} applied {} affinity vectors for key '{}'", pet.getUuid(), applied, affinityKey);
+            }
 
             PlayerEntity owner = comp.getOwner();
             if (owner instanceof ServerPlayerEntity serverPlayer && !serverPlayer.getWorld().isClient()) {

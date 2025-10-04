@@ -5,6 +5,7 @@ import woflo.petsplus.config.PetsPlusConfig;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -13,22 +14,24 @@ import java.util.regex.Pattern;
  * Supports exact matches, prefix patterns, and regex patterns.
  */
 public class NameParser {
-    private static final Map<UUID, List<AttributeKey>> CACHE = new ConcurrentHashMap<>();
+    private static final Map<UUID, CacheEntry> CACHE = new ConcurrentHashMap<>();
     private static final int MAX_CACHE_SIZE = 1000;
+    private static final AtomicLong CACHE_VERSION = new AtomicLong();
 
     // Built-in attribute patterns - these are examples and can be expanded via config
-    private static final Map<String, AttributeKey> EXACT_PATTERNS = Map.ofEntries(
-        Map.entry("brave", new AttributeKey("courage", "brave", 1)),
-        Map.entry("swift", new AttributeKey("speed", "swift", 1)),
-        Map.entry("fierce", new AttributeKey("combat", "fierce", 2)),
-        Map.entry("gentle", new AttributeKey("temperament", "gentle", 1)),
-        Map.entry("loyal", new AttributeKey("loyalty", "loyal", 1)),
-        Map.entry("clever", new AttributeKey("intelligence", "clever", 1)),
-        Map.entry("strong", new AttributeKey("strength", "strong", 1)),
-        Map.entry("wise", new AttributeKey("wisdom", "wise", 2)),
-        Map.entry("woflo", new AttributeKey("woflo", "woflo", 5)), // Creator/dev name with high priority
-        Map.entry("rei", new AttributeKey("rei", "rei", 5)) // Special name (not creator) with high priority
-    );
+    private static final Map<String, PatternEntry> EXACT_PATTERNS = new ConcurrentHashMap<>();
+
+    static {
+        registerExactPattern("brave", new AttributeKey("courage", "brave", 1));
+        registerExactPattern("swift", new AttributeKey("speed", "swift", 1));
+        registerExactPattern("fierce", new AttributeKey("combat", "fierce", 2));
+        registerExactPattern("gentle", new AttributeKey("temperament", "gentle", 1));
+        registerExactPattern("loyal", new AttributeKey("loyalty", "loyal", 1));
+        registerExactPattern("clever", new AttributeKey("intelligence", "clever", 1));
+        registerExactPattern("strong", new AttributeKey("strength", "strong", 1));
+        registerExactPattern("wise", new AttributeKey("wisdom", "wise", 2));
+        registerExactPattern("woflo", new AttributeKey("woflo", "woflo", 5), MatchMode.WORD_BOUNDARY); // Creator/dev name with high priority
+    }
 
     private static final Map<String, AttributeKey> PREFIX_PATTERNS = Map.of(
         "fire", new AttributeKey("element", "fire", 2),
@@ -100,22 +103,25 @@ public class NameParser {
             return parse(rawName);
         }
 
-        // Check cache first
-        List<AttributeKey> cached = CACHE.get(entityUuid);
-        if (cached != null) {
-            return new ArrayList<>(cached);
+        String sanitizedName = sanitizeName(rawName);
+        long currentVersion = CACHE_VERSION.get();
+
+        CacheEntry cached = CACHE.get(entityUuid);
+        if (cached != null && cached.matches(sanitizedName, currentVersion)) {
+            return cached.copyAttributes();
         }
 
         // Parse and cache result
         List<AttributeKey> result = parse(rawName);
+        CacheEntry entry = new CacheEntry(sanitizedName, result, currentVersion);
 
         // Manage cache size
         if (CACHE.size() >= MAX_CACHE_SIZE) {
             CACHE.clear(); // Simple cache eviction strategy
         }
 
-        CACHE.put(entityUuid, new ArrayList<>(result));
-        return result;
+        CACHE.put(entityUuid, entry);
+        return new ArrayList<>(result);
     }
 
     /**
@@ -134,6 +140,10 @@ public class NameParser {
         CACHE.clear();
     }
 
+    private static void touchCacheVersion() {
+        CACHE_VERSION.incrementAndGet();
+    }
+
     private static String sanitizeName(String name) {
         if (name == null) return "";
 
@@ -149,16 +159,121 @@ public class NameParser {
         List<AttributeKey> attributes = new ArrayList<>();
         String searchName = caseSensitive ? name : name.toLowerCase();
 
-        for (Map.Entry<String, AttributeKey> entry : EXACT_PATTERNS.entrySet()) {
-            String pattern = caseSensitive ? entry.getKey() : entry.getKey().toLowerCase();
+        for (PatternEntry entry : EXACT_PATTERNS.values()) {
+            AttributeKey attribute = entry.attribute();
+            String pattern = caseSensitive ? entry.pattern() : entry.pattern().toLowerCase();
 
-            if (searchName.contains(pattern)) {
-                attributes.add(entry.getValue());
-                Petsplus.LOGGER.debug("Found exact pattern '{}' in name '{}'", pattern, name);
+            boolean matched = switch (entry.mode()) {
+                case EXACT -> searchName.equals(pattern);
+                case WORD_BOUNDARY -> matchesWordBoundary(searchName, pattern);
+                case SUBSTRING -> searchName.contains(pattern);
+            };
+
+            if (matched) {
+                attributes.add(attribute);
+                Petsplus.LOGGER.debug(
+                    "Found exact pattern '{}' via {} match in name '{}'",
+                    entry.pattern(),
+                    entry.mode().name().toLowerCase(Locale.ROOT),
+                    name
+                );
             }
         }
 
         return attributes;
+    }
+
+    /**
+     * Register an exact pattern dynamically.
+     *
+     * @param pattern   The literal pattern to search for
+     * @param attribute The attribute produced when the pattern is found
+     */
+    public static void registerExactPattern(String pattern, AttributeKey attribute) {
+        registerExactPattern(pattern, attribute, MatchMode.SUBSTRING);
+    }
+
+    /**
+     * Register an exact pattern dynamically with a specific match mode.
+     */
+    public static void registerExactPattern(String pattern, AttributeKey attribute, MatchMode mode) {
+        if (pattern == null || pattern.trim().isEmpty() || attribute == null) {
+            return;
+        }
+
+        String normalized = normalizePattern(pattern);
+        MatchMode resolvedMode = mode == null ? MatchMode.SUBSTRING : mode;
+        EXACT_PATTERNS.put(normalized, new PatternEntry(pattern.trim(), attribute, resolvedMode));
+        touchCacheVersion();
+    }
+
+    /**
+     * Unregister a previously registered exact pattern.
+     *
+     * @param pattern The literal pattern that was registered
+     */
+    public static void unregisterExactPattern(String pattern) {
+        if (pattern == null || pattern.trim().isEmpty()) {
+            return;
+        }
+
+        String normalized = normalizePattern(pattern);
+        if (EXACT_PATTERNS.remove(normalized) != null) {
+            touchCacheVersion();
+        }
+    }
+
+    private static String normalizePattern(String pattern) {
+        return pattern.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean matchesWordBoundary(String searchName, String pattern) {
+        if (pattern.isEmpty()) {
+            return false;
+        }
+
+        int index = searchName.indexOf(pattern);
+        while (index >= 0) {
+            boolean startOk = index == 0 || !Character.isLetterOrDigit(searchName.charAt(index - 1));
+            int endIndex = index + pattern.length();
+            boolean endOk = endIndex == searchName.length() || !Character.isLetterOrDigit(searchName.charAt(endIndex));
+            if (startOk && endOk) {
+                return true;
+            }
+            index = searchName.indexOf(pattern, index + 1);
+        }
+        return false;
+    }
+
+    private record PatternEntry(String pattern, AttributeKey attribute, MatchMode mode) {
+    }
+
+    public enum MatchMode {
+        SUBSTRING,
+        EXACT,
+        WORD_BOUNDARY
+    }
+
+    private record CacheEntry(String sanitizedName, List<AttributeKey> attributes, long version) {
+        CacheEntry(String sanitizedName, List<AttributeKey> attributes, long version) {
+            this.sanitizedName = sanitizedName;
+            this.attributes = List.copyOf(attributes);
+            this.version = version;
+        }
+
+        boolean matches(String candidate, long currentVersion) {
+            if (currentVersion != this.version) {
+                return false;
+            }
+            if (sanitizedName == null) {
+                return candidate == null || candidate.isEmpty();
+            }
+            return sanitizedName.equals(candidate);
+        }
+
+        List<AttributeKey> copyAttributes() {
+            return new ArrayList<>(attributes);
+        }
     }
 
     private static List<AttributeKey> parsePrefixPatterns(String name, boolean caseSensitive) {
