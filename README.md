@@ -5,11 +5,14 @@
 </p>
 
 <h1 align="center">
-  Pets+ <small>dev-0.93-hashtag-mood</small>
+  Pets+ <small>dev-0.93-hashtag-mood-hashtag-documentation</small>
 </h1>
 
 A standalone Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
 
+---
+  **[Feature Documentation](docs/features/README.md)**
+---
 
 
 ## Pet Roles, Levelling, and Natures
@@ -147,6 +150,8 @@ Pets+ includes configuration files (`config/petsplus/...`) where you can customi
 
 ## Performance
 All compute heavy tasks are done asynchronously using background threads.
+
+
 
 ## Credits
 - woflo - (me)
