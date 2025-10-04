@@ -23,10 +23,13 @@ Pets+ is a mod. For Fabric even.
 
 ## FAQ (no ones asked yet)
 1. is it laggy?
+
 - nuh uh
 2. why?
+
 - idk
 3. u sure its not laggy?
+
 -yuh
 
 
