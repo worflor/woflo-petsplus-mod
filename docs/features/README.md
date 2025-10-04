@@ -1,49 +1,70 @@
 # Pets+ Features
 
-Core systems reference for the Pets+ mod.
+Your pets have feelings now. And opinions. And jobs.
+
+**[Design Philosophy](design_philosophy.md)** — Read this to understand how these systems fit together and why they exist as they do.
 
 ## Core Systems
 
 ### [Natures](natures.md)
-Stat distributions and emotional baselines assigned at taming or birth. Wild natures (temperature-based) vs born natures (breeding-based). Each nature rolls individual variance (±15% stats, ±10% multipliers) for pet uniqueness.
+**Your pet's permanent personality.**
+
+Where you tame a pet shapes who they become. Tame in cold climates for Frisky, hot areas for Fierce. Born pets roll special natures like Nocturne under a full moon, Echoed in the Deep Dark, or Solace if birthed alone. Each pet gets unique stat variance, so no two companions are identical. These baseline traits determine how your pet feels about everything.
 
 ### [Emotions](emotions.md)
-30-emotion spectrum tracking pet feelings in real-time. Emotions decay over time, habituate with repetition, and sensitize with intensity. Drives mood formation and behavioral responses.
+**29 different feelings, all shifting in real-time.**
+
+Your pet tracks Pride, Curiosity, Frustration, Hiraeth, Kefi, and 24 more emotions at once. Actions have weight. Beat them up and they remember. Give treats and they remember that too, just differently. Emotions decay over time, weaken when repeated too often, and intensify under pressure. When enough of them pile up, things get complicated.
 
 ### [Moods](moods.md)
-Temporary emotional states formed when emotions reach intensity thresholds. 14 core moods + 3 ultra-rare moods. Moods persist for durations, modify behavior, and can stack or conflict.
+**When emotions peak, moods take over.**
+
+14 core moods like Happy, Playful, Angry, and Saudade shape how your pet acts. Three ultra-rare moods exist too: Pack Spirit when pets bond through combat, Arcane Overflow near heavy enchanting, and Echoed Resonance after surviving Warden encounters. Moods stack, conflict, and change behavior. But what causes these emotional spikes in the first place?
 
 ### [Stimulus](stimulus.md)
-Event-driven emotion triggers. Gameplay events (combat, exploration, owner actions) push emotional stimuli to nearby pets. Context-aware responses based on bond, nature, proximity, and pack presence. Includes emotion context cues (visual feedback) and gossip system (social memory sharing).
+**Every action ripples outward.**
+
+Combat, exploration, eating, achievements—everything pushes emotional responses to nearby pets. Bond strength, nature, and proximity all shape how they react. Visual feedback shows up in chat and actionbar so you know exactly when you messed up. Pets also gossip, sharing rumors and memories with each other. Of course, emotional baggage alone doesn't help in a fight.
 
 ### [Roles](roles.md)
-9 specializations defining abilities and playstyle. Passive auras pulse on intervals, active abilities have cooldowns, unlocks at feature levels (3, 7, 12, 17, 23, 27). Role-switching resets progression but preserves bond/personality. Fully datapack-configurable.
+**Nine specializations, each with unique abilities.**
+
+Guardian tanks damage. Striker finishes kills. Support heals allies. Scout finds loot. Skyrider boosts mobility. Enchantment-Bound improves luck. Cursed One embraces chaos. Eepy Eeper rewards rest. Eclipsed manipulates the void. Feature levels at 3, 7, 12, 17, 23, and 27 unlock new abilities. Switching roles resets progress but keeps personality. Speaking of progress.
 
 ### [Leveling](leveling.md)
-XP progression from 1-30. Owner XP is split evenly among pets within 32 blocks. Level scaling modifiers (160% at low levels, 70% at endgame). Tribute gates at configurable milestones. Death loses all progression.
+**Shared experience, shared growth.**
+
+Your XP splits evenly among pets within 32 blocks. Early levels go fast with 160% scaling, late game slows to 70%. Tribute gates block progress at level 10, 20, and 30 until you offer gold, diamond, or netherite scrap. Death wipes all progress. At least you'll have achievements to show for the journey.
+
+### [Advancements](advancements.md)
+**Track your journey through achievements.**
+
+Five branches reward different playstyles: Bonding Basics for first steps, Emotional Journey for witnessing peak moods, Mystical Connections for special moments, Role Specialization for mastery, and Special milestones for unique events. Some are implemented, others are planned. Either way, your pets remember everything.
 
 ## Additional Features
 
-**Social System** - Pets share gossip in circles (8.5-block range) and whispers (6-block 1-on-1), form packs, recognize greetings/reunions, and respond empathetically to nearby companions.
+**Social System** — Pets gossip in circles when grouped, whisper one-on-one when alone. They remember first meetings, notice long separations, and respond when packmates show strong emotions.
 
-**Advancements** - Extensive achievement tree with 6 branches: Bonding Basics, Emotional Journey (13 emotions), Mystical Connections, Role Specialization, and Special milestones. See main README for full list.
+**Pet Trading** — Sneak and right-click another player while holding a leash to transfer ownership. Your pet remembers.
 
-**Pet Trading** - Transfer ownership via leash exchange between players.
+## How Systems Connect
 
-## System Interactions
+**Nature shapes emotions.** Each nature sets base emotional weights and volatility. Fierce pets anger faster, Frisky pets play harder.
 
-**Nature → Emotions:** Nature defines base emotional weights and volatility multipliers.  
-**Emotions → Moods:** High-intensity emotions trigger mood formation.  
-**Stimulus → Emotions:** Events push emotional deltas modified by context.  
-**Roles → Abilities:** Leveling unlocks role-specific abilities at feature levels.  
-**Leveling → Stats:** XP gain modified by characteristics, participation, and level curve.
+**Emotions form moods.** High intensity triggers mood states. Stack Glee, Pride, and Kefi for Passionate. Stack Angst, Frustration, and Hiraeth for Restless.
+
+**Events trigger emotions.** Killing enemies boosts Pride. Dying near pets spikes Angst. Eating without sharing builds Frustration. Context matters.
+
+**Roles unlock abilities.** Leveling opens new skills at specific thresholds. Each role has different progression paths.
+
+**Learning affects growth.** XP gain scales with innate talent, proximity to action, and level curve. Tribute gates add progression checkpoints.
 
 ## Datapack Support
 
-All systems support datapack customization:
+Customize everything through datapacks:
 - Nature definitions and stat curves
-- Emotion weights and decay rates
+- Emotion weights and decay rates  
 - Mood triggers and durations
-- Stimulus mappings and intensities
-- Role abilities and rewards
+- Event-to-emotion mappings
+- Role abilities and cooldowns
 - XP curves and tribute items

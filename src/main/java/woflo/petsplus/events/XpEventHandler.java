@@ -29,6 +29,7 @@ import woflo.petsplus.stats.PetAttributeManager;
 import woflo.petsplus.state.processing.OwnerEventFrame;
 import woflo.petsplus.state.processing.OwnerEventType;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;

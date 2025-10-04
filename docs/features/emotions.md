@@ -1,6 +1,6 @@
 # Emotions
 
-Your pet's emotional life runs deeper than you'd expect. Behind every tail wag and every protective growl sits a system tracking 30 distinct emotions, each influencing how your pet experiences and reacts to the world.
+Your pet's emotional life runs deeper than you'd expect. Behind every tail wag and every protective growl sits a system tracking 29 distinct emotions, each influencing how your pet experiences and reacts to the world.
 
 ## How Emotions Work
 
@@ -14,7 +14,7 @@ Each emotion has:
 
 These metrics combine to determine which emotions dominate your pet's current state.
 
-## The 30 Emotions
+## The 29 Emotions
 
 Emotions are grouped into thematic clusters that reflect different aspects of your pet's inner experience.
 
