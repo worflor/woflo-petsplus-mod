@@ -5,6 +5,7 @@
 </p>
 
 <h1 align="center">Pets+</h1>
+<h3 align="center">v0.92-docuwumentation</h3>
 
 <p align="center">
   Social pets with moods, memories, and a little gossip. Feels like vanilla finally noticed its pets.
