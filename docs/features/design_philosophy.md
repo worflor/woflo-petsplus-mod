@@ -10,12 +10,6 @@ Moods layer onto existing AI without replacing it. Playful wolves follow pack lo
 
 The hard question: how does this fit into modpacks without feeling like a rock placed in a pool? JSON, and configs. The mod bends around your ideas, tries to adapt to different environments. You feel its presence, enjoy it to your comfort level, build experiences from it, and notice its absence when it's gone. Try finding that balance 💀.
 
-## Emergent, Not Scripted
-
-Natures set baselines. Events shift emotions. Emotions form moods. Same wolf under different ownership develops differently. Kill near them, Pride rises. Die near them, Worry builds. Ignore them, Frustration grows.
-
-No loyalty questlines. Loyalty emerges from combat, survival, protection. Systems create space for stories to happen.
-
 ## Expansion Through Integration
 
 Grinding is boring. Repetition for repetition's sake hits a fun-limit fast. The player shouldn't have to do the same action hundreds of times to unlock features—that's a treadmill, not gameplay.
@@ -23,6 +17,12 @@ Grinding is boring. Repetition for repetition's sake hits a fun-limit fast. The 
 Instead, the mod taps into what players already do. Existing features + existing conditions = new outcomes. Breed pets under a full moon, get Nocturne nature. Fight near your pet, emotions shift. Travel to the Deep Dark, unlock Echoed Resonance. The world *already there* becomes the input for new mechanics.
 
 Minecraft handles difficulty. I work around it. The goal isn't creating new chores—it's letting players express skill and intention through choices they're already making. Interesting new behavior emerges when systems respect the player's existing interactions instead of demanding new ones.
+
+## Emergent, Not Scripted
+
+Natures set baselines. Events shift emotions. Emotions form moods. Same wolf under different ownership develops differently. Kill near them, Pride rises. Die near them, Worry builds. Ignore them, Frustration grows.
+
+No loyalty questlines. Loyalty emerges from combat, survival, protection. Systems create space for stories to happen.
 
 ## Flexible Foundation
 
