@@ -44,18 +44,6 @@ Make your unwanted regrets someone else's problem! Sneak right clicking another 
 
 
 
-## Advancements
-The mod includes advancements across 5 categories: Bonding Basics, Emotional Journey, Mystical Connections, Role Specialization, and Special milestones.
-
-**[View full advancement list →](docs/features/advancements.md)**
-
-
-
-## Configuration and Expandability
-Pets+ includes configuration files (`config/petsplus/...`) where you can customize various components. Explore it yourself.
-- Roles, Abilities, Tributes, and Moods have configurations availible.
-- The backend API is extendable via Datapacks and Add-On Mods. Base roles, abilities, progression rewards, and emotional events can be tinkered, modified, or overwritten to your liking.
-
 ## Performance
 All compute heavy tasks are done asynchronously using background threads.
 
