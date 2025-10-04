@@ -50,7 +50,7 @@ public class GuardianAegisProtocolEffect implements Effect {
             return false;
         }
 
-        UIFeedbackManager.sendGuardianAegisMessage(owner, pet, stacks);
+        // Removed aegis spam - will add particle/sound in ability JSON
         context.withData("guardian_aegis_stacks", stacks);
         return true;
     }

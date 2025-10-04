@@ -66,8 +66,7 @@ public final class StrikerHuntManager implements PlayerTickListener {
 
         schedule(owner, now + 5);
 
-        UIFeedbackManager.sendStrikerHuntFocusMessage(owner, state.markedTargetName,
-            state.thresholdPct, Math.max(0, state.activeMomentumStacks));
+        // Removed hunt focus spam - unnecessary UI clutter
         FeedbackManager.emitRoleAbility(PetRoleType.STRIKER.id(), "mark_focus", owner, world);
     }
 
@@ -106,7 +105,7 @@ public final class StrikerHuntManager implements PlayerTickListener {
         }
         state.momentumExpiryTick = ticksRemaining > 0 ? now + ticksRemaining : now;
 
-        UIFeedbackManager.sendStrikerExecutionMessage(owner, summary.thresholdPct(), stacks);
+        // Removed action bar spam - execution feedback via particles/sounds in ability JSON
         FeedbackManager.emitRoleAbility(PetRoleType.STRIKER.id(), "execution", owner, world);
 
         if (finisherConsumed && state.markedTargetName != null) {
@@ -172,9 +171,7 @@ public final class StrikerHuntManager implements PlayerTickListener {
         if (state.markActive) {
             boolean stillMarked = ensureMarkValid(world, state);
             if (!stillMarked) {
-                if (state.markedTargetName != null) {
-                    UIFeedbackManager.sendStrikerMarkLostMessage(player, state.markedTargetName);
-                }
+                // Removed mark lost spam - will add particle/sound in ability JSON
                 state.clearMark();
             } else if (!state.markWarningSent && state.markExpireTick - now <= MOMENTUM_WARNING_WINDOW_TICKS) {
                 UIFeedbackManager.sendStrikerMarkExpiryWarning(player, state.markedTargetName);

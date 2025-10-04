@@ -27,6 +27,36 @@
           "amplifier": 1
         }
       ]
+    },
+    {
+      "type": "particle_effect",
+      "particle": "large_smoke",
+      "target": "pet",
+      "count": 20,
+      "offset_x": 1.5,
+      "offset_y": 1.0,
+      "offset_z": 1.5,
+      "speed": 0.1,
+      "height_offset": 0.5
+    },
+    {
+      "type": "particle_effect",
+      "particle": "soul",
+      "target": "pet",
+      "count": 12,
+      "offset_x": 1.2,
+      "offset_y": 1.2,
+      "offset_z": 1.2,
+      "speed": 0.05,
+      "height_offset": 1.0
+    },
+    {
+      "type": "sound_effect",
+      "sound": "entity_wither_hurt",
+      "target": "pet",
+      "volume": 0.5,
+      "pitch": 0.8,
+      "category": "hostile"
     }
   ],
   "required_level": 17

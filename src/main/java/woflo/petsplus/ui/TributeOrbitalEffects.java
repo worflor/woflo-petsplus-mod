@@ -28,8 +28,11 @@ public class TributeOrbitalEffects {
     private static final long ORBITAL_UPDATE_INTERVAL = 80; // 4 seconds, aligned with ambient particles
 
     // Performance optimization: Cache orbital positions for smooth interpolation
-    private static final Map<String, List<Vec3d>> ORBITAL_PATH_CACHE = new HashMap<>();
     private static final int CACHE_SIZE = 100; // Number of pre-computed positions per ring
+    private static final int MAX_CACHE_ENTRIES = 50; // Maximum number of distinct orbital paths to cache
+    // Using LinkedHashMap with insertion-order for proper FIFO eviction (oldest entries removed first)
+    private static final Map<String, List<Vec3d>> ORBITAL_PATH_CACHE = new java.util.LinkedHashMap<>(
+        MAX_CACHE_ENTRIES + 1, 0.75f, false);
 
     static {
         initializeOrbitalConfigurations();
@@ -313,6 +316,13 @@ public class TributeOrbitalEffects {
      */
     private static List<Vec3d> getOrCreateOrbitalPath(OrbitalRing ring, String ringKey) {
         return ORBITAL_PATH_CACHE.computeIfAbsent(ringKey, key -> {
+            // Prevent unbounded cache growth by removing oldest entry (FIFO eviction via LinkedHashMap)
+            if (ORBITAL_PATH_CACHE.size() >= MAX_CACHE_ENTRIES) {
+                // Remove first entry - LinkedHashMap guarantees insertion-order iteration
+                String firstKey = ORBITAL_PATH_CACHE.keySet().iterator().next();
+                ORBITAL_PATH_CACHE.remove(firstKey);
+            }
+            
             List<Vec3d> path = new ArrayList<>(CACHE_SIZE);
             for (int i = 0; i < CACHE_SIZE; i++) {
                 double time = (i / (double) CACHE_SIZE) * ring.period;

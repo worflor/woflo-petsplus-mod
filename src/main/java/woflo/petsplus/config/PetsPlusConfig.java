@@ -598,6 +598,12 @@ public class PetsPlusConfig {
     private static JsonObject createActionBarDefaults() {
         JsonObject actionBar = new JsonObject();
         actionBar.addProperty("recent_pet_limit", 1);
+        // Feedback settings - spam removed, so showing meaningful context is fine
+        actionBar.addProperty("show_combat_messages", true);      // Critical combat moments (default ON - no spam)
+        actionBar.addProperty("show_ability_procs", true);        // Meaningful ability procs (default ON - no spam)
+        actionBar.addProperty("show_emotions", true);             // Important emotions only (default ON - rare events)
+        actionBar.addProperty("show_milestones", true);           // Level ups, role unlocks (default ON)
+        // Critical alerts (fortress breaking, pet death) always show - no toggle
         return actionBar;
     }
 
@@ -799,6 +805,22 @@ public class PetsPlusConfig {
 
     public int getActionBarRecentPetLimit() {
         return readInt(getSection("action_bar"), "recent_pet_limit", 1);
+    }
+
+    public boolean shouldShowCombatMessages() {
+        return readBoolean(getSection("action_bar"), "show_combat_messages", true);
+    }
+
+    public boolean shouldShowAbilityProcs() {
+        return readBoolean(getSection("action_bar"), "show_ability_procs", true);
+    }
+
+    public boolean shouldShowEmotions() {
+        return readBoolean(getSection("action_bar"), "show_emotions", true);
+    }
+
+    public boolean shouldShowMilestones() {
+        return readBoolean(getSection("action_bar"), "show_milestones", true);
     }
 
     // Named Attributes Configuration

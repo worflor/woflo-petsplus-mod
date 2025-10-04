@@ -106,13 +106,7 @@ public class CursedOneDeathBurstEffect implements Effect {
             }
         }
 
-        if (context.getOwner() instanceof ServerPlayerEntity owner) {
-            if (fromReanimation) {
-                UIFeedbackManager.sendCursedReanimationBurstMessage(owner, pet);
-            } else {
-                UIFeedbackManager.sendCursedDeathBurstMessage(owner, pet);
-            }
-        }
+        // Removed death burst spam - will add particle/sound in ability JSON
 
         return true;
     }

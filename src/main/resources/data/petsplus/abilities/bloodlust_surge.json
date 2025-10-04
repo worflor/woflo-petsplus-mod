@@ -18,6 +18,25 @@
       "swing_owner": true,
       "buff_pet": true,
       "play_feedback": true
+    },
+    {
+      "type": "particle_effect",
+      "particle": "damage_indicator",
+      "target": "pet",
+      "count": 5,
+      "offset_x": 0.3,
+      "offset_y": 0.4,
+      "offset_z": 0.3,
+      "speed": 0.05,
+      "height_offset": 0.8
+    },
+    {
+      "type": "sound_effect",
+      "sound": "entity_wolf_growl",
+      "target": "pet",
+      "volume": 0.3,
+      "pitch": 0.9,
+      "category": "neutral"
     }
   ]
 }

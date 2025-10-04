@@ -45,10 +45,17 @@ public class ServerEventHandler {
         ActionBarCueManager.shutdown();
         woflo.petsplus.ui.CooldownParticleManager.shutdown();
         woflo.petsplus.util.EntityTagUtil.shutdown();
+        
+        // Cancel pending idle emotion tasks and shutdown executor
+        woflo.petsplus.mood.MoodService.getInstance().getStimulusBus().cancelPendingIdleTasks();
+        woflo.petsplus.mood.EmotionStimulusBus.shutdownIdleExecutor();
 
         // Ensure all dispatcher-managed listeners release their per-player state.
         server.getPlayerManager().getPlayerList().forEach(PlayerTickDispatcher::clearPlayer);
         PlayerTickDispatcher.clearAll();
+        
+        // Properly shutdown all state managers to close async coordinators
+        StateManager.unloadAll();
 
         Petsplus.LOGGER.info("PetsPlus: All pet data persisted successfully");
     }
@@ -65,5 +72,8 @@ public class ServerEventHandler {
         if (stateManager != null) {
             stateManager.onWorldSave();
         }
+        
+        // Properly shutdown the state manager to close async coordinators
+        StateManager.unloadWorld(world);
     }
 }

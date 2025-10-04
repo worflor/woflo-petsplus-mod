@@ -231,27 +231,12 @@ public class SupportPotionPulseEffect implements Effect {
             SupportPotionUtils.consumeCharges(component, state, consumption);
         }
 
-        if (profile.rhythmActive()) {
-            UIFeedbackManager.sendSupportPotionRhythm(serverOwner, pet, profile.streak());
-        } else if (profile.clutchActive()) {
-            UIFeedbackManager.sendSupportPotionClutch(serverOwner, pet);
-        } else if (profile.comfortActive()) {
-            UIFeedbackManager.sendSupportPotionComfort(serverOwner, pet);
-        }
+        // Removed rhythm/clutch/comfort spam - too frequent, not meaningful
 
         if (swingOwner) {
             serverOwner.swingHand(Hand.MAIN_HAND, true);
         }
-        if (sendActionBar) {
-            int allyCount = 0;
-            for (LivingEntity recipient : recipients) {
-                if (recipient != pet) {
-                    allyCount++;
-                }
-            }
-            int durationSeconds = Math.max(1, duration / 20);
-            UIFeedbackManager.sendSupportPotionPulse(serverOwner, pet, allyCount, durationSeconds);
-        }
+        // Removed pulse spam - too frequent
         if (playConfiguredSound) {
             playSound(world, pet, behavior.sound());
         }
@@ -259,9 +244,7 @@ public class SupportPotionPulseEffect implements Effect {
             FeedbackManager.emitRoleAbility(PetRoleType.SUPPORT.id(), "Potion_Pulse", pet, world);
             emitConfiguredParticles(world, pet, recipients, radius, behavior.particleEvent());
         }
-        if (healedAlly) {
-            UIFeedbackManager.sendSupportPotionAssist(serverOwner, pet);
-        }
+        // Removed assist spam - too frequent
 
         if (SupportPotionUtils.hasStoredPotion(component)) {
             SupportPotionUtils.recordPulseTelemetry(component, state, world, profile);

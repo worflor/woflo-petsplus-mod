@@ -10,6 +10,25 @@
       "type": "guardian_aegis_protocol",
       "max_stacks": 3,
       "duration_ticks": 200
+    },
+    {
+      "type": "particle_effect",
+      "particle": "enchant",
+      "target": "pet",
+      "count": 4,
+      "offset_x": 0.4,
+      "offset_y": 0.5,
+      "offset_z": 0.4,
+      "speed": 0.02,
+      "height_offset": 1.0
+    },
+    {
+      "type": "sound_effect",
+      "sound": "block_enchantment_table_use",
+      "target": "pet",
+      "volume": 0.2,
+      "pitch": 1.4,
+      "category": "neutral"
     }
   ]
 }

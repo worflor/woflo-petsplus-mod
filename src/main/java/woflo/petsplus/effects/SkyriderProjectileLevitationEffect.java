@@ -147,9 +147,7 @@ public class SkyriderProjectileLevitationEffect implements Effect {
             petLiving.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOW_FALLING, petSlowfallTicks, 0, false, true, true));
         }
 
-        if (sendMessage) {
-            UIFeedbackManager.sendSkyriderLevitationMessage(serverOwner);
-        }
+        // Removed levitation spam - will add particle/sound in ability JSON
 
         ownerState.setTempState(SkyriderWinds.PROJ_LEVITATION_LAST_TRIGGER_KEY, currentTick);
         return true;

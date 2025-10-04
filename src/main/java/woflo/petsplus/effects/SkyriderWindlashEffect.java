@@ -122,9 +122,7 @@ public class SkyriderWindlashEffect implements Effect {
             serverOwner.swingHand(Hand.MAIN_HAND, true);
         }
 
-        if (sendMessage) {
-            UIFeedbackManager.sendSkyriderWindlashMessage(serverOwner);
-        }
+        // Removed windlash spam - will add particle/sound in ability JSON
 
         ownerState.setTempState(SkyriderWinds.WINDLASH_LAST_TRIGGER_KEY, currentTick);
         return true;

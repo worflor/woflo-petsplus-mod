@@ -96,9 +96,7 @@ public class EclipsedPhasePartnerEffect implements Effect {
         OwnerCombatState combatState = OwnerCombatState.getOrCreate(owner);
         combatState.rememberAggroTarget(target, world.getTime(), tagDurationTicks);
 
-        if (owner instanceof ServerPlayerEntity serverOwner) {
-            UIFeedbackManager.sendEclipsedPhasePartnerMessage(serverOwner);
-        }
+        // Removed phase partner spam - will add particle/sound in ability JSON
 
         emitFeedback(world, pet, target);
         return true;

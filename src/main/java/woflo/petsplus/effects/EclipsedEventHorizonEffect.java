@@ -126,9 +126,7 @@ public class EclipsedEventHorizonEffect implements Effect {
             new ProjectileDrForOwnerEffect(projectileDr, projectileDrDuration).execute(context);
         }
 
-        if (owner instanceof ServerPlayerEntity serverOwner) {
-            UIFeedbackManager.sendEclipsedEventHorizonMessage(serverOwner);
-        }
+        // Removed event horizon spam - already has particle/sound in ability JSON
 
         spawnFeedback(world, center, hostiles);
         return affectedHostiles || !ownerEffects.isEmpty() || healFlat > 0.0D || healPercent > 0.0D || projectileDr > 0.0D;

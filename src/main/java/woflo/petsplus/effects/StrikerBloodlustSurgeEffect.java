@@ -106,7 +106,7 @@ public class StrikerBloodlustSurgeEffect implements Effect {
             FeedbackManager.emitRoleAbility(PetRoleType.STRIKER.id(), "bloodlust", owner, serverWorld);
         }
 
-        UIFeedbackManager.sendStrikerBloodlustMessage(serverOwner, stacks, duration / 20);
+        // Removed bloodlust spam - will add particle/sound in ability JSON
         StrikerHuntManager.getInstance().onBloodlustTriggered(serverOwner, stacks, duration);
         return true;
     }

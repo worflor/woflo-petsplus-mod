@@ -153,7 +153,6 @@ public class EepyNapAuraEffect implements Effect {
             return;
         }
         component.setStateData(STATE_LAST_MESSAGE, now);
-        String name = pet.hasCustomName() ? pet.getCustomName().getString() : pet.getType().getName().getString();
-        UIFeedbackManager.sendEepyNapTimeMessage(serverOwner, name);
+        // Removed nap time spam - too frequent, not meaningful
     }
 }

@@ -138,9 +138,7 @@ public class EclipsedEdgeStepEffect implements Effect {
         if (healAmount > 0.0D) {
             owner.heal((float) healAmount);
         }
-        if (owner instanceof ServerPlayerEntity serverOwner) {
-            UIFeedbackManager.sendEclipsedEdgeStepMessage(serverOwner);
-        }
+        // Removed edge step spam - already has particle/sound feedback in emitFeedback()
     }
 
     private void emitFeedback(ServerWorld world, PlayerEntity owner, MobEntity pet) {

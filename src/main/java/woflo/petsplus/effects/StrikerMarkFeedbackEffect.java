@@ -68,13 +68,7 @@ public class StrikerMarkFeedbackEffect implements Effect {
         boolean hasPreview = context.getTriggerContext() != null
             && context.getTriggerContext().getStrikerPreviewThresholdPct() > 0.0;
 
-        if (sendMessage && !hasPreview) {
-            MobEntity pet = context.getPet();
-            String nameArg = pet != null
-                ? pet.getDisplayName().getString()
-                : target.getName().getString();
-            UIFeedbackManager.sendStrikerFinisherMarkMessage(serverOwner, nameArg);
-        }
+        // Removed finisher mark spam - has visual particle feedback already
 
         return true;
     }

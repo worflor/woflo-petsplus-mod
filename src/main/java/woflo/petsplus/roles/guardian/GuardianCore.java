@@ -190,7 +190,7 @@ public final class GuardianCore {
         ownerState.onHitTaken();
 
         FeedbackManager.emitGuardianDamageAbsorbed(guardian, world);
-        UIFeedbackManager.sendGuardianBulwarkMessage(owner, getGuardianName(guardian));
+        // Removed bulwark spam - will add particle/sound in ability JSON
 
         TriggerContext context = new TriggerContext(world, guardian, owner, "after_pet_redirect")
             .withData("original_damage", (double) originalDamage)

@@ -18,6 +18,25 @@
       "pet_slowfall_ticks": 80,
       "duplicate_gate_ticks": 5,
       "send_message": true
+    },
+    {
+      "type": "particle_effect",
+      "particle": "cloud",
+      "target": "victim",
+      "count": 6,
+      "offset_x": 0.5,
+      "offset_y": 0.5,
+      "offset_z": 0.5,
+      "speed": 0.03,
+      "height_offset": 1.0
+    },
+    {
+      "type": "sound_effect",
+      "sound": "entity_bat_takeoff",
+      "target": "victim",
+      "volume": 0.25,
+      "pitch": 1.5,
+      "category": "neutral"
     }
   ]
 }

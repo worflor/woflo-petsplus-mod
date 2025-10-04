@@ -26,6 +26,25 @@
       "id": "minecraft:speed",
       "duration": 80,
       "amplifier": 0
+    },
+    {
+      "type": "particle_effect",
+      "particle": "crit",
+      "target": "victim",
+      "count": 8,
+      "offset_x": 0.4,
+      "offset_y": 0.6,
+      "offset_z": 0.4,
+      "speed": 0.15,
+      "height_offset": 1.0
+    },
+    {
+      "type": "sound_effect",
+      "sound": "entity_player_attack_crit",
+      "target": "owner",
+      "volume": 0.4,
+      "pitch": 1.2,
+      "category": "players"
     }
   ]
 }

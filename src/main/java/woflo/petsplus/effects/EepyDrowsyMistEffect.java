@@ -134,7 +134,7 @@ public class EepyDrowsyMistEffect implements Effect {
         FeedbackManager.emitRoleAbility(PetRoleType.EEPY_EEPER.id(), "drowsy_mist", pet, world);
         world.playSound(null, anchor.x, anchor.y, anchor.z,
             SoundEvents.BLOCK_AMETHYST_BLOCK_RESONATE, SoundCategory.PLAYERS, 0.6f, 0.8f);
-        UIFeedbackManager.sendEepyDrowsyMistMessage(owner, pet.getDisplayName().getString());
+        // Removed drowsy mist spam - already has sound feedback above
         return true;
     }
 

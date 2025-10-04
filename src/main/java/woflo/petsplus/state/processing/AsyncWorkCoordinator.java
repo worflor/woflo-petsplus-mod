@@ -439,12 +439,36 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
 
     @Override
     public void close() {
-        List<Runnable> aborted = executor.shutdownNow();
-        if (!aborted.isEmpty()) {
-            RejectedExecutionException cause = new RejectedExecutionException("Async coordinator closed before task start");
-            for (Runnable runnable : aborted) {
-                if (runnable instanceof TrackedTask task) {
-                    task.cancel(cause);
+        // Initiate graceful shutdown
+        executor.shutdown();
+        try {
+            // Wait for tasks to complete with timeout
+            if (!executor.awaitTermination(3, TimeUnit.SECONDS)) {
+                // Force shutdown if tasks don't complete in time
+                List<Runnable> aborted = executor.shutdownNow();
+                if (!aborted.isEmpty()) {
+                    RejectedExecutionException cause = new RejectedExecutionException("Async coordinator closed before task start");
+                    for (Runnable runnable : aborted) {
+                        if (runnable instanceof TrackedTask task) {
+                            task.cancel(cause);
+                        }
+                    }
+                }
+                // Wait a bit more for forceful shutdown
+                if (!executor.awaitTermination(1, TimeUnit.SECONDS)) {
+                    Petsplus.LOGGER.warn("Async coordinator executor did not terminate gracefully");
+                }
+            }
+        } catch (InterruptedException e) {
+            // Restore interrupt status and force shutdown
+            Thread.currentThread().interrupt();
+            List<Runnable> aborted = executor.shutdownNow();
+            if (!aborted.isEmpty()) {
+                RejectedExecutionException cause = new RejectedExecutionException("Async coordinator interrupted during shutdown");
+                for (Runnable runnable : aborted) {
+                    if (runnable instanceof TrackedTask task) {
+                        task.cancel(cause);
+                    }
                 }
             }
         }

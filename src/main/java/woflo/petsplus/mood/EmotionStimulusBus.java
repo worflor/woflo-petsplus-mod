@@ -401,4 +401,41 @@ public final class EmotionStimulusBus {
         }
     }
 
+    /**
+     * Cancel all pending idle tasks for this bus.
+     * Called during cleanup to prevent resource leaks.
+     */
+    public void cancelPendingIdleTasks() {
+        for (ScheduledFuture<?> future : idleTasks.values()) {
+            if (future != null && !future.isDone()) {
+                future.cancel(false);
+            }
+        }
+        idleTasks.clear();
+    }
+
+    /**
+     * Shutdown the idle executor and cancel all pending tasks.
+     * Should be called during server shutdown to prevent thread leaks.
+     */
+    public static void shutdownIdleExecutor() {
+        // Shutdown executor gracefully
+        IDLE_EXECUTOR.shutdown();
+        try {
+            // Wait for tasks to complete with timeout
+            if (!IDLE_EXECUTOR.awaitTermination(3, TimeUnit.SECONDS)) {
+                // Force shutdown if tasks don't complete in time
+                IDLE_EXECUTOR.shutdownNow();
+                // Wait a bit more for forceful shutdown
+                if (!IDLE_EXECUTOR.awaitTermination(1, TimeUnit.SECONDS)) {
+                    Petsplus.LOGGER.warn("Emotion idle executor did not terminate gracefully");
+                }
+            }
+        } catch (InterruptedException e) {
+            // Restore interrupt status and force shutdown
+            Thread.currentThread().interrupt();
+            IDLE_EXECUTOR.shutdownNow();
+        }
+    }
+
 }

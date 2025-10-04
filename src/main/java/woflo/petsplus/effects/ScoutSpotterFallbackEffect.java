@@ -155,9 +155,7 @@ public class ScoutSpotterFallbackEffect implements Effect {
         combatState.setTempState(STATE_LAST_TRIGGER, now);
         combatState.setTempState(STATE_GATE_TICK, now);
 
-        if (sendMessage) {
-            UIFeedbackManager.sendScoutSpotterMessage(serverOwner, pet.getDisplayName().getString());
-        }
+        // Removed scout spotter spam - visual feedback via glowing effect
 
         return true;
     }
