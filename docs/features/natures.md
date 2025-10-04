@@ -86,8 +86,6 @@ The specifics of stat bonuses and emotional weights aren't critical to understan
 
 You can view your pet's nature by inspecting them. Wild natures display as *"Hardened by [climate]"* while born natures show *"Touched by fate at birth"* (or similar flavor text).
 
-This visual distinction reinforces the thematic difference: tame = realistic adaptation, born = cosmic circumstance.
-
 ## Final Notes
 
 - Natures are **permanent**. You can't reroll or change them.
