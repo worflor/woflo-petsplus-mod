@@ -139,4 +139,4 @@ Here's the full loop:
 
 This is why your pets feel alive. They're not following scripts or timers. They're reacting to their world, remembering experiences, sharing stories with friends, and building actual personalities over time.
 
-The stimulus system is the input. The Mood Engine is the processor. The result is a companion that feels real.
+The stimulus system is the input. The Mood Engine is the processor. The result is a companion that feels real enough to forget its variables and math.
