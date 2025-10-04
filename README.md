@@ -11,7 +11,7 @@
 A standalone Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
 
 ---
-  **[Feature Documentation](docs/features/README.md)**
+  **[Feature Documentation](docs/features/_readme.md)**
 ---
 
 

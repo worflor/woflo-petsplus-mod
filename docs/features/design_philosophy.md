@@ -2,19 +2,27 @@
 
 ## Integration Without Separation
 
-Pets+ follows Minecraft's core design language and natural behavior patterns. The goal is presence without disruption, depth without clutter, information without menus in your face.
+Pets+ follows a few core design language and natural behavior patterns. The goal is presence without disruption, depth without clutter, information without menus in your face.
 
-Originally planned as server-side only. That proved overambitious. Server + client opens more possibilities, but the philosophy stays the same: integrate with what's there. Vanilla items, existing particles, natural feedback loops. No forced menus, no items for the sake of items.
+Originally planned as server-side only. That proved overambitious. Server + client opens more possibilities, but the philosophy stays the same: integrate with what's there. Vanilla items, existing particles, natural feedback loops. No forced menus, no items for the sake of items. On top, ideally seamless integration with other mods.
 
 Moods layer onto existing AI without replacing it. Playful wolves follow pack logic and bounce more. Angry cats sit when told and glare while doing it. Particle effects, sounds, action bar text when it matters.
 
-The hard question: how does this fit into modpacks without feeling like a rock in a pool? JSON configs. The mod bends around others, adapts to different environments. You feel its presence, don't get overwhelmed by it, build experiences from it, and miss it when it's gone. That line takes work to find.
+The hard question: how does this fit into modpacks without feeling like a rock placed in a pool? JSON, and configs. The mod bends around your ideas, tries to adapt to different environments. You feel its presence, enjoy it to your comfort level, build experiences from it, and notice its absence when it's gone. Try finding that balance 💀.
 
 ## Emergent, Not Scripted
 
 Natures set baselines. Events shift emotions. Emotions form moods. Same wolf under different ownership develops differently. Kill near them, Pride rises. Die near them, Worry builds. Ignore them, Frustration grows.
 
 No loyalty questlines. Loyalty emerges from combat, survival, protection. Systems create space for stories to happen.
+
+## Expansion Through Integration
+
+Grinding is boring. Repetition for repetition's sake hits a fun-limit fast. The player shouldn't have to do the same action hundreds of times to unlock features—that's a treadmill, not gameplay.
+
+Instead, the mod taps into what players already do. Existing features + existing conditions = new outcomes. Breed pets under a full moon, get Nocturne nature. Fight near your pet, emotions shift. Travel to the Deep Dark, unlock Echoed Resonance. The world *already there* becomes the input for new mechanics.
+
+Minecraft handles difficulty. I work around it. The goal isn't creating new chores—it's letting players express skill and intention through choices they're already making. Interesting new behavior emerges when systems respect the player's existing interactions instead of demanding new ones.
 
 ## Flexible Foundation
 

@@ -1,4 +1,4 @@
-# Pets+ Features
+# Pets+ Documentation (i guess)
 
 Your pets have feelings now. And opinions. And jobs.
 
@@ -59,12 +59,12 @@ Five branches reward different playstyles: Bonding Basics for first steps, Emoti
 
 **Learning affects growth.** XP gain scales with innate talent, proximity to action, and level curve. Tribute gates add progression checkpoints.
 
-## Datapack Support
+## Datapack and Configs
 
-Customize everything through datapacks:
-- Nature definitions and stat curves
-- Emotion weights and decay rates  
-- Mood triggers and durations
-- Event-to-emotion mappings
-- Role abilities and cooldowns
-- XP curves and tribute items
+Customize everything through datapacks and configs:
+
+- **Role definitions** — abilities, XP curves, tribute items, stat scaling (JSON datapacks)
+- **Ability definitions** — cooldowns, effects, triggers, descriptions (JSON datapacks)
+- **Mood system** — emotion weights, decay rates, threshold adjustments (asset configs)
+- **Emotion-to-mood mappings** — how emotions blend into moods (asset configs)
+- **Context cues** — visual feedback for emotional events (asset configs)
