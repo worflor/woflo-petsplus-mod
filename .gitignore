@@ -34,6 +34,7 @@ bin/
 # fabric
 
 run/
+logs/
 
 # java
 
@@ -42,3 +43,4 @@ replay_*.log
 *.hprof
 *.jfr
 WARP.md
+/logs

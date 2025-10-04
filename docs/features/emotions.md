@@ -2,9 +2,13 @@
 
 Your pet's emotional life runs deeper than you'd expect. Behind every tail wag and every protective growl sits a system tracking 29 distinct emotions, each influencing how your pet experiences and reacts to the world.
 
+*See also: [Stimulus System](stimulus.md) for how events trigger emotions, and [Moods](moods.md) for how emotions blend into visible states.*
+
 ## How Emotions Work
 
 Emotions aren't static labels. They're dynamic weights that rise and fall based on what your pet experiences. Feed your pet, and Cheerful spikes. Leave them alone for too long, and Hiraeth (longing) creeps in. Get ambushed while traveling together, and Vigilant surges alongside Protectiveness.
+
+*Learn more about how events trigger emotions in the [Stimulus System](stimulus.md).*
 
 Each emotion has:
 - **Intensity** — how strongly the emotion is felt right now

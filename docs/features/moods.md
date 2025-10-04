@@ -2,11 +2,15 @@
 
 Moods are the visible surface of your pet's emotional life. While 30 emotions churn beneath the hood, moods are what you actually see and interact with.
 
+*See also: [Emotions](emotions.md) for the full list of feelings, and [Stimulus System](stimulus.md) for how events trigger emotional responses.*
+
 ## What Are Moods?
 
-A mood is the dominant emotional state your pet is currently experiencing. It's calculated by blending active emotions together, weighted by their intensity, freshness, and context.
+A mood is the dominant emotional state your pet is currently experiencing. It's calculated by blending active [emotions](emotions.md) together, weighted by their intensity, freshness, and context.
 
 Think of moods as labels for complex emotional cocktails. Your pet isn't just "happy" — they're experiencing a specific blend of Cheerful, Hopeful, and Playfulness that the system recognizes as the **Happy** mood.
+
+*Learn more about how emotions are processed in the [Mood Engine](stimulus.md#the-mood-engine-where-emotions-become-moods) section of the Stimulus System.*
 
 ## The Core Moods
 

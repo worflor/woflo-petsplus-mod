@@ -1,214 +1,142 @@
 # Stimulus System
 
-The stimulus system is how the world affects your pet's emotions. It's the bridge between gameplay events and emotional responses.
+Your pets feel things. Not randomly, not on a timer, but in response to the world around them.
 
-## Event-Driven Design
+This system is what connects game events to emotional reactions. When you pet your wolf, when danger appears, when the sun sets—your pet notices and responds. It's all event-driven and context-aware, creating the foundation for everything they do.
 
-Pets+ doesn't poll. It doesn't tick-scan. It hooks into existing Minecraft events and reacts when relevant things happen.
+*See also: [Emotions](emotions.md) for the full list of feelings your pet can experience, and [Moods](moods.md) for how emotions blend into visible states.*
 
-This means:
-- **Zero background overhead** when nothing is happening
-- **Instant responses** when events occur
-- **Clean, maintainable code** that extends naturally
+## The Big Picture: How It Works
 
-The system listens for gameplay events, evaluates context, and pushes appropriate emotional stimuli to affected pets.
+Here's the complete flow:
 
-## What Gets Tracked?
+1. **Event happens** → You pet your wolf, a hostile spawns nearby, you find a treasure
+2. **Context evaluated** → The system checks your bond, your pet's mood, their nature, who's around
+3. **[Emotions](emotions.md) triggered** → Multiple feelings get pushed based on the situation
+4. **Mood Engine processes** → Emotions get blended into the [moods](moods.md) you actually see
+5. **Behavior emerges** → Your pet's mood drives their actions, abilities, and responses
+6. **You notice and react** → Visual feedback shows you what's happening, you adjust your behavior
+7. **Cycle continues** → Your new actions create new stimuli
 
-The stimulus bus monitors a wide range of events:
+This creates a living emotional simulation. Your pets aren't scripted—they're responding to *you* and their world.
 
-### Owner Interactions
-- Petting (right-click while sneaking)
-- Feeding
-- Healing with items
-- Equipping armor/items
-- Breeding participation
-- Tribute offerings
+## Why It Feels Different
 
-### Combat Events
-- Pet deals damage
-- Pet takes damage
-- Owner deals damage (nearby pet watches)
-- Owner takes damage (nearby pet watches)
-- Hostile killed by pet
-- Hostile killed by owner (nearby pet assists)
-- Pet kills another pet (bad)
+Traditional Minecraft pets are simple: tame them, they follow you, they teleport if too far away. That's it.
 
-### Environmental Changes
-- Block placement/breaking nearby
-- Weather shifts (rain start/stop, thunder)
-- Dimension changes
-- Biome transitions
-- Time of day changes
-- Music from jukeboxes
-- Bed usage nearby
+Pets+ pets actually respond to their world:
 
-### Social Dynamics
-- Other pets nearby
-- Players nearby
-- Owner leaving/returning
-- Pack formations
-- Trading ownership
-- Pet death (other pets witness)
+- They're idle when nothing's happening (no background processing)
+- They react instantly to events
+- The same event feels different depending on context
+- They remember what happens and learn from it
+- They share emotions and stories with packmates
 
-### Exploration
-- Entering new chunks
-- Discovering structures
-- Locating valuable ores
-- Swimming/diving
-- Falling/flight
-- Sprinting/movement patterns
+## Context Is Everything
 
-## Context-Aware Responses
+The same event triggers different emotions depending on the situation. Your pet doesn't just react to *what* happens—they react to *how* it happens.
 
-The same event triggers different emotions depending on context.
+Example: You take damage
 
-**Example: Owner takes damage**
+- **Close bond, pet nearby:** rushes to protect you, feels worried
+- **Weak bond, pet distant:** barely notices, mild concern
+- **Pet is already afraid:** panics instead of protecting
+- **Pet is already angry:** gets fired up for battle
 
-- **High bond, pet nearby:** Protectiveness (0.35), Angst (0.25), Vigilant (0.15)
-- **Low bond, pet far away:** Angst (0.10), Vigilant (0.05)
-- **Pet is Afraid:** Dread (0.30), Terror (0.15) instead of Protectiveness
-- **Pet is Angry:** Kefi (0.40), Protectiveness (0.30) — amplified aggression
+What shapes their reaction:
 
-Context includes:
-- **Bond strength** with owner
-- **Current mood** state
-- **Personality traits** (characteristics, nature)
-- **Recent emotional history** (habituation/sensitization)
-- **Physical proximity** to the event
-- **Pack presence** (other pets nearby)
-- **Environmental factors** (biome, weather, dimension)
+- **How close you are** — both emotionally (bond level) and physically (distance)
+- **Their current [mood](moods.md)** — a happy pet and an angry pet respond very differently
+- **Who they are** — [nature](natures.md) and characteristics matter
+- **What they've been through** — recent experiences affect sensitivity
+- **Who's around** — pack members influence each other
+- **Where they are** — biome, weather, and dimension all play a role
 
-## Stimulus Intensity
+Every event starts with a base emotional impact, then your pet's personality and situation shape how strongly they actually feel it. Think of it like this: a well-bonded pet with a calm nature won't panic as easily as a skittish stranger. A volatile pet in a pack will feed off everyone's energy.
 
-Each stimulus has a base intensity (0.0–1.0), then gets modulated by context.
+## Different Pets, Different Feelings
 
-**Scaling factors:**
-- **Bond resilience** — stronger bonds amplify positive emotions, dampen negative ones
-- **Nature bias** — certain natures are more/less sensitive to specific emotions
-- **Volatility multiplier** — from nature; affects how dramatically emotions swing
-- **Personality modifiers** — from characteristics
-- **Habituation** — repeated stimuli weaken over time
-- **Contagion** — nearby pets spread emotional responses
+Each species has its own personality quirks.
 
-Formula (simplified):
-```
-Final Intensity = Base × Nature Bias × Bond Factor × Habituation × (1 + Contagion)
-```
+- **Wolves** love hunting together and feel proud of their kills
+- **Cats** find the perfect sunny spot and think "this is exactly right"
+- **Foxes** bounce around sweet berries but go dead serious stalking chickens
+- **Parrots** get swept up in music and delight in mimicking sounds
+- **Axolotls** are happiest in water and miss it terribly when dry
 
-The actual implementation is more nuanced, but that's the general idea.
+These behaviors come from data files, so datapacks can change them or add new species.
 
-## Species-Specific Triggers
+## What Events Get Tracked?
 
-Different pet species have unique stimulus responses.
+The stimulus system monitors a wide range of gameplay events:
 
-**Examples:**
-- **Wolves** → heightened Pack Spirit when hunting together, Pride on kills
-- **Cats** → Lagom ("just right") when in perfect sunny spots, Curiosity spikes near fish
-- **Foxes** → Playfulness near sweet berries, Focused when stalking chickens
-- **Parrots** → Yūgen during music, Cheerful when mimicking sounds
-- **Axolotls** → Content in water, Hiraeth when dry
+**Owner Interactions:** Petting, feeding, healing, equipping armor, breeding, tribute offerings
 
-This isn't hardcoded per species. It's data-driven through the emotional context mapper, so datapacks can extend it.
+**Combat Events:** Pet/owner dealing/taking damage, kills, assists, witnessing combat
 
-## Emotional Delta
+**Environmental Changes:** Blocks placed/broken nearby, weather shifts, dimension changes, biome transitions, time of day, music from jukeboxes, bed usage
 
-When a stimulus fires, it creates an **EmotionDelta** — a discrete packet of emotional change.
+**Social Dynamics:** Other pets/players nearby, owner leaving/returning, pack formations, ownership changes, pet death witnessed
 
-Structure:
-```
-EmotionDelta {
-  emotion: CHEERFUL,
-  amount: 0.25,
-  timestamp: 184726
-}
-```
+**Exploration:** New chunks, discovering structures, locating ores, swimming/diving, falling/flight, movement patterns
 
-The mood engine receives these deltas, applies contextual modulation, and integrates them into the pet's emotional state.
+## The Mood Engine: Where It All Comes Together
 
-Multiple deltas can fire from a single event. Feeding your pet might push:
-- Cheerful (0.30)
-- Content (0.20)
-- Bonded (0.15)
+Events trigger [emotions](emotions.md). The Mood Engine blends them into the [moods](moods.md) you see.
 
-## Cooldowns and Rate Limiting
+It works like real feelings: recent intense stuff matters more than old faded stuff. Each [emotion](emotions.md) feeds into multiple [moods](moods.md) with different strengths, and your pet's [nature](natures.md) shapes how they process everything.
 
-Some stimuli have built-in cooldowns to prevent spam.
+This is why mood changes feel natural. Sudden fear hits instantly. Contentment builds slowly. The system mirrors how actual emotions work.
 
-- **Petting** → max once per 2 seconds (prevents click-farming happiness)
-- **Music** → max once per 30 seconds per jukebox
-- **Exploration** → new chunk discovery tracked with 10-second cooldown
-
-Others (combat, damage) have no cooldown because they're inherently rate-limited by gameplay.
-
-## Stimulus Debugging
-
-The mod tracks stimulus history for debugging. You can view:
-- What stimuli fired recently
-- Their base and final intensities
-- Which emotions were affected
-- Contextual modifiers applied
-
-This is mostly for development, but advanced players can use it to understand their pet's behavior.
+*For details on how emotions are tracked and decay, see [Emotions](emotions.md). For mood levels and intensity, see [Moods](moods.md#mood-intensity).*
 
 ## Emotion Context Cues
 
-When significant stimuli fire, the system sends **context cues** to the owner. These are subtle chat messages or actionbar hints that explain what your pet is reacting to.
+When something important happens, you'll get subtle hints about what your pet is feeling.
 
-**Examples:**
-- `[Your wolf senses danger nearby]` — when hostile detected
-- `[Your cat feels cozy by the campfire]` — warmth stimulus
-- `[Your parrot is delighted by the music]` — jukebox event
+- `[Your wolf senses danger nearby]`
+- `[Your cat feels cozy by the campfire]`
+- `[Your parrot is delighted by the music]`
 
-Cues have cooldowns to prevent spam (typically 200-1200 ticks) and only appear when the emotional change is meaningful. They're not mandatory announcements — they're flavor text that helps you understand your pet's inner world.
+These little messages have cooldowns so they don't spam you, and they only appear when something meaningful is happening. Think of them as glimpses into your pet's inner world—not announcements, just flavor.
 
-You can configure or disable cues in the config.
+You can tweak or turn them off in the config.
 
-## Gossip System
+## Pets Remember and Share Stories
 
-Pets don't just react to events — they **remember and share** them.
+Your pets don't just react to what they see — they **remember events and tell each other about them**.
 
-When something interesting happens (campfires lit, treasures found, combat victories), pets create **gossip topics** with:
-- **Topic ID** — what happened
-- **Intensity** — how significant it was (0.0–1.0)
-- **Confidence** — how sure the pet is (0.0–1.0)
-- **Timestamp** — when it occurred
+When something interesting happens (campfires lit, treasures found, combat victories), pets remember:
 
-Pets within 24 blocks can **share gossip** through social routines:
-- **GossipCircleRoutine** — pack members exchange stories during idle moments
-- **GossipWhisperRoutine** — one-on-one information sharing
+- **What happened**
+- **How big a deal it was** (minor event vs. major discovery)
+- **How sure they are** (did they witness it firsthand or hear it from a friend?)
+- **When it occurred**
 
-Gossip affects emotions indirectly. Hearing about a campfire gathering might boost Sobremesa even if the pet wasn't there. Learning about a nearby threat increases Vigilant.
+Pets share these memories when they're hanging out together:
 
-This creates a **distributed memory system** — your pack develops shared knowledge without centralized tracking.
+- **Group storytelling** — pack members swap stories during downtime (within 8.5 blocks)
+- **Private whispers** — one-on-one exchanges when two pets cross paths (within 6 blocks)
 
-## Contagion Propagation
+Gossip shapes emotions secondhand. Hearing about a cozy campfire gathering might boost Sobremesa even if your pet wasn't there. Learning about a nearby threat increases Vigilance.
 
-When a stimulus fires for one pet, it can spread to nearby pack members through **emotional contagion**.
+This creates a **pack memory** — your pets develop shared knowledge and experiences without you having to tell each one individually.
 
-The contagion share is:
-- Proportional to the original stimulus intensity
-- Modified by pack bond strength
-- Distance-limited (12 blocks)
-- Emotion-specific (some emotions spread more than others)
+Emotions also spread between nearby pets through **contagion** — when one pet feels something strongly, packmates pick it up. This creates natural pack behavior where fear spreads or victory rallies everyone.
 
-**High-contagion emotions:**
-- Pack Spirit
-- Terror
-- Pride
-- Kefi
+*For details on emotional contagion mechanics, see [Emotions](emotions.md#emotional-contagion).*
 
-**Low-contagion emotions:**
-- Hiraeth
-- Saudade
-- Focused
+## Putting It All Together
 
-This creates emergent pack dynamics. One pet's fear can panic the group. One pet's triumph can rally everyone.
+Here's the full loop:
 
-## Why Stimulus Matters
+1. **Something happens** — you pet your wolf, a hostile appears, treasure is found
+2. **Emotions trigger** — your pet reacts based on who they are and what's going on
+3. **Moods shift** — emotions blend together, strong recent feelings dominate
+4. **Behavior changes** — mood drives what they do and how they act
+5. **You notice** — visual feedback and hints show you what's happening
+6. **You respond** — and your actions create new events
 
-The stimulus system is what makes pets feel *responsive*. They're not running on timers or random ticks. They're reacting to *you* and the world around them.
+This is why your pets feel alive. They're not following scripts or timers. They're reacting to their world, remembering experiences, sharing stories with friends, and building actual personalities over time.
 
-This creates a feedback loop. You notice your pet's mood shifts, you change your behavior, your pet notices and reacts, and the cycle continues. It's the core of the mod's emotional simulation.
-
-Without stimulus, emotions would be static numbers. With it, they're a living, breathing system.
+The stimulus system is the input. The Mood Engine is the processor. The result is a companion that feels real.

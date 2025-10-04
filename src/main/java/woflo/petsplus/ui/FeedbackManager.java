@@ -141,9 +141,9 @@ public class FeedbackManager {
         // Don't emit during combat for cleaner visuals
         if (world.getTime() - component.getLastAttackTick() < 60) return;
 
-        // Check for dev crown easter egg first
-        Boolean hasDevCrown = component.getStateData("has_dev_crown", Boolean.class, false);
-        if (hasDevCrown) {
+        // Check for creator tag (dev crown) first
+        Boolean hasCreatorTag = component.getStateData("special_tag_creator", Boolean.class, false);
+        if (hasCreatorTag) {
             emitDevCrown(pet, world, currentTick);
             return; // Crown replaces regular ambient particles for extra special feel
         }
@@ -163,7 +163,7 @@ public class FeedbackManager {
     }
 
     /**
-     * Emit the developer crown particle effect for pets named "woflo".
+     * Emit the developer crown particle effect for creator pets (e.g., "woflo").
      * Creates a slowly rotating ring of END_ROD particles above the pet's head.
      */
     public static void emitDevCrown(MobEntity pet, ServerWorld world, long currentTick) {

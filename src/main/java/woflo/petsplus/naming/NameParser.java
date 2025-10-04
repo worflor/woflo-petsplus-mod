@@ -26,7 +26,8 @@ public class NameParser {
         Map.entry("clever", new AttributeKey("intelligence", "clever", 1)),
         Map.entry("strong", new AttributeKey("strength", "strong", 1)),
         Map.entry("wise", new AttributeKey("wisdom", "wise", 2)),
-        Map.entry("woflo", new AttributeKey("woflo", "woflo", 5)) // Easter egg with high priority
+        Map.entry("woflo", new AttributeKey("woflo", "woflo", 5)), // Creator/dev name with high priority
+        Map.entry("rei", new AttributeKey("rei", "rei", 5)) // Special name (not creator) with high priority
     );
 
     private static final Map<String, AttributeKey> PREFIX_PATTERNS = Map.of(

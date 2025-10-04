@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class AttributeRegistry {
     private static final Map<String, AttributeHandler> HANDLERS = new ConcurrentHashMap<>();
-    private static final Set<String> SPECIAL_CREATOR_NAMES = Set.of("woflo");
+    private static final Set<String> CREATOR_NAMES = Set.of("woflo");
 
     static {
         // Register built-in handlers
@@ -282,13 +282,13 @@ public class AttributeRegistry {
             comp.setStateData("creator_blessing", attr.value());
             comp.setStateData("is_creator_pet", true);
 
-            // Special benefits for woflo pets
+            // Special benefits for creator pets (woflo only)
             String creatorName = attr.value();
             if (creatorName != null) {
                 String normalizedCreator = creatorName.toLowerCase(Locale.ROOT);
-                if (SPECIAL_CREATOR_NAMES.contains(normalizedCreator)) {
-                    comp.setStateData("special_status", "developer_pet");
-                    Petsplus.LOGGER.info("Pet {} recognized as developer pet with special status", pet.getUuid());
+                if (CREATOR_NAMES.contains(normalizedCreator)) {
+                    comp.setStateData("special_tag_creator", true);
+                    Petsplus.LOGGER.info("Pet {} recognized as creator pet ({})", pet.getUuid(), normalizedCreator);
 
                     PlayerEntity owner = comp.getOwner();
                     if (owner instanceof ServerPlayerEntity serverPlayer && !serverPlayer.getWorld().isClient()) {
@@ -298,10 +298,10 @@ public class AttributeRegistry {
             }
         });
 
-        // Direct "woflo" name detection (easter egg)
+        // Direct "woflo" name detection (creator/dev)
         registerHandler("woflo", (pet, attr, comp) -> {
-            comp.setStateData("has_dev_crown", true);
-            Petsplus.LOGGER.info("Pet {} granted developer crown effect", pet.getUuid());
+            comp.setStateData("special_tag_creator", true);
+            Petsplus.LOGGER.info("Pet {} granted creator tag", pet.getUuid());
 
             PlayerEntity owner = comp.getOwner();
             if (owner instanceof ServerPlayerEntity serverPlayer && !serverPlayer.getWorld().isClient()) {
@@ -309,8 +309,17 @@ public class AttributeRegistry {
             }
         });
 
+        // Direct "rei" name detection (special name, not creator/dev)
+        registerHandler("rei", (pet, attr, comp) -> {
+            comp.setStateData("special_tag_rei", true);
+            Petsplus.LOGGER.info("Pet {} granted special tag: rei", pet.getUuid());
+
+            PlayerEntity owner = comp.getOwner();
+            if (owner instanceof ServerPlayerEntity serverPlayer && !serverPlayer.getWorld().isClient()) {
+                serverPlayer.sendMessage(Text.literal(";)"), false);
+            }
+        });
+
         Petsplus.LOGGER.info("Registered {} built-in attribute handlers", HANDLERS.size());
     }
 }
-
-
