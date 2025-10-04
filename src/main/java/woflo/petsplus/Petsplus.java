@@ -1,7 +1,6 @@
 package woflo.petsplus;
 
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.loader.api.FabricLoader;
 import woflo.petsplus.datagen.SimpleDataGenerator;
 import woflo.petsplus.initialization.InitializationManager;
@@ -24,11 +23,6 @@ public class Petsplus implements ModInitializer {
 		
 		// Initialize all systems and components
 		InitializationManager.initializeAll();
-		
-		// Register admin commands
-		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-			woflo.petsplus.commands.PetsplusAdminCommands.register(dispatcher);
-		});
 		
 		// Generate data files in development environment
 		if (FabricLoader.getInstance().isDevelopmentEnvironment()) {

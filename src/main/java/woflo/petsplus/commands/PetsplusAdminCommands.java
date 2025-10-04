@@ -8,7 +8,6 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.command.argument.IdentifierArgumentType;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.server.command.CommandManager;
@@ -27,12 +26,13 @@ import woflo.petsplus.datagen.PetsplusLootHandler;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.stats.nature.NatureModifierSampler;
 import woflo.petsplus.stats.nature.PetNatureSelector;
+import woflo.petsplus.util.PetTargetingUtil;
 
 import java.util.Locale;
 
 /**
  * Admin commands for testing and debugging pet features.
- * Provides tools for spawning items, debugging pet state, and testing mechanics.
+ * Uses intelligent raycast targeting for pet selection.
  */
 public class PetsplusAdminCommands {
     
@@ -196,7 +196,7 @@ public class PetsplusAdminCommands {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
         
         // Find nearest pet to link, or create an unlinked whistle
-        MobEntity targetPet = findNearestPet(player);
+        MobEntity targetPet = findTargetPet(player);
         ItemStack whistle = PetsplusItemUtils.createLinkedWhistle(targetPet);
         player.getInventory().insertStack(whistle);
         
@@ -235,9 +235,9 @@ public class PetsplusAdminCommands {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
         int level = IntegerArgumentType.getInteger(context, "level");
         
-        MobEntity targetPet = findNearestPet(player);
+        MobEntity targetPet = findTargetPet(player);
         if (targetPet == null) {
-            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            player.sendMessage(Text.literal("No pet found! Look at your pet or stand nearby.").formatted(Formatting.RED), false);
             return 0;
         }
         
@@ -256,9 +256,9 @@ public class PetsplusAdminCommands {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
         int xp = IntegerArgumentType.getInteger(context, "xp");
         
-        MobEntity targetPet = findNearestPet(player);
+        MobEntity targetPet = findTargetPet(player);
         if (targetPet == null) {
-            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            player.sendMessage(Text.literal("No pet found! Look at your pet or stand nearby.").formatted(Formatting.RED), false);
             return 0;
         }
         
@@ -275,9 +275,9 @@ public class PetsplusAdminCommands {
     
     private static int setPetRole(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-        MobEntity targetPet = findNearestPet(player);
+        MobEntity targetPet = findTargetPet(player);
         if (targetPet == null) {
-            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            player.sendMessage(Text.literal("No pet found! Look at your pet or stand nearby.").formatted(Formatting.RED), false);
             return 0;
         }
         
@@ -303,9 +303,9 @@ public class PetsplusAdminCommands {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
         int amount = IntegerArgumentType.getInteger(context, "amount");
         
-        MobEntity targetPet = findNearestPet(player);
+        MobEntity targetPet = findTargetPet(player);
         if (targetPet == null) {
-            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            player.sendMessage(Text.literal("No pet found! Look at your pet or stand nearby.").formatted(Formatting.RED), false);
             return 0;
         }
         
@@ -324,9 +324,9 @@ public class PetsplusAdminCommands {
     private static int resetPet(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
         
-        MobEntity targetPet = findNearestPet(player);
+        MobEntity targetPet = findTargetPet(player);
         if (targetPet == null) {
-            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            player.sendMessage(Text.literal("No pet found! Look at your pet or stand nearby.").formatted(Formatting.RED), false);
             return 0;
         }
         
@@ -344,9 +344,9 @@ public class PetsplusAdminCommands {
     private static int showPetInfo(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
 
-        MobEntity targetPet = findNearestPet(player);
+        MobEntity targetPet = findTargetPet(player);
         if (targetPet == null) {
-            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            player.sendMessage(Text.literal("No pet found! Look at your pet or stand nearby.").formatted(Formatting.RED), false);
             return 0;
         }
         
@@ -389,9 +389,9 @@ public class PetsplusAdminCommands {
     private static int showPetNature(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
 
-        MobEntity targetPet = findNearestPet(player);
+        MobEntity targetPet = findTargetPet(player);
         if (targetPet == null) {
-            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            player.sendMessage(Text.literal("No pet found! Look at your pet or stand nearby.").formatted(Formatting.RED), false);
             return 0;
         }
 
@@ -421,9 +421,9 @@ public class PetsplusAdminCommands {
     private static int setPetNature(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
 
-        MobEntity targetPet = findNearestPet(player);
+        MobEntity targetPet = findTargetPet(player);
         if (targetPet == null) {
-            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            player.sendMessage(Text.literal("No pet found! Look at your pet or stand nearby.").formatted(Formatting.RED), false);
             return 0;
         }
 
@@ -464,9 +464,9 @@ public class PetsplusAdminCommands {
     private static int clearPetNature(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
 
-        MobEntity targetPet = findNearestPet(player);
+        MobEntity targetPet = findTargetPet(player);
         if (targetPet == null) {
-            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            player.sendMessage(Text.literal("No pet found! Look at your pet or stand nearby.").formatted(Formatting.RED), false);
             return 0;
         }
 
@@ -513,7 +513,7 @@ public class PetsplusAdminCommands {
     private static int testStatusEffects(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
         
-        MobEntity targetPet = findNearestPet(player);
+        MobEntity targetPet = findTargetPet(player);
         if (targetPet == null) {
             player.sendMessage(Text.literal("No pet found nearby to test effects!").formatted(Formatting.RED), false);
             return 0;
@@ -580,9 +580,9 @@ public class PetsplusAdminCommands {
         String emotionName = StringArgumentType.getString(context, "emotion").toUpperCase();
         String weightStr = StringArgumentType.getString(context, "weight");
         
-        MobEntity targetPet = findNearestPet(player);
+        MobEntity targetPet = findTargetPet(player);
         if (targetPet == null) {
-            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            player.sendMessage(Text.literal("No pet found! Look at your pet or stand nearby.").formatted(Formatting.RED), false);
             return 0;
         }
         
@@ -615,9 +615,9 @@ public class PetsplusAdminCommands {
     private static int clearEmotions(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
         
-        MobEntity targetPet = findNearestPet(player);
+        MobEntity targetPet = findTargetPet(player);
         if (targetPet == null) {
-            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            player.sendMessage(Text.literal("No pet found! Look at your pet or stand nearby.").formatted(Formatting.RED), false);
             return 0;
         }
         
@@ -640,9 +640,9 @@ public class PetsplusAdminCommands {
     private static int showEmotionInfo(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
         
-        MobEntity targetPet = findNearestPet(player);
+        MobEntity targetPet = findTargetPet(player);
         if (targetPet == null) {
-            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            player.sendMessage(Text.literal("No pet found! Look at your pet or stand nearby.").formatted(Formatting.RED), false);
             return 0;
         }
         
@@ -781,9 +781,9 @@ public class PetsplusAdminCommands {
     private static int applyEmotionPreset(CommandContext<ServerCommandSource> context, String presetName, EmotionWeight[] emotions) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
         
-        MobEntity targetPet = findNearestPet(player);
+        MobEntity targetPet = findTargetPet(player);
         if (targetPet == null) {
-            player.sendMessage(Text.literal("No pet found nearby!").formatted(Formatting.RED), false);
+            player.sendMessage(Text.literal("No pet found! Look at your pet or stand nearby.").formatted(Formatting.RED), false);
             return 0;
         }
         
@@ -837,13 +837,11 @@ public class PetsplusAdminCommands {
         return "manual";
     }
 
-    private static MobEntity findNearestPet(PlayerEntity player) {
-        return player.getWorld().getEntitiesByClass(MobEntity.class,
-            player.getBoundingBox().expand(10.0),
-            entity -> {
-                PetComponent petComp = PetComponent.get(entity);
-                return petComp != null && petComp.isOwnedBy(player);
-            }).stream().findFirst().orElse(null);
+    /**
+     * Find the target pet using intelligent raycast targeting.
+     */
+    private static MobEntity findTargetPet(ServerPlayerEntity player) {
+        return PetTargetingUtil.findTargetPet(player);
     }
 
     private static Text resolveRoleLabel(Identifier roleId, @Nullable PetRoleType roleType) {
@@ -857,3 +855,5 @@ public class PetsplusAdminCommands {
         return Text.literal(PetRoleType.fallbackName(roleId));
     }
 }
+
+
