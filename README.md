@@ -21,8 +21,13 @@ Pets+ is a mod. For Fabric even.
 
 
 
-## Performance
-All compute heavy tasks are done asynchronously using background threads.
+## FAQ (no ones asked yet)
+1. is it laggy?
+- nuh uh
+2. why?
+- idk
+3. u sure its not laggy?
+-yuh
 
 
 
