@@ -52,6 +52,19 @@ public final class PetNatureSelector {
     }
 
     static {
+        // === WILD NATURES (Tamed pets only) ===
+        // Temperature-based natures for wild-caught pets
+        // Cold: <= 0.3 (snowy/frozen biomes)
+        // Hot: >= 1.0 (desert/nether-like biomes)
+        // Neutral: everything in between
+        registerNature("frisky", ctx -> false, ctx -> ctx.environment().getBiomeTemperature() <= 0.3f);
+        registerNature("fierce", ctx -> false, ctx -> ctx.environment().getBiomeTemperature() >= 1.0f);
+        registerNature("feral", ctx -> false, ctx -> {
+            float temp = ctx.environment().getBiomeTemperature();
+            return temp > 0.3f && temp < 1.0f;
+        });
+        
+        // === BORN NATURES (Bred pets only) ===
         registerNature("radiant", PetNatureSelector::matchesRadiant);
         registerNature("nocturne", PetNatureSelector::matchesNocturne);
         registerNature("hearth", PetNatureSelector::matchesHearth);

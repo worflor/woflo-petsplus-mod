@@ -96,6 +96,8 @@ public class XpEventHandler {
         PetsPlusConfig config = PetsPlusConfig.getInstance();
         double baseXpModifier = config.getSectionDouble("pet_leveling", "xp_modifier", 1.0);
 
+        // Single pass: filter eligible pets and cache them
+        List<EligiblePetData> eligiblePets = new ArrayList<>();
         for (PetSwarmIndex.SwarmEntry entry : swarmEntries) {
             MobEntity pet = entry.pet();
             PetComponent petComp = entry.component();
@@ -110,6 +112,20 @@ public class XpEventHandler {
                 continue;
             }
 
+            eligiblePets.add(new EligiblePetData(pet, petComp));
+        }
+
+        if (eligiblePets.isEmpty()) {
+            return;
+        }
+
+        int eligiblePetCount = eligiblePets.size();
+
+        // Distribute XP evenly among eligible pets
+        for (EligiblePetData data : eligiblePets) {
+            MobEntity pet = data.pet;
+            PetComponent petComp = data.component;
+
             float levelScaleModifier = getLevelScaleModifier(petComp.getLevel());
 
             float learningModifier = 1.0f;
@@ -119,7 +135,8 @@ public class XpEventHandler {
 
             float participationModifier = getParticipationModifier(owner, pet);
 
-            int petXpGain = Math.max(1, (int) (xpGained * baseXpModifier * levelScaleModifier * learningModifier * participationModifier));
+            // Split XP evenly among all eligible pets, then apply individual modifiers
+            int petXpGain = Math.max(1, (int) ((xpGained / (float) eligiblePetCount) * baseXpModifier * levelScaleModifier * learningModifier * participationModifier));
 
             int previousLevel = petComp.getLevel();
 
@@ -180,6 +197,8 @@ public class XpEventHandler {
     }
 
     private record XpGainPayload(int xpAmount) {}
+
+    private record EligiblePetData(MobEntity pet, PetComponent component) {}
     
     /**
      * Get level-scaled XP modifier for more engaging progression.
