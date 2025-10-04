@@ -12,7 +12,7 @@
 <p align="center">
   Social pets with moods, memories, and a little gossip. Feels like vanilla finally noticed its pets.
   <br>
-  <strong>Mod is VERY in development. Versions may break pet data until proper release.</strong>
+  <strong>Mod is VERY in development. New versions may break pet data until proper release.</strong>
 </p>
 
 ---
