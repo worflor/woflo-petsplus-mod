@@ -8,7 +8,9 @@ you earn spills outward, powering the abilities linked to their chosen
 
 If you earn XP, every nearby pet does too. Combat, mining, smelting,
 breeding, fishing, trading, advancements—if it fills your bar, it echoes
-through the pack as long as they’re close enough.
+through the pack as long as they’re close enough. Stack it with mood boosts
+from the [emotions loop](emotions.md) or smart [stimulus setups](stimulus.md)
+to keep everyone in motion.
 
 - **Range:** 32 blocks from you.
 - **Split:** XP divides evenly across owned pets inside that radius.
@@ -38,7 +40,8 @@ online quickly; late levels slow down to respect endgame toys.
 Each pet keeps tabs on what they were doing when XP rained in:
 
 - **Participation:** If they haven’t lifted a paw in five minutes, they
-  get a small penalty. Active helpers keep full credit.
+  get a small penalty. Active helpers keep full credit, especially when you
+  match their current [mood](moods.md) to the activity.
 - **Learning:** Their [nature](natures.md) and baked-in quirks tilt how
   fast they learn. Some are prodigies, some are professional nappers.
 
@@ -49,7 +52,8 @@ breakpoints—levels **3, 7, 12, 17, 23, and 27**—layer extra spice on top.
 Each [role](roles.md#role-rewards-and-breakpoints) carries its own
 `xpCurve`, so a Guardian’s grind may feel different from an Eepy Eeper’s
 nap-filled journey. Datapack makers can swap those numbers without
-touching code.
+touching code, letting you align progression with a pet’s [nature](natures.md)
+or pack story.
 
 ## Tribute Gates
 
@@ -85,7 +89,8 @@ specialization unlocks along the way.
 
 Want to remix progression? The global config adjusts how hard XP hits,
 while each role JSON controls scaling, tributes, and reward timing. Nudge
-a few numbers and you’ve got a whole new leveling story.
+a few numbers and you’ve got a whole new leveling story that still honors
+your preferred [design philosophy](design_philosophy.md).
 
 ## Death & Recovery
 
@@ -99,4 +104,5 @@ scratch.
 Server owners and modpack creators can redefine the whole loop through
 datapacks and configs—slow-burn RPG arcs, hyper-fast arenas, whatever
 fits your world. Every level should feel like a shared story between you
-and your companion.
+and your companion, especially when paired with customized [roles](roles.md)
+and mood-aware [emotions](emotions.md).

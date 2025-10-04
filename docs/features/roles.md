@@ -12,10 +12,15 @@ abilities, and tributes reset.
   the pacing.
 - **They respect personality.** A Fierce pet plays Guardian differently
   than a Frisky one because [natures](natures.md) tilt stats and learning.
+  Pair that with the current [mood track](moods.md) to understand why a pet
+  leans in or taps out.
 - **They blend with moods.** A Striker in an [Angry mood](moods.md) goes
-  feral. A Support basking in **Bonded** doubles down on healing.
+  feral. A Support basking in **Bonded** doubles down on healing. Check the
+  [emotions overview](emotions.md) if you need a refresher on what those
+  feelings actually do.
 - **They’re remixable.** Everything lives in JSON, so adding or tweaking a
-  role is a datapack edit away.
+  role is a datapack edit away, especially once you’ve mapped out desired
+  [stimulus reactions](stimulus.md).
 
 ## Role Quick Reference
 
@@ -33,6 +38,9 @@ abilities, and tributes reset.
 
 Each role carries its own `xpCurve`, stat lean, and unlock list. What
 follows are the vibes, highlights, and why you’d bring each into a pack.
+If you’re sketching a new archetype, cross-reference the leveling
+[feature tiers](leveling.md#role-rewards-and-feature-levels) to keep the
+flow consistent.
 
 ## The Nine Roles
 
@@ -156,7 +164,8 @@ consumed—choose carefully.
 
 Mixing specializations multiplies options:
 
-- **Guardian + Support + Striker** covers defense, sustain, and burst.
+- **Guardian + Support + Striker** covers defense, sustain, and burst,
+  especially when moods are tuned for [party synergy](emotions.md#bonded).
 - **Scout + Eclipsed** hunts treasure and neutralizes threats before they
   reach you.
 - **Skyrider + Enchantment-Bound** keeps builders safe while accelerating
@@ -173,4 +182,5 @@ everything, so play the ensemble cast.
 - `xpCurve` defines tribute milestones and reward pacing.
 
 Refresh the datapack to hot-swap adjustments. No code changes required—just
-your imagination and a quick `/reload`.
+your imagination, a quick `/reload`, and the [design philosophy](design_philosophy.md)
+that defines your world.
