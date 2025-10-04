@@ -80,10 +80,10 @@ Behind the scenes, 30 emotions influence your pet's overall mood. Various events
 13. **Afraid** [ scared ]
 14. **Angry** [ mad ]
 
-### Ultra-Rare Moods [ inimplemented | systems are in place, moods are not 'calculated' ]
-15. **Sankofa Resonance** [ Akan ] — ancestral pride awakens, fear fades.
-16. **Náttvörðr Vigil** [ Old Norse ] — silent guardian in dark hours
-17. **Chandralekha Reverie** [ Sanskrit ] — stargazing in perfect peace
+### Ultra-Rare Moods [ unimplemented | systems are in place, moods are not 'calculated' ]
+15. **Echoed Resonance** — whispers from the deep; surviving Warden encounters or extended Deep Dark exposure awakens heightened senses and courage.
+16. **Arcane Overflow** — drunk on enchantment power; proximity to heavy enchanting or high-level Enchantment-Bound pets floods the pet with arcane energy.
+17. **Pack Resonance** — strength in numbers, unity in purpose; when 3+ bonded pets triumph together, the pack enters a synchronized state of shared power.
 
 Mood intensity varies based on the strength of these emotional weights.
 ## Core Emotion Groups
