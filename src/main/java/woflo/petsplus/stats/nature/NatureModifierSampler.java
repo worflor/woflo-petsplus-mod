@@ -21,66 +21,124 @@ public final class NatureModifierSampler {
     private static final Map<Identifier, NatureDefinition> DEFINITIONS = new java.util.HashMap<>();
 
     static {
+        // === WILD NATURES (Tamed pets) ===
+        
+        // Frisky - Cold climate hunter, quick and playful
+        register("frisky", NatureStat.SPEED, 0.06f, NatureStat.AGILITY, 0.02f,
+            1.15f, 0.90f, 0.95f, 1.00f,
+            Emotion.PLAYFULNESS, 0.35f, Emotion.VIGILANT, 0.25f, Emotion.STARTLE, 0.20f);
+        
+        // Feral - Neutral climate survivor, balanced instincts
+        register("feral", NatureStat.ATTACK, 0.05f, NatureStat.DEFENSE, 0.03f,
+            1.10f, 1.00f, 0.90f, 1.10f,
+            Emotion.FOCUSED, 0.35f, Emotion.VIGILANT, 0.25f, Emotion.PROTECTIVENESS, 0.20f);
+        
+        // Fierce - Hot climate predator, aggressive and resilient
+        register("fierce", NatureStat.ATTACK, 0.06f, NatureStat.VITALITY, 0.03f,
+            1.25f, 1.10f, 0.95f, 1.05f,
+            Emotion.PROTECTIVENESS, 0.35f, Emotion.FRUSTRATION, 0.25f, Emotion.PRIDE, 0.20f);
+        
+        // === BORN NATURES (Bred pets) ===
+        
+        // Radiant - Sunny optimist
         register("radiant", NatureStat.SPEED, 0.06f, NatureStat.VITALITY, 0.03f,
             0.75f, 0.85f, 1.10f, 1.05f,
             Emotion.CHEERFUL, 0.35f, Emotion.HOPEFUL, 0.25f, Emotion.GLEE, 0.20f);
-        register("nocturne", NatureStat.AGILITY, 0.05f, NatureStat.FOCUS, 0.02f,
-            1.25f, 1.10f, 0.90f, 0.95f,
-            Emotion.YUGEN, 0.35f, Emotion.MELANCHOLY, 0.25f, Emotion.VIGILANT, 0.20f);
-        register("hearth", NatureStat.DEFENSE, 0.06f, NatureStat.LOYALTY, 0.03f,
-            0.85f, 0.80f, 1.15f, 1.10f,
-            Emotion.CONTENT, 0.35f, Emotion.LOYALTY, 0.25f, Emotion.SOBREMESA, 0.20f);
-        register("tempest", NatureStat.ATTACK, 0.06f, NatureStat.VITALITY, 0.03f,
-            1.30f, 1.15f, 1.05f, 0.95f,
-            Emotion.RESTLESS, 0.35f, Emotion.FOCUSED, 0.25f, Emotion.STARTLE, 0.20f);
-        register("solace", NatureStat.VITALITY, 0.05f, NatureStat.DEFENSE, 0.02f,
-            0.80f, 0.80f, 1.00f, 1.10f,
-            Emotion.RELIEF, 0.35f, Emotion.GAMAN, 0.25f, Emotion.EMPATHY, 0.20f);
+        
+        // Festival - PACK SPIRIT MAJOR! Born in crowds, craves unity
         register("festival", NatureStat.LOYALTY, 0.05f, NatureStat.SPEED, 0.03f,
             1.25f, 1.10f, 1.30f, 0.90f,
-            Emotion.PLAYFULNESS, 0.35f, Emotion.GLEE, 0.25f, Emotion.CHEERFUL, 0.20f);
-        register("otherworldly", NatureStat.VITALITY, 0.05f, NatureStat.AGILITY, 0.02f,
-            1.10f, 0.95f, 1.05f, 1.00f,
-            Emotion.CURIOUS, 0.35f, Emotion.YUGEN, 0.25f, Emotion.FERNWEH, 0.20f);
+            Emotion.PACK_SPIRIT, 0.42f, Emotion.PLAYFULNESS, 0.28f, Emotion.GLEE, 0.22f);
+        
+        // Infernal - Fire and fury
         register("infernal", NatureStat.HEALTH, 0.06f, NatureStat.ATTACK, 0.03f,
             1.30f, 1.05f, 0.95f, 1.20f,
-            Emotion.PROTECTIVENESS, 0.35f, Emotion.FRUSTRATION, 0.25f, Emotion.ANGST, 0.20f);
+            Emotion.PROTECTIVENESS, 0.35f, Emotion.KEFI, 0.25f, Emotion.FRUSTRATION, 0.20f);
+        
+        // Otherworldly - ARCANE OVERFLOW QUIRK! Reality bender
+        register("otherworldly", NatureStat.VITALITY, 0.05f, NatureStat.AGILITY, 0.02f,
+            1.10f, 0.95f, 1.05f, 1.00f,
+            Emotion.CURIOUS, 0.35f, Emotion.YUGEN, 0.26f, Emotion.ARCANE_OVERFLOW, 0.24f);
+        
+        // Hearth - PACK SPIRIT MINOR! Family warmth, togetherness
+        register("hearth", NatureStat.DEFENSE, 0.06f, NatureStat.LOYALTY, 0.03f,
+            0.85f, 0.80f, 1.15f, 1.10f,
+            Emotion.CONTENT, 0.36f, Emotion.PACK_SPIRIT, 0.27f, Emotion.SOBREMESA, 0.21f);
+        
+        // Nocturne - ECHOED RESONANCE MINOR! Mystical moon-touched awareness
+        register("nocturne", NatureStat.AGILITY, 0.05f, NatureStat.FOCUS, 0.02f,
+            1.25f, 1.10f, 0.90f, 0.95f,
+            Emotion.YUGEN, 0.38f, Emotion.ECHOED_RESONANCE, 0.28f, Emotion.VIGILANT, 0.20f);
+        
+        // Tempest - Storm chaos
+        register("tempest", NatureStat.ATTACK, 0.06f, NatureStat.VITALITY, 0.03f,
+            1.30f, 1.15f, 1.05f, 0.95f,
+            Emotion.RESTLESS, 0.35f, Emotion.FRUSTRATION, 0.25f, Emotion.STARTLE, 0.20f);
+        
+        // Solace - PACK SPIRIT QUIRK! Born alone, profound when united
+        register("solace", NatureStat.VITALITY, 0.05f, NatureStat.DEFENSE, 0.02f,
+            0.80f, 0.80f, 1.00f, 1.10f,
+            Emotion.RELIEF, 0.36f, Emotion.GAMAN, 0.26f, Emotion.PACK_SPIRIT, 0.23f);
+        
+        // Echoed - ECHOED RESONANCE MAJOR! Deep Dark whispers, THE archetype
         register("echoed", NatureStat.DEFENSE, 0.06f, NatureStat.FOCUS, 0.03f,
             0.90f, 0.90f, 0.85f, 1.05f,
-            Emotion.NOSTALGIA, 0.35f, Emotion.MONO_NO_AWARE, 0.25f, Emotion.FERNWEH, 0.20f);
+            Emotion.ECHOED_RESONANCE, 0.45f, Emotion.NOSTALGIA, 0.28f, Emotion.MONO_NO_AWARE, 0.22f);
+        
+        // Mycelial - Decay watcher
         register("mycelial", NatureStat.HEALTH, 0.06f, NatureStat.VITALITY, 0.02f,
             0.80f, 0.85f, 1.05f, 1.00f,
             Emotion.WABI_SABI, 0.35f, Emotion.CONTENT, 0.25f, Emotion.CURIOUS, 0.20f);
+        
+        // Gilded - Treasure guardian (ARCANE OVERFLOW minor)
         register("gilded", NatureStat.FOCUS, 0.05f, NatureStat.AGILITY, 0.03f,
             1.15f, 1.05f, 1.10f, 0.95f,
-            Emotion.PRIDE, 0.35f, Emotion.PLAYFULNESS, 0.25f, Emotion.CHEERFUL, 0.20f);
+            Emotion.PRIDE, 0.35f, Emotion.ARCANE_OVERFLOW, 0.27f, Emotion.QUERECIA, 0.20f);
+        
+        // Gloom - Shadow dweller
         register("gloom", NatureStat.AGILITY, 0.05f, NatureStat.DEFENSE, 0.02f,
             1.20f, 1.10f, 0.80f, 1.10f,
             Emotion.FOREBODING, 0.35f, Emotion.MELANCHOLY, 0.25f, Emotion.ANGST, 0.20f);
+        
+        // Verdant - Life bloomer
         register("verdant", NatureStat.VITALITY, 0.05f, NatureStat.HEALTH, 0.03f,
             0.85f, 0.90f, 1.10f, 1.00f,
-            Emotion.HOPEFUL, 0.35f, Emotion.LAGOM, 0.25f, Emotion.RELIEF, 0.20f);
+            Emotion.HOPEFUL, 0.35f, Emotion.RELIEF, 0.25f, Emotion.LAGOM, 0.20f);
+        
+        // Summit - Peak seeker
         register("summit", NatureStat.SPEED, 0.06f, NatureStat.AGILITY, 0.03f,
             1.05f, 0.95f, 0.95f, 1.10f,
             Emotion.FOCUSED, 0.35f, Emotion.VIGILANT, 0.25f, Emotion.PRIDE, 0.20f);
+        
+        // Tidal - Ocean soul
         register("tidal", NatureStat.SWIM_SPEED, 0.06f, NatureStat.HEALTH, 0.03f,
             0.80f, 0.90f, 1.15f, 0.95f,
             Emotion.RELIEF, 0.35f, Emotion.HANYAUKU, 0.25f, Emotion.PLAYFULNESS, 0.20f);
+        
+        // Molten - Lava heart
         register("molten", NatureStat.ATTACK, 0.06f, NatureStat.DEFENSE, 0.02f,
             1.25f, 1.05f, 0.90f, 1.20f,
             Emotion.PROTECTIVENESS, 0.35f, Emotion.FRUSTRATION, 0.25f, Emotion.PRIDE, 0.20f);
+        
+        // Frosty - Ice calm
         register("frosty", NatureStat.DEFENSE, 0.06f, NatureStat.SPEED, 0.03f,
             0.75f, 0.85f, 0.85f, 1.05f,
-            Emotion.STOIC, 0.35f, Emotion.FOCUSED, 0.25f, Emotion.PLAYFULNESS, 0.20f);
+            Emotion.STOIC, 0.35f, Emotion.FOCUSED, 0.25f, Emotion.GAMAN, 0.20f);
+        
+        // Mire - Bog wanderer
         register("mire", NatureStat.HEALTH, 0.05f, NatureStat.VITALITY, 0.03f,
             1.10f, 0.95f, 1.00f, 0.95f,
             Emotion.HIRAETH, 0.35f, Emotion.SAUDADE, 0.25f, Emotion.EMPATHY, 0.20f);
+        
+        // Relic - ECHOED RESONANCE QUIRK! Ancient knowledge whispers
         register("relic", NatureStat.FOCUS, 0.05f, NatureStat.DEFENSE, 0.02f,
             0.90f, 0.90f, 0.90f, 1.15f,
-            Emotion.NOSTALGIA, 0.35f, Emotion.PRIDE, 0.25f, Emotion.CURIOUS, 0.20f);
+            Emotion.NOSTALGIA, 0.37f, Emotion.PRIDE, 0.26f, Emotion.ECHOED_RESONANCE, 0.22f);
+        
+        // Unnatural - ARCANE OVERFLOW MAJOR! Defying reality, chaotic power
         register("unnatural", NatureStat.SPEED, 0.06f, NatureStat.AGILITY, 0.03f,
             1.35f, 1.20f, 1.20f, 0.80f,
-            Emotion.RESTLESS, 0.35f, Emotion.ANGST, 0.25f, Emotion.STARTLE, 0.20f);
+            Emotion.ARCANE_OVERFLOW, 0.40f, Emotion.RESTLESS, 0.30f, Emotion.ANGST, 0.22f);
     }
 
     private NatureModifierSampler() {

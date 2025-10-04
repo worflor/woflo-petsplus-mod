@@ -56,6 +56,12 @@ final class PetMoodEngine {
     private static final float RELATIONSHIP_VARIANCE = 2200f;
     private static final float CARE_PULSE_HALF_LIFE = 3600f;
     private static final float DANGER_HALF_LIFE = 1200f;
+    
+    // Emotional buildup & level transition system
+    private static final int LEVEL_HISTORY_SIZE = 30;  // Track ~600 ticks (30 seconds)
+    private static final float BUILDUP_RISING_MULTIPLIER = 1.2f;
+    private static final float BUILDUP_FALLING_MULTIPLIER = 0.85f;
+    private static final float BUILDUP_TREND_THRESHOLD = 0.05f;
 
     private static final int[] BASE_BREATHING_SPEEDS = {300, 200, 120};
     private static final int[] BASE_GRADIENT_SPEEDS = {280, 180, 100};
@@ -80,6 +86,12 @@ final class PetMoodEngine {
     private final EnumMap<PetComponent.Mood, Float> lastNormalizedWeights =
             new EnumMap<>(PetComponent.Mood.class);
     private final ArrayDeque<Float> dominantHistory = new ArrayDeque<>();
+    
+    // Emotional buildup tracking for momentum-based leveling
+    private final ArrayDeque<LevelSnapshot> levelHistory = new ArrayDeque<>();
+    private float recentLevel23Time = 0f;
+    private int previousMoodLevel = 0;
+    private float previousMoodStrength = 0f;
 
     private final EnumMap<PetComponent.Emotion, Float> paletteBlend =
             new EnumMap<>(PetComponent.Emotion.class);
@@ -131,8 +143,11 @@ final class PetMoodEngine {
     private double cachedSwitchMargin = 0.05d;
     private int cachedHysteresisTicks = 60;
     private float cachedEpsilon = 0.05f;
-    private float[] cachedLevelThresholds = new float[]{0.20f, 0.40f, 0.60f};
+    private float[] cachedLevelThresholds = new float[]{0.35f, 0.65f, 0.88f};  // Improved distribution
     private int cachedBaseAnimationUpdateInterval = 16;
+    
+    // Per-mood threshold adjustments (configurable)
+    private final EnumMap<PetComponent.Mood, float[]> perMoodThresholds = new EnumMap<>(PetComponent.Mood.class);
     private double cachedAnimationSpeedMultiplier = 0.15d;
     private int cachedMinAnimationInterval = 4;
     private int cachedMaxAnimationInterval = 40;
@@ -147,6 +162,7 @@ final class PetMoodEngine {
             lastNormalizedWeights.put(mood, 0f);
         }
         buildDefaultOpponentPairs();
+        initializePerMoodThresholds();
     }
 
     PetComponent.Mood getCurrentMood() {
@@ -819,14 +835,34 @@ final class PetMoodEngine {
     }
 
     private void updateMoodLevel(float currentStrength) {
-        float[] thresholds = getLevelThresholds();
-        int level = 0;
-        for (float threshold : thresholds) {
-            if (currentStrength >= threshold) {
-                level++;
+        // Get mood-specific thresholds if available, otherwise use default
+        float[] thresholds = getMoodSpecificThresholds(currentMood);
+        
+        // Apply buildup multiplier based on emotional momentum
+        float buildupMultiplier = computeBuildupMultiplier(currentStrength);
+        float effectiveStrength = MathHelper.clamp(currentStrength * buildupMultiplier, 0f, 1f);
+        
+        // Calculate raw level from thresholds (simple linear scan - O(n) where n=3, very cheap)
+        int rawLevel = 0;
+        for (int i = 0; i < thresholds.length; i++) {
+            if (effectiveStrength >= thresholds[i]) {
+                rawLevel++;
+            } else {
+                break;  // Thresholds are sorted, can early exit
             }
         }
-        moodLevel = MathHelper.clamp(level, 0, thresholds.length);
+        
+        // Apply hysteresis to prevent level jitter
+        int newLevel = applyLevelHysteresis(rawLevel, effectiveStrength, thresholds);
+        
+        // Update level history for habituation tracking (only if level actually changed)
+        if (newLevel != previousMoodLevel) {
+            updateLevelHistory(newLevel, lastMoodUpdate);
+        }
+        
+        previousMoodLevel = moodLevel;
+        previousMoodStrength = currentStrength;
+        moodLevel = MathHelper.clamp(newLevel, 0, thresholds.length);
     }
 
     private void updateDominantHistory(float strength) {
@@ -1389,13 +1425,19 @@ final class PetMoodEngine {
 
             case UBUNTU:
             case QUERECIA:
-                // High bond amplifies connection emotions
+            case PACK_SPIRIT:
+                // High bond amplifies connection emotions and pack unity
                 modulation += 0.25f * (bondFactor - 1.0f);
                 break;
 
             case RELIEF:
                 // Relief stronger when bond is high (you care more)
                 modulation += 0.2f * (bondFactor - 1.0f);
+                break;
+                
+            case ECHOED_RESONANCE:
+                // Echoed Resonance strengthened by deep bonds forged through danger
+                modulation += 0.35f * (bondFactor - 1.0f);
                 break;
         }
 
@@ -1414,8 +1456,14 @@ final class PetMoodEngine {
                 break;
 
             case PROTECTIVENESS:
-                // Danger increases protectiveness
+            case PACK_SPIRIT:
+                // Danger increases protectiveness and pack unity
                 modulation += 0.35f * Math.max(0f, dangerBoost);
+                break;
+                
+            case ECHOED_RESONANCE:
+                // Echoed Resonance is born from danger - strongly amplified
+                modulation += 0.5f * Math.max(0f, dangerBoost);
                 break;
 
             case BLISSFUL:
@@ -1423,6 +1471,14 @@ final class PetMoodEngine {
             case CONTENT:
                 // Danger suppresses calm/peaceful emotions
                 modulation -= 0.3f * Math.max(0f, dangerBoost);
+                break;
+                
+            case ARCANE_OVERFLOW:
+                // Arcane Overflow unaffected by mundane danger
+                break;
+                
+            default:
+                // Other emotions not significantly affected by danger
                 break;
         }
 
@@ -1447,6 +1503,20 @@ final class PetMoodEngine {
                 case PLAYFULNESS:
                     // Low health suppresses energetic emotions
                     modulation -= 0.4f * healthPenalty;
+                    break;
+                    
+                case ARCANE_OVERFLOW:
+                    // Arcane overflow persists regardless of physical state
+                    break;
+                    
+                case ECHOED_RESONANCE:
+                case PACK_SPIRIT:
+                    // These ultra-rare states resist health penalties
+                    modulation += 0.2f * healthPenalty; // Slight boost when wounded but standing
+                    break;
+                    
+                default:
+                    // Other emotions not significantly affected by low health
                     break;
             }
         }
@@ -1506,11 +1576,11 @@ final class PetMoodEngine {
 
     private float[] parseLevelThresholds(JsonObject section) {
         if (section == null || !section.has("levelThresholds")) {
-            return new float[]{0.20f, 0.40f, 0.60f};
+            return new float[]{0.35f, 0.65f, 0.88f};
         }
         JsonElement array = section.get("levelThresholds");
         if (!array.isJsonArray()) {
-            return new float[]{0.20f, 0.40f, 0.60f};
+            return new float[]{0.35f, 0.65f, 0.88f};
         }
         List<Float> values = new ArrayList<>();
         array.getAsJsonArray().forEach(el -> {
@@ -1519,7 +1589,7 @@ final class PetMoodEngine {
             }
         });
         if (values.isEmpty()) {
-            return new float[]{0.20f, 0.40f, 0.60f};
+            return new float[]{0.35f, 0.65f, 0.88f};
         }
         float[] out = new float[values.size()];
         for (int i = 0; i < values.size(); i++) {
@@ -1752,6 +1822,20 @@ final class PetMoodEngine {
                 Map.entry(PetComponent.Mood.BONDED, 0.5f),
                 Map.entry(PetComponent.Mood.PROTECTIVE, 0.3f),
                 Map.entry(PetComponent.Mood.CALM, 0.2f)));
+        
+        // Ultra-rare emotion mappings
+        table.put(PetComponent.Emotion.ECHOED_RESONANCE, weights(
+                Map.entry(PetComponent.Mood.ECHOED_RESONANCE, 0.70f),
+                Map.entry(PetComponent.Mood.SISU, 0.20f),
+                Map.entry(PetComponent.Mood.PROTECTIVE, 0.10f)));
+        table.put(PetComponent.Emotion.ARCANE_OVERFLOW, weights(
+                Map.entry(PetComponent.Mood.ARCANE_OVERFLOW, 0.75f),
+                Map.entry(PetComponent.Mood.PASSIONATE, 0.15f),
+                Map.entry(PetComponent.Mood.CURIOUS, 0.10f)));
+        table.put(PetComponent.Emotion.PACK_SPIRIT, weights(
+                Map.entry(PetComponent.Mood.PACK_SPIRIT, 0.70f),
+                Map.entry(PetComponent.Mood.BONDED, 0.20f),
+                Map.entry(PetComponent.Mood.PROTECTIVE, 0.10f)));
 
         return table;
     }
@@ -1827,8 +1911,35 @@ final class PetMoodEngine {
         if (!withDebug) {
             return baseText;
         }
+        
+        // Enhanced debug output showing emotional buildup system
         MutableText debugText = baseText.copy();
         debugText.append(Text.literal(" [" + level + "]").styled(s -> s.withColor(TextColor.fromFormatting(Formatting.GRAY))));
+        
+        // Show buildup metrics
+        float currentStrength = moodBlend.getOrDefault(currentMood, 0f);
+        float buildupMult = computeBuildupMultiplier(currentStrength);
+        int activeEmotionCount = (int) emotionRecords.values().stream()
+            .filter(r -> r.intensity > EPSILON)
+            .count();
+        
+        debugText.append(Text.literal(" (s:" + String.format("%.2f", currentStrength))
+            .styled(s -> s.withColor(TextColor.fromFormatting(Formatting.DARK_GRAY))));
+        
+        if (buildupMult != 1.0f) {
+            Formatting buildupColor = buildupMult > 1.0f ? Formatting.GREEN : Formatting.YELLOW;
+            debugText.append(Text.literal(" b:" + String.format("%.2f", buildupMult))
+                .styled(s -> s.withColor(TextColor.fromFormatting(buildupColor))));
+        }
+        
+        if (activeEmotionCount > 1) {
+            debugText.append(Text.literal(" e:" + activeEmotionCount)
+                .styled(s -> s.withColor(TextColor.fromFormatting(Formatting.AQUA))));
+        }
+        
+        debugText.append(Text.literal(")")
+            .styled(s -> s.withColor(TextColor.fromFormatting(Formatting.DARK_GRAY))));
+        
         return debugText;
     }
 
@@ -2133,6 +2244,216 @@ final class PetMoodEngine {
                     return false;
             }
         }
+    }
+
+    // ===== LEVEL TRACKING & BUILDUP SYSTEM =====
+    
+    private static final class LevelSnapshot {
+        final int level;
+        final long timestamp;
+        
+        LevelSnapshot(int level, long timestamp) {
+            this.level = level;
+            this.timestamp = timestamp;
+        }
+    }
+    
+    /**
+     * Initialize per-mood threshold adjustments for fine-tuned emotional pacing.
+     * Different moods have different rarity/intensity profiles.
+     */
+    private void initializePerMoodThresholds() {
+        // Common baseline moods - easier to access, rarely go to level 3
+        perMoodThresholds.put(PetComponent.Mood.CALM, new float[]{0.30f, 0.60f, 0.85f});
+        perMoodThresholds.put(PetComponent.Mood.HAPPY, new float[]{0.35f, 0.65f, 0.88f});
+        perMoodThresholds.put(PetComponent.Mood.CURIOUS, new float[]{0.35f, 0.68f, 0.90f});
+        
+        // Engagement moods - standard distribution
+        perMoodThresholds.put(PetComponent.Mood.PLAYFUL, new float[]{0.35f, 0.65f, 0.88f});
+        perMoodThresholds.put(PetComponent.Mood.BONDED, new float[]{0.35f, 0.65f, 0.88f});
+        perMoodThresholds.put(PetComponent.Mood.FOCUSED, new float[]{0.38f, 0.68f, 0.88f});
+        perMoodThresholds.put(PetComponent.Mood.PASSIONATE, new float[]{0.40f, 0.70f, 0.90f});
+        
+        // Emotional depth moods - easier to hit level 2 for storytelling
+        perMoodThresholds.put(PetComponent.Mood.PROTECTIVE, new float[]{0.30f, 0.60f, 0.85f});
+        perMoodThresholds.put(PetComponent.Mood.SAUDADE, new float[]{0.35f, 0.62f, 0.88f});
+        perMoodThresholds.put(PetComponent.Mood.YUGEN, new float[]{0.40f, 0.68f, 0.88f});
+        perMoodThresholds.put(PetComponent.Mood.SISU, new float[]{0.38f, 0.65f, 0.88f});
+        
+        // Negative moods - clear escalation paths
+        perMoodThresholds.put(PetComponent.Mood.RESTLESS, new float[]{0.35f, 0.65f, 0.88f});
+        perMoodThresholds.put(PetComponent.Mood.AFRAID, new float[]{0.30f, 0.60f, 0.85f});
+        perMoodThresholds.put(PetComponent.Mood.ANGRY, new float[]{0.38f, 0.70f, 0.92f});
+        
+        // Ultra-rare moods - very hard to reach high levels
+        perMoodThresholds.put(PetComponent.Mood.ECHOED_RESONANCE, new float[]{0.45f, 0.75f, 0.95f});
+        perMoodThresholds.put(PetComponent.Mood.ARCANE_OVERFLOW, new float[]{0.40f, 0.72f, 0.92f});
+        perMoodThresholds.put(PetComponent.Mood.PACK_SPIRIT, new float[]{0.38f, 0.68f, 0.90f});
+    }
+    
+    /**
+     * Get mood-specific thresholds if available, otherwise default.
+     */
+    private float[] getMoodSpecificThresholds(PetComponent.Mood mood) {
+        float[] specific = perMoodThresholds.get(mood);
+        return specific != null ? specific : getLevelThresholds();
+    }
+    
+    /**
+     * Compute buildup multiplier based on emotional momentum.
+     * Rising emotions get boosted (feels responsive), falling get gentle resistance.
+     * This creates a "feeling the buildup" experience where escalating emotions accelerate.
+     */
+    private float computeBuildupMultiplier(float currentStrength) {
+        // Need at least one previous reading AND must be same mood to compare
+        if (previousMoodStrength <= 0f || previousMoodLevel < 0) {
+            return 1.0f;  // First update or mood switch, no trend available
+        }
+        
+        // Calculate trend: positive = rising, negative = falling
+        float trend = currentStrength - previousMoodStrength;
+        
+        // Only apply multiplier if trend is significant (avoid noise)
+        if (trend > BUILDUP_TREND_THRESHOLD) {
+            // Rising emotion: BOOST toward next level (responsive, exciting)
+            return BUILDUP_RISING_MULTIPLIER;  // 1.2x
+        } else if (trend < -BUILDUP_TREND_THRESHOLD) {
+            // Falling emotion: gentle resistance (prevents whiplash, smooth decay)
+            return BUILDUP_FALLING_MULTIPLIER;  // 0.85x
+        }
+        
+        // Steady state or minor fluctuation: normal scaling
+        return 1.0f;
+    }
+    
+    /**
+     * Apply hysteresis to level transitions to prevent jitter.
+     * Requires extra push to go UP (progressive resistance), less to go DOWN (smooth decay).
+     * Uses effectiveStrength which already includes buildup multiplier.
+     * 
+     * @param rawLevel The level calculated from thresholds
+     * @param effectiveStrength The mood strength after buildup multiplier (0-1)
+     * @param thresholds The threshold array for current mood
+     * @return The final level after hysteresis
+     */
+    private int applyLevelHysteresis(int rawLevel, float effectiveStrength, float[] thresholds) {
+        // No previous level data or no change - skip hysteresis
+        if (previousMoodLevel < 0 || rawLevel == previousMoodLevel) {
+            return rawLevel;
+        }
+        
+        if (rawLevel > previousMoodLevel) {
+            // GOING UP: need to exceed threshold by extra margin (creates "earning it" feel)
+            // The threshold we're trying to cross is at index (rawLevel - 1)
+            int thresholdIndex = rawLevel - 1;
+            
+            // Bounds check: ensure valid threshold index
+            if (thresholdIndex < 0 || thresholdIndex >= thresholds.length) {
+                return rawLevel;  // Edge case: trust the raw calculation
+            }
+            
+            float crossingThreshold = thresholds[thresholdIndex];
+            
+            // Progressive resistance: harder to reach higher levels
+            // Level 0→1: +0.03+0.02 = 0.05 margin
+            // Level 1→2: +0.03+0.04 = 0.07 margin  
+            // Level 2→3: +0.03+0.06 = 0.09 margin (hardest!)
+            float requiredMargin = 0.03f + (0.02f * rawLevel);
+            float actualMargin = effectiveStrength - crossingThreshold;
+            
+            if (actualMargin < requiredMargin) {
+                // Not enough push - stay at current level
+                return previousMoodLevel;
+            }
+        } else {
+            // GOING DOWN: need to fall below threshold by small margin (easier than going up)
+            // The threshold we're falling below is at index (previousMoodLevel - 1)
+            int thresholdIndex = previousMoodLevel - 1;
+            
+            // Bounds check
+            if (thresholdIndex < 0 || thresholdIndex >= thresholds.length) {
+                return rawLevel;  // Edge case: trust the raw calculation
+            }
+            
+            float crossingThreshold = thresholds[thresholdIndex];
+            
+            // Small margin prevents rapid oscillation but allows smooth decay
+            float requiredMargin = 0.02f;
+            float actualMargin = crossingThreshold - effectiveStrength;
+            
+            if (actualMargin < requiredMargin) {
+                // Haven't fallen enough - stay at current level
+                return previousMoodLevel;
+            }
+        }
+        
+        // Passed hysteresis checks - commit to new level
+        return rawLevel;
+    }
+    
+    /**
+     * Update level history for habituation tracking.
+     * Tracks time spent at high levels to add resistance if camping at level 2-3.
+     * Optimized for O(1) amortized cost by using incremental updates.
+     */
+    private void updateLevelHistory(int currentLevel, long now) {
+        // Incremental update: calculate contribution of the period we're adding
+        if (!levelHistory.isEmpty()) {
+            LevelSnapshot last = levelHistory.getLast();
+            long periodDuration = now - last.timestamp;
+            
+            // If previous level was 2-3, add this period to high-level time
+            if (last.level >= 2 && periodDuration > 0) {
+                recentLevel23Time += periodDuration;
+            }
+        }
+        
+        // Add new snapshot
+        levelHistory.add(new LevelSnapshot(currentLevel, now));
+        
+        // Trim old entries and adjust high-level time accordingly
+        while (levelHistory.size() > LEVEL_HISTORY_SIZE) {
+            LevelSnapshot removed = levelHistory.removeFirst();
+            
+            // Subtract the removed period from high-level time if it was level 2-3
+            if (levelHistory.size() > 0) {
+                LevelSnapshot nextAfterRemoved = levelHistory.getFirst();
+                long removedPeriod = nextAfterRemoved.timestamp - removed.timestamp;
+                
+                if (removed.level >= 2 && removedPeriod > 0) {
+                    recentLevel23Time = Math.max(0f, recentLevel23Time - removedPeriod);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Get habituation drag - reduces strength if pet has been at high levels too long.
+     * Prevents "ceiling camping" where pets stay at level 3 constantly.
+     */
+    private float getHabituationDrag() {
+        if (levelHistory.size() < 10) {
+            return 0f;  // Not enough history yet
+        }
+        
+        // Calculate what fraction of recent time was spent at level 2-3
+        long totalTime = 0;
+        if (!levelHistory.isEmpty()) {
+            totalTime = levelHistory.getLast().timestamp - levelHistory.getFirst().timestamp;
+        }
+        
+        if (totalTime <= 0) {
+            return 0f;
+        }
+        
+        float highLevelRatio = recentLevel23Time / Math.max(1f, totalTime);
+        
+        // If spent >50% of recent time at high levels, add resistance
+        if (highLevelRatio > 0.5f) {
+            return 0.10f * (highLevelRatio - 0.5f);  // Max -0.05 penalty
+        }
+        
+        return 0f;
     }
 
     private static final class Candidate {

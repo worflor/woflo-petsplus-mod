@@ -20,7 +20,12 @@ public enum PetMood {
     PROTECTIVE(Formatting.BLUE, Formatting.GRAY),          // Steady guardian - reliable blues
     RESTLESS(Formatting.YELLOW, Formatting.RED),           // Agitated energy - hot, moving colors
     AFRAID(Formatting.DARK_RED, Formatting.RED),           // Scared - urgent reds
-    ANGRY(Formatting.RED, Formatting.DARK_RED);            // Mad - intense red
+    ANGRY(Formatting.RED, Formatting.DARK_RED),            // Mad - intense red
+    
+    // Ultra-rare moods
+    ECHOED_RESONANCE(Formatting.DARK_AQUA, Formatting.DARK_PURPLE), // Whispers from the deep
+    ARCANE_OVERFLOW(Formatting.LIGHT_PURPLE, Formatting.AQUA),      // Drunk on enchantment
+    PACK_SPIRIT(Formatting.GOLD, Formatting.RED);                   // United pack power
 
     public final Formatting primaryFormatting;
     public final Formatting secondaryFormatting;

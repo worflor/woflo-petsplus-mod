@@ -1474,16 +1474,6 @@ public class StateManager {
         ownerProcessingManager.untrackPet(component);
     }
 
-    private void runScheduledTask(PetWorkScheduler.ScheduledTask task, long currentTick) {
-        runScheduledTask(task, null, null, currentTick);
-    }
-
-    private void runScheduledTask(PetWorkScheduler.ScheduledTask task,
-                                  @Nullable ServerPlayerEntity ownerOverride,
-                                  long currentTick) {
-        runScheduledTask(task, ownerOverride, null, currentTick);
-    }
-
     private void runScheduledTask(PetWorkScheduler.ScheduledTask task,
                                   @Nullable ServerPlayerEntity ownerOverride,
                                   @Nullable OwnerBatchContext context,

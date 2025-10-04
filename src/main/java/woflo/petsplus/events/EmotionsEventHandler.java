@@ -134,6 +134,16 @@ public final class EmotionsEventHandler {
     private static final Map<ServerWorld, Long> lastJukeboxScan = new ConcurrentHashMap<>();
     private static final long JUKEBOX_CACHE_DURATION = 300; // 15 seconds in ticks
     private static final int OPTIMIZED_MUSIC_RADIUS = 12; // Reduced from 48 blocks
+    
+    // Arcane Overflow constants
+    private static final long ARCANE_STREAK_TIMEOUT = 2400L; // 2 minutes in ticks
+    private static final int ARCANE_MAX_ENCHANTING_POWER = 15; // Vanilla max bookshelf count
+    private static final int ARCANE_MIN_STREAK = 3; // Enchants needed for max streak bonus
+    private static final double ARCANE_TRIGGER_RADIUS = 20.0;
+    private static final float ARCANE_BASE_THRESHOLD = 0.7f;
+    private static final float ARCANE_POWER_REDUCTION = 0.4f;
+    private static final float ARCANE_STREAK_REDUCTION = 0.3f;
+    private static final float ARCANE_EB_BONUS = 0.5f;
 
     private EmotionsEventHandler() {}
 
@@ -458,6 +468,13 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         if (state.getBlock() instanceof JukeboxBlock) {
             NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.JUKEBOX_PLAY);
         }
+        
+        // Ultra-rare: ARCANE OVERFLOW - Enchanting table/anvil use
+        if (state.isOf(Blocks.ENCHANTING_TABLE) || state.isOf(Blocks.ANVIL) || 
+            state.isOf(Blocks.CHIPPED_ANVIL) || state.isOf(Blocks.DAMAGED_ANVIL)) {
+            triggerArcaneOverflow(sp, world);
+        }
+        
         if (state.isIn(BlockTags.BUTTONS)
             || state.isOf(Blocks.LEVER)
             || state.isOf(Blocks.REDSTONE_BLOCK)
@@ -2213,6 +2230,129 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         CompletableFuture<StimulusSummary> summaryFuture = applyConfiguredStimulus(owner, definitionId, defaultRadius, consumer);
         sendCueAfterStimulus(owner, summaryFuture, definitionId,
             () -> resolveCueText(definitionId, fallbackKey, args));
+    }
+    
+    /**
+     * Trigger ultra-rare ARCANE OVERFLOW mood when player uses enchanting tables/anvils
+     * Uses power-based buildup system instead of RNG - enchanting power determines intensity
+     */
+    private static void triggerArcaneOverflow(ServerPlayerEntity owner, World world) {
+        List<MobEntity> nearbyPets = new ArrayList<>();
+        int enchantmentBoundCount = 0;
+        
+        // O(1) entity query with filter
+        for (MobEntity entity : world.getEntitiesByClass(MobEntity.class, owner.getBoundingBox().expand(20), mob -> {
+            PetComponent pc = PetComponent.get(mob);
+            return pc != null && pc.isOwnedBy(owner);
+        })) {
+            PetComponent pc = PetComponent.get(entity);
+            if (pc != null) {
+                nearbyPets.add(entity);
+                if (pc.hasRole(PetRoleType.ENCHANTMENT_BOUND)) {
+                    enchantmentBoundCount++;
+                }
+            }
+        }
+        
+        if (nearbyPets.isEmpty()) {
+            return;
+        }
+        
+        // Count bookshelves using vanilla enchanting table mechanics
+        // Must be in 5x5x2 ring (excluding center 3x3) with air gap to table
+        BlockPos tablePos = owner.getBlockPos();
+        int bookshelfPower = 0;
+        
+        for (int yOffset = 0; yOffset <= 1; yOffset++) {
+            for (int xOffset = -2; xOffset <= 2; xOffset++) {
+                for (int zOffset = -2; zOffset <= 2; zOffset++) {
+                    // Skip center 3x3 area (no bookshelves directly adjacent)
+                    if (Math.abs(xOffset) <= 1 && Math.abs(zOffset) <= 1) {
+                        continue;
+                    }
+                    
+                    BlockPos shelfPos = tablePos.add(xOffset, yOffset, zOffset);
+                    
+                    // Check if bookshelf exists at position
+                    if (!world.getBlockState(shelfPos).isOf(Blocks.BOOKSHELF)) {
+                        continue;
+                    }
+                    
+                    // Vanilla requires air gap - check blocks between table and shelf
+                    boolean hasAirGap = true;
+                    if (yOffset == 0) {
+                        // Same level - check horizontal path
+                        int dx = Integer.compare(xOffset, 0);
+                        int dz = Integer.compare(zOffset, 0);
+                        BlockPos checkPos = tablePos.add(dx, 0, dz);
+                        if (!world.getBlockState(checkPos).isAir()) {
+                            hasAirGap = false;
+                        }
+                    } else {
+                        // Upper level - check position above table
+                        if (!world.getBlockState(tablePos.up()).isAir()) {
+                            hasAirGap = false;
+                        }
+                    }
+                    
+                    if (hasAirGap && bookshelfPower < ARCANE_MAX_ENCHANTING_POWER) {
+                        bookshelfPower++;
+                    }
+                }
+            }
+        }
+        
+        // Buildup system using state data (O(1) lookup/write)
+        long currentTime = world.getTime();
+        for (MobEntity pet : nearbyPets) {
+            PetComponent pc = PetComponent.get(pet);
+            if (pc == null) continue;
+            
+            long lastEnchantTime = pc.getStateData("arcane_last_enchant_time", Long.class, 0L);
+            int enchantStreak = pc.getStateData("arcane_enchant_streak", Integer.class, 0);
+            
+            // Reset streak if timeout elapsed
+            if (currentTime - lastEnchantTime > ARCANE_STREAK_TIMEOUT) {
+                enchantStreak = 0;
+            }
+            
+            // Increment streak
+            enchantStreak++;
+            pc.setStateData("arcane_enchant_streak", enchantStreak);
+            pc.setStateData("arcane_last_enchant_time", currentTime);
+            
+            // Power-based trigger (no RNG)
+            float powerFactor = Math.min(1.0f, bookshelfPower / (float) ARCANE_MAX_ENCHANTING_POWER);
+            float streakFactor = Math.min(1.0f, enchantStreak / (float) ARCANE_MIN_STREAK);
+            float ebBonus = pc.hasRole(PetRoleType.ENCHANTMENT_BOUND) ? ARCANE_EB_BONUS : 0f;
+            
+            float triggerThreshold = ARCANE_BASE_THRESHOLD - (powerFactor * ARCANE_POWER_REDUCTION) 
+                                    - (streakFactor * ARCANE_STREAK_REDUCTION) - ebBonus;
+            
+            // Trigger if threshold is met (high power + streaks + EB role = guaranteed)
+            if (triggerThreshold <= 0f) {
+                float intensityScale = 1.0f + powerFactor + (enchantmentBoundCount * 0.15f);
+                
+                pc.pushEmotion(PetComponent.Emotion.ARCANE_OVERFLOW, Math.min(1.0f, 0.70f * intensityScale));
+                pc.pushEmotion(PetComponent.Emotion.CURIOUS, 0.40f * intensityScale);
+                pc.pushEmotion(PetComponent.Emotion.KEFI, 0.35f * intensityScale);
+                
+                // Enchantment-Bound pets feel it more strongly
+                if (pc.hasRole(PetRoleType.ENCHANTMENT_BOUND)) {
+                    pc.pushEmotion(PetComponent.Emotion.ARCANE_OVERFLOW, 0.40f * intensityScale); // Stack bonus
+                    pc.pushEmotion(PetComponent.Emotion.FOCUSED, 0.30f * intensityScale);
+                }
+                
+                // Reset streak after successful trigger
+                pc.setStateData("arcane_enchant_streak", 0);
+            }
+        }
+        
+        // Log only if significant power present
+        if (bookshelfPower >= 10) {
+            Petsplus.LOGGER.debug("Arcane Overflow buildup for {} pets ({} EB) near {}'s enchanting (power: {}/15)",
+                nearbyPets.size(), enchantmentBoundCount, owner.getName().getString(), bookshelfPower);
+        }
     }
 
     private static void emitPetCue(ServerPlayerEntity owner, PetComponent pc, String cueId, PetConsumer consumer,

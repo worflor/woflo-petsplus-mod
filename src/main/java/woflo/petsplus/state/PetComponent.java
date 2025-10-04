@@ -158,7 +158,12 @@ public class PetComponent {
         PROTECTIVE(PetMood.PROTECTIVE),
         RESTLESS(PetMood.RESTLESS),
         AFRAID(PetMood.AFRAID),
-        ANGRY(PetMood.ANGRY);
+        ANGRY(PetMood.ANGRY),
+        
+        // Ultra-rare moods
+        ECHOED_RESONANCE(PetMood.ECHOED_RESONANCE),
+        ARCANE_OVERFLOW(PetMood.ARCANE_OVERFLOW),
+        PACK_SPIRIT(PetMood.PACK_SPIRIT);
 
         public final Formatting primaryFormatting;
         public final Formatting secondaryFormatting;
@@ -212,7 +217,12 @@ public class PetComponent {
         EMPATHY(0xC38DFF),
         NOSTALGIA(0xCCAA7D),
         PLAYFULNESS(0x42E6A4),
-        LOYALTY(0x244C7A);
+        LOYALTY(0x244C7A),
+        
+        // Ultra-rare emotions
+        ECHOED_RESONANCE(0x1A3A52),  // Deep dark teal - whispers from the depths
+        ARCANE_OVERFLOW(0x9D4EDD),   // Vibrant purple - enchantment energy
+        PACK_SPIRIT(0xFF6B35);       // Warm orange - unified pack strength
 
         private final EmotionColorProfile palette;
 

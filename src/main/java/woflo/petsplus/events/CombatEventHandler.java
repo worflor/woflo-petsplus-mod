@@ -68,6 +68,18 @@ public class CombatEventHandler {
     private static final Map<java.util.UUID, List<PetSwarmIndex.SwarmEntry>> PET_SWARM_CACHE = new ConcurrentHashMap<>();
     private static final Map<java.util.UUID, Long> PET_SWARM_CACHE_TIMESTAMPS = new ConcurrentHashMap<>();
     private static final long PET_SWARM_CACHE_TTL = 100; // 5 seconds cache TTL (100 ticks)
+    
+    // Coordinated attack tracking for Pack Spirit (enemy UUID -> set of pet UUIDs that damaged it with timestamp)
+    private static final Map<java.util.UUID, Map<java.util.UUID, Long>> COORDINATED_ATTACKS = new ConcurrentHashMap<>();
+    
+    // Ultra-rare mood constants
+    private static final double ULTRA_RARE_TRIGGER_RADIUS = 32.0;
+    private static final long PACK_COORDINATION_WINDOW = 200L; // 10 seconds in ticks
+    private static final long COORDINATED_ATTACK_CLEANUP_AGE = 1200L; // 1 minute in ticks
+    private static final long DEEP_DARK_VETERAN_THRESHOLD = 12000L; // 10 minutes in ticks
+    private static final int PACK_SPIRIT_MIN_PETS = 3;
+    private static final int PACK_SPIRIT_ROLE_DIVERSITY_MIN = 3;
+    
     private static final ThreadLocal<Boolean> SUPPRESS_INTERCEPTION = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     private static final String CHIP_DAMAGE_ACCUM_KEY = "restless_chip_accum";
@@ -103,6 +115,36 @@ public class CombatEventHandler {
     public static void invalidatePetSwarmCache(java.util.UUID ownerUuid) {
         PET_SWARM_CACHE.remove(ownerUuid);
         PET_SWARM_CACHE_TIMESTAMPS.remove(ownerUuid);
+    }
+    
+    /**
+     * Cleanup stale coordinated attack entries to prevent memory leak.
+     * Call this periodically (e.g., every 1 minute) to remove old attack tracking data.
+     */
+    private static void cleanupStaleCoordinatedAttacks(long currentTime) {
+        final int[] removedVictims = {0};
+        final int[] removedAttacks = {0};
+        
+        COORDINATED_ATTACKS.entrySet().removeIf(victimEntry -> {
+            // Remove individual attack entries older than threshold
+            int beforeSize = victimEntry.getValue().size();
+            victimEntry.getValue().entrySet().removeIf(attackEntry -> 
+                currentTime - attackEntry.getValue() > COORDINATED_ATTACK_CLEANUP_AGE
+            );
+            removedAttacks[0] += (beforeSize - victimEntry.getValue().size());
+            
+            // Remove victim entry if no attacks remain
+            boolean shouldRemove = victimEntry.getValue().isEmpty();
+            if (shouldRemove) {
+                removedVictims[0]++;
+            }
+            return shouldRemove;
+        });
+        
+        if (removedVictims[0] > 0 || removedAttacks[0] > 0) {
+            Petsplus.LOGGER.debug("Cleaned up {} stale attack entries across {} victims from coordinated attack tracker",
+                removedAttacks[0], removedVictims[0]);
+        }
     }
     
     /**
@@ -679,6 +721,24 @@ public class CombatEventHandler {
             StrikerExecution.onAttackFinisherMark(owner, victim, modifiedDamage);
         }
         
+        // Track pet damage for Pack Spirit coordinated attacks (O(1) operations)
+        if (victim instanceof HostileEntity && victim.isAlive() && owner instanceof ServerPlayerEntity) {
+            List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(owner);
+            for (PetSwarmIndex.SwarmEntry entry : swarm) {
+                MobEntity pet = entry.pet();
+                if (pet != null && pet.isAlive() && pet.getPos().distanceTo(victim.getPos()) < ULTRA_RARE_TRIGGER_RADIUS) {
+                    // Track which pets are engaged with this enemy
+                    COORDINATED_ATTACKS.computeIfAbsent(victim.getUuid(), k -> new ConcurrentHashMap<>())
+                        .put(pet.getUuid(), now);
+                }
+            }
+            
+            // Periodic cleanup to prevent memory leak (every ~1 minute based on combat frequency)
+            if (now % 1200L == 0) {
+                cleanupStaleCoordinatedAttacks(now);
+            }
+        }
+        
         // Calculate victim health percentage after damage
         float victimHealthAfter = victim.getHealth() - modifiedDamage;
         float victimMaxHealth = Math.max(1f, victim.getMaxHealth());
@@ -1058,6 +1118,141 @@ public class CombatEventHandler {
         payload.forEach(context::withData);
 
         triggerNearbyPetAbilities(serverOwner, context);
+        
+        // Ultra-rare mood triggers
+        triggerUltraRareMoods(serverOwner, entity, serverWorld);
+    }
+    
+    /**
+     * Trigger ultra-rare moods based on exceptional combat events
+     */
+    private static void triggerUltraRareMoods(ServerPlayerEntity owner, LivingEntity victim, ServerWorld world) {
+        // 1. ECHOED RESONANCE - Warden kill + Deep Dark exposure
+        if (woflo.petsplus.util.TriggerConditions.isBossEntity(victim) && 
+            victim.getType() == net.minecraft.entity.EntityType.WARDEN) {
+            
+            List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(owner);
+            if (!swarm.isEmpty()) {
+                Vec3d ownerPos = owner.getPos();
+                double radiusSq = ULTRA_RARE_TRIGGER_RADIUS * ULTRA_RARE_TRIGGER_RADIUS;
+                int triggeredCount = 0;
+                
+                // Check if owner has Darkness effect (Warden scream synergy)
+                boolean ownerHasDarkness = owner.hasStatusEffect(net.minecraft.entity.effect.StatusEffects.DARKNESS);
+                
+                for (PetSwarmIndex.SwarmEntry entry : swarm) {
+                    MobEntity pet = entry.pet();
+                    PetComponent pc = entry.component();
+                    if (pet == null || pc == null || !pet.isAlive()) {
+                        continue;
+                    }
+                    if (!withinRadius(entry, ownerPos, radiusSq)) {
+                        continue;
+                    }
+                    
+                    // Base Warden kill intensity
+                    float baseIntensity = 0.85f;
+                    
+                    // +30% if owner is afflicted by Darkness (shared sensory deprivation)
+                    if (ownerHasDarkness) {
+                        baseIntensity *= 1.3f;
+                    }
+                    
+                    // Check Deep Dark exposure duration (O(1) state lookup)
+                    long deepDarkTime = pc.getStateData("deep_dark_duration", Long.class, 0L);
+                    if (deepDarkTime > DEEP_DARK_VETERAN_THRESHOLD) {
+                        baseIntensity *= 1.2f; // +20% for veteran of the depths
+                    }
+                    
+                    // Check sculk exposure buildup (O(1) state lookup)
+                    int sculkExposure = pc.getStateData("sculk_exposure_level", Integer.class, 0);
+                    float sculkBonus = Math.min(0.4f, sculkExposure * 0.05f); // Max +40% at 8 exposures
+                    
+                    pc.pushEmotion(PetComponent.Emotion.ECHOED_RESONANCE, Math.min(1.0f, baseIntensity + sculkBonus));
+                    pc.pushEmotion(PetComponent.Emotion.SISU, 0.40f + (ownerHasDarkness ? 0.20f : 0f));
+                    pc.pushEmotion(PetComponent.Emotion.PRIDE, 0.35f + (deepDarkTime > DEEP_DARK_VETERAN_THRESHOLD ? 0.25f : 0f));
+                    pc.pushEmotion(PetComponent.Emotion.RELIEF, 0.50f + (ownerHasDarkness ? 0.30f : 0f));
+                    
+                    // Clear sculk buildup after cathartic Warden victory
+                    pc.setStateData("sculk_exposure_level", 0);
+                    
+                    triggeredCount++;
+                }
+                
+                if (triggeredCount > 0) {
+                    Petsplus.LOGGER.debug("Echoed Resonance triggered for {} pets after Warden kill by {} (darkness: {}, deep exposure boost active)", 
+                        triggeredCount, owner.getName().getString(), ownerHasDarkness);
+                }
+            }
+        }
+        
+        // 2. PACK SPIRIT - Synchronized combat participation
+        if (victim instanceof HostileEntity && victim.getMaxHealth() >= 20.0f) {
+            // Retrieve coordinated attack data with atomic read (fixes race condition)
+            Map<java.util.UUID, Long> attackers = COORDINATED_ATTACKS.get(victim.getUuid());
+            if (attackers == null) {
+                return; // No tracked attacks for this victim
+            }
+            
+            // Filter to recent participants (within coordination window)
+            long currentTime = world.getTime();
+            List<java.util.UUID> recentAttackers = attackers.entrySet().stream()
+                .filter(e -> currentTime - e.getValue() < PACK_COORDINATION_WINDOW)
+                .map(Map.Entry::getKey)
+                .toList();
+            
+            if (recentAttackers.size() >= PACK_SPIRIT_MIN_PETS) {
+                // Find actual pet entities that participated
+                List<MobEntity> participatingPets = world.getEntitiesByClass(MobEntity.class,
+                    owner.getBoundingBox().expand(ULTRA_RARE_TRIGGER_RADIUS),
+                    mob -> {
+                        PetComponent pc = PetComponent.get(mob);
+                        if (pc == null || !pc.isOwnedBy(owner)) return false;
+                        return recentAttackers.contains(mob.getUuid());
+                    });
+                
+                if (participatingPets.size() >= PACK_SPIRIT_MIN_PETS) {
+                    // True coordinated attack - multiple pets damaged same target
+                    float packSize = Math.min(participatingPets.size(), 6);
+                    float intensityScale = 0.6f + (packSize / 10.0f); // 0.6 at 3, 1.2 at 6
+                    
+                    // Check for role diversity bonus (O(1) per pet)
+                    java.util.Set<Identifier> uniqueRoles = new java.util.HashSet<>();
+                    for (MobEntity pet : participatingPets) {
+                        PetComponent pc = PetComponent.get(pet);
+                        if (pc != null) {
+                            Identifier roleId = pc.getRoleId();
+                            if (roleId != null) {
+                            uniqueRoles.add(roleId);
+                        }
+                    }
+                }
+                float diversityBonus = uniqueRoles.size() >= PACK_SPIRIT_ROLE_DIVERSITY_MIN ? 0.25f : 0f;                    for (MobEntity pet : participatingPets) {
+                        PetComponent pc = PetComponent.get(pet);
+                        if (pc != null) {
+                            float finalIntensity = intensityScale + diversityBonus;
+                            pc.pushEmotion(PetComponent.Emotion.PACK_SPIRIT, 0.75f * finalIntensity);
+                            pc.pushEmotion(PetComponent.Emotion.UBUNTU, 0.50f * finalIntensity);
+                            pc.pushEmotion(PetComponent.Emotion.PRIDE, 0.45f * finalIntensity);
+                            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.35f * finalIntensity);
+                            
+                            // Increment pack cohesion counter (long-term bond)
+                            int cohesion = pc.getStateData("pack_cohesion_victories", Integer.class, 0);
+                            pc.setStateData("pack_cohesion_victories", cohesion + 1);
+                        }
+                    }
+                    
+                    Petsplus.LOGGER.debug("Pack Spirit triggered for {} coordinated pets after defeating {} (roles: {}, health: {})",
+                        participatingPets.size(), victim.getType().getName().getString(), uniqueRoles.size(), victim.getMaxHealth());
+                }
+            }
+            
+            // Clean up attack tracking with monitoring
+            Map<java.util.UUID, Long> removed = COORDINATED_ATTACKS.remove(victim.getUuid());
+            if (removed != null && removed.size() > 10) {
+                Petsplus.LOGGER.debug("Cleaned {} attack entries for defeated {}", removed.size(), victim.getType().getName().getString());
+            }
+        }
     }
 
     /**

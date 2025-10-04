@@ -5,7 +5,7 @@
 </p>
 
 <h1 align="center">
-  Pets+ <small>dev-0.92-besties-and-captive-allies-hate-spaghetti</small>
+  Pets+ <small>dev-0.93-hashtag-mood</small>
 </h1>
 
 A standalone Minecraft mod that expands tames and trusted mobs to add new twists on vanilla mechanics.
@@ -61,7 +61,7 @@ Born pets do not roll for tamed natures; tamed pets do not role for born natures
 
 
 ## Moods and Emotion
-Unfortunately, your *new friend* has developed *new feelings* too. 
+Unfortunately, your *new friend* has developed *new feelings* too.
 
 Behind the scenes, 30 emotions influence your pet's overall mood. Various events and triggers cause these emotional weights to shift and combine, blending into your pet's current **mood state**.
 ### Core Moods
@@ -83,7 +83,7 @@ Behind the scenes, 30 emotions influence your pet's overall mood. Various events
 ### Ultra-Rare Moods [ unimplemented | systems are in place, moods are not 'calculated' ]
 15. **Echoed Resonance** — whispers from the deep; surviving Warden encounters or extended Deep Dark exposure awakens heightened senses and courage.
 16. **Arcane Overflow** — drunk on enchantment power; proximity to heavy enchanting or high-level Enchantment-Bound pets floods the pet with arcane energy.
-17. **Pack Resonance** — strength in numbers, unity in purpose; when 3+ bonded pets triumph together, the pack enters a synchronized state of shared power.
+17. **Pack Spirit** — strength in numbers, unity in purpose; when 3+ bonded pets triumph together, the pack enters a synchronized state of shared power.
 
 Mood intensity varies based on the strength of these emotional weights.
 ## Core Emotion Groups
@@ -203,7 +203,7 @@ Pets+ includes configuration files (`config/petsplus/...`) where you can customi
 - The backend API is extendable via Datapacks and Add-On Mods. Base roles, abilities, progression rewards, and emotional events can be tinkered, modified, or overwritten to your liking.
 
 ## Performance
-All compute heavy tasks are done asynchronously using background threads. 
+All compute heavy tasks are done asynchronously using background threads.
 
 ## Credits
 - woflo - (me)
