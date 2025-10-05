@@ -11,7 +11,7 @@
 ---
 
 <p align="center">
-  Social pets with moods, memories, and a little gossip. Feels like vanilla finally noticed its pets.
+  A standalone vanilla inspired pet mod for minecraft. 
   <br>
   <strong>Mod is VERY in development. New versions may break pet data until proper release.</strong>
 </p>
@@ -19,7 +19,7 @@
 ---
 
 ### What you'll notice
-- Personalities set the vibe, emotions flare in the moment, moods linger in the background.
+- Natures act as the personality/vibe, emotions flare in the moment, moods linger in the background.
 - Roles and little unlocks grow as you adventure, explore, and keep pets close.
 - Memories and stories are tracked. Not for progression, but for immersion.
 
