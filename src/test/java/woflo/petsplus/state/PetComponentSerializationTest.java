@@ -67,22 +67,23 @@ class PetComponentSerializationTest {
             .withCooldown("burst", 512L);
 
         var encoded = PetsplusComponents.PetData.CODEC.encodeStart(NbtOps.INSTANCE, data)
-            .getOrThrow(false, message -> { throw new AssertionError(message); });
+            .getOrThrow(IllegalStateException::new);
         PetsplusComponents.PetData decoded = PetsplusComponents.PetData.CODEC.parse(NbtOps.INSTANCE, encoded)
-            .getOrThrow(false, message -> { throw new AssertionError(message); });
+            .getOrThrow(IllegalStateException::new);
 
         assertEquals(data, decoded, "PetData codec should round-trip without loss");
         assertTrue(decoded.cooldowns().containsKey("burst"), "Decoded cooldown map should retain entries");
     }
 
     private static PetComponent newComponent() {
-        MobEntity pet = mock(MobEntity.class, Mockito.withSettings().lenient());
-        ServerWorld world = mock(ServerWorld.class, Mockito.withSettings().lenient());
+        MobEntity pet = mock(MobEntity.class);
+        ServerWorld world = mock(ServerWorld.class);
         when(world.getTime()).thenReturn(200L);
         when(pet.getWorld()).thenReturn(world);
         when(pet.getUuid()).thenReturn(PET_UUID);
         when(pet.getUuidAsString()).thenReturn(PET_UUID.toString());
-        when(pet.getType()).thenReturn(EntityType.WOLF);
+        // Use lenient stubbing for type
+        when(pet.getType()).thenAnswer(invocation -> EntityType.WOLF);
         return new PetComponent(pet);
     }
 

@@ -87,6 +87,9 @@ public final class DefaultCharacteristicsModule implements CharacteristicsModule
 
     @Override
     public boolean setNatureEmotionProfile(NatureEmotionProfile profile) {
+        if (profile == null) {
+            profile = NatureEmotionProfile.EMPTY;
+        }
         NatureEmotionProfile sanitized = sanitizeNatureProfile(profile);
         if (Objects.equals(this.natureEmotionProfile, sanitized)) {
             return false;

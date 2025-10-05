@@ -48,9 +48,10 @@ public final class PetMoodEngine {
     private static final float RELATIONSHIP_BASE = 1.0f;
     private static final float DANGER_BASE = 1.0f;
     private static final float APPRAISAL_BASE = 0.85f;
-    private static final float NOVELTY_MIN = 0.05f;
-    private static final float NOVELTY_MAX = 0.35f;
-    private static final float NOVELTY_HALF_LIFE_FRACTION = 0.65f;
+    // Novelty parameters for future emotional dynamics
+    // private static final float NOVELTY_MIN = 0.05f;
+    // private static final float NOVELTY_MAX = 0.35f;
+    // private static final float NOVELTY_HALF_LIFE_FRACTION = 0.65f;
     private static final int MOMENTUM_HISTORY_SIZE = 10;
     private static final float OPPONENT_TRANSFER_MAX = 0.30f;
     private static final float REBOUND_GAIN = 0.18f;
@@ -125,6 +126,7 @@ public final class PetMoodEngine {
     private PetComponent.Mood currentMood = PetComponent.Mood.CALM;
     private int moodLevel = 0;
     private long lastMoodUpdate = 0L;
+    @SuppressWarnings("unused") // Reserved for future stimulus timing optimization
     private long lastStimulusTime = 0L;
     private boolean dirty = false;
 
@@ -137,11 +139,13 @@ public final class PetMoodEngine {
     // Config cache
     private int cachedConfigGeneration = -1;
     private JsonObject cachedMoodsSection;
+    @SuppressWarnings("unused") // Reserved for future weighted mood calculations
     private JsonObject cachedWeightSection;
     private JsonObject cachedOpponentSection;
     private JsonObject cachedAnimationSection;
     private double cachedMomentum = 0.35d;
     private double cachedSwitchMargin = 0.05d;
+    @SuppressWarnings("unused") // Reserved for future mood transition smoothing
     private int cachedHysteresisTicks = 60;
     private float cachedEpsilon = 0.05f;
     private float[] cachedLevelThresholds = new float[]{0.35f, 0.65f, 0.88f};  // Improved distribution
@@ -595,8 +599,9 @@ public final class PetMoodEngine {
         for (int i = 0; i < activeSize; i++) {
             scratchIntensities[i] = active.get(i).intensity;
         }
-        float quietFloor = selectQuantile(scratchIntensities, scratchIntensityCount, 0.2f, 0.12f);
-        float quietCeil = selectQuantile(scratchIntensities, scratchIntensityCount, 0.65f, 0.6f);
+        // Quantile analysis for mood calibration (reserved for advanced mood detection)
+        // float quietFloor = selectQuantile(scratchIntensities, scratchIntensityCount, 0.2f, 0.12f);
+        // float quietCeil = selectQuantile(scratchIntensities, scratchIntensityCount, 0.65f, 0.6f);
 
         ArrayList<Candidate> candidates = new ArrayList<>(activeSize);
         scratchSignals = ensureCapacity(scratchSignals, activeSize);
@@ -634,9 +639,10 @@ public final class PetMoodEngine {
             scratchFrequencies[i] = survivors.get(i).frequency;
         }
         float freqMedian = selectQuantile(scratchFrequencies, scratchFrequencyCount, 0.5f, 1f);
-        float freqHigh = selectQuantile(scratchFrequencies, scratchFrequencyCount, 0.9f,
-                Math.max(1.2f, freqMedian + 0.5f));
-        float recencyScale = selectQuantile(scratchCadences, scratchCadenceCount, 0.7f, 160f);
+        // Reserved for future frequency-based mood adjustments
+        @SuppressWarnings("unused")
+        float unused = freqMedian;
+        // Frequency and recency analysis reserved for future temporal patterns
         float impactCap = computeImpactCap(active);
         float weightCap = Math.max(impactCap * 1.5f, DEFAULT_WEIGHT_CAP);
 
@@ -1295,6 +1301,7 @@ public final class PetMoodEngine {
         return Arrays.copyOf(data, newSize);
     }
 
+    @SuppressWarnings("unused")
     private float smoothstep(float edge0, float edge1, float x) {
         if (Math.abs(edge0 - edge1) < EPSILON) {
             return x < edge0 ? 0f : 1f;
@@ -1440,6 +1447,10 @@ public final class PetMoodEngine {
                 // Echoed Resonance strengthened by deep bonds forged through danger
                 modulation += 0.35f * (bondFactor - 1.0f);
                 break;
+                
+            // All other emotions: no bond-based modulation
+            default:
+                break;
         }
 
         // Danger window effects
@@ -1478,8 +1489,8 @@ public final class PetMoodEngine {
                 // Arcane Overflow unaffected by mundane danger
                 break;
                 
+            // All other emotions: no danger-based modulation
             default:
-                // Other emotions not significantly affected by danger
                 break;
         }
 
@@ -2104,6 +2115,7 @@ public final class PetMoodEngine {
             if (!element.isJsonArray()) {
                 continue;
             }
+            @SuppressWarnings("unused") // Set is populated via computeIfAbsent, used indirectly
             EnumSet<PetComponent.Emotion> set = opponentPairs.computeIfAbsent(source, s -> EnumSet.noneOf(PetComponent.Emotion.class));
             element.getAsJsonArray().forEach(jsonElement -> {
                 if (!jsonElement.isJsonPrimitive()) {
@@ -2432,6 +2444,7 @@ public final class PetMoodEngine {
      * Get habituation drag - reduces strength if pet has been at high levels too long.
      * Prevents "ceiling camping" where pets stay at level 3 constantly.
      */
+    @SuppressWarnings("unused")
     private float getHabituationDrag() {
         if (levelHistory.size() < 10) {
             return 0f;  // Not enough history yet

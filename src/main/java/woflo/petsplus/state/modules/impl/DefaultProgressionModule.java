@@ -46,14 +46,16 @@ public class DefaultProgressionModule implements ProgressionModule {
     public void addExperience(long amount, ServerWorld world, long currentTick) {
         if (amount <= 0) return;
         
-        long oldExperience = this.experience;
-        this.experience += amount;
+        this.experience = Math.max(0, this.experience + amount);
         
         // Check for level ups
         int oldLevel = this.level;
-        while (this.experience >= getXpForNextLevel() && this.level < 100) {
+        int maxIterations = 100; // Prevent infinite loops
+        int iterations = 0;
+        while (this.experience >= getXpForNextLevel() && this.level < 100 && iterations < maxIterations) {
             this.experience -= getXpForNextLevel();
             this.level++;
+            iterations++;
         }
         
         // Cap experience at max level
@@ -72,11 +74,12 @@ public class DefaultProgressionModule implements ProgressionModule {
 
     @Override
     public long getXpForNextLevel() {
-        if (parent == null) {
-            // Fallback: linear progression
-            return 100L * level;
-        }
-        return parent.getXpForNextLevel();
+        // TODO: Implement role-based XP curve from registry (Phase 4)
+        // For now, use linear progression: 100 XP per level
+        // Parent is reserved for future role-based progression
+        @SuppressWarnings("unused")
+        PetComponent unused = parent;
+        return 100L * level;
     }
 
     @Override
