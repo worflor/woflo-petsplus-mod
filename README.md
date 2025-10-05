@@ -6,6 +6,7 @@
 
 <h1 align="center">Pets+</h1>
 <h3 align="center">dev-0.92-docuwumentation</h3>
+<h4 align="center">next: stable pet components</h4>
 
 ---
 
