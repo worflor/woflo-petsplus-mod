@@ -21,7 +21,7 @@ import java.util.Map;
 
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.state.OwnerCombatState;
-import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

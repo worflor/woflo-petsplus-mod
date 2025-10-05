@@ -4,7 +4,7 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
-import woflo.petsplus.state.PetWorkScheduler;
+import woflo.petsplus.state.coordination.PetWorkScheduler;
 
 /**
  * High level buckets that aggregate pet-centric upkeep work into owner-scoped

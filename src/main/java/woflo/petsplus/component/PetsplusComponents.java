@@ -9,6 +9,7 @@ import net.minecraft.network.codec.PacketCodecs;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.util.Identifier;
+import woflo.petsplus.state.modules.*;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -75,20 +76,34 @@ public class PetsplusComponents {
     );
     
     /**
-     * Pet component persistent data.
+     * Pet component persistent data with full module support.
      */
     public record PetData(
         Optional<Identifier> role,
         Map<String, Long> cooldowns,
         long lastAttackTick,
-        boolean isPerched
+        boolean isPerched,
+        Optional<ProgressionModule.Data> progression,
+        Optional<HistoryModule.Data> history,
+        Optional<InventoryModule.Data> inventories,
+        Optional<OwnerModule.Data> owner,
+        Optional<SchedulingModule.Data> scheduling,
+        int schemaVersion
     ) {
+        public static final int CURRENT_SCHEMA_VERSION = 2;
+        
         public static final Codec<PetData> CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
                 Identifier.CODEC.optionalFieldOf("role").forGetter(PetData::role),
-                Codec.unboundedMap(Codec.STRING, Codec.LONG).fieldOf("cooldowns").forGetter(PetData::cooldowns),
-                Codec.LONG.fieldOf("lastAttackTick").forGetter(PetData::lastAttackTick),
-                Codec.BOOL.fieldOf("isPerched").forGetter(PetData::isPerched)
+                Codec.unboundedMap(Codec.STRING, Codec.LONG).optionalFieldOf("cooldowns", new HashMap<>()).forGetter(PetData::cooldowns),
+                Codec.LONG.optionalFieldOf("lastAttackTick", 0L).forGetter(PetData::lastAttackTick),
+                Codec.BOOL.optionalFieldOf("isPerched", false).forGetter(PetData::isPerched),
+                ProgressionModule.Data.CODEC.optionalFieldOf("progression").forGetter(PetData::progression),
+                HistoryModule.Data.CODEC.optionalFieldOf("history").forGetter(PetData::history),
+                InventoryModule.Data.CODEC.optionalFieldOf("inventories").forGetter(PetData::inventories),
+                OwnerModule.Data.CODEC.optionalFieldOf("owner").forGetter(PetData::owner),
+                SchedulingModule.Data.CODEC.optionalFieldOf("scheduling").forGetter(PetData::scheduling),
+                Codec.INT.optionalFieldOf("schemaVersion", 1).forGetter(PetData::schemaVersion)
             ).apply(instance, PetData::new)
         );
 
@@ -98,29 +113,51 @@ public class PetsplusComponents {
             PacketCodecs.VAR_LONG, PetData::lastAttackTick,
             PacketCodecs.BOOLEAN, PetData::isPerched,
             (role, cooldowns, lastAttackTick, isPerched) ->
-                new PetData(role.map(Identifier::of), cooldowns, lastAttackTick, isPerched)
+                new PetData(role.map(Identifier::of), cooldowns, lastAttackTick, isPerched, 
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), CURRENT_SCHEMA_VERSION)
         );
 
         public static PetData empty() {
-            return new PetData(Optional.empty(), Map.of(), 0, false);
+            return new PetData(Optional.empty(), Map.of(), 0, false, 
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), CURRENT_SCHEMA_VERSION);
         }
 
         public PetData withRole(Identifier roleId) {
-            return new PetData(Optional.of(roleId), cooldowns, lastAttackTick, isPerched);
+            return new PetData(Optional.of(roleId), cooldowns, lastAttackTick, isPerched, progression, history, inventories, owner, scheduling, schemaVersion);
         }
         
         public PetData withCooldown(String key, long value) {
             Map<String, Long> newCooldowns = new java.util.HashMap<>(cooldowns);
             newCooldowns.put(key, value);
-            return new PetData(role, newCooldowns, lastAttackTick, isPerched);
+            return new PetData(role, newCooldowns, lastAttackTick, isPerched, progression, history, inventories, owner, scheduling, schemaVersion);
         }
         
         public PetData withLastAttackTick(long tick) {
-            return new PetData(role, cooldowns, tick, isPerched);
+            return new PetData(role, cooldowns, tick, isPerched, progression, history, inventories, owner, scheduling, schemaVersion);
         }
         
         public PetData withPerched(boolean perched) {
-            return new PetData(role, cooldowns, lastAttackTick, perched);
+            return new PetData(role, cooldowns, lastAttackTick, perched, progression, history, inventories, owner, scheduling, schemaVersion);
+        }
+        
+        public PetData withProgression(ProgressionModule.Data data) {
+            return new PetData(role, cooldowns, lastAttackTick, isPerched, Optional.of(data), history, inventories, owner, scheduling, schemaVersion);
+        }
+        
+        public PetData withHistory(HistoryModule.Data data) {
+            return new PetData(role, cooldowns, lastAttackTick, isPerched, progression, Optional.of(data), inventories, owner, scheduling, schemaVersion);
+        }
+        
+        public PetData withInventories(InventoryModule.Data data) {
+            return new PetData(role, cooldowns, lastAttackTick, isPerched, progression, history, Optional.of(data), owner, scheduling, schemaVersion);
+        }
+        
+        public PetData withOwner(OwnerModule.Data data) {
+            return new PetData(role, cooldowns, lastAttackTick, isPerched, progression, history, inventories, Optional.of(data), scheduling, schemaVersion);
+        }
+        
+        public PetData withScheduling(SchedulingModule.Data data) {
+            return new PetData(role, cooldowns, lastAttackTick, isPerched, progression, history, inventories, owner, Optional.of(data), schemaVersion);
         }
     }
     

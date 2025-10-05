@@ -1,4 +1,4 @@
-package woflo.petsplus.state;
+package woflo.petsplus.state.emotions;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -12,6 +12,7 @@ import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.config.PetsPlusConfig;
+import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.ui.UIStyle;
 
 import java.util.ArrayDeque;
@@ -31,7 +32,7 @@ import java.util.stream.Collectors;
  * <p>The engine is responsible for maintaining lightweight emotion records, translating them into
  * mood weights on demand, and exposing the resulting blend/labels to the rest of the mod.</p>
  */
-final class PetMoodEngine {
+public final class PetMoodEngine {
     private static final float EPSILON = 0.01f;
     private static final float DEFAULT_INTENSITY = 0f;
     private static final float DEFAULT_IMPACT_CAP = 4.0f;
@@ -155,7 +156,7 @@ final class PetMoodEngine {
     private final EnumMap<PetComponent.Emotion, EnumSet<PetComponent.Emotion>> opponentPairs =
             new EnumMap<>(PetComponent.Emotion.class);
 
-    PetMoodEngine(PetComponent parent) {
+    public PetMoodEngine(PetComponent parent) {
         this.parent = parent;
         for (PetComponent.Mood mood : PetComponent.Mood.values()) {
             moodBlend.put(mood, 0f);
@@ -165,12 +166,12 @@ final class PetMoodEngine {
         initializePerMoodThresholds();
     }
 
-    PetComponent.Mood getCurrentMood() {
+    public PetComponent.Mood getCurrentMood() {
         update();
         return currentMood;
     }
 
-    int getMoodLevel() {
+    public int getMoodLevel() {
         update();
         return moodLevel;
     }
@@ -180,14 +181,14 @@ final class PetMoodEngine {
         ensureFresh(now);
     }
 
-    void ensureFresh(long now) {
+    public void ensureFresh(long now) {
         if (dirty || now - lastMoodUpdate >= 20) {
             updateEmotionStateAndMood(now);
             dirty = false;
         }
     }
 
-    long estimateNextWakeUp(long now) {
+    public long estimateNextWakeUp(long now) {
         if (dirty) {
             return 1L;
         }
@@ -219,7 +220,7 @@ final class PetMoodEngine {
         return debug;
     }
 
-    void applyStimulus(PetComponent.EmotionDelta delta, long eventTime) {
+    public void applyStimulus(PetComponent.EmotionDelta delta, long eventTime) {
         if (delta == null) {
             return;
         }
@@ -229,16 +230,16 @@ final class PetMoodEngine {
         dirty = true;
     }
 
-    void onNatureTuningChanged() {
+    public void onNatureTuningChanged() {
         dirty = true;
     }
 
-    void onNatureEmotionProfileChanged(PetComponent.NatureEmotionProfile profile) {
+    public void onNatureEmotionProfileChanged(PetComponent.NatureEmotionProfile profile) {
         natureEmotionProfile = profile != null ? profile : PetComponent.NatureEmotionProfile.EMPTY;
         dirty = true;
     }
 
-    PetComponent.NatureGuardTelemetry getNatureGuardTelemetry() {
+    public PetComponent.NatureGuardTelemetry getNatureGuardTelemetry() {
         return new PetComponent.NatureGuardTelemetry(
             lastRelationshipGuardObserved,
             lastDangerWindowObserved,
@@ -338,13 +339,13 @@ final class PetMoodEngine {
         refreshContextGuards(record, now, delta);
     }
 
-    void addContagionShare(PetComponent.Emotion emotion, float amount) {
+    public void addContagionShare(PetComponent.Emotion emotion, float amount) {
         long now = parent.getPet().getWorld().getTime();
         float bondFactor = parent.computeBondResilience(now);
         addContagionShare(emotion, amount, now, bondFactor);
     }
 
-    void addContagionShare(PetComponent.Emotion emotion, float amount, long now, float bondFactor) {
+    public void addContagionShare(PetComponent.Emotion emotion, float amount, long now, float bondFactor) {
         if (Math.abs(amount) < EPSILON) {
             return;
         }
@@ -368,27 +369,27 @@ final class PetMoodEngine {
         record.lastUpdateTime = now;
     }
 
-    float getMoodStrength(PetComponent.Mood mood) {
+    public float getMoodStrength(PetComponent.Mood mood) {
         update();
         return MathHelper.clamp(moodBlend.getOrDefault(mood, 0f), 0f, 1f);
     }
 
-    Map<PetComponent.Mood, Float> getMoodBlend() {
+    public Map<PetComponent.Mood, Float> getMoodBlend() {
         update();
         return Collections.unmodifiableMap(new EnumMap<>(moodBlend));
     }
 
-    boolean hasMoodAbove(PetComponent.Mood mood, float threshold) {
+    public boolean hasMoodAbove(PetComponent.Mood mood, float threshold) {
         return getMoodStrength(mood) >= threshold;
     }
 
-    PetComponent.Mood getDominantMood() {
+    public PetComponent.Mood getDominantMood() {
         update();
         return currentMood;
     }
 
     @Nullable
-    PetComponent.Emotion getDominantEmotion() {
+    public PetComponent.Emotion getDominantEmotion() {
         update();
         return emotionRecords.values().stream()
                 .max(Comparator.comparingDouble(r -> r.weight))
@@ -401,25 +402,25 @@ final class PetMoodEngine {
         return dominant != null ? prettify(dominant.name()) : "None";
     }
 
-    Text getMoodText() {
+    public Text getMoodText() {
         return getCachedMoodText(false);
     }
 
-    Text getMoodTextWithDebug() {
+    public Text getMoodTextWithDebug() {
         return getCachedMoodText(true);
     }
 
-    List<PetComponent.WeightedEmotionColor> getCurrentEmotionPalette() {
+    public List<PetComponent.WeightedEmotionColor> getCurrentEmotionPalette() {
         update();
         return currentPaletteStops;
     }
 
-    float getAnimationIntensity() {
+    public float getAnimationIntensity() {
         update();
         return animationIntensity;
     }
 
-    void writeToNbt(NbtCompound nbt) {
+    public void writeToNbt(NbtCompound nbt) {
         NbtCompound emotions = new NbtCompound();
         for (EmotionRecord record : emotionRecords.values()) {
             NbtCompound tag = new NbtCompound();
@@ -459,7 +460,7 @@ final class PetMoodEngine {
         nbt.put("dominantHistory", history);
     }
 
-    void readFromNbt(NbtCompound nbt) {
+    public void readFromNbt(NbtCompound nbt) {
         emotionRecords.clear();
         if (nbt.contains("emotionRecords")) {
             nbt.getCompound("emotionRecords").ifPresent(emotions -> {
@@ -2473,3 +2474,5 @@ final class PetMoodEngine {
     private record OpponentConflict(Candidate a, Candidate b, float combinedWeight) {
     }
 }
+
+

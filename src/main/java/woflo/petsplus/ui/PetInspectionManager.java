@@ -22,7 +22,7 @@ import net.minecraft.scoreboard.ScoreHolder;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-import woflo.petsplus.state.PlayerTickListener;
+import woflo.petsplus.state.tracking.PlayerTickListener;
 
 /**
  * Enhanced pet inspection system with dynamic, contextual boss bar display.

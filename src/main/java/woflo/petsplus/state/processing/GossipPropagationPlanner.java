@@ -9,7 +9,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import woflo.petsplus.state.gossip.RumorEntry;
-import woflo.petsplus.state.PetWorkScheduler;
+import woflo.petsplus.state.coordination.PetWorkScheduler;
 
 /**
  * Prepares gossip sharing plans for owner batches so the heavy neighbour

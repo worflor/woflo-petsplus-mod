@@ -4,7 +4,7 @@ import net.minecraft.text.Text;
 
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.events.EmotionContextCues;
-import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 
 /**
  * Handles pack-scale social observations (group size, age mix, proximity) and

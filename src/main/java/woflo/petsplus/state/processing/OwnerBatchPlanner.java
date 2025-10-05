@@ -5,7 +5,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 
-import woflo.petsplus.state.PetWorkScheduler;
+import woflo.petsplus.state.coordination.PetWorkScheduler;
 import woflo.petsplus.state.processing.GossipPropagationPlanner.GossipPropagationPlan;
 
 /**

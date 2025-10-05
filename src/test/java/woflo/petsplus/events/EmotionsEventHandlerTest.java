@@ -41,7 +41,7 @@ import java.util.function.DoubleSupplier;
 import woflo.petsplus.mood.EmotionBaselineTracker;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetMoodEngineTestUtil;
-import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.state.processing.AsyncWorkCoordinator;
 import woflo.petsplus.state.processing.AsyncJobPriority;

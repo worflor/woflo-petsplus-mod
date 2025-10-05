@@ -1,4 +1,4 @@
-package woflo.petsplus.state;
+package woflo.petsplus.state.tracking;
 
 import woflo.petsplus.effects.MagnetizeDropsAndXpEffect;
 import woflo.petsplus.events.EmotionContextCues;

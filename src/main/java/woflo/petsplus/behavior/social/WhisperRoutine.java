@@ -7,7 +7,7 @@ import net.minecraft.text.Text;
 
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.events.EmotionContextCues;
-import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 
 /**
  * Handles intimate one-on-one social moments such as greetings and empathy

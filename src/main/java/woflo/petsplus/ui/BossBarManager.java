@@ -12,8 +12,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-import woflo.petsplus.state.PlayerTickDispatcher;
-import woflo.petsplus.state.PlayerTickListener;
+import woflo.petsplus.state.tracking.PlayerTickDispatcher;
+import woflo.petsplus.state.tracking.PlayerTickListener;
 
 /**
  * Manages boss bar displays for ability feedback and cooldowns.

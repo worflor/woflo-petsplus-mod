@@ -1,4 +1,4 @@
-package woflo.petsplus.state;
+package woflo.petsplus.state.tracking;
 
 import net.minecraft.server.network.ServerPlayerEntity;
 

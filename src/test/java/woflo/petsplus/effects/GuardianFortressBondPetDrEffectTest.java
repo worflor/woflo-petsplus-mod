@@ -17,8 +17,8 @@ import woflo.petsplus.api.EffectContext;
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.roles.guardian.GuardianFortressBondManager;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PlayerTickDispatcher;
-import woflo.petsplus.state.PlayerTickListener;
+import woflo.petsplus.state.tracking.PlayerTickDispatcher;
+import woflo.petsplus.state.tracking.PlayerTickListener;
 
 class GuardianFortressBondPetDrEffectTest {
     private final GuardianFortressBondPetDrEffect effect = new GuardianFortressBondPetDrEffect();

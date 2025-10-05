@@ -13,7 +13,7 @@ import net.minecraft.server.world.ServerWorld;
 import org.jetbrains.annotations.Nullable;
 
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 
 /**
  * Snapshot describing an owner-scoped event dispatch. Provides batched context so

@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import woflo.petsplus.events.SleepEventHandler;
-import woflo.petsplus.state.PlayerTickDispatcher;
+import woflo.petsplus.state.tracking.PlayerTickDispatcher;
 
 /**
  * Handles disconnect cleanup for systems that previously relied on world tick sweeps.

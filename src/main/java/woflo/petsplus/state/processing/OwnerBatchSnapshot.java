@@ -17,7 +17,7 @@ import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
 
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PetWorkScheduler;
+import woflo.petsplus.state.coordination.PetWorkScheduler;
 import woflo.petsplus.state.gossip.RumorEntry;
 
 /**

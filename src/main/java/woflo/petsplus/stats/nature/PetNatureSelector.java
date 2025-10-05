@@ -22,7 +22,7 @@ import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeKeys;
 import woflo.petsplus.api.event.PetBreedEvent;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 
 import java.util.ArrayList;

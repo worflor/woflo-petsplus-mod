@@ -17,8 +17,8 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.roles.scout.ScoutBackpack;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PlayerTickDispatcher;
-import woflo.petsplus.state.PlayerTickListener;
+import woflo.petsplus.state.tracking.PlayerTickDispatcher;
+import woflo.petsplus.state.tracking.PlayerTickListener;
 
 import net.minecraft.server.network.ServerPlayerEntity;
 import java.util.HashMap;

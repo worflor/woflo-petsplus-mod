@@ -1,10 +1,11 @@
-package woflo.petsplus.state;
+package woflo.petsplus.state.coordination;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.math.ChunkSectionPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import woflo.petsplus.state.PetComponent;
 
 import java.util.ArrayList;
 import java.util.Collections;

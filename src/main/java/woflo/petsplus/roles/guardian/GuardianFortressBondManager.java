@@ -8,8 +8,8 @@ import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.DamageInterceptionResult;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PlayerTickDispatcher;
-import woflo.petsplus.state.PlayerTickListener;
+import woflo.petsplus.state.tracking.PlayerTickDispatcher;
+import woflo.petsplus.state.tracking.PlayerTickListener;
 import woflo.petsplus.ui.UIFeedbackManager;
 
 import java.util.Map;

@@ -18,8 +18,8 @@ import net.minecraft.text.Text;
 import net.minecraft.text.Texts;
 import woflo.petsplus.events.EmotionCueConfig.EmotionCueDefinition;
 import woflo.petsplus.ui.BossBarManager;
-import woflo.petsplus.state.PlayerTickDispatcher;
-import woflo.petsplus.state.PlayerTickListener;
+import woflo.petsplus.state.tracking.PlayerTickDispatcher;
+import woflo.petsplus.state.tracking.PlayerTickListener;
 
 /**
  * Enhanced manager for delivering contextual action-bar cues tied to emotion events.

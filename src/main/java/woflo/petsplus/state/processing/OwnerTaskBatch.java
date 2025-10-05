@@ -16,7 +16,7 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import org.jetbrains.annotations.Nullable;
 
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PetWorkScheduler;
+import woflo.petsplus.state.coordination.PetWorkScheduler;
 
 /**
  * Pooled snapshot describing the owner-scoped work that should execute for a

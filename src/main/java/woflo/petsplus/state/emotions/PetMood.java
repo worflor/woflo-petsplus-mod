@@ -1,4 +1,4 @@
-package woflo.petsplus.state;
+package woflo.petsplus.state.emotions;
 
 import net.minecraft.util.Formatting;
 

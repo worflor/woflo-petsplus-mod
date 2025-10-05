@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import woflo.petsplus.state.PetWorkScheduler;
+import woflo.petsplus.state.coordination.PetWorkScheduler;
 import woflo.petsplus.state.processing.AsyncProcessingTelemetry;
 
 class AsyncWorkCoordinatorTest {

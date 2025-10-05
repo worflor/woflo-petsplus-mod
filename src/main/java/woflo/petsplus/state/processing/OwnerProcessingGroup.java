@@ -12,7 +12,7 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PetWorkScheduler;
+import woflo.petsplus.state.coordination.PetWorkScheduler;
 
 /**
  * Represents the aggregation of all pet work associated with a single owner.

@@ -1,5 +1,7 @@
 package woflo.petsplus.history;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import java.util.UUID;
 
 /**
@@ -13,6 +15,16 @@ public record HistoryEvent(
     String ownerName,      // Cached owner name (for display when owner is offline)
     String eventData       // Minimal JSON-encoded event-specific data
 ) {
+    
+    public static final Codec<HistoryEvent> CODEC = RecordCodecBuilder.create(instance ->
+        instance.group(
+            Codec.LONG.fieldOf("timestamp").forGetter(HistoryEvent::timestamp),
+            Codec.STRING.fieldOf("eventType").forGetter(HistoryEvent::eventType),
+            net.minecraft.util.Uuids.CODEC.fieldOf("ownerUuid").forGetter(HistoryEvent::ownerUuid),
+            Codec.STRING.fieldOf("ownerName").forGetter(HistoryEvent::ownerName),
+            Codec.STRING.optionalFieldOf("eventData", "").forGetter(HistoryEvent::eventData)
+        ).apply(instance, HistoryEvent::new)
+    );
     
     /**
      * Event types that can be recorded in pet history.

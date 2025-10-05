@@ -13,7 +13,7 @@ import net.minecraft.server.world.ServerWorld;
 
 import woflo.petsplus.mood.EmotionStimulusBus;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.gossip.RumorEntry;
 
 /**

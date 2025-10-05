@@ -10,7 +10,7 @@ import net.minecraft.text.Text;
 
 import woflo.petsplus.events.EmotionContextCues;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.gossip.GossipTopics;
 import woflo.petsplus.state.gossip.PetGossipLedger;
 import woflo.petsplus.state.gossip.RumorEntry;

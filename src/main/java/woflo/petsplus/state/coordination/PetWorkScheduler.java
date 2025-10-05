@@ -1,6 +1,7 @@
-package woflo.petsplus.state;
+package woflo.petsplus.state.coordination;
 
 import net.minecraft.entity.mob.MobEntity;
+import woflo.petsplus.state.PetComponent;
 
 import java.util.ArrayList;
 import java.util.EnumMap;

@@ -40,7 +40,7 @@ import woflo.petsplus.abilities.AbilityManager;
 import woflo.petsplus.abilities.AbilityTriggerResult;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
 import woflo.petsplus.roles.guardian.GuardianBulwark;

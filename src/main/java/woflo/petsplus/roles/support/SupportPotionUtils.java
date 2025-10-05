@@ -20,7 +20,7 @@ import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.stats.PetAttributeManager;
 import woflo.petsplus.util.PetPerchUtil;

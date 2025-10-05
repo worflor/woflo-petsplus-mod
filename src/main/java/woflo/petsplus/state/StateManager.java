@@ -28,6 +28,8 @@ import woflo.petsplus.events.EmotionsEventHandler;
 import woflo.petsplus.roles.support.SupportPotionUtils;
 import woflo.petsplus.roles.support.SupportPotionVacuumManager;
 import woflo.petsplus.mood.MoodService;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
+import woflo.petsplus.state.coordination.PetWorkScheduler;
 import woflo.petsplus.mood.EmotionStimulusBus;
 import woflo.petsplus.ui.CooldownParticleManager;
 import woflo.petsplus.util.EntityTagUtil;

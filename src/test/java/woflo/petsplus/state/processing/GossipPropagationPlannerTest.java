@@ -11,7 +11,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
-import woflo.petsplus.state.PetWorkScheduler;
+import woflo.petsplus.state.coordination.PetWorkScheduler;
 import woflo.petsplus.state.gossip.RumorEntry;
 import woflo.petsplus.state.processing.GossipPropagationPlanner.GossipPropagationPlan;
 import woflo.petsplus.state.processing.OwnerBatchSnapshot.PetSummary;

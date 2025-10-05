@@ -24,7 +24,7 @@ import woflo.petsplus.roles.support.SupportPotionUtils.MergeOutcome;
 import woflo.petsplus.roles.support.SupportPotionUtils.RejectionReason;
 import woflo.petsplus.roles.support.SupportPotionUtils.SupportPotionState;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 
 class SupportPotionUtilsTest {

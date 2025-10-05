@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import woflo.petsplus.state.PetWorkScheduler;
+import woflo.petsplus.state.coordination.PetWorkScheduler;
 
 /**
  * Immutable container describing predicted next-run ticks for owner-scoped

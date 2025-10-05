@@ -23,7 +23,7 @@ import woflo.petsplus.advancement.BestFriendTracker;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.history.HistoryManager;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.stats.PetAttributeManager;
 import woflo.petsplus.state.processing.OwnerEventFrame;

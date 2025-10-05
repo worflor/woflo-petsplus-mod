@@ -9,7 +9,7 @@ import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.effects.TagTargetEffect;
-import woflo.petsplus.state.PlayerTickListener;
+import woflo.petsplus.state.tracking.PlayerTickListener;
 import woflo.petsplus.ui.FeedbackManager;
 import woflo.petsplus.ui.UIFeedbackManager;
 

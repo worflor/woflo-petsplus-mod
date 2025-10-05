@@ -6,8 +6,8 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.roles.skyrider.SkyriderWinds;
 import woflo.petsplus.state.OwnerCombatState;
-import woflo.petsplus.state.PlayerTickDispatcher;
-import woflo.petsplus.state.PlayerTickListener;
+import woflo.petsplus.state.tracking.PlayerTickDispatcher;
+import woflo.petsplus.state.tracking.PlayerTickListener;
 import woflo.petsplus.state.StateManager;
 
 import java.util.HashMap;

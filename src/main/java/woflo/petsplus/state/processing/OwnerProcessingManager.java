@@ -15,7 +15,7 @@ import java.util.function.BiConsumer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PetWorkScheduler;
+import woflo.petsplus.state.coordination.PetWorkScheduler;
 
 /**
  * Coordinates aggregation of pet upkeep tasks into owner-scoped batches. This

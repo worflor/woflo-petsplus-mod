@@ -15,8 +15,8 @@ import java.util.Objects;
 import java.util.UUID;
 
 import woflo.petsplus.config.PetsPlusConfig;
-import woflo.petsplus.state.PlayerTickDispatcher;
-import woflo.petsplus.state.PlayerTickListener;
+import woflo.petsplus.state.tracking.PlayerTickDispatcher;
+import woflo.petsplus.state.tracking.PlayerTickListener;
 
 /**
  * Central manager for action-bar feedback cues. Provides lightweight, event-driven

@@ -8,7 +8,7 @@ import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PlayerTickListener;
+import woflo.petsplus.state.tracking.PlayerTickListener;
 
 import java.util.List;
 import java.util.Map;

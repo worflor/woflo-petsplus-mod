@@ -5,7 +5,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.Petsplus;
-import woflo.petsplus.state.PlayerTickDispatcher;
+import woflo.petsplus.state.tracking.PlayerTickDispatcher;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.ui.ActionBarCueManager;
 

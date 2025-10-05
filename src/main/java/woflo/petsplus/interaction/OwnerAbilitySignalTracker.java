@@ -7,9 +7,9 @@ import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.event.OwnerAbilitySignalEvent;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PlayerTickDispatcher;
-import woflo.petsplus.state.PlayerTickListener;
-import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.tracking.PlayerTickDispatcher;
+import woflo.petsplus.state.tracking.PlayerTickListener;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 
 import java.util.Iterator;

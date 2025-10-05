@@ -1,4 +1,4 @@
-package woflo.petsplus.state;
+package woflo.petsplus.state.emotions;
 
 /**
  * Canonical list of hidden/reactive emotions used as inputs to mood blending.

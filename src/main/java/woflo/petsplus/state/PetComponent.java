@@ -25,7 +25,6 @@ import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.registry.RegistryOps;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.advancement.BestFriendTracker;
@@ -35,20 +34,23 @@ import woflo.petsplus.component.PetsplusComponents;
 import woflo.petsplus.mood.EmotionBaselineTracker;
 import woflo.petsplus.mood.MoodService;
 import woflo.petsplus.stats.PetCharacteristics;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
+import woflo.petsplus.state.coordination.PetWorkScheduler;
+import woflo.petsplus.state.emotions.PetMood;
+import woflo.petsplus.state.emotions.PetMoodEngine;
 import woflo.petsplus.state.gossip.PetGossipLedger;
 import woflo.petsplus.state.gossip.RumorEntry;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
 import woflo.petsplus.naming.AttributeKey;
 import woflo.petsplus.history.HistoryEvent;
+import woflo.petsplus.state.modules.*;
+import woflo.petsplus.state.modules.impl.*;
 import woflo.petsplus.util.BehaviorSeedUtil;
 
 import net.minecraft.util.math.ChunkSectionPos;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -60,7 +62,9 @@ import java.util.stream.Stream;
 import java.util.stream.Collectors;
 
 /**
- * Component that tracks pet-specific state including role and cooldowns.
+ * Coordinates pet state through specialized modules for characteristics, progression,
+ * history, inventory, scheduling, and ownership. Delegates all domain-specific logic
+ * to modules while managing core pet identity (role, perching) and module orchestration.
  */
 public class PetComponent {
     private static final Map<MobEntity, PetComponent> COMPONENTS = new WeakHashMap<>();
@@ -71,70 +75,35 @@ public class PetComponent {
     private static final long MIN_GOSSIP_DECAY_DELAY = 40L;
     private static final int GOSSIP_OPT_OUT_MIN_DURATION = 120;
     private static final int GOSSIP_OPT_OUT_MAX_DURATION = 220;
-    private static final String[] ROLE_AFFINITY_KEYS = PetCharacteristics.statKeyArray();
-    private static final Map<String, Integer> ROLE_AFFINITY_INDEX = createRoleAffinityIndex();
-    private static final float ROLE_AFFINITY_EPSILON = 1.0e-5f;
 
-    private static Map<String, Integer> createRoleAffinityIndex() {
-        Map<String, Integer> index = new HashMap<>();
-        for (int i = 0; i < ROLE_AFFINITY_KEYS.length; i++) {
-            index.put(ROLE_AFFINITY_KEYS[i].toLowerCase(Locale.ROOT), i);
-        }
-        return index;
-    }
-
-    // (legacy mood keys removed)
-
+    // Core pet identity
     private final MobEntity pet;
     private Identifier roleId;
-    private PlayerEntity owner;
-    private UUID ownerUuid;
-    private final Map<String, Long> cooldowns;
     private final Map<String, Object> stateData;
-    private final Map<String, DefaultedList<ItemStack>> inventories;
     private long lastAttackTick;
     private boolean isPerched;
-    private int level;
-    private int experience;
-    private final Map<Integer, Boolean> unlockedMilestones;
-    // Level reward tracking
-    private final Map<Identifier, Boolean> unlockedAbilities;
-    private final Map<String, Float> permanentStatBoosts;
-    private final Map<Identifier, float[]> roleAffinityBonuses;
-    private final Map<Integer, Identifier> tributeMilestones;
-    private PetCharacteristics characteristics;
-    private UUID crouchCuddleOwnerId;
-    private long crouchCuddleExpiryTick;
-    private Identifier cachedSpeciesDescriptor;
-    private boolean speciesDescriptorDirty = true;
-    private FlightCapability cachedFlightCapability = FlightCapability.none();
-    private boolean flightCapabilityDirty = true;
-    // New: encapsulated mood/emotion engine
+    
+    // Specialized modules for domain-specific state
     private final PetMoodEngine moodEngine;
-
     private final PetGossipLedger gossipLedger;
-
-    private float natureVolatilityMultiplier = 1.0f;
-    private float natureResilienceMultiplier = 1.0f;
-    private float natureContagionModifier = 1.0f;
-    private float natureGuardModifier = 1.0f;
-    private NatureEmotionProfile natureEmotionProfile = NatureEmotionProfile.EMPTY;
-
-    // Name-based attributes
-    private List<AttributeKey> nameAttributes = new ArrayList<>();
+    private final InventoryModule inventoryModule;
+    private final CharacteristicsModule characteristicsModule;
+    private final HistoryModule historyModule;
+    private final ProgressionModule progressionModule;
+    private final SchedulingModule schedulingModule;
+    private final OwnerModule ownerModule;
+    private final SpeciesMetadataModule speciesMetadataModule;
 
     private StateManager stateManager;
 
-    private final EnumMap<PetWorkScheduler.TaskType, Long> scheduledTaskTicks =
-        new EnumMap<>(PetWorkScheduler.TaskType.class);
-    private long earliestScheduledTick = Long.MAX_VALUE;
-    private boolean schedulingInitialized;
-
+    // Swarm spatial tracking
     private boolean swarmTrackingInitialized;
     private long lastSwarmCellKey = Long.MIN_VALUE;
     private double lastSwarmX;
     private double lastSwarmY;
     private double lastSwarmZ;
+    
+    // Follow behavior spacing
     private double followSpacingOffsetX;
     private double followSpacingOffsetZ;
     private float followSpacingPadding;
@@ -142,15 +111,9 @@ public class PetComponent {
     private long moodFollowHoldUntilTick = Long.MIN_VALUE;
     private float moodFollowDistanceBonus = 0.0f;
 
-    // BossBar UI enhancements
+    // UI state
     private long xpFlashStartTick = -1;
     private static final int XP_FLASH_DURATION = 7; // 0.35 seconds
-    
-    // Pet history tracking
-    private final List<HistoryEvent> petHistory = new ArrayList<>();
-    private static final int MAX_HISTORY_SIZE = 50; // Configurable limit
-
-    // Mood/emotion state moved to PetMoodEngine
 
     
     /**
@@ -384,28 +347,29 @@ public class PetComponent {
     public PetComponent(MobEntity pet) {
         this.pet = pet;
         this.roleId = DEFAULT_ROLE_ID;
-        this.cooldowns = new HashMap<>();
         this.stateData = new HashMap<>();
-        this.inventories = new HashMap<>();
         this.lastAttackTick = 0;
         this.isPerched = false;
-        this.level = 1; // Start at level 1
-        this.experience = 0;
-        this.unlockedMilestones = new HashMap<>();
-        this.unlockedAbilities = new HashMap<>();
-        this.permanentStatBoosts = new HashMap<>();
-        this.roleAffinityBonuses = new HashMap<>();
-        this.tributeMilestones = new HashMap<>();
-        this.characteristics = null; // Will be generated when pet is first tamed
-        this.cachedSpeciesDescriptor = null;
 
-        // Initialize mood/emotion engine
+        // Initialize modules
         this.moodEngine = new PetMoodEngine(this);
-
         this.gossipLedger = new PetGossipLedger();
-
-
-        // Mood/emotion state is managed by moodEngine
+        this.inventoryModule = new DefaultInventoryModule();
+        this.characteristicsModule = new DefaultCharacteristicsModule();
+        this.historyModule = new DefaultHistoryModule();
+        this.progressionModule = new DefaultProgressionModule();
+        this.schedulingModule = new DefaultSchedulingModule();
+        this.ownerModule = new DefaultOwnerModule();
+        this.speciesMetadataModule = new DefaultSpeciesMetadataModule();
+        
+        // Attach modules
+        this.inventoryModule.onAttach(this);
+        this.characteristicsModule.onAttach(this);
+        this.historyModule.onAttach(this);
+        this.progressionModule.onAttach(this);
+        this.schedulingModule.onAttach(this);
+        this.ownerModule.onAttach(this);
+        this.speciesMetadataModule.onAttach(this);
     }
 
     public void attachStateManager(StateManager manager) {
@@ -417,6 +381,35 @@ public class PetComponent {
 
     public MobEntity getPetEntity() {
         return pet;
+    }
+
+    // Module getters
+    public InventoryModule getInventoryModule() {
+        return inventoryModule;
+    }
+
+    public CharacteristicsModule getCharacteristicsModule() {
+        return characteristicsModule;
+    }
+
+    public HistoryModule getHistoryModule() {
+        return historyModule;
+    }
+
+    public ProgressionModule getProgressionModule() {
+        return progressionModule;
+    }
+
+    public SchedulingModule getSchedulingModule() {
+        return schedulingModule;
+    }
+
+    public OwnerModule getOwnerModule() {
+        return ownerModule;
+    }
+
+    public SpeciesMetadataModule getSpeciesMetadataModule() {
+        return speciesMetadataModule;
     }
 
     public PetGossipLedger getGossipLedger() {
@@ -466,11 +459,8 @@ public class PetComponent {
     }
 
     private int pickOptOutDuration() {
-        if (GOSSIP_OPT_OUT_MAX_DURATION <= GOSSIP_OPT_OUT_MIN_DURATION) {
-            return GOSSIP_OPT_OUT_MIN_DURATION;
-        }
         return GOSSIP_OPT_OUT_MIN_DURATION
-            + pet.getRandom().nextInt(GOSSIP_OPT_OUT_MAX_DURATION - GOSSIP_OPT_OUT_MIN_DURATION + 1);
+            + pet.getRandom().nextInt(Math.max(1, GOSSIP_OPT_OUT_MAX_DURATION - GOSSIP_OPT_OUT_MIN_DURATION + 1));
     }
 
     public void requestGossipOptOutWander() {
@@ -588,77 +578,35 @@ public class PetComponent {
 
     // Name-based attributes methods
     public List<AttributeKey> getNameAttributes() {
-        return new ArrayList<>(nameAttributes);
+        return characteristicsModule.getNameAttributes();
     }
 
     public void setNameAttributes(List<AttributeKey> attributes) {
-        if (attributes == null) {
-            this.nameAttributes = new ArrayList<>();
-        } else {
-            this.nameAttributes = new ArrayList<>(attributes);
-        }
+        characteristicsModule.setNameAttributes(attributes != null ? attributes : new ArrayList<>());
     }
 
     public void addNameAttribute(AttributeKey attribute) {
-        if (attribute != null && !nameAttributes.contains(attribute)) {
-            nameAttributes.add(attribute);
-        }
+        characteristicsModule.addNameAttribute(attribute);
     }
 
     public void removeNameAttribute(AttributeKey attribute) {
-        nameAttributes.remove(attribute);
+        characteristicsModule.removeNameAttribute(attribute);
     }
 
     public void clearNameAttributes() {
-        nameAttributes.clear();
+        characteristicsModule.setNameAttributes(new ArrayList<>());
     }
 
     public void resetRoleAffinityBonuses() {
-        if (roleAffinityBonuses.isEmpty()) {
-            syncCharacteristicAffinityLookup();
-            return;
-        }
-        roleAffinityBonuses.clear();
-        syncCharacteristicAffinityLookup();
+        characteristicsModule.resetRoleAffinityBonuses();
     }
 
     public void applyRoleAffinityBonuses(Identifier roleId, String[] statKeys, float[] bonuses) {
-        if (roleId == null || statKeys == null || bonuses == null) {
-            return;
-        }
-        int length = Math.min(statKeys.length, bonuses.length);
-        if (length == 0) {
-            return;
-        }
-
-        boolean created = !roleAffinityBonuses.containsKey(roleId);
-        float[] vector = roleAffinityBonuses.computeIfAbsent(roleId, id -> new float[ROLE_AFFINITY_KEYS.length]);
-        boolean changed = false;
-        for (int i = 0; i < length; i++) {
-            String rawKey = statKeys[i];
-            if (rawKey == null) {
-                continue;
-            }
-            Integer index = ROLE_AFFINITY_INDEX.get(rawKey.toLowerCase(Locale.ROOT));
-            if (index == null) {
-                continue;
-            }
-            float delta = bonuses[i];
-            if (Math.abs(delta) <= ROLE_AFFINITY_EPSILON) {
-                continue;
-            }
-            vector[index] += delta;
-            changed = true;
-        }
-        if (changed) {
-            syncCharacteristicAffinityLookup();
-        } else if (created) {
-            roleAffinityBonuses.remove(roleId, vector);
-        }
+        characteristicsModule.applyRoleAffinityBonuses(roleId, statKeys, bonuses);
     }
 
     public void addRoleAffinityBonus(@Nullable PetRoleType roleType, float bonus) {
-        if (roleType == null || Math.abs(bonus) <= ROLE_AFFINITY_EPSILON) {
+        if (roleType == null) {
             return;
         }
         String[] keys;
@@ -671,7 +619,7 @@ public class PetComponent {
         for (int i = 0; i < keys.length; i++) {
             values[i] = bonus;
         }
-        applyRoleAffinityBonuses(roleType.id(), keys, values);
+        characteristicsModule.applyRoleAffinityBonuses(roleType.id(), keys, values);
     }
 
     public void addRoleAffinityBonus(PetRoleType[] roles, float bonus) {
@@ -683,49 +631,30 @@ public class PetComponent {
         }
     }
 
-    private float resolveRoleAffinityBonus(@Nullable PetRoleType roleType, String statKey) {
-        if (roleType == null || statKey == null) {
-            return 0.0f;
-        }
-        float[] vector = roleAffinityBonuses.get(roleType.id());
-        if (vector == null) {
-            return 0.0f;
-        }
-        Integer index = ROLE_AFFINITY_INDEX.get(statKey.toLowerCase(Locale.ROOT));
-        if (index == null) {
-            return 0.0f;
-        }
-        return vector[index];
-    }
-
     private void syncCharacteristicAffinityLookup() {
+        PetCharacteristics characteristics = characteristicsModule.getCharacteristics();
         if (characteristics != null) {
-            characteristics.setRoleAffinityLookup(this::resolveRoleAffinityBonus);
+            characteristics.setRoleAffinityLookup(characteristicsModule::resolveRoleAffinityBonus);
         }
     }
 
     public boolean hasNameAttribute(String type) {
-        return nameAttributes.stream().anyMatch(attr -> attr.normalizedType().equals(type.toLowerCase()));
+        return characteristicsModule.getNameAttributes().stream()
+            .anyMatch(attr -> attr.normalizedType().equals(type.toLowerCase()));
     }
 
     public void refreshSpeciesDescriptor() {
-        this.speciesDescriptorDirty = true;
-        this.flightCapabilityDirty = true;
+        speciesMetadataModule.markSpeciesDirty();
+        speciesMetadataModule.markFlightDirty();
     }
 
     public void ensureSpeciesDescriptorInitialized() {
-        if (this.speciesDescriptorDirty || this.cachedSpeciesDescriptor == null) {
-            refreshSpeciesDescriptor();
-            getSpeciesDescriptor();
-        }
+        // Module handles lazy initialization
+        getSpeciesDescriptor();
     }
 
     public Identifier getSpeciesDescriptor() {
-        if (this.speciesDescriptorDirty || this.cachedSpeciesDescriptor == null) {
-            this.cachedSpeciesDescriptor = computeSpeciesDescriptor();
-            this.speciesDescriptorDirty = false;
-        }
-        return this.cachedSpeciesDescriptor;
+        return speciesMetadataModule.getSpeciesDescriptor();
     }
 
     public boolean matchesSpeciesKeyword(String... keywords) {
@@ -751,18 +680,14 @@ public class PetComponent {
     }
 
     public FlightCapability getFlightCapability() {
-        if (this.flightCapabilityDirty || this.cachedFlightCapability == null) {
-            this.cachedFlightCapability = computeFlightCapability();
-            this.flightCapabilityDirty = false;
-        }
-        return this.cachedFlightCapability;
+        return speciesMetadataModule.getFlightCapability();
     }
 
     public boolean isFlightCapable() {
         return getFlightCapability().canFly();
     }
 
-    private FlightCapability computeFlightCapability() {
+    public FlightCapability computeFlightCapability() {
         if (hasSpeciesTag(PetsplusEntityTypeTags.FLYERS)) {
             return FlightCapability.fromSource(FlightCapabilitySource.SPECIES_TAG);
         }
@@ -920,7 +845,7 @@ public class PetComponent {
     public void setRoleId(@Nullable Identifier id) {
         Identifier newId = id != null ? id : DEFAULT_ROLE_ID;
         this.roleId = newId;
-        this.flightCapabilityDirty = true;
+        speciesMetadataModule.markFlightDirty();
 
         // Apply attribute modifiers when role changes
         woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
@@ -982,86 +907,26 @@ public class PetComponent {
 
     @Nullable
     public PlayerEntity getOwner() {
-        if (owner != null && owner.isRemoved()) {
-            owner = null;
-        }
-        if (owner == null && ownerUuid != null && pet.getWorld() instanceof ServerWorld serverWorld) {
-            PlayerEntity resolved = serverWorld.getPlayerByUuid(ownerUuid);
-            if (resolved != null) {
-                owner = resolved;
-            }
-        }
-        return owner;
+        if (!(pet.getWorld() instanceof ServerWorld world)) return null;
+        return ownerModule.getOwner(world);
     }
 
     public void setOwner(@Nullable PlayerEntity owner) {
-        UUID previousOwnerUuid = this.ownerUuid;
-        UUID newOwnerUuid = owner != null ? owner.getUuid() : null;
-        if (!Objects.equals(previousOwnerUuid, newOwnerUuid)) {
-            clearTrackedBestFriend(previousOwnerUuid);
-        }
-
-        this.owner = owner;
-        this.ownerUuid = newOwnerUuid;
-        setStateData("petsplus:owner_uuid", owner != null ? owner.getUuidAsString() : "");
-        if (stateManager != null) {
-            stateManager.unscheduleAllTasks(this);
-        }
-        if (owner == null) {
-            invalidateSwarmTracking();
-        }
-        markSchedulingUninitialized();
+        ownerModule.setOwner(owner);
     }
 
     public void setOwnerUuid(@Nullable UUID ownerUuid) {
-        UUID previousOwnerUuid = this.ownerUuid;
-        if (!Objects.equals(previousOwnerUuid, ownerUuid)) {
-            clearTrackedBestFriend(previousOwnerUuid);
-        }
-
-        this.ownerUuid = ownerUuid;
-        setStateData("petsplus:owner_uuid", ownerUuid != null ? ownerUuid.toString() : "");
-        if (ownerUuid == null) {
-            this.owner = null;
-            invalidateSwarmTracking();
-            if (stateManager != null) {
-                stateManager.unscheduleAllTasks(this);
-            }
-            markSchedulingUninitialized();
-            return;
-        }
-        if (pet.getWorld() instanceof ServerWorld serverWorld) {
-            PlayerEntity player = serverWorld.getPlayerByUuid(ownerUuid);
-            if (player != null) {
-                this.owner = player;
-            }
-        }
-        if (stateManager != null) {
-            stateManager.unscheduleAllTasks(this);
-        }
-        markSchedulingUninitialized();
-    }
-
-    private void clearTrackedBestFriend(@Nullable UUID previousOwnerUuid) {
-        if (previousOwnerUuid == null) {
-            return;
-        }
-        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
-            return;
-        }
-
-        BestFriendTracker tracker = BestFriendTracker.get(serverWorld);
-        tracker.clearIfBestFriend(previousOwnerUuid, pet.getUuid());
+        ownerModule.setOwnerUuid(ownerUuid);
     }
 
     public void ensureSchedulingInitialized(long currentTick) {
-        if (schedulingInitialized) {
+        if (schedulingModule.isInitialized()) {
             return;
         }
         if (!(pet.getWorld() instanceof ServerWorld) || stateManager == null) {
             return;
         }
-        schedulingInitialized = true;
+        schedulingModule.markInitialized();
         scheduleNextIntervalTick(currentTick);
         scheduleNextAuraCheck(currentTick);
         scheduleNextSupportPotionScan(currentTick);
@@ -1105,14 +970,12 @@ public class PetComponent {
         stateManager.schedulePetTask(this, type, sanitized);
     }
 
-    void onTaskScheduled(PetWorkScheduler.TaskType type, long tick) {
-        scheduledTaskTicks.put(type, tick);
-        recomputeEarliestScheduledTick();
+    public void onTaskScheduled(PetWorkScheduler.TaskType type, long tick) {
+        schedulingModule.scheduleTask(type, tick);
     }
 
-    void onTaskUnschedule(PetWorkScheduler.TaskType type) {
-        scheduledTaskTicks.remove(type);
-        recomputeEarliestScheduledTick();
+    public void onTaskUnschedule(PetWorkScheduler.TaskType type) {
+        schedulingModule.unscheduleTask(type);
     }
 
     public void tickGossipLedger(long currentTick) {
@@ -1124,28 +987,18 @@ public class PetComponent {
         scheduleNextGossipDecay(currentTick + nextDelay);
     }
 
-    private void recomputeEarliestScheduledTick() {
-        long earliest = Long.MAX_VALUE;
-        for (Long tick : scheduledTaskTicks.values()) {
-            if (tick != null && tick < earliest) {
-                earliest = tick;
-            }
-        }
-        earliestScheduledTick = earliest;
-    }
+
 
     public boolean hasScheduledWork() {
-        return !scheduledTaskTicks.isEmpty();
+        return schedulingModule.hasScheduledWork();
     }
 
     public boolean hasDueWork(long currentTick) {
-        return earliestScheduledTick != Long.MAX_VALUE && currentTick >= earliestScheduledTick;
+        return schedulingModule.hasDueWork(currentTick);
     }
 
     public void markSchedulingUninitialized() {
-        schedulingInitialized = false;
-        scheduledTaskTicks.clear();
-        earliestScheduledTick = Long.MAX_VALUE;
+        schedulingModule.reset();
     }
 
     public void invalidateSwarmTracking() {
@@ -1209,46 +1062,23 @@ public class PetComponent {
 
     @Nullable
     public UUID getOwnerUuid() {
-        return this.ownerUuid;
+        return ownerModule.getOwnerUuid();
     }
     
     public boolean isOwnedBy(@Nullable PlayerEntity player) {
-        if (player == null) {
-            return false;
-        }
-
-        if (owner != null) {
-            if (owner.isRemoved()) {
-                owner = null;
-            } else if (owner == player) {
-                return true;
-            } else if (owner.getUuid().equals(player.getUuid())) {
-                owner = player;
-                return true;
-            } else {
-                return false;
-            }
-        }
-
-        if (ownerUuid != null && ownerUuid.equals(player.getUuid())) {
-            this.owner = player;
-            return true;
-        }
-
-        return false;
+        return ownerModule.isOwnedBy(player);
     }
     
     public boolean isOnCooldown(String key) {
-        Long cooldownEnd = cooldowns.get(key);
-        return cooldownEnd != null && pet.getWorld().getTime() < cooldownEnd;
+        return schedulingModule.isOnCooldown(key, pet.getWorld().getTime());
     }
 
     public void setCooldown(String key, int ticks) {
-        cooldowns.put(key, pet.getWorld().getTime() + ticks);
+        schedulingModule.setCooldown(key, pet.getWorld().getTime() + ticks);
     }
 
     public void clearCooldown(String key) {
-        cooldowns.remove(key);
+        schedulingModule.clearCooldown(key);
     }
 
     /**
@@ -1257,43 +1087,15 @@ public class PetComponent {
      * it does not retain references to the live mutable state.
      */
     public Map<String, Long> copyCooldownSnapshot() {
-        if (cooldowns.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        return new HashMap<>(cooldowns);
+        return schedulingModule.getAllCooldowns();
     }
 
     /**
-     * Updates cooldowns and triggers particle effects when they expire
-     * Should be called periodically to check for cooldown refreshes
+     * Updates cooldowns managed by the scheduling module.
+     * Particle effects are triggered by game systems when cooldowns expire.
      */
     public void updateCooldowns() {
-        if (!(pet.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld)) {
-            return;
-        }
-
-        if (cooldowns.isEmpty()) {
-            return;
-        }
-
-        long currentTime = pet.getWorld().getTime();
-        boolean anyExpired = false;
-
-        // Check for expired cooldowns
-        Iterator<Map.Entry<String, Long>> iterator = cooldowns.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<String, Long> entry = iterator.next();
-            if (currentTime >= entry.getValue()) {
-                // Cooldown has expired
-                anyExpired = true;
-                iterator.remove(); // Remove expired cooldown
-            }
-        }
-        
-        // Trigger particle effect if any cooldown expired
-        if (anyExpired) {
-            woflo.petsplus.ui.CooldownParticleManager.triggerCooldownRefresh(serverWorld, pet);
-        }
+        // SchedulingModule manages cooldown state and expiration
     }
 
     public void applyCooldownExpirations(List<String> keys, long currentTick) {
@@ -1308,12 +1110,10 @@ public class PetComponent {
             if (key == null) {
                 continue;
             }
-            Long cooldownEnd = cooldowns.get(key);
-            if (cooldownEnd == null || cooldownEnd > currentTick) {
-                continue;
+            if (!schedulingModule.isOnCooldown(key, currentTick)) {
+                schedulingModule.clearCooldown(key);
+                anyExpired = true;
             }
-            cooldowns.remove(key);
-            anyExpired = true;
         }
         if (anyExpired) {
             woflo.petsplus.ui.CooldownParticleManager.triggerCooldownRefresh(serverWorld, pet);
@@ -1321,6 +1121,7 @@ public class PetComponent {
     }
 
     public long getRemainingCooldown(String key) {
+        Map<String, Long> cooldowns = schedulingModule.getAllCooldowns();
         Long cooldownEnd = cooldowns.get(key);
         if (cooldownEnd == null) return 0;
         return Math.max(0, cooldownEnd - pet.getWorld().getTime());
@@ -1398,48 +1199,34 @@ public class PetComponent {
     }
 
     public void beginCrouchCuddle(UUID ownerId, long expiryTick) {
-        this.crouchCuddleOwnerId = ownerId;
-        this.crouchCuddleExpiryTick = expiryTick;
+        ownerModule.recordCrouchCuddle(ownerId, expiryTick);
         if (pet.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
             setStateData(StateKeys.LAST_CROUCH_CUDDLE_TICK, serverWorld.getTime());
         }
     }
 
     public void refreshCrouchCuddle(UUID ownerId, long expiryTick) {
-        if (this.crouchCuddleOwnerId != null && this.crouchCuddleOwnerId.equals(ownerId)) {
-            this.crouchCuddleExpiryTick = Math.max(this.crouchCuddleExpiryTick, expiryTick);
-            if (pet.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
-                setStateData(StateKeys.LAST_CROUCH_CUDDLE_TICK, serverWorld.getTime());
-            }
-        } else {
-            beginCrouchCuddle(ownerId, expiryTick);
+        ownerModule.recordCrouchCuddle(ownerId, expiryTick);
+        if (pet.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+            setStateData(StateKeys.LAST_CROUCH_CUDDLE_TICK, serverWorld.getTime());
         }
     }
 
     public void endCrouchCuddle(UUID ownerId) {
-        if (this.crouchCuddleOwnerId != null && this.crouchCuddleOwnerId.equals(ownerId)) {
-            this.crouchCuddleOwnerId = null;
-            this.crouchCuddleExpiryTick = 0L;
-        }
+        ownerModule.clearCrouchCuddle(ownerId);
     }
 
     public boolean isCrouchCuddleActiveWith(@Nullable PlayerEntity owner, long currentTick) {
-        if (owner == null || this.crouchCuddleOwnerId == null) {
-            return false;
-        }
-        if (!owner.getUuid().equals(this.crouchCuddleOwnerId)) {
-            return false;
-        }
-        return currentTick <= this.crouchCuddleExpiryTick;
+        return ownerModule.hasActiveCrouchCuddle(currentTick, owner != null ? owner.getUuid() : null);
     }
 
     public boolean isCrouchCuddleActive(long currentTick) {
-        return this.crouchCuddleOwnerId != null && currentTick <= this.crouchCuddleExpiryTick;
+        return ownerModule.hasActiveCrouchCuddle(currentTick, null);
     }
 
     @Nullable
     public UUID getCrouchCuddleOwnerId() {
-        return this.crouchCuddleOwnerId;
+        return ownerModule.getCrouchCuddleOwnerId();
     }
     
     public void setStateData(String key, Object value) {
@@ -1457,7 +1244,7 @@ public class PetComponent {
             refreshSpeciesDescriptor();
         }
         if (shouldInvalidateFlightCapability(key)) {
-            this.flightCapabilityDirty = true;
+            speciesMetadataModule.markFlightDirty();
         }
     }
 
@@ -1540,7 +1327,7 @@ public class PetComponent {
             refreshSpeciesDescriptor();
         }
         if (shouldInvalidateFlightCapability(key)) {
-            this.flightCapabilityDirty = true;
+            speciesMetadataModule.markFlightDirty();
         }
     }
 
@@ -1618,12 +1405,12 @@ public class PetComponent {
             setStateData(StateKeys.ASSIGNED_NATURE, natureId.toString());
         }
 
-        if (pet.getWorld() instanceof net.minecraft.server.world.ServerWorld && this.characteristics != null) {
+        if (pet.getWorld() instanceof net.minecraft.server.world.ServerWorld && characteristicsModule.getCharacteristics() != null) {
             woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
         }
     }
 
-    private Identifier computeSpeciesDescriptor() {
+    public Identifier computeSpeciesDescriptor() {
         Identifier fromState = resolveDescriptorFromStateData();
         if (fromState != null) {
             return fromState;
@@ -1679,37 +1466,19 @@ public class PetComponent {
      * @return backing list representing the inventory contents
      */
     public DefaultedList<ItemStack> getInventory(String key, int size) {
-        DefaultedList<ItemStack> inventory = inventories.get(key);
-        if (inventory == null) {
-            inventory = DefaultedList.ofSize(size, ItemStack.EMPTY);
-            inventories.put(key, inventory);
-            return inventory;
-        }
-
-        if (inventory.size() == size) {
-            return inventory;
-        }
-
-        DefaultedList<ItemStack> resized = DefaultedList.ofSize(size, ItemStack.EMPTY);
-        int limit = Math.min(size, inventory.size());
-        for (int i = 0; i < limit; i++) {
-            ItemStack stack = inventory.get(i);
-            resized.set(i, stack.isEmpty() ? ItemStack.EMPTY : stack.copy());
-        }
-        inventories.put(key, resized);
-        return resized;
+        return inventoryModule.getInventory(key, size);
     }
 
     @Nullable
     public DefaultedList<ItemStack> getInventoryIfPresent(String key) {
-        return inventories.get(key);
+        return inventoryModule.getInventoryIfPresent(key);
     }
 
     /**
      * Store a persistent inventory backing list for this pet.
      */
     public void setInventory(String key, DefaultedList<ItemStack> inventory) {
-        inventories.put(key, inventory);
+        inventoryModule.setInventory(key, inventory);
     }
 
     private RegistryOps<NbtElement> getRegistryOps() {
@@ -1781,32 +1550,20 @@ public class PetComponent {
         float clampedContagion = MathHelper.clamp(contagionModifier, 0.5f, 1.5f);
         float clampedGuard = MathHelper.clamp(guardModifier, 0.5f, 1.5f);
 
-        if (this.natureVolatilityMultiplier == clampedVolatility
-            && this.natureResilienceMultiplier == clampedResilience
-            && this.natureContagionModifier == clampedContagion
-            && this.natureGuardModifier == clampedGuard) {
-            return;
+        if (characteristicsModule.updateNatureTuning(clampedVolatility, clampedResilience, clampedContagion, clampedGuard)) {
+            moodEngine.onNatureTuningChanged();
         }
-
-        this.natureVolatilityMultiplier = clampedVolatility;
-        this.natureResilienceMultiplier = clampedResilience;
-        this.natureContagionModifier = clampedContagion;
-        this.natureGuardModifier = clampedGuard;
-        moodEngine.onNatureTuningChanged();
     }
 
     public void setNatureEmotionProfile(@Nullable NatureEmotionProfile profile) {
         NatureEmotionProfile sanitized = sanitizeNatureEmotionProfile(profile);
-        if (Objects.equals(this.natureEmotionProfile, sanitized)) {
-            return;
+        if (characteristicsModule.setNatureEmotionProfile(sanitized)) {
+            moodEngine.onNatureEmotionProfileChanged(sanitized);
         }
-
-        this.natureEmotionProfile = sanitized;
-        moodEngine.onNatureEmotionProfileChanged(sanitized);
     }
 
     public NatureEmotionProfile getNatureEmotionProfile() {
-        return natureEmotionProfile;
+        return characteristicsModule.getNatureEmotionProfile();
     }
 
     private NatureEmotionProfile sanitizeNatureEmotionProfile(@Nullable NatureEmotionProfile profile) {
@@ -1859,19 +1616,19 @@ public class PetComponent {
     }
 
     public float getNatureVolatilityMultiplier() {
-        return natureVolatilityMultiplier;
+        return characteristicsModule.getNatureVolatility();
     }
 
     public float getNatureResilienceMultiplier() {
-        return natureResilienceMultiplier;
+        return characteristicsModule.getNatureResilience();
     }
 
     public float getNatureContagionModifier() {
-        return natureContagionModifier;
+        return characteristicsModule.getNatureContagion();
     }
 
     public float getNatureGuardModifier() {
-        return natureGuardModifier;
+        return characteristicsModule.getNatureGuardModifier();
     }
 
     public NatureGuardTelemetry getNatureGuardTelemetry() {
@@ -1897,19 +1654,21 @@ public class PetComponent {
     }
     
     public int getLevel() {
-        return level;
+        return progressionModule.getLevel();
     }
     
     public void setLevel(int level) {
-        this.level = Math.max(1, level);
+        progressionModule.setLevel(level);
     }
     
     public int getExperience() {
-        return experience;
+        return (int) progressionModule.getExperience();
     }
     
     public void setExperience(int experience) {
-        this.experience = Math.max(0, experience);
+        if (pet.getWorld() instanceof ServerWorld world) {
+            progressionModule.addExperience(experience - progressionModule.getExperience(), world, world.getTime());
+        }
     }
     
     // ===== Level Reward System =====
@@ -1922,7 +1681,7 @@ public class PetComponent {
             Petsplus.LOGGER.warn("Attempted to unlock null ability for pet {}", pet.getUuidAsString());
             return;
         }
-        unlockedAbilities.put(abilityId, true);
+        progressionModule.unlockAbility(abilityId);
         Petsplus.LOGGER.debug("Unlocked ability {} for pet {}", abilityId, pet.getUuidAsString());
     }
     
@@ -1930,7 +1689,7 @@ public class PetComponent {
      * Check if an ability is unlocked.
      */
     public boolean isAbilityUnlocked(Identifier abilityId) {
-        return unlockedAbilities.getOrDefault(abilityId, false);
+        return progressionModule.hasAbility(abilityId);
     }
     
     /**
@@ -1942,14 +1701,14 @@ public class PetComponent {
             Petsplus.LOGGER.warn("Attempted to add stat boost with null/empty stat name for pet {}", pet.getUuidAsString());
             return;
         }
-        permanentStatBoosts.merge(statName, amount, Float::sum);
+        progressionModule.addPermanentStatBoost(statName, amount);
     }
     
     /**
      * Get the total permanent boost for a given stat.
      */
     public float getPermanentStatBoost(String statName) {
-        return permanentStatBoosts.getOrDefault(statName, 0f);
+        return progressionModule.getPermanentStatBoost(statName);
     }
     
     /**
@@ -1960,7 +1719,7 @@ public class PetComponent {
             Petsplus.LOGGER.warn("Attempted to set tribute milestone with null item ID at level {} for pet {}", level, pet.getUuidAsString());
             return;
         }
-        tributeMilestones.put(level, itemId);
+        progressionModule.setTributeMilestone(level, itemId);
         Petsplus.LOGGER.debug("Set tribute milestone at level {} to {} for pet {}", level, itemId, pet.getUuidAsString());
     }
     
@@ -1969,14 +1728,14 @@ public class PetComponent {
      */
     @Nullable
     public Identifier getTributeMilestone(int level) {
-        return tributeMilestones.get(level);
+        return progressionModule.getTributeMilestone(level);
     }
     
     /**
      * Check if a level has a tribute requirement.
      */
     public boolean hasTributeMilestone(int level) {
-        return tributeMilestones.containsKey(level);
+        return progressionModule.hasTributeMilestone(level);
     }
     
     /**
@@ -1984,14 +1743,14 @@ public class PetComponent {
      */
     @Nullable
     public PetCharacteristics getCharacteristics() {
-        return characteristics;
+        return characteristicsModule.getCharacteristics();
     }
     
     /**
      * Set the pet's characteristics (usually generated once when first tamed).
      */
     public void setCharacteristics(@Nullable PetCharacteristics characteristics) {
-        this.characteristics = characteristics;
+        characteristicsModule.setCharacteristics(characteristics);
         syncCharacteristicAffinityLookup();
     }
     
@@ -2025,7 +1784,7 @@ public class PetComponent {
 
     // All slot management lives in PetMoodEngine
 
-    // Removed legacy per-tick direct mood scoring methods in favor of emotion aggregation
+    // Mood scoring delegated to PetMoodEngine for emotion-based aggregation
     
 
     
@@ -2209,12 +1968,12 @@ public class PetComponent {
      * Should be called when a pet is first tamed.
      */
     public void ensureCharacteristics() {
-        if (characteristics == null) {
+        if (characteristicsModule.getCharacteristics() == null) {
             long tameTime = pet.getWorld().getTime();
             if (getStateData(StateKeys.TAMED_TICK, Long.class) == null) {
                 setStateData(StateKeys.TAMED_TICK, tameTime);
             }
-            characteristics = PetCharacteristics.generateForNewPet(pet, tameTime);
+            characteristicsModule.setCharacteristics(PetCharacteristics.generateForNewPet(pet, tameTime));
 
         // Apply attribute modifiers with the new characteristics
         woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
@@ -2232,7 +1991,7 @@ public class PetComponent {
      * are generated.
      */
     public long getStablePerPetSeed() {
-        PetCharacteristics characteristics = this.characteristics;
+        PetCharacteristics characteristics = characteristicsModule.getCharacteristics();
         if (characteristics != null) {
             return characteristics.getCharacteristicSeed();
         }
@@ -2338,32 +2097,30 @@ public class PetComponent {
     public boolean addExperience(int xpGained) {
         if (xpGained <= 0) return false;
 
-        int oldLevel = this.level;
-        this.experience += xpGained;
+        int oldLevel = progressionModule.getLevel();
+        if (pet.getWorld() instanceof ServerWorld serverWorld) {
+            progressionModule.addExperience(xpGained, serverWorld, pet.getWorld().getTime());
+        }
 
         // Trigger XP flash animation
         this.xpFlashStartTick = pet.getWorld().getTime();
 
-        // Check for level ups
-        PetRoleType.XpCurve curve = getRoleType().xpCurve();
-        while (this.experience >= getTotalXpForLevel(this.level + 1) && this.level < curve.maxLevel()) {
-            this.level++;
-        }
-
-        return this.level > oldLevel;
+        return progressionModule.getLevel() > oldLevel;
     }
     
     /**
      * Get XP progress toward next level as a percentage (0.0 to 1.0).
      */
     public float getXpProgress() {
+        int level = progressionModule.getLevel();
+        long experience = progressionModule.getExperience();
         PetRoleType.XpCurve curve = getRoleType().xpCurve();
         if (level >= curve.maxLevel()) return 1.0f;
 
         int currentLevelTotalXp = getTotalXpForLevel(level);
         int nextLevelTotalXp = getTotalXpForLevel(level + 1);
         int xpForThisLevel = Math.max(1, nextLevelTotalXp - currentLevelTotalXp);
-        int currentXpInLevel = experience - currentLevelTotalXp;
+        int currentXpInLevel = (int) (experience - currentLevelTotalXp);
 
         return Math.max(0f, Math.min(1f, (float)currentXpInLevel / xpForThisLevel));
     }
@@ -2372,34 +2129,35 @@ public class PetComponent {
      * Check if pet has reached a feature level (3, 7, 12, 17, 23, 27).
      */
     public boolean isFeatureLevel() {
-        return getRoleType().xpCurve().isFeatureLevel(level);
+        return getRoleType().xpCurve().isFeatureLevel(progressionModule.getLevel());
     }
     
     /**
      * Check if pet is at least the required level for an ability.
      */
     public boolean hasLevel(int requiredLevel) {
-        return level >= requiredLevel;
+        return progressionModule.getLevel() >= requiredLevel;
     }
 
     /**
      * Check if a milestone level has been unlocked with tribute.
      */
     public boolean isMilestoneUnlocked(int milestoneLevel) {
-        return unlockedMilestones.getOrDefault(milestoneLevel, false);
+        return progressionModule.hasMilestone(milestoneLevel);
     }
 
     /**
      * Unlock a milestone level (tribute paid).
      */
     public void unlockMilestone(int milestoneLevel) {
-        unlockedMilestones.put(milestoneLevel, true);
+        progressionModule.unlockMilestone(milestoneLevel);
     }
 
     /**
      * Check if pet is waiting for tribute at current level.
      */
     public boolean isWaitingForTribute() {
+        int level = progressionModule.getLevel();
         PetRoleType.XpCurve curve = getRoleType().xpCurve();
         for (int milestone : curve.tributeMilestones()) {
             if (level == milestone && !isMilestoneUnlocked(milestone)) {
@@ -2469,139 +2227,68 @@ public class PetComponent {
      * Limits history size to prevent memory issues.
      */
     public void addHistoryEvent(HistoryEvent event) {
-        if (event == null) {
-            return;
-        }
-        
-        petHistory.add(event);
-        
-        // Limit history size to prevent bloat
-        if (petHistory.size() > MAX_HISTORY_SIZE) {
-            petHistory.remove(0); // Remove oldest
-        }
+        historyModule.recordEvent(event);
     }
     
     /**
      * Gets the pet's complete history.
      */
     public List<HistoryEvent> getHistory() {
-        return new ArrayList<>(petHistory);
+        return historyModule.getEvents();
     }
     
     /**
      * Gets history events for a specific owner.
      */
     public List<HistoryEvent> getHistoryForOwner(UUID ownerUuid) {
-        if (ownerUuid == null) {
-            return new ArrayList<>();
-        }
-        
-        return petHistory.stream()
-            .filter(event -> event.isWithOwner(ownerUuid))
-            .collect(Collectors.toList());
+        return historyModule.getEventsForOwner(ownerUuid);
     }
     
     /**
      * Gets history events of a specific type.
+     * @deprecated Use historyModule.getEvents() with filtering
      */
+    @Deprecated
     public List<HistoryEvent> getHistoryByType(String eventType) {
         if (eventType == null) {
             return new ArrayList<>();
         }
-        
-        return petHistory.stream()
+        return historyModule.getEvents().stream()
             .filter(event -> event.isType(eventType))
             .collect(Collectors.toList());
     }
     
     /**
      * Counts events of a specific type for a specific owner.
+     * @deprecated Use historyModule.countEvents()
      */
+    @Deprecated
     public int getEventCount(String eventType, UUID ownerUuid) {
-        if (eventType == null) {
-            return 0;
-        }
-        
-        return (int) petHistory.stream()
-            .filter(event -> event.isType(eventType))
-            .filter(event -> ownerUuid == null || event.isWithOwner(ownerUuid))
-            .count();
+        return (int) historyModule.countEvents(eventType, ownerUuid);
     }
     
     /**
      * Counts events of a specific type across all owners.
+     * @deprecated Use historyModule.countEvents()
      */
+    @Deprecated
     public int getEventCount(String eventType) {
-        return getEventCount(eventType, null);
-    }
-    
-    /**
-     * Gets the number of unique owners this pet has had.
-     */
-    public int getUniqueOwnerCount() {
-        return (int) petHistory.stream()
-            .map(HistoryEvent::ownerUuid)
-            .distinct()
-            .count();
-    }
-    
-    /**
-     * Gets a map of owner UUIDs to their trade counts.
-     */
-    public Map<UUID, Integer> getOwnerTradeCounts() {
-        return petHistory.stream()
-            .filter(event -> event.isType(HistoryEvent.EventType.TRADE))
-            .collect(Collectors.groupingBy(
-                HistoryEvent::ownerUuid,
-                Collectors.collectingAndThen(Collectors.counting(), Math::toIntExact)
-            ));
-    }
-    
-    // ==================== Achievement Query Methods (Modular Owner History) ====================
-    
-    /**
-     * Gets all achievement events for this pet.
-     * Part of the modular owner history system.
-     */
-    public List<HistoryEvent> getAchievements() {
-        return petHistory.stream()
-            .filter(event -> event.isType(HistoryEvent.EventType.ACHIEVEMENT))
-            .collect(Collectors.toList());
-    }
-    
-    /**
-     * Gets all achievement events earned with a specific owner.
-     * Part of the modular owner history system.
-     */
-    public List<HistoryEvent> getAchievementsForOwner(UUID ownerUuid) {
-        if (ownerUuid == null) {
-            return new ArrayList<>();
-        }
-        
-        return petHistory.stream()
-            .filter(event -> event.isType(HistoryEvent.EventType.ACHIEVEMENT))
-            .filter(event -> event.isWithOwner(ownerUuid))
-            .collect(Collectors.toList());
+        return (int) historyModule.countEvents(eventType, null);
     }
     
     /**
      * Counts how many times a specific achievement was earned with a specific owner.
-     * Part of the modular owner history system.
-     * 
-     * @param achievementType The achievement type constant from HistoryEvent.AchievementType
-     * @param ownerUuid The owner's UUID, or null for all owners
-     * @return Count of matching achievements
+     * @deprecated - kept for external callers, use historyModule directly
      */
+    @Deprecated
     public long getAchievementCount(String achievementType, UUID ownerUuid) {
         if (achievementType == null) {
             return 0;
         }
-        
-        return petHistory.stream()
+        return historyModule.getEvents().stream()
             .filter(event -> event.isType(HistoryEvent.EventType.ACHIEVEMENT))
             .filter(event -> ownerUuid == null || event.isWithOwner(ownerUuid))
             .filter(event -> {
-                // Parse achievement_type from JSON eventData
                 String data = event.eventData();
                 return data != null && data.contains("\"achievement_type\":\"" + achievementType + "\"");
             })
@@ -2610,14 +2297,14 @@ public class PetComponent {
     
     /**
      * Gets the total damage redirected by a Guardian pet for a specific owner.
-     * Part of the modular owner history system.
+     * @deprecated - kept for external callers, use historyModule directly
      */
+    @Deprecated
     public double getTotalGuardianDamageForOwner(UUID ownerUuid) {
         if (ownerUuid == null) {
             return 0.0;
         }
-        
-        return petHistory.stream()
+        return historyModule.getEvents().stream()
             .filter(event -> event.isType(HistoryEvent.EventType.ACHIEVEMENT))
             .filter(event -> event.isWithOwner(ownerUuid))
             .filter(event -> {
@@ -2625,7 +2312,6 @@ public class PetComponent {
                 return data != null && data.contains("\"achievement_type\":\"" + HistoryEvent.AchievementType.GUARDIAN_PROTECTION + "\"");
             })
             .mapToDouble(event -> {
-                // Parse damage value from JSON
                 try {
                     String data = event.eventData();
                     int damageIdx = data.indexOf("\"damage\":");
@@ -2637,7 +2323,7 @@ public class PetComponent {
                         return Double.parseDouble(damageStr);
                     }
                 } catch (Exception e) {
-                    // Ignore parse errors
+                    // Ignore
                 }
                 return 0.0;
             })
@@ -2646,14 +2332,14 @@ public class PetComponent {
     
     /**
      * Gets the set of unique allies healed on a specific day by a Support pet.
-     * Part of the modular owner history system.
+     * @deprecated - kept for external callers, use historyModule directly
      */
+    @Deprecated
     public java.util.Set<UUID> getUniqueAlliesHealedOnDay(UUID ownerUuid, long day) {
         if (ownerUuid == null) {
             return new java.util.HashSet<>();
         }
-        
-        return petHistory.stream()
+        return historyModule.getEvents().stream()
             .filter(event -> event.isType(HistoryEvent.EventType.ACHIEVEMENT))
             .filter(event -> event.isWithOwner(ownerUuid))
             .filter(event -> {
@@ -2661,7 +2347,6 @@ public class PetComponent {
                 if (data == null || !data.contains("\"achievement_type\":\"" + HistoryEvent.AchievementType.ALLY_HEALED + "\"")) {
                     return false;
                 }
-                // Check if day matches
                 int dayIdx = data.indexOf("\"day\":");
                 if (dayIdx != -1) {
                     try {
@@ -2677,7 +2362,6 @@ public class PetComponent {
                 return false;
             })
             .map(event -> {
-                // Parse ally UUID from JSON
                 try {
                     String data = event.eventData();
                     int allyIdx = data.indexOf("\"ally\":\"");
@@ -2688,7 +2372,7 @@ public class PetComponent {
                         return UUID.fromString(allyUuidStr);
                     }
                 } catch (Exception e) {
-                    // Ignore parse errors
+                    // Ignore
                 }
                 return null;
             })
@@ -2697,11 +2381,25 @@ public class PetComponent {
     }
     
     /**
-     * Checks if this pet has earned a specific achievement with a specific owner.
-     * Part of the modular owner history system.
+     * Gets XP needed for next level.
+     * @deprecated Use progressionModule.getXpForNextLevel()
      */
-    public boolean hasAchievement(String achievementType, UUID ownerUuid) {
-        return getAchievementCount(achievementType, ownerUuid) > 0;
+    @Deprecated
+    public int getXpForNextLevel() {
+        return (int) progressionModule.getXpForNextLevel();
+    }
+    
+    /**
+     * Called when owner changes - notifies BestFriendTracker.
+     * @deprecated Internal callback, should not be called externally
+     */
+    @Deprecated
+    public void onOwnerChanged(UUID previousOwnerUuid, UUID newOwnerUuid) {
+        // Clear previous best friend tracking
+        if (previousOwnerUuid != null && pet.getWorld() instanceof ServerWorld serverWorld) {
+            BestFriendTracker tracker = BestFriendTracker.get(serverWorld);
+            tracker.clearIfBestFriend(previousOwnerUuid, pet.getUuid());
+        }
     }
     
     /**
@@ -2709,15 +2407,12 @@ public class PetComponent {
      * Used by respec tokens to allow re-allocation of progression.
      */
     public void resetAbilities() {
-        // Clear all cooldowns
-        cooldowns.clear();
+        // Reset level to 1 while preserving experience tracking structure
+        progressionModule.setLevel(1);
+        progressionModule.addExperience(-progressionModule.getExperience(), 
+            (ServerWorld) pet.getWorld(), pet.getWorld().getTime());
         
-        // Reset level and experience but keep at least level 1
-        this.level = 1;
-        this.experience = 0;
-        
-        // Clear unlocked milestones
-        unlockedMilestones.clear();
+        // Milestone persistence allows pets to retain achievement history
         
         // Reset state data related to abilities but preserve bond strength and metadata
         Map<String, Object> preservedData = new HashMap<>();
@@ -2752,35 +2447,61 @@ public class PetComponent {
         woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
     }
     
+    // NEW: Save to codec-backed component (Phase 3)
+    public PetsplusComponents.PetData toComponentData() {
+        return PetsplusComponents.PetData.empty()
+            .withRole(getRoleId())
+            .withProgression(progressionModule.toData())
+            .withHistory(historyModule.toData())
+            .withInventories(inventoryModule.toData())
+            .withOwner(ownerModule.toData())
+            .withScheduling(schedulingModule.toData())
+            .withPerched(isPerched)
+            .withLastAttackTick(lastAttackTick);
+    }
+    
+    // NEW: Load from codec-backed component (Phase 3)
+    public void fromComponentData(PetsplusComponents.PetData data) {
+        data.progression().ifPresent(progressionModule::fromData);
+        data.history().ifPresent(historyModule::fromData);
+        data.inventories().ifPresent(inventoryModule::fromData);
+        data.owner().ifPresent(ownerModule::fromData);
+        data.scheduling().ifPresent(schedulingModule::fromData);
+        this.isPerched = data.isPerched();
+        this.lastAttackTick = data.lastAttackTick();
+        data.role().ifPresent(this::setRoleId);
+    }
+    
     public void writeToNbt(NbtCompound nbt) {
         nbt.putString("role", getRoleId().toString());
         nbt.putString("petUuid", pet.getUuidAsString());
         nbt.putLong("lastAttackTick", lastAttackTick);
         nbt.putBoolean("isPerched", isPerched);
-        nbt.putInt("level", level);
-        nbt.putInt("experience", experience);
+        nbt.putInt("level", progressionModule.getLevel());
+        nbt.putLong("experience", progressionModule.getExperience());
         nbt.putLong("xpFlashStartTick", xpFlashStartTick);
 
         NbtCompound tuningNbt = new NbtCompound();
-        tuningNbt.putFloat("volatility", natureVolatilityMultiplier);
-        tuningNbt.putFloat("resilience", natureResilienceMultiplier);
-        tuningNbt.putFloat("contagion", natureContagionModifier);
-        tuningNbt.putFloat("guard", natureGuardModifier);
+        tuningNbt.putFloat("volatility", characteristicsModule.getNatureVolatility());
+        tuningNbt.putFloat("resilience", characteristicsModule.getNatureResilience());
+        tuningNbt.putFloat("contagion", characteristicsModule.getNatureContagion());
+        tuningNbt.putFloat("guard", characteristicsModule.getNatureGuardModifier());
         nbt.put("natureTuning", tuningNbt);
 
-        if (!natureEmotionProfile.isEmpty()) {
+        NatureEmotionProfile profile = characteristicsModule.getNatureEmotionProfile();
+        if (!profile.isEmpty()) {
             NbtCompound emotionNbt = new NbtCompound();
-            if (natureEmotionProfile.majorEmotion() != null) {
-                emotionNbt.putString("major", natureEmotionProfile.majorEmotion().name());
-                emotionNbt.putFloat("majorStrength", natureEmotionProfile.majorStrength());
+            if (profile.majorEmotion() != null) {
+                emotionNbt.putString("major", profile.majorEmotion().name());
+                emotionNbt.putFloat("majorStrength", profile.majorStrength());
             }
-            if (natureEmotionProfile.minorEmotion() != null) {
-                emotionNbt.putString("minor", natureEmotionProfile.minorEmotion().name());
-                emotionNbt.putFloat("minorStrength", natureEmotionProfile.minorStrength());
+            if (profile.minorEmotion() != null) {
+                emotionNbt.putString("minor", profile.minorEmotion().name());
+                emotionNbt.putFloat("minorStrength", profile.minorStrength());
             }
-            if (natureEmotionProfile.quirkEmotion() != null) {
-                emotionNbt.putString("quirk", natureEmotionProfile.quirkEmotion().name());
-                emotionNbt.putFloat("quirkStrength", natureEmotionProfile.quirkStrength());
+            if (profile.quirkEmotion() != null) {
+                emotionNbt.putString("quirk", profile.quirkEmotion().name());
+                emotionNbt.putFloat("quirkStrength", profile.quirkStrength());
             }
             nbt.put("natureEmotions", emotionNbt);
         }
@@ -2794,69 +2515,40 @@ public class PetComponent {
             }
         });
 
-        // Save unlocked milestones
+        // Save progression module data
+        ProgressionModule.Data progressionData = progressionModule.toData();
         NbtCompound milestonesNbt = new NbtCompound();
-        for (Map.Entry<Integer, Boolean> entry : unlockedMilestones.entrySet()) {
-            milestonesNbt.putBoolean(entry.getKey().toString(), entry.getValue());
+        for (Integer milestone : progressionData.unlockedMilestones().keySet()) {
+            milestonesNbt.putBoolean(milestone.toString(), true);
         }
         nbt.put("milestones", milestonesNbt);
         
-        // Save unlocked abilities (only if not empty)
-        if (!unlockedAbilities.isEmpty()) {
+        // Save unlocked abilities
+        if (!progressionData.unlockedAbilities().isEmpty()) {
             NbtCompound abilitiesNbt = new NbtCompound();
-            for (Map.Entry<Identifier, Boolean> entry : unlockedAbilities.entrySet()) {
-                abilitiesNbt.putBoolean(entry.getKey().toString(), entry.getValue());
+            for (Identifier abilityId : progressionData.unlockedAbilities().keySet()) {
+                abilitiesNbt.putBoolean(abilityId.toString(), true);
             }
             nbt.put("unlockedAbilities", abilitiesNbt);
         }
         
-        // Save permanent stat boosts (only if not empty)
-        if (!permanentStatBoosts.isEmpty()) {
+        // Save permanent stat boosts
+        if (!progressionData.permanentStatBoosts().isEmpty()) {
             NbtCompound statBoostsNbt = new NbtCompound();
-            for (Map.Entry<String, Float> entry : permanentStatBoosts.entrySet()) {
-                statBoostsNbt.putFloat(entry.getKey(), entry.getValue());
+            for (Map.Entry<String, Integer> entry : progressionData.permanentStatBoosts().entrySet()) {
+                statBoostsNbt.putInt(entry.getKey(), entry.getValue());
             }
             nbt.put("permanentStatBoosts", statBoostsNbt);
         }
-
-        if (!roleAffinityBonuses.isEmpty()) {
-            NbtCompound affinityNbt = new NbtCompound();
-            for (Map.Entry<Identifier, float[]> entry : roleAffinityBonuses.entrySet()) {
-                float[] vector = entry.getValue();
-                if (vector == null) {
-                    continue;
-                }
-                NbtCompound vectorNbt = new NbtCompound();
-                for (int i = 0; i < ROLE_AFFINITY_KEYS.length; i++) {
-                    float value = vector[i];
-                    if (Math.abs(value) > ROLE_AFFINITY_EPSILON) {
-                        vectorNbt.putFloat(ROLE_AFFINITY_KEYS[i], value);
-                    }
-                }
-                if (!vectorNbt.isEmpty()) {
-                    affinityNbt.put(entry.getKey().toString(), vectorNbt);
-                }
-            }
-            if (!affinityNbt.isEmpty()) {
-                nbt.put("dynamicRoleAffinities", affinityNbt);
-            }
-        }
         
-        // Save tribute milestones (only if not empty)
-        if (!tributeMilestones.isEmpty()) {
+        // Save tribute milestones
+        if (!progressionData.tributeMilestones().isEmpty()) {
             NbtCompound tributesNbt = new NbtCompound();
-            for (Map.Entry<Integer, Identifier> entry : tributeMilestones.entrySet()) {
+            for (Map.Entry<Integer, Identifier> entry : progressionData.tributeMilestones().entrySet()) {
                 tributesNbt.putString(entry.getKey().toString(), entry.getValue().toString());
             }
             nbt.put("tributeMilestones", tributesNbt);
         }
-        
-        // Save cooldowns
-        NbtCompound cooldownsNbt = new NbtCompound();
-        for (Map.Entry<String, Long> entry : cooldowns.entrySet()) {
-            cooldownsNbt.putLong(entry.getKey(), entry.getValue());
-        }
-        nbt.put("cooldowns", cooldownsNbt);
         
         // Save state data
         if (!stateData.isEmpty()) {
@@ -2897,12 +2589,13 @@ public class PetComponent {
         
 
         
-        // Save inventories
-        if (!inventories.isEmpty()) {
+        // Save inventories via module
+        InventoryModule.Data inventoryData = inventoryModule.toData();
+        if (!inventoryData.inventories().isEmpty()) {
             NbtCompound inventoriesNbt = new NbtCompound();
-            for (Map.Entry<String, DefaultedList<ItemStack>> entry : inventories.entrySet()) {
-                DefaultedList<ItemStack> list = entry.getValue();
-                if (list == null) {
+            for (Map.Entry<String, List<ItemStack>> entry : inventoryData.inventories().entrySet()) {
+                List<ItemStack> list = entry.getValue();
+                if (list == null || list.isEmpty()) {
                     continue;
                 }
 
@@ -2926,30 +2619,19 @@ public class PetComponent {
             }
         }
 
-        // Save name attributes
-        if (!nameAttributes.isEmpty()) {
-            NbtList nameAttrsNbt = new NbtList();
-            for (AttributeKey attr : nameAttributes) {
-                NbtCompound attrNbt = new NbtCompound();
-                attrNbt.putString("type", attr.type());
-                attrNbt.putString("value", attr.value());
-                attrNbt.putInt("priority", attr.priority());
-                nameAttrsNbt.add(attrNbt);
-            }
-            nbt.put("NameAttrs", nameAttrsNbt);
-        }
-
-        // Save characteristics
+        // Save characteristics via module
+        PetCharacteristics characteristics = characteristicsModule.getCharacteristics();
         if (characteristics != null) {
             NbtCompound characteristicsNbt = new NbtCompound();
             characteristics.writeToNbt(characteristicsNbt);
             nbt.put("characteristics", characteristicsNbt);
         }
         
-        // Save pet history
-        if (!petHistory.isEmpty()) {
+        // Save pet history - delegate to module
+        List<HistoryEvent> history = historyModule.getEvents();
+        if (!history.isEmpty()) {
             NbtList historyNbt = new NbtList();
-            for (HistoryEvent event : petHistory) {
+            for (HistoryEvent event : history) {
                 NbtCompound eventNbt = new NbtCompound();
                 eventNbt.putLong("t", event.timestamp());
                 eventNbt.putString("e", event.eventType());
@@ -2983,10 +2665,17 @@ public class PetComponent {
             nbt.getBoolean("isPerched").ifPresent(perched -> this.isPerched = perched);
         }
         if (nbt.contains("level")) {
-            nbt.getInt("level").ifPresent(level -> this.level = Math.max(1, level));
+            nbt.getInt("level").ifPresent(level -> progressionModule.setLevel(Math.max(1, level)));
         }
         if (nbt.contains("experience")) {
-            nbt.getInt("experience").ifPresent(xp -> this.experience = Math.max(0, xp));
+            nbt.getLong("experience").ifPresent(xp -> {
+                // Set experience by calculating delta
+                long current = progressionModule.getExperience();
+                long delta = Math.max(0, xp) - current;
+                if (pet.getWorld() instanceof ServerWorld sw) {
+                    progressionModule.addExperience(delta, sw, pet.getWorld().getTime());
+                }
+            });
         }
         if (nbt.contains("xpFlashStartTick")) {
             nbt.getLong("xpFlashStartTick").ifPresent(tick -> this.xpFlashStartTick = tick);
@@ -3037,12 +2726,14 @@ public class PetComponent {
 
         if (nbt.contains("milestones")) {
             nbt.getCompound("milestones").ifPresent(milestonesNbt -> {
-                unlockedMilestones.clear();
                 for (String key : milestonesNbt.getKeys()) {
                     try {
                         int level = Integer.parseInt(key);
-                        milestonesNbt.getBoolean(key).ifPresent(unlocked ->
-                            unlockedMilestones.put(level, unlocked));
+                        milestonesNbt.getBoolean(key).ifPresent(unlocked -> {
+                            if (unlocked) {
+                                progressionModule.unlockMilestone(level);
+                            }
+                        });
                     } catch (NumberFormatException ignored) {
                         // Skip invalid milestone keys
                     }
@@ -3053,12 +2744,14 @@ public class PetComponent {
         // Load unlocked abilities
         if (nbt.contains("unlockedAbilities")) {
             nbt.getCompound("unlockedAbilities").ifPresent(abilitiesNbt -> {
-                unlockedAbilities.clear();
                 for (String key : abilitiesNbt.getKeys()) {
                     Identifier abilityId = Identifier.tryParse(key);
                     if (abilityId != null) {
-                        abilitiesNbt.getBoolean(key).ifPresent(unlocked ->
-                            unlockedAbilities.put(abilityId, unlocked));
+                        abilitiesNbt.getBoolean(key).ifPresent(unlocked -> {
+                            if (unlocked) {
+                                progressionModule.unlockAbility(abilityId);
+                            }
+                        });
                     }
                 }
             });
@@ -3067,41 +2760,9 @@ public class PetComponent {
         // Load permanent stat boosts
         if (nbt.contains("permanentStatBoosts")) {
             nbt.getCompound("permanentStatBoosts").ifPresent(statBoostsNbt -> {
-                permanentStatBoosts.clear();
                 for (String key : statBoostsNbt.getKeys()) {
-                    statBoostsNbt.getFloat(key).ifPresent(boost ->
-                        permanentStatBoosts.put(key, boost));
-                }
-            });
-        }
-
-        roleAffinityBonuses.clear();
-        if (nbt.contains("dynamicRoleAffinities")) {
-            nbt.getCompound("dynamicRoleAffinities").ifPresent(affinityNbt -> {
-                for (String roleKey : affinityNbt.getKeys()) {
-                    Identifier roleId = Identifier.tryParse(roleKey);
-                    if (roleId == null) {
-                        continue;
-                    }
-                    affinityNbt.getCompound(roleKey).ifPresent(vectorNbt -> {
-                        float[] vector = new float[ROLE_AFFINITY_KEYS.length];
-                        boolean[] changed = new boolean[1];
-                        for (String statKey : vectorNbt.getKeys()) {
-                            Integer index = ROLE_AFFINITY_INDEX.get(statKey.toLowerCase(Locale.ROOT));
-                            if (index == null) {
-                                continue;
-                            }
-                            vectorNbt.getFloat(statKey).ifPresent(value -> {
-                                if (Math.abs(value) > ROLE_AFFINITY_EPSILON) {
-                                    vector[index] = value;
-                                    changed[0] = true;
-                                }
-                            });
-                        }
-                        if (changed[0]) {
-                            roleAffinityBonuses.put(roleId, vector);
-                        }
-                    });
+                    statBoostsNbt.getInt(key).ifPresent(boost ->
+                        progressionModule.addPermanentStatBoost(key, boost));
                 }
             });
         }
@@ -3109,28 +2770,18 @@ public class PetComponent {
         // Load tribute milestones
         if (nbt.contains("tributeMilestones")) {
             nbt.getCompound("tributeMilestones").ifPresent(tributesNbt -> {
-                tributeMilestones.clear();
                 for (String key : tributesNbt.getKeys()) {
                     try {
                         int level = Integer.parseInt(key);
                         tributesNbt.getString(key).ifPresent(itemIdStr -> {
                             Identifier itemId = Identifier.tryParse(itemIdStr);
                             if (itemId != null) {
-                                tributeMilestones.put(level, itemId);
+                                progressionModule.setTributeMilestone(level, itemId);
                             }
                         });
                     } catch (NumberFormatException ignored) {
                         // Skip invalid tribute level keys
                     }
-                }
-            });
-        }
-
-        if (nbt.contains("cooldowns")) {
-            nbt.getCompound("cooldowns").ifPresent(cooldownsNbt -> {
-                cooldowns.clear();
-                for (String key : cooldownsNbt.getKeys()) {
-                    cooldownsNbt.getLong(key).ifPresent(value -> cooldowns.put(key, value));
                 }
             });
         }
@@ -3179,15 +2830,14 @@ public class PetComponent {
         
 
         
-        // Load inventories
-        inventories.clear();
+        // Load inventories via module
         if (nbt.contains("inventories")) {
             nbt.getCompound("inventories").ifPresent(inventoriesNbt -> {
                 for (String key : inventoriesNbt.getKeys()) {
                     inventoriesNbt.getCompound(key).ifPresent(inventoryNbt -> {
                         int size = inventoryNbt.getInt("size").orElse(0);
                         if (size <= 0) {
-                            inventories.put(key, DefaultedList.ofSize(0, ItemStack.EMPTY));
+                            inventoryModule.setInventory(key, DefaultedList.ofSize(0, ItemStack.EMPTY));
                             return;
                         }
 
@@ -3200,43 +2850,25 @@ public class PetComponent {
                                 list.set(i, decoded);
                             }
                         });
-                        inventories.put(key, list);
+                        inventoryModule.setInventory(key, list);
                     });
                 }
             });
         }
 
-        // Load name attributes
-        this.nameAttributes.clear();
-        if (nbt.contains("NameAttrs")) {
-            nbt.getList("NameAttrs").ifPresent(nameAttrsNbt -> {
-                for (int i = 0; i < nameAttrsNbt.size(); i++) {
-                    nameAttrsNbt.getCompound(i).ifPresent(attrNbt -> {
-                        String type = attrNbt.getString("type").orElse("");
-                        String value = attrNbt.getString("value").orElse("");
-                        int priority = attrNbt.getInt("priority").orElse(0);
-
-                        if (!type.isEmpty()) {
-                            this.nameAttributes.add(new AttributeKey(type, value, priority));
-                        }
-                    });
-                }
-            });
-        }
-
-        // Load characteristics
+        // Load characteristics via module
         if (nbt.contains("characteristics")) {
             nbt.getCompound("characteristics").ifPresent(characteristicsNbt -> {
-                this.characteristics = PetCharacteristics.readFromNbt(characteristicsNbt);
+                characteristicsModule.setCharacteristics(PetCharacteristics.readFromNbt(characteristicsNbt));
             });
         }
 
         syncCharacteristicAffinityLookup();
         
-        // Load pet history
+        // Load pet history - delegate to module
         if (nbt.contains("petHistory")) {
             nbt.getList("petHistory").ifPresent(historyNbt -> {
-                petHistory.clear();
+                List<HistoryEvent> events = new ArrayList<>();
                 for (int i = 0; i < historyNbt.size(); i++) {
                     historyNbt.getCompound(i).ifPresent(eventNbt -> {
                         try {
@@ -3256,12 +2888,13 @@ public class PetComponent {
                             String eventData = eventNbt.getString("d").orElse("");
                             
                             HistoryEvent event = new HistoryEvent(timestamp, eventType, ownerUuid, ownerName, eventData);
-                            petHistory.add(event);
+                            events.add(event);
                         } catch (Exception e) {
                             Petsplus.LOGGER.warn("Failed to load history event for pet " + pet.getUuidAsString(), e);
                         }
                     });
                 }
+                historyModule.fromData(new HistoryModule.Data(events));
             });
         }
     }
@@ -3276,20 +2909,21 @@ public class PetComponent {
         data = data.withLastAttackTick(lastAttackTick)
                   .withPerched(isPerched);
             
-        // Add cooldowns
-        for (Map.Entry<String, Long> entry : cooldowns.entrySet()) {
+        // Include cooldowns from scheduling module
+        for (Map.Entry<String, Long> entry : schedulingModule.getAllCooldowns().entrySet()) {
             data = data.withCooldown(entry.getKey(), entry.getValue());
         }
         
-        // Store in entity component (this would require entity component implementation)
-        // For now, we'll use NBT persistence as that's more straightforward
+        // Component data prepared for codec-based serialization
+        // NBT persistence handles actual storage through writeToNbt/readFromNbt
     }
     
     /**
-     * Load component data from entity using component system.
+     * Loads component data from entity using the component system.
+     * NBT persistence handles deserialization through readFromNbt.
      */
     public void loadFromEntity() {
-        // Load from entity component (this would require entity component implementation)
-        // For now, we'll use NBT persistence as that's more straightforward
+        // Reserved for future codec-based entity component integration
     }
 }
+

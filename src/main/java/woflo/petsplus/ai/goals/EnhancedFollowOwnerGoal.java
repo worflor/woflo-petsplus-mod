@@ -24,7 +24,7 @@ import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.behavior.social.PetSocialData;
 import woflo.petsplus.behavior.social.SocialContextSnapshot;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PetSwarmIndex;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 
 /**
