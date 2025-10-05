@@ -11,7 +11,7 @@
 ---
 
 <p align="center">
-  A standalone vanilla inspired pet mod for minecraft. 
+  For those who wish their minecraft pet could do more... be more... FEEL more.
   <br>
   <strong>Mod is VERY in development. New versions may break pet data until proper release.</strong>
 </p>
