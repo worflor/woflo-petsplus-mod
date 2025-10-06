@@ -45,7 +45,7 @@ cd petsplus
 ./gradlew build
 ```
 #### Compatibility Notes
-- Minecraft 1.21.8
+- Minecraft 1.21.8 [ and beyond ]
 - Fabric Loader 0.17.2+
 - Java 21
 - Needs Fabric API 0.133.4+
