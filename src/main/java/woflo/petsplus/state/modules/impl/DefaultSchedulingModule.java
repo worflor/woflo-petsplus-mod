@@ -111,7 +111,7 @@ public class DefaultSchedulingModule implements SchedulingModule {
 
     @Override
     public Map<String, Long> getAllCooldowns() {
-        return Collections.unmodifiableMap(cooldowns);
+        return Collections.unmodifiableMap(new HashMap<>(cooldowns));
     }
 
     private void recomputeEarliestTick() {

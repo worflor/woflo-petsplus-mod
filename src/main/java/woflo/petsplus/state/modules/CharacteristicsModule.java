@@ -1,10 +1,20 @@
 package woflo.petsplus.state.modules;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.naming.AttributeKey;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.stats.PetCharacteristics;
+import net.minecraft.nbt.NbtCompound;
+import woflo.petsplus.util.CodecUtils;
 
 public interface CharacteristicsModule extends DataBackedModule<CharacteristicsModule.Data> {
     @Nullable PetCharacteristics getCharacteristics();
@@ -39,5 +49,144 @@ public interface CharacteristicsModule extends DataBackedModule<CharacteristicsM
         PetComponent.NatureEmotionProfile natureEmotionProfile,
         List<AttributeKey> nameAttributes,
         java.util.Map<net.minecraft.util.Identifier, float[]> roleAffinityBonuses
-    ) {}
+    ) {
+        private static final Codec<PetCharacteristics> PET_CHARACTERISTICS_CODEC =
+            NbtCompound.CODEC.comapFlatMap(
+                nbt -> {
+                    PetCharacteristics parsed = PetCharacteristics.readFromNbt(nbt);
+                    if (parsed == null) {
+                        return DataResult.error(() -> "Invalid pet characteristics payload");
+                    }
+                    return DataResult.success(parsed);
+                },
+                characteristics -> {
+                    NbtCompound nbt = new NbtCompound();
+                    characteristics.writeToNbt(nbt);
+                    return nbt;
+                }
+            );
+
+        private static final Codec<PetComponent.Emotion> EMOTION_CODEC = Codec.STRING.comapFlatMap(
+            value -> {
+                if (value == null || value.isBlank()) {
+                    return DataResult.success(null);
+                }
+                try {
+                    return DataResult.success(PetComponent.Emotion.valueOf(value.toUpperCase(Locale.ROOT)));
+                } catch (IllegalArgumentException ex) {
+                    return DataResult.error(() -> "Unknown emotion '" + value + "'");
+                }
+            },
+            emotion -> emotion == null ? "" : emotion.name().toLowerCase(Locale.ROOT)
+        );
+
+        private static final Codec<PetComponent.NatureEmotionProfile> NATURE_EMOTION_PROFILE_CODEC =
+            RecordCodecBuilder.create(instance ->
+                instance.group(
+                    EMOTION_CODEC.optionalFieldOf("major").forGetter(profile -> Optional.ofNullable(profile.majorEmotion())),
+                    Codec.FLOAT.fieldOf("majorStrength").orElse(0f).forGetter(PetComponent.NatureEmotionProfile::majorStrength),
+                    EMOTION_CODEC.optionalFieldOf("minor").forGetter(profile -> Optional.ofNullable(profile.minorEmotion())),
+                    Codec.FLOAT.fieldOf("minorStrength").orElse(0f).forGetter(PetComponent.NatureEmotionProfile::minorStrength),
+                    EMOTION_CODEC.optionalFieldOf("quirk").forGetter(profile -> Optional.ofNullable(profile.quirkEmotion())),
+                    Codec.FLOAT.fieldOf("quirkStrength").orElse(0f).forGetter(PetComponent.NatureEmotionProfile::quirkStrength)
+                ).apply(instance, (major, majorStrength, minor, minorStrength, quirk, quirkStrength) ->
+                    new PetComponent.NatureEmotionProfile(
+                        major.orElse(null),
+                        majorStrength,
+                        minor.orElse(null),
+                        minorStrength,
+                        quirk.orElse(null),
+                        quirkStrength
+                    ))
+            );
+
+        private static final Codec<AttributeKey> ATTRIBUTE_KEY_CODEC = RecordCodecBuilder.create(instance ->
+            instance.group(
+                Codec.STRING.fieldOf("type").orElse("").forGetter(Data::sanitizeType),
+                Codec.STRING.fieldOf("value").orElse("").forGetter(Data::sanitizeValue),
+                Codec.INT.fieldOf("priority").orElse(0).forGetter(AttributeKey::priority)
+            ).apply(instance, AttributeKey::new)
+        );
+
+        public static final Codec<Data> CODEC = RecordCodecBuilder.create(instance ->
+            instance.group(
+                PET_CHARACTERISTICS_CODEC.optionalFieldOf("characteristics")
+                    .forGetter(data -> Optional.ofNullable(data.characteristics())),
+                Codec.FLOAT.fieldOf("natureVolatilityMultiplier").orElse(1.0f)
+                    .forGetter(Data::natureVolatilityMultiplier),
+                Codec.FLOAT.fieldOf("natureResilienceMultiplier").orElse(1.0f)
+                    .forGetter(Data::natureResilienceMultiplier),
+                Codec.FLOAT.fieldOf("natureContagionModifier").orElse(1.0f)
+                    .forGetter(Data::natureContagionModifier),
+                Codec.FLOAT.fieldOf("natureGuardModifier").orElse(1.0f)
+                    .forGetter(Data::natureGuardModifier),
+                NATURE_EMOTION_PROFILE_CODEC.optionalFieldOf("natureEmotionProfile")
+                    .forGetter(data -> encodeEmotionProfile(data.natureEmotionProfile())),
+                ATTRIBUTE_KEY_CODEC.listOf().fieldOf("nameAttributes").orElse(List.of())
+                    .forGetter(Data::nameAttributes),
+                Codec.unboundedMap(CodecUtils.identifierCodec(), Codec.FLOAT.listOf())
+                    .fieldOf("roleAffinityBonuses").orElse(Map.of())
+                    .forGetter(data -> encodeRoleAffinityBonuses(data.roleAffinityBonuses()))
+            ).apply(instance, (characteristics, volatility, resilience, contagion, guard, profile, attributes, bonuses) ->
+                new Data(
+                    characteristics.orElse(null),
+                    volatility,
+                    resilience,
+                    contagion,
+                    guard,
+                    profile.orElse(PetComponent.NatureEmotionProfile.EMPTY),
+                    List.copyOf(attributes),
+                    decodeRoleAffinityBonuses(bonuses)
+                ))
+        );
+
+        private static Map<net.minecraft.util.Identifier, float[]> decodeRoleAffinityBonuses(
+            Map<net.minecraft.util.Identifier, List<Float>> encoded
+        ) {
+            Map<net.minecraft.util.Identifier, float[]> decoded = new HashMap<>();
+            encoded.forEach((id, values) -> {
+                float[] vector = new float[values.size()];
+                for (int i = 0; i < values.size(); i++) {
+                    vector[i] = values.get(i);
+                }
+                decoded.put(id, vector);
+            });
+            return decoded;
+        }
+
+        private static Map<net.minecraft.util.Identifier, List<Float>> encodeRoleAffinityBonuses(
+            Map<net.minecraft.util.Identifier, float[]> bonuses
+        ) {
+            Map<net.minecraft.util.Identifier, List<Float>> encoded = new HashMap<>();
+            bonuses.forEach((id, vector) -> {
+                if (vector == null || vector.length == 0) {
+                    encoded.put(id, List.of());
+                    return;
+                }
+                List<Float> values = new ArrayList<>(vector.length);
+                for (float value : vector) {
+                    values.add(value);
+                }
+                encoded.put(id, List.copyOf(values));
+            });
+            return encoded;
+        }
+
+        private static Optional<PetComponent.NatureEmotionProfile> encodeEmotionProfile(
+            PetComponent.NatureEmotionProfile profile
+        ) {
+            if (profile == null || profile.isEmpty()) {
+                return Optional.empty();
+            }
+            return Optional.of(profile);
+        }
+
+        private static String sanitizeType(AttributeKey key) {
+            return key.type() == null ? "" : key.type();
+        }
+
+        private static String sanitizeValue(AttributeKey key) {
+            return key.value() == null ? "" : key.value();
+        }
+    }
 }

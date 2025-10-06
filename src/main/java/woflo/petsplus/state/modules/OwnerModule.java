@@ -18,6 +18,7 @@ public interface OwnerModule extends DataBackedModule<OwnerModule.Data> {
     boolean hasActiveCrouchCuddle(long currentTick, @Nullable UUID ownerUuid);
     @Nullable UUID getCrouchCuddleOwnerId();
     void clearCrouchCuddle(UUID ownerId);
+    void clearCrouchCuddle();
 
     record Data(@Nullable UUID ownerUuid, @Nullable UUID crouchCuddleOwnerId, long crouchCuddleExpiryTick) {
         public static final Codec<Data> CODEC = RecordCodecBuilder.create(instance ->

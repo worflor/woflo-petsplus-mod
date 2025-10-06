@@ -1,18 +1,23 @@
 package net.minecraft.registry.entry;
 
 /** Minimal registry entry stub used for tests. */
-public class RegistryEntry<T> {
-    private final T value;
+public interface RegistryEntry<T> {
+    T value();
 
-    private RegistryEntry(T value) {
-        this.value = value;
+    static <T> RegistryEntry<T> of(T value) {
+        return new Simple<>(value);
     }
 
-    public static <T> RegistryEntry<T> of(T value) {
-        return new RegistryEntry<>(value);
-    }
+    final class Simple<T> implements RegistryEntry<T> {
+        private final T value;
 
-    public T value() {
-        return value;
+        private Simple(T value) {
+            this.value = value;
+        }
+
+        @Override
+        public T value() {
+            return value;
+        }
     }
 }

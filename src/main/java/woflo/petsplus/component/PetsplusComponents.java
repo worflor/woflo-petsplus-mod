@@ -6,10 +6,14 @@ import net.minecraft.component.ComponentType;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
 import net.minecraft.network.codec.PacketCodecs;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.util.Identifier;
+import woflo.petsplus.state.gossip.PetGossipLedger;
 import woflo.petsplus.state.modules.*;
+import woflo.petsplus.util.CodecUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -83,81 +87,212 @@ public class PetsplusComponents {
         Map<String, Long> cooldowns,
         long lastAttackTick,
         boolean isPerched,
+        long xpFlashStartTick,
         Optional<ProgressionModule.Data> progression,
         Optional<HistoryModule.Data> history,
         Optional<InventoryModule.Data> inventories,
         Optional<OwnerModule.Data> owner,
         Optional<SchedulingModule.Data> scheduling,
+        Optional<CharacteristicsModule.Data> characteristics,
+        Optional<PetGossipLedger> gossip,
+        Optional<NbtCompound> mood,
+        Optional<NbtCompound> stateData,
         int schemaVersion
     ) {
-        public static final int CURRENT_SCHEMA_VERSION = 2;
-        
+        public static final int CURRENT_SCHEMA_VERSION = 7;
+
         public static final Codec<PetData> CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
-                Identifier.CODEC.optionalFieldOf("role").forGetter(PetData::role),
+                CodecUtils.identifierCodec().optionalFieldOf("role").forGetter(PetData::role),
                 Codec.unboundedMap(Codec.STRING, Codec.LONG).optionalFieldOf("cooldowns", new HashMap<>()).forGetter(PetData::cooldowns),
                 Codec.LONG.optionalFieldOf("lastAttackTick", 0L).forGetter(PetData::lastAttackTick),
                 Codec.BOOL.optionalFieldOf("isPerched", false).forGetter(PetData::isPerched),
+                Codec.LONG.optionalFieldOf("xpFlashStartTick", -1L).forGetter(PetData::xpFlashStartTick),
                 ProgressionModule.Data.CODEC.optionalFieldOf("progression").forGetter(PetData::progression),
                 HistoryModule.Data.CODEC.optionalFieldOf("history").forGetter(PetData::history),
                 InventoryModule.Data.CODEC.optionalFieldOf("inventories").forGetter(PetData::inventories),
                 OwnerModule.Data.CODEC.optionalFieldOf("owner").forGetter(PetData::owner),
                 SchedulingModule.Data.CODEC.optionalFieldOf("scheduling").forGetter(PetData::scheduling),
+                CharacteristicsModule.Data.CODEC.optionalFieldOf("characteristics").forGetter(PetData::characteristics),
+                PetGossipLedger.CODEC.optionalFieldOf("gossipLedger").forGetter(PetData::gossip),
+                NbtCompound.CODEC.optionalFieldOf("mood").forGetter(PetData::mood),
+                NbtCompound.CODEC.optionalFieldOf("stateData").forGetter(PetData::stateData),
                 Codec.INT.optionalFieldOf("schemaVersion", 1).forGetter(PetData::schemaVersion)
             ).apply(instance, PetData::new)
         );
 
-        public static final PacketCodec<RegistryByteBuf, PetData> PACKET_CODEC = PacketCodec.tuple(
-            PacketCodecs.optional(PacketCodecs.STRING), data -> data.role().map(Identifier::toString),
-            PacketCodecs.map(HashMap::new, PacketCodecs.STRING, PacketCodecs.VAR_LONG), PetData::cooldowns,
-            PacketCodecs.VAR_LONG, PetData::lastAttackTick,
-            PacketCodecs.BOOLEAN, PetData::isPerched,
-            (role, cooldowns, lastAttackTick, isPerched) ->
-                new PetData(role.map(Identifier::of), cooldowns, lastAttackTick, isPerched, 
-                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), CURRENT_SCHEMA_VERSION)
+        private static final PacketCodec<RegistryByteBuf, ProgressionModule.Data> PROGRESSION_PACKET_CODEC =
+            nbtBackedPacketCodec(ProgressionModule.Data.CODEC, "progression module");
+        private static final PacketCodec<RegistryByteBuf, HistoryModule.Data> HISTORY_PACKET_CODEC =
+            nbtBackedPacketCodec(HistoryModule.Data.CODEC, "history module");
+        private static final PacketCodec<RegistryByteBuf, InventoryModule.Data> INVENTORY_PACKET_CODEC =
+            nbtBackedPacketCodec(InventoryModule.Data.CODEC, "inventory module");
+        private static final PacketCodec<RegistryByteBuf, OwnerModule.Data> OWNER_PACKET_CODEC =
+            nbtBackedPacketCodec(OwnerModule.Data.CODEC, "owner module");
+        private static final PacketCodec<RegistryByteBuf, SchedulingModule.Data> SCHEDULING_PACKET_CODEC =
+            nbtBackedPacketCodec(SchedulingModule.Data.CODEC, "scheduling module");
+        private static final PacketCodec<RegistryByteBuf, CharacteristicsModule.Data> CHARACTERISTICS_PACKET_CODEC =
+            nbtBackedPacketCodec(CharacteristicsModule.Data.CODEC, "characteristics module");
+        private static final PacketCodec<RegistryByteBuf, PetGossipLedger> GOSSIP_PACKET_CODEC =
+            nbtBackedPacketCodec(PetGossipLedger.CODEC, "gossip ledger");
+        private static final PacketCodec<RegistryByteBuf, NbtCompound> MOOD_PACKET_CODEC =
+            nbtBackedPacketCodec(NbtCompound.CODEC, "mood payload");
+        private static final PacketCodec<RegistryByteBuf, HashMap<String, Long>> COOLDOWN_MAP_PACKET_CODEC =
+            PacketCodecs.map(HashMap::new, PacketCodecs.STRING, PacketCodecs.VAR_LONG);
+        private static final PacketCodec<RegistryByteBuf, NbtCompound> NBT_PACKET_CODEC = PacketCodec.ofStatic(
+            (buf, compound) -> buf.writeNbt(compound == null ? new NbtCompound() : compound.copy()),
+            buf -> {
+                NbtCompound compound = buf.readNbt();
+                return compound == null ? new NbtCompound() : compound;
+            }
         );
 
+        public static final PacketCodec<RegistryByteBuf, PetData> PACKET_CODEC = PacketCodec.ofStatic(
+            (buf, data) -> {
+                PacketCodecs.optional(PacketCodecs.STRING).encode(buf, data.role().map(Identifier::toString));
+                COOLDOWN_MAP_PACKET_CODEC.encode(buf, new HashMap<>(data.cooldowns()));
+                PacketCodecs.VAR_LONG.encode(buf, data.lastAttackTick());
+                PacketCodecs.BOOLEAN.encode(buf, data.isPerched());
+                PacketCodecs.VAR_LONG.encode(buf, data.xpFlashStartTick());
+                PacketCodecs.optional(PROGRESSION_PACKET_CODEC).encode(buf, data.progression());
+                PacketCodecs.optional(HISTORY_PACKET_CODEC).encode(buf, data.history());
+                PacketCodecs.optional(INVENTORY_PACKET_CODEC).encode(buf, data.inventories());
+                PacketCodecs.optional(OWNER_PACKET_CODEC).encode(buf, data.owner());
+                PacketCodecs.optional(SCHEDULING_PACKET_CODEC).encode(buf, data.scheduling());
+                PacketCodecs.optional(CHARACTERISTICS_PACKET_CODEC).encode(buf, data.characteristics());
+                PacketCodecs.optional(GOSSIP_PACKET_CODEC).encode(buf, data.gossip());
+                PacketCodecs.optional(MOOD_PACKET_CODEC).encode(buf, data.mood());
+                PacketCodecs.optional(NBT_PACKET_CODEC).encode(buf, data.stateData());
+                PacketCodecs.VAR_INT.encode(buf, data.schemaVersion());
+            },
+            buf -> {
+                Optional<String> roleId = PacketCodecs.optional(PacketCodecs.STRING).decode(buf);
+                Map<String, Long> cooldowns = COOLDOWN_MAP_PACKET_CODEC.decode(buf);
+                long lastAttackTick = PacketCodecs.VAR_LONG.decode(buf);
+                boolean isPerched = PacketCodecs.BOOLEAN.decode(buf);
+                long xpFlashStartTick = PacketCodecs.VAR_LONG.decode(buf);
+                Optional<ProgressionModule.Data> progression = PacketCodecs.optional(PROGRESSION_PACKET_CODEC).decode(buf);
+                Optional<HistoryModule.Data> history = PacketCodecs.optional(HISTORY_PACKET_CODEC).decode(buf);
+                Optional<InventoryModule.Data> inventories = PacketCodecs.optional(INVENTORY_PACKET_CODEC).decode(buf);
+                Optional<OwnerModule.Data> owner = PacketCodecs.optional(OWNER_PACKET_CODEC).decode(buf);
+                Optional<SchedulingModule.Data> scheduling = PacketCodecs.optional(SCHEDULING_PACKET_CODEC).decode(buf);
+                Optional<CharacteristicsModule.Data> characteristics = PacketCodecs.optional(CHARACTERISTICS_PACKET_CODEC).decode(buf);
+                Optional<PetGossipLedger> gossip = PacketCodecs.optional(GOSSIP_PACKET_CODEC).decode(buf);
+                Optional<NbtCompound> mood = PacketCodecs.optional(MOOD_PACKET_CODEC).decode(buf);
+                Optional<NbtCompound> stateData = PacketCodecs.optional(NBT_PACKET_CODEC).decode(buf);
+                int schemaVersion = PacketCodecs.VAR_INT.decode(buf);
+
+                return new PetData(roleId.map(Identifier::of), cooldowns, lastAttackTick, isPerched,
+                    xpFlashStartTick, progression, history, inventories, owner, scheduling, characteristics, gossip, mood, stateData, schemaVersion);
+            }
+        );
+
+        private static <T> PacketCodec<RegistryByteBuf, T> nbtBackedPacketCodec(Codec<T> codec, String debugName) {
+            return PacketCodec.ofStatic(
+                (buf, value) -> {
+                    if (value == null) {
+                        buf.writeNbt(new NbtCompound());
+                        return;
+                    }
+                    var encoded = codec.encodeStart(NbtOps.INSTANCE, value);
+                    var maybeElement = encoded.result();
+                    if (maybeElement.isEmpty()) {
+                        String detail = encoded.error().map(Object::toString).orElse("unknown error");
+                        throw new IllegalStateException("Failed to encode " + debugName + ": " + detail);
+                    }
+                    if (!(maybeElement.get() instanceof NbtCompound compound)) {
+                        throw new IllegalStateException("Expected NbtCompound when encoding " + debugName + ", got " + maybeElement.get());
+                    }
+                    buf.writeNbt(compound);
+                },
+                buf -> {
+                    NbtCompound compound = buf.readNbt();
+                    NbtCompound payload = compound == null ? new NbtCompound() : compound;
+                    var decoded = codec.parse(NbtOps.INSTANCE, payload);
+                    var maybeValue = decoded.result();
+                    if (maybeValue.isEmpty()) {
+                        String detail = decoded.error().map(Object::toString).orElse("unknown error");
+                        throw new IllegalStateException("Failed to decode " + debugName + ": " + detail);
+                    }
+                    return maybeValue.get();
+                }
+            );
+        }
+
         public static PetData empty() {
-            return new PetData(Optional.empty(), Map.of(), 0, false, 
-                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), CURRENT_SCHEMA_VERSION);
+            return new PetData(Optional.empty(), Map.of(), 0, false, -1L,
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), CURRENT_SCHEMA_VERSION);
         }
 
         public PetData withRole(Identifier roleId) {
-            return new PetData(Optional.of(roleId), cooldowns, lastAttackTick, isPerched, progression, history, inventories, owner, scheduling, schemaVersion);
+            return new PetData(Optional.of(roleId), cooldowns, lastAttackTick, isPerched, xpFlashStartTick, progression, history, inventories, owner, scheduling, characteristics, gossip, mood, stateData, schemaVersion);
         }
-        
+
         public PetData withCooldown(String key, long value) {
             Map<String, Long> newCooldowns = new java.util.HashMap<>(cooldowns);
             newCooldowns.put(key, value);
-            return new PetData(role, newCooldowns, lastAttackTick, isPerched, progression, history, inventories, owner, scheduling, schemaVersion);
+            return new PetData(role, newCooldowns, lastAttackTick, isPerched, xpFlashStartTick, progression, history, inventories, owner, scheduling, characteristics, gossip, mood, stateData, schemaVersion);
         }
-        
+
         public PetData withLastAttackTick(long tick) {
-            return new PetData(role, cooldowns, tick, isPerched, progression, history, inventories, owner, scheduling, schemaVersion);
+            return new PetData(role, cooldowns, tick, isPerched, xpFlashStartTick, progression, history, inventories, owner, scheduling, characteristics, gossip, mood, stateData, schemaVersion);
         }
-        
+
         public PetData withPerched(boolean perched) {
-            return new PetData(role, cooldowns, lastAttackTick, perched, progression, history, inventories, owner, scheduling, schemaVersion);
+            return new PetData(role, cooldowns, lastAttackTick, perched, xpFlashStartTick, progression, history, inventories, owner, scheduling, characteristics, gossip, mood, stateData, schemaVersion);
         }
-        
+
+        public PetData withXpFlashStartTick(long tick) {
+            return new PetData(role, cooldowns, lastAttackTick, isPerched, tick, progression, history, inventories, owner, scheduling, characteristics, gossip, mood, stateData, schemaVersion);
+        }
+
         public PetData withProgression(ProgressionModule.Data data) {
-            return new PetData(role, cooldowns, lastAttackTick, isPerched, Optional.of(data), history, inventories, owner, scheduling, schemaVersion);
+            return new PetData(role, cooldowns, lastAttackTick, isPerched, xpFlashStartTick, Optional.of(data), history, inventories, owner, scheduling, characteristics, gossip, mood, stateData, schemaVersion);
         }
-        
+
         public PetData withHistory(HistoryModule.Data data) {
-            return new PetData(role, cooldowns, lastAttackTick, isPerched, progression, Optional.of(data), inventories, owner, scheduling, schemaVersion);
+            return new PetData(role, cooldowns, lastAttackTick, isPerched, xpFlashStartTick, progression, Optional.of(data), inventories, owner, scheduling, characteristics, gossip, mood, stateData, schemaVersion);
         }
-        
+
         public PetData withInventories(InventoryModule.Data data) {
-            return new PetData(role, cooldowns, lastAttackTick, isPerched, progression, history, Optional.of(data), owner, scheduling, schemaVersion);
+            return new PetData(role, cooldowns, lastAttackTick, isPerched, xpFlashStartTick, progression, history, Optional.of(data), owner, scheduling, characteristics, gossip, mood, stateData, schemaVersion);
         }
-        
+
         public PetData withOwner(OwnerModule.Data data) {
-            return new PetData(role, cooldowns, lastAttackTick, isPerched, progression, history, inventories, Optional.of(data), scheduling, schemaVersion);
+            return new PetData(role, cooldowns, lastAttackTick, isPerched, xpFlashStartTick, progression, history, inventories, Optional.of(data), scheduling, characteristics, gossip, mood, stateData, schemaVersion);
         }
-        
+
         public PetData withScheduling(SchedulingModule.Data data) {
-            return new PetData(role, cooldowns, lastAttackTick, isPerched, progression, history, inventories, owner, Optional.of(data), schemaVersion);
+            return new PetData(role, cooldowns, lastAttackTick, isPerched, xpFlashStartTick, progression, history, inventories, owner, Optional.of(data), characteristics, gossip, mood, stateData, schemaVersion);
+        }
+
+        public PetData withCharacteristics(CharacteristicsModule.Data data) {
+            return new PetData(role, cooldowns, lastAttackTick, isPerched, xpFlashStartTick, progression, history, inventories, owner, scheduling, Optional.of(data), gossip, mood, stateData, schemaVersion);
+        }
+
+        public PetData withStateData(NbtCompound data) {
+            return new PetData(role, cooldowns, lastAttackTick, isPerched, xpFlashStartTick, progression, history, inventories, owner, scheduling, characteristics, gossip, mood, Optional.of(data), schemaVersion);
+        }
+
+        public PetData withGossip(PetGossipLedger ledger) {
+            if (ledger == null || ledger.isEmpty()) {
+                return new PetData(role, cooldowns, lastAttackTick, isPerched, xpFlashStartTick, progression, history, inventories, owner, scheduling, characteristics, Optional.empty(), mood, stateData, schemaVersion);
+            }
+            PetGossipLedger snapshot = new PetGossipLedger();
+            snapshot.copyFrom(ledger);
+            return new PetData(role, cooldowns, lastAttackTick, isPerched, xpFlashStartTick, progression, history, inventories, owner, scheduling, characteristics, Optional.of(snapshot), mood, stateData, schemaVersion);
+        }
+
+        public PetData withMood(NbtCompound moodData) {
+            NbtCompound copy = moodData == null ? new NbtCompound() : moodData.copy();
+            if (copy.getKeys().isEmpty()) {
+                return new PetData(role, cooldowns, lastAttackTick, isPerched, xpFlashStartTick, progression, history, inventories, owner, scheduling, characteristics, gossip, Optional.empty(), stateData, schemaVersion);
+            }
+            return new PetData(role, cooldowns, lastAttackTick, isPerched, xpFlashStartTick, progression, history, inventories, owner, scheduling, characteristics, gossip, Optional.of(copy), stateData, schemaVersion);
+        }
+
+        public PetData withSchemaVersion(int version) {
+            return new PetData(role, cooldowns, lastAttackTick, isPerched, xpFlashStartTick, progression, history, inventories, owner, scheduling, characteristics, gossip, mood, stateData, version);
         }
     }
     

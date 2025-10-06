@@ -4,12 +4,10 @@ import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.ai.NoPenaltyTargeting;
 import net.minecraft.entity.player.PlayerEntity;
-import com.mojang.serialization.DataResult;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.registry.Registries;
 import net.minecraft.nbt.NbtElement;
-import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.entry.RegistryEntry;
@@ -19,11 +17,10 @@ import net.minecraft.text.TextColor;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import net.minecraft.entity.mob.PathAwareEntity;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.collection.DefaultedList;
-import net.minecraft.registry.DynamicRegistryManager;
-import net.minecraft.registry.RegistryOps;
 import net.minecraft.server.world.ServerWorld;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
@@ -31,6 +28,7 @@ import woflo.petsplus.advancement.BestFriendTracker;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.component.PetsplusComponents;
+import woflo.petsplus.mixin.EntityComponentAccessor;
 import woflo.petsplus.mood.EmotionBaselineTracker;
 import woflo.petsplus.mood.MoodService;
 import woflo.petsplus.stats.PetCharacteristics;
@@ -46,6 +44,7 @@ import woflo.petsplus.history.HistoryEvent;
 import woflo.petsplus.state.modules.*;
 import woflo.petsplus.state.modules.impl.*;
 import woflo.petsplus.util.BehaviorSeedUtil;
+import woflo.petsplus.util.CodecUtils;
 
 import net.minecraft.util.math.ChunkSectionPos;
 
@@ -638,6 +637,24 @@ public class PetComponent {
         }
     }
 
+    private boolean isCharacteristicsDataEmpty(CharacteristicsModule.Data data) {
+        if (data == null) {
+            return true;
+        }
+
+        boolean hasCharacteristics = data.characteristics() != null;
+        boolean hasEmotionProfile = data.natureEmotionProfile() != null && !data.natureEmotionProfile().isEmpty();
+        boolean hasNameAttributes = data.nameAttributes() != null && !data.nameAttributes().isEmpty();
+        boolean hasRoleAffinity = data.roleAffinityBonuses() != null && !data.roleAffinityBonuses().isEmpty();
+
+        boolean hasNonDefaultTuning = Float.compare(data.natureVolatilityMultiplier(), 1.0f) != 0
+            || Float.compare(data.natureResilienceMultiplier(), 1.0f) != 0
+            || Float.compare(data.natureContagionModifier(), 1.0f) != 0
+            || Float.compare(data.natureGuardModifier(), 1.0f) != 0;
+
+        return !(hasCharacteristics || hasEmotionProfile || hasNameAttributes || hasRoleAffinity || hasNonDefaultTuning);
+    }
+
     public boolean hasNameAttribute(String type) {
         return characteristicsModule.getNameAttributes().stream()
             .anyMatch(attr -> attr.normalizedType().equals(type.toLowerCase()));
@@ -848,11 +865,19 @@ public class PetComponent {
         speciesMetadataModule.markFlightDirty();
 
         // Apply attribute modifiers when role changes
-        woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
+        try {
+            woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
+        } catch (Throwable error) {
+            Petsplus.LOGGER.debug("Skipping attribute refresh during role update", error);
+        }
 
         // Apply AI enhancements when role changes
-        if (!this.pet.getWorld().isClient) {
-            woflo.petsplus.ai.PetAIEnhancements.enhancePetAI(this.pet, this);
+        if (this.pet.getWorld() instanceof ServerWorld) {
+            try {
+                woflo.petsplus.ai.PetAIEnhancements.enhancePetAI(this.pet, this);
+            } catch (Throwable error) {
+                Petsplus.LOGGER.debug("Skipping AI enhancement during role update", error);
+            }
         }
 
         if (this.pet.getWorld() instanceof ServerWorld serverWorld) {
@@ -875,14 +900,18 @@ public class PetComponent {
 
     @Nullable
     public RegistryEntry<PetRoleType> getRoleEntry() {
-        Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
-        PetRoleType type = registry.get(getRoleId());
-        if (type != null) {
-            return registry.getEntry(type);
-        }
+        try {
+            Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
+            PetRoleType type = registry.get(getRoleId());
+            if (type != null) {
+                return registry.getEntry(type);
+            }
 
-        PetRoleType fallback = registry.get(DEFAULT_ROLE_ID);
-        return fallback != null ? registry.getEntry(fallback) : null;
+            PetRoleType fallback = registry.get(DEFAULT_ROLE_ID);
+            return fallback != null ? registry.getEntry(fallback) : null;
+        } catch (Throwable error) {
+            return null;
+        }
     }
 
     public PetRoleType getRoleType() {
@@ -890,19 +919,26 @@ public class PetComponent {
     }
 
     public PetRoleType getRoleType(boolean logMissing) {
-        Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
-        Identifier roleId = getRoleId();
-        PetRoleType type = registry.get(roleId);
-        if (type != null) {
-            return type;
-        }
+        try {
+            Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
+            Identifier roleId = getRoleId();
+            PetRoleType type = registry.get(roleId);
+            if (type != null) {
+                return type;
+            }
 
-        if (logMissing) {
-            Petsplus.LOGGER.warn("Pet {} references missing role {}; defaulting to {}", pet.getUuid(), roleId, DEFAULT_ROLE_ID);
-        }
+            if (logMissing) {
+                Petsplus.LOGGER.warn("Pet {} references missing role {}; defaulting to {}", pet.getUuid(), roleId, DEFAULT_ROLE_ID);
+            }
 
-        PetRoleType fallback = registry.get(DEFAULT_ROLE_ID);
-        return fallback != null ? fallback : PetRoleType.GUARDIAN;
+            PetRoleType fallback = registry.get(DEFAULT_ROLE_ID);
+            return fallback != null ? fallback : PetRoleType.GUARDIAN;
+        } catch (Throwable error) {
+            if (logMissing) {
+                Petsplus.LOGGER.debug("Using guardian role fallback due to registry access failure", error);
+            }
+            return PetRoleType.GUARDIAN;
+        }
     }
 
     @Nullable
@@ -1087,7 +1123,7 @@ public class PetComponent {
      * it does not retain references to the live mutable state.
      */
     public Map<String, Long> copyCooldownSnapshot() {
-        return schedulingModule.getAllCooldowns();
+        return Map.copyOf(schedulingModule.getAllCooldowns());
     }
 
     /**
@@ -1252,69 +1288,226 @@ public class PetComponent {
         setStateDataInternal(key, value, false);
     }
 
-    private void migrateLegacyStateData() {
-        migrateLegacyDevCrownFlag();
-    }
-
-    private void migrateLegacyDevCrownFlag() {
-        if (Boolean.TRUE.equals(getStateData("special_tag_creator", Boolean.class, null))) {
-            return;
+    private Optional<NbtCompound> serializeStateDataCompound() {
+        if (stateData.isEmpty()) {
+            return Optional.empty();
         }
 
-        boolean promote = false;
-        List<String> toRemove = new ArrayList<>();
-        for (Map.Entry<String, Object> entry : new ArrayList<>(stateData.entrySet())) {
+        NbtCompound serialized = new NbtCompound();
+        int storedEntries = 0;
+
+        for (Map.Entry<String, Object> entry : stateData.entrySet()) {
             String key = entry.getKey();
-            if (key == null) {
-                continue;
-            }
-
-            String normalized = key.toLowerCase(Locale.ROOT);
-            if (!normalized.contains("dev_crown")) {
-                continue;
-            }
-
-            if (!toRemove.contains(key)) {
-                toRemove.add(key);
-            }
-
-            if (promote) {
-                continue;
-            }
-
             Object value = entry.getValue();
-            if (value instanceof Boolean boolValue) {
-                promote = boolValue;
-            } else if (value instanceof Number numberValue) {
-                promote = Math.abs(numberValue.doubleValue()) > 1.0e-6;
-            } else if (value instanceof String stringValue) {
-                promote = parseLegacyBoolean(stringValue);
+            if (key == null || value == null) {
+                continue;
+            }
+
+            Optional<NbtCompound> encoded = encodeStateDataValue(value);
+            if (encoded.isPresent()) {
+                serialized.put(key, encoded.get());
+                storedEntries++;
+            } else {
+                Petsplus.LOGGER.warn("Skipping state data entry '{}' of unsupported type {} during serialization", key, value.getClass().getName());
             }
         }
 
-        for (String legacyKey : toRemove) {
-            stateData.remove(legacyKey);
+        if (storedEntries == 0 || serialized.getKeys().isEmpty()) {
+            return Optional.empty();
         }
 
-        if (promote) {
-            setStateDataSilently("special_tag_creator", true);
+        return Optional.of(serialized);
+    }
+
+    private Optional<NbtCompound> encodeStateDataValue(Object value) {
+        if (value instanceof List<?> listValue) {
+            return encodeStateDataList(listValue);
+        }
+
+        NbtCompound tag = new NbtCompound();
+
+        if (value instanceof String stringValue) {
+            tag.putString("type", "string");
+            tag.putString("value", stringValue);
+            return Optional.of(tag);
+        }
+
+        if (value instanceof Integer intValue) {
+            tag.putString("type", "int");
+            tag.putInt("value", intValue);
+            return Optional.of(tag);
+        }
+
+        if (value instanceof Long longValue) {
+            tag.putString("type", "long");
+            tag.putLong("value", longValue);
+            return Optional.of(tag);
+        }
+
+        if (value instanceof Boolean boolValue) {
+            tag.putString("type", "boolean");
+            tag.putBoolean("value", boolValue);
+            return Optional.of(tag);
+        }
+
+        if (value instanceof Float floatValue) {
+            tag.putString("type", "float");
+            tag.putFloat("value", floatValue);
+            return Optional.of(tag);
+        }
+
+        if (value instanceof Double doubleValue) {
+            tag.putString("type", "double");
+            tag.putDouble("value", doubleValue);
+            return Optional.of(tag);
+        }
+
+        if (value instanceof Identifier identifierValue) {
+            tag.putString("type", "identifier");
+            tag.putString("value", identifierValue.toString());
+            return Optional.of(tag);
+        }
+
+        if (value instanceof UUID uuidValue) {
+            tag.putString("type", "uuid");
+            tag.putString("value", uuidValue.toString());
+            return Optional.of(tag);
+        }
+
+        if (value instanceof BlockPos blockPos) {
+            tag.putString("type", "block_pos");
+            tag.putInt("x", blockPos.getX());
+            tag.putInt("y", blockPos.getY());
+            tag.putInt("z", blockPos.getZ());
+            return Optional.of(tag);
+        }
+
+        if (value instanceof Byte byteValue) {
+            tag.putString("type", "int");
+            tag.putInt("value", byteValue.intValue());
+            return Optional.of(tag);
+        }
+
+        if (value instanceof Short shortValue) {
+            tag.putString("type", "int");
+            tag.putInt("value", shortValue.intValue());
+            return Optional.of(tag);
+        }
+
+        return Optional.empty();
+    }
+
+    private Optional<NbtCompound> encodeStateDataList(List<?> listValue) {
+        NbtCompound tag = new NbtCompound();
+        tag.putString("type", "list");
+
+        int stored = 0;
+        for (Object element : listValue) {
+            if (element == null) {
+                continue;
+            }
+            Optional<NbtCompound> encodedElement = encodeStateDataValue(element);
+            if (encodedElement.isEmpty()) {
+                Petsplus.LOGGER.warn("Skipping unsupported list element of type {} while serializing state data", element.getClass().getName());
+                continue;
+            }
+            tag.put("value_" + stored, encodedElement.get());
+            stored++;
+        }
+
+        tag.putInt("size", stored);
+        return Optional.of(tag);
+    }
+
+    private void deserializeStateDataCompound(NbtCompound stateNbt) {
+        stateData.clear();
+        for (String key : stateNbt.getKeys()) {
+            stateNbt.getCompound(key).ifPresent(compound -> {
+                Optional<String> typeId = compound.getString("type");
+                if (typeId.isEmpty()) {
+                    Petsplus.LOGGER.warn("Skipping state data entry '{}' missing type information", key);
+                    return;
+                }
+
+                Optional<Object> decoded = decodeStateDataValue(compound);
+                if (decoded.isPresent()) {
+                    setStateDataSilently(key, decoded.get());
+                } else {
+                    Petsplus.LOGGER.warn("Unable to decode state data entry '{}' of type {}", key, typeId.get());
+                }
+            });
         }
     }
 
-    private static boolean parseLegacyBoolean(String value) {
-        if (value == null) {
-            return false;
+    private Optional<Object> decodeStateDataValue(NbtCompound compound) {
+        Optional<String> typeId = compound.getString("type");
+        if (typeId.isEmpty()) {
+            return Optional.empty();
         }
 
-        String normalized = value.trim().toLowerCase(Locale.ROOT);
-        if (normalized.isEmpty()) {
-            return false;
+        String type = typeId.get();
+        switch (type) {
+            case "string":
+                return compound.getString("value").map(value -> value);
+            case "int": {
+                Optional<Integer> value = compound.getInt("value");
+                return value.map(Integer::valueOf);
+            }
+            case "long": {
+                Optional<Long> value = compound.getLong("value");
+                return value.map(Long::valueOf);
+            }
+            case "boolean":
+                return compound.getBoolean("value").map(Boolean::valueOf);
+            case "float":
+                return compound.getFloat("value").map(Float::valueOf);
+            case "double": {
+                Optional<Double> value = compound.getDouble("value");
+                return value.map(Double::valueOf);
+            }
+            case "identifier":
+                return compound.getString("value").map(raw -> {
+                    Identifier parsed = Identifier.tryParse(raw);
+                    return parsed != null ? parsed : raw;
+                });
+            case "uuid":
+                return compound.getString("value").flatMap(raw -> {
+                    try {
+                        return Optional.of(UUID.fromString(raw));
+                    } catch (IllegalArgumentException ignored) {
+                        Petsplus.LOGGER.warn("Invalid UUID '{}' encountered while decoding state data", raw);
+                        return Optional.<Object>empty();
+                    }
+                });
+            case "block_pos": {
+                Optional<Integer> xOpt = compound.getInt("x");
+                Optional<Integer> yOpt = compound.getInt("y");
+                Optional<Integer> zOpt = compound.getInt("z");
+                if (xOpt.isPresent() && yOpt.isPresent() && zOpt.isPresent()) {
+                    return Optional.of(new BlockPos(xOpt.get(), yOpt.get(), zOpt.get()));
+                }
+                return Optional.empty();
+            }
+            case "list":
+                return decodeStateDataList(compound).map(value -> value);
+            default:
+                return Optional.empty();
+        }
+    }
+
+    private Optional<List<Object>> decodeStateDataList(NbtCompound compound) {
+        Optional<Integer> sizeOpt = compound.getInt("size");
+        int size = sizeOpt.map(value -> Math.max(0, value)).orElse(0);
+        if (size == 0) {
+            return Optional.of(List.of());
         }
 
-        return normalized.equals("true")
-            || normalized.equals("yes")
-            || normalized.equals("on")
-            || normalized.equals("1");
+        List<Object> decoded = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            String elementKey = "value_" + i;
+            compound.getCompound(elementKey).ifPresent(child -> decodeStateDataValue(child).ifPresent(decoded::add));
+        }
+        return Optional.of(decoded);
     }
 
     private void setStateDataInternal(String key, Object value, boolean invalidateCaches) {
@@ -1479,13 +1672,6 @@ public class PetComponent {
      */
     public void setInventory(String key, DefaultedList<ItemStack> inventory) {
         inventoryModule.setInventory(key, inventory);
-    }
-
-    private RegistryOps<NbtElement> getRegistryOps() {
-        if (pet.getWorld() instanceof ServerWorld serverWorld) {
-            return RegistryOps.of(NbtOps.INSTANCE, serverWorld.getRegistryManager());
-        }
-        return RegistryOps.of(NbtOps.INSTANCE, DynamicRegistryManager.EMPTY);
     }
 
     /** Convenience accessor for the stored tame tick, writing a default if missing. */
@@ -1664,11 +1850,14 @@ public class PetComponent {
     public int getExperience() {
         return (int) progressionModule.getExperience();
     }
-    
+
     public void setExperience(int experience) {
-        if (pet.getWorld() instanceof ServerWorld world) {
-            progressionModule.addExperience(experience - progressionModule.getExperience(), world, world.getTime());
+        long sanitized = Math.max(0L, experience);
+        int xpForNext = getXpNeededForNextLevel();
+        if (xpForNext > 0) {
+            sanitized = Math.min(sanitized, xpForNext);
         }
+        progressionModule.setExperience(sanitized);
     }
     
     // ===== Level Reward System =====
@@ -2095,15 +2284,17 @@ public class PetComponent {
      * @return true if the pet leveled up
      */
     public boolean addExperience(int xpGained) {
-        if (xpGained <= 0) return false;
+        if (xpGained < 0) return false;
 
         int oldLevel = progressionModule.getLevel();
         if (pet.getWorld() instanceof ServerWorld serverWorld) {
             progressionModule.addExperience(xpGained, serverWorld, pet.getWorld().getTime());
         }
 
-        // Trigger XP flash animation
-        this.xpFlashStartTick = pet.getWorld().getTime();
+        // Trigger XP flash animation when new experience is earned
+        if (xpGained > 0) {
+            this.xpFlashStartTick = pet.getWorld().getTime();
+        }
 
         return progressionModule.getLevel() > oldLevel;
     }
@@ -2113,16 +2304,27 @@ public class PetComponent {
      */
     public float getXpProgress() {
         int level = progressionModule.getLevel();
-        long experience = progressionModule.getExperience();
         PetRoleType.XpCurve curve = getRoleType().xpCurve();
-        if (level >= curve.maxLevel()) return 1.0f;
+        if (level >= curve.maxLevel()) {
+            return 1.0f;
+        }
 
-        int currentLevelTotalXp = getTotalXpForLevel(level);
-        int nextLevelTotalXp = getTotalXpForLevel(level + 1);
-        int xpForThisLevel = Math.max(1, nextLevelTotalXp - currentLevelTotalXp);
-        int currentXpInLevel = (int) (experience - currentLevelTotalXp);
+        int xpForThisLevel = getXpNeededForNextLevel();
+        if (xpForThisLevel <= 0) {
+            return 0f;
+        }
 
-        return Math.max(0f, Math.min(1f, (float)currentXpInLevel / xpForThisLevel));
+        float remainder = (float) progressionModule.getExperience();
+        return MathHelper.clamp(remainder / xpForThisLevel, 0f, 1f);
+    }
+
+    public int getXpNeededForNextLevel() {
+        int level = progressionModule.getLevel();
+        PetRoleType.XpCurve curve = getRoleType().xpCurve();
+        if (level >= curve.maxLevel()) {
+            return 0;
+        }
+        return getXpRequiredForLevel(level + 1);
     }
     
     /**
@@ -2409,11 +2611,11 @@ public class PetComponent {
     public void resetAbilities() {
         // Reset level to 1 while preserving experience tracking structure
         progressionModule.setLevel(1);
-        progressionModule.addExperience(-progressionModule.getExperience(), 
-            (ServerWorld) pet.getWorld(), pet.getWorld().getTime());
-        
+        progressionModule.setExperience(0);
+        progressionModule.clearProgressionUnlocks();
+
         // Milestone persistence allows pets to retain achievement history
-        
+
         // Reset state data related to abilities but preserve bond strength and metadata
         Map<String, Object> preservedData = new HashMap<>();
         preservedData.put("bondStrength", getStateData("bondStrength", Long.class, 0L));
@@ -2449,481 +2651,209 @@ public class PetComponent {
     
     // NEW: Save to codec-backed component (Phase 3)
     public PetsplusComponents.PetData toComponentData() {
-        return PetsplusComponents.PetData.empty()
-            .withRole(getRoleId())
-            .withProgression(progressionModule.toData())
-            .withHistory(historyModule.toData())
-            .withInventories(inventoryModule.toData())
-            .withOwner(ownerModule.toData())
-            .withScheduling(schedulingModule.toData())
+        PetsplusComponents.PetData data = PetsplusComponents.PetData.empty()
+            .withLastAttackTick(lastAttackTick)
             .withPerched(isPerched)
-            .withLastAttackTick(lastAttackTick);
+            .withXpFlashStartTick(xpFlashStartTick)
+            .withRole(getRoleId());
+
+        Map<String, Long> cooldowns = schedulingModule.getAllCooldowns();
+        if (cooldowns != null && !cooldowns.isEmpty()) {
+            for (Map.Entry<String, Long> entry : cooldowns.entrySet()) {
+                data = data.withCooldown(entry.getKey(), entry.getValue());
+            }
+        }
+
+        ProgressionModule.Data progressionData = progressionModule.toData();
+        if (progressionData != null) {
+            data = data.withProgression(progressionData);
+        }
+
+        HistoryModule.Data historyData = historyModule.toData();
+        if (historyData != null) {
+            data = data.withHistory(historyData);
+        }
+
+        InventoryModule.Data inventoryData = inventoryModule.toData();
+        if (inventoryData != null) {
+            data = data.withInventories(inventoryData);
+        }
+
+        OwnerModule.Data ownerData = ownerModule.toData();
+        if (ownerData != null) {
+            data = data.withOwner(ownerData);
+        }
+
+        SchedulingModule.Data schedulingData = schedulingModule.toData();
+        if (schedulingData != null) {
+            data = data.withScheduling(schedulingData);
+        }
+
+        CharacteristicsModule.Data characteristicsData = characteristicsModule.toData();
+        if (characteristicsData != null && !isCharacteristicsDataEmpty(characteristicsData)) {
+            data = data.withCharacteristics(characteristicsData);
+        }
+
+        if (!gossipLedger.isEmpty()) {
+            data = data.withGossip(gossipLedger);
+        }
+
+        NbtCompound moodNbt = new NbtCompound();
+        moodEngine.writeToNbt(moodNbt);
+        data = data.withMood(moodNbt);
+
+        Optional<NbtCompound> stateDataNbt = serializeStateDataCompound();
+        if (stateDataNbt.isPresent()) {
+            data = data.withStateData(stateDataNbt.get().copy());
+        }
+
+        data = data.withSchemaVersion(PetsplusComponents.PetData.CURRENT_SCHEMA_VERSION);
+
+        return data;
     }
-    
+
     // NEW: Load from codec-backed component (Phase 3)
     public void fromComponentData(PetsplusComponents.PetData data) {
-        data.progression().ifPresent(progressionModule::fromData);
-        data.history().ifPresent(historyModule::fromData);
-        data.inventories().ifPresent(inventoryModule::fromData);
-        data.owner().ifPresent(ownerModule::fromData);
-        data.scheduling().ifPresent(schedulingModule::fromData);
-        this.isPerched = data.isPerched();
-        this.lastAttackTick = data.lastAttackTick();
-        data.role().ifPresent(this::setRoleId);
-    }
-    
-    public void writeToNbt(NbtCompound nbt) {
-        nbt.putString("role", getRoleId().toString());
-        nbt.putString("petUuid", pet.getUuidAsString());
-        nbt.putLong("lastAttackTick", lastAttackTick);
-        nbt.putBoolean("isPerched", isPerched);
-        nbt.putInt("level", progressionModule.getLevel());
-        nbt.putLong("experience", progressionModule.getExperience());
-        nbt.putLong("xpFlashStartTick", xpFlashStartTick);
+        data.progression().ifPresentOrElse(
+            progressionModule::fromData,
+            this::resetProgressionModule
+        );
+        data.history().ifPresentOrElse(
+            historyModule::fromData,
+            () -> historyModule.fromData(null)
+        );
+        data.inventories().ifPresentOrElse(
+            inventoryModule::fromData,
+            () -> inventoryModule.fromData(null)
+        );
+        data.owner().ifPresentOrElse(
+            ownerModule::fromData,
+            this::clearOwnerModule
+        );
 
-        NbtCompound tuningNbt = new NbtCompound();
-        tuningNbt.putFloat("volatility", characteristicsModule.getNatureVolatility());
-        tuningNbt.putFloat("resilience", characteristicsModule.getNatureResilience());
-        tuningNbt.putFloat("contagion", characteristicsModule.getNatureContagion());
-        tuningNbt.putFloat("guard", characteristicsModule.getNatureGuardModifier());
-        nbt.put("natureTuning", tuningNbt);
-
-        NatureEmotionProfile profile = characteristicsModule.getNatureEmotionProfile();
-        if (!profile.isEmpty()) {
-            NbtCompound emotionNbt = new NbtCompound();
-            if (profile.majorEmotion() != null) {
-                emotionNbt.putString("major", profile.majorEmotion().name());
-                emotionNbt.putFloat("majorStrength", profile.majorStrength());
+        data.scheduling().ifPresentOrElse(
+            schedulingModule::fromData,
+            () -> {
+                schedulingModule.reset();
+                clearAllCooldowns();
             }
-            if (profile.minorEmotion() != null) {
-                emotionNbt.putString("minor", profile.minorEmotion().name());
-                emotionNbt.putFloat("minorStrength", profile.minorStrength());
-            }
-            if (profile.quirkEmotion() != null) {
-                emotionNbt.putString("quirk", profile.quirkEmotion().name());
-                emotionNbt.putFloat("quirkStrength", profile.quirkStrength());
-            }
-            nbt.put("natureEmotions", emotionNbt);
-        }
+        );
+        replaceSchedulingCooldowns(data.cooldowns());
 
-        // Mood system persistence handled by engine
-        moodEngine.writeToNbt(nbt);
-
-        gossipLedger.encodeToNbt().result().ifPresent(element -> {
-            if (element instanceof NbtCompound compound) {
-                nbt.put("gossipLedger", compound);
-            }
-        });
-
-        // Save progression module data
-        ProgressionModule.Data progressionData = progressionModule.toData();
-        NbtCompound milestonesNbt = new NbtCompound();
-        for (Integer milestone : progressionData.unlockedMilestones().keySet()) {
-            milestonesNbt.putBoolean(milestone.toString(), true);
-        }
-        nbt.put("milestones", milestonesNbt);
-        
-        // Save unlocked abilities
-        if (!progressionData.unlockedAbilities().isEmpty()) {
-            NbtCompound abilitiesNbt = new NbtCompound();
-            for (Identifier abilityId : progressionData.unlockedAbilities().keySet()) {
-                abilitiesNbt.putBoolean(abilityId.toString(), true);
-            }
-            nbt.put("unlockedAbilities", abilitiesNbt);
-        }
-        
-        // Save permanent stat boosts
-        if (!progressionData.permanentStatBoosts().isEmpty()) {
-            NbtCompound statBoostsNbt = new NbtCompound();
-            for (Map.Entry<String, Integer> entry : progressionData.permanentStatBoosts().entrySet()) {
-                statBoostsNbt.putInt(entry.getKey(), entry.getValue());
-            }
-            nbt.put("permanentStatBoosts", statBoostsNbt);
-        }
-        
-        // Save tribute milestones
-        if (!progressionData.tributeMilestones().isEmpty()) {
-            NbtCompound tributesNbt = new NbtCompound();
-            for (Map.Entry<Integer, Identifier> entry : progressionData.tributeMilestones().entrySet()) {
-                tributesNbt.putString(entry.getKey().toString(), entry.getValue().toString());
-            }
-            nbt.put("tributeMilestones", tributesNbt);
-        }
-        
-        // Save state data
-        if (!stateData.isEmpty()) {
-            NbtCompound stateNbt = new NbtCompound();
-            for (Map.Entry<String, Object> entry : stateData.entrySet()) {
-                Object value = entry.getValue();
-                String key = entry.getKey();
-                
-                // Save based on value type
-                if (value instanceof String) {
-                    stateNbt.putString(key, (String) value);
-                } else if (value instanceof Integer) {
-                    stateNbt.putInt(key, (Integer) value);
-                } else if (value instanceof Long) {
-                    stateNbt.putLong(key, (Long) value);
-                } else if (value instanceof Boolean) {
-                    stateNbt.putBoolean(key, (Boolean) value);
-                } else if (value instanceof Float) {
-                    stateNbt.putFloat(key, (Float) value);
-                } else if (value instanceof Double) {
-                    stateNbt.putDouble(key, (Double) value);
-                } else if (value instanceof java.util.List) {
-                    // Handle lists by converting to string representation
-                    @SuppressWarnings("unchecked")
-                    java.util.List<Object> list = (java.util.List<Object>) value;
-                    NbtCompound listNbt = new NbtCompound();
-                    for (int i = 0; i < list.size(); i++) {
-                        listNbt.putString(String.valueOf(i), list.get(i).toString());
-                    }
-                    listNbt.putInt("size", list.size());
-                    stateNbt.put(key, listNbt);
-                }
-                // Add more type handling as needed
-            }
-            nbt.put("stateData", stateNbt);
-        }
-        
-        
-
-        
-        // Save inventories via module
-        InventoryModule.Data inventoryData = inventoryModule.toData();
-        if (!inventoryData.inventories().isEmpty()) {
-            NbtCompound inventoriesNbt = new NbtCompound();
-            for (Map.Entry<String, List<ItemStack>> entry : inventoryData.inventories().entrySet()) {
-                List<ItemStack> list = entry.getValue();
-                if (list == null || list.isEmpty()) {
-                    continue;
-                }
-
-                NbtCompound inventoryNbt = new NbtCompound();
-                inventoryNbt.putInt("size", list.size());
-
-                NbtList items = new NbtList();
-                RegistryOps<NbtElement> ops = getRegistryOps();
-                for (ItemStack stack : list) {
-                    DataResult<NbtElement> encoded = ItemStack.CODEC.encodeStart(ops, stack);
-                    NbtElement element = encoded.result().orElseGet(NbtCompound::new);
-                    items.add(element);
-                }
-                inventoryNbt.put("items", items);
-
-                inventoriesNbt.put(entry.getKey(), inventoryNbt);
-            }
-
-            if (!inventoriesNbt.getKeys().isEmpty()) {
-                nbt.put("inventories", inventoriesNbt);
-            }
-        }
-
-        // Save characteristics via module
-        PetCharacteristics characteristics = characteristicsModule.getCharacteristics();
-        if (characteristics != null) {
-            NbtCompound characteristicsNbt = new NbtCompound();
-            characteristics.writeToNbt(characteristicsNbt);
-            nbt.put("characteristics", characteristicsNbt);
-        }
-        
-        // Save pet history - delegate to module
-        List<HistoryEvent> history = historyModule.getEvents();
-        if (!history.isEmpty()) {
-            NbtList historyNbt = new NbtList();
-            for (HistoryEvent event : history) {
-                NbtCompound eventNbt = new NbtCompound();
-                eventNbt.putLong("t", event.timestamp());
-                eventNbt.putString("e", event.eventType());
-                eventNbt.putString("o", event.ownerUuid().toString());
-                eventNbt.putString("n", event.ownerName());
-                eventNbt.putString("d", event.eventData());
-                historyNbt.add(eventNbt);
-            }
-            nbt.put("petHistory", historyNbt);
-        }
-    }
-    
-    public void readFromNbt(NbtCompound nbt) {
-        if (nbt.contains("role")) {
-            nbt.getString("role").ifPresent(roleKey -> {
-                Identifier parsed = Identifier.tryParse(roleKey);
-                if (parsed == null && !roleKey.contains(":")) {
-                    parsed = PetRoleType.normalizeId(roleKey);
-                }
-
-                if (parsed != null) {
-                    setRoleId(parsed);
-                }
-            });
-        }
-        
-        if (nbt.contains("lastAttackTick")) {
-            nbt.getLong("lastAttackTick").ifPresent(tick -> this.lastAttackTick = tick);
-        }
-        if (nbt.contains("isPerched")) {
-            nbt.getBoolean("isPerched").ifPresent(perched -> this.isPerched = perched);
-        }
-        if (nbt.contains("level")) {
-            nbt.getInt("level").ifPresent(level -> progressionModule.setLevel(Math.max(1, level)));
-        }
-        if (nbt.contains("experience")) {
-            nbt.getLong("experience").ifPresent(xp -> {
-                // Set experience by calculating delta
-                long current = progressionModule.getExperience();
-                long delta = Math.max(0, xp) - current;
-                if (pet.getWorld() instanceof ServerWorld sw) {
-                    progressionModule.addExperience(delta, sw, pet.getWorld().getTime());
-                }
-            });
-        }
-        if (nbt.contains("xpFlashStartTick")) {
-            nbt.getLong("xpFlashStartTick").ifPresent(tick -> this.xpFlashStartTick = tick);
-        }
-
-        if (nbt.contains("natureTuning")) {
-            nbt.getCompound("natureTuning").ifPresent(tuning -> {
-                float volatility = tuning.getFloat("volatility").orElse(1.0f);
-                float resilience = tuning.getFloat("resilience").orElse(1.0f);
-                float contagion = tuning.getFloat("contagion").orElse(1.0f);
-                float guard = tuning.getFloat("guard").orElse(1.0f);
-                setNatureEmotionTuning(volatility, resilience, contagion, guard);
-            });
+        if (data.characteristics().isPresent()) {
+            characteristicsModule.fromData(data.characteristics().get());
+            moodEngine.onNatureTuningChanged();
+            moodEngine.onNatureEmotionProfileChanged(characteristicsModule.getNatureEmotionProfile());
         } else {
-            setNatureEmotionTuning(1.0f, 1.0f, 1.0f, 1.0f);
+            resetCharacteristicsModule();
+            moodEngine.onNatureTuningChanged();
+            moodEngine.onNatureEmotionProfileChanged(characteristicsModule.getNatureEmotionProfile());
         }
 
-        if (nbt.contains("natureEmotions")) {
-            nbt.getCompound("natureEmotions").ifPresent(emotions -> {
-                Emotion major = emotions.getString("major")
-                    .flatMap(PetComponent::parseEmotionOptional)
-                    .orElse(null);
-                float majorStrength = emotions.getFloat("majorStrength").orElse(0f);
-                Emotion minor = emotions.getString("minor")
-                    .flatMap(PetComponent::parseEmotionOptional)
-                    .orElse(null);
-                float minorStrength = emotions.getFloat("minorStrength").orElse(0f);
-                Emotion quirk = emotions.getString("quirk")
-                    .flatMap(PetComponent::parseEmotionOptional)
-                    .orElse(null);
-                float quirkStrength = emotions.getFloat("quirkStrength").orElse(0f);
-                setNatureEmotionProfile(new NatureEmotionProfile(major, majorStrength, minor, minorStrength,
-                    quirk, quirkStrength));
-            });
-        } else {
-            setNatureEmotionProfile(NatureEmotionProfile.EMPTY);
-        }
-
-        // Mood system persistence handled by engine
-        moodEngine.readFromNbt(nbt);
-
-        gossipLedger.clear();
-        if (nbt.contains("gossipLedger")) {
-            nbt.getCompound("gossipLedger").ifPresent(ledgerNbt ->
-                PetGossipLedger.CODEC.parse(NbtOps.INSTANCE, ledgerNbt).result().ifPresent(gossipLedger::copyFrom)
-            );
-        }
-
-        if (nbt.contains("milestones")) {
-            nbt.getCompound("milestones").ifPresent(milestonesNbt -> {
-                for (String key : milestonesNbt.getKeys()) {
-                    try {
-                        int level = Integer.parseInt(key);
-                        milestonesNbt.getBoolean(key).ifPresent(unlocked -> {
-                            if (unlocked) {
-                                progressionModule.unlockMilestone(level);
-                            }
-                        });
-                    } catch (NumberFormatException ignored) {
-                        // Skip invalid milestone keys
-                    }
-                }
-            });
-        }
-        
-        // Load unlocked abilities
-        if (nbt.contains("unlockedAbilities")) {
-            nbt.getCompound("unlockedAbilities").ifPresent(abilitiesNbt -> {
-                for (String key : abilitiesNbt.getKeys()) {
-                    Identifier abilityId = Identifier.tryParse(key);
-                    if (abilityId != null) {
-                        abilitiesNbt.getBoolean(key).ifPresent(unlocked -> {
-                            if (unlocked) {
-                                progressionModule.unlockAbility(abilityId);
-                            }
-                        });
-                    }
-                }
-            });
-        }
-        
-        // Load permanent stat boosts
-        if (nbt.contains("permanentStatBoosts")) {
-            nbt.getCompound("permanentStatBoosts").ifPresent(statBoostsNbt -> {
-                for (String key : statBoostsNbt.getKeys()) {
-                    statBoostsNbt.getInt(key).ifPresent(boost ->
-                        progressionModule.addPermanentStatBoost(key, boost));
-                }
-            });
-        }
-        
-        // Load tribute milestones
-        if (nbt.contains("tributeMilestones")) {
-            nbt.getCompound("tributeMilestones").ifPresent(tributesNbt -> {
-                for (String key : tributesNbt.getKeys()) {
-                    try {
-                        int level = Integer.parseInt(key);
-                        tributesNbt.getString(key).ifPresent(itemIdStr -> {
-                            Identifier itemId = Identifier.tryParse(itemIdStr);
-                            if (itemId != null) {
-                                progressionModule.setTributeMilestone(level, itemId);
-                            }
-                        });
-                    } catch (NumberFormatException ignored) {
-                        // Skip invalid tribute level keys
-                    }
-                }
-            });
-        }
-        
-        // Load stateData lists
-        if (nbt.contains("stateData")) {
-            nbt.getCompound("stateData").ifPresent(stateDataNbt -> {
-                stateData.clear();
-                for (String key : stateDataNbt.getKeys()) {
-                    var listOpt = stateDataNbt.getCompound(key);
-                    if (listOpt.isPresent()) {
-                        var listNbt = listOpt.get();
-                        listNbt.getInt("size").ifPresent(size -> {
-                            java.util.List<String> list = new java.util.ArrayList<>();
-                            for (int i = 0; i < size; i++) {
-                                listNbt.getString(String.valueOf(i)).ifPresent(list::add);
-                            }
-                            setStateDataSilently(key, list);
-                        });
-                        continue;
-                    }
-
-                    stateDataNbt.getString(key).ifPresent(value -> setStateDataSilently(key, value));
-                    stateDataNbt.getInt(key).ifPresent(value -> setStateDataSilently(key, value));
-                    stateDataNbt.getLong(key).ifPresent(value -> setStateDataSilently(key, value));
-                    stateDataNbt.getDouble(key).ifPresent(value -> setStateDataSilently(key, value));
-                    stateDataNbt.getFloat(key).ifPresent(value -> setStateDataSilently(key, value));
-                    stateDataNbt.getBoolean(key).ifPresent(value -> setStateDataSilently(key, value));
-                }
-            });
-        }
-        migrateLegacyStateData();
+        data.stateData().ifPresentOrElse(
+            stateNbt -> deserializeStateDataCompound(stateNbt.copy()),
+            this::clearAllStateData
+        );
         refreshSpeciesDescriptor();
 
-        String ownerId = getStateData("petsplus:owner_uuid", String.class, "");
-        if (ownerId != null && !ownerId.isEmpty()) {
-            try {
-                setOwnerUuid(UUID.fromString(ownerId));
-            } catch (IllegalArgumentException ignored) {
-                setOwnerUuid(null);
-            }
-        } else {
-            setOwnerUuid(null);
-        }
-        
-        
+        data.gossip().ifPresentOrElse(gossipLedger::copyFrom, gossipLedger::clear);
 
-        
-        // Load inventories via module
-        if (nbt.contains("inventories")) {
-            nbt.getCompound("inventories").ifPresent(inventoriesNbt -> {
-                for (String key : inventoriesNbt.getKeys()) {
-                    inventoriesNbt.getCompound(key).ifPresent(inventoryNbt -> {
-                        int size = inventoryNbt.getInt("size").orElse(0);
-                        if (size <= 0) {
-                            inventoryModule.setInventory(key, DefaultedList.ofSize(0, ItemStack.EMPTY));
-                            return;
-                        }
+        data.mood().ifPresentOrElse(
+            moodData -> moodEngine.readFromNbt(moodData.copy()),
+            () -> moodEngine.readFromNbt(new NbtCompound())
+        );
 
-                        DefaultedList<ItemStack> list = DefaultedList.ofSize(size, ItemStack.EMPTY);
-                        RegistryOps<NbtElement> ops = getRegistryOps();
-                        inventoryNbt.getList("items").ifPresent(items -> {
-                            for (int i = 0; i < items.size() && i < list.size(); i++) {
-                                NbtElement element = items.get(i);
-                                ItemStack decoded = ItemStack.CODEC.parse(ops, element).result().orElse(ItemStack.EMPTY);
-                                list.set(i, decoded);
-                            }
-                        });
-                        inventoryModule.setInventory(key, list);
-                    });
-                }
-            });
-        }
-
-        // Load characteristics via module
-        if (nbt.contains("characteristics")) {
-            nbt.getCompound("characteristics").ifPresent(characteristicsNbt -> {
-                characteristicsModule.setCharacteristics(PetCharacteristics.readFromNbt(characteristicsNbt));
-            });
-        }
+        this.isPerched = data.isPerched();
+        this.lastAttackTick = data.lastAttackTick();
+        this.xpFlashStartTick = data.xpFlashStartTick();
+        data.role().ifPresent(this::setRoleId);
 
         syncCharacteristicAffinityLookup();
-        
-        // Load pet history - delegate to module
-        if (nbt.contains("petHistory")) {
-            nbt.getList("petHistory").ifPresent(historyNbt -> {
-                List<HistoryEvent> events = new ArrayList<>();
-                for (int i = 0; i < historyNbt.size(); i++) {
-                    historyNbt.getCompound(i).ifPresent(eventNbt -> {
-                        try {
-                            long timestamp = eventNbt.getLong("t").orElse(0L);
-                            String eventType = eventNbt.getString("e").orElse("");
-                            String ownerUuidStr = eventNbt.getString("o").orElse("");
-                            UUID ownerUuid = null;
-                            if (!ownerUuidStr.isEmpty()) {
-                                try {
-                                    ownerUuid = UUID.fromString(ownerUuidStr);
-                                } catch (IllegalArgumentException e) {
-                                    Petsplus.LOGGER.warn("Invalid UUID in history event: " + ownerUuidStr);
-                                    ownerUuid = null; // Use null for invalid UUIDs
-                                }
-                            }
-                            String ownerName = eventNbt.getString("n").orElse("");
-                            String eventData = eventNbt.getString("d").orElse("");
-                            
-                            HistoryEvent event = new HistoryEvent(timestamp, eventType, ownerUuid, ownerName, eventData);
-                            events.add(event);
-                        } catch (Exception e) {
-                            Petsplus.LOGGER.warn("Failed to load history event for pet " + pet.getUuidAsString(), e);
-                        }
-                    });
-                }
-                historyModule.fromData(new HistoryModule.Data(events));
-            });
+    }
+
+    private void resetProgressionModule() {
+        progressionModule.setLevel(1);
+        progressionModule.setExperience(0);
+        progressionModule.clearProgressionUnlocks();
+    }
+
+    private void clearOwnerModule() {
+        ownerModule.clearCrouchCuddle();
+        ownerModule.setOwnerUuid(null);
+    }
+
+    private void resetCharacteristicsModule() {
+        characteristicsModule.setCharacteristics(null);
+        characteristicsModule.updateNatureTuning(1.0f, 1.0f, 1.0f, 1.0f);
+        characteristicsModule.setNatureEmotionProfile(NatureEmotionProfile.EMPTY);
+        characteristicsModule.setNameAttributes(List.of());
+        characteristicsModule.resetRoleAffinityBonuses();
+    }
+
+    private void clearAllCooldowns() {
+        Map<String, Long> existing = schedulingModule.getAllCooldowns();
+        if (existing.isEmpty()) {
+            return;
+        }
+        for (String key : existing.keySet()) {
+            schedulingModule.clearCooldown(key);
         }
     }
-    
+
+    private void replaceSchedulingCooldowns(@Nullable Map<String, Long> newCooldowns) {
+        clearAllCooldowns();
+        if (newCooldowns == null || newCooldowns.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, Long> entry : newCooldowns.entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null) {
+                continue;
+            }
+            schedulingModule.setCooldown(entry.getKey(), entry.getValue());
+        }
+    }
+
+    private void clearAllStateData() {
+        if (stateData.isEmpty()) {
+            return;
+        }
+        stateData.clear();
+        speciesMetadataModule.markFlightDirty();
+    }
+
     /**
      * Save component data to entity using component system.
      */
     public void saveToEntity() {
-        PetsplusComponents.PetData data = PetsplusComponents.PetData.empty()
-            .withRole(getRoleId());
-
-        data = data.withLastAttackTick(lastAttackTick)
-                  .withPerched(isPerched);
-            
-        // Include cooldowns from scheduling module
-        for (Map.Entry<String, Long> entry : schedulingModule.getAllCooldowns().entrySet()) {
-            data = data.withCooldown(entry.getKey(), entry.getValue());
+        PetsplusComponents.PetData data = toComponentData();
+        try {
+            pet.setComponent(PetsplusComponents.PET_DATA, data);
+        } catch (Throwable error) {
+            Petsplus.LOGGER.warn("Failed to save pet component data for " + pet.getUuidAsString(), error);
         }
-        
-        // Component data prepared for codec-based serialization
-        // NBT persistence handles actual storage through writeToNbt/readFromNbt
     }
-    
+
     /**
      * Loads component data from entity using the component system.
-     * NBT persistence handles deserialization through readFromNbt.
      */
     public void loadFromEntity() {
-        // Reserved for future codec-based entity component integration
+        try {
+            if (!(pet instanceof EntityComponentAccessor accessor)) {
+                Petsplus.LOGGER.warn("Entity " + pet.getUuidAsString() + " is missing component accessor mixin");
+                return;
+            }
+            PetsplusComponents.PetData stored = null;
+            try {
+                stored = accessor.petsplus$castComponentValue(PetsplusComponents.PET_DATA, null);
+            } catch (ClassCastException castError) {
+                Petsplus.LOGGER.warn("Failed to cast pet component data for " + pet.getUuidAsString(), castError);
+            }
+            if (stored != null) {
+                fromComponentData(stored);
+            }
+        } catch (Throwable error) {
+            Petsplus.LOGGER.warn("Failed to load pet component data for " + pet.getUuidAsString(), error);
+        }
     }
 }
 

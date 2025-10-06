@@ -14,6 +14,19 @@ public final class Identifier {
         return new Identifier(namespace, path);
     }
 
+    public static Identifier of(String value) {
+        if (value == null || value.isBlank()) {
+            return new Identifier("minecraft", "generated");
+        }
+        int colonIndex = value.indexOf(':');
+        if (colonIndex < 0) {
+            return new Identifier("minecraft", value);
+        }
+        String namespace = value.substring(0, colonIndex);
+        String path = value.substring(colonIndex + 1);
+        return new Identifier(namespace, path);
+    }
+
     public static Identifier ofVanilla(String path) {
         return new Identifier("minecraft", path);
     }
