@@ -84,11 +84,9 @@ The stimulus system monitors a wide range of gameplay events:
 
 Events trigger [emotions](emotions.md). The Mood Engine blends them into the [moods](moods.md) you see.
 
-It works like real feelings: recent intense stuff matters more than old faded stuff. Each [emotion](emotions.md) feeds into multiple [moods](moods.md) with different strengths, and your pet's [nature](natures.md) shapes how they process everything.
+It works like real feelings: recent intense stuff matters more than old faded stuff. Each emotion feeds into multiple moods with different strengths, and your pet's [nature](natures.md) shapes how they process everything.
 
-This is why mood changes feel natural. Sudden fear hits instantly. Contentment builds slowly. The system mirrors how actual emotions work.
-
-*For details on how emotions are tracked and decay, see [Emotions](emotions.md). For mood levels and intensity, see [Moods](moods.md#mood-intensity).*
+This is why mood changes feel natural. Sudden fear hits instantly. Contentment builds slowly. The system tries to mirror how actual emotions work.
 
 ## Emotion Context Cues
 
