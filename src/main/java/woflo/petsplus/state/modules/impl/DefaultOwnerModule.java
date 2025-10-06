@@ -102,6 +102,7 @@ public class DefaultOwnerModule implements OwnerModule {
         return crouchCuddleOwnerId;
     }
 
+    @Override
     public void clearCrouchCuddle(UUID ownerId) {
         if (crouchCuddleOwnerId != null && crouchCuddleOwnerId.equals(ownerId)) {
             this.crouchCuddleOwnerId = null;
@@ -109,6 +110,7 @@ public class DefaultOwnerModule implements OwnerModule {
         }
     }
 
+    @Override
     public void clearCrouchCuddle() {
         this.crouchCuddleOwnerId = null;
         this.crouchCuddleExpiryTick = 0;

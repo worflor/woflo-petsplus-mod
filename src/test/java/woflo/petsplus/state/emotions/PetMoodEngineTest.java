@@ -1,9 +1,11 @@
-package woflo.petsplus.state;
+package woflo.petsplus.state.emotions;
 
 import org.junit.jupiter.api.Test;
 
 import java.util.EnumMap;
 import java.util.Map;
+
+import woflo.petsplus.state.PetComponent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;

@@ -866,8 +866,8 @@ public class PetsCommand {
             .formatted(Formatting.WHITE), false);
         
         if (level < petComp.getRoleType().xpCurve().maxLevel()) {
-            int nextLevelXp = petComp.getTotalXpForLevel(level + 1);
-            int needed = nextLevelXp - xp;
+            int nextLevelXp = petComp.getXpNeededForNextLevel();
+            int needed = Math.max(0, nextLevelXp - xp);
             player.sendMessage(Text.literal("  Next level: " + needed + " XP needed")
                 .formatted(Formatting.GRAY), false);
         }

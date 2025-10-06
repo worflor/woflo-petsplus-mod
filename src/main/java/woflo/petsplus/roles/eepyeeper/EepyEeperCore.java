@@ -264,7 +264,7 @@ public class EepyEeperCore {
         int targetLevel = currentLevel + 1;
         
         // Set XP to exactly what's needed for the next level
-        int requiredXp = petComp.getTotalXpForLevel(targetLevel);
+        int requiredXp = petComp.getXpRequiredForLevel(targetLevel);
         petComp.setExperience(requiredXp);
         
         // Force level calculation update

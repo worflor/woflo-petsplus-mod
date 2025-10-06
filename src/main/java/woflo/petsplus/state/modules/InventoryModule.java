@@ -9,6 +9,7 @@ import java.util.Set;
 import org.jetbrains.annotations.Nullable;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.collection.DefaultedList;
+import woflo.petsplus.util.CodecUtils;
 
 public interface InventoryModule extends DataBackedModule<InventoryModule.Data> {
     DefaultedList<ItemStack> getInventory(String category, int size);
@@ -19,7 +20,7 @@ public interface InventoryModule extends DataBackedModule<InventoryModule.Data> 
     record Data(Map<String, List<ItemStack>> inventories) {
         public static final Codec<Data> CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
-                Codec.unboundedMap(Codec.STRING, ItemStack.CODEC.listOf()).optionalFieldOf("inventories", new HashMap<>()).forGetter(Data::inventories)
+                Codec.unboundedMap(Codec.STRING, CodecUtils.itemStackListCodec()).optionalFieldOf("inventories", new HashMap<>()).forGetter(Data::inventories)
             ).apply(instance, Data::new)
         );
     }

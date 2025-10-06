@@ -6,6 +6,7 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.NbtSizeTracker;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryWrapper;
@@ -20,6 +21,7 @@ import net.minecraft.storage.NbtWriteView;
 import net.minecraft.storage.ReadView;
 import net.minecraft.util.ErrorReporter;
 import woflo.petsplus.api.entity.PetsplusTameable;
+import woflo.petsplus.component.PetsplusComponents;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -82,10 +84,17 @@ public final class PetSnapshot {
         if (component == null) {
             component = PetComponent.getOrCreate(pet);
         }
-        NbtCompound componentPayload = new NbtCompound();
-        component.writeToNbt(componentPayload);
-        componentPayload.remove("petUuid");
-        root.put(KEY_COMPONENT, componentPayload);
+
+        var encoded = PetsplusComponents.PetData.CODEC.encodeStart(NbtOps.INSTANCE, component.toComponentData());
+        NbtElement encodedElement = encoded.result().orElseThrow(() ->
+            new SnapshotException("Failed to encode pet component: " +
+                encoded.error().map(Object::toString).orElse("unknown error"))
+        );
+        if (!(encodedElement instanceof NbtCompound componentPayload)) {
+            throw new SnapshotException("Pet component codec produced unexpected payload type: " +
+                encodedElement.getClass().getSimpleName());
+        }
+        root.put(KEY_COMPONENT, componentPayload.copy());
 
         try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             NbtIo.writeCompressed(root, output);
@@ -125,7 +134,14 @@ public final class PetSnapshot {
         }
 
         PetComponent component = StateManager.forWorld(world).getPetComponent(pet);
-        component.readFromNbt(data.componentNbt().copy());
+        NbtCompound componentPayload = data.componentNbt().copy();
+        var parsed = PetsplusComponents.PetData.CODEC.parse(NbtOps.INSTANCE, componentPayload);
+        PetsplusComponents.PetData petData = parsed.result().orElseThrow(() ->
+            new SnapshotException("Failed to decode pet component: " +
+                parsed.error().map(Object::toString).orElse("unknown error"))
+        );
+        component.fromComponentData(petData);
+        component.saveToEntity();
         component.setOwner(player);
         component.ensureCharacteristics();
         component.refreshSpeciesDescriptor();

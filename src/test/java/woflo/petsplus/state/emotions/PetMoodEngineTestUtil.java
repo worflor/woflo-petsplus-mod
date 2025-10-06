@@ -1,10 +1,12 @@
-package woflo.petsplus.state;
+package woflo.petsplus.state.emotions;
 
 import org.mockito.MockedConstruction;
 
 import java.util.EnumMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+
+import woflo.petsplus.state.PetComponent;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;

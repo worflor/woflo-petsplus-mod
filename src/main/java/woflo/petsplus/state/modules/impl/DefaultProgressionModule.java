@@ -2,6 +2,7 @@ package woflo.petsplus.state.modules.impl;
 
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.modules.ProgressionModule;
 
@@ -18,7 +19,7 @@ public class DefaultProgressionModule implements ProgressionModule {
     private long experience = 0;
     private final Map<Integer, Boolean> unlockedMilestones = new HashMap<>();
     private final Map<Identifier, Boolean> unlockedAbilities = new HashMap<>();
-    private final Map<String, Integer> permanentStatBoosts = new HashMap<>();
+    private final Map<String, Float> permanentStatBoosts = new HashMap<>();
     private final Map<Integer, Identifier> tributeMilestones = new HashMap<>();
     private final List<Consumer<LevelUpEvent>> levelUpListeners = new ArrayList<>();
 
@@ -34,7 +35,7 @@ public class DefaultProgressionModule implements ProgressionModule {
 
     @Override
     public void setLevel(int level) {
-        this.level = Math.max(1, level);
+        this.level = Math.max(1, Math.min(level, getMaxConfiguredLevel()));
     }
 
     @Override
@@ -43,23 +44,37 @@ public class DefaultProgressionModule implements ProgressionModule {
     }
 
     @Override
+    public void setExperience(long experience) {
+        long sanitized = Math.max(0, experience);
+        long xpForNext = getXpForNextLevel();
+        if (xpForNext <= 0) {
+            this.experience = 0;
+        } else {
+            this.experience = Math.min(sanitized, xpForNext);
+        }
+    }
+
+    @Override
     public void addExperience(long amount, ServerWorld world, long currentTick) {
-        if (amount <= 0) return;
-        
+        if (amount < 0) return;
+
         this.experience = Math.max(0, this.experience + amount);
         
         // Check for level ups
         int oldLevel = this.level;
+        int maxLevel = getMaxConfiguredLevel();
         int maxIterations = 100; // Prevent infinite loops
         int iterations = 0;
-        while (this.experience >= getXpForNextLevel() && this.level < 100 && iterations < maxIterations) {
-            this.experience -= getXpForNextLevel();
+        long xpForNext = getXpForNextLevel();
+        while (xpForNext > 0 && this.experience >= xpForNext && this.level < maxLevel && iterations < maxIterations) {
+            this.experience -= xpForNext;
             this.level++;
             iterations++;
+            xpForNext = getXpForNextLevel();
         }
-        
+
         // Cap experience at max level
-        if (this.level >= 100) {
+        if (this.level >= maxLevel) {
             this.experience = 0;
         }
         
@@ -74,12 +89,14 @@ public class DefaultProgressionModule implements ProgressionModule {
 
     @Override
     public long getXpForNextLevel() {
-        // TODO: Implement role-based XP curve from registry (Phase 4)
-        // For now, use linear progression: 100 XP per level
-        // Parent is reserved for future role-based progression
-        @SuppressWarnings("unused")
-        PetComponent unused = parent;
-        return 100L * level;
+        PetRoleType.XpCurve curve = parent != null ? parent.getRoleType().xpCurve() : null;
+        if (curve != null) {
+            if (level >= curve.maxLevel()) {
+                return 0L;
+            }
+            return Math.max(1L, parent.getXpRequiredForLevel(level + 1));
+        }
+        return Math.max(1L, 100L * level);
     }
 
     @Override
@@ -113,18 +130,26 @@ public class DefaultProgressionModule implements ProgressionModule {
     }
 
     @Override
-    public Map<String, Integer> getPermanentStatBoosts() {
+    public Map<String, Float> getPermanentStatBoosts() {
         return Collections.unmodifiableMap(permanentStatBoosts);
     }
 
     @Override
     public void addPermanentStatBoost(String statName, float amount) {
-        permanentStatBoosts.merge(statName, (int) amount, Integer::sum);
+        permanentStatBoosts.merge(statName, amount, Float::sum);
     }
 
     @Override
     public float getPermanentStatBoost(String statName) {
-        return permanentStatBoosts.getOrDefault(statName, 0);
+        return permanentStatBoosts.getOrDefault(statName, 0f);
+    }
+
+    @Override
+    public void clearProgressionUnlocks() {
+        unlockedMilestones.clear();
+        unlockedAbilities.clear();
+        permanentStatBoosts.clear();
+        tributeMilestones.clear();
     }
 
     @Override
@@ -143,12 +168,12 @@ public class DefaultProgressionModule implements ProgressionModule {
         return tributeMilestones.containsKey(level);
     }
 
-    public void addStatBoost(String statKey, int amount) {
-        permanentStatBoosts.merge(statKey, amount, Integer::sum);
+    public void addStatBoost(String statKey, float amount) {
+        permanentStatBoosts.merge(statKey, amount, Float::sum);
     }
 
-    public void setStatBoost(String statKey, int value) {
-        if (value == 0) {
+    public void setStatBoost(String statKey, float value) {
+        if (value == 0f) {
             permanentStatBoosts.remove(statKey);
         } else {
             permanentStatBoosts.put(statKey, value);
@@ -188,5 +213,10 @@ public class DefaultProgressionModule implements ProgressionModule {
         
         this.tributeMilestones.clear();
         this.tributeMilestones.putAll(data.tributeMilestones());
+    }
+
+    private int getMaxConfiguredLevel() {
+        PetRoleType.XpCurve curve = parent != null ? parent.getRoleType().xpCurve() : null;
+        return curve != null ? curve.maxLevel() : 100;
     }
 }

@@ -12,6 +12,7 @@ import net.minecraft.registry.Registry;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.resource.ResourceType;
 import net.minecraft.util.Identifier;
+import woflo.petsplus.util.CodecUtils;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.abilities.AbilityManager;
 import woflo.petsplus.api.Effect;
@@ -1439,7 +1440,7 @@ public final class PetsPlusRegistries {
         CooldownSettings cooldown) {
         static final Codec<OwnerBrokeBlockConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Codec.BOOL.optionalFieldOf("block_valuable").forGetter(OwnerBrokeBlockConfig::blockValuable),
-            Identifier.CODEC.optionalFieldOf("block_id").forGetter(OwnerBrokeBlockConfig::blockId),
+            CodecUtils.identifierCodec().optionalFieldOf("block_id").forGetter(OwnerBrokeBlockConfig::blockId),
             CooldownSettings.MAP_CODEC.forGetter(OwnerBrokeBlockConfig::cooldown)
         ).apply(instance, OwnerBrokeBlockConfig::new));
     }
