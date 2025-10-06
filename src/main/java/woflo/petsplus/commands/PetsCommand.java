@@ -16,12 +16,8 @@ import net.minecraft.registry.Registries;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.ClickEvent.CopyToClipboard;
-import net.minecraft.text.HoverEvent;
 import net.minecraft.text.MutableText;
-import net.minecraft.text.Style;
 import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
@@ -33,14 +29,11 @@ import woflo.petsplus.events.EmotionContextCues;
 import woflo.petsplus.naming.AttributeKey;
 import woflo.petsplus.naming.NameParser;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.PetSnapshot;
 import woflo.petsplus.ui.ChatLinks;
 import woflo.petsplus.util.PetTargetingUtil;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -49,8 +42,6 @@ import java.util.stream.Collectors;
  * Uses intelligent raycast targeting for pet selection.
  */
 public class PetsCommand {
-
-    private static final int SNAPSHOT_CHAT_CHUNK = 256;
     
     // Custom suggestion providers following Fabric documentation
     public static final SuggestionProvider<ServerCommandSource> ROLE_SUGGESTIONS = (context, builder) -> {
@@ -130,13 +121,6 @@ public class PetsCommand {
                 .then(CommandManager.literal("setlevel")
                     .then(CommandManager.argument("level", StringArgumentType.string())
                         .executes(PetsCommand::adminSetPetLevel)))
-                .then(CommandManager.literal("export")
-                    .executes(PetsCommand::adminExportAnyPet)
-                    .then(CommandManager.argument("pet_name", StringArgumentType.greedyString())
-                        .executes(PetsCommand::adminExportNamedPet)))
-                .then(CommandManager.literal("import")
-                    .then(CommandManager.argument("snapshot", StringArgumentType.greedyString())
-                        .executes(PetsCommand::adminImportPet)))
                 .then(CommandManager.literal("testname")
                     .then(CommandManager.argument("name", StringArgumentType.greedyString())
                         .executes(PetsCommand::adminTestNameParsing))))
@@ -491,38 +475,6 @@ public class PetsCommand {
         return 1;
     }
 
-    private static int adminExportAnyPet(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-        return performAdminExport(player, null);
-    }
-
-    private static int adminExportNamedPet(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-        String query = StringArgumentType.getString(context, "pet_name");
-        return performAdminExport(player, query);
-    }
-
-    private static int adminImportPet(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-        String raw = StringArgumentType.getString(context, "snapshot");
-        String normalized = raw.replaceAll("\\s+", "");
-
-        if (normalized.isEmpty()) {
-            player.sendMessage(Text.literal("Snapshot payload was empty.").formatted(Formatting.RED), false);
-            return 0;
-        }
-
-        try {
-            MobEntity imported = PetSnapshot.importFromString(normalized, player);
-            player.sendMessage(Text.literal("✅ Imported " + getPetDisplayName(imported) + " in front of you.")
-                .formatted(Formatting.GREEN), false);
-            return 1;
-        } catch (PetSnapshot.SnapshotException e) {
-            player.sendMessage(Text.literal("Failed to import pet: " + e.getMessage()).formatted(Formatting.RED), false);
-            return 0;
-        }
-    }
-
     private static int adminTestNameParsing(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
         String name = StringArgumentType.getString(context, "name");
@@ -588,65 +540,7 @@ public class PetsCommand {
         }
     }
 
-    private static int performAdminExport(ServerPlayerEntity player, @Nullable String query) {
-        List<MobEntity> candidates = findNearbyTrackedPets(player);
-        if (candidates.isEmpty()) {
-            player.sendMessage(Text.literal("No PetsPlus companions found nearby to export.")
-                .formatted(Formatting.RED), false);
-            return 0;
-        }
 
-        MobEntity target = selectAdminPet(candidates, player, query);
-        if (target == null) {
-            player.sendMessage(Text.literal("Couldn't find a pet matching '" + query + "'. Nearby pets:")
-                .formatted(Formatting.RED), false);
-            for (MobEntity candidate : candidates) {
-                player.sendMessage(Text.literal("  • " + describePet(candidate))
-                    .formatted(Formatting.GRAY), false);
-            }
-            return 0;
-        }
-
-        if ((query == null || query.isBlank()) && candidates.size() > 1) {
-            player.sendMessage(Text.literal("Multiple pets detected; exporting nearest " + getPetDisplayName(target)
-                    + ". Use /petsplus admin export <name> to specify a different one.")
-                .formatted(Formatting.YELLOW), false);
-        }
-
-        try {
-            String blob = PetSnapshot.exportToString(target);
-            String display = getPetDisplayName(target);
-            player.sendMessage(Text.literal("✅ Exported snapshot for " + display + ".")
-                .formatted(Formatting.GREEN), false);
-            ChatLinks.sendCopy(player, new ChatLinks.Copy("[Copy Pet Snapshot]", blob,
-                "Click to copy the pet snapshot to your clipboard", "#55FFAA", true));
-            sendSnapshotChunks(player, blob);
-            return 1;
-        } catch (PetSnapshot.SnapshotException e) {
-            player.sendMessage(Text.literal("Failed to export pet: " + e.getMessage()).formatted(Formatting.RED), false);
-            return 0;
-        }
-    }
-
-    private static void sendSnapshotChunks(ServerPlayerEntity player, String blob) {
-        int total = Math.max(1, (blob.length() + SNAPSHOT_CHAT_CHUNK - 1) / SNAPSHOT_CHAT_CHUNK);
-        player.sendMessage(Text.literal("Snapshot payload (" + total + " chunk" + (total == 1 ? "" : "s") + "):")
-            .formatted(Formatting.GRAY), false);
-
-        for (int index = 0; index < total; index++) {
-            int start = index * SNAPSHOT_CHAT_CHUNK;
-            int end = Math.min(blob.length(), start + SNAPSHOT_CHAT_CHUNK);
-            String chunk = blob.substring(start, end);
-            Text prefix = Text.literal(String.format(Locale.ROOT, "[%d/%d] ", index + 1, total))
-                .formatted(Formatting.DARK_GRAY);
-            MutableText content = Text.literal(chunk).setStyle(Style.EMPTY
-                .withColor(TextColor.fromRgb(Formatting.AQUA.getColorValue()))
-                .withUnderline(true)
-                .withClickEvent(new CopyToClipboard(chunk))
-                .withHoverEvent(new HoverEvent.ShowText(Text.literal("Click to copy this chunk"))));
-            player.sendMessage(prefix.copy().append(content), false);
-        }
-    }
     
     /**
      * Find the target pet using intelligent raycast targeting.
@@ -730,65 +624,6 @@ public class PetsCommand {
                 return petComp != null && petComp.isOwnedBy(player);
             }
         );
-    }
-
-    private static List<MobEntity> findNearbyTrackedPets(ServerPlayerEntity player) {
-        return player.getWorld().getEntitiesByClass(
-            MobEntity.class,
-            player.getBoundingBox().expand(12),
-            entity -> PetComponent.get(entity) != null
-        );
-    }
-
-    private static MobEntity selectAdminPet(List<MobEntity> candidates, ServerPlayerEntity player, @Nullable String query) {
-        if (candidates.isEmpty()) {
-            return null;
-        }
-
-        if (query == null || query.isBlank()) {
-            return candidates.stream()
-                .min(Comparator.comparingDouble(entity -> entity.squaredDistanceTo(player)))
-                .orElse(null);
-        }
-
-        String normalized = query.trim().toLowerCase(Locale.ROOT);
-
-        for (MobEntity candidate : candidates) {
-            if (candidate.hasCustomName() && candidate.getCustomName().getString().equalsIgnoreCase(query)) {
-                return candidate;
-            }
-        }
-
-        for (MobEntity candidate : candidates) {
-            String display = getPetDisplayName(candidate).toLowerCase(Locale.ROOT);
-            if (display.contains(normalized)) {
-                return candidate;
-            }
-
-            Identifier typeId = Registries.ENTITY_TYPE.getId(candidate.getType());
-            if (typeId != null && typeId.toString().toLowerCase(Locale.ROOT).contains(normalized)) {
-                return candidate;
-            }
-
-            if (candidate.getUuidAsString().toLowerCase(Locale.ROOT).startsWith(normalized)) {
-                return candidate;
-            }
-        }
-
-        return null;
-    }
-
-    private static String describePet(MobEntity pet) {
-        String display = getPetDisplayName(pet);
-        Identifier typeId = Registries.ENTITY_TYPE.getId(pet.getType());
-        String type = typeId != null ? typeId.toString() : pet.getType().getName().getString();
-        String uuid = pet.getUuidAsString();
-        String shortUuid = uuid.length() > 8 ? uuid.substring(0, 8) : uuid;
-        return display + " [" + type + " • " + shortUuid + "]";
-    }
-
-    private static String getPetDisplayName(MobEntity pet) {
-        return pet.hasCustomName() ? pet.getCustomName().getString() : pet.getType().getName().getString();
     }
 
     private static Text resolveRoleLabel(Identifier roleId, @Nullable PetRoleType roleType) {

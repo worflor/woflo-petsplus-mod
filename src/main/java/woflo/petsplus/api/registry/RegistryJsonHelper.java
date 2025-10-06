@@ -28,7 +28,7 @@ public final class RegistryJsonHelper {
     }
 
     public static int getInt(JsonObject json, String key, int defaultValue) {
-        if (!json.has(key)) {
+        if (json == null || !json.has(key)) {
             return defaultValue;
         }
 
@@ -45,7 +45,7 @@ public final class RegistryJsonHelper {
     }
 
     public static double getDouble(JsonObject json, String key, double defaultValue) {
-        if (!json.has(key)) {
+        if (json == null || !json.has(key)) {
             return defaultValue;
         }
 
@@ -62,7 +62,7 @@ public final class RegistryJsonHelper {
     }
 
     public static float getFloat(JsonObject json, String key, float defaultValue) {
-        if (!json.has(key)) {
+        if (json == null || !json.has(key)) {
             return defaultValue;
         }
 
@@ -79,7 +79,7 @@ public final class RegistryJsonHelper {
     }
 
     public static long getLong(JsonObject json, String key, long defaultValue) {
-        if (!json.has(key)) {
+        if (json == null || !json.has(key)) {
             return defaultValue;
         }
 
@@ -92,7 +92,7 @@ public final class RegistryJsonHelper {
     }
 
     public static boolean getBoolean(JsonObject json, String key, boolean defaultValue) {
-        if (!json.has(key)) {
+        if (json == null || !json.has(key)) {
             return defaultValue;
         }
 
@@ -106,7 +106,7 @@ public final class RegistryJsonHelper {
 
     @Nullable
     public static String getString(JsonObject json, String key, @Nullable String defaultValue) {
-        if (!json.has(key)) {
+        if (json == null || !json.has(key)) {
             return defaultValue;
         }
 

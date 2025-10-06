@@ -20,8 +20,6 @@ import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.commands.arguments.PetRoleArgumentType;
-import woflo.petsplus.component.PetsplusComponents;
-import woflo.petsplus.items.PetsplusItemUtils;
 import woflo.petsplus.datagen.PetsplusLootHandler;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.stats.nature.NatureModifierSampler;
@@ -46,27 +44,6 @@ public class PetsplusAdminCommands {
                 .executes(PetsplusAdminCommands::giveAdminKit)
                 .then(CommandManager.argument("player", EntityArgumentType.player())
                     .executes(context -> giveAdminKit(context, EntityArgumentType.getPlayer(context, "player")))))
-            .then(CommandManager.literal("spawn")
-                .then(CommandManager.literal("respec")
-                    .then(CommandManager.argument("type", StringArgumentType.string())
-                        .suggests((context, builder) -> {
-                            builder.suggest("general");
-                            builder.suggest("role");
-                            return builder.buildFuture();
-                        })
-                        .executes(PetsplusAdminCommands::spawnRespecToken)))
-                .then(CommandManager.literal("whistle")
-                    .executes(PetsplusAdminCommands::spawnLinkedWhistle))
-                .then(CommandManager.literal("nametag")
-                    .then(CommandManager.argument("special", StringArgumentType.string())
-                        .suggests((context, builder) -> {
-                            builder.suggest("true");
-                            builder.suggest("false");
-                            return builder.buildFuture();
-                        })
-                        .executes(PetsplusAdminCommands::spawnMetadataTag)))
-                .then(CommandManager.literal("debug")
-                    .executes(PetsplusAdminCommands::spawnDebugStick)))
             .then(CommandManager.literal("pet")
                 .then(CommandManager.literal("setlevel")
                     .then(CommandManager.argument("level", IntegerArgumentType.integer(1, 30))
@@ -147,9 +124,7 @@ public class PetsplusAdminCommands {
                     .then(CommandManager.literal("ability")
                         .executes(PetsplusAdminCommands::testAbilityLoot)))
                 .then(CommandManager.literal("effects")
-                    .executes(PetsplusAdminCommands::testStatusEffects))
-                .then(CommandManager.literal("components")
-                    .executes(PetsplusAdminCommands::testDataComponents)))
+                    .executes(PetsplusAdminCommands::testStatusEffects)))
             .then(CommandManager.literal("reload")
                 .executes(PetsplusAdminCommands::reloadConfig)));
     }
@@ -173,60 +148,6 @@ public class PetsplusAdminCommands {
             context.getSource().sendError(Text.literal("Failed to give admin kit: " + e.getMessage()));
             return 0;
         }
-    }
-    
-    // ============ ITEM SPAWNING ============
-    
-    private static int spawnRespecToken(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-        String type = StringArgumentType.getString(context, "type");
-        
-        ItemStack token = switch (type.toLowerCase()) {
-            case "role" -> PetsplusItemUtils.createRoleRespecToken("guardian"); // Example role
-            default -> PetsplusItemUtils.createRespecToken();
-        };
-        
-        player.getInventory().insertStack(token);
-        
-        player.sendMessage(Text.literal("Respec token (" + type + ") created!").formatted(Formatting.GREEN), false);
-        return 1;
-    }
-    
-    private static int spawnLinkedWhistle(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-        
-        // Find nearest pet to link, or create an unlinked whistle
-        MobEntity targetPet = findTargetPet(player);
-        ItemStack whistle = PetsplusItemUtils.createLinkedWhistle(targetPet);
-        player.getInventory().insertStack(whistle);
-        
-        String message = targetPet != null ? 
-            "Linked whistle created (linked to nearby pet)!" : 
-            "Linked whistle created (no pet nearby to link)!";
-        player.sendMessage(Text.literal(message).formatted(Formatting.GREEN), false);
-        return 1;
-    }
-    
-    private static int spawnMetadataTag(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-        String specialStr = StringArgumentType.getString(context, "special");
-        boolean isSpecial = Boolean.parseBoolean(specialStr);
-        
-        ItemStack nameTag = PetsplusItemUtils.createPetMetadataTag("Test Pet", isSpecial);
-        player.getInventory().insertStack(nameTag);
-        
-        player.sendMessage(Text.literal("Metadata tag created (special: " + isSpecial + ")!").formatted(Formatting.GREEN), false);
-        return 1;
-    }
-    
-    private static int spawnDebugStick(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-        
-        ItemStack debugStick = PetsplusItemUtils.createDebugInfoStick();
-        player.getInventory().insertStack(debugStick);
-        
-        player.sendMessage(Text.literal("Debug info stick created!").formatted(Formatting.GREEN), false);
-        return 1;
     }
     
     // ============ PET MANIPULATION ============
@@ -538,26 +459,6 @@ public class PetsplusAdminCommands {
         );
         
         player.sendMessage(Text.literal("Status effects applied from pet!").formatted(Formatting.GREEN), false);
-        return 1;
-    }
-    
-    private static int testDataComponents(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-        
-        player.sendMessage(Text.literal("=== Data Component Test ===").formatted(Formatting.GOLD), false);
-        
-        // Test all component types
-        PetsplusComponents.RespecData respec = PetsplusComponents.RespecData.create();
-        player.sendMessage(Text.literal("Respec Data: " + respec.toString()), false);
-        
-        PetsplusComponents.LinkedWhistleData whistle = PetsplusComponents.LinkedWhistleData.create(
-            player.getUuid(), "Test Pet");
-        player.sendMessage(Text.literal("Whistle Data: " + whistle.toString()), false);
-        
-        PetsplusComponents.PetMetadata metadata = PetsplusComponents.PetMetadata.create()
-            .withDisplayName("Test").withBondStrength(100);
-        player.sendMessage(Text.literal("Metadata: " + metadata.toString()), false);
-        
         return 1;
     }
     

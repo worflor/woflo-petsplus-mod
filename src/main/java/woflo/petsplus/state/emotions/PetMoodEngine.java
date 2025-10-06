@@ -27,10 +27,48 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Implementation of the impact-weighted emotional intensity system described in the design doc.
+ * Sophisticated emotional intelligence system for Minecraft pets that creates realistic,
+ * personality-driven emotional responses and mood dynamics.
  *
- * <p>The engine is responsible for maintaining lightweight emotion records, translating them into
- * mood weights on demand, and exposing the resulting blend/labels to the rest of the mod.</p>
+ * <h2>System Architecture</h2>
+ * <p>The engine implements a multi-layered emotional model:</p>
+ * <ul>
+ *   <li><b>Emotion Layer:</b> Lightweight records tracking intensity, impact, cadence, volatility,
+ *       and contextual modulation for each active emotion (e.g., CHEERFUL, ANGST, SAUDADE)</li>
+ *   <li><b>Mood Layer:</b> Weighted blends of emotions mapped to observable moods (e.g., HAPPY,
+ *       PROTECTIVE, YUGEN) with smooth transitions and momentum-based stabilization</li>
+ *   <li><b>Nature Integration:</b> Pet personality traits (from Natures like Timid, Bold, Calm)
+ *       modulate stimulus response, decay rates, habituation, and emotional expression</li>
+ *   <li><b>Context Awareness:</b> Bond strength, danger proximity, health status, and ongoing
+ *       conditions dynamically adjust emotional weights for situational realism</li>
+ * </ul>
+ *
+ * <h2>Psychological Realism Features</h2>
+ * <ul>
+ *   <li><b>Habituation & Sensitization:</b> Repeated stimuli reduce sensitivity (habituation),
+ *       while breaks re-sensitize pets to those emotions</li>
+ *   <li><b>Negativity Bias:</b> Negative emotions (fear, regret) persist 2-3x longer than positive
+ *       ones, mirroring real psychological threat-memory bias</li>
+ *   <li><b>Condition-Aware Decay:</b> Emotions decay slower when triggering conditions remain
+ *       (e.g., loneliness persists while owner is absent)</li>
+ *   <li><b>Opponent Dynamics:</b> Conflicting emotions (joy vs sadness) suppress each other with
+ *       nature-modulated transfer rates and resilience-based rebounds</li>
+ *   <li><b>Adaptive Momentum:</b> Fresh spikes switch moods fast (responsive), persistent states
+ *       drift slowly (stable), preventing emotional whiplash</li>
+ *   <li><b>Buildup & Hysteresis:</b> Progressive resistance to level increases (must "earn" higher
+ *       intensity), easier descent (smooth emotional release)</li>
+ * </ul>
+ *
+ * <h2>Performance Optimizations</h2>
+ * <ul>
+ *   <li>Incremental level history tracking with O(1) amortized updates</li>
+ *   <li>Quickselect for O(n) quantile calculations vs O(n log n) sorting</li>
+ *   <li>Lazy config caching with generation tracking to avoid redundant parsing</li>
+ *   <li>Smart update scheduling based on next emotion decay estimate</li>
+ * </ul>
+ *
+ * <p>The result: Minecraft pets that feel alive, remember past experiences, develop unique
+ * personalities, and respond authentically to their emotional journey with their owner.</p>
  */
 public final class PetMoodEngine {
     private static final float EPSILON = 0.01f;
@@ -307,22 +345,25 @@ public final class PetMoodEngine {
         float impactGain = sample * rekindleBoost * resilienceMultiplier;
         record.impactBudget = Math.min(getImpactCap(), record.impactBudget + impactGain);
 
-        // Habituation: Frequent stimuli DECREASE sensitivity (habituate), rare stimuli INCREASE it (sensitize)
-        // This is now psychologically accurate - the previous logic was reversed
+        // Habituation & Sensitization (psychologically accurate):
+        // - Frequent stimuli (fast cadence) → habituation → LOWER gain (desensitized)
+        // - Rare stimuli (slow cadence) → sensitization → HIGHER gain (re-sensitized)
+        // - Normal cadence → drift back to baseline (1.0)
         float cadenceRatio = record.cadenceEMA > 0f ? MathHelper.clamp(delta / record.cadenceEMA, 0f, 2.5f) : 1f;
         float sensitisationDelta;
         if (cadenceRatio < 0.8f) {
-            // Stimuli arriving faster than expected → habituation (decrease gain)
-            // Previously this decreased gain correctly, keeping this
+            // Stimuli arriving FASTER than expected (short gaps) → habituation
+            // Reduce gain: pet becomes desensitized to repeated stimuli
             sensitisationDelta = -0.12f * (0.8f - cadenceRatio);
         } else if (cadenceRatio > 1.5f) {
-            // Long gap before stimulus → sensitization (increase gain)
-            // Previously this increased gain correctly, keeping this
+            // Stimuli arriving SLOWER than expected (long gaps) → sensitization
+            // Increase gain: pet becomes re-sensitized after break
             sensitisationDelta = 0.08f * Math.min(1f, cadenceRatio - 1.5f);
         } else {
-            // Normal cadence → slow return to baseline (1.0)
+            // Normal cadence → gentle drift toward baseline (1.0)
             sensitisationDelta = (1.0f - record.sensitisationGain) * 0.05f;
         }
+        // Apply resilience modifier: resilient pets habituate slower/sensitize faster
         sensitisationDelta *= resilienceMultiplier;
         record.sensitisationGain = MathHelper.clamp(record.sensitisationGain + sensitisationDelta, 0.5f, 1.4f);
 
@@ -658,23 +699,29 @@ public final class PetMoodEngine {
             float baseWeight = intensity * (1.0f + MathHelper.clamp(record.impactBudget / impactCap, 0f, 1.5f));
 
             // Recency boost: Fresh emotions get a spike, then decay naturally
+            // Nature-modified: aligned emotions spike harder, misaligned spike less
             float lastAge = Math.max(0f, (float) (now - record.lastEventTime));
             float recencyBoost = 0f;
             if (lastAge < 60f) {
                 // Strong boost for very fresh emotions (< 3 seconds)
-                recencyBoost = 0.4f * (1.0f - lastAge / 60f);
+                float baseBoost = 0.4f * (1.0f - lastAge / 60f);
+                float natureRecencyMod = getNatureRecencyBoostModifier(record.emotion);
+                recencyBoost = baseBoost * natureRecencyMod;
             }
             // Validate recencyBoost is in reasonable range
             recencyBoost = MathHelper.clamp(recencyBoost, 0.0f, 1.0f);
 
             // Persistence bonus: Ongoing conditions maintain weight
+            // Nature-modified: aligned emotions persist longer
             float persistenceBonus = 0f;
             if (hasOngoingCondition(record.emotion, now)) {
                 // Condition still present, add sustained weight
-                persistenceBonus = 0.3f * intensity;
+                float basePersistence = 0.3f * intensity;
+                float naturePersistenceMod = getNaturePersistenceModifier(record.emotion);
+                persistenceBonus = basePersistence * naturePersistenceMod;
             }
             // Validate persistenceBonus is in reasonable range
-            persistenceBonus = MathHelper.clamp(persistenceBonus, 0.0f, 1.0f);
+            persistenceBonus = MathHelper.clamp(persistenceBonus, 0.0f, 1.5f);
 
             // Habituation penalty: Reduce weight if stimuli are too frequent
             float habituationPenalty = 0f;
@@ -756,24 +803,22 @@ public final class PetMoodEngine {
             maxEmotionWeight = Math.max(maxEmotionWeight, c.signal);
         }
         
-        // Adaptive momentum: low for fresh strong emotions (fast switch), high for weak/old ones (slow drift)
-        // Fresh spike (freshness > 0.7, strong weight) -> momentum ~0.3 (fast)
-        // Persistent weak (freshness < 0.3, weak weight) -> momentum ~0.75 (slow)
+        // Adaptive momentum system: balances responsiveness vs stability
+        // - Fresh strong spikes: low momentum (fast switch, responsive)
+        // - Persistent weak emotions: high momentum (slow drift, stable)
+        // - Smooth interpolation between states prevents oscillation
         float baseMomentum = (float) MathHelper.clamp(cachedMomentum, 0.0, 1.0);
-        float adaptiveMomentum;
-        if (maxEmotionFreshness > 0.7f && maxEmotionWeight > 2.0f) {
-            // Strong fresh spike: switch fast
-            adaptiveMomentum = baseMomentum * 0.5f;
-        } else if (maxEmotionFreshness < 0.3f) {
-            // Old persistent emotion: drift slow
-            adaptiveMomentum = baseMomentum * 1.3f;
-        } else {
-            // Normal case: use base momentum
-            adaptiveMomentum = baseMomentum;
-        }
+        
+        // Calculate freshness and weight factors (0-1 normalized)
+        float freshnessFactor = MathHelper.clamp(maxEmotionFreshness, 0f, 1f);
+        float weightFactor = MathHelper.clamp(maxEmotionWeight / 4.0f, 0f, 1f); // Normalize assuming max ~4
+        
+        // Combine factors: high fresh+weight = low momentum (fast), low = high momentum (slow)
+        float combined = (freshnessFactor + weightFactor) / 2f;
+        float adaptiveMomentum = baseMomentum * (1.5f - combined * 0.8f); // Range: 0.7x to 1.5x base
+        
+        // Clamp to safe range: fast enough to feel responsive, slow enough to avoid jitter
         adaptiveMomentum = MathHelper.clamp(adaptiveMomentum, 0.15f, 0.85f);
-        // Final validation of adaptiveMomentum
-        adaptiveMomentum = MathHelper.clamp(adaptiveMomentum, 0.0f, 1.0f);
         
         for (PetComponent.Mood mood : PetComponent.Mood.values()) {
             float cur = moodBlend.getOrDefault(mood, 0f);
@@ -884,8 +929,17 @@ public final class PetMoodEngine {
             return Math.max(0.08f, previousStrength * 0.25f);
         }
         double mean = dominantHistory.stream().mapToDouble(Float::floatValue).average().orElse(0.0);
-        double variance = dominantHistory.stream().mapToDouble(v -> (v - mean) * (v - mean)).average().orElse(0.0);
-        float stddev = (float) Math.sqrt(Math.max(variance, 0.0));
+        double variance = dominantHistory.stream()
+            .mapToDouble(v -> {
+                double diff = (v - mean);
+                return diff * diff;
+            })
+            .average().orElse(0.0);
+        // Safety: ensure variance is non-negative before sqrt
+        variance = Math.max(0.0, variance);
+        float stddev = (float) Math.sqrt(variance);
+        // Clamp stddev to reasonable range for mood switching
+        stddev = MathHelper.clamp(stddev, 0.01f, 0.5f);
         return Math.max(0.08f, stddev);
     }
 
@@ -1113,15 +1167,23 @@ public final class PetMoodEngine {
         int index = Math.min(level - 1, baseDurations.length - 1);
         int base = baseDurations[index];
         float intensity = MathHelper.clamp(animationIntensity, 0f, 1f);
+        
+        // Intensity scaling: higher intensity = faster breathing (more agitated)
         float minScale;
         if (index == 0) {
-            minScale = 0.8f;
+            minScale = 0.8f;   // Level 1: subtle variation
         } else if (index == 1) {
-            minScale = 0.66f;
+            minScale = 0.66f;  // Level 2: moderate variation
         } else {
-            minScale = 0.55f;
+            minScale = 0.55f;  // Level 3: dramatic variation
         }
         float scale = MathHelper.lerp(intensity, 1f, minScale);
+        
+        // Nature modifier: volatile pets breathe faster, calm pets slower
+        float volatilityMod = parent.getNatureVolatilityMultiplier();
+        scale *= (2.0f - volatilityMod); // Inverse: high volatility = lower scale = faster breathing
+        scale = MathHelper.clamp(scale, 0.4f, 1.2f);
+        
         int scaled = Math.round(base * scale);
         return Math.max(40, scaled);
     }
@@ -1148,6 +1210,11 @@ public final class PetMoodEngine {
         }
 
         conflicts.sort(Comparator.comparingDouble((OpponentConflict c) -> c.combinedWeight).reversed());
+        
+        // Nature modifiers affect conflict resolution
+        float volatilityMod = parent.getNatureVolatilityMultiplier();  // 0.5-1.5
+        float resilienceMod = parent.getNatureResilienceMultiplier();  // 0.5-1.5
+        
         for (OpponentConflict conflict : conflicts) {
             Candidate first = conflict.a;
             Candidate second = conflict.b;
@@ -1166,14 +1233,25 @@ public final class PetMoodEngine {
                 receiver = first;
             }
 
-            float transferFactor = Math.min(OPPONENT_TRANSFER_MAX, 0.15f + 0.1f * difference);
-            // Validate transferFactor is in reasonable range
-            transferFactor = MathHelper.clamp(transferFactor, 0.0f, 1.0f);
+            // Dynamic transfer factor: scales with difference and nature
+            // Volatile natures have more dramatic transfers (emotional swings)
+            // Resilient natures resist transfers (emotional stability)
+            float baseTransfer = Math.min(OPPONENT_TRANSFER_MAX, 0.15f + 0.1f * difference);
+            float natureScale = (volatilityMod / resilienceMod); // Volatile/unstable = higher transfer
+            float transferFactor = baseTransfer * MathHelper.clamp(natureScale, 0.6f, 1.4f);
+            transferFactor = MathHelper.clamp(transferFactor, 0.05f, 0.45f);
+            
             float transfer = donor.signal * transferFactor;
             if (transfer <= EPSILON) continue;
 
+            // Rebound gain: emotional resilience creates "bounce back" effect
+            // Higher appraisal confidence = better emotional regulation = more rebound
+            float avgConfidence = (first.record.appraisalConfidence + second.record.appraisalConfidence) * 0.5f;
+            float reboundBase = 0.2f + REBOUND_GAIN * avgConfidence;
+            float reboundGain = reboundBase * resilienceMod; // Resilient pets rebound more
+            float rebound = transfer * MathHelper.clamp(reboundGain, 0.1f, 0.5f);
+
             donor.signal = Math.max(0f, donor.signal - transfer);
-            float rebound = transfer * (0.2f + REBOUND_GAIN * (first.record.appraisalConfidence + second.record.appraisalConfidence) * 0.5f);
             receiver.signal = Math.min(weightCap, receiver.signal + transfer * 0.85f);
             donor.signal = Math.max(0f, donor.signal + rebound * 0.2f);
         }
@@ -1240,13 +1318,23 @@ public final class PetMoodEngine {
     }
 
     private float selectQuantile(float[] data, int length, float quantile, float fallback) {
-        if (length <= 0) {
+        if (length <= 0 || data == null) {
             return fallback;
         }
+        // Safety: single element array
+        if (length == 1) {
+            return data[0];
+        }
+        // Clamp quantile to valid range [0, 1]
+        quantile = MathHelper.clamp(quantile, 0f, 1f);
         int targetIndex = (int) MathHelper.clamp(Math.round((length - 1) * quantile), 0, length - 1);
         int left = 0;
         int right = length - 1;
-        while (left < right) {
+        
+        // Quickselect algorithm with safety bounds
+        int iterations = 0;
+        int maxIterations = length * 2; // Prevent infinite loops
+        while (left < right && iterations < maxIterations) {
             int pivotIndex = partition(data, left, right, left + (right - left) / 2);
             if (targetIndex == pivotIndex) {
                 return data[targetIndex];
@@ -1256,11 +1344,18 @@ public final class PetMoodEngine {
             } else {
                 left = pivotIndex + 1;
             }
+            iterations++;
         }
-        return data[left];
+        // Bounds check before returning
+        return (left >= 0 && left < length) ? data[left] : fallback;
     }
 
     private int partition(float[] data, int left, int right, int pivotIndex) {
+        // Bounds validation
+        if (data == null || left < 0 || right >= data.length || pivotIndex < left || pivotIndex > right) {
+            return left; // Safe fallback
+        }
+        
         float pivotValue = data[pivotIndex];
         swap(data, pivotIndex, right);
         int storeIndex = left;
@@ -1277,6 +1372,10 @@ public final class PetMoodEngine {
     private void swap(float[] data, int i, int j) {
         if (i == j) {
             return;
+        }
+        // Bounds check to prevent ArrayIndexOutOfBoundsException
+        if (data == null || i < 0 || j < 0 || i >= data.length || j >= data.length) {
+            return; // Silent fail for safety
         }
         float temp = data[i];
         data[i] = data[j];
@@ -1364,8 +1463,21 @@ public final class PetMoodEngine {
     }
 
     private float getNatureQuirkContagionDecayModifier(PetComponent.Emotion emotion) {
+        // Quirk emotions decay contagion at different rates based on nature profile
         float modifier = getProfileScale(emotion, 0f, 0f, 0.6f, 0.6f, 1.6f);
         return MathHelper.clamp(modifier, 0.1f, 3.0f); // Ensure positive decay modifier
+    }
+    
+    private float getNaturePersistenceModifier(PetComponent.Emotion emotion) {
+        // How long emotions persist based on nature alignment
+        float modifier = getProfileScale(emotion, 0.4f, 0.25f, 0.15f, 0.6f, 1.5f);
+        return MathHelper.clamp(modifier, 0.5f, 2.0f);
+    }
+    
+    private float getNatureRecencyBoostModifier(PetComponent.Emotion emotion) {
+        // How much fresh emotions spike based on nature alignment
+        float modifier = getProfileScale(emotion, 0.5f, 0.3f, 0.2f, 0.7f, 1.4f);
+        return MathHelper.clamp(modifier, 0.5f, 1.5f);
     }
 
     /**
@@ -1403,6 +1515,22 @@ public final class PetMoodEngine {
                 if (recentPet == null) return false;
                 return (now - recentPet) < 200; // <10 seconds since petting
 
+            case ECHOED_RESONANCE:
+                // Echoed Resonance persists when both bond AND danger are present
+                long bondStrength = parent.getBondStrength();
+                long lastDangerEchoed = parent.getStateData(PetComponent.StateKeys.THREAT_LAST_DANGER, Long.class, Long.MIN_VALUE);
+                return bondStrength > 3000 && (lastDangerEchoed != Long.MIN_VALUE && (now - lastDangerEchoed) < DANGER_HALF_LIFE * 1.5f);
+
+            case PACK_SPIRIT:
+                // Pack Spirit persists when pet is near other pets or owner
+                // TODO: Implement proximity check when multi-pet API is available
+                return false;
+
+            case ARCANE_OVERFLOW:
+                // Arcane Overflow: check if enchanted or in magical biome
+                // TODO: Implement enchantment/biome check when API is available
+                return false;
+
             default:
                 // Most emotions don't have persistent conditions
                 return false;
@@ -1416,6 +1544,9 @@ public final class PetMoodEngine {
     private float computeEmotionSpecificContextModulation(EmotionRecord record, long now) {
         float modulation = 0f;
         PetComponent.Emotion emotion = record.emotion;
+        
+        // Nature modifiers for context-aware scaling
+        float resilienceMod = parent.getNatureResilienceMultiplier();
 
         // Bond strength effects (high bond amplifies attachment emotions)
         float bondStrength = parent.getBondStrength();
@@ -1494,20 +1625,24 @@ public final class PetMoodEngine {
                 break;
         }
 
-        // Health effects
+        // Health effects - nonlinear scaling for dramatic storytelling
         float healthRatio = parent.getPet().getHealth() / parent.getPet().getMaxHealth();
-        // Validate healthRatio is in reasonable range
         healthRatio = MathHelper.clamp(healthRatio, 0.0f, 1.0f);
+        
+        // Critical health (< 40%): significant emotional impact
         if (healthRatio < 0.4f) {
-            float healthPenalty = (0.4f - healthRatio) / 0.4f; // 0 at 40% health, 1 at 0% health
-            // Validate healthPenalty is in reasonable range
+            float healthPenalty = (0.4f - healthRatio) / 0.4f; // 0 at 40%, 1 at 0% health
             healthPenalty = MathHelper.clamp(healthPenalty, 0.0f, 1.0f);
+            
+            // Scale penalty by current emotional level for dramatic effect
+            int currentLevel = getMoodLevel();
+            float levelScale = 1.0f + (currentLevel * 0.15f); // Level 3 = 1.45x effect
 
             switch (emotion) {
                 case ANGST:
                 case FOREBODING:
-                    // Low health amplifies distress
-                    modulation += 0.3f * healthPenalty;
+                    // Low health amplifies distress emotions
+                    modulation += 0.3f * healthPenalty * levelScale;
                     break;
 
                 case GLEE:
@@ -1518,17 +1653,28 @@ public final class PetMoodEngine {
                     break;
                     
                 case ARCANE_OVERFLOW:
-                    // Arcane overflow persists regardless of physical state
+                    // Arcane overflow: mystical energy persists despite physical state
+                    // Slight boost when near death (dramatic magical surge)
+                    if (healthRatio < 0.2f) {
+                        modulation += 0.15f * healthPenalty;
+                    }
                     break;
                     
                 case ECHOED_RESONANCE:
                 case PACK_SPIRIT:
-                    // These ultra-rare states resist health penalties
-                    modulation += 0.2f * healthPenalty; // Slight boost when wounded but standing
+                    // Ultra-rare bond states: strengthen when wounded together
+                    modulation += 0.2f * healthPenalty;
+                    break;
+                    
+                case SISU:
+                case GAMAN:
+                case STOIC:
+                    // Endurance emotions RISE when injured (defiant resilience)
+                    modulation += 0.35f * healthPenalty * resilienceMod;
                     break;
                     
                 default:
-                    // Other emotions not significantly affected by low health
+                    // Other emotions moderately affected by low health
                     break;
             }
         }
@@ -1542,9 +1688,16 @@ public final class PetMoodEngine {
                                   float quirkScale,
                                   float min,
                                   float max) {
+        // Null safety: handle missing or empty profiles gracefully
         if (natureEmotionProfile == null || natureEmotionProfile.isEmpty() || emotion == null) {
             return 1f;
         }
+        
+        // Validate scale parameters to prevent extreme modulation
+        majorScale = MathHelper.clamp(majorScale, -1f, 2f);
+        minorScale = MathHelper.clamp(minorScale, -1f, 2f);
+        quirkScale = MathHelper.clamp(quirkScale, -1f, 2f);
+        
         float factor = 1f;
         if (emotion == natureEmotionProfile.majorEmotion()) {
             factor += natureEmotionProfile.majorStrength() * majorScale;
@@ -1553,8 +1706,10 @@ public final class PetMoodEngine {
         } else if (emotion == natureEmotionProfile.quirkEmotion()) {
             factor += natureEmotionProfile.quirkStrength() * quirkScale;
         }
+        
+        // Ensure final factor stays within specified bounds
         factor = MathHelper.clamp(factor, min, max);
-        // Additional validation to ensure factor is in reasonable range
+        // Final safety clamp to prevent any extreme values
         return MathHelper.clamp(factor, 0.0f, 3.0f);
     }
 
@@ -2057,8 +2212,14 @@ public final class PetMoodEngine {
 
     private int getAnimationUpdateInterval(int level) {
         ensureConfigCache();
-        double interval = cachedBaseAnimationUpdateInterval
-                - ((level - 1) * cachedAnimationSpeedMultiplier * cachedBaseAnimationUpdateInterval);
+        // Progressive acceleration: higher levels update faster for more dynamic visuals
+        // Level 0: base interval (slow)
+        // Level 1: slightly faster
+        // Level 2: noticeably faster
+        // Level 3: very fast, dramatic
+        double speedScale = 1.0 - (Math.min(level, 3) * cachedAnimationSpeedMultiplier);
+        speedScale = MathHelper.clamp(speedScale, 0.25, 1.0); // Never slower than 1/4 base speed
+        double interval = cachedBaseAnimationUpdateInterval * speedScale;
         int result = (int) Math.round(interval);
         return Math.max(cachedMinAnimationInterval, Math.min(cachedMaxAnimationInterval, result));
     }
@@ -2174,19 +2335,28 @@ public final class PetMoodEngine {
             float cadence = cadenceEMA > 0f ? cadenceEMA : HABITUATION_BASE;
             float adaptiveHalf = MathHelper.clamp(cadence * HALF_LIFE_MULTIPLIER, MIN_HALF_LIFE, MAX_HALF_LIFE);
             
-            // Configure special decay rates for cultural emotions
+            // Configure special decay rates for cultural and ultra-rare emotions
             if (emotion == PetComponent.Emotion.ENNUI) {
-                // Ennui decays very fast (boredom dissipates quickly)
-                adaptiveHalf *= 0.5f;  // Half the normal half-life (0.9995/tick effect)
+                // Ennui decays very fast (boredom dissipates quickly with stimulus)
+                adaptiveHalf *= 0.5f;
             } else if (emotion == PetComponent.Emotion.HIRAETH) {
-                // Hiraeth decays slowly (homesickness lingers)
-                adaptiveHalf *= 2.0f;  // Double the normal half-life (0.998/tick effect)
+                // Hiraeth decays slowly (deep homesickness lingers)
+                adaptiveHalf *= 2.0f;
             } else if (emotion == PetComponent.Emotion.SOBREMESA || emotion == PetComponent.Emotion.YUGEN) {
-                // Sobremesa and Yugen have moderate slower decay
+                // Profound contemplative states persist longer
                 adaptiveHalf *= 1.3f;
             } else if (emotion == PetComponent.Emotion.KEFI) {
-                // Kefi has slightly faster decay (energy bursts don't last)
+                // Kefi: joyous energy bursts fade faster
                 adaptiveHalf *= 0.8f;
+            } else if (emotion == PetComponent.Emotion.ECHOED_RESONANCE) {
+                // Echoed Resonance: ultra-rare bond forged in danger, decays VERY slowly
+                adaptiveHalf *= 3.5f;
+            } else if (emotion == PetComponent.Emotion.PACK_SPIRIT) {
+                // Pack Spirit: collective unity persists while pack is near
+                adaptiveHalf *= 2.5f;
+            } else if (emotion == PetComponent.Emotion.ARCANE_OVERFLOW) {
+                // Arcane Overflow: mystical energy dissipates moderately fast
+                adaptiveHalf *= 1.2f;
             }
             
             // Valence bias: negative emotions persist 2-3x longer than positive (negativity bias)
@@ -2326,13 +2496,21 @@ public final class PetMoodEngine {
         // Calculate trend: positive = rising, negative = falling
         float trend = currentStrength - previousMoodStrength;
         
+        // Nature modifiers: volatile pets escalate faster, calm pets slower
+        float volatilityMod = parent.getNatureVolatilityMultiplier(); // 0.5-1.5 range
+        float resilienceMod = parent.getNatureResilienceMultiplier();  // 0.5-1.5 range
+        
         // Only apply multiplier if trend is significant (avoid noise)
         if (trend > BUILDUP_TREND_THRESHOLD) {
             // Rising emotion: BOOST toward next level (responsive, exciting)
-            return BUILDUP_RISING_MULTIPLIER;  // 1.2x
+            // Volatile natures escalate faster, resilient slower
+            float risingMult = BUILDUP_RISING_MULTIPLIER * volatilityMod;
+            return MathHelper.clamp(risingMult, 1.0f, 1.5f);
         } else if (trend < -BUILDUP_TREND_THRESHOLD) {
             // Falling emotion: gentle resistance (prevents whiplash, smooth decay)
-            return BUILDUP_FALLING_MULTIPLIER;  // 0.85x
+            // Resilient natures recover faster
+            float fallingMult = BUILDUP_FALLING_MULTIPLIER * (2.0f - resilienceMod);
+            return MathHelper.clamp(fallingMult, 0.7f, 1.0f);
         }
         
         // Steady state or minor fluctuation: normal scaling

@@ -7,8 +7,6 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.registry.Registries;
-import net.minecraft.nbt.NbtElement;
-import net.minecraft.nbt.NbtOps;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.registry.tag.TagKey;
@@ -44,7 +42,6 @@ import woflo.petsplus.history.HistoryEvent;
 import woflo.petsplus.state.modules.*;
 import woflo.petsplus.state.modules.impl.*;
 import woflo.petsplus.util.BehaviorSeedUtil;
-import woflo.petsplus.util.CodecUtils;
 
 import net.minecraft.util.math.ChunkSectionPos;
 
@@ -1789,18 +1786,6 @@ public class PetComponent {
         return MathHelper.clamp(value, 0f, 1f);
     }
 
-    private static Optional<Emotion> parseEmotionOptional(@Nullable String value) {
-        if (value == null || value.isBlank()) {
-            return Optional.empty();
-        }
-
-        try {
-            return Optional.of(Emotion.valueOf(value));
-        } catch (IllegalArgumentException ignored) {
-            return Optional.empty();
-        }
-    }
-
     public float getNatureVolatilityMultiplier() {
         return characteristicsModule.getNatureVolatility();
     }
@@ -2370,36 +2355,6 @@ public class PetComponent {
     }
     
     /**
-     * Set pet metadata from an item component (for metadata tag items).
-     * This updates the pet's display name, bond strength, and custom tags.
-     */
-    public void setPetMetadata(woflo.petsplus.component.PetsplusComponents.PetMetadata metadata) {
-        if (metadata == null) return;
-        
-        // Update display name if provided
-        if (metadata.customDisplayName().isPresent()) {
-            String customName = metadata.customDisplayName().get();
-            pet.setCustomName(net.minecraft.text.Text.literal(customName));
-            pet.setCustomNameVisible(true);
-        }
-        
-        // Add bond strength
-        addBondStrength(metadata.bondStrength());
-        
-        // Store custom tags in state data
-        for (Map.Entry<String, String> tag : metadata.customTags().entrySet()) {
-            setStateData("tag_" + tag.getKey(), tag.getValue());
-        }
-        
-        // Mark as special if indicated
-        if (metadata.isSpecial()) {
-            setStateData("isSpecial", true);
-        }
-
-        refreshSpeciesDescriptor();
-    }
-    
-    /**
      * Add bond strength to the pet, which can provide stat bonuses.
      * Bond strength is stored as state data and influences combat effectiveness.
      */
@@ -2649,7 +2604,9 @@ public class PetComponent {
         woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
     }
     
-    // NEW: Save to codec-backed component (Phase 3)
+    /**
+     * Serialize pet data to component storage for persistence.
+     */
     public PetsplusComponents.PetData toComponentData() {
         PetsplusComponents.PetData data = PetsplusComponents.PetData.empty()
             .withLastAttackTick(lastAttackTick)
@@ -2712,7 +2669,9 @@ public class PetComponent {
         return data;
     }
 
-    // NEW: Load from codec-backed component (Phase 3)
+    /**
+     * Deserialize pet data from component storage after loading.
+     */
     public void fromComponentData(PetsplusComponents.PetData data) {
         data.progression().ifPresentOrElse(
             progressionModule::fromData,

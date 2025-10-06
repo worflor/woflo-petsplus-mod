@@ -8,7 +8,6 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
-import woflo.petsplus.items.PetsplusItemUtils;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.ArrayList;
@@ -82,7 +81,7 @@ public class PetsplusLootHandler {
         if (petLevel >= 30) {
             // 5% chance for very rare memorial items at level 30
             if (random.nextFloat() < 0.05f) {
-                drops.add(PetsplusItemUtils.createRespecToken());
+                drops.add(new ItemStack(Items.ENCHANTED_BOOK));
             }
         }
         
@@ -258,23 +257,13 @@ public class PetsplusLootHandler {
      * Generates admin testing kit items.
      */
     public static void giveAdminTestingKit(ServerPlayerEntity player) {
-        // Respec tokens
-        for (int i = 0; i < 3; i++) {
-            player.getInventory().insertStack(PetsplusItemUtils.createRespecToken());
-        }
-        
-        // Linked whistle materials
-        player.getInventory().insertStack(new ItemStack(Items.GOAT_HORN, 2));
-        
-        // Name tags for metadata
-        player.getInventory().insertStack(new ItemStack(Items.NAME_TAG, 2));
-        
         // Tribute items
         player.getInventory().insertStack(new ItemStack(Items.GOLD_INGOT, 5));
         player.getInventory().insertStack(new ItemStack(Items.DIAMOND, 3));
         player.getInventory().insertStack(new ItemStack(Items.NETHERITE_INGOT, 1));
         
-        // Debug stick
-        player.getInventory().insertStack(PetsplusItemUtils.createDebugInfoStick());
+        // Testing materials
+        player.getInventory().insertStack(new ItemStack(Items.NAME_TAG, 2));
+        player.getInventory().insertStack(new ItemStack(Items.BONE, 10));
     }
 }
