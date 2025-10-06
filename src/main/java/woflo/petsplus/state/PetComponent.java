@@ -1422,19 +1422,20 @@ public class PetComponent {
     private void deserializeStateDataCompound(NbtCompound stateNbt) {
         stateData.clear();
         for (String key : stateNbt.getKeys()) {
-            stateNbt.getCompound(key).ifPresentOrElse(compound -> {
+            stateNbt.getCompound(key).ifPresent(compound -> {
                 Optional<String> typeId = compound.getString("type");
-                if (typeId.isPresent()) {
-                    Optional<Object> decoded = decodeStateDataValue(compound);
-                    if (decoded.isPresent()) {
-                        setStateDataSilently(key, decoded.get());
-                    } else {
-                        Petsplus.LOGGER.warn("Unable to decode state data entry '{}' of type {}", key, typeId.get());
-                    }
-                } else {
-                    decodeLegacyCompoundEntry(key, compound);
+                if (typeId.isEmpty()) {
+                    Petsplus.LOGGER.warn("Skipping state data entry '{}' missing type information", key);
+                    return;
                 }
-            }, () -> decodeLegacyPrimitiveEntry(stateNbt, key));
+
+                Optional<Object> decoded = decodeStateDataValue(compound);
+                if (decoded.isPresent()) {
+                    setStateDataSilently(key, decoded.get());
+                } else {
+                    Petsplus.LOGGER.warn("Unable to decode state data entry '{}' of type {}", key, typeId.get());
+                }
+            });
         }
     }
 
@@ -1507,90 +1508,6 @@ public class PetComponent {
             compound.getCompound(elementKey).ifPresent(child -> decodeStateDataValue(child).ifPresent(decoded::add));
         }
         return Optional.of(decoded);
-    }
-
-    private void decodeLegacyCompoundEntry(String key, NbtCompound compound) {
-        compound.getInt("size").ifPresent(size -> {
-            List<String> list = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                compound.getString(String.valueOf(i)).ifPresent(list::add);
-            }
-            setStateDataSilently(key, list);
-        });
-    }
-
-    private void decodeLegacyPrimitiveEntry(NbtCompound stateNbt, String key) {
-        stateNbt.getString(key).ifPresent(value -> setStateDataSilently(key, value));
-        stateNbt.getInt(key).ifPresent(value -> setStateDataSilently(key, value));
-        stateNbt.getLong(key).ifPresent(value -> setStateDataSilently(key, value));
-        stateNbt.getDouble(key).ifPresent(value -> setStateDataSilently(key, value));
-        stateNbt.getFloat(key).ifPresent(value -> setStateDataSilently(key, value));
-        stateNbt.getBoolean(key).ifPresent(value -> setStateDataSilently(key, value));
-    }
-
-    private void migrateLegacyStateData() {
-        migrateLegacyDevCrownFlag();
-    }
-
-    private void migrateLegacyDevCrownFlag() {
-        if (Boolean.TRUE.equals(getStateData("special_tag_creator", Boolean.class, null))) {
-            return;
-        }
-
-        boolean promote = false;
-        List<String> toRemove = new ArrayList<>();
-        for (Map.Entry<String, Object> entry : new ArrayList<>(stateData.entrySet())) {
-            String key = entry.getKey();
-            if (key == null) {
-                continue;
-            }
-
-            String normalized = key.toLowerCase(Locale.ROOT);
-            if (!normalized.contains("dev_crown")) {
-                continue;
-            }
-
-            if (!toRemove.contains(key)) {
-                toRemove.add(key);
-            }
-
-            if (promote) {
-                continue;
-            }
-
-            Object value = entry.getValue();
-            if (value instanceof Boolean boolValue) {
-                promote = boolValue;
-            } else if (value instanceof Number numberValue) {
-                promote = Math.abs(numberValue.doubleValue()) > 1.0e-6;
-            } else if (value instanceof String stringValue) {
-                promote = parseLegacyBoolean(stringValue);
-            }
-        }
-
-        for (String legacyKey : toRemove) {
-            stateData.remove(legacyKey);
-        }
-
-        if (promote) {
-            setStateDataSilently("special_tag_creator", true);
-        }
-    }
-
-    private static boolean parseLegacyBoolean(String value) {
-        if (value == null) {
-            return false;
-        }
-
-        String normalized = value.trim().toLowerCase(Locale.ROOT);
-        if (normalized.isEmpty()) {
-            return false;
-        }
-
-        return normalized.equals("true")
-            || normalized.equals("yes")
-            || normalized.equals("on")
-            || normalized.equals("1");
     }
 
     private void setStateDataInternal(String key, Object value, boolean invalidateCaches) {
@@ -2837,7 +2754,6 @@ public class PetComponent {
             stateNbt -> deserializeStateDataCompound(stateNbt.copy()),
             this::clearAllStateData
         );
-        migrateLegacyStateData();
         refreshSpeciesDescriptor();
 
         data.gossip().ifPresentOrElse(gossipLedger::copyFrom, gossipLedger::clear);
@@ -2846,17 +2762,6 @@ public class PetComponent {
             moodData -> moodEngine.readFromNbt(moodData.copy()),
             () -> moodEngine.readFromNbt(new NbtCompound())
         );
-
-        String ownerId = getStateData("petsplus:owner_uuid", String.class, "");
-        if (ownerId != null && !ownerId.isEmpty()) {
-            try {
-                setOwnerUuid(UUID.fromString(ownerId));
-            } catch (IllegalArgumentException ignored) {
-                setOwnerUuid(null);
-            }
-        } else {
-            setOwnerUuid(null);
-        }
 
         this.isPerched = data.isPerched();
         this.lastAttackTick = data.lastAttackTick();
