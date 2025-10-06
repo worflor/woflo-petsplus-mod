@@ -34,6 +34,7 @@ import woflo.petsplus.component.PetsplusComponents;
 import woflo.petsplus.mood.EmotionBaselineTracker;
 import woflo.petsplus.mood.MoodService;
 import woflo.petsplus.stats.PetCharacteristics;
+import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.coordination.PetWorkScheduler;
 import woflo.petsplus.state.emotions.PetMood;
@@ -260,6 +261,20 @@ public class PetComponent {
 
     public record NatureGuardTelemetry(float relationshipGuard, float dangerWindow,
                                         float contagionCap) {
+    }
+
+    public record OwnerDangerTelemetry(boolean ownerPresent,
+                                       float healthRatio,
+                                       float recentDamagePulse,
+                                       float combatThreatLevel,
+                                       boolean inCombat,
+                                       boolean hasAggroTarget) {
+        public static final OwnerDangerTelemetry ABSENT =
+                new OwnerDangerTelemetry(false, 1f, 0f, 0f, false, false);
+
+        public boolean isOwnerPresent() {
+            return ownerPresent;
+        }
     }
 
     public enum FlightCapabilitySource {
@@ -909,6 +924,38 @@ public class PetComponent {
     public PlayerEntity getOwner() {
         if (!(pet.getWorld() instanceof ServerWorld world)) return null;
         return ownerModule.getOwner(world);
+    }
+
+    public OwnerDangerTelemetry getOwnerDangerTelemetry() {
+        PlayerEntity owner = getOwner();
+        if (owner == null) {
+            return OwnerDangerTelemetry.ABSENT;
+        }
+        float maxHealth = owner.getMaxHealth();
+        float healthRatio = maxHealth > 0f ? owner.getHealth() / maxHealth : 1f;
+        healthRatio = MathHelper.clamp(healthRatio, 0f, 1f);
+
+        OwnerCombatState combatState = OwnerCombatState.get(owner);
+        if (combatState == null) {
+            return new OwnerDangerTelemetry(true, healthRatio, 0f, 0f, false, false);
+        }
+
+        long now = owner.getWorld().getTime();
+        float damagePulse = 0f;
+        long lastDamageTick = combatState.getLastHitTakenTick();
+        if (lastDamageTick > 0L && lastDamageTick <= now) {
+            float age = Math.max(0f, now - lastDamageTick);
+            damagePulse = (float) Math.exp(-age / 200f);
+        }
+
+        float aggression = MathHelper.clamp(combatState.getActiveAggroAggression(), 0f, 1f);
+        float urgency = MathHelper.clamp(combatState.getActiveAggroUrgency(), 0f, 1f);
+        float threatLevel = MathHelper.clamp(Math.max(aggression, urgency), 0f, 1f);
+
+        boolean inCombat = combatState.isInCombat();
+        boolean hasAggroTarget = combatState.hasAggroTarget();
+
+        return new OwnerDangerTelemetry(true, healthRatio, damagePulse, threatLevel, inCombat, hasAggroTarget);
     }
 
     public void setOwner(@Nullable PlayerEntity owner) {

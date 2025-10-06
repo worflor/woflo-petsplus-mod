@@ -35,11 +35,12 @@ class PetComponentSerializationTest {
     void nbtRoundTripPreservesCoreState() {
         PetComponent component = newComponent();
         NbtCompound source = sampleNbt();
-        component.readFromNbt(source);
-
         NbtCompound encoded = new NbtCompound();
+
         try (MockedStatic<PetAttributeManager> ignored = mockStatic(PetAttributeManager.class)) {
             ignored.when(() -> PetAttributeManager.applyAttributeModifiers(any(), any())).thenAnswer(invocation -> null);
+            ignored.when(() -> PetAttributeManager.removeAttributeModifiers(any(MobEntity.class))).thenAnswer(invocation -> null);
+            component.readFromNbt(source);
             component.writeToNbt(encoded);
         }
 
