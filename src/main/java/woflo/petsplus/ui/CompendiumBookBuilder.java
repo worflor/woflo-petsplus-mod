@@ -5,6 +5,7 @@ import net.minecraft.component.type.WrittenBookContentComponent;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.network.packet.s2c.play.OpenWrittenBookS2CPacket;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.ClickEvent;
 import net.minecraft.text.HoverEvent;
@@ -47,11 +48,23 @@ public class CompendiumBookBuilder {
         
         List<RawFilteredPair<Text>> textPages = buildAllPages(player, pet, pc, currentTick, natureId);
         
+        // Create a written book with the compendium content
         ItemStack book = new ItemStack(Items.WRITTEN_BOOK);
         book.set(DataComponentTypes.WRITTEN_BOOK_CONTENT, 
             new WrittenBookContentComponent(RawFilteredPair.of(title), author, 0, textPages, true));
         
-        player.useBook(book, Hand.MAIN_HAND);
+        // Store the book in the player's off-hand temporarily to open it
+        ItemStack offHandBackup = player.getOffHandStack().copy();
+        player.setStackInHand(Hand.OFF_HAND, book);
+        
+        // Send packet to open the book in the off-hand
+        player.networkHandler.sendPacket(new OpenWrittenBookS2CPacket(Hand.OFF_HAND));
+        
+        // Restore the original off-hand item
+        // We schedule this to happen after the client opens the GUI
+        player.getServer().execute(() -> {
+            player.setStackInHand(Hand.OFF_HAND, offHandBackup);
+        });
     }
     
     private static String buildTitle(MobEntity pet) {

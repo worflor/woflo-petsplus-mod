@@ -436,7 +436,6 @@ public class PetComponent {
                             @Nullable UUID sourceUuid, @Nullable Text paraphrased, boolean witnessed) {
         gossipLedger.recordRumor(topicId, intensity, confidence, currentTick, sourceUuid, paraphrased, witnessed);
         scheduleNextGossipDecay(currentTick + Math.max(MIN_GOSSIP_DECAY_DELAY, gossipLedger.scheduleNextDecayDelay()));
-        markEntityDirty();
     }
 
     public boolean isGossipOptedOut(long currentTick) {
@@ -891,7 +890,6 @@ public class PetComponent {
             resetTickScheduling(serverWorld.getTime());
         }
         
-        markEntityDirty();
     }
 
     public void setRoleType(@Nullable PetRoleType type) {
@@ -962,7 +960,6 @@ public class PetComponent {
 
     public void setOwnerUuid(@Nullable UUID ownerUuid) {
         ownerModule.setOwnerUuid(ownerUuid);
-        markEntityDirty();
     }
 
     public void ensureSchedulingInitialized(long currentTick) {
@@ -1277,7 +1274,6 @@ public class PetComponent {
     
     public void setStateData(String key, Object value) {
         setStateDataInternal(key, value, true);
-        markEntityDirty();
     }
 
     public void clearStateData(String key) {
@@ -1683,7 +1679,6 @@ public class PetComponent {
      */
     public void setInventory(String key, DefaultedList<ItemStack> inventory) {
         inventoryModule.setInventory(key, inventory);
-        markEntityDirty();
     }
 
     /** Convenience accessor for the stored tame tick, writing a default if missing. */
@@ -1845,7 +1840,6 @@ public class PetComponent {
     
     public void setLevel(int level) {
         progressionModule.setLevel(level);
-        markEntityDirty();
     }
     
     public int getExperience() {
@@ -3038,11 +3032,12 @@ public class PetComponent {
      * saving this chunk during the next autosave cycle. This ensures critical
      * pet data (level, XP, inventory, owner, etc.) is persisted quickly after
      * important state changes, minimizing potential data loss from crashes.
+     * 
+     * Note: In Minecraft 1.21+, chunk marking is handled automatically by
+     * the component system, so this is now a no-op.
      */
     private void markEntityDirty() {
-        if (pet.getWorld() instanceof ServerWorld serverWorld) {
-            serverWorld.getChunkManager().markDirty(pet.getChunkPos());
-        }
+        // Chunk dirty marking is handled automatically by the component system
     }
 }
 
