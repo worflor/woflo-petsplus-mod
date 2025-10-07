@@ -72,7 +72,12 @@ import java.util.IdentityHashMap;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Manages state for all pets and owners in the game using components for persistence.
@@ -149,8 +154,66 @@ public class StateManager {
             managers = new java.util.ArrayList<>(WORLD_MANAGERS.values());
             WORLD_MANAGERS.clear();
         }
-        for (StateManager manager : managers) {
-            manager.shutdown();
+        
+        if (managers.isEmpty()) {
+            return;
+        }
+        
+        // Single manager - no need for parallel overhead
+        if (managers.size() == 1) {
+            managers.get(0).shutdown();
+            return;
+        }
+        
+        // Multiple managers - shut down in parallel to avoid sequential async waits
+        // Use a dedicated executor with daemon threads that won't block JVM shutdown
+        java.util.concurrent.ExecutorService shutdownExecutor = java.util.concurrent.Executors.newFixedThreadPool(
+            Math.min(managers.size(), Runtime.getRuntime().availableProcessors()),
+            runnable -> {
+                Thread thread = new Thread(runnable, "PetsPlus-StateManager-Shutdown");
+                thread.setDaemon(true);
+                return thread;
+            }
+        );
+        
+        try {
+            java.util.List<CompletableFuture<Void>> shutdownFutures = new java.util.ArrayList<>(managers.size());
+            for (StateManager manager : managers) {
+                shutdownFutures.add(CompletableFuture.runAsync(() -> {
+                    try {
+                        manager.shutdown();
+                    } catch (Exception e) {
+                        Petsplus.LOGGER.error("Failed to shutdown state manager for world {}", 
+                            manager.world.getRegistryKey().getValue(), e);
+                    }
+                }, shutdownExecutor));
+            }
+            
+            // Wait for all shutdowns with reasonable timeout
+            // Each manager waits up to 1.5s internally, so allow enough time for all
+            long totalTimeoutSeconds = Math.max(5, managers.size());
+            try {
+                CompletableFuture.allOf(shutdownFutures.toArray(new CompletableFuture[0]))
+                    .get(totalTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (java.util.concurrent.TimeoutException e) {
+                Petsplus.LOGGER.warn("State manager shutdown exceeded {}s timeout, {} manager(s) may not have completed",
+                    totalTimeoutSeconds, managers.size());
+            } catch (java.util.concurrent.ExecutionException e) {
+                Petsplus.LOGGER.error("State manager shutdown failed with exception", e.getCause());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                Petsplus.LOGGER.warn("State manager shutdown interrupted");
+            }
+        } finally {
+            // Always clean up the executor
+            shutdownExecutor.shutdownNow();
+            try {
+                if (!shutdownExecutor.awaitTermination(1, java.util.concurrent.TimeUnit.SECONDS)) {
+                    Petsplus.LOGGER.debug("Shutdown executor did not terminate within 1s");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
     
@@ -2218,24 +2281,86 @@ public class StateManager {
         }
     }
 
+    /**
+     * Shuts down this StateManager and releases all resources.
+     * This method is idempotent and safe to call multiple times.
+     * All cleanup operations are guaranteed to execute even if earlier steps fail.
+     */
     private void shutdown() {
         if (disposed) {
             return;
         }
         disposed = true;
-        unregisterEmotionStimulusBridge();
-        ownerEventDispatcher.removePresenceListener(ownerPresenceListener);
-        ownerEventDispatcher.clear();
-        workScheduler.clear();
-        ownerProcessingManager.shutdown();
-        swarmIndex.clear();
-        pendingSpatialResults.clear();
-        spatialJobStates.clear();
-        petComponents.clear();
-        ownerStates.clear();
-        asyncWorkCoordinator.drainMainThreadTasks();
-        asyncWorkCoordinator.close();
-        asyncWorkerRegistration.close();
+        
+        Throwable suppressedException = null;
+        
+        // Phase 1: Unregister listeners (prevents new work from being scheduled)
+        try {
+            unregisterEmotionStimulusBridge();
+        } catch (Exception e) {
+            suppressedException = e;
+            Petsplus.LOGGER.error("Failed to unregister emotion stimulus bridge during shutdown", e);
+        }
+        
+        try {
+            ownerEventDispatcher.removePresenceListener(ownerPresenceListener);
+            ownerEventDispatcher.clear();
+        } catch (Exception e) {
+            if (suppressedException == null) suppressedException = e;
+            Petsplus.LOGGER.error("Failed to clear owner event dispatcher during shutdown", e);
+        }
+        
+        // Phase 2: Clear state (only if we have state to clear)
+        if (!petComponents.isEmpty() || !ownerStates.isEmpty()) {
+            try {
+                workScheduler.clear();
+            } catch (Exception e) {
+                if (suppressedException == null) suppressedException = e;
+                Petsplus.LOGGER.error("Failed to clear work scheduler during shutdown", e);
+            }
+            
+            try {
+                ownerProcessingManager.shutdown();
+            } catch (Exception e) {
+                if (suppressedException == null) suppressedException = e;
+                Petsplus.LOGGER.error("Failed to shutdown owner processing manager", e);
+            }
+            
+            try {
+                swarmIndex.clear();
+                pendingSpatialResults.clear();
+                spatialJobStates.clear();
+                petComponents.clear();
+                ownerStates.clear();
+            } catch (Exception e) {
+                if (suppressedException == null) suppressedException = e;
+                Petsplus.LOGGER.error("Failed to clear state collections during shutdown", e);
+            }
+        }
+        
+        // Phase 3: Close async coordinator (always execute, even if previous phases failed)
+        try {
+            // Note: We skip draining main thread tasks during shutdown as the server is stopping
+            // and there's no point in executing queued work that won't affect the persisted state
+            asyncWorkCoordinator.close();
+        } catch (Exception e) {
+            if (suppressedException == null) suppressedException = e;
+            Petsplus.LOGGER.error("Failed to close async work coordinator during shutdown", e);
+        }
+        
+        // Phase 4: Close budget registration (always execute last)
+        try {
+            asyncWorkerRegistration.close();
+        } catch (Exception e) {
+            if (suppressedException == null) suppressedException = e;
+            Petsplus.LOGGER.error("Failed to close async worker budget registration during shutdown", e);
+        }
+        
+        // If any exceptions occurred, log a summary
+        if (suppressedException != null) {
+            Petsplus.LOGGER.warn("StateManager shutdown for world {} completed with errors", 
+                world.getRegistryKey().getValue());
+        }
     }
     
     /**

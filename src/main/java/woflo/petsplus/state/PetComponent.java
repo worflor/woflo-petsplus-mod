@@ -436,6 +436,7 @@ public class PetComponent {
                             @Nullable UUID sourceUuid, @Nullable Text paraphrased, boolean witnessed) {
         gossipLedger.recordRumor(topicId, intensity, confidence, currentTick, sourceUuid, paraphrased, witnessed);
         scheduleNextGossipDecay(currentTick + Math.max(MIN_GOSSIP_DECAY_DELAY, gossipLedger.scheduleNextDecayDelay()));
+        markEntityDirty();
     }
 
     public boolean isGossipOptedOut(long currentTick) {
@@ -889,6 +890,8 @@ public class PetComponent {
         if (this.pet.getWorld() instanceof ServerWorld serverWorld) {
             resetTickScheduling(serverWorld.getTime());
         }
+        
+        markEntityDirty();
     }
 
     public void setRoleType(@Nullable PetRoleType type) {
@@ -959,6 +962,7 @@ public class PetComponent {
 
     public void setOwnerUuid(@Nullable UUID ownerUuid) {
         ownerModule.setOwnerUuid(ownerUuid);
+        markEntityDirty();
     }
 
     public void ensureSchedulingInitialized(long currentTick) {
@@ -1273,6 +1277,7 @@ public class PetComponent {
     
     public void setStateData(String key, Object value) {
         setStateDataInternal(key, value, true);
+        markEntityDirty();
     }
 
     public void clearStateData(String key) {
@@ -1678,6 +1683,7 @@ public class PetComponent {
      */
     public void setInventory(String key, DefaultedList<ItemStack> inventory) {
         inventoryModule.setInventory(key, inventory);
+        markEntityDirty();
     }
 
     /** Convenience accessor for the stored tame tick, writing a default if missing. */
@@ -1839,6 +1845,7 @@ public class PetComponent {
     
     public void setLevel(int level) {
         progressionModule.setLevel(level);
+        markEntityDirty();
     }
     
     public int getExperience() {
@@ -1852,6 +1859,7 @@ public class PetComponent {
             sanitized = Math.min(sanitized, xpForNext);
         }
         progressionModule.setExperience(sanitized);
+        markEntityDirty();
     }
     
     // ===== Level Reward System =====
@@ -1865,6 +1873,7 @@ public class PetComponent {
             return;
         }
         progressionModule.unlockAbility(abilityId);
+        markEntityDirty();
         Petsplus.LOGGER.debug("Unlocked ability {} for pet {}", abilityId, pet.getUuidAsString());
     }
     
@@ -1935,6 +1944,7 @@ public class PetComponent {
     public void setImprint(@Nullable PetImprint imprint) {
         characteristicsModule.setImprint(imprint);
         syncCharacteristicAffinityLookup();
+        markEntityDirty();
     }
     
 
@@ -2160,6 +2170,8 @@ public class PetComponent {
 
         // Apply attribute modifiers with the new imprint
         woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
+        
+        markEntityDirty();
         }
     }
 
@@ -2289,8 +2301,15 @@ public class PetComponent {
         if (xpGained > 0) {
             this.xpFlashStartTick = pet.getWorld().getTime();
         }
+        
+        boolean leveledUp = progressionModule.getLevel() > oldLevel;
+        
+        // Mark dirty on XP gain or level up
+        if (xpGained > 0 || leveledUp) {
+            markEntityDirty();
+        }
 
-        return progressionModule.getLevel() > oldLevel;
+        return leveledUp;
     }
     
     /**
@@ -2347,6 +2366,7 @@ public class PetComponent {
      */
     public void unlockMilestone(int milestoneLevel) {
         progressionModule.unlockMilestone(milestoneLevel);
+        markEntityDirty();
     }
 
     /**
@@ -2397,6 +2417,7 @@ public class PetComponent {
             affectionMultiplier,
             respectMultiplier
         );
+        markEntityDirty();
     }
     
     /**
@@ -2581,6 +2602,7 @@ public class PetComponent {
      */
     public void addHistoryEvent(HistoryEvent event) {
         historyModule.recordEvent(event);
+        markEntityDirty();
     }
     
     /**
@@ -3008,6 +3030,18 @@ public class PetComponent {
             }
         } catch (Throwable error) {
             Petsplus.LOGGER.warn("Failed to load pet component data for " + pet.getUuidAsString(), error);
+        }
+    }
+    
+    /**
+     * Marks the entity's chunk as dirty, signaling Minecraft to prioritize
+     * saving this chunk during the next autosave cycle. This ensures critical
+     * pet data (level, XP, inventory, owner, etc.) is persisted quickly after
+     * important state changes, minimizing potential data loss from crashes.
+     */
+    private void markEntityDirty() {
+        if (pet.getWorld() instanceof ServerWorld serverWorld) {
+            serverWorld.getChunkManager().markDirty(pet.getChunkPos());
         }
     }
 }

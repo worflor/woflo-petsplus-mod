@@ -442,8 +442,8 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
         // Initiate graceful shutdown
         executor.shutdown();
         try {
-            // Wait for tasks to complete with timeout
-            if (!executor.awaitTermination(3, TimeUnit.SECONDS)) {
+            // Wait for tasks to complete with shorter timeout (most tasks are fast)
+            if (!executor.awaitTermination(1, TimeUnit.SECONDS)) {
                 // Force shutdown if tasks don't complete in time
                 List<Runnable> aborted = executor.shutdownNow();
                 if (!aborted.isEmpty()) {
@@ -453,10 +453,11 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
                             task.cancel(cause);
                         }
                     }
+                    Petsplus.LOGGER.debug("Async coordinator aborted {} pending tasks during shutdown", aborted.size());
                 }
                 // Wait a bit more for forceful shutdown
-                if (!executor.awaitTermination(1, TimeUnit.SECONDS)) {
-                    Petsplus.LOGGER.warn("Async coordinator executor did not terminate gracefully");
+                if (!executor.awaitTermination(500, TimeUnit.MILLISECONDS)) {
+                    Petsplus.LOGGER.warn("Async coordinator executor did not terminate gracefully after 1.5s");
                 }
             }
         } catch (InterruptedException e) {
