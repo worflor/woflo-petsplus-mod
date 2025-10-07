@@ -197,14 +197,33 @@ public final class PetMoodEngine {
     @SuppressWarnings("unused") // Reserved for future mood transition smoothing
     private int cachedHysteresisTicks = 60;
     private float cachedEpsilon = 0.05f;
-    private float[] cachedLevelThresholds = new float[]{0.35f, 0.65f, 0.88f};  // Improved distribution
+    private float[] cachedLevelThresholds = new float[]{0.35f, 0.65f, 0.88f};
     private int cachedBaseAnimationUpdateInterval = 16;
     
-    // Per-mood threshold adjustments (configurable)
     private final EnumMap<PetComponent.Mood, float[]> perMoodThresholds = new EnumMap<>(PetComponent.Mood.class);
     private double cachedAnimationSpeedMultiplier = 0.15d;
     private int cachedMinAnimationInterval = 4;
     private int cachedMaxAnimationInterval = 40;
+    
+    private final Map<String, Float> cachedEmotionDecayMultipliers = new java.util.HashMap<>();
+    private final java.util.Set<String> cachedNegativeEmotions = new java.util.HashSet<>();
+    private final java.util.Set<String> cachedPositiveEmotions = new java.util.HashSet<>();
+    
+    private float cachedHabituationBase = HABITUATION_BASE;
+    private float cachedHalfLifeMultiplier = HALF_LIFE_MULTIPLIER;
+    private float cachedMinHalfLife = MIN_HALF_LIFE;
+    private float cachedMaxHalfLife = MAX_HALF_LIFE;
+    private float cachedNegativePersistence = 2.0f;
+    private float cachedConditionPresentMultiplier = 3.5f;
+    private float cachedHomeostasisRecoveryHalf = HOMEOSTASIS_RECOVERY_HALF;
+    private float cachedCadenceAlpha = CADENCE_ALPHA;
+    private float cachedVolatilityAlpha = VOLATILITY_ALPHA;
+    private float cachedPeakAlpha = PEAK_ALPHA;
+    private float cachedOpponentTransferMax = OPPONENT_TRANSFER_MAX;
+    private float cachedReboundGain = REBOUND_GAIN;
+    private float cachedRelationshipVariance = RELATIONSHIP_VARIANCE;
+    private float cachedCarePulseHalfLife = CARE_PULSE_HALF_LIFE;
+    private float cachedDangerHalfLife = DANGER_HALF_LIFE;
 
     private final EnumMap<PetComponent.Emotion, EnumSet<PetComponent.Emotion>> opponentPairs =
             new EnumMap<>(PetComponent.Emotion.class);
@@ -216,7 +235,6 @@ public final class PetMoodEngine {
             lastNormalizedWeights.put(mood, 0f);
         }
         buildDefaultOpponentPairs();
-        initializePerMoodThresholds();
     }
 
     public PetComponent.Mood getCurrentMood() {
@@ -247,8 +265,8 @@ public final class PetMoodEngine {
         }
         long soonest = Long.MAX_VALUE;
         for (EmotionRecord record : emotionRecords.values()) {
-            float cadence = record.cadenceEMA > 0f ? record.cadenceEMA : HABITUATION_BASE;
-            float adaptiveHalf = MathHelper.clamp(cadence * HALF_LIFE_MULTIPLIER, MIN_HALF_LIFE, MAX_HALF_LIFE);
+            float cadence = record.cadenceEMA > 0f ? record.cadenceEMA : cachedHabituationBase;
+            float adaptiveHalf = MathHelper.clamp(cadence * cachedHalfLifeMultiplier, cachedMinHalfLife, cachedMaxHalfLife);
             long elapsed = Math.max(0L, now - record.lastUpdateTime);
             long next = Math.max(1L, Math.round(adaptiveHalf - elapsed));
             if (next < soonest) {
@@ -327,21 +345,20 @@ public final class PetMoodEngine {
             record.startTime = now;
         }
 
-        long delta = record.lastEventTime > 0 ? Math.max(1L, now - record.lastEventTime) : Math.max(1L, Math.round(HABITUATION_BASE));
+        long delta = record.lastEventTime > 0 ? Math.max(1L, now - record.lastEventTime) : Math.max(1L, Math.round(cachedHabituationBase));
         record.lastEventTime = now;
         record.lastUpdateTime = now;
 
-        // Update cadence & volatility EMAs
         if (record.cadenceEMA <= 0f) {
             record.cadenceEMA = delta;
         } else {
-            record.cadenceEMA = MathHelper.lerp(CADENCE_ALPHA, record.cadenceEMA, delta);
+            record.cadenceEMA = MathHelper.lerp(cachedCadenceAlpha, record.cadenceEMA, delta);
         }
         float volatilitySample = Math.abs(sample - record.intensity) * volatilityMultiplier;
         volatilitySample = MathHelper.clamp(volatilitySample, 0f, 1f);
         record.volatilityEMA = MathHelper.clamp(
-            MathHelper.lerp(VOLATILITY_ALPHA, record.volatilityEMA, volatilitySample), 0f, 1f);
-        record.peakEMA = MathHelper.lerp(PEAK_ALPHA, record.peakEMA, Math.max(record.peakEMA, sample));
+            MathHelper.lerp(cachedVolatilityAlpha, record.volatilityEMA, volatilitySample), 0f, 1f);
+        record.peakEMA = MathHelper.lerp(cachedPeakAlpha, record.peakEMA, Math.max(record.peakEMA, sample));
 
         // Rekindle boost: bring intensity toward new sample with spike bias
         float spikeBias = MathHelper.clamp(0.55f + 0.45f * (float) Math.exp(-delta / Math.max(1f, record.cadenceEMA)), 0.55f, 0.95f);
@@ -378,11 +395,10 @@ public final class PetMoodEngine {
         sensitisationDelta *= resilienceMultiplier;
         record.sensitisationGain = MathHelper.clamp(record.sensitisationGain + sensitisationDelta, 0.5f, 1.4f);
 
-        // Habituation slope adapts slowly toward cadence
         if (record.habituationSlope <= 0f) {
-            record.habituationSlope = Math.max(HABITUATION_BASE, record.cadenceEMA * 1.1f);
+            record.habituationSlope = Math.max(cachedHabituationBase, record.cadenceEMA * 1.1f);
         } else {
-            float targetSlope = Math.max(HABITUATION_BASE * 0.5f, record.cadenceEMA * 1.2f);
+            float targetSlope = Math.max(cachedHabituationBase * 0.5f, record.cadenceEMA * 1.2f);
             record.habituationSlope = MathHelper.lerp(0.1f, record.habituationSlope, targetSlope);
         }
 
@@ -615,7 +631,7 @@ public final class PetMoodEngine {
                         record.cadenceEMA = tag.getFloat("cadence").orElse(0f);
                         record.volatilityEMA = tag.getFloat("volatility").orElse(0f);
                         record.peakEMA = tag.getFloat("peak").orElse(0f);
-                        record.habituationSlope = tag.getFloat("habituation").orElse(HABITUATION_BASE);
+                        record.habituationSlope = tag.getFloat("habituation").orElse(cachedHabituationBase);
                         record.sensitisationGain = tag.getFloat("sensitisation").orElse(1.0f);
                         record.homeostasisBias = tag.getFloat("homeostasis").orElse(1.0f);
                         record.contagionShare = tag.getFloat("contagion").orElse(0f);
@@ -1505,22 +1521,17 @@ public final class PetMoodEngine {
                 receiver = first;
             }
 
-            // Dynamic transfer factor: scales with difference and nature
-            // Volatile natures have more dramatic transfers (emotional swings)
-            // Resilient natures resist transfers (emotional stability)
-            float baseTransfer = Math.min(OPPONENT_TRANSFER_MAX, 0.15f + 0.1f * difference);
-            float natureScale = (volatilityMod / resilienceMod); // Volatile/unstable = higher transfer
+            float baseTransfer = Math.min(cachedOpponentTransferMax, 0.15f + 0.1f * difference);
+            float natureScale = (volatilityMod / resilienceMod);
             float transferFactor = baseTransfer * MathHelper.clamp(natureScale, 0.6f, 1.4f);
             transferFactor = MathHelper.clamp(transferFactor, 0.05f, 0.45f);
             
             float transfer = donor.signal * transferFactor;
             if (transfer <= EPSILON) continue;
 
-            // Rebound gain: emotional resilience creates "bounce back" effect
-            // Higher appraisal confidence = better emotional regulation = more rebound
             float avgConfidence = (first.record.appraisalConfidence + second.record.appraisalConfidence) * 0.5f;
-            float reboundBase = 0.2f + REBOUND_GAIN * avgConfidence;
-            float reboundGain = reboundBase * resilienceMod; // Resilient pets rebound more
+            float reboundBase = 0.2f + cachedReboundGain * avgConfidence;
+            float reboundGain = reboundBase * resilienceMod;
             float rebound = transfer * MathHelper.clamp(reboundGain, 0.1f, 0.5f);
 
             donor.signal = Math.max(0f, donor.signal - transfer);
@@ -1533,22 +1544,21 @@ public final class PetMoodEngine {
         if (record.lastEventTime <= 0L) {
             return 0f;
         }
-        float cadence = record.cadenceEMA > 0f ? record.cadenceEMA : HABITUATION_BASE;
+        float cadence = record.cadenceEMA > 0f ? record.cadenceEMA : cachedHabituationBase;
         float age = Math.max(0f, now - record.lastEventTime);
         return (float) Math.exp(-age / Math.max(1f, cadence));
     }
 
     private void refreshContextGuards(EmotionRecord record, long now, long delta) {
-        // Relationship guard uses bond strength and recent care pulse.
         long bond = parent.getBondStrength();
         float guardModifier = parent.getNatureGuardModifier();
-        double bondZ = (bond - 2000.0) / RELATIONSHIP_VARIANCE;
+        double bondZ = (bond - 2000.0) / cachedRelationshipVariance;
         float bondMultiplier = (float) MathHelper.clamp(1.0 + bondZ * 0.35, 0.75, 1.25);
         Long lastPet = parent.getStateData(PetComponent.StateKeys.LAST_PET_TIME, Long.class);
         float carePulse = 0f;
         if (lastPet != null && lastPet > 0) {
             float age = Math.max(0f, now - lastPet);
-            carePulse = (float) Math.exp(-age / CARE_PULSE_HALF_LIFE);
+            carePulse = (float) Math.exp(-age / cachedCarePulseHalfLife);
         }
         float careMultiplier = 0.85f + 0.3f * carePulse;
         float relationshipTarget = MathHelper.clamp(bondMultiplier * careMultiplier, 0.75f, 1.25f);
@@ -1558,14 +1568,13 @@ public final class PetMoodEngine {
             record.relationshipGuard <= 0f ? RELATIONSHIP_BASE : record.relationshipGuard,
             tunedRelationship);
 
-        // Danger guard from stored threat telemetry
         long lastDangerTick = parent.getStateData(PetComponent.StateKeys.THREAT_LAST_DANGER, Long.class, Long.MIN_VALUE);
         int dangerStreak = parent.getStateData(PetComponent.StateKeys.THREAT_SENSITIZED_STREAK, Integer.class, 0);
         float dangerMultiplier = 1.0f;
         if (lastDangerTick > Long.MIN_VALUE && lastDangerTick <= now) {
             float dangerAge = Math.max(0f, now - lastDangerTick);
             float streakBias = Math.min(0.35f, dangerStreak * 0.05f);
-            float decay = (float) Math.exp(-dangerAge / DANGER_HALF_LIFE);
+            float decay = (float) Math.exp(-dangerAge / cachedDangerHalfLife);
             dangerMultiplier = 0.85f + streakBias + 0.2f * decay;
         }
         float dangerTarget = MathHelper.clamp(dangerMultiplier, 0.75f, 1.35f);
@@ -1991,9 +2000,8 @@ public final class PetMoodEngine {
     }
 
     private void ensureConfigCache() {
-        // Load mood engine config from moodengine.json (shareable, drop-in config file)
         MoodEngineConfig moodConfig = MoodEngineConfig.get();
-        int generation = moodConfig.getVersion(); // Use version as generation tracking
+        int generation = moodConfig.getVersion();
         if (generation == cachedConfigGeneration && cachedMoodsSection != null) {
             return;
         }
@@ -2011,6 +2019,11 @@ public final class PetMoodEngine {
         cachedAnimationSpeedMultiplier = RegistryJsonHelper.getDouble(cachedAnimationSection, "animationSpeedMultiplier", 0.15d);
         cachedMinAnimationInterval = RegistryJsonHelper.getInt(cachedAnimationSection, "minAnimationInterval", 4);
         cachedMaxAnimationInterval = RegistryJsonHelper.getInt(cachedAnimationSection, "maxAnimationInterval", 40);
+        
+        loadEmotionDecayMultipliers();
+        loadEmotionValence();
+        loadMoodThresholds();
+        loadAdvancedSettings();
         rebuildOpponentPairs();
     }
 
@@ -2036,6 +2049,114 @@ public final class PetMoodEngine {
             out[i] = values.get(i);
         }
         return out;
+    }
+    
+    private void loadEmotionDecayMultipliers() {
+        cachedEmotionDecayMultipliers.clear();
+        JsonObject multipliers = getObject(cachedMoodsSection, "emotionDecayMultipliers");
+        if (multipliers != null) {
+            for (String key : multipliers.keySet()) {
+                JsonElement el = multipliers.get(key);
+                if (el.isJsonPrimitive() && el.getAsJsonPrimitive().isNumber()) {
+                    cachedEmotionDecayMultipliers.put(key, el.getAsFloat());
+                }
+            }
+        }
+    }
+    
+    private void loadEmotionValence() {
+        cachedNegativeEmotions.clear();
+        cachedPositiveEmotions.clear();
+        JsonObject valence = getObject(cachedMoodsSection, "emotionValence");
+        if (valence != null) {
+            JsonElement negative = valence.get("negative");
+            if (negative != null && negative.isJsonArray()) {
+                negative.getAsJsonArray().forEach(el -> {
+                    if (el.isJsonPrimitive()) {
+                        cachedNegativeEmotions.add(el.getAsString());
+                    }
+                });
+            }
+            JsonElement positive = valence.get("positive");
+            if (positive != null && positive.isJsonArray()) {
+                positive.getAsJsonArray().forEach(el -> {
+                    if (el.isJsonPrimitive()) {
+                        cachedPositiveEmotions.add(el.getAsString());
+                    }
+                });
+            }
+        }
+    }
+    
+    private void loadMoodThresholds() {
+        perMoodThresholds.clear();
+        JsonObject moodThresholds = getObject(cachedMoodsSection, "moodThresholds");
+        for (PetComponent.Mood mood : PetComponent.Mood.values()) {
+            String key = mood.name().toLowerCase();
+            if (moodThresholds != null && moodThresholds.has(key)) {
+                JsonElement el = moodThresholds.get(key);
+                if (el.isJsonArray()) {
+                    float[] thresholds = parseThresholdsArray(el.getAsJsonArray());
+                    if (thresholds != null) {
+                        perMoodThresholds.put(mood, thresholds);
+                        continue;
+                    }
+                }
+            }
+            perMoodThresholds.put(mood, cachedLevelThresholds);
+        }
+    }
+    
+    private float[] parseThresholdsArray(com.google.gson.JsonArray array) {
+        List<Float> values = new ArrayList<>();
+        array.forEach(el -> {
+            if (el.isJsonPrimitive() && el.getAsJsonPrimitive().isNumber()) {
+                values.add(el.getAsFloat());
+            }
+        });
+        if (values.isEmpty()) return null;
+        float[] out = new float[values.size()];
+        for (int i = 0; i < values.size(); i++) {
+            out[i] = values.get(i);
+        }
+        return out;
+    }
+    
+    private void loadAdvancedSettings() {
+        JsonObject root = MoodEngineConfig.get().getRoot();
+        JsonObject advanced = getObject(root, "advanced");
+        if (advanced == null) return;
+        
+        JsonObject decay = getObject(advanced, "decay");
+        if (decay != null) {
+            cachedHabituationBase = RegistryJsonHelper.getFloat(decay, "habituation_base", HABITUATION_BASE);
+            cachedHalfLifeMultiplier = RegistryJsonHelper.getFloat(decay, "half_life_multiplier", HALF_LIFE_MULTIPLIER);
+            cachedMinHalfLife = RegistryJsonHelper.getFloat(decay, "min_half_life", MIN_HALF_LIFE);
+            cachedMaxHalfLife = RegistryJsonHelper.getFloat(decay, "max_half_life", MAX_HALF_LIFE);
+            cachedNegativePersistence = RegistryJsonHelper.getFloat(decay, "negative_persistence", 2.0f);
+            cachedConditionPresentMultiplier = RegistryJsonHelper.getFloat(decay, "condition_present_multiplier", 3.5f);
+            cachedHomeostasisRecoveryHalf = RegistryJsonHelper.getFloat(decay, "homeostasis_recovery_half", HOMEOSTASIS_RECOVERY_HALF);
+        }
+        
+        JsonObject habituation = getObject(advanced, "habituation");
+        if (habituation != null) {
+            cachedCadenceAlpha = RegistryJsonHelper.getFloat(habituation, "cadence_alpha", CADENCE_ALPHA);
+            cachedVolatilityAlpha = RegistryJsonHelper.getFloat(habituation, "volatility_alpha", VOLATILITY_ALPHA);
+            cachedPeakAlpha = RegistryJsonHelper.getFloat(habituation, "peak_alpha", PEAK_ALPHA);
+        }
+        
+        JsonObject opponent = getObject(advanced, "opponent");
+        if (opponent != null) {
+            cachedOpponentTransferMax = RegistryJsonHelper.getFloat(opponent, "transfer_max", OPPONENT_TRANSFER_MAX);
+            cachedReboundGain = RegistryJsonHelper.getFloat(opponent, "rebound_gain", REBOUND_GAIN);
+        }
+        
+        JsonObject context = getObject(advanced, "context");
+        if (context != null) {
+            cachedRelationshipVariance = RegistryJsonHelper.getFloat(context, "relationship_variance", RELATIONSHIP_VARIANCE);
+            cachedCarePulseHalfLife = RegistryJsonHelper.getFloat(context, "care_pulse_half_life", CARE_PULSE_HALF_LIFE);
+            cachedDangerHalfLife = RegistryJsonHelper.getFloat(context, "danger_half_life", DANGER_HALF_LIFE);
+        }
     }
 
     static EnumMap<PetComponent.Mood, Float> resolveEmotionToMoodWeights(@Nullable JsonObject moodsSection,
@@ -2605,52 +2726,19 @@ public final class PetMoodEngine {
                 return;
             }
             float delta = Math.max(0f, now - lastUpdateTime);
-            float cadence = cadenceEMA > 0f ? cadenceEMA : HABITUATION_BASE;
-            float adaptiveHalf = MathHelper.clamp(cadence * HALF_LIFE_MULTIPLIER, MIN_HALF_LIFE, MAX_HALF_LIFE);
+            float cadence = cadenceEMA > 0f ? cadenceEMA : engine.cachedHabituationBase;
+            float adaptiveHalf = MathHelper.clamp(cadence * engine.cachedHalfLifeMultiplier, engine.cachedMinHalfLife, engine.cachedMaxHalfLife);
             
-            // Configure special decay rates for cultural and ultra-rare emotions
-            if (emotion == PetComponent.Emotion.ENNUI) {
-                // Ennui decays very fast (boredom dissipates quickly with stimulus)
-                adaptiveHalf *= 0.5f;
-            } else if (emotion == PetComponent.Emotion.HIRAETH) {
-                // Hiraeth decays slowly (deep homesickness lingers)
-                adaptiveHalf *= 2.0f;
-            } else if (emotion == PetComponent.Emotion.SOBREMESA || emotion == PetComponent.Emotion.YUGEN) {
-                // Profound contemplative states persist longer
-                adaptiveHalf *= 1.3f;
-            } else if (emotion == PetComponent.Emotion.KEFI) {
-                // Kefi: joyous energy bursts fade faster
-                adaptiveHalf *= 0.8f;
-            } else if (emotion == PetComponent.Emotion.ECHOED_RESONANCE) {
-                // Echoed Resonance: ultra-rare bond forged in danger, decays VERY slowly
-                adaptiveHalf *= 3.5f;
-            } else if (emotion == PetComponent.Emotion.PACK_SPIRIT) {
-                // Pack Spirit: collective unity persists while pack is near
-                adaptiveHalf *= 2.5f;
-            } else if (emotion == PetComponent.Emotion.ARCANE_OVERFLOW) {
-                // Arcane Overflow: mystical energy dissipates moderately fast
-                adaptiveHalf *= 1.2f;
+            String emotionKey = emotion.name().toLowerCase();
+            float emotionMultiplier = engine.cachedEmotionDecayMultipliers.getOrDefault(emotionKey, 1.0f);
+            adaptiveHalf *= emotionMultiplier;
+            
+            if (engine.cachedNegativeEmotions.contains(emotionKey)) {
+                adaptiveHalf *= engine.cachedNegativePersistence;
             }
             
-            // Valence bias: negative emotions persist 2-3x longer than positive (negativity bias)
-            // This is psychologically realistic - threats/losses have stronger memory traces
-            boolean isNegative = isNegativeEmotion(emotion);
-            if (isNegative) {
-                // Negative emotions: slower decay (2x half-life)
-                adaptiveHalf *= 2.0f;
-            } else if (isPositiveEmotion(emotion)) {
-                // Positive emotions: normal or slightly faster decay
-                // Keep as-is, or slightly faster for very positive emotions
-                if (emotion == PetComponent.Emotion.GLEE || emotion == PetComponent.Emotion.BLISSFUL) {
-                    adaptiveHalf *= 0.85f; // Intense joy fades faster
-                }
-            }
-            
-            // Condition-aware decay: if triggering condition still exists, decay much slower
-            // This prevents emotions from fading while their cause is still present
             if (engine != null && engine.hasOngoingCondition(emotion, now)) {
-                // Condition still present: decay 3-4x slower
-                adaptiveHalf *= 3.5f;
+                adaptiveHalf *= engine.cachedConditionPresentMultiplier;
             }
             
             float decayRate = (float) (Math.log(2) / adaptiveHalf);
@@ -2658,47 +2746,9 @@ public final class PetMoodEngine {
             intensity *= decay;
             impactBudget *= decay;
             
-            // HomeostasisBias recovery for idle states  
-            homeostasisBias = MathHelper.lerp((float) Math.exp(-delta / HOMEOSTASIS_RECOVERY_HALF), homeostasisBias, 1.1f);  // x1.1f for recovery
+            homeostasisBias = MathHelper.lerp((float) Math.exp(-delta / engine.cachedHomeostasisRecoveryHalf), homeostasisBias, 1.1f);
             contagionShare *= Math.exp(-delta / 400f);
             lastUpdateTime = now;
-        }
-        
-        private boolean isNegativeEmotion(PetComponent.Emotion emotion) {
-            // Negative valence emotions that should persist longer
-            switch (emotion) {
-                case ANGST:
-                case FOREBODING:
-                case STARTLE:
-                case FRUSTRATION:
-                case REGRET:
-                case SAUDADE:
-                case DISGUST:
-                case HIRAETH:
-                case ENNUI:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-        
-        private boolean isPositiveEmotion(PetComponent.Emotion emotion) {
-            // Positive valence emotions
-            switch (emotion) {
-                case CHEERFUL:
-                case BLISSFUL:
-                case GLEE:
-                case RELIEF:
-                case HOPEFUL:
-                case PLAYFULNESS:
-                case LAGOM:
-                case UBUNTU:
-                case KEFI:
-                case CONTENT:
-                    return true;
-                default:
-                    return false;
-            }
         }
     }
 
@@ -2714,42 +2764,6 @@ public final class PetMoodEngine {
         }
     }
     
-    /**
-     * Initialize per-mood threshold adjustments for fine-tuned emotional pacing.
-     * Different moods have different rarity/intensity profiles.
-     */
-    private void initializePerMoodThresholds() {
-        // Common baseline moods - easier to access, rarely go to level 3
-        perMoodThresholds.put(PetComponent.Mood.CALM, new float[]{0.30f, 0.60f, 0.85f});
-        perMoodThresholds.put(PetComponent.Mood.HAPPY, new float[]{0.35f, 0.65f, 0.88f});
-        perMoodThresholds.put(PetComponent.Mood.CURIOUS, new float[]{0.35f, 0.68f, 0.90f});
-        
-        // Engagement moods - standard distribution
-        perMoodThresholds.put(PetComponent.Mood.PLAYFUL, new float[]{0.35f, 0.65f, 0.88f});
-        perMoodThresholds.put(PetComponent.Mood.BONDED, new float[]{0.35f, 0.65f, 0.88f});
-        perMoodThresholds.put(PetComponent.Mood.FOCUSED, new float[]{0.38f, 0.68f, 0.88f});
-        perMoodThresholds.put(PetComponent.Mood.PASSIONATE, new float[]{0.40f, 0.70f, 0.90f});
-        
-        // Emotional depth moods - easier to hit level 2 for storytelling
-        perMoodThresholds.put(PetComponent.Mood.PROTECTIVE, new float[]{0.30f, 0.60f, 0.85f});
-        perMoodThresholds.put(PetComponent.Mood.SAUDADE, new float[]{0.35f, 0.62f, 0.88f});
-        perMoodThresholds.put(PetComponent.Mood.YUGEN, new float[]{0.40f, 0.68f, 0.88f});
-        perMoodThresholds.put(PetComponent.Mood.SISU, new float[]{0.38f, 0.65f, 0.88f});
-        
-        // Negative moods - clear escalation paths
-        perMoodThresholds.put(PetComponent.Mood.RESTLESS, new float[]{0.35f, 0.65f, 0.88f});
-        perMoodThresholds.put(PetComponent.Mood.AFRAID, new float[]{0.30f, 0.60f, 0.85f});
-        perMoodThresholds.put(PetComponent.Mood.ANGRY, new float[]{0.38f, 0.70f, 0.92f});
-        
-        // Ultra-rare moods - very hard to reach high levels
-        perMoodThresholds.put(PetComponent.Mood.ECHOED_RESONANCE, new float[]{0.45f, 0.75f, 0.95f});
-        perMoodThresholds.put(PetComponent.Mood.ARCANE_OVERFLOW, new float[]{0.40f, 0.72f, 0.92f});
-        perMoodThresholds.put(PetComponent.Mood.PACK_SPIRIT, new float[]{0.38f, 0.68f, 0.90f});
-    }
-    
-    /**
-     * Get mood-specific thresholds if available, otherwise default.
-     */
     private float[] getMoodSpecificThresholds(PetComponent.Mood mood) {
         float[] specific = perMoodThresholds.get(mood);
         return specific != null ? specific : getLevelThresholds();

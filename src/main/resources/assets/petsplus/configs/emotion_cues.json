@@ -4,8 +4,7 @@
     "cooldown": 40,
     "category_cooldown": 20,
     "digest_window": 80,
-    "min_delta": 0.03,
-    "highlight_hud": false
+    "min_delta": 0.03
   },
   "categories": {
     "block_break": {
