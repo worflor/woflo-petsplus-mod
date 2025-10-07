@@ -129,6 +129,18 @@ public class HideAndSeekGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return new woflo.petsplus.ai.goals.EmotionFeedback.Builder()
+            .add(woflo.petsplus.state.PetComponent.Emotion.FOCUSED, 0.30f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.PRIDE, 0.28f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.KEFI, 0.22f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.PLAYFULNESS, 0.18f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.GLEE, 0.15f)
+            .withContagion(woflo.petsplus.state.PetComponent.Emotion.PLAYFULNESS, 0.022f)
+            .build();
+    }
+    
+    @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.9f;

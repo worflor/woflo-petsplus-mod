@@ -1114,6 +1114,24 @@ public class CombatEventHandler {
             huntManager.onOwnerKill(serverOwner);
         }
 
+        // Check if entity is wild animal - nearby pets learn from observation
+        if (entity instanceof MobEntity mobEntity) {
+            PetComponent victimPc = PetComponent.get(mobEntity);
+            if (victimPc == null) {
+                // Wild animal - notify nearby pets to learn
+                List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(serverOwner);
+                Vec3d entityPos = entity.getPos();
+                double observeRadiusSq = 16.0 * 16.0; // Pets within 16 blocks observe
+                
+                for (PetSwarmIndex.SwarmEntry entry : swarm) {
+                    MobEntity pet = entry.pet();
+                    if (pet != null && pet.isAlive() && pet.squaredDistanceTo(entityPos) <= observeRadiusSq) {
+                        RelationshipEventHandler.onPetObservedOwnerHunt(pet, entity);
+                    }
+                }
+            }
+        }
+        
         TriggerContext context = new TriggerContext(serverWorld, null, serverOwner, "owner_killed_entity");
         payload.forEach(context::withData);
 
@@ -1282,6 +1300,9 @@ public class CombatEventHandler {
 
         if (attacker instanceof PlayerEntity playerAttacker) {
             if (owner != null && playerAttacker.equals(owner)) {
+                // Relationship tracking - owner attacked their own pet
+                RelationshipEventHandler.onOwnerAttackedPet(pet, playerAttacker, amount);
+                
                 // Check cooldown to prevent emotion spam from rapid punching
                 // Use atomic check-and-set to prevent race condition in emotion processing
                 long lastEmotionTime = petComponent.getLastAttackTick();
@@ -1317,6 +1338,9 @@ public class CombatEventHandler {
                 }
                 Petsplus.LOGGER.debug("Pet {} hurt by owner, pushed owner-related emotions", pet.getName().getString());
             } else {
+                // Relationship tracking - non-owner player attacked pet
+                RelationshipEventHandler.onPetAttackedByOther(pet, playerAttacker, amount);
+                
                 float panic = scaledAmount(0.04f, 0.11f, damageIntensity + (lowHealthFactor * 0.4f));
                 float defiance = scaledAmount(0.03f, 0.09f, damageIntensity);
                 petComponent.pushEmotion(PetComponent.Emotion.ANGST, panic);
@@ -1336,7 +1360,30 @@ public class CombatEventHandler {
                 petComponent.pushEmotion(PetComponent.Emotion.FOREBODING, confusion);
                 petComponent.pushEmotion(PetComponent.Emotion.FRUSTRATION, resentment);
                 Petsplus.LOGGER.debug("Pet {} hurt by friendly pet, pushed unease", pet.getName().getString());
+            } else if (attackerPetComponent != null) {
+                // Cross-owner pet attack - track relationship between two different owners' pets
+                RelationshipEventHandler.onPetAttackedByRivalPet(pet, mobAttacker, amount);
+                
+                float fear = scaledAmount(0.08f, 0.22f, damageIntensity + (lowHealthFactor * 0.3f));
+                float caution = scaledAmount(0.10f, 0.28f, Math.max(damageIntensity, lowHealthFactor));
+                petComponent.pushEmotion(PetComponent.Emotion.ANGST, fear);
+                petComponent.pushEmotion(PetComponent.Emotion.FOREBODING, caution);
+                if (owner != null) {
+                    float closeness = 0.35f + 0.65f * proximityFactor(owner, pet, 16.0);
+                    float protective = scaledAmount(0.12f, 0.28f, damageIntensity) * closeness;
+                    petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protective);
+                }
+                Petsplus.LOGGER.debug("Pet {} hurt by rival pet, pushed defensive emotions", pet.getName().getString());
             } else {
+                // Check if this is a wild animal (no pet component, no owner)
+                boolean isWildAnimal = !mobAttacker.isPersistent() || 
+                    (mobAttacker instanceof net.minecraft.entity.passive.AnimalEntity);
+                
+                if (isWildAnimal && damageIntensity > 0.15f) {
+                    // Significant damage from wild animal - track species memory
+                    RelationshipEventHandler.onPetAttackedByWildAnimal(pet, mobAttacker, amount);
+                }
+                
                 // Hostile mob damage -> fear and caution but more balanced
                 float dread = scaledAmount(0.10f, 0.28f, damageIntensity + (lowHealthFactor * 0.3f));
                 float caution = scaledAmount(0.08f, 0.25f, Math.max(damageIntensity, lowHealthFactor));
@@ -1417,6 +1464,9 @@ public class CombatEventHandler {
 
         if (victim instanceof PlayerEntity playerVictim) {
             if (owner != null && playerVictim.equals(owner)) {
+                // Relationship tracking - pet attacked owner (accidental or otherwise)
+                RelationshipEventHandler.onPetAttackedOwner(pet, playerVictim, damage);
+                
                 float guilt = scaledAmount(0.32f, 0.50f, damageIntensity);
                 float panic = scaledAmount(0.20f, 0.45f, damageIntensity + criticalFactor);
                 float dread = scaledAmount(0.16f, 0.35f, damageIntensity);
@@ -1430,6 +1480,24 @@ public class CombatEventHandler {
                 }
                 Petsplus.LOGGER.debug("Pet {} accidentally hurt owner, pushed guilt emotions", pet.getName().getString());
                 return;
+            }
+            
+            // Check if pet is helping another player defend against this hostile player
+            // Look for nearby non-owner players who might be the beneficiary
+            if (owner != null && pet.getWorld() instanceof ServerWorld serverWorld) {
+                List<ServerPlayerEntity> nearbyPlayersRaw = serverWorld.getPlayers(p -> 
+                    p != owner && 
+                    p != playerVictim && 
+                    !p.isSpectator() && 
+                    p.squaredDistanceTo(pet) <= 16.0 * 16.0
+                );
+                List<PlayerEntity> nearbyPlayers = new java.util.ArrayList<>(nearbyPlayersRaw);
+                if (!nearbyPlayers.isEmpty()) {
+                    // Pet is fighting alongside another player - track relationship with them
+                    for (PlayerEntity ally : nearbyPlayers) {
+                        RelationshipEventHandler.onPetCombatAlly(pet, ally, playerVictim);
+                    }
+                }
             }
 
             float closeness = owner != null ? 0.40f + 0.60f * proximityFactor(owner, pet, 16.0) : 0.75f;
@@ -1464,11 +1532,28 @@ public class CombatEventHandler {
         } else if (victim instanceof MobEntity mobVictim) {
             PetComponent victimPetComponent = PetComponent.get(mobVictim);
             if (victimPetComponent != null && owner != null && victimPetComponent.isOwnedBy(owner)) {
+                // Relationship tracking - pet attacked ally pet
+                RelationshipEventHandler.onPetAttackedAlly(pet, mobVictim);
+                
                 float guilt = scaledAmount(0.26f, 0.45f, damageIntensity);
                 float worry = scaledAmount(0.16f, 0.35f, damageIntensity + (lowHealthFactor * 0.3f));
                 petComponent.pushEmotion(PetComponent.Emotion.REGRET, guilt);
                 petComponent.pushEmotion(PetComponent.Emotion.ANGST, worry);
                 Petsplus.LOGGER.debug("Pet {} fighting friendly pet, pushed distress emotions", pet.getName().getString());
+            } else if (victimPetComponent != null) {
+                // Cross-owner pet combat - track rivalry/dominance
+                RelationshipEventHandler.onPetAttackedRivalPet(pet, mobVictim, damage);
+                
+                float confidence = scaledAmount(0.10f, 0.25f, damageIntensity);
+                float rivalry = scaledAmount(0.08f, 0.22f, damageIntensity);
+                petComponent.pushEmotion(PetComponent.Emotion.STOIC, confidence);
+                petComponent.pushEmotion(PetComponent.Emotion.KEFI, rivalry);
+                if (owner != null) {
+                    float closeness = 0.4f + 0.6f * proximityFactor(owner, pet, 16.0);
+                    float protective = scaledAmount(0.12f, 0.30f, damageIntensity) * closeness;
+                    petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protective);
+                }
+                Petsplus.LOGGER.debug("Pet {} fighting rival pet, pushed competitive emotions", pet.getName().getString());
             } else {
                 float protective = owner != null
                     ? scaledAmount(0.12f, 0.35f, damageIntensity) * (0.5f + 0.5f * proximityFactor(owner, pet, 16.0))
@@ -1497,6 +1582,11 @@ public class CombatEventHandler {
                 }
 
                 if (mobVictim instanceof HostileEntity) {
+                    // Relationship tracking - combat ally against hostiles
+                    if (owner != null) {
+                        RelationshipEventHandler.onPetCombatAlly(pet, owner, mobVictim);
+                    }
+                    
                     // Fighting hostiles should build fervor/triumph, not frustration
                     float fervor = scaledAmount(0.08f, 0.25f, damageIntensity);
                     petComponent.pushEmotion(PetComponent.Emotion.KEFI, fervor);
@@ -1577,6 +1667,12 @@ public class CombatEventHandler {
                 petComponent.pushEmotion(PetComponent.Emotion.FOREBODING, 0.25f);
                 Petsplus.LOGGER.debug("Pet {} killed friendly pet - guilt and trauma", pet.getName().getString());
                 return;
+            }
+            
+            // Check if victim is wild animal (no pet component)
+            if (victimPetComponent == null) {
+                // Wild animal kill - track species memory
+                RelationshipEventHandler.onPetKilledWildAnimal(pet, mobVictim);
             }
 
             float relativeStrength = mobVictim.getMaxHealth() / Math.max(1f, pet.getMaxHealth());

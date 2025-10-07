@@ -1,7 +1,8 @@
 package woflo.petsplus.stats;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.nbt.NbtCompound;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.util.BehaviorSeedUtil;
@@ -227,36 +228,19 @@ public class PetImprint implements StatModifierProvider {
     }
     
     /**
-     * Save imprint to NBT.
+     * Codec for serialization.
      */
-    public void writeToNbt(NbtCompound nbt) {
-        nbt.putFloat("healthMult", healthMultiplier);
-        nbt.putFloat("speedMult", speedMultiplier);
-        nbt.putFloat("attackMult", attackMultiplier);
-        nbt.putFloat("defenseMult", defenseMultiplier);
-        nbt.putFloat("agilityMult", agilityMultiplier);
-        nbt.putFloat("vitalityMult", vitalityMultiplier);
-        nbt.putLong("imprintSeed", imprintSeed);
-    }
-    
-    /**
-     * Load imprint from NBT.
-     */
-    public static PetImprint readFromNbt(NbtCompound nbt) {
-        if (!nbt.contains("healthMult")) {
-            return null; // No imprint saved
-        }
-        
-        float health = nbt.getFloat("healthMult").orElse(1.0f);
-        float speed = nbt.getFloat("speedMult").orElse(1.0f);
-        float attack = nbt.getFloat("attackMult").orElse(1.0f);
-        float defense = nbt.getFloat("defenseMult").orElse(1.0f);
-        float agility = nbt.getFloat("agilityMult").orElse(1.0f);
-        float vitality = nbt.getFloat("vitalityMult").orElse(1.0f);
-        long seed = nbt.getLong("imprintSeed").orElse(0L);
-        
-        return new PetImprint(health, speed, attack, defense, agility, vitality, seed);
-    }
+    public static final Codec<PetImprint> CODEC = RecordCodecBuilder.create(instance ->
+        instance.group(
+            Codec.FLOAT.fieldOf("healthMult").forGetter(i -> i.healthMultiplier),
+            Codec.FLOAT.fieldOf("speedMult").forGetter(i -> i.speedMultiplier),
+            Codec.FLOAT.fieldOf("attackMult").forGetter(i -> i.attackMultiplier),
+            Codec.FLOAT.fieldOf("defenseMult").forGetter(i -> i.defenseMultiplier),
+            Codec.FLOAT.fieldOf("agilityMult").forGetter(i -> i.agilityMultiplier),
+            Codec.FLOAT.fieldOf("vitalityMult").forGetter(i -> i.vitalityMultiplier),
+            Codec.LONG.fieldOf("imprintSeed").forGetter(i -> i.imprintSeed)
+        ).apply(instance, PetImprint::new)
+    );
 
     public static String[] statKeyArray() {
         return STAT_KEYS.clone();

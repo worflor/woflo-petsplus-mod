@@ -65,6 +65,16 @@ public class WaterCruiseGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return new woflo.petsplus.ai.goals.EmotionFeedback.Builder()
+            .add(woflo.petsplus.state.PetComponent.Emotion.LAGOM, 0.18f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.YUGEN, 0.15f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.CONTENT, 0.12f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.CURIOUS, 0.10f)
+            .build();
+    }
+    
+    @Override
     protected float calculateEngagement() {
         return 0.6f;
     }

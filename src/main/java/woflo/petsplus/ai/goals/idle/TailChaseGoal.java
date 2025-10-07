@@ -99,6 +99,17 @@ public class TailChaseGoal extends AdaptiveGoal {
         return Math.min(1.0f, engagement);
     }
     
+    @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        // Tail chase is a playful solo idle behavior
+        // Micro-rewards (0.05-0.12 range) appropriate for self-entertainment
+        // Avoids overwhelming - these are intrinsic behaviors, not for external reward
+        return woflo.petsplus.ai.goals.EmotionFeedback.dual(
+            woflo.petsplus.state.PetComponent.Emotion.PLAYFULNESS, 0.10f,  // Light-hearted solo fun
+            woflo.petsplus.state.PetComponent.Emotion.GLEE, 0.08f          // Mild movement joy
+        );
+    }
+    
     private void spawnSpinParticles() {
         // TODO: Add particle effects for visual flair
     }

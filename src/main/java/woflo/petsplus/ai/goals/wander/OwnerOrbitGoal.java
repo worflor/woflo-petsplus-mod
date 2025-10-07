@@ -72,6 +72,14 @@ public class OwnerOrbitGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return woflo.petsplus.ai.goals.EmotionFeedback.dual(
+            woflo.petsplus.state.PetComponent.Emotion.PROTECTIVENESS, 0.12f,
+            woflo.petsplus.state.PetComponent.Emotion.LOYALTY, 0.10f
+        );
+    }
+    
+    @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.7f;

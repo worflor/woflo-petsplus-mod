@@ -73,6 +73,16 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return new woflo.petsplus.ai.goals.EmotionFeedback.Builder()
+            .add(woflo.petsplus.state.PetComponent.Emotion.SOBREMESA, 0.20f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.LAGOM, 0.15f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.LOYALTY, 0.12f)
+            .withContagion(woflo.petsplus.state.PetComponent.Emotion.SOBREMESA, 0.018f)
+            .build();
+    }
+    
+    @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.8f;

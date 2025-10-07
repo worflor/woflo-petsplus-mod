@@ -16,6 +16,8 @@ public class ParallelPlayGoal extends AdaptiveGoal {
     private int parallelTicks = 0;
     private static final int MAX_PARALLEL_TICKS = 400; // 20 seconds
     private static final double COMFORTABLE_DISTANCE = 5.0;
+    private int lastPlayTick = 0;
+    private static final int PLAY_TRACKING_INTERVAL = 100; // Track every 5 seconds
     
     public ParallelPlayGoal(MobEntity mob) {
         super(mob, GoalType.PARALLEL_PLAY, EnumSet.of(Control.MOVE));
@@ -42,6 +44,7 @@ public class ParallelPlayGoal extends AdaptiveGoal {
     @Override
     protected void onStartGoal() {
         parallelTicks = 0;
+        lastPlayTick = 0;
     }
     
     @Override
@@ -78,6 +81,12 @@ public class ParallelPlayGoal extends AdaptiveGoal {
             // Perfect distance - do own thing
             mob.getNavigation().stop();
             
+            // Track play interaction periodically for relationship system
+            if (parallelTicks - lastPlayTick >= PLAY_TRACKING_INTERVAL) {
+                woflo.petsplus.events.RelationshipEventHandler.onPlayInteraction(mob, owner);
+                lastPlayTick = parallelTicks;
+            }
+            
             // Occasionally glance at owner
             if (parallelTicks % 60 == 0) {
                 mob.getLookControl().lookAt(owner);
@@ -89,6 +98,17 @@ public class ParallelPlayGoal extends AdaptiveGoal {
                 }
             }
         }
+    }
+    
+    @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return new woflo.petsplus.ai.goals.EmotionFeedback.Builder()
+            .add(woflo.petsplus.state.PetComponent.Emotion.UBUNTU, 0.22f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.KEFI, 0.20f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.PLAYFULNESS, 0.18f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.SOBREMESA, 0.15f)
+            .withContagion(woflo.petsplus.state.PetComponent.Emotion.UBUNTU, 0.025f)
+            .build();
     }
     
     @Override

@@ -73,6 +73,11 @@ public final class TamingHandler {
 
         player.swingHand(hand, true);
 
+        // Track taming for relationship system - establishes initial familiarity and trust
+        if (mob instanceof MobEntity) {
+            RelationshipEventHandler.onPetTamed(mob, player);
+        }
+
         if (player instanceof ServerPlayerEntity serverPlayer) {
             PetDetectionHandler.onEntityTamed(mob, serverPlayer);
         } else {

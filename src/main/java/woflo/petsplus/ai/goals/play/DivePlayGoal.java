@@ -107,6 +107,14 @@ public class DivePlayGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return woflo.petsplus.ai.goals.EmotionFeedback.dual(
+            woflo.petsplus.state.PetComponent.Emotion.PLAYFULNESS, 0.12f,
+            woflo.petsplus.state.PetComponent.Emotion.KEFI, 0.10f
+        );
+    }
+    
+    @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.85f;

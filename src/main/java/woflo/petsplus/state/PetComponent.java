@@ -89,6 +89,7 @@ public class PetComponent {
     private final SchedulingModule schedulingModule;
     private final OwnerModule ownerModule;
     private final SpeciesMetadataModule speciesMetadataModule;
+    private final RelationshipModule relationshipModule;
 
     private StateManager stateManager;
 
@@ -357,6 +358,7 @@ public class PetComponent {
         this.schedulingModule = new DefaultSchedulingModule();
         this.ownerModule = new DefaultOwnerModule();
         this.speciesMetadataModule = new DefaultSpeciesMetadataModule();
+        this.relationshipModule = new DefaultRelationshipModule();
         
         // Attach modules
         this.inventoryModule.onAttach(this);
@@ -366,6 +368,7 @@ public class PetComponent {
         this.schedulingModule.onAttach(this);
         this.ownerModule.onAttach(this);
         this.speciesMetadataModule.onAttach(this);
+        this.relationshipModule.onAttach(this);
     }
 
     public void attachStateManager(StateManager manager) {
@@ -406,6 +409,10 @@ public class PetComponent {
 
     public SpeciesMetadataModule getSpeciesMetadataModule() {
         return speciesMetadataModule;
+    }
+    
+    public RelationshipModule getRelationshipModule() {
+        return relationshipModule;
     }
 
     public PetGossipLedger getGossipLedger() {
@@ -2356,29 +2363,216 @@ public class PetComponent {
         return false;
     }
     
+    // ============================================================================
+    // RELATIONSHIP SYSTEM - Multi-dimensional bonds with any entity
+    // ============================================================================
+    
     /**
-     * Add bond strength to the pet, which can provide stat bonuses.
-     * Bond strength is stored as state data and influences combat effectiveness.
+     * Record an interaction with any living entity.
+     * Builds/damages multi-dimensional relationship (trust, affection, respect).
+     * 
+     * @param entityId UUID of interacting entity
+     * @param interactionType type of interaction
+     * @param trustMultiplier contextual scaling for trust (species, nature, etc)
+     * @param affectionMultiplier contextual scaling for affection
+     * @param respectMultiplier contextual scaling for respect
      */
+    public void recordEntityInteraction(
+        UUID entityId,
+        woflo.petsplus.state.relationships.InteractionType interactionType,
+        float trustMultiplier,
+        float affectionMultiplier,
+        float respectMultiplier
+    ) {
+        if (entityId == null || interactionType == null) {
+            return;
+        }
+        
+        long currentTick = pet.getWorld().getTime();
+        relationshipModule.recordInteraction(
+            entityId,
+            interactionType,
+            currentTick,
+            trustMultiplier,
+            affectionMultiplier,
+            respectMultiplier
+        );
+    }
+    
+    /**
+     * Convenience: record interaction with default multipliers (1.0).
+     */
+    public void recordEntityInteraction(
+        UUID entityId,
+        woflo.petsplus.state.relationships.InteractionType interactionType
+    ) {
+        recordEntityInteraction(entityId, interactionType, 1.0f, 1.0f, 1.0f);
+    }
+    
+    /**
+     * Get relationship profile with a specific entity.
+     */
+    public woflo.petsplus.state.relationships.RelationshipProfile getRelationshipWith(UUID entityId) {
+        return relationshipModule.getRelationship(entityId);
+    }
+    
+    /**
+     * Get trust level with an entity (-1.0 to 1.0).
+     */
+    public float getTrustWith(UUID entityId) {
+        return relationshipModule.getTrust(entityId);
+    }
+    
+    /**
+     * Get affection level with an entity (0.0 to 1.0).
+     */
+    public float getAffectionWith(UUID entityId) {
+        var profile = relationshipModule.getRelationship(entityId);
+        return profile != null ? profile.affection() : 0.0f;
+    }
+    
+    /**
+     * Get respect level with an entity (0.0 to 1.0).
+     */
+    public float getRespectWith(UUID entityId) {
+        var profile = relationshipModule.getRelationship(entityId);
+        return profile != null ? profile.respect() : 0.0f;
+    }
+    
+    /**
+     * Get computed comfort level with an entity (0.0 to 1.0).
+     */
+    public float getComfortWith(UUID entityId) {
+        var profile = relationshipModule.getRelationship(entityId);
+        return profile != null ? profile.getComfort() : 0.0f;
+    }
+    
+    /**
+     * Get relationship type with an entity.
+     */
+    public woflo.petsplus.state.relationships.RelationshipType getRelationshipType(UUID entityId) {
+        return relationshipModule.getRelationshipType(entityId);
+    }
+    
+    /**
+     * Get owner relationship (for backwards compatibility).
+     * Returns trust level scaled to 0-10000 range like old bondStrength.
+     * 
+     * @deprecated Use getTrustWith(getOwnerUuid()) for direct trust value
+     */
+    @Deprecated
+    public long getBondStrength() {
+        UUID ownerUuid = getOwnerUuid();
+        if (ownerUuid == null) {
+            return 0L;
+        }
+        
+        float trust = getTrustWith(ownerUuid);
+        float affection = getAffectionWith(ownerUuid);
+        
+        // Combine trust and affection for "bond strength" equivalent
+        // Scale -1 to 1 trust + 0 to 1 affection to 0-10000 range
+        float normalizedTrust = (trust + 1.0f) / 2.0f; // 0.0 to 1.0
+        float combined = (normalizedTrust * 0.6f) + (affection * 0.4f); // Weighted
+        
+        return (long) (combined * 10000f);
+    }
+    
+    /**
+     * Add bond strength to owner (for backwards compatibility).
+     * Converts to dimensional relationship interactions.
+     * 
+     * @deprecated Use recordEntityInteraction with appropriate InteractionType
+     */
+    @Deprecated
     public void addBondStrength(long strengthToAdd) {
         if (strengthToAdd <= 0) return;
         
-        long currentBond = getStateData("bondStrength", Long.class, 0L);
-        long newBond = Math.min(10000L, currentBond + strengthToAdd); // Cap at 10,000
-        setStateData("bondStrength", newBond);
+        UUID ownerUuid = getOwnerUuid();
+        if (ownerUuid == null) {
+            return;
+        }
         
-        // Apply attribute bonuses based on bond strength
-        // Every 1000 bond strength = +5% health and damage
-        if (newBond >= 1000 && currentBond < 1000) {
-            woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
+        // Convert old bond strength to dimensional increases
+        float normalized = strengthToAdd / 10000f;
+        
+        // Simulate positive interaction
+        recordEntityInteraction(
+            ownerUuid,
+            woflo.petsplus.state.relationships.InteractionType.PETTING,
+            normalized * 0.8f,  // trust
+            normalized * 1.2f,  // affection
+            normalized * 0.5f   // respect
+        );
+    }
+    
+    // ============================================================================
+    // SPECIES MEMORY - Learned behaviors and preferences toward wild species
+    // ============================================================================
+    
+    /**
+     * Record an interaction with a wild animal species.
+     * Builds hunting preferences, fears, and caution toward specific species.
+     */
+    public void recordSpeciesInteraction(
+        net.minecraft.entity.EntityType<?> species,
+        woflo.petsplus.state.relationships.SpeciesMemory.InteractionContext context
+    ) {
+        if (species == null || context == null) {
+            return;
+        }
+        
+        // Use direct method if available
+        if (relationshipModule instanceof woflo.petsplus.state.modules.impl.DefaultRelationshipModule drm) {
+            drm.recordSpeciesInteractionDirect(species, context);
         }
     }
     
     /**
-     * Get current bond strength level.
+     * Get fear level toward a species (0.0 = no fear, 1.0 = terrified).
      */
-    public long getBondStrength() {
-        return getStateData("bondStrength", Long.class, 0L);
+    public float getSpeciesFear(net.minecraft.entity.EntityType<?> species) {
+        if (relationshipModule instanceof woflo.petsplus.state.modules.impl.DefaultRelationshipModule drm) {
+            return drm.getSpeciesFearDirect(species);
+        }
+        return 0.0f;
+    }
+    
+    /**
+     * Get hunting preference toward a species (0.0 = neutral, 1.0 = loves hunting).
+     */
+    public float getSpeciesHuntingPreference(net.minecraft.entity.EntityType<?> species) {
+        if (relationshipModule instanceof woflo.petsplus.state.modules.impl.DefaultRelationshipModule drm) {
+            return drm.getSpeciesHuntingPreferenceDirect(species);
+        }
+        return 0.0f;
+    }
+    
+    /**
+     * Get caution level toward a species (0.0 = dismissive, 1.0 = very cautious).
+     */
+    public float getSpeciesCaution(net.minecraft.entity.EntityType<?> species) {
+        if (relationshipModule instanceof woflo.petsplus.state.modules.impl.DefaultRelationshipModule drm) {
+            return drm.getSpeciesCautionDirect(species);
+        }
+        return 0.0f;
+    }
+    
+    /**
+     * Check if pet has significant memory of a species.
+     */
+    public boolean hasMemoryOfSpecies(net.minecraft.entity.EntityType<?> species) {
+        if (relationshipModule instanceof woflo.petsplus.state.modules.impl.DefaultRelationshipModule drm) {
+            return drm.hasMemoryOfSpeciesDirect(species);
+        }
+        return false;
+    }
+    
+    /**
+     * Apply decay to species memories (call periodically, e.g. on tick).
+     */
+    public void decaySpeciesMemories(long currentTick) {
+        relationshipModule.applySpeciesMemoryDecay(currentTick, 0.1f);
     }
     
     /**

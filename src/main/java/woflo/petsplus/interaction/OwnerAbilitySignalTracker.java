@@ -351,6 +351,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
             state.nextTick = Long.MAX_VALUE;
         }
         cancelProximityChannels(player);
+        OwnerApproachDetector.clearPlayer(player.getUuid());
     }
 
     public static void handlePetRemoved(MobEntity pet) {

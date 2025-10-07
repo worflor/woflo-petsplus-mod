@@ -192,6 +192,9 @@ public final class GuardianCore {
         FeedbackManager.emitGuardianDamageAbsorbed(guardian, world);
         // Removed bulwark spam - will add particle/sound in ability JSON
 
+        // Track defense for relationship system - pet protected owner
+        woflo.petsplus.events.RelationshipEventHandler.onPetDefendedOwner(guardian, owner, finalRedirectedAmount);
+        
         TriggerContext context = new TriggerContext(world, guardian, owner, "after_pet_redirect")
             .withData("original_damage", (double) originalDamage)
             .withData("redirected_damage", (double) redirectedAmount)

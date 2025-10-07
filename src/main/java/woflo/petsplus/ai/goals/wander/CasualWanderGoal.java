@@ -74,6 +74,28 @@ public class CasualWanderGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        PetContext ctx = getContext();
+        
+        // Base exploration emotions - gentle contentment and ambient appreciation
+        var builder = new woflo.petsplus.ai.goals.EmotionFeedback.Builder()
+            .add(woflo.petsplus.state.PetComponent.Emotion.CONTENT, 0.12f)    // Pleasant routine
+            .add(woflo.petsplus.state.PetComponent.Emotion.YUGEN, 0.08f);     // Subtle wonder
+        
+        // Context-aware modulation based on distance to owner
+        if (ctx.distanceToOwner() > 20.0) {
+            // Far from owner: territorial species feel longing
+            builder.add(woflo.petsplus.state.PetComponent.Emotion.HIRAETH, 0.10f);
+        } else if (ctx.ownerNearby()) {
+            // Near owner: comfortable proximity
+            builder.add(woflo.petsplus.state.PetComponent.Emotion.SOBREMESA, 0.10f);
+            builder.add(woflo.petsplus.state.PetComponent.Emotion.LAGOM, 0.05f);
+        }
+        
+        return builder.build();
+    }
+    
+    @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.5f;

@@ -94,6 +94,17 @@ public class ShowOffTrickGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return new woflo.petsplus.ai.goals.EmotionFeedback.Builder()
+            .add(woflo.petsplus.state.PetComponent.Emotion.PRIDE, 0.32f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.HANYAUKU, 0.25f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.LOYALTY, 0.20f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.KEFI, 0.18f)
+            .withContagion(woflo.petsplus.state.PetComponent.Emotion.PRIDE, 0.022f)
+            .build();
+    }
+    
+    @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.9f;

@@ -57,6 +57,14 @@ public class SitSphinxPoseGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return woflo.petsplus.ai.goals.EmotionFeedback.dual(
+            woflo.petsplus.state.PetComponent.Emotion.LAGOM, 0.15f,
+            woflo.petsplus.state.PetComponent.Emotion.STOIC, 0.10f
+        );
+    }
+    
+    @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.7f;

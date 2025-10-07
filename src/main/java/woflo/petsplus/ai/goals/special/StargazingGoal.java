@@ -120,6 +120,15 @@ public class StargazingGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return woflo.petsplus.ai.goals.EmotionFeedback.triple(
+            woflo.petsplus.state.PetComponent.Emotion.YUGEN, 0.35f,
+            woflo.petsplus.state.PetComponent.Emotion.MONO_NO_AWARE, 0.28f,
+            woflo.petsplus.state.PetComponent.Emotion.LAGOM, 0.18f
+        );
+    }
+    
+    @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.85f;

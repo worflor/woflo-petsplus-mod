@@ -59,6 +59,14 @@ public class BubblePlayGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return woflo.petsplus.ai.goals.EmotionFeedback.dual(
+            woflo.petsplus.state.PetComponent.Emotion.PLAYFULNESS, 0.10f,
+            woflo.petsplus.state.PetComponent.Emotion.GLEE, 0.08f
+        );
+    }
+    
+    @Override
     protected float calculateEngagement() {
         return 0.6f; // Fun bubble play
     }

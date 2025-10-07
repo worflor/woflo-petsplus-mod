@@ -113,6 +113,16 @@ public class PurposefulPatrolGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return new woflo.petsplus.ai.goals.EmotionFeedback.Builder()
+            .add(woflo.petsplus.state.PetComponent.Emotion.FOCUSED, 0.18f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.KEFI, 0.15f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.CURIOUS, 0.12f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.VIGILANT, 0.10f)
+            .build();
+    }
+    
+    @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.7f;

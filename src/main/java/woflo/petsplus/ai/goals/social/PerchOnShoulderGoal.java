@@ -102,6 +102,15 @@ public class PerchOnShoulderGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return woflo.petsplus.ai.goals.EmotionFeedback.triple(
+            woflo.petsplus.state.PetComponent.Emotion.SOBREMESA, 0.18f,
+            woflo.petsplus.state.PetComponent.Emotion.LAGOM, 0.12f,
+            woflo.petsplus.state.PetComponent.Emotion.LOYALTY, 0.10f
+        );
+    }
+    
+    @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.95f;

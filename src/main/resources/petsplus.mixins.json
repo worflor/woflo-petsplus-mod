@@ -27,7 +27,8 @@
 	               "ItemEntityMixin",
 	               "ServerPlayerEntityXpMixin",
 	               "VillagerEntityTradeMixin",
-	               "PetNamingMixin"
+	               "PetNamingMixin",
+	               "LivingEntityHealMixin"
 	       ],
 	"client": [
 	],

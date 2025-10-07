@@ -52,7 +52,15 @@ public class StretchAndYawnGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return woflo.petsplus.ai.goals.EmotionFeedback.dual(
+            woflo.petsplus.state.PetComponent.Emotion.LAGOM, 0.10f,
+            woflo.petsplus.state.PetComponent.Emotion.CONTENT, 0.08f
+        );
+    }
+    
+    @Override
     protected float calculateEngagement() {
-        return 0.3f; // Low engagement, just a reflex
+        return 0.3f;
     }
 }

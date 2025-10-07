@@ -41,6 +41,7 @@ public final class OwnerAbilitySignalEvent {
     public enum Type {
         DOUBLE_CROUCH,
         PROXIMITY_CHANNEL,
-        SHIFT_INTERACT
+        SHIFT_INTERACT,
+        CROUCH_APPROACH
     }
 }

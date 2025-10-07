@@ -1,16 +1,19 @@
 package woflo.petsplus.state;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.Uuids;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.WeakHashMap;
 import java.util.UUID;
 
@@ -421,98 +424,78 @@ public class OwnerCombatState {
     }
     
     /**
-     * Serialize state to NBT for persistence.
+     * Convert to Data for serialization.
      */
-    public void writeToNbt(NbtCompound nbt) {
-        nbt.putBoolean("inCombat", inCombat);
-        nbt.putLong("combatEndTick", combatEndTick);
-        nbt.putLong("lastHitTick", lastHitTick);
-        nbt.putLong("lastHitTakenTick", lastHitTakenTick);
-        if (activeAggroTargetId != null) {
-            nbt.putString("activeAggroTargetId", activeAggroTargetId.toString());
-        } else {
-            nbt.remove("activeAggroTargetId");
-        }
-        nbt.putLong("activeAggroTargetExpireTick", activeAggroTargetExpireTick);
-        nbt.putFloat("activeAggroAggression", activeAggroAggression);
-        nbt.putFloat("activeAggroUrgency", activeAggroUrgency);
-        nbt.putBoolean("activeAggroTargetHostile", activeAggroTargetHostile);
-        nbt.putInt("assistChainCount", assistChainCount);
-        nbt.putLong("lastAssistResetTick", lastAssistResetTick);
-
-        // Save attack riders (keys only, since they'll be re-registered)
-        NbtCompound ridersNbt = new NbtCompound();
-        for (var entry : nextAttackRiders.entrySet()) {
-            ridersNbt.putString(entry.getKey(), entry.getValue().getClass().getSimpleName());
-        }
-        nbt.put("nextAttackRiders", ridersNbt);
-        
-        // Save temporary state
-        NbtCompound tempNbt = new NbtCompound();
-        for (var entry : tempState.entrySet()) {
-            tempNbt.putLong(entry.getKey(), entry.getValue());
-        }
-        nbt.put("tempState", tempNbt);
+    public Data toData() {
+        return new Data(
+            inCombat,
+            combatEndTick,
+            lastHitTick,
+            lastHitTakenTick,
+            Optional.ofNullable(activeAggroTargetId),
+            activeAggroTargetExpireTick,
+            activeAggroAggression,
+            activeAggroUrgency,
+            activeAggroTargetHostile,
+            assistChainCount,
+            lastAssistResetTick,
+            Map.copyOf(tempState)
+        );
     }
     
     /**
-     * Deserialize state from NBT.
+     * Load from Data.
      */
-    public void readFromNbt(NbtCompound nbt) {
-        if (nbt.contains("inCombat")) {
-            nbt.getBoolean("inCombat").ifPresent(value -> this.inCombat = value);
-        }
-        if (nbt.contains("combatEndTick")) {
-            nbt.getLong("combatEndTick").ifPresent(value -> this.combatEndTick = value);
-        }
-        if (nbt.contains("lastHitTick")) {
-            nbt.getLong("lastHitTick").ifPresent(value -> this.lastHitTick = value);
-        }
-        if (nbt.contains("lastHitTakenTick")) {
-            nbt.getLong("lastHitTakenTick").ifPresent(value -> this.lastHitTakenTick = value);
-        }
-        if (nbt.contains("activeAggroTargetId")) {
-            nbt.getString("activeAggroTargetId").ifPresent(value -> {
-                try {
-                    this.activeAggroTargetId = UUID.fromString(value);
-                } catch (IllegalArgumentException e) {
-                    this.activeAggroTargetId = null;
-                }
-            });
-        } else {
-            this.activeAggroTargetId = null;
-        }
-        if (nbt.contains("activeAggroTargetExpireTick")) {
-            nbt.getLong("activeAggroTargetExpireTick").ifPresent(value -> this.activeAggroTargetExpireTick = value);
-        }
-        if (nbt.contains("activeAggroAggression")) {
-            nbt.getFloat("activeAggroAggression").ifPresent(value -> this.activeAggroAggression = MathHelper.clamp(value, 0f, 1f));
-        }
-        if (nbt.contains("activeAggroUrgency")) {
-            nbt.getFloat("activeAggroUrgency").ifPresent(value -> this.activeAggroUrgency = MathHelper.clamp(value, 0f, 1f));
-        }
-        if (nbt.contains("activeAggroTargetHostile")) {
-            nbt.getBoolean("activeAggroTargetHostile").ifPresent(value -> this.activeAggroTargetHostile = value);
-        }
-        if (nbt.contains("assistChainCount")) {
-            nbt.getInt("assistChainCount").ifPresent(value -> this.assistChainCount = value);
-        }
-        if (nbt.contains("lastAssistResetTick")) {
-            nbt.getLong("lastAssistResetTick").ifPresent(value -> this.lastAssistResetTick = value);
-        }
-        
-        // Load temporary state
-        if (nbt.contains("tempState")) {
-            nbt.getCompound("tempState").ifPresent(tempNbt -> {
-                tempState.clear();
-                for (String key : tempNbt.getKeys()) {
-                    tempNbt.getLong(key).ifPresent(value -> tempState.put(key, value));
-                }
-            });
-        }
-
+    public void fromData(Data data) {
+        this.inCombat = data.inCombat();
+        this.combatEndTick = data.combatEndTick();
+        this.lastHitTick = data.lastHitTick();
+        this.lastHitTakenTick = data.lastHitTakenTick();
+        this.activeAggroTargetId = data.activeAggroTargetId().orElse(null);
+        this.activeAggroTargetExpireTick = data.activeAggroTargetExpireTick();
+        this.activeAggroAggression = data.activeAggroAggression();
+        this.activeAggroUrgency = data.activeAggroUrgency();
+        this.activeAggroTargetHostile = data.activeAggroTargetHostile();
+        this.assistChainCount = data.assistChainCount();
+        this.lastAssistResetTick = data.lastAssistResetTick();
+        this.tempState.clear();
+        this.tempState.putAll(data.tempState());
         // Note: Attack riders are not persisted as they are typically short-lived
-        // and will be re-applied when triggers fire again
+    }
+    
+    /**
+     * Data record for Codec serialization.
+     */
+    public record Data(
+        boolean inCombat,
+        long combatEndTick,
+        long lastHitTick,
+        long lastHitTakenTick,
+        Optional<UUID> activeAggroTargetId,
+        long activeAggroTargetExpireTick,
+        float activeAggroAggression,
+        float activeAggroUrgency,
+        boolean activeAggroTargetHostile,
+        int assistChainCount,
+        long lastAssistResetTick,
+        Map<String, Long> tempState
+    ) {
+        public static final Codec<Data> CODEC = RecordCodecBuilder.create(instance ->
+            instance.group(
+                Codec.BOOL.optionalFieldOf("inCombat", false).forGetter(Data::inCombat),
+                Codec.LONG.optionalFieldOf("combatEndTick", 0L).forGetter(Data::combatEndTick),
+                Codec.LONG.optionalFieldOf("lastHitTick", 0L).forGetter(Data::lastHitTick),
+                Codec.LONG.optionalFieldOf("lastHitTakenTick", 0L).forGetter(Data::lastHitTakenTick),
+                Uuids.CODEC.optionalFieldOf("activeAggroTargetId").forGetter(Data::activeAggroTargetId),
+                Codec.LONG.optionalFieldOf("activeAggroTargetExpireTick", 0L).forGetter(Data::activeAggroTargetExpireTick),
+                Codec.FLOAT.optionalFieldOf("activeAggroAggression", 0f).forGetter(Data::activeAggroAggression),
+                Codec.FLOAT.optionalFieldOf("activeAggroUrgency", 0f).forGetter(Data::activeAggroUrgency),
+                Codec.BOOL.optionalFieldOf("activeAggroTargetHostile", false).forGetter(Data::activeAggroTargetHostile),
+                Codec.INT.optionalFieldOf("assistChainCount", 0).forGetter(Data::assistChainCount),
+                Codec.LONG.optionalFieldOf("lastAssistResetTick", 0L).forGetter(Data::lastAssistResetTick),
+                Codec.unboundedMap(Codec.STRING, Codec.LONG).optionalFieldOf("tempState", Map.of()).forGetter(Data::tempState)
+            ).apply(instance, Data::new)
+        );
     }
 
     public record AggroSnapshot(

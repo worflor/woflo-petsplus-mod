@@ -13,7 +13,6 @@ import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.naming.AttributeKey;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.stats.PetImprint;
-import net.minecraft.nbt.NbtCompound;
 import woflo.petsplus.util.CodecUtils;
 
 public interface CharacteristicsModule extends DataBackedModule<CharacteristicsModule.Data> {
@@ -50,21 +49,7 @@ public interface CharacteristicsModule extends DataBackedModule<CharacteristicsM
         List<AttributeKey> nameAttributes,
         java.util.Map<net.minecraft.util.Identifier, float[]> roleAffinityBonuses
     ) {
-        private static final Codec<PetImprint> PET_IMPRINT_CODEC =
-            NbtCompound.CODEC.comapFlatMap(
-                nbt -> {
-                    PetImprint parsed = PetImprint.readFromNbt(nbt);
-                    if (parsed == null) {
-                        return DataResult.error(() -> "Invalid pet imprint payload");
-                    }
-                    return DataResult.success(parsed);
-                },
-                imprint -> {
-                    NbtCompound nbt = new NbtCompound();
-                    imprint.writeToNbt(nbt);
-                    return nbt;
-                }
-            );
+        // Use PetImprint's built-in Codec directly
 
         private static final Codec<PetComponent.Emotion> EMOTION_CODEC = Codec.STRING.comapFlatMap(
             value -> {
@@ -110,7 +95,7 @@ public interface CharacteristicsModule extends DataBackedModule<CharacteristicsM
 
         public static final Codec<Data> CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
-                PET_IMPRINT_CODEC.optionalFieldOf("imprint")
+                PetImprint.CODEC.optionalFieldOf("imprint")
                     .forGetter(data -> Optional.ofNullable(data.imprint())),
                 Codec.FLOAT.fieldOf("natureVolatilityMultiplier").orElse(1.0f)
                     .forGetter(Data::natureVolatilityMultiplier),

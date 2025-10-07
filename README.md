@@ -5,8 +5,8 @@
 </p>
 
 <h1 align="center">Pets+</h1>
-<h3 align="center">dev-0.92-docuwumentation</h3>
-<h4 align="center">next: stable pet components (oct 6/7)</h4>
+<h3 align="center">dev-0.93-stable-backends</h3>
+<h4 align="center">next: slowly getting systems in place to eventually add **pick mes**</h4>
 
 ---
 
@@ -19,14 +19,14 @@
 ---
 
 ### What you'll notice
-- Natures act as the personality/vibe, emotions flare in the moment, moods linger in the background.
+- Natures act as the personality/vibe, emotions flare in the moment, moods linger in the background. 
 - Roles and little unlocks grow as you adventure, explore, and keep pets close.
 - Memories and stories are tracked. Not for progression, but for immersion.
 
 Curious how each layer fits together? The [feature docs](docs/features/_readme.md) is your friend.
 
 ### Play It!
-1. Download the latest jar file. [its not there yet]
+1. Download the latest jar file. [its not there yet; im scared]
 2. Drop it into your Fabric `mods/` folder with Fabric API.
 3. Launch and enjoy.
 

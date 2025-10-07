@@ -67,6 +67,14 @@ public class SniffGroundGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return woflo.petsplus.ai.goals.EmotionFeedback.dual(
+            woflo.petsplus.state.PetComponent.Emotion.CURIOUS, 0.10f,
+            woflo.petsplus.state.PetComponent.Emotion.FOCUSED, 0.08f
+        );
+    }
+    
+    @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.5f;

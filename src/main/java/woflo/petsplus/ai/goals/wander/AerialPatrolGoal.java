@@ -65,6 +65,16 @@ public class AerialPatrolGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return new woflo.petsplus.ai.goals.EmotionFeedback.Builder()
+            .add(woflo.petsplus.state.PetComponent.Emotion.KEFI, 0.22f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.YUGEN, 0.15f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.GLEE, 0.12f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.LAGOM, 0.10f)
+            .build();
+    }
+    
+    @Override
     protected float calculateEngagement() {
         return 0.6f;
     }

@@ -95,6 +95,9 @@ public class PettingHandler {
 
         emitPettingCues(player, pet, newCount);
 
+        // Relationship tracking - record petting interaction
+        RelationshipEventHandler.onPetPetted(pet, player);
+        
         // Emotion push: affiliative uplift
         petComp.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.6f);
         petComp.pushEmotion(PetComponent.Emotion.UBUNTU, 0.4f);

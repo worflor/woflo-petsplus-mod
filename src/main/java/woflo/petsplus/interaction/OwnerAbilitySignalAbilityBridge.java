@@ -14,6 +14,7 @@ public final class OwnerAbilitySignalAbilityBridge {
     private static final String DOUBLE_CROUCH_EVENT = "owner_signal_double_crouch";
     private static final String PROXIMITY_EVENT = "owner_signal_proximity_channel";
     private static final String SHIFT_INTERACT_EVENT = "owner_signal_shift_interact";
+    private static final String CROUCH_APPROACH_EVENT = "owner_signal_crouch_approach";
 
     private OwnerAbilitySignalAbilityBridge() {
     }
@@ -33,6 +34,14 @@ public final class OwnerAbilitySignalAbilityBridge {
         if (eventType == null) {
             return;
         }
+        
+        // Mark signal in PetComponent for goal detection
+        if (type == OwnerAbilitySignalEvent.Type.CROUCH_APPROACH) {
+            woflo.petsplus.state.PetComponent pc = woflo.petsplus.state.PetComponent.get(pet);
+            if (pc != null) {
+                pc.setStateData("crouch_approach_signal_tick", world.getTime());
+            }
+        }
 
         TriggerContext context = new TriggerContext(world, pet, owner, eventType);
         AbilityManager.triggerAbilities(pet, context);
@@ -43,6 +52,7 @@ public final class OwnerAbilitySignalAbilityBridge {
             case DOUBLE_CROUCH -> DOUBLE_CROUCH_EVENT;
             case PROXIMITY_CHANNEL -> PROXIMITY_EVENT;
             case SHIFT_INTERACT -> SHIFT_INTERACT_EVENT;
+            case CROUCH_APPROACH -> CROUCH_APPROACH_EVENT;
         };
     }
 }

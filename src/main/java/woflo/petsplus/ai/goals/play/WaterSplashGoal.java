@@ -100,6 +100,15 @@ public class WaterSplashGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return woflo.petsplus.ai.goals.EmotionFeedback.triple(
+            woflo.petsplus.state.PetComponent.Emotion.PLAYFULNESS, 0.12f,
+            woflo.petsplus.state.PetComponent.Emotion.GLEE, 0.10f,
+            woflo.petsplus.state.PetComponent.Emotion.KEFI, 0.08f
+        );
+    }
+    
+    @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.85f;

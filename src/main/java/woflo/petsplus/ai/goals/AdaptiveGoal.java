@@ -24,6 +24,9 @@ public abstract class AdaptiveGoal extends Goal {
     private int committedDuration = 0;
     private float currentEngagement = 0.5f;
     
+    // Emotion feedback caching
+    private EmotionFeedback cachedFeedback = null;
+    
     // Engagement tracking
     private static final int BASE_MIN_DURATION = 40;  // 2 seconds
     private static final int BASE_MAX_DURATION = 200; // 10 seconds
@@ -36,6 +39,14 @@ public abstract class AdaptiveGoal extends Goal {
     
     @Override
     public boolean canStart() {
+        // 0. CRITICAL: Never interrupt combat or survival situations
+        if (mob.getAttacker() != null || mob.getAttacking() != null) {
+            return false;
+        }
+        if (mob.getTarget() != null) {
+            return false; // Has attack target
+        }
+        
         // 1. Capability check - can this mob physically do this action?
         if (!meetsCapabilityRequirements()) {
             return false;
@@ -67,6 +78,14 @@ public abstract class AdaptiveGoal extends Goal {
     
     @Override
     public boolean shouldContinue() {
+        // CRITICAL: Immediately stop if combat starts
+        if (mob.getAttacker() != null || mob.getAttacking() != null) {
+            return false;
+        }
+        if (mob.getTarget() != null) {
+            return false; // Attack target acquired
+        }
+        
         // Stop if higher priority goal needs to run
         if (hasActiveHigherPriorityGoals()) {
             return false;
@@ -105,6 +124,9 @@ public abstract class AdaptiveGoal extends Goal {
         
         // Record activity completion for behavioral momentum
         recordActivityCompletion();
+        
+        // Trigger emotion feedback (Phase 2)
+        triggerEmotionFeedback();
         
         onStopGoal();
         activeTicks = 0;
@@ -156,6 +178,17 @@ public abstract class AdaptiveGoal extends Goal {
      * Calculate current engagement level (0.0 = boring, 1.0 = very engaging).
      */
     protected abstract float calculateEngagement();
+    
+    /**
+     * Define emotion feedback for this goal.
+     * Called once and cached for performance.
+     * Override to provide goal-specific emotional rewards.
+     * 
+     * @return EmotionFeedback definition, or EmotionFeedback.NONE for no feedback
+     */
+    protected EmotionFeedback defineEmotionFeedback() {
+        return EmotionFeedback.NONE; // Default: no emotions
+    }
     
     /**
      * Get the activity type for behavioral momentum tracking.
@@ -329,6 +362,87 @@ public abstract class AdaptiveGoal extends Goal {
             var activityType = getActivityType();
             long duration = Math.min(activeTicks, 400); // Cap at 20 seconds
             pc.getMoodEngine().recordBehavioralActivity(intensity, duration, activityType);
+        }
+    }
+    
+    /**
+     * Trigger emotion feedback when goal completes.
+     * Uses lazy evaluation and caching for maximum performance.
+     * Only triggers for PetsPlus pets (vanilla mobs unaffected).
+     */
+    protected void triggerEmotionFeedback() {
+        PetComponent pc = PetComponent.get(mob);
+        if (pc == null) {
+            return; // Vanilla mob, no emotion system
+        }
+        
+        // Lazy-load and cache feedback definition
+        if (cachedFeedback == null) {
+            cachedFeedback = defineEmotionFeedback();
+        }
+        
+        // Skip if no emotions defined
+        if (cachedFeedback.isEmpty()) {
+            return;
+        }
+        
+        // Queue emotions via stimulus bus (async-safe)
+        var stimulusBus = woflo.petsplus.mood.MoodService.getInstance().getStimulusBus();
+        stimulusBus.queueSimpleStimulus(mob, collector -> {
+            // Push all defined emotions
+            for (var entry : cachedFeedback.emotions().entrySet()) {
+                collector.pushEmotion(entry.getKey(), entry.getValue());
+            }
+        });
+        
+        // Dispatch immediately for responsive feedback
+        stimulusBus.dispatchStimuli(mob);
+        
+        // Handle contagion if enabled
+        if (cachedFeedback.triggersContagion() && mob.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+            triggerEmotionContagion(serverWorld, cachedFeedback);
+        }
+    }
+    
+    /**
+     * Trigger emotional contagion to nearby pets.
+     * Performance-optimized: only scans when contagion is enabled.
+     */
+    private void triggerEmotionContagion(net.minecraft.server.world.ServerWorld world, EmotionFeedback feedback) {
+        if (!feedback.triggersContagion() || feedback.contagionEmotion() == null) {
+            return;
+        }
+        
+        // Find nearby owned pets (within 8 blocks)
+        var nearbyPets = world.getEntitiesByClass(
+            MobEntity.class,
+            mob.getBoundingBox().expand(8.0),
+            entity -> {
+                if (entity == mob) return false; // Not self
+                PetComponent pc = PetComponent.get(entity);
+                return pc != null && pc.getOwner() != null;
+            }
+        );
+        
+        if (nearbyPets.isEmpty()) {
+            return;
+        }
+        
+        // Queue contagion emotions
+        var stimulusBus = woflo.petsplus.mood.MoodService.getInstance().getStimulusBus();
+        for (MobEntity nearbyPet : nearbyPets) {
+            stimulusBus.queueSimpleStimulus(nearbyPet, collector -> {
+                collector.pushEmotion(feedback.contagionEmotion(), feedback.contagionStrength());
+            });
+            stimulusBus.dispatchStimuli(nearbyPet);
+        }
+        
+        // Visual feedback for contagion (optional)
+        PetComponent sourcePc = PetComponent.get(mob);
+        if (sourcePc != null) {
+            woflo.petsplus.ui.FeedbackManager.emitContagionFeedback(
+                mob, world, feedback.contagionEmotion()
+            );
         }
     }
 }

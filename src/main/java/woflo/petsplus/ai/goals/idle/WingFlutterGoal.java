@@ -51,6 +51,13 @@ public class WingFlutterGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return woflo.petsplus.ai.goals.EmotionFeedback.single(
+            woflo.petsplus.state.PetComponent.Emotion.KEFI, 0.08f
+        );
+    }
+    
+    @Override
     protected float calculateEngagement() {
         return 0.4f; // Light stretching behavior
     }

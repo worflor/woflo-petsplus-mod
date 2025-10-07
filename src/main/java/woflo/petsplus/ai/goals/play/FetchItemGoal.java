@@ -117,6 +117,22 @@ public class FetchItemGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        // Fetch is a complex achievement behavior combining:
+        // - Service/loyalty (bringing gift to owner)
+        // - Pride (successful completion of multi-phase task)
+        // - Playfulness (game-like structure)
+        // - Energy/enthusiasm (KEFI during chase)
+        return new woflo.petsplus.ai.goals.EmotionFeedback.Builder()
+            .add(woflo.petsplus.state.PetComponent.Emotion.LOYALTY, 0.22f)      // Serving beloved owner
+            .add(woflo.petsplus.state.PetComponent.Emotion.PRIDE, 0.18f)        // Task accomplishment
+            .add(woflo.petsplus.state.PetComponent.Emotion.KEFI, 0.15f)         // Energized joy of chase
+            .add(woflo.petsplus.state.PetComponent.Emotion.PLAYFULNESS, 0.12f)  // Game-like fun
+            .withContagion(woflo.petsplus.state.PetComponent.Emotion.PLAYFULNESS, 0.020f)  // Spread enthusiasm
+            .build();
+    }
+    
+    @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.85f;

@@ -109,6 +109,12 @@ public enum GoalType {
     ORBIT_SWIM(Category.SOCIAL, 15, 0, 0,
         caps -> caps.hasOwner() && caps.canSwim(), new Vec2f(0.3f, 0.8f)),
     
+    EYE_CONTACT(Category.SOCIAL, 25, 0, 0,
+        caps -> caps.hasOwner(), new Vec2f(0.0f, 1.0f)),
+    
+    CROUCH_APPROACH_RESPONSE(Category.SOCIAL, 12, 100, 300,
+        caps -> caps.hasOwner(), new Vec2f(0.3f, 0.9f)),
+    
     // === SPECIAL BEHAVIORS ===
     HIDE_AND_SEEK(Category.SPECIAL, 16, 0, 0,
         caps -> caps.hasOwner() && caps.canWander(), new Vec2f(0.6f, 1.0f)),

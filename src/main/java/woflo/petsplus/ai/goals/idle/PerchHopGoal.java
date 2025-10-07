@@ -69,6 +69,14 @@ public class PerchHopGoal extends AdaptiveGoal {
     }
     
     @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return woflo.petsplus.ai.goals.EmotionFeedback.dual(
+            woflo.petsplus.state.PetComponent.Emotion.VIGILANT, 0.08f,
+            woflo.petsplus.state.PetComponent.Emotion.CURIOUS, 0.06f
+        );
+    }
+    
+    @Override
     protected float calculateEngagement() {
         return 0.5f;
     }

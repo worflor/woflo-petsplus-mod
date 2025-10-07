@@ -21,6 +21,7 @@ public class GiftBringingGoal extends AdaptiveGoal {
     private int giftPhase = 0; // 0 = search, 1 = pickup, 2 = deliver
     private static final int MAX_GIFT_TICKS = 400; // 20 seconds
     private int giftTicks = 0;
+    private boolean giftTracked = false;
     
     public GiftBringingGoal(MobEntity mob) {
         super(mob, GoalType.GIFT_BRINGING, EnumSet.of(Control.MOVE));
@@ -52,6 +53,7 @@ public class GiftBringingGoal extends AdaptiveGoal {
     protected void onStartGoal() {
         giftPhase = 0;
         giftTicks = 0;
+        giftTracked = false;
     }
     
     @Override
@@ -85,6 +87,12 @@ public class GiftBringingGoal extends AdaptiveGoal {
             
             if (mob.squaredDistanceTo(targetPlayer) < 4.0) {
                 giftPhase = 2;
+                // Track gift giving for relationship system (once per gift)
+                // Using GIFT interaction (pet bringing gift is bonding moment)
+                if (!giftTracked) {
+                    woflo.petsplus.events.RelationshipEventHandler.onGiftGiven(mob, targetPlayer, 1.0f);
+                    giftTracked = true;
+                }
             }
         } else if (giftPhase == 2) {
             // Phase 2: Present gift
@@ -137,6 +145,17 @@ public class GiftBringingGoal extends AdaptiveGoal {
                stack.isOf(Items.FEATHER) ||
                stack.isOf(Items.RABBIT_FOOT) ||
                stack.isOf(Items.BONE);
+    }
+    
+    @Override
+    protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
+        return new woflo.petsplus.ai.goals.EmotionFeedback.Builder()
+            .add(woflo.petsplus.state.PetComponent.Emotion.LOYALTY, 0.28f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.PRIDE, 0.22f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.KEFI, 0.18f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.UBUNTU, 0.15f)
+            .withContagion(woflo.petsplus.state.PetComponent.Emotion.LOYALTY, 0.020f)
+            .build();
     }
     
     @Override
