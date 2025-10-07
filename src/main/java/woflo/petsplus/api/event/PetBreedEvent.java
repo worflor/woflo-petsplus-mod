@@ -232,6 +232,10 @@ public final class PetBreedEvent {
             private final boolean nearPowderSnow;
             private final boolean nearMudOrMangrove;
             private final boolean nearMajorStructure;
+            private final boolean hasArchaeologySite;
+            private final boolean nearTrialChamber;
+            private final boolean hasCherryBloom;
+            private final boolean hasActiveRedstone;
 
             public Environment(net.minecraft.util.math.BlockPos position,
                                Identifier biomeId,
@@ -251,7 +255,11 @@ public final class PetBreedEvent {
                                boolean nearLavaOrMagma,
                                boolean nearPowderSnow,
                                boolean nearMudOrMangrove,
-                               boolean nearMajorStructure) {
+                               boolean nearMajorStructure,
+                               boolean hasArchaeologySite,
+                               boolean nearTrialChamber,
+                               boolean hasCherryBloom,
+                               boolean hasActiveRedstone) {
                 this.position = position;
                 this.biomeId = biomeId;
                 this.biomeTemperature = biomeTemperature;
@@ -271,6 +279,10 @@ public final class PetBreedEvent {
                 this.nearPowderSnow = nearPowderSnow;
                 this.nearMudOrMangrove = nearMudOrMangrove;
                 this.nearMajorStructure = nearMajorStructure;
+                this.hasArchaeologySite = hasArchaeologySite;
+                this.nearTrialChamber = nearTrialChamber;
+                this.hasCherryBloom = hasCherryBloom;
+                this.hasActiveRedstone = hasActiveRedstone;
             }
 
             public net.minecraft.util.math.BlockPos getPosition() {
@@ -347,6 +359,22 @@ public final class PetBreedEvent {
 
             public boolean isNearMajorStructure() {
                 return nearMajorStructure;
+            }
+
+            public boolean hasArchaeologySite() {
+                return hasArchaeologySite;
+            }
+
+            public boolean isNearTrialChamber() {
+                return nearTrialChamber;
+            }
+
+            public boolean hasCherryBloom() {
+                return hasCherryBloom;
+            }
+
+            public boolean hasActiveRedstone() {
+                return hasActiveRedstone;
             }
         }
     }

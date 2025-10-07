@@ -1,0 +1,22 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:redstone_wire",
+    "minecraft:repeater",
+    "minecraft:comparator",
+    "minecraft:observer",
+    "minecraft:daylight_detector",
+    "minecraft:calibrated_sculk_sensor",
+    "minecraft:sculk_sensor",
+    "minecraft:crafter",
+    "minecraft:dispenser",
+    "minecraft:dropper",
+    "minecraft:hopper",
+    "minecraft:note_block",
+    "minecraft:piston",
+    "minecraft:sticky_piston",
+    "minecraft:redstone_lamp",
+    "minecraft:target",
+    "minecraft:lightning_rod"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "replace": false,
+  "hooks": [
+    {
+      "trigger": "cherry_blossom_bloom",
+      "slot": "major",
+      "scale": 0.75,
+      "cooldown": 180
+    },
+    {
+      "trigger": "cherry_petal_harvest",
+      "slot": "minor",
+      "scale": 0.55,
+      "cooldown": 200
+    },
+    {
+      "trigger": "place_sapling",
+      "slot": "quirk",
+      "scale": 0.35,
+      "cooldown": 220
+    }
+  ]
+}

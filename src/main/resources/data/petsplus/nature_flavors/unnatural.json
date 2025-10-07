@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "hooks": [
+    {
+      "trigger": "use_trial_key",
+      "slot": "minor",
+      "scale": 0.6,
+      "cooldown": 200
+    }
+  ]
+}

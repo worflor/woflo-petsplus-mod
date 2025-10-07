@@ -1,0 +1,17 @@
+{
+  "replace": false,
+  "hooks": [
+    {
+      "trigger": "cherry_blossom_bloom",
+      "slot": "minor",
+      "scale": 0.6,
+      "cooldown": 220
+    },
+    {
+      "trigger": "cherry_petal_harvest",
+      "slot": "quirk",
+      "scale": 0.4,
+      "cooldown": 220
+    }
+  ]
+}
