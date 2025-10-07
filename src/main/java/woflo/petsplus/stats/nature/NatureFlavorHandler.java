@@ -209,6 +209,7 @@ public final class NatureFlavorHandler {
 
         register("verdant", builder -> builder
             .hook(Trigger.PLACE_SAPLING, Slot.MAJOR, 0.75f, 160)
+            .hook(Trigger.CHERRY_BLOSSOM_BLOOM, Slot.MINOR, 0.55f, 200)
             .hook(Trigger.WEATHER_CLEAR, Slot.MINOR, 0.5f, 240)
             .hook(Trigger.BREAK_MUSHROOM, Slot.QUIRK, 0.3f, 240));
         
