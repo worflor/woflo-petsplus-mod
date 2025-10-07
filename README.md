@@ -5,8 +5,8 @@
 </p>
 
 <h1 align="center">Pets+</h1>
-<h3 align="center">dev-0.93-stable-backends</h3>
-<h4 align="center">next: stabler backends</h4>
+<h3 align="center">dev-0.93-Rebranding-to-Realtime</h3>
+<h4 align="center">next: stablerer backends</h4>
 
 ---
 
