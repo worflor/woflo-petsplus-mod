@@ -1,6 +1,7 @@
 package woflo.petsplus.ai.goals.idle;
 
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
@@ -18,6 +19,7 @@ public class TailChaseGoal extends AdaptiveGoal {
     private int spinCount = 0;
     private float targetYaw;
     private int spinDirection; // 1 or -1
+    private float accumulatedRotation;
     private static final int MAX_SPINS = 8;
     
     public TailChaseGoal(MobEntity mob) {
@@ -40,6 +42,7 @@ public class TailChaseGoal extends AdaptiveGoal {
         spinCount = 0;
         spinDirection = mob.getRandom().nextBoolean() ? 1 : -1;
         targetYaw = mob.getYaw();
+        accumulatedRotation = 0f;
     }
     
     @Override
@@ -60,16 +63,24 @@ public class TailChaseGoal extends AdaptiveGoal {
     @Override
     protected void onTickGoal() {
         // Spin around
-        targetYaw += spinDirection * 30f; // 30 degrees per tick = fast spin
+        float yawDelta = spinDirection * 30f; // 30 degrees per tick = fast spin
+        targetYaw += yawDelta;
         mob.setYaw(targetYaw);
         mob.headYaw = targetYaw;
         mob.bodyYaw = targetYaw;
-        
+
+        accumulatedRotation += Math.abs(yawDelta);
+
         // Count full rotations
-        if (Math.abs(targetYaw - mob.getYaw()) > 360) {
+        while (accumulatedRotation >= 360f) {
             spinCount++;
-            targetYaw = mob.getYaw(); // Reset to prevent overflow
-            
+            accumulatedRotation -= 360f;
+
+            targetYaw = (float) MathHelper.wrapDegrees(targetYaw);
+            mob.setYaw(targetYaw);
+            mob.headYaw = targetYaw;
+            mob.bodyYaw = targetYaw;
+
             // Particle effect on spin completion
             if (mob.getWorld().isClient) {
                 spawnSpinParticles();

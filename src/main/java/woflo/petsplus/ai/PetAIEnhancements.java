@@ -42,7 +42,7 @@ public class PetAIEnhancements {
             // === NEW ADAPTIVE AI SYSTEM ===
             // Replaces old mood-based, MoodInfluenced, and MoodAdvanced systems
             // This single call adds ALL adaptive goals based on mob capabilities
-            AdaptiveAIManager.initializeAdaptiveAI(pet);
+            AdaptiveAIManager.reinitializeAdaptiveAI(pet);
 
         } catch (Exception e) {
             Petsplus.LOGGER.warn("Failed to enhance AI for pet {}: {}", pet.getType(), e.getMessage());
