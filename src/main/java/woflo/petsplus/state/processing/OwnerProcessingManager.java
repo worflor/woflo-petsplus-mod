@@ -88,11 +88,23 @@ public final class OwnerProcessingManager {
             return;
         }
         UUID ownerId = component.getOwnerUuid();
+        UUID previousOwner = membership.put(component, ownerId);
+        if (previousOwner != null && (ownerId == null || !previousOwner.equals(ownerId))) {
+            OwnerProcessingGroup previousGroup = groups.get(previousOwner);
+            if (previousGroup != null) {
+                previousGroup.untrack(component);
+                if (previousGroup.currentPets().isEmpty()) {
+                    removeGroupFromDueQueue(previousGroup);
+                    groups.remove(previousOwner, previousGroup);
+                    previousGroup.clear();
+                }
+            }
+        }
         if (ownerId == null) {
+            membership.remove(component);
             return;
         }
         OwnerProcessingGroup group = groups.computeIfAbsent(ownerId, OwnerProcessingGroup::new);
-        membership.put(component, ownerId);
         group.markPetChanged(component, currentTick);
     }
 

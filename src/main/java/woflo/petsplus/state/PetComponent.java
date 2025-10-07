@@ -41,6 +41,7 @@ import woflo.petsplus.naming.AttributeKey;
 import woflo.petsplus.history.HistoryEvent;
 import woflo.petsplus.state.modules.*;
 import woflo.petsplus.state.modules.impl.*;
+import woflo.petsplus.state.relationships.SpeciesMemory;
 import woflo.petsplus.util.BehaviorSeedUtil;
 
 import net.minecraft.util.math.ChunkSectionPos;
@@ -2853,6 +2854,11 @@ public class PetComponent {
             data = data.withOwner(ownerData);
         }
 
+        RelationshipModule.Data relationshipData = relationshipModule.toData();
+        if (relationshipData != null && !isRelationshipDataEmpty(relationshipData)) {
+            data = data.withRelationships(relationshipData);
+        }
+
         SchedulingModule.Data schedulingData = schedulingModule.toData();
         if (schedulingData != null) {
             data = data.withScheduling(schedulingData);
@@ -2900,6 +2906,11 @@ public class PetComponent {
         data.owner().ifPresentOrElse(
             ownerModule::fromData,
             this::clearOwnerModule
+        );
+
+        data.relationships().ifPresentOrElse(
+            relationshipModule::fromData,
+            () -> relationshipModule.fromData(emptyRelationshipData())
         );
 
         data.scheduling().ifPresentOrElse(
@@ -2990,6 +3001,27 @@ public class PetComponent {
         }
         stateData.clear();
         speciesMetadataModule.markFlightDirty();
+    }
+
+    private static RelationshipModule.Data emptyRelationshipData() {
+        return new RelationshipModule.Data(
+            List.of(),
+            0L,
+            new SpeciesMemory.Data(List.of(), 0L)
+        );
+    }
+
+    private static boolean isRelationshipDataEmpty(@Nullable RelationshipModule.Data data) {
+        if (data == null) {
+            return true;
+        }
+        boolean hasRelationships = data.relationships() != null && !data.relationships().isEmpty();
+        var speciesMemory = data.speciesMemory();
+        boolean hasSpeciesMemory = speciesMemory != null
+            && speciesMemory.memories() != null
+            && !speciesMemory.memories().isEmpty();
+        boolean hasDecayState = data.lastDecayTick() > 0L;
+        return !hasRelationships && !hasSpeciesMemory && !hasDecayState;
     }
 
     /**

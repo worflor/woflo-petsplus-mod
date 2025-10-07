@@ -63,6 +63,27 @@ final class OwnerProcessingGroup {
         if (petLookup.remove(pet) != null) {
             petCacheDirty = true;
         }
+
+        if (!pendingTasks.isEmpty()) {
+            var iterator = pendingTasks.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<PetWorkScheduler.TaskType, List<PetWorkScheduler.ScheduledTask>> entry = iterator.next();
+                List<PetWorkScheduler.ScheduledTask> tasks = entry.getValue();
+                if (tasks == null || tasks.isEmpty()) {
+                    if (tasks != null) {
+                        PooledTaskLists.recycle(tasks);
+                    }
+                    iterator.remove();
+                    continue;
+                }
+
+                tasks.removeIf(task -> task == null || task.component() == component);
+                if (tasks.isEmpty()) {
+                    PooledTaskLists.recycle(tasks);
+                    iterator.remove();
+                }
+            }
+        }
     }
 
     boolean isEmpty() {
