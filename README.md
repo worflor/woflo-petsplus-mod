@@ -6,22 +6,24 @@
 
 <h1 align="center">Pets+</h1>
 <h3 align="center">dev-0.93-stable-backends</h3>
-<h4 align="center">next: slowly getting systems in place to eventually add **pick mes**</h4>
+<h4 align="center">next: stabler backends</h4>
 
 ---
 
 <p align="center">
   For those who wish their minecraft pet could do more... be more... FEEL more.
   <br>
-  <strong>Mod is VERY in development. Pet component needs stablization before release.</strong>
+  <strong>Mod is **NOT** officially released / out of development.</strong>
 </p>
 
 ---
 
 ### What you'll notice
-- Natures act as the personality/vibe, emotions flare in the moment, moods linger in the background. 
-- Roles and little unlocks grow as you adventure, explore, and keep pets close.
-- Memories and stories are tracked. Not for progression, but for immersion.
+- Realtime fluctuations in your pet's mood; shifting through the stimulus its exposed to throughout its environment and interactions.
+- Natures act like baseline *personalities*, adding quirks to your pets moods and stats.
+- Levels unlocks grow as you adventure, explore, and keep pets close.
+- Roles allow your pet to fulfill... roles!
+- Memories and stories are tracked.
 
 Curious how each layer fits together? The [feature docs](docs/features/_readme.md) is your friend.
 
