@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -133,6 +134,10 @@ public final class PetSwarmIndex {
             return List.of();
         }
         return swarm.snapshot();
+    }
+
+    public Set<UUID> ownerIds() {
+        return Collections.unmodifiableSet(swarmsByOwner.keySet());
     }
 
     @Nullable

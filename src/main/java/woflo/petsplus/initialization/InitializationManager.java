@@ -45,6 +45,7 @@ public class InitializationManager {
 
         // Initialize configuration
         PetsPlusConfig.getInstance();
+        woflo.petsplus.mood.storm.MoodStormHooks.initialize();
 
         // Load reusable visual systems
         woflo.petsplus.ui.AfterimageManager.initialize();

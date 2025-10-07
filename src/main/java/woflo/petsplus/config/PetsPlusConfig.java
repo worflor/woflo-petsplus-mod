@@ -35,10 +35,7 @@ import java.util.stream.Stream;
  */
 public class PetsPlusConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Path LEGACY_CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("petsplus.json");
-    private static final Path CONFIG_DIR = FabricLoader.getInstance().getConfigDir().resolve("petsplus");
-    private static final Path CORE_CONFIG_PATH = CONFIG_DIR.resolve("core.json");
-    private static final Path ROLES_DIR = CONFIG_DIR.resolve("roles");
+    private static volatile Path cachedConfigRoot;
 
     private static final String ROLES_KEY = "roles";
     private static final String ABILITIES_KEY = "abilities";
@@ -73,6 +70,53 @@ public class PetsPlusConfig {
         loadConfig();
     }
 
+    private static Path configRootDir() {
+        Path root = cachedConfigRoot;
+        if (root != null) {
+            return root;
+        }
+        synchronized (PetsPlusConfig.class) {
+            root = cachedConfigRoot;
+            if (root == null) {
+                cachedConfigRoot = root = computeConfigRoot();
+            }
+        }
+        return root;
+    }
+
+    private static Path computeConfigRoot() {
+        try {
+            FabricLoader loader = FabricLoader.getInstance();
+            Path configDir = loader.getConfigDir();
+            if (configDir != null) {
+                return configDir;
+            }
+        } catch (Throwable ignored) {
+        }
+
+        String tmpDir = System.getProperty("java.io.tmpdir");
+        if (tmpDir != null && !tmpDir.isBlank()) {
+            return Path.of(tmpDir, "petsplus-config");
+        }
+        return Path.of("build", "petsplus-config");
+    }
+
+    private static Path configDir() {
+        return configRootDir().resolve("petsplus");
+    }
+
+    private static Path rolesDir() {
+        return configDir().resolve("roles");
+    }
+
+    private static Path coreConfigPath() {
+        return configDir().resolve("core.json");
+    }
+
+    private static Path legacyConfigPath() {
+        return configRootDir().resolve("petsplus.json");
+    }
+
     public static PetsPlusConfig getInstance() {
         if (instance == null) {
             instance = new PetsPlusConfig();
@@ -103,7 +147,7 @@ public class PetsPlusConfig {
         }
 
         if (coreDirty) {
-            writeJsonFile(CORE_CONFIG_PATH, core, "core");
+            writeJsonFile(coreConfigPath(), core, "core");
         }
 
         ensureRoleFilesForRegistry(roleConfigs);
@@ -190,6 +234,10 @@ public class PetsPlusConfig {
             core.add("emotion_cues", createEmotionCueDefaults());
             changed = true;
         }
+        if (!core.has("mood_storms") || !core.get("mood_storms").isJsonObject()) {
+            core.add("mood_storms", createMoodStormDefaults());
+            changed = true;
+        }
         if (!core.has("action_bar") || !core.get("action_bar").isJsonObject()) {
             core.add("action_bar", createActionBarDefaults());
             changed = true;
@@ -239,29 +287,34 @@ public class PetsPlusConfig {
         root.add("pets", new JsonObject());
         root.add("visuals", createVisualDefaults());
         root.add("emotion_cues", createEmotionCueDefaults());
+        root.add("mood_storms", createMoodStormDefaults());
         root.add("action_bar", createActionBarDefaults());
         root.add("named_attributes", createNamedAttributesDefaults());
         return root;
     }
 
     private void ensureConfigDirectories() {
+        Path configDir = configDir();
+        Path rolesDir = rolesDir();
         try {
-            Files.createDirectories(CONFIG_DIR);
-            Files.createDirectories(ROLES_DIR);
+            Files.createDirectories(configDir);
+            Files.createDirectories(rolesDir);
         } catch (IOException e) {
-            Petsplus.LOGGER.error("Failed to prepare PetsPlus config directories under {}", CONFIG_DIR, e);
+            Petsplus.LOGGER.error("Failed to prepare PetsPlus config directories under {}", configDir, e);
         }
     }
 
     private void migrateLegacyConfigIfNeeded() {
-        if (!Files.exists(LEGACY_CONFIG_PATH)) {
+        Path legacyPath = legacyConfigPath();
+        Path corePath = coreConfigPath();
+        if (!Files.exists(legacyPath)) {
             return;
         }
-        if (Files.exists(CORE_CONFIG_PATH) || hasAnyRoleFiles()) {
+        if (Files.exists(corePath) || hasAnyRoleFiles()) {
             return;
         }
 
-        LoadResult result = readJsonObject(LEGACY_CONFIG_PATH, "config");
+        LoadResult result = readJsonObject(legacyPath, "config");
         if (result.config() == null) {
             return;
         }
@@ -270,52 +323,55 @@ public class PetsPlusConfig {
         Map<Identifier, JsonObject> roles = extractRolesFromCore(legacyRoot);
         JsonObject core = legacyRoot;
 
-        writeJsonFile(CORE_CONFIG_PATH, core, "core");
+        writeJsonFile(corePath, core, "core");
         roles.forEach(this::writeRoleConfig);
 
-        Path backup = LEGACY_CONFIG_PATH.resolveSibling("petsplus.json.legacy");
+        Path backup = legacyPath.resolveSibling("petsplus.json.legacy");
         try {
-            Files.move(LEGACY_CONFIG_PATH, backup, StandardCopyOption.REPLACE_EXISTING);
-            Petsplus.LOGGER.info("Migrated PetsPlus config to {} (legacy file backed up to {}).", CONFIG_DIR, backup);
+            Files.move(legacyPath, backup, StandardCopyOption.REPLACE_EXISTING);
+            Petsplus.LOGGER.info("Migrated PetsPlus config to {} (legacy file backed up to {}).", configDir(), backup);
         } catch (IOException e) {
-            Petsplus.LOGGER.warn("Migrated PetsPlus config to multi-file layout but failed to back up legacy file {}.", LEGACY_CONFIG_PATH, e);
+            Petsplus.LOGGER.warn("Migrated PetsPlus config to multi-file layout but failed to back up legacy file {}.", legacyPath, e);
         }
     }
 
     private boolean hasAnyRoleFiles() {
-        if (!Files.exists(ROLES_DIR)) {
+        Path rolesDir = rolesDir();
+        if (!Files.exists(rolesDir)) {
             return false;
         }
-        try (Stream<Path> stream = Files.walk(ROLES_DIR)) {
+        try (Stream<Path> stream = Files.walk(rolesDir)) {
             return stream.anyMatch(path -> Files.isRegularFile(path) && path.toString().endsWith(".json"));
         } catch (IOException e) {
-            Petsplus.LOGGER.error("Failed to inspect PetsPlus role overrides under {}", ROLES_DIR, e);
+            Petsplus.LOGGER.error("Failed to inspect PetsPlus role overrides under {}", rolesDir, e);
             return false;
         }
     }
 
     private JsonObject loadCoreConfig() {
-        LoadResult result = readJsonObject(CORE_CONFIG_PATH, "core config");
+        Path corePath = coreConfigPath();
+        LoadResult result = readJsonObject(corePath, "core config");
         if (result.config() != null) {
             return result.config();
         }
 
         JsonObject defaults = createDefaultCoreConfig();
         if (result.shouldWriteDefaults()) {
-            writeJsonFile(CORE_CONFIG_PATH, defaults, "core");
+            writeJsonFile(corePath, defaults, "core");
         } else {
-            Petsplus.LOGGER.warn("Using in-memory PetsPlus core defaults; fix or delete {} to restore saved overrides.", CORE_CONFIG_PATH);
+            Petsplus.LOGGER.warn("Using in-memory PetsPlus core defaults; fix or delete {} to restore saved overrides.", corePath);
         }
         return defaults;
     }
 
     private Map<Identifier, JsonObject> loadRoleConfigs() {
         Map<Identifier, JsonObject> roles = new LinkedHashMap<>();
-        if (!Files.exists(ROLES_DIR)) {
+        Path rolesDir = rolesDir();
+        if (!Files.exists(rolesDir)) {
             return roles;
         }
 
-        try (Stream<Path> stream = Files.walk(ROLES_DIR)) {
+        try (Stream<Path> stream = Files.walk(rolesDir)) {
             stream.filter(Files::isRegularFile)
                 .filter(path -> path.getFileName().toString().endsWith(".json"))
                 .forEach(path -> {
@@ -339,7 +395,7 @@ public class PetsPlusConfig {
                     }
                 });
         } catch (IOException e) {
-            Petsplus.LOGGER.error("Failed to read PetsPlus role overrides from {}", ROLES_DIR, e);
+            Petsplus.LOGGER.error("Failed to read PetsPlus role overrides from {}", rolesDir, e);
         }
         return roles;
     }
@@ -479,12 +535,13 @@ public class PetsPlusConfig {
     }
 
     private Path resolveRolePath(Identifier roleId) {
-        return ROLES_DIR.resolve(roleId.getNamespace()).resolve(roleId.getPath() + ".json");
+        return rolesDir().resolve(roleId.getNamespace()).resolve(roleId.getPath() + ".json");
     }
 
 
     private Identifier identifierFromRolePath(Path path) {
-        Path relative = ROLES_DIR.relativize(path);
+        Path baseDir = rolesDir();
+        Path relative = baseDir.relativize(path);
         int count = relative.getNameCount();
         if (count < 2) {
             return null;
@@ -594,6 +651,21 @@ public class PetsPlusConfig {
         cues.addProperty("hud_pulse", true);
         cues.addProperty("debug_overlay", false);
         return cues;
+    }
+
+    private static JsonObject createMoodStormDefaults() {
+        JsonObject storms = new JsonObject();
+        storms.addProperty("enabled", true);
+        storms.addProperty("chorus_count", 4);
+        storms.addProperty("min_level", 2);
+        storms.addProperty("min_strength", 0.45);
+        storms.addProperty("cooldown_ticks", 2400);
+        storms.addProperty("push_radius", 12.0);
+        storms.addProperty("particle_radius", 3.0);
+        storms.addProperty("particle_count", 48);
+        storms.addProperty("particle_speed", 0.05);
+        storms.addProperty("emotion_push", 0.35);
+        return storms;
     }
 
     private static JsonObject createActionBarDefaults() {
@@ -742,6 +814,51 @@ public class PetsPlusConfig {
 
     public boolean isEmotionCueDebugOverlayEnabled() {
         return readBoolean(getSection("emotion_cues"), "debug_overlay", false);
+    }
+
+    public JsonObject getMoodStormSection() {
+        return getSection("mood_storms");
+    }
+
+    public boolean areMoodStormsEnabled() {
+        return readBoolean(getMoodStormSection(), "enabled", true);
+    }
+
+    public int getMoodStormChorusCount() {
+        return Math.max(1, readInt(getMoodStormSection(), "chorus_count", 4));
+    }
+
+    public int getMoodStormLevelRequirement() {
+        return Math.max(0, readInt(getMoodStormSection(), "min_level", 2));
+    }
+
+    public float getMoodStormStrengthThreshold() {
+        return (float) Math.max(0.0, readDouble(getMoodStormSection(), "min_strength", 0.45));
+    }
+
+    public long getMoodStormCooldownTicks() {
+        double value = readDouble(getMoodStormSection(), "cooldown_ticks", 2400.0);
+        return value <= 0.0 ? 0L : (long) Math.round(value);
+    }
+
+    public double getMoodStormPushRadius() {
+        return Math.max(0.0, readDouble(getMoodStormSection(), "push_radius", 12.0));
+    }
+
+    public double getMoodStormParticleRadius() {
+        return Math.max(0.0, readDouble(getMoodStormSection(), "particle_radius", 3.0));
+    }
+
+    public int getMoodStormParticleCount() {
+        return Math.max(0, readInt(getMoodStormSection(), "particle_count", 48));
+    }
+
+    public double getMoodStormParticleSpeed() {
+        return Math.max(0.0, readDouble(getMoodStormSection(), "particle_speed", 0.05));
+    }
+
+    public float getMoodStormEmotionPushAmount() {
+        return (float) Math.max(0.0, readDouble(getMoodStormSection(), "emotion_push", 0.35));
     }
 
     // Tribute Orbital Configuration

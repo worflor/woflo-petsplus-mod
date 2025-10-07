@@ -27,7 +27,11 @@ import woflo.petsplus.events.EmotionContextCues;
 import woflo.petsplus.events.EmotionsEventHandler;
 import woflo.petsplus.roles.support.SupportPotionUtils;
 import woflo.petsplus.roles.support.SupportPotionVacuumManager;
+import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.mood.MoodService;
+import woflo.petsplus.mood.MoodStormEvent;
+import woflo.petsplus.mood.storm.MoodStormDefinition;
+import woflo.petsplus.mood.storm.MoodStormRegistry;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.coordination.PetWorkScheduler;
 import woflo.petsplus.mood.EmotionStimulusBus;
@@ -69,6 +73,7 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -109,6 +114,7 @@ public class StateManager {
     private final OwnerEventDispatcher.PresenceListener ownerPresenceListener;
     private final EmotionStimulusBus.QueueListener stimulusQueueListener;
     private final EmotionStimulusBus.IdleListener stimulusIdleListener;
+    private final MoodStormTracker moodStormTracker = new MoodStormTracker();
     private final Map<UUID, EnumMap<OwnerEventType, OwnerSpatialResult>> pendingSpatialResults = new HashMap<>();
     private final Map<UUID, EnumMap<OwnerEventType, SpatialJobState>> spatialJobStates = new HashMap<>();
     private boolean disposed;
@@ -354,6 +360,7 @@ public class StateManager {
         swarmIndex.removeOwner(ownerId);
         auraTargetResolver.handleOwnerRemoval(ownerId);
         ownerProcessingManager.removeOwner(ownerId);
+        moodStormTracker.clearOwner(ownerId);
     }
 
     public void handleOwnerTick(ServerPlayerEntity player) {
@@ -558,6 +565,7 @@ public class StateManager {
             ownerBatchProcessor.processBatch(batch, currentTick)
         , currentTick, budget);
         maybeLogAsyncTelemetry(currentTick);
+        moodStormTracker.tick(currentTick);
     }
 
     public long scaleInterval(long baseTicks) {
@@ -1745,6 +1753,252 @@ public class StateManager {
         return player;
     }
 
+    private final class MoodStormTracker {
+        private final Map<UUID, EnumMap<PetComponent.Mood, Long>> cooldowns = new HashMap<>();
+        private long lastProcessedTick = Long.MIN_VALUE;
+
+        void tick(long currentTick) {
+            if (currentTick <= lastProcessedTick) {
+                return;
+            }
+            lastProcessedTick = currentTick;
+
+            PetsPlusConfig config;
+            try {
+                config = PetsPlusConfig.getInstance();
+            } catch (Throwable error) {
+                return;
+            }
+            if (!config.areMoodStormsEnabled()) {
+                return;
+            }
+
+            int minCount = Math.max(1, config.getMoodStormChorusCount());
+            int minLevel = Math.max(0, config.getMoodStormLevelRequirement());
+            float minStrength = Math.max(0.0f, config.getMoodStormStrengthThreshold());
+            float pushAmount = Math.max(0.0f, config.getMoodStormEmotionPushAmount());
+            double pushRadius = Math.max(0.0, config.getMoodStormPushRadius());
+            double particleRadius = Math.max(0.0, config.getMoodStormParticleRadius());
+            int particleCount = Math.max(0, config.getMoodStormParticleCount());
+            double particleSpeed = Math.max(0.0, config.getMoodStormParticleSpeed());
+            long cooldownTicks = Math.max(0L, config.getMoodStormCooldownTicks());
+
+            Set<UUID> owners = swarmIndex.ownerIds();
+            if (owners.isEmpty()) {
+                return;
+            }
+
+            for (UUID ownerId : owners) {
+                if (ownerId == null) {
+                    continue;
+                }
+                List<PetSwarmIndex.SwarmEntry> entries = swarmIndex.snapshotOwner(ownerId);
+                if (entries.size() < minCount) {
+                    continue;
+                }
+                evaluateOwner(ownerId, entries, currentTick, minCount, minLevel, minStrength,
+                    pushAmount, pushRadius, particleRadius, particleCount, particleSpeed, cooldownTicks);
+            }
+        }
+
+        private void evaluateOwner(UUID ownerId,
+                                   List<PetSwarmIndex.SwarmEntry> entries,
+                                   long currentTick,
+                                   int minCount,
+                                   int minLevel,
+                                   float minStrength,
+                                   float pushAmount,
+                                   double pushRadius,
+                                   double particleRadius,
+                                   int particleCount,
+                                   double particleSpeed,
+                                   long cooldownTicks) {
+            EnumMap<PetComponent.Mood, MoodAggregate> aggregates = new EnumMap<>(PetComponent.Mood.class);
+
+            for (PetSwarmIndex.SwarmEntry entry : entries) {
+                if (entry == null) {
+                    continue;
+                }
+                MobEntity pet = entry.pet();
+                PetComponent component = entry.component();
+                if (pet == null || component == null || pet.isRemoved()) {
+                    continue;
+                }
+                PetComponent.Mood mood = component.getCurrentMood();
+                if (mood == null) {
+                    continue;
+                }
+                int level = component.getMoodLevel();
+                if (level < minLevel) {
+                    continue;
+                }
+                float strength = component.getMoodStrength(mood);
+                MoodAggregate aggregate = aggregates.computeIfAbsent(mood, MoodAggregate::new);
+                aggregate.add(entry, level, strength);
+            }
+
+            if (aggregates.isEmpty()) {
+                return;
+            }
+
+            for (MoodAggregate aggregate : aggregates.values()) {
+                if (aggregate.count() < minCount) {
+                    continue;
+                }
+                if (aggregate.averageStrength() < minStrength) {
+                    continue;
+                }
+
+                MoodStormDefinition definition = MoodStormRegistry.definitionFor(aggregate.mood());
+                if (definition != null && !definition.eligible()) {
+                    continue;
+                }
+                if (isOnCooldown(ownerId, aggregate.mood(), currentTick, cooldownTicks)) {
+                    continue;
+                }
+
+                Vec3d center = aggregate.center();
+                if (!Double.isFinite(center.x) || !Double.isFinite(center.y) || !Double.isFinite(center.z)) {
+                    continue;
+                }
+
+                List<PetSwarmIndex.SwarmEntry> participants = aggregate.membersView();
+                if (participants.isEmpty()) {
+                    continue;
+                }
+
+                List<PetSwarmIndex.SwarmEntry> pushTargets = collectPushTargets(center, pushRadius, participants);
+                if (pushTargets.isEmpty()) {
+                    continue;
+                }
+
+                ServerPlayerEntity owner = resolveOnlineOwner(ownerId);
+                MoodStormEvent.Context context = new MoodStormEvent.Context(
+                    world,
+                    owner,
+                    ownerId,
+                    aggregate.mood(),
+                    participants,
+                    pushTargets,
+                    center,
+                    aggregate.averageLevel(),
+                    aggregate.averageStrength(),
+                    currentTick,
+                    pushRadius,
+                    particleRadius,
+                    particleCount,
+                    particleSpeed,
+                    pushAmount,
+                    definition
+                );
+                MoodStormEvent.fire(context);
+                markCooldown(ownerId, aggregate.mood(), currentTick);
+            }
+        }
+
+        private List<PetSwarmIndex.SwarmEntry> collectPushTargets(Vec3d center,
+                                                                  double pushRadius,
+                                                                  List<PetSwarmIndex.SwarmEntry> participants) {
+            Map<UUID, PetSwarmIndex.SwarmEntry> unique = new LinkedHashMap<>();
+            if (participants != null) {
+                for (PetSwarmIndex.SwarmEntry entry : participants) {
+                    MobEntity pet = entry.pet();
+                    if (pet != null) {
+                        unique.put(pet.getUuid(), entry);
+                    }
+                }
+            }
+
+            if (pushRadius > 0.0) {
+                swarmIndex.forEachPetInRange(center, pushRadius, entry -> {
+                    MobEntity pet = entry.pet();
+                    if (pet != null) {
+                        unique.putIfAbsent(pet.getUuid(), entry);
+                    }
+                });
+            }
+
+            return unique.isEmpty() ? List.of() : List.copyOf(unique.values());
+        }
+
+        private boolean isOnCooldown(UUID ownerId, PetComponent.Mood mood, long currentTick, long cooldownTicks) {
+            if (cooldownTicks <= 0L) {
+                return false;
+            }
+            EnumMap<PetComponent.Mood, Long> ownerCooldowns = cooldowns.get(ownerId);
+            if (ownerCooldowns == null) {
+                return false;
+            }
+            Long last = ownerCooldowns.get(mood);
+            return last != null && currentTick - last < cooldownTicks;
+        }
+
+        private void markCooldown(UUID ownerId, PetComponent.Mood mood, long tick) {
+            cooldowns.computeIfAbsent(ownerId, ignored -> new EnumMap<>(PetComponent.Mood.class))
+                .put(mood, tick);
+        }
+
+        void clearOwner(UUID ownerId) {
+            cooldowns.remove(ownerId);
+        }
+
+        void shutdown() {
+            cooldowns.clear();
+            lastProcessedTick = Long.MIN_VALUE;
+        }
+
+        private final class MoodAggregate {
+            private final PetComponent.Mood mood;
+            private final List<PetSwarmIndex.SwarmEntry> members = new ArrayList<>();
+            private int sumLevel;
+            private float sumStrength;
+            private double sumX;
+            private double sumY;
+            private double sumZ;
+
+            MoodAggregate(PetComponent.Mood mood) {
+                this.mood = mood;
+            }
+
+            void add(PetSwarmIndex.SwarmEntry entry, int level, float strength) {
+                members.add(entry);
+                sumLevel += level;
+                sumStrength += strength;
+                sumX += entry.x();
+                sumY += entry.y();
+                sumZ += entry.z();
+            }
+
+            int count() {
+                return members.size();
+            }
+
+            float averageLevel() {
+                return count() == 0 ? 0.0f : (float) sumLevel / (float) count();
+            }
+
+            float averageStrength() {
+                return count() == 0 ? 0.0f : sumStrength / (float) count();
+            }
+
+            Vec3d center() {
+                if (count() == 0) {
+                    return Vec3d.ZERO;
+                }
+                double divisor = (double) count();
+                return new Vec3d(sumX / divisor, sumY / divisor, sumZ / divisor);
+            }
+
+            List<PetSwarmIndex.SwarmEntry> membersView() {
+                return members.isEmpty() ? List.of() : List.copyOf(members);
+            }
+
+            PetComponent.Mood mood() {
+                return mood;
+            }
+        }
+    }
+
     private final class OwnerBatchProcessor {
 
         void processBatch(OwnerTaskBatch batch, long currentTick) {
@@ -2337,7 +2591,9 @@ public class StateManager {
                 Petsplus.LOGGER.error("Failed to clear state collections during shutdown", e);
             }
         }
-        
+
+        moodStormTracker.shutdown();
+
         // Phase 3: Close async coordinator (always execute, even if previous phases failed)
         try {
             // Note: We skip draining main thread tasks during shutdown as the server is stopping
