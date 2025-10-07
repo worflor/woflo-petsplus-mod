@@ -24,6 +24,7 @@ import java.util.Map;
 public record PetRoleDefinition(
     Identifier id,
     String translationKey,
+    PetRoleType.RoleArchetype archetype,
     Map<String, Float> baseStatScalars,
     List<Identifier> defaultAbilities,
     PetRoleType.XpCurve xpCurve,
@@ -49,6 +50,7 @@ public record PetRoleDefinition(
         return new PetRoleType.Definition(
             id,
             translationKey,
+            archetype,
             baseStatScalars,
             defaultAbilities,
             xpCurve,
@@ -66,6 +68,7 @@ public record PetRoleDefinition(
     public static PetRoleDefinition fromJson(Identifier sourceId, JsonObject json, String sourceDescription) {
         Identifier id = parseId(json, sourceId, sourceDescription);
         String translationKey = RegistryJsonHelper.getString(json, "translation_key", null);
+        PetRoleType.RoleArchetype archetype = parseArchetype(json, sourceDescription);
 
         Map<String, Float> scalars = parseScalars(json, sourceDescription);
         List<Identifier> abilities = parseAbilityList(json, sourceDescription);
@@ -94,6 +97,7 @@ public record PetRoleDefinition(
         return new PetRoleDefinition(
             id,
             translationKey,
+            archetype,
             scalars,
             abilities,
             xpCurve,
@@ -119,6 +123,20 @@ public record PetRoleDefinition(
             return fallback;
         }
         return parsed;
+    }
+
+    private static PetRoleType.RoleArchetype parseArchetype(JsonObject json, String source) {
+        String archetypeValue = RegistryJsonHelper.getString(json, "archetype", null);
+        if (archetypeValue == null || archetypeValue.isBlank()) {
+            return null; // Let the builder use its default
+        }
+        try {
+            return PetRoleType.RoleArchetype.valueOf(archetypeValue.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            Petsplus.LOGGER.warn("Role definition at {} has invalid archetype '{}'; valid values are: {}",
+                source, archetypeValue, java.util.Arrays.toString(PetRoleType.RoleArchetype.values()));
+            return null;
+        }
     }
 
     private static Map<String, Float> parseScalars(JsonObject json, String source) {

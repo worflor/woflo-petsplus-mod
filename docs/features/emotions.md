@@ -1,6 +1,6 @@
 # Emotions
 
-Your pet's emotional life runs deeper than you'd expect. Behind every tail wag and every protective growl sits a system tracking 29 distinct emotions, each influencing how your pet experiences and reacts to the world.
+Your pet's emotional life runs deeper than you'd expect. Behind every tail wag and every protective growl sits a system tracking 42 distinct emotions, each influencing how your pet experiences and reacts to the world.
 
 *See also: [Stimulus System](stimulus.md) for how events trigger emotions, and [Moods](moods.md) for how emotions blend into visible states.*
 
@@ -18,58 +18,81 @@ Each emotion has:
 
 These metrics combine to determine which emotions dominate your pet's current state.
 
-## The 29 Emotions
+## The 42 Emotions
 
 Emotions are grouped into thematic clusters that reflect different aspects of your pet's inner experience.
 
-### Positive / Afflicted
-Bright, uplifting feelings or their opposites.
+### Positive / Bright
+Uplifting feelings that arise from joy, connection, and satisfaction.
 
 - **Cheerful** — simple happiness
 - **Hopeful** — optimistic anticipation
 - **Glee** — explosive joy
+- **Blissful** — serene contentment
 - **Content** — quiet satisfaction
 - **Playfulness** — energetic fun
 - **Kefi** — spirited enthusiasm
 - **Pride** — dignified accomplishment
-- **Lagom** — "just right" balance
-- **Angst** — gnawing worry
-- **Frustration** — blocked goals
+- **Relief** — tension released
+- **Hanyauku** — playful tiptoe walking
+
+### Connection / Social
+Emotions tied to bonds, relationships, and belonging.
+
+- **Ubuntu** — interconnectedness and humanity
+- **Querecia** — deep sense of rest and belonging
+- **Empathy** — shared feeling
+- **Loyalty** — steadfast devotion
+- **Sobremesa** — lingering after a meal together
+- **Pack Spirit** — unity with the group (ultra-rare)
 
 ### Threat / Aversion
 Responses to danger, discomfort, or unwanted situations.
 
 - **Startle** — sudden alarm
 - **Vigilant** — alert watchfulness
-- **Protectiveness** — defensive instinct
-- **Dread** — anticipatory fear
-- **Terror** — overwhelming fear
+- **Protectiveness** — defensive instinct (as state)
+- **Protective** — protective action (as emotion)
+- **Foreboding** — anticipatory dread
+- **Worried** — anxious concern
+- **Angst** — gnawing worry
+- **Frustration** — blocked goals
+- **Disgust** — revulsion
 
-### Reflective / Neutral
-Contemplative or observational states.
+### Reflective / Contemplative
+Quiet, observational, or philosophical states.
 
 - **Yūgen** — profound, mysterious awareness
 - **Stoic** — calm endurance
 - **Focused** — concentrated attention
 - **Gaman** — patient perseverance
-- **Empathy** — shared feeling
+- **Lagom** — "just right" balance
+- **Wabi-Sabi** — beauty in imperfection
+- **Mono no Aware** — awareness of impermanence
+- **Curious** — hunger for discovery
 
-### Longing / Resilient / Aspiration
-Desires, endurance, and reaching toward something.
+### Longing / Melancholic
+Yearning, nostalgia, and bittersweet emotions.
 
 - **Hiraeth** — homesickness, longing for the familiar
 - **Saudade** — wistful nostalgia
-- **Sisu** — determined grit
-- **Ambition** — drive to improve
-- **Curiosity** — hunger for discovery
+- **Fernweh** — wanderlust, farsickness
+- **Melancholy** — pensive sadness
+- **Nostalgia** — longing for the past
+- **Regret** — remorse over past actions
+- **Ennui** — listless boredom
 
-### Special States
-Rare or context-specific emotions.
+### Resilient / Determined
+Endurance, grit, and inner strength.
+
+- **Sisu** — determined grit
+- **Restless** — unsettled energy
+
+### Ultra-Rare States
+Exceptional emotions triggered only under special circumstances.
 
 - **Echoed Resonance** — Deep Dark attunement
 - **Arcane Overflow** — enchantment saturation
-- **Pack Spirit** — unity with the group
-- **Gossip** — social intrigue awareness
 
 ## What Triggers Emotions?
 

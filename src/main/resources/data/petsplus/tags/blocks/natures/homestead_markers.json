@@ -1,0 +1,23 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:farmland",
+    "minecraft:composter",
+    "minecraft:hay_block",
+    "#minecraft:crops",
+    "minecraft:pumpkin",
+    "minecraft:melon",
+    "minecraft:sweet_berry_bush",
+    "minecraft:sugar_cane",
+    "minecraft:chest",
+    "minecraft:barrel",
+    "minecraft:crafting_table",
+    "minecraft:furnace",
+    "minecraft:smoker",
+    "minecraft:blast_furnace",
+    "minecraft:ender_chest",
+    "minecraft:trapped_chest",
+    "#minecraft:beds",
+    "#minecraft:doors"
+  ]
+}

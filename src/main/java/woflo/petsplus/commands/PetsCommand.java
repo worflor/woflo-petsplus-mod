@@ -10,6 +10,8 @@
 
 package woflo.petsplus.commands;
 
+import woflo.petsplus.api.registry.RoleIdentifierUtil;
+
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
@@ -644,11 +646,11 @@ public class PetsCommand {
             }
         }
 
-        return Text.literal(PetRoleType.fallbackName(roleId));
+        return Text.literal(RoleIdentifierUtil.formatName(roleId));
     }
 
     private static String getRoleDescription(Identifier roleId, @Nullable PetRoleType roleType) {
-        return PetRoleType.defaultDescription(roleId);
+        return roleType != null ? Text.translatable(roleType.translationKey()).getString() : RoleIdentifierUtil.formatName(roleId);
     }
     
     private static void showRoleButtons(ServerPlayerEntity player) {

@@ -30,27 +30,31 @@ Born natures require intentional setup. Want a Nocturne pet? Wait for a full moo
 **Available Born Natures:**
 
 - **Radiant** — Daytime, open sky, clear weather
-- **Nocturne** — Nighttime, full moon, open sky
-- **Tempest** — Rainy or thundering weather
+- **Twilight** — Dawn or dusk, open sky
+- **Homestead** — Near established farms and settlements
 - **Hearth** — Indoors with cozy blocks nearby
-- **Solace** — Birthed in solitude (no nearby players/pets)
-- **Festival** — 3+ nearby pets or players
-- **Infernal** — The Nether
-- **Otherworldly** — Any dimension besides Overworld/Nether
-- **Echoed** — Deep Dark biome
-- **Mycelial** — Mushroom Fields biome
-- **Gilded** — Valuable ores nearby
 - **Gloom** — Indoors, low light, no valuable blocks
+- **Festival** — 3+ nearby pets or players
+- **Solace** — Birthed in solitude (no nearby players/pets)
 - **Verdant** — Lush foliage present
+- **Frosty** — Snowy biome conditions
+- **Tempest** — Rainy or thundering weather
+- **Nocturne** — Nighttime, full moon, open sky
 - **Summit** — Height ≥ 100, open sky
 - **Tidal** — Fully submerged in ocean biome
-- **Molten** — Near lava or magma blocks
-- **Frosty** — Snowy biome conditions
 - **Mire** — Swamp biome or near mud/mangrove
+- **Blossom** — Cherry Grove biome
+- **Molten** — Near lava or magma blocks
+- **Gilded** — Valuable ores nearby
+- **Clockwork** — Near complex redstone
+- **Sentinel** — Post-combat with organized, well-stocked storage
+- **Scrappy** — Post-combat with sparse or disorganized resources
+- **Infernal** — The Nether
 - **Relic** — Near major structures (strongholds, ruins)
-- **Blossom** – Cherry Grove Biome
-- **Clockwork** – Near complex redstone
-- **Ceramic** – Near Trial Ruins
+- **Ceramic** — Near Trial Ruins
+- **Mycelial** — Mushroom Fields biome
+- **Echoed** — Deep Dark biome
+- **Otherworldly** — Any dimension besides Overworld/Nether
 - **Unnatural** — Breeder owns neither parent
 
 ## Why the Split?

@@ -1,5 +1,7 @@
 package woflo.petsplus.commands.suggestions;
 
+import woflo.petsplus.api.registry.RoleIdentifierUtil;
+
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
@@ -135,7 +137,7 @@ public class PetsSuggestionProviders {
         for (PetRoleType type : PetsPlusRegistries.petRoleTypeRegistry()) {
             String displayName = Text.translatable(type.translationKey()).getString();
             if (displayName.equals(type.translationKey())) {
-                displayName = PetRoleType.fallbackName(type.id());
+                displayName = RoleIdentifierUtil.formatName(type.id());
             }
             Text tooltip = Text.literal(displayName);
             // Only suggest the path part (e.g., "guardian") to avoid duplicates

@@ -1,5 +1,7 @@
 package woflo.petsplus.commands;
 
+import woflo.petsplus.api.registry.RoleIdentifierUtil;
+
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -287,7 +289,7 @@ public class PetsplusAdminCommands {
             Text translated = Text.translatable(roleType.translationKey());
             String translatedString = translated.getString();
             roleLabel = translatedString.equals(roleType.translationKey())
-                ? PetRoleType.fallbackName(roleId)
+                ? RoleIdentifierUtil.formatName(roleId)
                 : translatedString;
         } else {
             roleLabel = roleId.toString();
@@ -753,7 +755,7 @@ public class PetsplusAdminCommands {
             }
         }
 
-        return Text.literal(PetRoleType.fallbackName(roleId));
+        return Text.literal(RoleIdentifierUtil.formatName(roleId));
     }
 }
 

@@ -278,7 +278,12 @@ public class StateManager {
             return false;
         }
 
-        Identifier roleId = PetRoleType.normalizeId(roleName);
+        // Try parsing as-is first
+        Identifier roleId = Identifier.tryParse(roleName);
+        if (roleId == null) {
+            // Try with mod namespace
+            roleId = Identifier.tryParse(Petsplus.MOD_ID + ":" + roleName);
+        }
         if (roleId == null) {
             Petsplus.LOGGER.warn("Attempted to assign invalid role '{}' to pet {}", roleName, pet.getUuid());
             return false;

@@ -236,6 +236,12 @@ public final class PetBreedEvent {
             private final boolean nearTrialChamber;
             private final boolean hasCherryBloom;
             private final boolean hasActiveRedstone;
+            private final boolean hasHomesteadBlocks;
+            private final boolean hasRecentCombat;
+            private final int nearbyChestCount;
+            private final int totalStorageItems;
+            private final int uniqueItemTypes;
+            private final int combatRelevantItems;
 
             public Environment(net.minecraft.util.math.BlockPos position,
                                Identifier biomeId,
@@ -259,7 +265,13 @@ public final class PetBreedEvent {
                                boolean hasArchaeologySite,
                                boolean nearTrialChamber,
                                boolean hasCherryBloom,
-                               boolean hasActiveRedstone) {
+                               boolean hasActiveRedstone,
+                               boolean hasHomesteadBlocks,
+                               boolean hasRecentCombat,
+                               int nearbyChestCount,
+                               int totalStorageItems,
+                               int uniqueItemTypes,
+                               int combatRelevantItems) {
                 this.position = position;
                 this.biomeId = biomeId;
                 this.biomeTemperature = biomeTemperature;
@@ -283,6 +295,12 @@ public final class PetBreedEvent {
                 this.nearTrialChamber = nearTrialChamber;
                 this.hasCherryBloom = hasCherryBloom;
                 this.hasActiveRedstone = hasActiveRedstone;
+                this.hasHomesteadBlocks = hasHomesteadBlocks;
+                this.hasRecentCombat = hasRecentCombat;
+                this.nearbyChestCount = nearbyChestCount;
+                this.totalStorageItems = totalStorageItems;
+                this.uniqueItemTypes = uniqueItemTypes;
+                this.combatRelevantItems = combatRelevantItems;
             }
 
             public net.minecraft.util.math.BlockPos getPosition() {
@@ -375,6 +393,35 @@ public final class PetBreedEvent {
 
             public boolean hasActiveRedstone() {
                 return hasActiveRedstone;
+            }
+
+            public boolean hasHomesteadBlocks() {
+                return hasHomesteadBlocks;
+            }
+
+            public boolean hasRecentCombat() {
+                return hasRecentCombat;
+            }
+
+            public int getNearbyChestCount() {
+                return nearbyChestCount;
+            }
+
+            public int getTotalStorageItems() {
+                return totalStorageItems;
+            }
+
+            public int getUniqueItemTypes() {
+                return uniqueItemTypes;
+            }
+
+            public int getCombatRelevantItems() {
+                return combatRelevantItems;
+            }
+
+            public float getOrganizationRatio() {
+                if (totalStorageItems == 0) return 0f;
+                return (float) uniqueItemTypes / (float) totalStorageItems;
             }
         }
     }

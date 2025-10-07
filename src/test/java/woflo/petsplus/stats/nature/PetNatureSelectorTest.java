@@ -188,7 +188,13 @@ class PetNatureSelectorTest {
             hasArchaeologySite,
             nearTrialChamber,
             hasCherryBloom,
-            hasActiveRedstone
+            hasActiveRedstone,
+            false,
+            false,
+            0,
+            0,
+            0,
+            0
         );
     }
 

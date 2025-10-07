@@ -1,0 +1,29 @@
+{
+  "replace": false,
+  "hooks": [
+    {
+      "trigger": "daybreak",
+      "slot": "major",
+      "scale": 0.75,
+      "cooldown": 180
+    },
+    {
+      "trigger": "nightfall",
+      "slot": "major",
+      "scale": 0.75,
+      "cooldown": 180
+    },
+    {
+      "trigger": "weather_clear",
+      "slot": "minor",
+      "scale": 0.5,
+      "cooldown": 220
+    },
+    {
+      "trigger": "owner_sleep",
+      "slot": "quirk",
+      "scale": 0.35,
+      "cooldown": 240
+    }
+  ]
+}

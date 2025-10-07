@@ -1,5 +1,7 @@
 package woflo.petsplus.events;
 
+import woflo.petsplus.api.registry.RoleIdentifierUtil;
+
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.passive.FoxEntity;
@@ -232,7 +234,7 @@ public class PetDetectionHandler {
      * Get a short description for a pet role.
      */
     private static String getRoleDescription(Identifier roleId, PetRoleType type) {
-        return PetRoleType.defaultDescription(roleId);
+        return type != null ? Text.translatable(type.translationKey()).getString() : RoleIdentifierUtil.formatName(roleId);
     }
 
     private static Text resolveRoleLabel(Identifier roleId, PetRoleType type) {
@@ -240,7 +242,7 @@ public class PetDetectionHandler {
         if (!translated.getString().equals(type.translationKey())) {
             return translated;
         }
-        return Text.literal(PetRoleType.fallbackName(roleId));
+        return Text.literal(RoleIdentifierUtil.formatName(roleId));
     }
 
     /**

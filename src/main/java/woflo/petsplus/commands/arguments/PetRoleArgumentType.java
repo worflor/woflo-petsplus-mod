@@ -36,7 +36,14 @@ public class PetRoleArgumentType implements ArgumentType<Identifier> {
 
         Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
 
-        Identifier identifier = PetRoleType.normalizeId(input);
+        // Try parsing as-is first
+        Identifier identifier = Identifier.tryParse(input);
+        if (identifier != null && registry.get(identifier) != null) {
+            return identifier;
+        }
+        
+        // Try with mod namespace if not specified
+        identifier = Identifier.tryParse(Petsplus.MOD_ID + ":" + input);
         if (identifier != null && registry.get(identifier) != null) {
             return identifier;
         }

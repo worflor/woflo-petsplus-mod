@@ -3,7 +3,12 @@ package woflo.petsplus.stats.nature;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.fluid.FluidState;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.RegistryKeys;
@@ -60,16 +65,13 @@ public final class PetNatureSelector {
         Identifier.of("petsplus", "natures/redstone_components"));
     public static final TagKey<Block> NATURE_REDSTONE_POWER_SOURCES = TagKey.of(RegistryKeys.BLOCK,
         Identifier.of("petsplus", "natures/redstone_power_sources"));
+    public static final TagKey<Block> NATURE_HOMESTEAD_BLOCKS = TagKey.of(RegistryKeys.BLOCK,
+        Identifier.of("petsplus", "natures/homestead_markers"));
 
     private PetNatureSelector() {
     }
 
     static {
-        // === WILD NATURES (Tamed pets only) ===
-        // Temperature-based natures for wild-caught pets
-        // Cold: <= 0.3 (snowy/frozen biomes)
-        // Hot: >= 1.0 (desert/nether-like biomes)
-        // Neutral: everything in between
         registerNature("frisky", ctx -> false, ctx -> ctx.environment().getBiomeTemperature() <= 0.3f);
         registerNature("fierce", ctx -> false, ctx -> ctx.environment().getBiomeTemperature() >= 1.0f);
         registerNature("feral", ctx -> false, ctx -> {
@@ -79,7 +81,9 @@ public final class PetNatureSelector {
         
         // === BORN NATURES (Bred pets only) ===
         registerNature("radiant", PetNatureSelector::matchesRadiant);
+        registerNature("twilight", PetNatureSelector::matchesTwilight);
         registerNature("nocturne", PetNatureSelector::matchesNocturne);
+        registerNature("homestead", PetNatureSelector::matchesHomestead);
         registerNature("hearth", PetNatureSelector::matchesHearth);
         registerNature("tempest", PetNatureSelector::matchesTempest);
         registerNature("solace", PetNatureSelector::matchesSolace);
@@ -102,6 +106,8 @@ public final class PetNatureSelector {
         registerNature("ceramic", PetNatureSelector::matchesCeramic);
         registerNature("blossom", PetNatureSelector::matchesBlossom);
         registerNature("clockwork", PetNatureSelector::matchesClockwork);
+        registerNature("sentinel", PetNatureSelector::matchesSentinel);
+        registerNature("scrappy", PetNatureSelector::matchesScrappy);
         registerNature("unnatural", ctx -> !ctx.primaryOwned() && !ctx.partnerOwned(), ctx -> false);
     }
 
@@ -147,6 +153,7 @@ public final class PetNatureSelector {
         boolean raining = world.isRaining();
         boolean thundering = world.isThundering();
         boolean fullMoon = world.getMoonPhase() == 0;
+        long timeOfDay = world.getTimeOfDay() % 24000L;
 
         double witnessRadius = 12.0D;
         double witnessRadiusSq = witnessRadius * witnessRadius;
@@ -155,10 +162,16 @@ public final class PetNatureSelector {
 
         PetBreedEvent.BirthContext.Environment environment = captureEnvironment(world, pet);
 
-        return new TameContext(dimensionId, indoors, daytime, raining, thundering, fullMoon, nearbyPlayers, nearbyPets, environment);
+        return new TameContext(dimensionId, indoors, daytime, raining, thundering, fullMoon, nearbyPlayers, nearbyPets, timeOfDay, environment);
     }
 
     public static PetBreedEvent.BirthContext.Environment captureEnvironment(ServerWorld world, MobEntity entity) {
+        return captureEnvironment(world, entity, null, null);
+    }
+    
+    public static PetBreedEvent.BirthContext.Environment captureEnvironment(ServerWorld world, MobEntity entity,
+                                                                             @org.jetbrains.annotations.Nullable PetComponent primaryParent,
+                                                                             @org.jetbrains.annotations.Nullable PetComponent partnerParent) {
         BlockPos pos = entity.getBlockPos();
         RegistryEntry<Biome> biomeEntry = world.getBiome(pos);
         Identifier biomeId = biomeEntry.getKey().map(RegistryKey::getValue).orElse(Identifier.of("minecraft", "unknown"));
@@ -175,6 +188,14 @@ public final class PetNatureSelector {
         int height = pos.getY();
 
         EnvironmentSample sample = sampleEnvironment(world, pos);
+        scanNearbyStorage(world, pos, sample);
+        
+        // Check if parents have recent combat (within last 5 minutes = 6000 ticks)
+        long currentTime = world.getTime();
+        boolean hasRecentCombat = checkParentRecentCombat(primaryParent, currentTime) 
+                               || checkParentRecentCombat(partnerParent, currentTime);
+        sample.hasRecentCombat = hasRecentCombat;
+        
         sample.finalizeAfterScan();
         boolean fullySubmerged = entity.isSubmergedIn(FluidTags.WATER);
 
@@ -201,7 +222,13 @@ public final class PetNatureSelector {
             sample.hasArchaeologySite(),
             sample.nearTrialChamber(),
             sample.hasCherryBloom(),
-            sample.hasActiveRedstone()
+            sample.hasActiveRedstone(),
+            sample.hasHomesteadBlocks(),
+            sample.hasRecentCombat(),
+            sample.getNearbyChestCount(),
+            sample.getTotalStorageItems(),
+            sample.getUniqueItemTypes(),
+            sample.getCombatRelevantItems()
         );
     }
 
@@ -260,6 +287,44 @@ public final class PetNatureSelector {
         return !context.isDaytime()
             && context.isFullMoon()
             && context.environment().hasOpenSky();
+    }
+
+    private static boolean matchesTwilight(NatureContext context) {
+        long timeOfDay = context.getTimeOfDay();
+        // Dusk: 12000-13000 (sunset), 13000-23000 (night transition)
+        // Dawn: 23000-24000 (night end), 0-1000 (sunrise)
+        boolean isDusk = timeOfDay >= 12000 && timeOfDay <= 14000;
+        boolean isNightTransition = timeOfDay >= 13000 && timeOfDay <= 23000;
+        boolean isDawn = timeOfDay >= 23000 || timeOfDay <= 1000;
+        return (isDusk || isDawn || isNightTransition) && context.environment().hasOpenSky();
+    }
+
+    private static boolean matchesHomestead(NatureContext context) {
+        return context.environment().hasHomesteadBlocks();
+    }
+    
+    private static boolean matchesSentinel(NatureContext context) {
+        PetBreedEvent.BirthContext.Environment env = context.environment();
+        if (env == null || !env.hasRecentCombat()) return false;
+        
+        // Requires post-combat + organized, well-stocked storage
+        float orgRatio = env.getOrganizationRatio();
+        return env.getNearbyChestCount() >= 3
+            && orgRatio < 0.4f  // Organized (low unique-to-total ratio)
+            && env.getCombatRelevantItems() >= 20  // Well-equipped
+            && env.getTotalStorageItems() >= 20;  // Has reserves
+    }
+    
+    private static boolean matchesScrappy(NatureContext context) {
+        PetBreedEvent.BirthContext.Environment env = context.environment();
+        if (env == null || !env.hasRecentCombat()) return false;
+        
+        // Requires post-combat + disorganized OR sparse storage
+        float orgRatio = env.getOrganizationRatio();
+        boolean disorganized = env.getNearbyChestCount() > 0 && orgRatio > 0.6f;
+        boolean sparse = env.getTotalStorageItems() < 15 || env.getCombatRelevantItems() < 10;
+        
+        return disorganized || sparse;
     }
 
     private static boolean matchesHearth(NatureContext context) {
@@ -427,6 +492,9 @@ public final class PetNatureSelector {
                         boolean powered = isBlockEmittingRedstone(world, mutable, state);
                         sample.recordRedstone(redstoneComponent, redstoneSource, powered);
                     }
+                    if (state.isIn(NATURE_HOMESTEAD_BLOCKS) && dx <= 5 && dz <= 5 && dy >= -2 && dy <= 2) {
+                        sample.recordHomesteadBlock(state);
+                    }
 
                     if (sample.isComplete()) {
                         break outer;
@@ -523,6 +591,124 @@ public final class PetNatureSelector {
             || state.isOf(Blocks.CLAY);
     }
 
+    private static boolean checkParentRecentCombat(@org.jetbrains.annotations.Nullable PetComponent parent, long currentTime) {
+        if (parent == null) return false;
+        
+        Long lastDanger = parent.getStateData(PetComponent.StateKeys.THREAT_LAST_DANGER, Long.class);
+        if (lastDanger == null) return false;
+        
+        // Combat within last 5 minutes (6000 ticks)
+        long timeSinceCombat = currentTime - lastDanger;
+        return timeSinceCombat < 6000L && timeSinceCombat >= 0;
+    }
+    
+    private static void scanNearbyStorage(ServerWorld world, BlockPos center, EnvironmentSample sample) {
+        // Guard: Only scan max 8 chests for performance
+        final int MAX_CHESTS_TO_SCAN = 8;
+        final int SCAN_RADIUS = 8;
+        
+        BlockPos.Mutable mutable = new BlockPos.Mutable();
+        int chestsScanned = 0;
+        java.util.Set<net.minecraft.item.Item> uniqueItems = new java.util.HashSet<>();
+        
+        // Scan in smaller radius for performance
+        for (int x = center.getX() - SCAN_RADIUS; x <= center.getX() + SCAN_RADIUS && chestsScanned < MAX_CHESTS_TO_SCAN; x++) {
+            for (int y = center.getY() - 3; y <= center.getY() + 3 && chestsScanned < MAX_CHESTS_TO_SCAN; y++) {
+                for (int z = center.getZ() - SCAN_RADIUS; z <= center.getZ() + SCAN_RADIUS && chestsScanned < MAX_CHESTS_TO_SCAN; z++) {
+                    mutable.set(x, y, z);
+                    BlockState state = world.getBlockState(mutable);
+                    
+                    // Guard: Only check chest-like blocks
+                    if (!state.isOf(Blocks.CHEST) && !state.isOf(Blocks.BARREL) 
+                        && !state.isOf(Blocks.TRAPPED_CHEST) && !state.isOf(Blocks.ENDER_CHEST)) {
+                        continue;
+                    }
+                    
+                    BlockEntity blockEntity = world.getBlockEntity(mutable);
+                    if (!(blockEntity instanceof Inventory inventory)) {
+                        continue;
+                    }
+                    
+                    chestsScanned++;
+                    
+                    // Guard: Limit item scanning per chest
+                    int sizeLimit = Math.min(inventory.size(), 27);
+                    for (int i = 0; i < sizeLimit; i++) {
+                        ItemStack stack = inventory.getStack(i);
+                        if (stack.isEmpty()) continue;
+                        
+                        sample.totalStorageItems++;
+                        uniqueItems.add(stack.getItem());
+                        
+                        // Track combat-relevant items
+                        if (isCombatRelevantItem(stack)) {
+                            sample.combatRelevantItems++;
+                        }
+                    }
+                }
+            }
+        }
+        
+        sample.nearbyChestCount = chestsScanned;
+        sample.uniqueItemTypes = uniqueItems.size();
+    }
+    
+    private static boolean isCombatRelevantItem(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        
+        Item item = stack.getItem();
+        
+        // Use ItemTags for weapons (swords, axes, etc.)
+        if (stack.isIn(net.minecraft.registry.tag.ItemTags.SWORDS) || 
+            stack.isIn(net.minecraft.registry.tag.ItemTags.AXES)) {
+            return true;
+        }
+        
+        // Check for armor using EQUIPPABLE component (works with all armor types including modded)
+        net.minecraft.component.type.EquippableComponent equippable = 
+            stack.get(net.minecraft.component.DataComponentTypes.EQUIPPABLE);
+        if (equippable != null) {
+            // Check if it's armor (not just cosmetic equippable like carved pumpkins)
+            net.minecraft.entity.EquipmentSlot slot = equippable.slot();
+            if (slot == net.minecraft.entity.EquipmentSlot.HEAD || 
+                slot == net.minecraft.entity.EquipmentSlot.CHEST || 
+                slot == net.minecraft.entity.EquipmentSlot.LEGS || 
+                slot == net.minecraft.entity.EquipmentSlot.FEET) {
+                return true;
+            }
+        }
+        
+        // Check for ranged weapons and special combat items
+        if (item == Items.MACE || item == Items.TRIDENT || 
+            item == Items.BOW || item == Items.CROSSBOW || item == Items.SHIELD) {
+            return true;
+        }
+        
+        // Arrows and projectiles
+        if (item == Items.ARROW || item == Items.SPECTRAL_ARROW || item == Items.TIPPED_ARROW) {
+            return true;
+        }
+        
+        // Combat food (high-value healing items)
+        if (item == Items.GOLDEN_APPLE || item == Items.ENCHANTED_GOLDEN_APPLE) {
+            return true;
+        }
+        
+        // Check for food with significant healing value using FOOD component
+        net.minecraft.component.type.FoodComponent foodComponent = 
+            stack.get(net.minecraft.component.DataComponentTypes.FOOD);
+        if (foodComponent != null && foodComponent.nutrition() >= 6) {
+            return true;
+        }
+        
+        // Potions (check for beneficial effects via POTION_CONTENTS component)
+        if (stack.get(net.minecraft.component.DataComponentTypes.POTION_CONTENTS) != null) {
+            return true;
+        }
+        
+        return false;
+    }
+
     private static boolean isRelicBlock(BlockState state) {
         return state.isOf(Blocks.CHISELED_STONE_BRICKS)
             || state.isOf(Blocks.CRACKED_STONE_BRICKS)
@@ -562,6 +748,8 @@ public final class PetNatureSelector {
         int nearbyPlayers();
 
         int nearbyPets();
+
+        long getTimeOfDay();
 
         PetBreedEvent.BirthContext.Environment environment();
 
@@ -618,6 +806,11 @@ public final class PetNatureSelector {
         }
 
         @Override
+        public long getTimeOfDay() {
+            return context.getTimeOfDay();
+        }
+
+        @Override
         public PetBreedEvent.BirthContext.Environment environment() {
             return context.getEnvironment();
         }
@@ -642,11 +835,12 @@ public final class PetNatureSelector {
         private final boolean fullMoon;
         private final int nearbyPlayerCount;
         private final int nearbyPetCount;
+        private final long timeOfDay;
         private final PetBreedEvent.BirthContext.Environment environment;
 
         private TameContext(Identifier dimensionId, boolean indoors, boolean daytime, boolean raining,
                              boolean thundering, boolean fullMoon, int nearbyPlayerCount, int nearbyPetCount,
-                             PetBreedEvent.BirthContext.Environment environment) {
+                             long timeOfDay, PetBreedEvent.BirthContext.Environment environment) {
             this.dimensionId = dimensionId;
             this.indoors = indoors;
             this.daytime = daytime;
@@ -655,6 +849,7 @@ public final class PetNatureSelector {
             this.fullMoon = fullMoon;
             this.nearbyPlayerCount = nearbyPlayerCount;
             this.nearbyPetCount = nearbyPetCount;
+            this.timeOfDay = timeOfDay;
             this.environment = environment;
         }
 
@@ -699,6 +894,11 @@ public final class PetNatureSelector {
         }
 
         @Override
+        public long getTimeOfDay() {
+            return timeOfDay;
+        }
+
+        @Override
         public PetBreedEvent.BirthContext.Environment environment() {
             return environment;
         }
@@ -726,12 +926,22 @@ public final class PetNatureSelector {
         private boolean trialBlocksPresent;
         private boolean hasCherryBloom;
         private boolean hasActiveRedstone;
+        private boolean hasHomesteadBlocks;
+        private int homesteadFarmingBlocks;
+        private int homesteadCropBlocks;
+        private int homesteadStorageBlocks;
+        private int homesteadShelterBlocks;
         private int suspiciousDigBlocks;
         private int decoratedPotBlocks;
         private int cherryPetalBlocks;
         private int cherryCanopyBlocks;
         private int cherryPollinatorBlocks;
         private final RedstoneNetworkTracker redstoneTracker = new RedstoneNetworkTracker();
+        private boolean hasRecentCombat;
+        private int nearbyChestCount;
+        private int totalStorageItems;
+        private int uniqueItemTypes;
+        private int combatRelevantItems;
 
         boolean hasCozyBlocks() {
             return hasCozyBlocks;
@@ -775,6 +985,85 @@ public final class PetNatureSelector {
 
         boolean hasActiveRedstone() {
             return hasActiveRedstone;
+        }
+
+        boolean hasHomesteadBlocks() {
+            return hasHomesteadBlocks;
+        }
+        
+        boolean hasRecentCombat() {
+            return hasRecentCombat;
+        }
+        
+        int getNearbyChestCount() {
+            return nearbyChestCount;
+        }
+        
+        int getTotalStorageItems() {
+            return totalStorageItems;
+        }
+        
+        int getUniqueItemTypes() {
+            return uniqueItemTypes;
+        }
+        
+        int getCombatRelevantItems() {
+            return combatRelevantItems;
+        }
+
+        void recordHomesteadBlock(BlockState state) {
+            // Farming: farmland, composter, hay bale
+            if (state.isOf(Blocks.FARMLAND) || state.isOf(Blocks.COMPOSTER) || state.isOf(Blocks.HAY_BLOCK)) {
+                homesteadFarmingBlocks++;
+            }
+            // Crops: actively growing plants
+            else if (state.isIn(BlockTags.CROPS) || state.isOf(Blocks.PUMPKIN) || state.isOf(Blocks.MELON) 
+                || state.isOf(Blocks.SWEET_BERRY_BUSH) || state.isOf(Blocks.SUGAR_CANE)) {
+                homesteadCropBlocks++;
+            }
+            // Storage/Crafting: chests, barrels, crafting, furnaces
+            else if (state.isOf(Blocks.CHEST) || state.isOf(Blocks.BARREL) || state.isOf(Blocks.CRAFTING_TABLE)
+                || state.isOf(Blocks.FURNACE) || state.isOf(Blocks.SMOKER) || state.isOf(Blocks.BLAST_FURNACE)
+                || state.isOf(Blocks.ENDER_CHEST) || state.isOf(Blocks.TRAPPED_CHEST)) {
+                homesteadStorageBlocks++;
+            }
+            // Shelter: beds, doors
+            else if (state.isIn(BlockTags.BEDS) || state.isIn(BlockTags.DOORS)) {
+                homesteadShelterBlocks++;
+            }
+            updateHomesteadSignal();
+        }
+
+        private void updateHomesteadSignal() {
+            if (hasHomesteadBlocks) {
+                return;
+            }
+            // Build confidence score based on categories and counts
+            int categoriesPresent = 0;
+            int totalScore = 0;
+
+            if (homesteadFarmingBlocks > 0) {
+                categoriesPresent++;
+                totalScore += Math.min(homesteadFarmingBlocks * 2, 8); // Cap contribution
+            }
+            if (homesteadCropBlocks > 0) {
+                categoriesPresent++;
+                totalScore += Math.min(homesteadCropBlocks * 2, 8);
+            }
+            if (homesteadStorageBlocks > 0) {
+                categoriesPresent++;
+                totalScore += Math.min(homesteadStorageBlocks * 3, 9); // Storage slightly more valuable
+            }
+            if (homesteadShelterBlocks > 0) {
+                categoriesPresent++;
+                totalScore += Math.min(homesteadShelterBlocks * 3, 9); // Shelter slightly more valuable
+            }
+
+            // Need at least 2 categories AND a score of 10+
+            // OR 3+ categories with score of 8+
+            if ((categoriesPresent >= 2 && totalScore >= 10) || (categoriesPresent >= 3 && totalScore >= 8)) {
+                hasHomesteadBlocks = true;
+            }
         }
 
         void recordArchaeologyBlock(BlockState state) {
@@ -825,6 +1114,7 @@ public final class PetNatureSelector {
         void finalizeAfterScan() {
             updateArchaeologySignal();
             updateCherrySignal();
+            updateHomesteadSignal();
             if (!hasActiveRedstone && redstoneTracker.isActive()) {
                 hasActiveRedstone = true;
             }
@@ -878,7 +1168,8 @@ public final class PetNatureSelector {
                 && nearMajorStructure
                 && hasArchaeologySite
                 && hasCherryBloom
-                && hasActiveRedstone;
+                && hasActiveRedstone
+                && hasHomesteadBlocks;
         }
     }
 

@@ -1,0 +1,35 @@
+{
+  "replace": false,
+  "hooks": [
+    {
+      "trigger": "place_sapling",
+      "slot": "major",
+      "scale": 0.7,
+      "cooldown": 180
+    },
+    {
+      "trigger": "villager_trade",
+      "slot": "minor",
+      "scale": 0.55,
+      "cooldown": 200
+    },
+    {
+      "trigger": "bed_interaction",
+      "slot": "minor",
+      "scale": 0.5,
+      "cooldown": 220
+    },
+    {
+      "trigger": "campfire_interaction",
+      "slot": "quirk",
+      "scale": 0.4,
+      "cooldown": 220
+    },
+    {
+      "trigger": "daybreak",
+      "slot": "quirk",
+      "scale": 0.3,
+      "cooldown": 240
+    }
+  ]
+}

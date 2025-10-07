@@ -1,5 +1,7 @@
 package woflo.petsplus.ui;
 
+import woflo.petsplus.api.registry.RoleIdentifierUtil;
+
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -239,7 +241,7 @@ public class PetCompendiumDataExtractor {
                 return translated;
             }
         }
-        return PetRoleType.fallbackName(roleId);
+        return RoleIdentifierUtil.formatName(roleId);
     }
     
     private static String formatNatureName(Identifier natureId) {

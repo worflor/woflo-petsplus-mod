@@ -1,0 +1,29 @@
+{
+  "replace": false,
+  "hooks": [
+    {
+      "trigger": "use_firework",
+      "slot": "major",
+      "scale": 0.75,
+      "cooldown": 160
+    },
+    {
+      "trigger": "villager_trade",
+      "slot": "minor",
+      "scale": 0.55,
+      "cooldown": 200
+    },
+    {
+      "trigger": "owner_respawn",
+      "slot": "minor",
+      "scale": 0.50,
+      "cooldown": 220
+    },
+    {
+      "trigger": "weather_clear",
+      "slot": "quirk",
+      "scale": 0.35,
+      "cooldown": 240
+    }
+  ]
+}

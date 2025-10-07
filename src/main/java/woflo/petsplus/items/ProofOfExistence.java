@@ -1,5 +1,7 @@
 package woflo.petsplus.items;
 
+import woflo.petsplus.api.registry.RoleIdentifierUtil;
+
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.text.Text;
@@ -441,9 +443,9 @@ public class ProofOfExistence {
             List<PetRoleType.Message> epithets = roleType.presentation().memorialEpithets();
             long seed = pet.getUuid().getLeastSignificantBits() ^ pet.getUuid().getMostSignificantBits();
             int index = Math.floorMod((int) seed, epithets.size());
-            return resolveMessageString(epithets.get(index), PetRoleType.fallbackName(roleId));
+            return resolveMessageString(epithets.get(index), RoleIdentifierUtil.formatName(roleId));
         }
-        return PetRoleType.fallbackName(roleId);
+        return RoleIdentifierUtil.formatName(roleId);
     }
     
     /**
@@ -582,7 +584,7 @@ public class ProofOfExistence {
             if (milestone >= LEVEL_EXPERIENCED_MAX) {
                 String summary = resolveMessageString(
                     roleType.presentation().adminSummary(),
-                    PetRoleType.fallbackName(roleId)
+                    RoleIdentifierUtil.formatName(roleId)
                 );
                 if (!summary.isBlank()) {
                     return baseName + " (" + summary + ")";
@@ -591,7 +593,7 @@ public class ProofOfExistence {
         }
 
         if (milestone >= LEVEL_EXPERIENCED_MAX) {
-            return baseName + " (" + PetRoleType.fallbackName(roleId) + ")";
+            return baseName + " (" + RoleIdentifierUtil.formatName(roleId) + ")";
         }
 
         return baseName;
@@ -812,7 +814,7 @@ public class ProofOfExistence {
                 return translated;
             }
         }
-        return PetRoleType.fallbackName(roleId);
+        return RoleIdentifierUtil.formatName(roleId);
     }
 
     private static String resolveMessageString(PetRoleType.Message message, String fallback) {

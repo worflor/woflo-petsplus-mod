@@ -69,7 +69,7 @@ public final class PetBreedingHandler {
 
             boolean primaryOwned = primaryOwner != null;
             boolean partnerOwned = partnerOwner != null;
-            birthContext = captureBirthContext(serverWorld, mobChild, primaryOwned, partnerOwned);
+            birthContext = captureBirthContext(serverWorld, mobChild, primaryOwned, partnerOwned, primaryComponent, partnerComponent);
             long now = birthContext.getWorldTime();
             childComponent.setStateData(PetComponent.StateKeys.BREEDING_BIRTH_TICK, now);
             childComponent.setStateData(PetComponent.StateKeys.BREEDING_PARENT_A_UUID, primaryParent.getUuidAsString());
@@ -154,6 +154,13 @@ public final class PetBreedingHandler {
 
     private static PetBreedEvent.BirthContext captureBirthContext(ServerWorld world, MobEntity child,
                                                                   boolean primaryOwned, boolean partnerOwned) {
+        return captureBirthContext(world, child, primaryOwned, partnerOwned, null, null);
+    }
+    
+    private static PetBreedEvent.BirthContext captureBirthContext(ServerWorld world, MobEntity child,
+                                                                  boolean primaryOwned, boolean partnerOwned,
+                                                                  @Nullable PetComponent primaryComponent,
+                                                                  @Nullable PetComponent partnerComponent) {
         BlockPos pos = child.getBlockPos();
         boolean indoors = !world.isSkyVisible(pos);
         boolean daytime = world.isDay();
@@ -169,7 +176,7 @@ public final class PetBreedingHandler {
         int nearbyPlayers = world.getPlayers(player -> !player.isSpectator() && player.squaredDistanceTo(child) <= witnessRadiusSq).size();
         int nearbyPets = countNearbyPets(world, child, witnessRadius);
 
-        PetBreedEvent.BirthContext.Environment environment = PetNatureSelector.captureEnvironment(world, child);
+        PetBreedEvent.BirthContext.Environment environment = PetNatureSelector.captureEnvironment(world, child, primaryComponent, partnerComponent);
 
         return new PetBreedEvent.BirthContext(
             worldTime,

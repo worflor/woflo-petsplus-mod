@@ -87,10 +87,23 @@ public final class NatureFlavorHandler {
             .hook(Trigger.DAYBREAK, Slot.MINOR, 0.6f, 200)
             .hook(Trigger.WEATHER_CLEAR, Slot.QUIRK, 0.45f, 240));
 
+        register("twilight", builder -> builder
+            .hook(Trigger.DAYBREAK, Slot.MAJOR, 0.75f, 180)
+            .hook(Trigger.NIGHTFALL, Slot.MAJOR, 0.75f, 180)
+            .hook(Trigger.WEATHER_CLEAR, Slot.MINOR, 0.5f, 220)
+            .hook(Trigger.OWNER_SLEEP, Slot.QUIRK, 0.35f, 240));
+
         register("nocturne", builder -> builder
             .hook(Trigger.NIGHTFALL, Slot.MAJOR, 0.75f, 200)
             .hook(Trigger.WEATHER_THUNDER_START, Slot.MINOR, 0.55f, 200)
             .hook(Trigger.OWNER_SLEEP, Slot.QUIRK, 0.35f, 260));
+
+        register("homestead", builder -> builder
+            .hook(Trigger.PLACE_SAPLING, Slot.MAJOR, 0.7f, 180)
+            .hook(Trigger.VILLAGER_TRADE, Slot.MINOR, 0.55f, 200)
+            .hook(Trigger.BED_INTERACTION, Slot.MINOR, 0.5f, 220)
+            .hook(Trigger.CAMPFIRE_INTERACTION, Slot.QUIRK, 0.4f, 220)
+            .hook(Trigger.DAYBREAK, Slot.QUIRK, 0.3f, 240));
 
         register("hearth", builder -> builder
             .hook(Trigger.CAMPFIRE_INTERACTION, Slot.MAJOR, 0.65f, 160)
@@ -197,7 +210,19 @@ public final class NatureFlavorHandler {
         register("verdant", builder -> builder
             .hook(Trigger.PLACE_SAPLING, Slot.MAJOR, 0.75f, 160)
             .hook(Trigger.WEATHER_CLEAR, Slot.MINOR, 0.5f, 240)
-            .hook(Trigger.BREAK_MUSHROOM, Slot.QUIRK, 0.3f, 240)
+            .hook(Trigger.BREAK_MUSHROOM, Slot.QUIRK, 0.3f, 240));
+        
+        register("sentinel", builder -> builder
+            .hook(Trigger.WEATHER_THUNDER_START, Slot.MAJOR, 0.70f, 180)
+            .hook(Trigger.NIGHTFALL, Slot.MINOR, 0.50f, 220)
+            .hook(Trigger.OWNER_SLEEP, Slot.MINOR, 0.45f, 200)
+            .hook(Trigger.DAYBREAK, Slot.QUIRK, 0.30f, 240));
+        
+        register("scrappy", builder -> builder
+            .hook(Trigger.USE_FIREWORK, Slot.MAJOR, 0.75f, 160)
+            .hook(Trigger.VILLAGER_TRADE, Slot.MINOR, 0.55f, 200)
+            .hook(Trigger.OWNER_RESPAWN, Slot.MINOR, 0.50f, 220)
+            .hook(Trigger.WEATHER_CLEAR, Slot.QUIRK, 0.35f, 240)
             .hook(Trigger.CHERRY_BLOSSOM_BLOOM, Slot.MINOR, 0.6f, 220)
             .hook(Trigger.CHERRY_PETAL_HARVEST, Slot.QUIRK, 0.4f, 220));
     }
