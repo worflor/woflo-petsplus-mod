@@ -1,6 +1,6 @@
 # Natures
 
-Natures are permanent personality traits assigned to your pet based on where and how they joined you. Think of them as the foundational "vibe" that shapes how your pet experiences the world.
+Natures are permanent personality and stat traits assigned to your pet based on where and how they joined you. Kind of like a foundational "vibe" that shapes how your pet experiences the Minecraft World™️.
 
 ## Two Paths, Two Types
 
@@ -48,19 +48,20 @@ Born natures require intentional setup. Want a Nocturne pet? Wait for a full moo
 - **Frosty** — Snowy biome conditions
 - **Mire** — Swamp biome or near mud/mangrove
 - **Relic** — Near major structures (strongholds, ruins)
+- **Blossom** – Cherry Grove Biome
+- **Clockwork** – Near complex redstone
+- **Ceramic** – Near Trial Ruins
 - **Unnatural** — Breeder owns neither parent
 
 ## Why the Split?
 
 The separation between wild and born natures is intentional.
 
-**Taming** is about accessibility. You find an animal, you tame it, you get a functional companion with climate-appropriate flavor. No pressure, no setup required.
+**Taming** is about accessibility. You find an animal, you tame it.
 
-**Breeding** is about investment. You're engineering the birth conditions, migrating your pack to dangerous or distant biomes, and creating something unique. This is where the game rewards planning, exploration, and pack-building behavior.
+**Breeding** is about investment. You're engineering the birth conditions, migrating your pack to dangerous or distant biomes, and praying nothing bad happens. This is where the game rewards planning, exploration, and pack-building.
 
-Born natures are imprinting moments. The circumstances at birth leave a mystical mark on the newborn. Wild natures are survival traits. The adult animal has already adapted to its environment.
-
-Nature vs nurture as a game mechanic.
+Born natures are about imprinting. The circumstances at birth leave a mystical mark on the newborn. Wild natures are survival traits. The adult animal has already adapted to its environment; you just befriended it.
 
 ## What Do Natures Actually Do?
 
@@ -84,13 +85,10 @@ The specifics of stat bonuses and emotional weights aren't critical to understan
 
 ## Checking Your Pet's Nature
 
-You can view your pet's nature by inspecting them. Wild natures display as *"Hardened by [climate]"* while born natures show *"Touched by fate at birth"* (or similar flavor text).
+tbd.
 
 ## Final Notes
 
 - Natures are **permanent**. You can't reroll or change them.
 - Each pet gets **exactly one** nature.
-- Born pets will **never** roll wild natures. Tamed pets will **never** roll born natures.
-- If multiple born natures could apply, one is chosen randomly using the pet's internal RNG.
-
-Natures aren't meant to be min-maxed. They're flavor, identity, and a small mechanical nudge that ties your pet to where they came from.
+- If multiple natures could apply, one is chosen randomly using the pet's RNG calculator.
