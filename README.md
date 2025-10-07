@@ -26,7 +26,7 @@
 Curious how each layer fits together? The [feature docs](docs/features/_readme.md) is your friend.
 
 ### Play It!
-1. Download the latest jar file. [its not there yet; im scared]
+1. Download the latest jar file. 
 2. Drop it into your Fabric `mods/` folder with Fabric API.
 3. Launch and enjoy.
 
