@@ -11,6 +11,7 @@ import net.minecraft.util.Formatting;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
+import woflo.petsplus.config.MoodEngineConfig;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.ui.UIStyle;
@@ -1990,13 +1991,14 @@ public final class PetMoodEngine {
     }
 
     private void ensureConfigCache() {
-        PetsPlusConfig config = PetsPlusConfig.getInstance();
-        int generation = config.getConfigGeneration();
+        // Load mood engine config from moodengine.json (shareable, drop-in config file)
+        MoodEngineConfig moodConfig = MoodEngineConfig.get();
+        int generation = moodConfig.getVersion(); // Use version as generation tracking
         if (generation == cachedConfigGeneration && cachedMoodsSection != null) {
             return;
         }
         cachedConfigGeneration = generation;
-        cachedMoodsSection = config.getSection("moods");
+        cachedMoodsSection = moodConfig.getMoodsSection();
         cachedWeightSection = getObject(cachedMoodsSection, "weight");
         cachedOpponentSection = getObject(cachedMoodsSection, "opponents");
         cachedAnimationSection = getObject(cachedMoodsSection, "animation");

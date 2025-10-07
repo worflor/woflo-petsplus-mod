@@ -157,45 +157,20 @@ public final class EmotionsEventHandler {
     }
 
     public static void register() {
-        // After a block is broken (server): mining satisfaction, discovery moments
         PlayerBlockBreakEvents.AFTER.register(EmotionsEventHandler::onAfterBlockBreak);
-
-        // After a block is placed (server): building/creation
-    // Note: Fabric API for block place events may vary by MC version.
-    // We piggyback on UseBlockCallback and detect intended placement via held BlockItem.
-
-        // When an entity kills another: triumph/relief/zeal
         ServerEntityCombatEvents.AFTER_KILLED_OTHER_ENTITY.register(EmotionsEventHandler::onAfterKilledOther);
-
-        // When player uses an item: food, potions, notable items
         UseItemCallback.EVENT.register(EmotionsEventHandler::onUseItem);
-
-        // When player uses a block: beds, chests, stations, jukebox
         UseBlockCallback.EVENT.register(EmotionsEventHandler::onUseBlock);
-
-        // When interacting with entities: leads/mounting
         UseEntityCallback.EVENT.register(EmotionsEventHandler::onUseEntity);
-
-        // Before player attacks an entity: combat anticipation
         AttackEntityCallback.EVENT.register(EmotionsEventHandler::onOwnerAttack);
-
-        // After player respawn: relief and resilience
         ServerPlayerEvents.AFTER_RESPAWN.register(EmotionsEventHandler::onAfterRespawn);
-
-        // Owner death: grief/longing on pets
         ServerLivingEntityEvents.AFTER_DEATH.register(EmotionsEventHandler::onAfterDeath);
-
-        // 5th Wave: Tag-based and data-driven emotion hooks
-        // Enchanting events (via block use on enchanting table)
         UseBlockCallback.EVENT.register(EmotionsEventHandler::onEnchantingTableUse);
-
-        // Trading events (via villager interaction)
         UseEntityCallback.EVENT.register(EmotionsEventHandler::onVillagerTrade);
 
         Petsplus.LOGGER.info("Emotions event handlers registered");
     }
 
-    // ==== Block Break → KEFI, GLEE, WABI_SABI (building), STOIC (familiar grind resilience) ====
     private static void onAfterBlockBreak(World world, PlayerEntity player, BlockPos pos, net.minecraft.block.BlockState state,
 net.minecraft.block.entity.BlockEntity blockEntity) {
         if (world.isClient() || !(player instanceof ServerPlayerEntity sp)) return;
@@ -220,12 +195,10 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
         emitOwnerBrokeBlockTrigger(sp, pos, state);
         
-        // Add contagion for valuable block discovery
         if (isValuableBlock(state)) {
             pushToNearbyOwnedPets(sp, 24, (pc, collector) -> {
-                collector.pushEmotion(PetComponent.Emotion.GLEE, 0.020f);  // Discovery joy contagion
-                collector.pushEmotion(PetComponent.Emotion.CURIOUS, 0.015f);  // Curiosity contagion
-                // Add visual feedback for discovery contagion
+                collector.pushEmotion(PetComponent.Emotion.GLEE, 0.020f);
+                collector.pushEmotion(PetComponent.Emotion.CURIOUS, 0.015f);
                 FeedbackManager.emitContagionFeedback(pc.getPet(), (ServerWorld) sp.getWorld(), PetComponent.Emotion.CURIOUS);
             });
         }
@@ -492,7 +465,6 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.JUKEBOX_PLAY);
         }
 
-        // Ultra-rare: ARCANE OVERFLOW - Enchanting table/anvil use
         if (state.isOf(Blocks.ENCHANTING_TABLE) || state.isOf(Blocks.ANVIL) || 
             state.isOf(Blocks.CHIPPED_ANVIL) || state.isOf(Blocks.DAMAGED_ANVIL)) {
             triggerArcaneOverflow(sp, world);
@@ -553,13 +525,12 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 gossipConfidence = 0.47f;
             }
         } else if (state.getBlock() instanceof ChestBlock || state.getBlock() instanceof BarrelBlock) {
-            // Loot discovery emotions when opening containers
             useDefinition = "block_use.container.open";
-            stateConsumer = (pc, collector) -> {
-                collector.pushEmotion(PetComponent.Emotion.GLEE, 0.25f);  // Discovery joy
-                collector.pushEmotion(PetComponent.Emotion.KEFI, 0.15f);  // Excitement
-                collector.pushEmotion(PetComponent.Emotion.CURIOUS, 0.20f);  // What's inside?
-            };
+                stateConsumer = (pc, collector) -> {
+                    collector.pushEmotion(PetComponent.Emotion.GLEE, 0.25f);
+                    collector.pushEmotion(PetComponent.Emotion.KEFI, 0.15f);
+                    collector.pushEmotion(PetComponent.Emotion.CURIOUS, 0.20f);
+                };
         } else if (state.getBlock() instanceof JukeboxBlock && state.contains(JukeboxBlock.HAS_RECORD)) {
             boolean hasRecord = state.get(JukeboxBlock.HAS_RECORD);
             if (hasRecord) {
@@ -570,8 +541,6 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 };
             } else if (held.isIn(MUSIC_DISC_ITEMS)) {
                 useDefinition = "block_use.jukebox.start";
-
-                // Determine music disc type for specific emotions
                 String discName = held.getItem().getTranslationKey();
                 boolean isCalm = discName.contains("pigstep") || discName.contains("stal") ||
                                  discName.contains("mellohi") || discName.contains("wait");
@@ -581,80 +550,63 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                                   discName.contains("ward");
 
                 stateConsumer = (pc, collector) -> {
-                    // Store music state for prolonged emotional peaks
                     long currentTime = world.getTime();
                     pc.setStateData("music_playing", true);
                     pc.setStateData("music_start_time", currentTime);
                     pc.setStateData("music_disc_type", discName);
 
-                    // Calculate trait-based affinity bonuses
                     float musicAffinity = 1.0f;
-                    // Check for entertainment-related roles (if they exist)
-                    // For now, just use characteristics
-
-                    // Check for musical personality traits
                     Float playfulness = pc.getStateData("trait_playfulness", Float.class);
                     if (playfulness != null && playfulness > 0.7f) {
-                        musicAffinity *= 1.2f;  // Playful pets enjoy music more
+                        musicAffinity *= 1.2f;
                     }
-
-                    // Peak emotion application with affinity scaling
                     if (isCalm) {
-                        // Calm music - peaceful emotions with prolonged effect
                         float peakIntensity = 0.35f * musicAffinity;
-                        collector.pushEmotion(PetComponent.Emotion.LAGOM, peakIntensity);  // Balanced serenity
-                        collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.20f * musicAffinity);  // Idle listening appreciation
-                        collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.15f * musicAffinity);  // Appreciation of beauty
+                        collector.pushEmotion(PetComponent.Emotion.LAGOM, peakIntensity);
+                        collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.20f * musicAffinity);
+                        collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.15f * musicAffinity);
                         pc.setStateData("music_peak_emotion", "LAGOM");
                         pc.setStateData("music_peak_intensity", peakIntensity);
                     } else if (isUpbeat) {
-                        // Upbeat music - energetic emotions with burst
                         float peakIntensity = 0.40f * musicAffinity;
-                        collector.pushEmotion(PetComponent.Emotion.KEFI, peakIntensity);  // Joyful exuberance peak
+                        collector.pushEmotion(PetComponent.Emotion.KEFI, peakIntensity);
                         collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.25f * musicAffinity);
                         collector.pushEmotion(PetComponent.Emotion.GLEE, 0.20f * musicAffinity);
                         pc.setStateData("music_peak_emotion", "KEFI");
                         pc.setStateData("music_peak_intensity", peakIntensity);
                     } else if (isEerie) {
-                        // Eerie music - mysterious/dread emotions with tension
                         if (world.isNight() || world.getLightLevel(pos) < 7) {
-                            collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.25f * musicAffinity);  // Dark atmosphere
+                            collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.25f * musicAffinity);
                         }
                         float peakIntensity = 0.30f * musicAffinity;
-                        collector.pushEmotion(PetComponent.Emotion.YUGEN, peakIntensity);  // Mysterious appreciation peak
-                        collector.pushEmotion(PetComponent.Emotion.ANGST, 0.10f * musicAffinity);  // Slight tension
+                        collector.pushEmotion(PetComponent.Emotion.YUGEN, peakIntensity);
+                        collector.pushEmotion(PetComponent.Emotion.ANGST, 0.10f * musicAffinity);
                         pc.setStateData("music_peak_emotion", "YUGEN");
                         pc.setStateData("music_peak_intensity", peakIntensity);
                     } else {
-                        // Default music emotions
                         float peakIntensity = 0.25f * musicAffinity;
                         collector.pushEmotion(PetComponent.Emotion.GLEE, peakIntensity);
-                        collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.20f * musicAffinity);  // General appreciation
-                        collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.15f * musicAffinity);  // Social bonding through music
+                        collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.20f * musicAffinity);
+                        collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.15f * musicAffinity);
                         pc.setStateData("music_peak_emotion", "GLEE");
                         pc.setStateData("music_peak_intensity", peakIntensity);
                     }
 
-                    // Species-specific music responses
                     if (pc.getPet() instanceof ParrotEntity) {
-                        // Parrots have special affinity for all music
-                        collector.pushEmotion(PetComponent.Emotion.KEFI, 0.25f);  // Extra musical joy
+                        collector.pushEmotion(PetComponent.Emotion.KEFI, 0.25f);
                         collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.20f);
-                        collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.15f);  // Flock unity through music
+                        collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.15f);
                     } else if (pc.getPet() instanceof WolfEntity) {
-                        // Wolves howl along with music
                         collector.pushEmotion(PetComponent.Emotion.LOYALTY, 0.15f * musicAffinity);
-                        collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.20f * musicAffinity);  // Pack bonding
+                        collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.20f * musicAffinity);
                     } else if (pc.getPet() instanceof CatEntity) {
-                        // Cats are more selective about music
                         if (isCalm) {
                             collector.pushEmotion(PetComponent.Emotion.CONTENT, 0.20f * musicAffinity);
                         } else {
-                            collector.pushEmotion(PetComponent.Emotion.ENNUI, 0.10f);  // Mild annoyance at loud music
+                            collector.pushEmotion(PetComponent.Emotion.ENNUI, 0.10f);
                         }
                     }
 
-                    // Store music session data for ongoing effects
                     pc.setStateData("music_session_id", java.util.UUID.randomUUID().toString());
                 };
             }
@@ -671,11 +623,9 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 stateConsumer = (pc, collector) -> {
                     collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.25f);
                     collector.pushEmotion(PetComponent.Emotion.CONTENT, 0.20f);
-                    // Bed provides strong safety at night
                     if (world.isNight()) {
                         collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.35f);
-                        collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.25f); // Home feeling
-                        // Clear fear/vigilance
+                        collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.25f);
                         collector.pushEmotion(PetComponent.Emotion.VIGILANT, -0.20f);
                         collector.pushEmotion(PetComponent.Emotion.FOREBODING, -0.25f);
                     }

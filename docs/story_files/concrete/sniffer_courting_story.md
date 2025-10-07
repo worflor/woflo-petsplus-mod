@@ -1,4 +1,6 @@
 # Sniffer Courting System — Design Story
+## made prior to 0.93-Rebranding-to-Realtime
+
 
 > Romanticized taming loop that treats sniffers as discerning companions. Players earn their trust
 > through fragrant gifts, mindful strolls, and respectful interaction.

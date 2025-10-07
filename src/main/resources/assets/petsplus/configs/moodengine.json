@@ -1,37 +1,20 @@
 {
-  "_comment": "Rebalanced mood system for realistic emotion simulation - emotions last minutes, not seconds",
+  "_schema": "petsplus:moodengine",
+  "_version": 1,
   
   "moods": {
-    "_comment": "Emotions now build up and decay over minutes for proper simulation",
-
     "slotCount": 8,
-    "_slotComment": "Increased to allow more complex emotional states",
-    
     "decayTickInterval": 100,
-    "_decayComment": "Check decay every 5 seconds (was every minute)",
-    
     "defaultDecayRate": 0.9985,
-    "_defaultDecayComment": "Much slower decay - emotions last 10-30 minutes instead of seconds",
-    
     "epsilon": 0.002,
-    "_epsilonComment": "Lower threshold for emotion persistence",
-    
     "momentum": 0.65,
-    "_momentumComment": "Higher momentum for more stable emotional states",
-    
     "switchMargin": 0.08,
     "hysteresisTicks": 200,
-    "_hysteresisComment": "Longer hysteresis prevents mood flickering",
-    
     "levelThresholds": [0.20, 0.45, 0.70],
-    "_levelComment": "Adjusted for better progression feeling",
-    
     "weight": {
       "defaultMax": 6.0,
-      "_maxComment": "Increased cap allows emotions to build more",
       "saturationAlpha": 0.15,
       "perEmotionMax": {
-        "_comment": "Proportional caps based on emotion significance",
         "relief": 5.0,
         "saudade": 8.0,
         "protectiveness": 7.0,
@@ -75,9 +58,7 @@
         "loyalty": 7.0
       }
     },
-    
     "perEmotionDecay": {
-      "_comment": "Decay rates calibrated for realistic emotional persistence (minutes not seconds)",
       "relief": 0.9975,
       "saudade": 0.9995,
       "protectiveness": 0.9990,
@@ -120,9 +101,7 @@
       "playfulness": 0.9960,
       "loyalty": 0.9993
     },
-    
     "emotionHalfLives": {
-      "_comment": "Half-life in minutes for each emotion type",
       "startle": 2.5,
       "disgust": 5,
       "playfulness": 7,
@@ -163,54 +142,41 @@
       "loyalty": 60,
       "saudade": 60
     },
-    
     "eviction": {
       "useLastUpdated": true,
       "ageCoeff": 0.0001,
-      "_ageComment": "Much lower age coefficient for longer persistence",
       "lowWeightCoeff": 0.5,
       "parkedBias": 0.8
     },
-    
     "affectionateDecayTicks": 12000,
-    "_affectionateComment": "10 minutes of affection memory",
     "pettingWeight": 0.8,
     "maxPettingBonus": 2.2,
-    
     "vigilantCombatWindowTicks": 600,
-    "_combatComment": "30 second combat awareness window",
     "combatVigilantBonus": 2.0,
     "threatVigilantWeight": 1.2,
     "darkVigilantBonus": 0.8,
     "darkLightThreshold": 7,
-    
     "reflectiveSittingBonus": 1.5,
     "reflectiveIdleBonus": 1.2,
     "reflectivePeacefulBonus": 0.8,
     "reflectiveLightBonus": 0.5,
     "idleVelocityThreshold": 0.01,
     "brightLightThreshold": 10,
-    
     "distressedHealthThreshold": 0.35,
     "distressedHealthWeight": 3.0,
     "distressedAttackWindowTicks": 400,
     "distressedAttackBonus": 1.5,
     "distressedThreatWeight": 0.8,
-    
     "adaptiveBaseScore": 0.6,
     "adaptiveTributeBonus": 1.5,
-    
     "moodUpdateFrequencyTicks": 20,
-    
     "animation": {
       "baseAnimationUpdateInterval": 20,
       "animationSpeedMultiplier": 0.12,
       "minAnimationInterval": 5,
       "maxAnimationInterval": 60
     },
-    
     "opponents": {
-      "_comment": "Emotional oppositions that create internal conflict",
       "angst": ["cheerful", "blissful"],
       "foreboding": ["lagom", "content"],
       "startle": ["relief", "calm"],
