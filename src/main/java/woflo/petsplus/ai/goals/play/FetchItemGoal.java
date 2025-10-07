@@ -3,6 +3,7 @@ package woflo.petsplus.ai.goals.play;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalType;
@@ -21,6 +22,7 @@ public class FetchItemGoal extends AdaptiveGoal {
     private int fetchPhase = 0; // 0 = find, 1 = pickup, 2 = return
     private static final int MAX_FETCH_TICKS = 300; // 15 seconds
     private int fetchTicks = 0;
+    private ItemStack carriedStack = ItemStack.EMPTY;
     
     public FetchItemGoal(MobEntity mob) {
         super(mob, GoalType.FETCH_ITEM, EnumSet.of(Control.MOVE));
@@ -39,21 +41,39 @@ public class FetchItemGoal extends AdaptiveGoal {
     
     @Override
     protected boolean shouldContinueGoal() {
-        return fetchTicks < MAX_FETCH_TICKS && 
-               targetItem != null && 
-               targetItem.isAlive() &&
-               targetPlayer != null;
+        if (fetchTicks >= MAX_FETCH_TICKS || targetPlayer == null) {
+            return false;
+        }
+
+        return switch (fetchPhase) {
+            case 0 -> targetItem != null && targetItem.isAlive();
+            case 1, 2 -> !carriedStack.isEmpty();
+            default -> false;
+        };
     }
     
     @Override
     protected void onStartGoal() {
         fetchPhase = 0;
         fetchTicks = 0;
+        carriedStack = ItemStack.EMPTY;
     }
-    
+
     @Override
     protected void onStopGoal() {
         mob.getNavigation().stop();
+        if (!carriedStack.isEmpty()) {
+            if (!mob.getWorld().isClient()) {
+                mob.getWorld().spawnEntity(new ItemEntity(
+                    mob.getWorld(),
+                    mob.getX(),
+                    mob.getY(),
+                    mob.getZ(),
+                    carriedStack.copy()
+                ));
+            }
+            carriedStack = ItemStack.EMPTY;
+        }
         targetItem = null;
         targetPlayer = null;
         fetchPhase = 0;
@@ -65,19 +85,30 @@ public class FetchItemGoal extends AdaptiveGoal {
         
         if (fetchPhase == 0) {
             // Phase 0: Move to item
+            if (targetItem == null || !targetItem.isAlive()) {
+                return;
+            }
+
             mob.getNavigation().startMovingTo(targetItem, 1.2);
             mob.getLookControl().lookAt(targetItem);
-            
+
             if (mob.squaredDistanceTo(targetItem) < 2.0) {
-                // "Pickup" - remove from world, simulate carrying
-                targetItem.discard();
-                fetchPhase = 1;
+                ItemStack stack = targetItem.getStack();
+                if (!stack.isEmpty()) {
+                    carriedStack = stack.copy();
+                    targetItem.discard();
+                    targetItem = null;
+                    fetchPhase = 1;
+                } else {
+                    // Nothing to carry, abort gracefully
+                    fetchTicks = MAX_FETCH_TICKS;
+                }
             }
         } else if (fetchPhase == 1) {
             // Phase 1: Return to owner
             mob.getNavigation().startMovingTo(targetPlayer, 1.0);
             mob.getLookControl().lookAt(targetPlayer);
-            
+
             if (mob.squaredDistanceTo(targetPlayer) < 3.0) {
                 fetchPhase = 2;
             }
@@ -85,7 +116,17 @@ public class FetchItemGoal extends AdaptiveGoal {
             // Phase 2: "Drop" at owner's feet
             mob.getNavigation().stop();
             mob.getLookControl().lookAt(targetPlayer);
-            
+
+            if (!carriedStack.isEmpty()) {
+                ItemStack stackToDeliver = carriedStack.copy();
+                carriedStack = ItemStack.EMPTY;
+
+                boolean delivered = targetPlayer.giveItemStack(stackToDeliver);
+                if (!delivered || !stackToDeliver.isEmpty()) {
+                    targetPlayer.dropItem(stackToDeliver, false);
+                }
+            }
+
             // Simulate drop animation
             if (fetchTicks % 10 == 0) {
                 mob.setPitch(30); // Look down

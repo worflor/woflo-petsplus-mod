@@ -32,6 +32,10 @@ public final class MathHelper {
         return (byte) Math.round(degrees * 256.0f / 360.0f);
     }
 
+    public static float wrapDegrees(float value) {
+        return (float) wrapDegrees((double) value);
+    }
+
     public static double wrapDegrees(double value) {
         double wrapped = value % 360.0;
         if (wrapped >= 180.0) {

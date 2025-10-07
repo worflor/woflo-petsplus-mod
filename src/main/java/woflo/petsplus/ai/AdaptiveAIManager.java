@@ -181,6 +181,9 @@ public class AdaptiveAIManager {
             if (GoalType.ORBIT_SWIM.isCompatible(capabilities)) {
                 goalSelector.add(15, new OrbitSwimGoal(mob));
             }
+            if (GoalType.EYE_CONTACT.isCompatible(capabilities)) {
+                goalSelector.add(GoalType.EYE_CONTACT.getPriority(), new EyeContactGoal(mob));
+            }
             if (GoalType.CROUCH_APPROACH_RESPONSE.isCompatible(capabilities)) {
                 goalSelector.add(12, new CrouchApproachResponseGoal(mob));
             }

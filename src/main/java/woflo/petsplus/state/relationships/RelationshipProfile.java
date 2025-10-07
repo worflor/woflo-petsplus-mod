@@ -144,38 +144,32 @@ public record RelationshipProfile(
         float weightedTrust = 0.0f;
         float weightedAffection = 0.0f;
         float weightedRespect = 0.0f;
-        float totalWeight = 0.0f;
-        
+
         // Weight interactions by recency (exponential decay on weight, not value)
         for (InteractionMemory memory : recentInteractions) {
             long age = currentTick - memory.tick();
             // Newer interactions weighted more heavily
             float weight = (float) Math.exp(-age / 144000.0); // Half-life ~2 hours
-            
+
             weightedTrust += memory.trustDelta() * weight;
             weightedAffection += memory.affectionDelta() * weight;
             weightedRespect += memory.respectDelta() * weight;
-            totalWeight += weight;
         }
-        
-        if (totalWeight > 0.0f) {
-            float newTrust = MathHelper.clamp(weightedTrust / totalWeight, -1.0f, 1.0f);
-            float newAffection = MathHelper.clamp(weightedAffection / totalWeight, 0.0f, 1.0f);
-            float newRespect = MathHelper.clamp(weightedRespect / totalWeight, 0.0f, 1.0f);
-            
-            return new RelationshipProfile(
-                entityId,
-                familiarityEstablished,
-                newTrust,
-                newAffection,
-                newRespect,
-                recentInteractions,
-                lastInteractionTick,
-                firstInteractionTick
-            );
-        }
-        
-        return this;
+
+        float newTrust = MathHelper.clamp(weightedTrust, -1.0f, 1.0f);
+        float newAffection = MathHelper.clamp(weightedAffection, 0.0f, 1.0f);
+        float newRespect = MathHelper.clamp(weightedRespect, 0.0f, 1.0f);
+
+        return new RelationshipProfile(
+            entityId,
+            familiarityEstablished,
+            newTrust,
+            newAffection,
+            newRespect,
+            recentInteractions,
+            lastInteractionTick,
+            firstInteractionTick
+        );
     }
     
     /**

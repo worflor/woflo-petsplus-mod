@@ -1,9 +1,15 @@
 package woflo.petsplus.ai.capability;
 
+import net.minecraft.entity.ai.goal.SitGoal;
 import net.minecraft.entity.ai.pathing.*;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.inventory.InventoryChangedListener;
+import woflo.petsplus.api.entity.PetsplusTameable;
+import woflo.petsplus.state.PetComponent;
+
+import java.util.UUID;
+import woflo.petsplus.mixin.MobEntityAccessor;
 
 /**
  * Detects what a mob CAN do without hardcoding entity types.
@@ -50,7 +56,34 @@ public class MobCapabilities {
      * Does the mob have an owner?
      */
     public static boolean hasOwner(MobEntity mob) {
-        return mob instanceof TameableEntity tameable && tameable.getOwner() != null;
+        UUID storedOwner = null;
+        PetComponent component = PetComponent.get(mob);
+        if (component != null) {
+            storedOwner = component.getOwnerUuid();
+        }
+
+        if (mob instanceof PetsplusTameable petsplus) {
+            if (!petsplus.petsplus$isTamed()) {
+                return false;
+            }
+
+            UUID capabilityOwner = petsplus.petsplus$getOwnerUuid();
+            if (capabilityOwner != null) {
+                return true;
+            }
+
+            return storedOwner != null;
+        }
+
+        if (storedOwner != null) {
+            return true;
+        }
+
+        if (mob instanceof TameableEntity tameable) {
+            return tameable.isTamed();
+        }
+
+        return false;
     }
     
     /**
@@ -73,7 +106,20 @@ public class MobCapabilities {
      * Can the mob sit?
      */
     public static boolean canSit(MobEntity mob) {
-        return mob instanceof TameableEntity tameable && tameable.isSitting();
+        if (mob instanceof TameableEntity || mob instanceof PetsplusTameable) {
+            return true;
+        }
+
+        // Fall back to detecting a dedicated sit goal so custom mobs are recognized.
+        try {
+            MobEntityAccessor accessor = (MobEntityAccessor) mob;
+            return accessor.getGoalSelector().getGoals().stream()
+                .map(entry -> entry.getGoal())
+                .anyMatch(goal -> goal instanceof SitGoal ||
+                    (goal != null && goal.getClass().getSimpleName().toLowerCase().contains("sit")));
+        } catch (ClassCastException ignored) {
+            return false;
+        }
     }
     
     /**

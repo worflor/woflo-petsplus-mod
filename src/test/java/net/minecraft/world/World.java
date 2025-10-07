@@ -5,10 +5,16 @@ import net.minecraft.server.MinecraftServer;
 /** Minimal world stub for server tests. */
 public class World {
     protected final MinecraftServer server;
+    public final boolean isClient;
     private long time;
 
     public World(MinecraftServer server) {
+        this(server, false);
+    }
+
+    public World(MinecraftServer server, boolean isClient) {
         this.server = server;
+        this.isClient = isClient;
     }
 
     public MinecraftServer getServer() {
@@ -24,6 +30,6 @@ public class World {
     }
 
     public boolean isClient() {
-        return false;
+        return isClient;
     }
 }
