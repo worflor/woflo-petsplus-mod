@@ -1,0 +1,146 @@
+package woflo.petsplus.ai.goals.special;
+
+import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.util.math.BlockPos;
+import woflo.petsplus.ai.context.PetContext;
+import woflo.petsplus.ai.goals.AdaptiveGoal;
+import woflo.petsplus.ai.goals.GoalType;
+
+import java.util.EnumSet;
+
+/**
+ * Stargazing - looks up at the night sky contemplatively.
+ * Creates peaceful, philosophical behavior.
+ */
+public class StargazingGoal extends AdaptiveGoal {
+    private int gazeTicks = 0;
+    private static final int MAX_GAZE_TICKS = 200; // 10 seconds
+    private BlockPos gazeSpot;
+    
+    public StargazingGoal(MobEntity mob) {
+        super(mob, GoalType.STARGAZING, EnumSet.of(Control.MOVE, Control.LOOK));
+    }
+    
+    @Override
+    protected boolean canStartGoal() {
+        PetContext ctx = getContext();
+        
+        // Only at night, clear sky, peaceful environment
+        if (ctx.isDaytime()) return false;
+        if (mob.getWorld().isRaining()) return false;
+        if (!mob.isOnGround()) return false;
+        
+        // Check if sky is visible (not underground/covered)
+        BlockPos above = mob.getBlockPos().up(10);
+        if (!mob.getWorld().isSkyVisible(above)) return false;
+        
+        gazeSpot = findGoodGazingSpot();
+        return gazeSpot != null;
+    }
+    
+    @Override
+    protected boolean shouldContinueGoal() {
+        PetContext ctx = getContext();
+        return gazeTicks < MAX_GAZE_TICKS && 
+               !ctx.isDaytime() && 
+               !mob.getWorld().isRaining();
+    }
+    
+    @Override
+    protected void onStartGoal() {
+        gazeTicks = 0;
+    }
+    
+    @Override
+    protected void onStopGoal() {
+        mob.getNavigation().stop();
+        gazeSpot = null;
+    }
+    
+    @Override
+    protected void onTickGoal() {
+        gazeTicks++;
+        
+        if (gazeSpot == null) return;
+        
+        double distance = mob.getBlockPos().getSquaredDistance(gazeSpot);
+        
+        if (distance > 2.0) {
+            // Move to gazing spot
+            mob.getNavigation().startMovingTo(
+                gazeSpot.getX(), 
+                gazeSpot.getY(), 
+                gazeSpot.getZ(), 
+                0.6
+            );
+        } else {
+            // Sit still and look up at stars
+            mob.getNavigation().stop();
+            
+            // Look upward at sky
+            mob.setPitch(-60); // Look up
+            
+            // Slow head movements - tracking stars/moon
+            if (gazeTicks % 60 == 0) {
+                mob.bodyYaw += mob.getRandom().nextFloat() * 20 - 10;
+            }
+            
+            // Occasional contemplative movements
+            if (gazeTicks % 80 == 0) {
+                // Small head tilt
+                mob.setPitch(-60 + (float) (Math.sin(gazeTicks * 0.05) * 10));
+            }
+        }
+    }
+    
+    /**
+     * Finds a good spot for stargazing - open area with sky view.
+     */
+    private BlockPos findGoodGazingSpot() {
+        BlockPos start = mob.getBlockPos();
+        
+        for (int attempts = 0; attempts < 8; attempts++) {
+            int dx = mob.getRandom().nextInt(9) - 4;
+            int dz = mob.getRandom().nextInt(9) - 4;
+            
+            BlockPos candidate = start.add(dx, 0, dz);
+            
+            // Must have clear sky view
+            if (mob.getWorld().isSkyVisible(candidate.up(5))) {
+                return candidate;
+            }
+        }
+        
+        // Fallback to current position if sky visible
+        if (mob.getWorld().isSkyVisible(start.up(5))) {
+            return start;
+        }
+        
+        return null;
+    }
+    
+    @Override
+    protected float calculateEngagement() {
+        PetContext ctx = getContext();
+        float engagement = 0.85f;
+        
+        // Very engaging for yugen (profound, mysterious beauty) mood
+        if (ctx.hasPetsPlusComponent() && ctx.hasMoodInBlend(
+            woflo.petsplus.state.PetComponent.Mood.YUGEN, 0.3f)) {
+            engagement = 1.0f;
+        }
+        
+        // Engaging for calm, contemplative pets
+        if (ctx.hasPetsPlusComponent() && ctx.hasMoodInBlend(
+            woflo.petsplus.state.PetComponent.Mood.CALM, 0.5f)) {
+            engagement = 0.95f;
+        }
+        
+        // More engaging for mature pets
+        if (ctx.getAgeCategory() == PetContext.AgeCategory.MATURE) {
+            engagement += 0.1f;
+        }
+        
+        return Math.min(1.0f, engagement);
+    }
+}

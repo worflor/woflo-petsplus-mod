@@ -16,7 +16,7 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.component.PetsplusComponents;
 import woflo.petsplus.history.HistoryEvent;
-import woflo.petsplus.stats.PetCharacteristics;
+import woflo.petsplus.stats.PetImprint;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -704,12 +704,12 @@ public class ProofOfExistence {
             lore.add(Text.literal(natureText));
         }
 
-        // Traits (only if characteristics exist and are notable)
-        PetCharacteristics chars = petComp.getCharacteristics();
-        if (chars != null) {
-            float vitality = chars.getVitalityModifier(roleType);
-            float attack = chars.getAttackModifier(roleType);
-            float defense = chars.getDefenseModifier(roleType);
+        // Traits (only if imprint exists and is notable)
+        PetImprint imprint = petComp.getImprint();
+        if (imprint != null) {
+            float vitality = imprint.getVitalityMultiplier() - 1.0f; // Convert 1.08x → 0.08
+            float attack = imprint.getAttackMultiplier() - 1.0f;
+            float defense = imprint.getDefenseMultiplier() - 1.0f;
             
             boolean hasNotableTraits = Math.abs(vitality) > MODIFIER_THRESHOLD ||
                                       Math.abs(attack) > MODIFIER_THRESHOLD ||

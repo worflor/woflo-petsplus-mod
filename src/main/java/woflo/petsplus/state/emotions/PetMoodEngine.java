@@ -167,6 +167,16 @@ public final class PetMoodEngine {
     @SuppressWarnings("unused") // Reserved for future stimulus timing optimization
     private long lastStimulusTime = 0L;
     private boolean dirty = false;
+    
+    // Behavioral Momentum - tracks activity level for AI regulation
+    private float behavioralMomentum = 0.5f;           // 0=still, 1=hyperactive
+    private float momentumInertia = 0f;                // Smoothing factor for momentum changes
+    private long lastMomentumUpdate = 0L;
+    
+    // Multi-dimensional activity tracking for realistic behavior
+    private float physicalActivity = 0f;               // Running, jumping, playing
+    private float mentalActivity = 0f;                 // Puzzles, searching, tracking
+    private float socialActivity = 0f;                 // Interactions with owner/pets
 
     // Text animation caching
     private Text cachedMoodText = null;
@@ -464,6 +474,84 @@ public final class PetMoodEngine {
         update();
         return animationIntensity;
     }
+    
+    /**
+     * Records behavioral activity from AI goals or interactions.
+     * Accumulates until next momentum update.
+     * 
+     * @param intensity Activity intensity (0-1, where 1 is max exertion)
+     * @param durationTicks How long the activity lasted
+     */
+    public void recordBehavioralActivity(float intensity, long durationTicks) {
+        recordBehavioralActivity(intensity, durationTicks, ActivityType.PHYSICAL);
+    }
+    
+    /**
+     * Records typed behavioral activity for nuanced momentum tracking.
+     * Different activity types contribute differently to overall momentum.
+     */
+    public void recordBehavioralActivity(float intensity, long durationTicks, ActivityType type) {
+        if (intensity < EPSILON || durationTicks <= 0) return;
+        
+        float normalizedIntensity = MathHelper.clamp(intensity, 0f, 1f);
+        float contribution = normalizedIntensity * durationTicks / 100f;
+        
+        // Apply activity with caps to prevent overflow from rapid recording
+        switch (type) {
+            case PHYSICAL -> physicalActivity = Math.min(5f, physicalActivity + contribution * 1.2f);
+            case MENTAL -> mentalActivity = Math.min(5f, mentalActivity + contribution * 0.8f);
+            case SOCIAL -> socialActivity = Math.min(5f, socialActivity + contribution * 0.9f);
+        }
+        dirty = true;
+    }
+    
+    /**
+     * Activity types for behavioral momentum tracking.
+     */
+    public enum ActivityType {
+        PHYSICAL,  // Movement, play, exercise
+        MENTAL,    // Problem-solving, searching, tracking
+        SOCIAL     // Interactions with owner or other pets
+    }
+    
+    /**
+     * Gets current behavioral momentum level.
+     * 0.0 = completely still/tired, 0.5 = neutral, 1.0 = hyperactive
+     */
+    public float getBehavioralMomentum() {
+        update();
+        return behavioralMomentum;
+    }
+    
+    /**
+     * Gets momentum-based movement speed multiplier for AI/animation.
+     * Returns 0.7-1.3 range for natural speed variation.
+     */
+    public float getMomentumSpeedMultiplier() {
+        update();
+        // Map 0.0-1.0 momentum to 0.7-1.3 speed multiplier
+        // Low momentum = slower movement, high momentum = faster movement
+        return 0.7f + (behavioralMomentum * 0.6f);
+    }
+    
+    /**
+     * Gets momentum-based animation speed multiplier.
+     * Returns 0.8-1.4 range for visible but not jarring animation changes.
+     */
+    public float getMomentumAnimationSpeed() {
+        update();
+        // Tired pets animate slower, energetic pets faster
+        // Slightly more dramatic range than movement for visual feedback
+        return 0.8f + (behavioralMomentum * 0.6f);
+    }
+    
+    /**
+     * Debug info for momentum state inspection.
+     */
+    public String getMomentumDebugString() {
+        return String.format("Momentum: %.2f | P:%.2f M:%.2f S:%.2f | Inertia:%.3f",
+            behavioralMomentum, physicalActivity, mentalActivity, socialActivity, momentumInertia);
+    }
 
     public void writeToNbt(NbtCompound nbt) {
         NbtCompound emotions = new NbtCompound();
@@ -503,6 +591,9 @@ public final class PetMoodEngine {
             history.putFloat(Integer.toString(idx++), value);
         }
         nbt.put("dominantHistory", history);
+        
+        // Behavioral momentum - only persist momentum value, activities regenerate naturally
+        nbt.putFloat("behavioralMomentum", behavioralMomentum);
     }
 
     public void readFromNbt(NbtCompound nbt) {
@@ -594,6 +685,14 @@ public final class PetMoodEngine {
         paletteCommittedOnce = false;
         lastPaletteCommitTime = 0L;
         paletteGeneration++;
+        
+        // Behavioral momentum - only restore momentum, activities start fresh
+        behavioralMomentum = nbt.getFloat("behavioralMomentum").orElse(0.5f);
+        // Activities intentionally not persisted - they should start fresh on load
+        physicalActivity = 0f;
+        mentalActivity = 0f;
+        socialActivity = 0f;
+        lastMomentumUpdate = 0L;
     }
 
     // --------------------------------------------------------------------------------------------
@@ -617,6 +716,9 @@ public final class PetMoodEngine {
         float maxCap = 0.6f * Math.max(1f, contagionModifier);
         lastContagionCap = MathHelper.clamp(baseCap, minCap, maxCap);
 
+        // Update behavioral momentum
+        updateBehavioralMomentum(now);
+        
         // Decay + cleanup pass
         List<EmotionRecord> active = collectActiveRecords(now, epsilon);
 
@@ -827,6 +929,9 @@ public final class PetMoodEngine {
             moodBlend.put(mood, MathHelper.clamp(blended, 0f, 1f));
         }
 
+        // Apply behavioral momentum influence before normalization
+        applyBehavioralMomentumInfluence();
+        
         normalizeBlend(moodBlend);
 
         updateEmotionPalette(weighted);
@@ -924,6 +1029,172 @@ public final class PetMoodEngine {
         dominantHistory.add(MathHelper.clamp(strength, 0f, 1f));
     }
 
+    /**
+     * Updates behavioral momentum based on accumulated activity and natural decay.
+     */
+    private void updateBehavioralMomentum(long now) {
+        long delta = now - lastMomentumUpdate;
+        if (delta < 20) return; // Update every second
+        
+        lastMomentumUpdate = now;
+        
+        // Calculate personality-influenced baseline from mood and nature
+        float baseline = calculateMomentumBaseline();
+        
+        // Calculate target momentum from activities
+        float activityLevel = calculateActivityLevel();
+        float targetMomentum = MathHelper.lerp(0.4f, baseline, activityLevel);
+        
+        // Apply inertia for smooth transitions
+        float inertiaFactor = calculateInertiaFactor(delta);
+        float momentumDelta = (targetMomentum - behavioralMomentum) * inertiaFactor;
+        
+        // Update momentum with smoothing
+        behavioralMomentum += momentumDelta;
+        momentumInertia = MathHelper.lerp(0.1f, momentumInertia, Math.abs(momentumDelta));
+        
+        // Add organic variation for lifelike behavior
+        behavioralMomentum += generateOrganicVariation(now);
+        
+        behavioralMomentum = MathHelper.clamp(behavioralMomentum, 0f, 1f);
+        
+        // Decay activity accumulators
+        decayActivities(delta);
+    }
+    
+    /**
+     * Calculates personality-influenced momentum baseline.
+     */
+    private float calculateMomentumBaseline() {
+        float baseline = 0.5f;
+        
+        // Mood influences
+        baseline += moodBlend.getOrDefault(PetComponent.Mood.PLAYFUL, 0f) * 0.2f;
+        baseline += moodBlend.getOrDefault(PetComponent.Mood.RESTLESS, 0f) * 0.25f;
+        baseline += moodBlend.getOrDefault(PetComponent.Mood.CURIOUS, 0f) * 0.15f;
+        baseline -= moodBlend.getOrDefault(PetComponent.Mood.CALM, 0f) * 0.3f;
+        baseline -= moodBlend.getOrDefault(PetComponent.Mood.SAUDADE, 0f) * 0.2f;
+        
+        // Age influences
+        if (parent.getPet().isBaby()) {
+            baseline += 0.2f; // Young pets are more energetic
+        }
+        
+        // Nature influences (volatile pets have higher baseline)
+        float volatility = parent.getNatureVolatilityMultiplier();
+        baseline += (volatility - 1.0f) * 0.15f;
+        
+        // Time of day influence (subtle circadian rhythm)
+        long timeOfDay = parent.getPet().getWorld().getTimeOfDay() % 24000;
+        if (timeOfDay >= 6000 && timeOfDay <= 18000) {
+            baseline += 0.05f; // Slightly more active during day
+        } else {
+            baseline -= 0.05f; // Slightly less active at night
+        }
+        
+        // Health influence - injured pets have less energy
+        float healthRatio = parent.getPet().getHealth() / parent.getPet().getMaxHealth();
+        if (healthRatio < 0.5f) {
+            float healthPenalty = (0.5f - healthRatio) * 0.4f; // Up to -0.2 at critical health
+            baseline -= healthPenalty;
+        }
+        
+        return MathHelper.clamp(baseline, 0.15f, 0.85f);
+    }
+    
+    /**
+     * Calculates current activity level from multi-dimensional tracking.
+     */
+    private float calculateActivityLevel() {
+        // Weighted combination of activity types
+        float physical = Math.min(1f, physicalActivity * 0.4f);
+        float mental = Math.min(1f, mentalActivity * 0.3f);
+        float social = Math.min(1f, socialActivity * 0.3f);
+        
+        // Combined with diminishing returns to prevent hyperactivity
+        float total = physical + mental + social;
+        return MathHelper.clamp(total / (1f + total * 0.3f), 0f, 1f);
+    }
+    
+    /**
+     * Calculates inertia factor for smooth momentum transitions.
+     */
+    private float calculateInertiaFactor(long deltaTicks) {
+        // Base inertia from nature (resilient pets change energy slower)
+        float resilience = parent.getNatureResilienceMultiplier();
+        float baseInertia = 0.01f / resilience;
+        
+        // Scale by time delta for frame-independent behavior
+        float timeFactor = Math.min(1f, deltaTicks / 20f);
+        
+        // Accelerate transitions when momentum is far from target
+        float urgency = 1f + momentumInertia * 2f;
+        
+        return MathHelper.clamp(baseInertia * timeFactor * urgency, 0.001f, 0.5f);
+    }
+    
+    /**
+     * Generates organic variation for lifelike momentum fluctuations.
+     * Uses multiple frequency sine waves for natural-looking "breathing" behavior.
+     */
+    private float generateOrganicVariation(long now) {
+        long petSeed = parent.getStablePerPetSeed();
+        
+        // Multiple sine waves at different frequencies for organic movement
+        // Convert to radians once for all calculations
+        double baseTime = now * 0.001; // Scale down for smoother variation
+        double seedOffset = petSeed * 0.001;
+        
+        float microVariation = (float)Math.sin((baseTime + seedOffset) * 60) * 0.015f;
+        float mesoVariation = (float)Math.sin((baseTime + seedOffset * 2) * 12) * 0.025f;
+        float macroVariation = (float)Math.sin((baseTime + seedOffset * 3) * 3) * 0.035f;
+        
+        // Personality-based variation intensity
+        float volatility = parent.getNatureVolatilityMultiplier();
+        float variationScale = 0.5f + volatility * 0.5f;
+        
+        return (microVariation + mesoVariation + macroVariation) * variationScale;
+    }
+    
+    /**
+     * Decays activity accumulators over time.
+     */
+    private void decayActivities(long deltaTicks) {
+        float decayFactor = Math.max(0f, 1f - deltaTicks * 0.005f);
+        
+        // Different decay rates for different activities
+        physicalActivity *= Math.pow(decayFactor, 1.2);  // Physical decays faster
+        mentalActivity *= Math.pow(decayFactor, 0.8);    // Mental decays slower
+        socialActivity *= Math.pow(decayFactor, 1.0);    // Social decays normally
+        
+        // Clear near-zero values to prevent float drift
+        if (physicalActivity < 0.001f) physicalActivity = 0f;
+        if (mentalActivity < 0.001f) mentalActivity = 0f;
+        if (socialActivity < 0.001f) socialActivity = 0f;
+    }
+    
+    /**
+     * Applies behavioral momentum influence to mood blend.
+     */
+    private void applyBehavioralMomentumInfluence() {
+        // High momentum (hyperactive)
+        if (behavioralMomentum > 0.65f) {
+            float hyperFactor = (behavioralMomentum - 0.65f) / 0.35f;
+            moodBlend.compute(PetComponent.Mood.CALM, (k, v) -> 
+                v == null ? 0f : v * (1f - hyperFactor * 0.4f));
+            moodBlend.compute(PetComponent.Mood.RESTLESS, (k, v) -> 
+                (v == null ? 0f : v) + hyperFactor * 0.2f);
+        }
+        // Low momentum (tired)
+        else if (behavioralMomentum < 0.35f) {
+            float tiredFactor = (0.35f - behavioralMomentum) / 0.35f;
+            moodBlend.compute(PetComponent.Mood.CALM, (k, v) -> 
+                (v == null ? 0f : v) + tiredFactor * 0.3f);
+            moodBlend.compute(PetComponent.Mood.PLAYFUL, (k, v) -> 
+                v == null ? 0f : v * (1f - tiredFactor * 0.5f));
+        }
+    }
+    
     private float computeMomentumBand(float previousStrength) {
         if (dominantHistory.isEmpty()) {
             return Math.max(0.08f, previousStrength * 0.25f);

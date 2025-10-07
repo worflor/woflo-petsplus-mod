@@ -18,7 +18,7 @@ import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.stats.PetAttributeManager;
-import woflo.petsplus.stats.PetCharacteristics;
+import woflo.petsplus.stats.PetImprint;
 import woflo.petsplus.stats.nature.PetNatureSelector;
 
 import java.util.Objects;
@@ -112,23 +112,23 @@ public final class PetBreedingHandler {
                 }
             }
 
-            PetCharacteristics primaryCharacteristics = primaryComponent != null
-                ? primaryComponent.getCharacteristics()
+            PetImprint primaryImprint = primaryComponent != null
+                ? primaryComponent.getImprint()
                 : null;
-            PetCharacteristics partnerCharacteristics = partnerComponent != null
-                ? partnerComponent.getCharacteristics()
+            PetImprint partnerImprint = partnerComponent != null
+                ? partnerComponent.getImprint()
                 : null;
 
-            PetCharacteristics blended = PetCharacteristics.blendFromParents(
+            PetImprint blended = PetImprint.blendFromParents(
                 mobChild,
                 now,
-                primaryCharacteristics,
-                partnerCharacteristics
+                primaryImprint,
+                partnerImprint
             );
             if (blended != null) {
-                childComponent.setCharacteristics(blended);
+                childComponent.setImprint(blended);
                 PetAttributeManager.applyAttributeModifiers(mobChild, childComponent);
-                boolean usedParentStats = primaryCharacteristics != null || partnerCharacteristics != null;
+                boolean usedParentStats = primaryImprint != null || partnerImprint != null;
                 childComponent.setStateData(PetComponent.StateKeys.BREEDING_INHERITED_STATS, usedParentStats);
                 inheritedStats = usedParentStats;
             }

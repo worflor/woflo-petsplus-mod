@@ -29,7 +29,7 @@ import woflo.petsplus.component.PetsplusComponents;
 import woflo.petsplus.mixin.EntityComponentAccessor;
 import woflo.petsplus.mood.EmotionBaselineTracker;
 import woflo.petsplus.mood.MoodService;
-import woflo.petsplus.stats.PetCharacteristics;
+import woflo.petsplus.stats.PetImprint;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.coordination.PetWorkScheduler;
 import woflo.petsplus.state.emotions.PetMood;
@@ -411,6 +411,10 @@ public class PetComponent {
     public PetGossipLedger getGossipLedger() {
         return gossipLedger;
     }
+    
+    public PetMoodEngine getMoodEngine() {
+        return moodEngine;
+    }
 
     public void recordRumor(long topicId, float intensity, float confidence, long currentTick) {
         recordRumor(topicId, intensity, confidence, currentTick, null, null);
@@ -607,7 +611,7 @@ public class PetComponent {
         }
         String[] keys;
         if (roleType.statAffinities().isEmpty()) {
-            keys = PetCharacteristics.statKeyArray();
+            keys = PetImprint.statKeyArray();
         } else {
             keys = roleType.statAffinities().keySet().toArray(String[]::new);
         }
@@ -628,10 +632,8 @@ public class PetComponent {
     }
 
     private void syncCharacteristicAffinityLookup() {
-        PetCharacteristics characteristics = characteristicsModule.getCharacteristics();
-        if (characteristics != null) {
-            characteristics.setRoleAffinityLookup(characteristicsModule::resolveRoleAffinityBonus);
-        }
+        // Role affinity bonuses will be handled by RoleScaling system
+        // TODO: Remove this method once RoleScaling is implemented
     }
 
     private boolean isCharacteristicsDataEmpty(CharacteristicsModule.Data data) {
@@ -639,7 +641,7 @@ public class PetComponent {
             return true;
         }
 
-        boolean hasCharacteristics = data.characteristics() != null;
+        boolean hasImprint = data.imprint() != null;
         boolean hasEmotionProfile = data.natureEmotionProfile() != null && !data.natureEmotionProfile().isEmpty();
         boolean hasNameAttributes = data.nameAttributes() != null && !data.nameAttributes().isEmpty();
         boolean hasRoleAffinity = data.roleAffinityBonuses() != null && !data.roleAffinityBonuses().isEmpty();
@@ -649,7 +651,7 @@ public class PetComponent {
             || Float.compare(data.natureContagionModifier(), 1.0f) != 0
             || Float.compare(data.natureGuardModifier(), 1.0f) != 0;
 
-        return !(hasCharacteristics || hasEmotionProfile || hasNameAttributes || hasRoleAffinity || hasNonDefaultTuning);
+        return !(hasImprint || hasEmotionProfile || hasNameAttributes || hasRoleAffinity || hasNonDefaultTuning);
     }
 
     public boolean hasNameAttribute(String type) {
@@ -1595,7 +1597,7 @@ public class PetComponent {
             setStateData(StateKeys.ASSIGNED_NATURE, natureId.toString());
         }
 
-        if (pet.getWorld() instanceof net.minecraft.server.world.ServerWorld && characteristicsModule.getCharacteristics() != null) {
+        if (pet.getWorld() instanceof net.minecraft.server.world.ServerWorld && characteristicsModule.getImprint() != null) {
             woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
         }
     }
@@ -1913,18 +1915,18 @@ public class PetComponent {
     }
     
     /**
-     * Get the pet's unique characteristics.
+     * Get the pet's unique imprint (individual stat variance).
      */
     @Nullable
-    public PetCharacteristics getCharacteristics() {
-        return characteristicsModule.getCharacteristics();
+    public PetImprint getImprint() {
+        return characteristicsModule.getImprint();
     }
     
     /**
-     * Set the pet's characteristics (usually generated once when first tamed).
+     * Set the pet's imprint (usually generated once when first tamed).
      */
-    public void setCharacteristics(@Nullable PetCharacteristics characteristics) {
-        characteristicsModule.setCharacteristics(characteristics);
+    public void setImprint(@Nullable PetImprint imprint) {
+        characteristicsModule.setImprint(imprint);
         syncCharacteristicAffinityLookup();
     }
     
@@ -2138,18 +2140,18 @@ public class PetComponent {
     // capitalize/prettify handled by engine
     
     /**
-     * Generate and set characteristics for this pet if they don't exist.
+     * Generate and set imprint for this pet if it doesn't exist.
      * Should be called when a pet is first tamed.
      */
-    public void ensureCharacteristics() {
-        if (characteristicsModule.getCharacteristics() == null) {
+    public void ensureImprint() {
+        if (characteristicsModule.getImprint() == null) {
             long tameTime = pet.getWorld().getTime();
             if (getStateData(StateKeys.TAMED_TICK, Long.class) == null) {
                 setStateData(StateKeys.TAMED_TICK, tameTime);
             }
-            characteristicsModule.setCharacteristics(PetCharacteristics.generateForNewPet(pet, tameTime));
+            characteristicsModule.setImprint(PetImprint.generateForNewPet(pet, tameTime));
 
-        // Apply attribute modifiers with the new characteristics
+        // Apply attribute modifiers with the new imprint
         woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
         }
     }
@@ -2159,15 +2161,15 @@ public class PetComponent {
      * <p>
      * Systems that need a stable random offset (idle mood refresh, ambient
      * particles, etc.) should lean on this helper so variations align with the
-     * pet's characteristic rolls. The characteristic seed anchors the value
-     * once characteristics exist; before that we fold in the pet's UUID and
-     * stored tame tick so behavior stays deterministic until characteristics
-     * are generated.
+     * pet's imprint rolls. The imprint seed anchors the value
+     * once imprint exists; before that we fold in the pet's UUID and
+     * stored tame tick so behavior stays deterministic until imprint
+     * is generated.
      */
     public long getStablePerPetSeed() {
-        PetCharacteristics characteristics = characteristicsModule.getCharacteristics();
-        if (characteristics != null) {
-            return characteristics.getCharacteristicSeed();
+        PetImprint imprint = characteristicsModule.getImprint();
+        if (imprint != null) {
+            return imprint.getImprintSeed();
         }
 
         UUID uuid = pet.getUuid();
@@ -2742,7 +2744,7 @@ public class PetComponent {
     }
 
     private void resetCharacteristicsModule() {
-        characteristicsModule.setCharacteristics(null);
+        characteristicsModule.setImprint(null);
         characteristicsModule.updateNatureTuning(1.0f, 1.0f, 1.0f, 1.0f);
         characteristicsModule.setNatureEmotionProfile(NatureEmotionProfile.EMPTY);
         characteristicsModule.setNameAttributes(List.of());

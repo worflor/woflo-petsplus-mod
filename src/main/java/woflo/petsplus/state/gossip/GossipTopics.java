@@ -54,6 +54,40 @@ public final class GossipTopics {
     public static long concrete(String key) {
         return computeId(CONCRETE_PREFIX + key.toLowerCase(Locale.ROOT));
     }
+    
+    /**
+     * Get a human-readable name for a topic ID.
+     * Returns a formatted name for known topics, or "Unknown" for unrecognized IDs.
+     */
+    public static String getTopicName(long topicId) {
+        // Check abstract topics first
+        Optional<AbstractTopic> abstractTopic = findAbstract(topicId);
+        if (abstractTopic.isPresent()) {
+            AbstractTopic topic = abstractTopic.get();
+            return formatName(topic.name());
+        }
+        
+        // Check known concrete topics
+        if (topicId == OWNER_KILL_HOSTILE) return "Combat Victory";
+        if (topicId == OWNER_KILL_PASSIVE) return "Gentle Moment";
+        if (topicId == OWNER_KILL_BOSS) return "Epic Battle";
+        if (topicId == EXPLORE_NEW_BIOME) return "New Discovery";
+        if (topicId == ENTER_NETHER) return "Nether Journey";
+        if (topicId == ENTER_END) return "End Arrival";
+        if (topicId == RETURN_FROM_DIMENSION) return "Return Home";
+        if (topicId == TRADE_GENERIC) return "Trade";
+        if (topicId == TRADE_FOOD) return "Food Trade";
+        if (topicId == TRADE_MYSTIC) return "Mystic Trade";
+        if (topicId == TRADE_GUARD) return "Guard Trade";
+        if (topicId == SOCIAL_CAMPFIRE) return "Campfire Gathering";
+        
+        return "Something interesting";
+    }
+    
+    private static String formatName(String enumName) {
+        return enumName.substring(0, 1).toUpperCase() + 
+               enumName.substring(1).toLowerCase().replace('_', ' ');
+    }
 
     public enum AbstractTopic {
         COMBAT("combat", 0.18f, 0.22f),

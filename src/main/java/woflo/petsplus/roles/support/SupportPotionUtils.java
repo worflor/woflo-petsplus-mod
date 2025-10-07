@@ -356,7 +356,7 @@ public final class SupportPotionUtils {
         float scalar = PetAttributeManager.getEffectiveScalar(
             "aura",
             component.getRoleType(false),
-            component.getCharacteristics(),
+            component.getImprint(),
             component.getLevel()
         );
         return Math.max(0.1, 1.0 + scalar);

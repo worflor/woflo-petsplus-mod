@@ -16,7 +16,7 @@ import woflo.petsplus.naming.AttributeKey;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetComponent.NatureEmotionProfile;
 import woflo.petsplus.state.modules.CharacteristicsModule;
-import woflo.petsplus.stats.PetCharacteristics;
+import woflo.petsplus.stats.PetImprint;
 
 public final class DefaultCharacteristicsModule implements CharacteristicsModule {
     private static final float MIN_VOLATILITY = 0.3f;
@@ -28,7 +28,7 @@ public final class DefaultCharacteristicsModule implements CharacteristicsModule
     private static final float MIN_GUARD = 0.5f;
     private static final float MAX_GUARD = 1.5f;
     private static final float ROLE_AFFINITY_EPSILON = 1.0e-5f;
-    private static final String[] ROLE_AFFINITY_KEYS = PetCharacteristics.statKeyArray();
+    private static final String[] ROLE_AFFINITY_KEYS = PetImprint.statKeyArray();
     private static final Map<String, Integer> ROLE_AFFINITY_INDEX = createRoleAffinityIndex();
 
     private static Map<String, Integer> createRoleAffinityIndex() {
@@ -40,7 +40,7 @@ public final class DefaultCharacteristicsModule implements CharacteristicsModule
     }
 
     private PetComponent parent;
-    private @Nullable PetCharacteristics characteristics;
+    private @Nullable PetImprint imprint;
     private float natureVolatilityMultiplier = 1.0f;
     private float natureResilienceMultiplier = 1.0f;
     private float natureContagionModifier = 1.0f;
@@ -58,7 +58,7 @@ public final class DefaultCharacteristicsModule implements CharacteristicsModule
     public void onDetach() {
         parent = null;
         nameAttributes = new ArrayList<>();
-        characteristics = null;
+        imprint = null;
         natureEmotionProfile = NatureEmotionProfile.EMPTY;
         natureVolatilityMultiplier = 1.0f;
         natureResilienceMultiplier = 1.0f;
@@ -67,16 +67,16 @@ public final class DefaultCharacteristicsModule implements CharacteristicsModule
     }
 
     @Override
-    public @Nullable PetCharacteristics getCharacteristics() {
-        return characteristics;
+    public @Nullable PetImprint getImprint() {
+        return imprint;
     }
 
     @Override
-    public boolean setCharacteristics(@Nullable PetCharacteristics characteristics) {
-        if (Objects.equals(this.characteristics, characteristics)) {
+    public boolean setImprint(@Nullable PetImprint imprint) {
+        if (Objects.equals(this.imprint, imprint)) {
             return false;
         }
-        this.characteristics = characteristics;
+        this.imprint = imprint;
         return true;
     }
 
@@ -230,9 +230,8 @@ public final class DefaultCharacteristicsModule implements CharacteristicsModule
     }
 
     private void syncCharacteristicAffinityLookup() {
-        if (characteristics != null && parent != null) {
-            characteristics.setRoleAffinityLookup(this::resolveRoleAffinityBonus);
-        }
+        // Role affinity bonuses will be handled by RoleScaling system
+        // TODO: Remove this method once RoleScaling is implemented
     }
 
     @Override
@@ -242,7 +241,7 @@ public final class DefaultCharacteristicsModule implements CharacteristicsModule
         roleAffinityBonuses.forEach((id, arr) -> copiedBonuses.put(id, arr.clone()));
         
         return new Data(
-            characteristics,
+            imprint,
             natureVolatilityMultiplier,
             natureResilienceMultiplier,
             natureContagionModifier,
@@ -255,7 +254,7 @@ public final class DefaultCharacteristicsModule implements CharacteristicsModule
 
     @Override
     public void fromData(Data data) {
-        characteristics = data.characteristics();
+        imprint = data.imprint();
         natureVolatilityMultiplier = data.natureVolatilityMultiplier();
         natureResilienceMultiplier = data.natureResilienceMultiplier();
         natureContagionModifier = data.natureContagionModifier();

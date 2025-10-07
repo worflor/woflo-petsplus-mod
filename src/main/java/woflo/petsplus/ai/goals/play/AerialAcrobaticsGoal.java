@@ -1,0 +1,140 @@
+package woflo.petsplus.ai.goals.play;
+
+import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.util.math.Vec3d;
+import woflo.petsplus.ai.context.PetContext;
+import woflo.petsplus.ai.goals.AdaptiveGoal;
+import woflo.petsplus.ai.goals.GoalType;
+
+import java.util.EnumSet;
+
+/**
+ * Aerial acrobatics - performs tricks while flying.
+ * Creates playful, showy flight behavior.
+ */
+public class AerialAcrobaticsGoal extends AdaptiveGoal {
+    private int acrobaticTicks = 0;
+    private int trickType = 0; // 0 = loop, 1 = barrel roll, 2 = dive bomb
+    private static final int MAX_ACROBATIC_TICKS = 80; // 4 seconds
+    
+    public AerialAcrobaticsGoal(MobEntity mob) {
+        super(mob, GoalType.AERIAL_ACROBATICS, EnumSet.of(Control.MOVE));
+    }
+    
+    @Override
+    protected boolean canStartGoal() {
+        return !mob.isOnGround() && 
+               mob.getY() > mob.getWorld().getSeaLevel() + 5;
+    }
+    
+    @Override
+    protected boolean shouldContinueGoal() {
+        return acrobaticTicks < MAX_ACROBATIC_TICKS && !mob.isOnGround();
+    }
+    
+    @Override
+    protected void onStartGoal() {
+        acrobaticTicks = 0;
+        trickType = mob.getRandom().nextInt(3);
+    }
+    
+    @Override
+    protected void onStopGoal() {
+        mob.getNavigation().stop();
+    }
+    
+    @Override
+    protected void onTickGoal() {
+        acrobaticTicks++;
+        
+        switch (trickType) {
+            case 0: // Loop
+                performLoop();
+                break;
+            case 1: // Barrel roll
+                performBarrelRoll();
+                break;
+            case 2: // Dive bomb
+                performDiveBomb();
+                break;
+        }
+    }
+    
+    /**
+     * Performs a vertical loop.
+     */
+    private void performLoop() {
+        double progress = acrobaticTicks / (double) MAX_ACROBATIC_TICKS;
+        double angle = progress * Math.PI * 2; // Full circle
+        
+        // Circular motion
+        Vec3d velocity = new Vec3d(
+            Math.sin(angle) * 0.1,
+            Math.cos(angle) * 0.2,
+            mob.getVelocity().z
+        );
+        
+        mob.setVelocity(velocity);
+        mob.setPitch((float) (Math.cos(angle) * 60)); // Pitch changes through loop
+    }
+    
+    /**
+     * Performs a barrel roll (spinning).
+     */
+    private void performBarrelRoll() {
+        double progress = acrobaticTicks / (double) MAX_ACROBATIC_TICKS;
+        double spin = progress * Math.PI * 4; // Two full rotations
+        
+        // Maintain altitude, spin body
+        mob.setVelocity(
+            mob.getVelocity().x,
+            0.05, // Slight upward drift
+            mob.getVelocity().z
+        );
+        
+        mob.bodyYaw += 9; // Fast spin
+        mob.setPitch((float) (Math.sin(spin) * 30)); // Wobble pitch
+    }
+    
+    /**
+     * Performs a dive bomb and recovery.
+     */
+    private void performDiveBomb() {
+        if (acrobaticTicks < MAX_ACROBATIC_TICKS / 2) {
+            // Dive phase
+            mob.setVelocity(
+                mob.getVelocity().x,
+                -0.3, // Fast descent
+                mob.getVelocity().z
+            );
+            mob.setPitch(70); // Steep dive
+        } else {
+            // Recovery phase
+            mob.setVelocity(
+                mob.getVelocity().x,
+                0.25, // Pull up
+                mob.getVelocity().z
+            );
+            mob.setPitch(-20); // Level out
+        }
+    }
+    
+    @Override
+    protected float calculateEngagement() {
+        PetContext ctx = getContext();
+        float engagement = 0.9f;
+        
+        // Very engaging for playful pets
+        if (ctx.hasPetsPlusComponent() && ctx.hasMoodInBlend(
+            woflo.petsplus.state.PetComponent.Mood.PLAYFUL, 0.5f)) {
+            engagement = 1.0f;
+        }
+        
+        // Engaging for young pets
+        if (ctx.getAgeCategory() == PetContext.AgeCategory.YOUNG) {
+            engagement = 1.0f;
+        }
+        
+        return engagement;
+    }
+}

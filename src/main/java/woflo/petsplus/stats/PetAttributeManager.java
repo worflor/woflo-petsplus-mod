@@ -73,14 +73,14 @@ public class PetAttributeManager {
         
         int level = petComponent.getLevel();
         PetRoleType roleType = petComponent.getRoleType(false);
-        PetCharacteristics characteristics = petComponent.getCharacteristics();
+        PetImprint imprint = petComponent.getImprint();
 
         // Apply level-based modifiers (core progression)
         applyLevelModifiers(pet, level, roleType);
 
-        // Apply characteristic-based modifiers (uniqueness)
-        if (characteristics != null) {
-            applyCharacteristicModifiers(pet, characteristics, roleType);
+        // Apply imprint-based modifiers (uniqueness)
+        if (imprint != null) {
+            applyImprintModifiers(pet, imprint, roleType);
         }
         
         // Apply permanent stat boosts from level rewards
@@ -238,39 +238,46 @@ public class PetAttributeManager {
     }
 
     /**
-     * Apply characteristic-based modifiers - the uniqueness system.
+     * Apply imprint-based modifiers - the uniqueness system.
      * Provides individual variance that makes each pet special.
+     * 
+     * NOTE: Imprint multipliers are already in multiplicative format (0.88-1.12),
+     * but we need to convert them to additive format for Minecraft's attribute system.
+     * Multiplier 1.08 → additive 0.08 (+8%)
      */
-    private static void applyCharacteristicModifiers(MobEntity pet, PetCharacteristics characteristics, PetRoleType roleType) {
-        // Health characteristic modifier
-        float healthCharMod = characteristics.getVitalityModifier(roleType) * 0.15f; // ±15% max
-        if (Math.abs(healthCharMod) > 0.01f && pet.getAttributeInstance(EntityAttributes.MAX_HEALTH) != null) {
+    private static void applyImprintModifiers(MobEntity pet, PetImprint imprint, PetRoleType roleType) {
+        // Health imprint modifier
+        float healthMult = imprint.getHealthMultiplier();
+        float healthMod = healthMult - 1.0f; // Convert 1.08x → +0.08 (8%)
+        if (Math.abs(healthMod) > 0.01f && pet.getAttributeInstance(EntityAttributes.MAX_HEALTH) != null) {
             EntityAttributeModifier modifier = new EntityAttributeModifier(
                 CHAR_HEALTH_ID, 
-                healthCharMod, 
+                healthMod, 
                 EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
             );
             pet.getAttributeInstance(EntityAttributes.MAX_HEALTH).addPersistentModifier(modifier);
         }
         
-        // Speed characteristic modifier
-        float speedCharMod = characteristics.getAgilityModifier(roleType) * 0.12f; // ±12% max
-        if (Math.abs(speedCharMod) > 0.01f && pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED) != null) {
+        // Speed imprint modifier
+        float speedMult = imprint.getSpeedMultiplier();
+        float speedMod = speedMult - 1.0f;
+        if (Math.abs(speedMod) > 0.01f && pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED) != null) {
             EntityAttributeModifier modifier = new EntityAttributeModifier(
                 CHAR_SPEED_ID, 
-                speedCharMod, 
+                speedMod, 
                 EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
             );
             pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED).addPersistentModifier(modifier);
         }
         
-        // Attack characteristic modifier (only for entities that can attack)
+        // Attack imprint modifier (only for entities that can attack)
         if (pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE) != null) {
-            float attackCharMod = characteristics.getAttackModifier(roleType) * 0.10f; // ±10% max
-            if (Math.abs(attackCharMod) > 0.01f) {
+            float attackMult = imprint.getAttackMultiplier();
+            float attackMod = attackMult - 1.0f;
+            if (Math.abs(attackMod) > 0.01f) {
                 EntityAttributeModifier modifier = new EntityAttributeModifier(
                     CHAR_ATTACK_ID,
-                    attackCharMod,
+                    attackMod,
                     EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
                 );
                 pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).addPersistentModifier(modifier);
@@ -562,18 +569,18 @@ public class PetAttributeManager {
     }
     
     /**
-     * Get the effective scalar value for a role, modified by characteristics.
+     * Get the effective scalar value for a role, modified by imprint.
      * This drives the ability system and role-specific bonuses.
      */
-    public static float getEffectiveScalar(String scalarType, PetRoleType roleType, PetCharacteristics characteristics, int level) {
+    public static float getEffectiveScalar(String scalarType, PetRoleType roleType, PetImprint imprint, int level) {
         float baseScalar = getBaseScalar(scalarType, roleType, level);
-        if (characteristics == null) {
+        if (imprint == null) {
             return baseScalar;
         }
 
-        float characteristicBonus = getCharacteristicScalarBonus(scalarType, characteristics, roleType);
+        float imprintBonus = getImprintScalarBonus(scalarType, imprint, roleType);
 
-        return baseScalar + characteristicBonus;
+        return baseScalar + imprintBonus;
     }
     
     /**
@@ -596,43 +603,50 @@ public class PetAttributeManager {
     }
     
     /**
-     * Get characteristic-based scalar bonus.
+     * Get imprint-based scalar bonus.
      * Provides uniqueness while maintaining balance.
+     * 
+     * NOTE: Imprint multipliers are in range 0.88-1.12, so we subtract 1.0 to get additive bonus.
+     * Example: 1.08x → 0.08 → scaled by 0.5 → 0.04 (4% scalar bonus)
      */
-    private static float getCharacteristicScalarBonus(String scalarType, PetCharacteristics characteristics, PetRoleType roleType) {
-        float characteristicBonus = 0.0f;
+    private static float getImprintScalarBonus(String scalarType, PetImprint imprint, PetRoleType roleType) {
+        float imprintBonus = 0.0f;
 
-        // Apply characteristic bonuses to role scalars (scaled down for balance)
+        // Apply imprint bonuses to role scalars (scaled down for balance)
         switch (scalarType) {
             case "offense":
-                characteristicBonus = characteristics.getAttackModifier(roleType) * 0.05f; // Max ±5%
+                imprintBonus = (imprint.getAttackMultiplier() - 1.0f) * 0.5f; // ±6% max
                 break;
             case "defense":
-                characteristicBonus = characteristics.getDefenseModifier(roleType) * 0.05f;
+                imprintBonus = (imprint.getDefenseMultiplier() - 1.0f) * 0.5f;
                 break;
             case "aura":
-                characteristicBonus = characteristics.getVitalityModifier(roleType) * 0.05f;
+                imprintBonus = (imprint.getVitalityMultiplier() - 1.0f) * 0.5f;
                 break;
             case "mobility":
-                characteristicBonus = characteristics.getAgilityModifier(roleType) * 0.05f;
+                imprintBonus = (imprint.getAgilityMultiplier() - 1.0f) * 0.5f;
                 break;
             case "disruption":
                 // Combination stat for Eclipsed role
-                characteristicBonus = (characteristics.getAgilityModifier(roleType) + characteristics.getAttackModifier(roleType)) * 0.025f;
+                float disruptAgility = (imprint.getAgilityMultiplier() - 1.0f);
+                float disruptAttack = (imprint.getAttackMultiplier() - 1.0f);
+                imprintBonus = (disruptAgility + disruptAttack) * 0.25f;
                 break;
             case "echo":
-                characteristicBonus = characteristics.getVitalityModifier(roleType) * 0.05f;
+                imprintBonus = (imprint.getVitalityMultiplier() - 1.0f) * 0.5f;
                 break;
             case "curse":
                 // Combination stat for Cursed One role
-                characteristicBonus = (characteristics.getAttackModifier(roleType) + characteristics.getDefenseModifier(roleType)) * 0.025f;
+                float curseAttack = (imprint.getAttackMultiplier() - 1.0f);
+                float curseDefense = (imprint.getDefenseMultiplier() - 1.0f);
+                imprintBonus = (curseAttack + curseDefense) * 0.25f;
                 break;
             case "slumber":
-                characteristicBonus = characteristics.getVitalityModifier(roleType) * 0.05f;
+                imprintBonus = (imprint.getVitalityMultiplier() - 1.0f) * 0.5f;
                 break;
         }
 
-        return characteristicBonus;
+        return imprintBonus;
     }
     
     /**

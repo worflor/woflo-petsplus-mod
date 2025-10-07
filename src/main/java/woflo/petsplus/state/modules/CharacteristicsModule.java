@@ -12,13 +12,13 @@ import java.util.Optional;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.naming.AttributeKey;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.stats.PetCharacteristics;
+import woflo.petsplus.stats.PetImprint;
 import net.minecraft.nbt.NbtCompound;
 import woflo.petsplus.util.CodecUtils;
 
 public interface CharacteristicsModule extends DataBackedModule<CharacteristicsModule.Data> {
-    @Nullable PetCharacteristics getCharacteristics();
-    boolean setCharacteristics(@Nullable PetCharacteristics characteristics);
+    @Nullable PetImprint getImprint();
+    boolean setImprint(@Nullable PetImprint imprint);
 
     PetComponent.NatureEmotionProfile getNatureEmotionProfile();
     boolean setNatureEmotionProfile(PetComponent.NatureEmotionProfile profile);
@@ -41,7 +41,7 @@ public interface CharacteristicsModule extends DataBackedModule<CharacteristicsM
     java.util.Map<net.minecraft.util.Identifier, float[]> getRoleAffinityBonuses();
 
     record Data(
-        @Nullable PetCharacteristics characteristics,
+        @Nullable PetImprint imprint,
         float natureVolatilityMultiplier,
         float natureResilienceMultiplier,
         float natureContagionModifier,
@@ -50,18 +50,18 @@ public interface CharacteristicsModule extends DataBackedModule<CharacteristicsM
         List<AttributeKey> nameAttributes,
         java.util.Map<net.minecraft.util.Identifier, float[]> roleAffinityBonuses
     ) {
-        private static final Codec<PetCharacteristics> PET_CHARACTERISTICS_CODEC =
+        private static final Codec<PetImprint> PET_IMPRINT_CODEC =
             NbtCompound.CODEC.comapFlatMap(
                 nbt -> {
-                    PetCharacteristics parsed = PetCharacteristics.readFromNbt(nbt);
+                    PetImprint parsed = PetImprint.readFromNbt(nbt);
                     if (parsed == null) {
-                        return DataResult.error(() -> "Invalid pet characteristics payload");
+                        return DataResult.error(() -> "Invalid pet imprint payload");
                     }
                     return DataResult.success(parsed);
                 },
-                characteristics -> {
+                imprint -> {
                     NbtCompound nbt = new NbtCompound();
-                    characteristics.writeToNbt(nbt);
+                    imprint.writeToNbt(nbt);
                     return nbt;
                 }
             );
@@ -110,8 +110,8 @@ public interface CharacteristicsModule extends DataBackedModule<CharacteristicsM
 
         public static final Codec<Data> CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
-                PET_CHARACTERISTICS_CODEC.optionalFieldOf("characteristics")
-                    .forGetter(data -> Optional.ofNullable(data.characteristics())),
+                PET_IMPRINT_CODEC.optionalFieldOf("imprint")
+                    .forGetter(data -> Optional.ofNullable(data.imprint())),
                 Codec.FLOAT.fieldOf("natureVolatilityMultiplier").orElse(1.0f)
                     .forGetter(Data::natureVolatilityMultiplier),
                 Codec.FLOAT.fieldOf("natureResilienceMultiplier").orElse(1.0f)
@@ -127,9 +127,9 @@ public interface CharacteristicsModule extends DataBackedModule<CharacteristicsM
                 Codec.unboundedMap(CodecUtils.identifierCodec(), Codec.FLOAT.listOf())
                     .fieldOf("roleAffinityBonuses").orElse(Map.of())
                     .forGetter(data -> encodeRoleAffinityBonuses(data.roleAffinityBonuses()))
-            ).apply(instance, (characteristics, volatility, resilience, contagion, guard, profile, attributes, bonuses) ->
+            ).apply(instance, (imprint, volatility, resilience, contagion, guard, profile, attributes, bonuses) ->
                 new Data(
-                    characteristics.orElse(null),
+                    imprint.orElse(null),
                     volatility,
                     resilience,
                     contagion,

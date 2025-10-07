@@ -4,7 +4,7 @@ import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
-import woflo.petsplus.stats.PetCharacteristics;
+import woflo.petsplus.stats.PetImprint;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -231,7 +231,7 @@ public final class NameAffinityDefinitions {
             if (!roleType.statAffinities().isEmpty()) {
                 baseKeys = new ArrayList<>(roleType.statAffinities().keySet());
             } else {
-                baseKeys = new ArrayList<>(Arrays.asList(PetCharacteristics.statKeyArray()));
+                baseKeys = new ArrayList<>(Arrays.asList(PetImprint.statKeyArray()));
             }
         } else {
             baseKeys = List.of();

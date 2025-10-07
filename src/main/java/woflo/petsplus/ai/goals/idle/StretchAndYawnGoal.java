@@ -1,0 +1,58 @@
+package woflo.petsplus.ai.goals.idle;
+
+import net.minecraft.entity.mob.MobEntity;
+import woflo.petsplus.ai.goals.AdaptiveGoal;
+import woflo.petsplus.ai.goals.GoalType;
+
+import java.util.EnumSet;
+
+/**
+ * Universal idle quirk - pet stretches and yawns.
+ */
+public class StretchAndYawnGoal extends AdaptiveGoal {
+    private int stretchTicks = 0;
+    private static final int STRETCH_DURATION = 30;
+    
+    public StretchAndYawnGoal(MobEntity mob) {
+        super(mob, GoalType.STRETCH_AND_YAW, EnumSet.noneOf(Control.class));
+    }
+    
+    @Override
+    protected boolean canStartGoal() {
+        return mob.getNavigation().isIdle();
+    }
+    
+    @Override
+    protected boolean shouldContinueGoal() {
+        return stretchTicks < STRETCH_DURATION;
+    }
+    
+    @Override
+    protected void onStartGoal() {
+        stretchTicks = 0;
+    }
+    
+    @Override
+    protected void onStopGoal() {
+        stretchTicks = 0;
+    }
+    
+    @Override
+    protected void onTickGoal() {
+        stretchTicks++;
+        
+        // Animation would go here (pitch/yaw adjustments, pose changes)
+        if (stretchTicks == 10) {
+            // Front stretch
+            mob.setPitch(-15);
+        } else if (stretchTicks == 20) {
+            // Back to normal
+            mob.setPitch(0);
+        }
+    }
+    
+    @Override
+    protected float calculateEngagement() {
+        return 0.3f; // Low engagement, just a reflex
+    }
+}

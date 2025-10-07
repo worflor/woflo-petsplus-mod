@@ -1,0 +1,140 @@
+package woflo.petsplus.ai.goals.play;
+
+import net.minecraft.entity.ItemEntity;
+import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import woflo.petsplus.ai.context.PetContext;
+import woflo.petsplus.ai.goals.AdaptiveGoal;
+import woflo.petsplus.ai.goals.GoalType;
+
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.List;
+
+/**
+ * Fetch item - retrieves dropped items and brings them to owner.
+ * Creates helpful, playful behavior.
+ */
+public class FetchItemGoal extends AdaptiveGoal {
+    private ItemEntity targetItem;
+    private PlayerEntity targetPlayer;
+    private int fetchPhase = 0; // 0 = find, 1 = pickup, 2 = return
+    private static final int MAX_FETCH_TICKS = 300; // 15 seconds
+    private int fetchTicks = 0;
+    
+    public FetchItemGoal(MobEntity mob) {
+        super(mob, GoalType.FETCH_ITEM, EnumSet.of(Control.MOVE));
+    }
+    
+    @Override
+    protected boolean canStartGoal() {
+        PetContext ctx = getContext();
+        if (ctx.owner() == null) return false;
+        
+        targetItem = findNearbyItem();
+        targetPlayer = ctx.owner();
+        
+        return targetItem != null && targetPlayer != null;
+    }
+    
+    @Override
+    protected boolean shouldContinueGoal() {
+        return fetchTicks < MAX_FETCH_TICKS && 
+               targetItem != null && 
+               targetItem.isAlive() &&
+               targetPlayer != null;
+    }
+    
+    @Override
+    protected void onStartGoal() {
+        fetchPhase = 0;
+        fetchTicks = 0;
+    }
+    
+    @Override
+    protected void onStopGoal() {
+        mob.getNavigation().stop();
+        targetItem = null;
+        targetPlayer = null;
+        fetchPhase = 0;
+    }
+    
+    @Override
+    protected void onTickGoal() {
+        fetchTicks++;
+        
+        if (fetchPhase == 0) {
+            // Phase 0: Move to item
+            mob.getNavigation().startMovingTo(targetItem, 1.2);
+            mob.getLookControl().lookAt(targetItem);
+            
+            if (mob.squaredDistanceTo(targetItem) < 2.0) {
+                // "Pickup" - remove from world, simulate carrying
+                targetItem.discard();
+                fetchPhase = 1;
+            }
+        } else if (fetchPhase == 1) {
+            // Phase 1: Return to owner
+            mob.getNavigation().startMovingTo(targetPlayer, 1.0);
+            mob.getLookControl().lookAt(targetPlayer);
+            
+            if (mob.squaredDistanceTo(targetPlayer) < 3.0) {
+                fetchPhase = 2;
+            }
+        } else if (fetchPhase == 2) {
+            // Phase 2: "Drop" at owner's feet
+            mob.getNavigation().stop();
+            mob.getLookControl().lookAt(targetPlayer);
+            
+            // Simulate drop animation
+            if (fetchTicks % 10 == 0) {
+                mob.setPitch(30); // Look down
+            }
+        }
+        
+        // Tail wag during return
+        if (fetchPhase == 1 && fetchTicks % 5 == 0) {
+            mob.bodyYaw += mob.getRandom().nextFloat() * 10 - 5;
+        }
+    }
+    
+    /**
+     * Finds a nearby item to fetch.
+     */
+    private ItemEntity findNearbyItem() {
+        List<ItemEntity> items = mob.getWorld().getEntitiesByClass(
+            ItemEntity.class,
+            mob.getBoundingBox().expand(12.0),
+            item -> item.isAlive() && !item.getStack().isEmpty()
+        );
+        
+        if (items.isEmpty()) return null;
+        
+        // Prefer closest item
+        return items.stream()
+            .min(Comparator.comparingDouble(item -> item.squaredDistanceTo(mob)))
+            .orElse(null);
+    }
+    
+    @Override
+    protected float calculateEngagement() {
+        PetContext ctx = getContext();
+        float engagement = 0.85f;
+        
+        // Very engaging for playful pets
+        if (ctx.hasPetsPlusComponent() && ctx.hasMoodInBlend(
+            woflo.petsplus.state.PetComponent.Mood.PLAYFUL, 0.4f)) {
+            engagement = 1.0f;
+        }
+        
+        // Higher engagement when bonded
+        engagement += ctx.bondStrength() * 0.1f;
+        
+        // Phase 2 (delivery) is most engaging
+        if (fetchPhase == 2) {
+            engagement = 1.0f;
+        }
+        
+        return Math.min(1.0f, engagement);
+    }
+}

@@ -229,7 +229,7 @@ public class StateManager {
 
         PetComponent component = getPetComponent(pet);
         component.setRoleId(roleId);
-        component.ensureCharacteristics();
+        component.ensureImprint();
 
         Petsplus.LOGGER.debug("Assigned role {} ({}) to pet {}", roleId, roleType.translationKey(), pet.getUuid());
         return true;

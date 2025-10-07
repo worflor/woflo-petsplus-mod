@@ -40,13 +40,11 @@ import java.util.WeakHashMap;
  * Handles pet XP gain when owners gain XP.
  */
 public class XpEventHandler {
-    private static final Map<PlayerEntity, Long> LAST_PLAYER_ACTION = new WeakHashMap<>();
     private static final Map<PlayerEntity, Long> LAST_COMBAT_TIME = new WeakHashMap<>();
     private static final Map<MobEntity, Long> LAST_PET_COMBAT = new WeakHashMap<>();
     
     public static void initialize() {
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-            LAST_PLAYER_ACTION.clear();
             LAST_COMBAT_TIME.clear();
             LAST_PET_COMBAT.clear();
         });
@@ -57,7 +55,6 @@ public class XpEventHandler {
             return;
         }
         handlePlayerXpGain(player, xpGained);
-        LAST_PLAYER_ACTION.put(player, player.getWorld().getTime());
     }
 
     private static void handlePlayerXpGain(ServerPlayerEntity player, int xpGained) {
@@ -129,10 +126,8 @@ public class XpEventHandler {
 
             float levelScaleModifier = getLevelScaleModifier(petComp.getLevel());
 
-            float learningModifier = 1.0f;
-            if (petComp.getCharacteristics() != null) {
-                learningModifier = petComp.getCharacteristics().getXpLearningModifier(petComp.getRoleType(false));
-            }
+            // NEW: Comprehensive learning modifier from Nature + Imprint + Role
+            float learningModifier = calculateLearningModifier(petComp);
 
             float participationModifier = getParticipationModifier(owner, pet);
 
@@ -222,8 +217,8 @@ public class XpEventHandler {
     }
     
     /**
-     * Get participation modifier based on recent player and pet activity.
-     * Rewards active gameplay and discourages AFK farming.
+     * Get participation modifier based on recent combat activity.
+     * Amplifies XP gain when pets or players are actively fighting.
      */
     private static float getParticipationModifier(ServerPlayerEntity player, MobEntity pet) {
         long currentTime = player.getWorld().getTime();
@@ -233,48 +228,29 @@ public class XpEventHandler {
         boolean playerRecentCombat = LAST_COMBAT_TIME.getOrDefault(player, 0L) > (currentTime - 600);
         boolean petRecentCombat = LAST_PET_COMBAT.getOrDefault(pet, 0L) > (currentTime - 600);
         
-        // Check for AFK status (no input for 5 minutes = 6000 ticks)
-        boolean playerAFK = LAST_PLAYER_ACTION.getOrDefault(player, currentTime) < (currentTime - 6000);
-        
         float modifier = 1.0f;
         
-        // Combat participation bonuses
+        // Combat participation bonus - amplifies without punishing passive gameplay
         if (playerRecentCombat || petRecentCombat) {
-            float participationBonus = (float) config.getSectionDouble("pet_leveling", "participation_bonus", 0.5);
-            modifier += participationBonus; // +50% default for combat participation
+            float participationBonus = (float) config.getSectionDouble("pet_leveling", "participation_bonus", 0.3);
+            modifier += participationBonus; // +30% default for combat participation
         }
         
-        // AFK penalty
-        if (playerAFK) {
-            float afkPenalty = (float) config.getSectionDouble("pet_leveling", "afk_penalty", 0.25);
-            modifier = afkPenalty; // 25% of normal XP when AFK
-        }
-        
-        return Math.max(0.1f, modifier); // Minimum 10% XP even when AFK
+        return modifier;
     }
     
     /**
      * Call this when a player deals damage to track combat activity.
      */
     public static void trackPlayerCombat(ServerPlayerEntity player) {
-        long currentTime = player.getWorld().getTime();
-        LAST_COMBAT_TIME.put(player, currentTime);
-        LAST_PLAYER_ACTION.put(player, currentTime);
+        LAST_COMBAT_TIME.put(player, player.getWorld().getTime());
     }
     
     /**
      * Call this when a pet deals damage to track combat activity.
      */
     public static void trackPetCombat(MobEntity pet) {
-        long currentTime = pet.getWorld().getTime();
-        LAST_PET_COMBAT.put(pet, currentTime);
-    }
-    
-    /**
-     * Call this for any player action to track AFK status.
-     */
-    public static void trackPlayerActivity(ServerPlayerEntity player) {
-        LAST_PLAYER_ACTION.put(player, player.getWorld().getTime());
+        LAST_PET_COMBAT.put(pet, pet.getWorld().getTime());
     }
     
     private static void handlePetLevelUp(ServerPlayerEntity owner, MobEntity pet, PetComponent petComp) {
@@ -291,9 +267,6 @@ public class XpEventHandler {
                 playMilestoneSound(owner, pet, advancement.sound());
             }
         }
-        
-        // Apply attribute modifiers based on new level and characteristics
-        PetAttributeManager.applyAttributeModifiers(pet, petComp);
         
         // Play level up sound
         owner.getWorld().playSound(
@@ -400,6 +373,87 @@ public class XpEventHandler {
             return;
         }
         owner.getWorld().playSound(null, pet.getX(), pet.getY(), pet.getZ(), entry.value(), SoundCategory.NEUTRAL, cue.volume(), cue.pitch());
+    }
+    
+    /**
+     * Calculate learning modifier from Role and Imprint.
+     * 
+     * <h2>Learning Modifier Pipeline:</h2>
+     * <ul>
+     *   <li><b>Nature:</b> No XP modifier - natures are pure personality/stat quirks</li>
+     *   <li><b>Imprint:</b> Focus stat subtly affects learning (±3% typical range)</li>
+     *   <li><b>Role:</b> Intentional choice determines learning aptitude (Scholar +15%, Cursed -10%)</li>
+     * </ul>
+     * 
+     * <p>Design: Learning differences come from player choices (Role) and RNG stats (Imprint),
+     * not from uncontrollable circumstances (Nature). Typical range: 0.85x - 1.20x
+     * 
+     * @return Final learning multiplier
+     */
+    private static float calculateLearningModifier(PetComponent petComp) {
+        float multiplier = 1.0f;
+        
+        // Nature bonus removed - natures are personality quirks, not skill tiers
+        // (Kept method call for potential future config hooks)
+        float natureBonus = getNatureLearningBonus(petComp);
+        multiplier *= natureBonus;
+        
+        // Imprint-based learning bonus (subtle focus influence)
+        woflo.petsplus.stats.PetImprint imprint = petComp.getImprint();
+        if (imprint != null) {
+            // Focus multiplier 0.88-1.12 → learning bonus 0.97-1.03 (scaled to ±3%)
+            float focusMult = imprint.getFocusMultiplier();
+            float imprintBonus = 1.0f + ((focusMult - 1.0f) * 0.25f);
+            multiplier *= imprintBonus;
+        }
+        
+        // Role-based learning bonus
+        float roleBonus = getRoleLearningBonus(petComp);
+        multiplier *= roleBonus;
+        
+        return multiplier;
+    }
+    
+    /**
+     * Get nature-specific learning bonuses.
+     * Natures are pure personality quirks - learning differences come from Role choice and Imprint variance.
+     * This prevents optimization pressure around uncontrollable breeding/taming circumstances.
+     */
+    private static float getNatureLearningBonus(PetComponent petComp) {
+        // All natures learn equally - personality expressed through stats, emotions, and behavior instead
+        return 1.0f;
+    }
+    
+    /**
+     * Get role-specific learning bonuses.
+     * Roles focused on growth and support learn faster.
+     */
+    private static float getRoleLearningBonus(PetComponent petComp) {
+        woflo.petsplus.api.registry.PetRoleType roleType = petComp.getRoleType(false);
+        if (roleType == null) {
+            return 1.0f;
+        }
+        
+        net.minecraft.util.Identifier roleId = roleType.id();
+        String roleName = roleId.getPath();
+        
+        return switch (roleName) {
+            // Scholar focuses on learning itself
+            case "scholar" -> 1.15f;      // +15% XP (dedicated learner)
+            // Support roles observe and adapt quickly  
+            case "support" -> 1.10f;      // +10% XP (observant healer)
+            case "enchantment_bound" -> 1.10f; // +10% XP (studious enchanter)
+            // Disciplined protectors
+            case "guardian" -> 1.05f;     // +5% XP (disciplined training)
+            // Combat-focused roles learn normally
+            case "striker" -> 1.00f;      // Neutral (action over study)
+            case "skyrider" -> 1.00f;     // Neutral (instinctive movement)
+            case "scout" -> 1.00f;        // Neutral (practical explorer)
+            // Chaotic/cursed roles struggle
+            case "eclipsed" -> 0.95f;     // -5% XP (void-touched chaos)
+            case "cursed_one" -> 0.90f;   // -10% XP (cursed existence)
+            default -> 1.0f;              // Neutral for custom roles
+        };
     }
     
     /**

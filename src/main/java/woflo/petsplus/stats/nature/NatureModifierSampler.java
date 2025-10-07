@@ -5,7 +5,8 @@ import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetComponent.Emotion;
-import woflo.petsplus.stats.PetCharacteristics;
+import woflo.petsplus.stats.PetImprint;
+import woflo.petsplus.stats.StatModifierProvider;
 import woflo.petsplus.util.BehaviorSeedUtil;
 
 import java.util.Map;
@@ -13,9 +14,17 @@ import java.util.Random;
 import java.util.UUID;
 
 /**
- * Generates lightweight stat adjustments for each nature using the same seed
- * that powers characteristic modifiers. This keeps nature tuning deterministic
- * per pet while avoiding extra random state.
+ * Generates nature-based stat multipliers for pets using deterministic seeding.
+ * 
+ * <p>Nature modifiers provide small themed bonuses (1.03x to 1.08x on primary stat)
+ * that define a pet's archetype (e.g., Radiant = healthy, Tempest = aggressive).
+ * Each nature has a major and minor stat it favors, with ±8% variance to ensure
+ * not all Radiant pets are identical.
+ * 
+ * <p>Modifiers are multiplicative and compound with Imprint, Role, and Level bonuses.
+ * 
+ * @see StatModifierProvider
+ * @see woflo.petsplus.stats.PetAttributeManager
  */
 public final class NatureModifierSampler {
     private static final Map<Identifier, NatureDefinition> DEFINITIONS = new java.util.HashMap<>();
@@ -168,8 +177,8 @@ public final class NatureModifierSampler {
             return NatureAdjustment.NONE;
         }
 
-        PetCharacteristics characteristics = component.getCharacteristics();
-        long seed = resolveSeed(component, characteristics);
+        PetImprint imprint = component.getImprint();
+        long seed = resolveSeed(component, imprint);
         return sample(natureId, seed);
     }
 
@@ -202,9 +211,9 @@ public final class NatureModifierSampler {
             emotionProfile);
     }
 
-    private static long resolveSeed(PetComponent component, @Nullable PetCharacteristics characteristics) {
-        if (characteristics != null) {
-            return characteristics.getCharacteristicSeed();
+    private static long resolveSeed(PetComponent component, @Nullable PetImprint imprint) {
+        if (imprint != null) {
+            return imprint.getImprintSeed();
         }
 
         UUID uuid = component.getPet().getUuid();
@@ -218,7 +227,8 @@ public final class NatureModifierSampler {
             return 1.0f;
         }
         float curve = (random.nextFloat() + random.nextFloat()) * 0.5f; // bell curve
-        return 0.85f + curve * 0.3f; // ±15%
+        // Returns multiplier in range 0.92-1.08 (±8% variance)
+        return 0.92f + curve * 0.16f;
     }
 
     private static float rollMultiplier(Random random, float base, float min, float max) {
@@ -261,52 +271,73 @@ public final class NatureModifierSampler {
                                      Emotion quirkEmotion, float quirkEmotionBase) {
     }
 
+    /**
+     * Nature adjustment containing stat multipliers and emotional tuning for a pet.
+     * Implements StatModifierProvider to integrate with the unified stat pipeline.
+     */
     public record NatureAdjustment(NatureRoll majorRoll, NatureRoll minorRoll,
                                     float volatilityMultiplier, float resilienceMultiplier,
                                     float contagionModifier, float guardModifier,
-                                    PetComponent.NatureEmotionProfile emotionProfile) {
+                                    PetComponent.NatureEmotionProfile emotionProfile) 
+            implements StatModifierProvider {
+        
         public static final NatureAdjustment NONE = new NatureAdjustment(NatureRoll.EMPTY,
             NatureRoll.EMPTY, 1.0f, 1.0f, 1.0f, 1.0f,
             PetComponent.NatureEmotionProfile.EMPTY);
 
+        @Override
         public boolean isEmpty() {
             return majorRoll.isEmpty() && minorRoll.isEmpty();
         }
 
-        public NatureStat majorStat() {
-            return majorRoll.stat();
-        }
-
-        public NatureStat minorStat() {
-            return minorRoll.stat();
-        }
-
-        public float majorBase() {
-            return majorRoll.baseValue();
-        }
-
-        public float minorBase() {
-            return minorRoll.baseValue();
-        }
-
-        public float majorModifier() {
-            return majorRoll.modifier();
-        }
-
-        public float minorModifier() {
-            return minorRoll.modifier();
-        }
-
-        public float majorValue() {
-            return majorRoll.value();
-        }
-
-        public float minorValue() {
-            return minorRoll.value();
-        }
-
         public float valueFor(NatureStat stat) {
             return majorRoll.contributionFor(stat) + minorRoll.contributionFor(stat);
+        }
+
+        // StatModifierProvider implementation - returns multiplicative bonuses
+        @Override
+        public float getHealthMultiplier() {
+            return 1.0f + valueFor(NatureStat.HEALTH);
+        }
+
+        @Override
+        public float getSpeedMultiplier() {
+            return 1.0f + valueFor(NatureStat.SPEED);
+        }
+
+        @Override
+        public float getAttackMultiplier() {
+            return 1.0f + valueFor(NatureStat.ATTACK);
+        }
+
+        @Override
+        public float getDefenseMultiplier() {
+            return 1.0f + valueFor(NatureStat.DEFENSE);
+        }
+
+        @Override
+        public float getAgilityMultiplier() {
+            return 1.0f + valueFor(NatureStat.AGILITY);
+        }
+
+        @Override
+        public float getVitalityMultiplier() {
+            return 1.0f + valueFor(NatureStat.VITALITY);
+        }
+
+        @Override
+        public float getSwimSpeedMultiplier() {
+            return 1.0f + valueFor(NatureStat.SWIM_SPEED);
+        }
+
+        @Override
+        public float getFocusMultiplier() {
+            return 1.0f + valueFor(NatureStat.FOCUS);
+        }
+
+        @Override
+        public float getLoyaltyMultiplier() {
+            return 1.0f + valueFor(NatureStat.LOYALTY);
         }
     }
 

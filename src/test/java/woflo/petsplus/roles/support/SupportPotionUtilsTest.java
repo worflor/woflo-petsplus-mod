@@ -26,6 +26,7 @@ import woflo.petsplus.roles.support.SupportPotionUtils.SupportPotionState;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.modules.CharacteristicsModule;
 
 class SupportPotionUtilsTest {
 
@@ -97,7 +98,9 @@ class SupportPotionUtilsTest {
         PetComponent component = Mockito.mock(PetComponent.class);
         Mockito.when(component.getLevel()).thenReturn(10);
         Mockito.when(component.getRoleType(false)).thenReturn(PetRoleType.SUPPORT);
-        Mockito.when(component.getCharacteristics()).thenReturn(null);
+        CharacteristicsModule mockCharModule = Mockito.mock(CharacteristicsModule.class);
+        Mockito.when(mockCharModule.getImprint()).thenReturn(null);
+        Mockito.when(component.getCharacteristicsModule()).thenReturn(mockCharModule);
 
         List<String> serialized = SupportPotionUtils.canonicalizeSerializedEffects(List.of(
             "minecraft:speed|0",
@@ -136,7 +139,9 @@ class SupportPotionUtilsTest {
         PetComponent component = Mockito.mock(PetComponent.class);
         Mockito.when(component.getLevel()).thenReturn(12);
         Mockito.when(component.getRoleType(false)).thenReturn(PetRoleType.SUPPORT);
-        Mockito.when(component.getCharacteristics()).thenReturn(null);
+        CharacteristicsModule mockCharModule = Mockito.mock(CharacteristicsModule.class);
+        Mockito.when(mockCharModule.getImprint()).thenReturn(null);
+        Mockito.when(component.getCharacteristicsModule()).thenReturn(mockCharModule);
 
         List<String> legacyOrder = List.of(
             "minecraft:strength|1",

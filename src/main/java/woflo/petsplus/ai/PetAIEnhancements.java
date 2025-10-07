@@ -39,14 +39,10 @@ public class PetAIEnhancements {
             // Role-specific AI adjustments
             applyRoleSpecificAI(pet, petComponent);
 
-            // Mood-based AI goals - new modular system
-            MoodBasedAIManager.initializeMoodAI(pet);
-            
-            // Subtle mood-influenced behaviors - fidgets, movement variations, etc.
-            MoodInfluencedBehaviors.addMoodBehaviors(pet);
-            
-            // Advanced mood-influenced vanilla AI enhancements
-            MoodAdvancedAI.enhanceVanillaAI(pet);
+            // === NEW ADAPTIVE AI SYSTEM ===
+            // Replaces old mood-based, MoodInfluenced, and MoodAdvanced systems
+            // This single call adds ALL adaptive goals based on mob capabilities
+            AdaptiveAIManager.initializeAdaptiveAI(pet);
 
         } catch (Exception e) {
             Petsplus.LOGGER.warn("Failed to enhance AI for pet {}: {}", pet.getType(), e.getMessage());

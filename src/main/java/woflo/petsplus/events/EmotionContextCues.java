@@ -293,6 +293,11 @@ public final class EmotionContextCues implements PlayerTickListener {
             player.sendMessage(entry, false);
         }
     }
+    
+    /** Get the journal for a player without clearing it (for Pet Compendium). */
+    public static Deque<Text> getJournalForPlayer(UUID playerUuid) {
+        return JOURNALS.getOrDefault(playerUuid, new ArrayDeque<>());
+    }
 
     private static boolean checkCueCooldown(ServerPlayerEntity player, String cueId, long now, long cooldown) {
         Map<String, Long> perPlayer = LAST_CUES.get(player);

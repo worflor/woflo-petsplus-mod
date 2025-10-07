@@ -136,9 +136,8 @@ public class EmotionSystemTest {
      */
     public static boolean testPersonalityModifiers() {
         try {
-            // Create test personality
-            // Create test personality (implementation dependent)
-            // PetCharacteristics personality = new PetCharacteristics();
+            // Test emotion modification based on pet imprint and nature
+            // The PetImprint system provides stat multipliers that can affect emotional responses
             
             // Test emotion modification
             float baseIntensity = 0.5f;

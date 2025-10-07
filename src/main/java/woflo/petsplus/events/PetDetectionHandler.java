@@ -254,8 +254,8 @@ public class PetDetectionHandler {
             component.setOwner(player);
             component.setRoleId(roleId);
 
-            // Generate unique characteristics for this pet (first time only)
-            component.ensureCharacteristics();
+            // Generate unique imprint for this pet (first time only)
+            component.ensureImprint();
             
             // Trigger "First Pet" advancement when first bonding
             if (player instanceof net.minecraft.server.network.ServerPlayerEntity serverPlayer) {
@@ -328,7 +328,7 @@ public class PetDetectionHandler {
 
         if (mob.getWorld() instanceof ServerWorld serverWorld) {
             PetComponent component = existingComponent != null ? existingComponent : PetComponent.getOrCreate(mob);
-            component.ensureCharacteristics();
+            component.ensureImprint();
             if (component.getNatureId() == null) {
                 PetNatureSelector.TameContext context = PetNatureSelector.captureTameContext(serverWorld, mob);
                 Identifier wildNature = PetNatureSelector.selectTameNature(mob, context);
@@ -354,8 +354,8 @@ public class PetDetectionHandler {
         component.setOwner(owner);
         component.setRoleId(roleId);
 
-        // Generate unique characteristics for this pet (first time only)
-        component.ensureCharacteristics();
+        // Generate unique imprint for this pet (first time only)
+        component.ensureImprint();
 
         // Parse name attributes if the pet has a custom name
         if (mob.hasCustomName()) {

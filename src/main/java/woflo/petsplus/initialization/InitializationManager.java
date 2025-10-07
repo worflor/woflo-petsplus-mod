@@ -39,6 +39,9 @@ public class InitializationManager {
 
         // Register component types
         woflo.petsplus.component.PetsplusComponents.register();
+        
+        // Register items
+        woflo.petsplus.items.PetsplusItems.register();
 
         // Initialize configuration
         PetsPlusConfig.getInstance();
@@ -75,6 +78,7 @@ public class InitializationManager {
         woflo.petsplus.events.PetsplusItemHandler.register();
         woflo.petsplus.events.PettingHandler.register();
         woflo.petsplus.events.TamingHandler.register();
+        woflo.petsplus.events.PetCompendiumHandler.register();
         woflo.petsplus.interaction.OwnerAbilitySignalTracker.register();
         woflo.petsplus.interaction.OwnerAbilitySignalAbilityBridge.register();
         

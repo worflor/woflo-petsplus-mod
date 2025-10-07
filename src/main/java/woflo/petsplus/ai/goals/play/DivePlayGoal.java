@@ -1,0 +1,127 @@
+package woflo.petsplus.ai.goals.play;
+
+import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.particle.ParticleTypes;
+import net.minecraft.server.world.ServerWorld;
+import woflo.petsplus.ai.context.PetContext;
+import woflo.petsplus.ai.goals.AdaptiveGoal;
+import woflo.petsplus.ai.goals.GoalType;
+
+import java.util.EnumSet;
+
+/**
+ * Dive play - quick dives and resurfaces for fun.
+ * Creates energetic aquatic play behavior.
+ */
+public class DivePlayGoal extends AdaptiveGoal {
+    private int diveTicks = 0;
+    private boolean diving = false;
+    private static final int MAX_DIVE_TICKS = 100; // 5 seconds
+    
+    public DivePlayGoal(MobEntity mob) {
+        super(mob, GoalType.DIVE_PLAY, EnumSet.of(Control.MOVE));
+    }
+    
+    @Override
+    protected boolean canStartGoal() {
+        return mob.isTouchingWater() && 
+               mob.getWorld() instanceof ServerWorld;
+    }
+    
+    @Override
+    protected boolean shouldContinueGoal() {
+        return diveTicks < MAX_DIVE_TICKS && mob.isTouchingWater();
+    }
+    
+    @Override
+    protected void onStartGoal() {
+        diveTicks = 0;
+        diving = mob.getRandom().nextBoolean();
+    }
+    
+    @Override
+    protected void onStopGoal() {
+        mob.getNavigation().stop();
+    }
+    
+    @Override
+    protected void onTickGoal() {
+        diveTicks++;
+        
+        // Alternate between diving and surfacing
+        if (diveTicks % 25 == 0) {
+            diving = !diving;
+        }
+        
+        if (diving) {
+            // Dive down
+            mob.setVelocity(
+                mob.getVelocity().x * 0.9,
+                -0.1,
+                mob.getVelocity().z * 0.9
+            );
+            mob.setPitch(60); // Look down
+            
+            // Bubble particles
+            if (diveTicks % 5 == 0 && mob.getWorld() instanceof ServerWorld world) {
+                world.spawnParticles(
+                    ParticleTypes.BUBBLE,
+                    mob.getX(), mob.getY() + 0.5, mob.getZ(),
+                    3,
+                    0.2, 0.2, 0.2,
+                    0.02
+                );
+            }
+        } else {
+            // Resurface
+            mob.setVelocity(
+                mob.getVelocity().x * 0.9,
+                0.15,
+                mob.getVelocity().z * 0.9
+            );
+            mob.setPitch(-30); // Look up
+            
+            // Splash particles when breaking surface
+            if (mob.getY() > mob.getWorld().getSeaLevel() - 1 && diveTicks % 3 == 0) {
+                if (mob.getWorld() instanceof ServerWorld world) {
+                    world.spawnParticles(
+                        ParticleTypes.SPLASH,
+                        mob.getX(), mob.getY(), mob.getZ(),
+                        5,
+                        0.3, 0.1, 0.3,
+                        0.1
+                    );
+                }
+            }
+        }
+        
+        // Random horizontal movement
+        if (diveTicks % 10 == 0) {
+            double angle = mob.getRandom().nextDouble() * Math.PI * 2;
+            mob.setVelocity(
+                Math.cos(angle) * 0.2,
+                mob.getVelocity().y,
+                Math.sin(angle) * 0.2
+            );
+        }
+    }
+    
+    @Override
+    protected float calculateEngagement() {
+        PetContext ctx = getContext();
+        float engagement = 0.85f;
+        
+        // Very engaging for playful pets
+        if (ctx.hasPetsPlusComponent() && ctx.hasMoodInBlend(
+            woflo.petsplus.state.PetComponent.Mood.PLAYFUL, 0.5f)) {
+            engagement = 1.0f;
+        }
+        
+        // Engaging for young pets
+        if (ctx.getAgeCategory() == PetContext.AgeCategory.YOUNG) {
+            engagement += 0.1f;
+        }
+        
+        return Math.min(1.0f, engagement);
+    }
+}

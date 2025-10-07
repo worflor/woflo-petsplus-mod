@@ -70,7 +70,7 @@ public class PetOwnershipTransfers {
             }
             
             // Refresh component state
-            component.ensureCharacteristics();
+            component.ensureImprint();
             
             // Reattach leash to recipient
             pet.attachLeash(recipient, true);

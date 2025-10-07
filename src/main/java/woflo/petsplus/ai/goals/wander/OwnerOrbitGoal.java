@@ -1,0 +1,87 @@
+package woflo.petsplus.ai.goals.wander;
+
+import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.math.Vec3d;
+import woflo.petsplus.ai.context.PetContext;
+import woflo.petsplus.ai.goals.AdaptiveGoal;
+import woflo.petsplus.ai.goals.GoalType;
+
+import java.util.EnumSet;
+
+/**
+ * Owner orbit - maintains distance while circling owner.
+ */
+public class OwnerOrbitGoal extends AdaptiveGoal {
+    private double orbitAngle;
+    private double orbitRadius = 4.0;
+    private Vec3d orbitTarget;
+    
+    public OwnerOrbitGoal(MobEntity mob) {
+        super(mob, GoalType.OWNER_ORBIT, EnumSet.of(Control.MOVE, Control.LOOK));
+    }
+    
+    @Override
+    protected boolean canStartGoal() {
+        PetContext ctx = getContext();
+        return ctx.owner() != null && ctx.ownerNearby();
+    }
+    
+    @Override
+    protected boolean shouldContinueGoal() {
+        PetContext ctx = getContext();
+        return ctx.owner() != null && ctx.ownerNearby();
+    }
+    
+    @Override
+    protected void onStartGoal() {
+        orbitAngle = mob.getRandom().nextDouble() * Math.PI * 2;
+    }
+    
+    @Override
+    protected void onStopGoal() {
+        mob.getNavigation().stop();
+    }
+    
+    @Override
+    protected void onTickGoal() {
+        PetContext ctx = getContext();
+        PlayerEntity owner = ctx.owner();
+        
+        if (owner == null) {
+            return;
+        }
+        
+        // Update orbit angle
+        orbitAngle += 0.05; // Slow rotation
+        
+        // Calculate orbit position
+        orbitTarget = owner.getPos().add(
+            Math.cos(orbitAngle) * orbitRadius,
+            0,
+            Math.sin(orbitAngle) * orbitRadius
+        );
+        
+        // Move to orbit position
+        mob.getNavigation().startMovingTo(orbitTarget.x, orbitTarget.y, orbitTarget.z, 0.9);
+        
+        // Periodically look at owner
+        if (mob.age % 20 < 10) {
+            mob.getLookControl().lookAt(owner, 30, 30);
+        }
+    }
+    
+    @Override
+    protected float calculateEngagement() {
+        PetContext ctx = getContext();
+        float engagement = 0.7f;
+        
+        // Very engaging if bonded
+        if (ctx.hasPetsPlusComponent() && ctx.hasMoodInBlend(
+            woflo.petsplus.state.PetComponent.Mood.BONDED, 0.4f)) {
+            engagement += 0.2f;
+        }
+        
+        return engagement;
+    }
+}
