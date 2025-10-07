@@ -36,6 +36,7 @@ import net.minecraft.block.Blocks;
 import net.minecraft.block.ChestBlock;
 import net.minecraft.block.JukeboxBlock;
 import net.minecraft.block.CampfireBlock;
+import net.minecraft.block.DecoratedPotBlock;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -56,6 +57,7 @@ import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.Registries;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.Direction;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeKeys;
 import net.minecraft.util.math.Vec3d;
@@ -65,6 +67,8 @@ import net.minecraft.registry.tag.EntityTypeTags;
 import net.minecraft.registry.tag.ItemTags;
 import net.minecraft.registry.tag.TagKey;
 import net.minecraft.registry.tag.BlockTags;
+import net.minecraft.state.property.Properties;
+import net.minecraft.world.Heightmap;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
@@ -74,6 +78,7 @@ import woflo.petsplus.mood.EmotionStimulusBus;
 import woflo.petsplus.mood.MoodService;
 import woflo.petsplus.stats.nature.NatureFlavorHandler;
 import woflo.petsplus.stats.nature.NatureFlavorHandler.Trigger;
+import woflo.petsplus.stats.nature.PetNatureSelector;
 import woflo.petsplus.ui.FeedbackManager;
 
 import java.util.ArrayList;
@@ -458,6 +463,24 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         BlockPos pos = hitResult.getBlockPos();
         var state = world.getBlockState(pos);
         EmotionCueConfig config = EmotionCueConfig.get();
+        ItemStack held = player.getStackInHand(hand);
+
+        if (held.isOf(Items.BRUSH)
+            && state.isIn(PetNatureSelector.NATURE_ARCHAEOLOGY_BLOCKS)) {
+            NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.ARCHAEOLOGY_BRUSH);
+        }
+        if (held.isOf(Items.TRIAL_KEY)
+            && state.isIn(PetNatureSelector.NATURE_TRIAL_BLOCKS)) {
+            NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.USE_TRIAL_KEY);
+        }
+        if (held.isOf(Items.BONE_MEAL)
+            && state.isIn(PetNatureSelector.NATURE_CHERRY_BLOOM_BLOCKS)) {
+            NatureFlavorHandler.triggerForOwner(sp, 28, Trigger.CHERRY_BLOSSOM_BLOOM);
+        }
+        if (held.isOf(Items.SHEARS)
+            && state.isIn(PetNatureSelector.NATURE_CHERRY_BLOOM_BLOCKS)) {
+            NatureFlavorHandler.triggerForOwner(sp, 28, Trigger.CHERRY_PETAL_HARVEST);
+        }
 
         if (state.isOf(Blocks.CAMPFIRE) || state.isOf(Blocks.SOUL_CAMPFIRE)) {
             NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.CAMPFIRE_INTERACTION);
@@ -468,24 +491,20 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         if (state.getBlock() instanceof JukeboxBlock) {
             NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.JUKEBOX_PLAY);
         }
-        
+
         // Ultra-rare: ARCANE OVERFLOW - Enchanting table/anvil use
         if (state.isOf(Blocks.ENCHANTING_TABLE) || state.isOf(Blocks.ANVIL) || 
             state.isOf(Blocks.CHIPPED_ANVIL) || state.isOf(Blocks.DAMAGED_ANVIL)) {
             triggerArcaneOverflow(sp, world);
         }
         
-        if (state.isIn(BlockTags.BUTTONS)
-            || state.isOf(Blocks.LEVER)
-            || state.isOf(Blocks.REDSTONE_BLOCK)
-            || state.isOf(Blocks.REPEATER)
-            || state.isOf(Blocks.COMPARATOR)
-            || state.isOf(Blocks.TRIPWIRE_HOOK)) {
+        if (state.isIn(PetNatureSelector.NATURE_REDSTONE_COMPONENTS)
+            || state.isIn(PetNatureSelector.NATURE_REDSTONE_POWER_SOURCES)) {
             NatureFlavorHandler.triggerForOwner(sp, 20, Trigger.REDSTONE_INTERACTION);
         }
 
         String useDefinition = config.findBlockUseDefinition(state);
-        ItemStack held = player.getStackInHand(hand);
+        held = player.getStackInHand(hand);
         PetConsumer stateConsumer = (pc, collector) -> {};
         long gossipTopicId = 0L;
         Text gossipText = null;
@@ -683,12 +702,11 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             if (defaultState.isIn(BlockTags.SAPLINGS)) {
                 NatureFlavorHandler.triggerForOwner(sp, 32, Trigger.PLACE_SAPLING);
             }
-            if (defaultState.isIn(BlockTags.BUTTONS)
-                || defaultState.isOf(Blocks.LEVER)
-                || defaultState.isOf(Blocks.REDSTONE_BLOCK)
-                || defaultState.isOf(Blocks.REPEATER)
-                || defaultState.isOf(Blocks.COMPARATOR)
-                || defaultState.isOf(Blocks.TRIPWIRE_HOOK)) {
+            if (defaultState.getBlock() instanceof DecoratedPotBlock) {
+                NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.DECORATED_POT_PLACED);
+            }
+            if (defaultState.isIn(PetNatureSelector.NATURE_REDSTONE_COMPONENTS)
+                || defaultState.isIn(PetNatureSelector.NATURE_REDSTONE_POWER_SOURCES)) {
                 NatureFlavorHandler.triggerForOwner(sp, 20, Trigger.REDSTONE_INTERACTION);
             }
             String placeDefinition = config.findBlockPlaceDefinition(defaultState);
@@ -990,6 +1008,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         long nextNuancedTick;
         long emotionVersionCounter;
         long appliedEmotionVersion;
+        boolean redstoneActive;
+        long lastRedstonePulseTick;
 
         PlayerEnvState(@Nullable RegistryKey<Biome> biomeKey, @Nullable RegistryKey<World> dimensionKey, Vec3d lastPos, long currentTick) {
             this.biomeKey = biomeKey;
@@ -1004,6 +1024,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             this.nextNuancedTick = currentTick + 60L;
             this.emotionVersionCounter = 0L;
             this.appliedEmotionVersion = 0L;
+            this.redstoneActive = false;
+            this.lastRedstonePulseTick = currentTick;
         }
     }
 
@@ -2490,6 +2512,55 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         handleNuancedEmotions(player, world, currentTick, null);
     }
 
+    private static boolean isRedstoneBlockPowered(ServerWorld world, BlockPos pos, BlockState state) {
+        return PetNatureSelector.isBlockEmittingRedstone(world, pos, state);
+    }
+
+    private static void evaluateRedstonePulse(ServerPlayerEntity owner, ServerWorld world, long currentTick, PlayerEnvState state) {
+        if (owner == null || world == null || state == null) {
+            return;
+        }
+
+        BlockPos origin = owner.getBlockPos();
+        BlockPos.Mutable mutable = new BlockPos.Mutable();
+        PetNatureSelector.RedstoneNetworkTracker tracker = new PetNatureSelector.RedstoneNetworkTracker();
+
+        int minY = Math.max(world.getBottomY(), origin.getY() - 2);
+        int maxSurfaceY = world.getTopY(Heightmap.Type.WORLD_SURFACE, origin.getX(), origin.getZ());
+        int maxY = Math.min(maxSurfaceY, origin.getY() + 3);
+
+        for (int x = origin.getX() - 6; x <= origin.getX() + 6; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = origin.getZ() - 6; z <= origin.getZ() + 6; z++) {
+                    mutable.set(x, y, z);
+                    BlockState blockState = world.getBlockState(mutable);
+                    if (blockState.isAir()) {
+                        continue;
+                    }
+                    boolean component = blockState.isIn(PetNatureSelector.NATURE_REDSTONE_COMPONENTS);
+                    boolean source = blockState.isIn(PetNatureSelector.NATURE_REDSTONE_POWER_SOURCES);
+                    if (!component && !source) {
+                        continue;
+                    }
+                    boolean powered = isRedstoneBlockPowered(world, mutable, blockState);
+                    tracker.record(component, source, powered);
+                }
+            }
+        }
+
+        boolean active = tracker.isActive();
+
+        if (active) {
+            if (!state.redstoneActive && currentTick - state.lastRedstonePulseTick >= 60L) {
+                state.redstoneActive = true;
+                state.lastRedstonePulseTick = currentTick;
+                NatureFlavorHandler.triggerForOwner(owner, 24, Trigger.REDSTONE_PULSE);
+            }
+        } else {
+            state.redstoneActive = false;
+        }
+    }
+
     private static void handleNuancedEmotions(ServerPlayerEntity player,
                                               ServerWorld world,
                                               long currentTick,
@@ -2511,6 +2582,11 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             }
         } else {
             swarm.forEachPetInRange(player, player.getPos(), 32.0, nearbyPets::add);
+        }
+
+        PlayerEnvState envState = PLAYER_ENV.get(player);
+        if (envState != null) {
+            evaluateRedstonePulse(player, world, currentTick, envState);
         }
 
         if (nearbyPets.isEmpty()) {

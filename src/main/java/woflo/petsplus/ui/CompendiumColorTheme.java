@@ -113,7 +113,16 @@ public class CompendiumColorTheme {
         if (path.equals("unnatural")) {
             return TextColor.fromRgb(0xE879F9); // Arcane magenta
         }
-        
+        if (path.equals("ceramic")) {
+            return TextColor.fromRgb(0xF4A460); // Terracotta orange
+        }
+        if (path.equals("blossom")) {
+            return TextColor.fromRgb(0xF9A8D4); // Cherry blossom pink
+        }
+        if (path.equals("clockwork")) {
+            return TextColor.fromRgb(0xFDBA74); // Copper glow
+        }
+
         // Fallback
         return TextColor.fromRgb(0x888888);
     }
@@ -163,7 +172,10 @@ public class CompendiumColorTheme {
         if (path.equals("gloom")) return "§8";     // Dark gray
         if (path.equals("relic")) return "§7";     // Gray
         if (path.equals("unnatural")) return "§d"; // Light purple
-        
+        if (path.equals("ceramic")) return "§6";   // Gold
+        if (path.equals("blossom")) return "§d";   // Light purple
+        if (path.equals("clockwork")) return "§e"; // Yellow
+
         return LIGHT_GRAY;
     }
     

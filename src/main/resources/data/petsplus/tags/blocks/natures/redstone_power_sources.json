@@ -1,0 +1,17 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:buttons",
+    "#minecraft:pressure_plates",
+    "minecraft:lever",
+    "minecraft:redstone_block",
+    "minecraft:redstone_torch",
+    "minecraft:redstone_wall_torch",
+    "minecraft:target",
+    "minecraft:daylight_detector",
+    "minecraft:tripwire_hook",
+    "minecraft:trapped_chest",
+    "minecraft:weighted_pressure_plate_light",
+    "minecraft:weighted_pressure_plate_heavy"
+  ]
+}

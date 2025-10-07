@@ -1,0 +1,12 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:suspicious_sand",
+    "minecraft:suspicious_gravel",
+    "minecraft:decorated_pot",
+    "minecraft:trial_spawner",
+    "minecraft:ominous_trial_spawner",
+    "minecraft:vault",
+    "minecraft:ominous_vault"
+  ]
+}

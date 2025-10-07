@@ -1,0 +1,23 @@
+{
+  "replace": false,
+  "hooks": [
+    {
+      "trigger": "archaeology_brush",
+      "slot": "major",
+      "scale": 0.75,
+      "cooldown": 160
+    },
+    {
+      "trigger": "decorated_pot_placed",
+      "slot": "minor",
+      "scale": 0.55,
+      "cooldown": 200
+    },
+    {
+      "trigger": "use_trial_key",
+      "slot": "quirk",
+      "scale": 0.45,
+      "cooldown": 220
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "replace": false,
+  "hooks": [
+    {
+      "trigger": "redstone_pulse",
+      "slot": "major",
+      "scale": 0.8,
+      "cooldown": 160
+    },
+    {
+      "trigger": "redstone_interaction",
+      "slot": "minor",
+      "scale": 0.55,
+      "cooldown": 180
+    },
+    {
+      "trigger": "use_firework",
+      "slot": "quirk",
+      "scale": 0.35,
+      "cooldown": 220
+    }
+  ]
+}

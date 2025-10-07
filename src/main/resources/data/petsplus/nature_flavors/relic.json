@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "hooks": [
+    {
+      "trigger": "archaeology_brush",
+      "slot": "major",
+      "scale": 0.8,
+      "cooldown": 180
+    }
+  ]
+}

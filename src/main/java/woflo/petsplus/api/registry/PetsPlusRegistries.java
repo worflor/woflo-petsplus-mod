@@ -19,6 +19,7 @@ import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.Trigger;
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.data.AbilityDataLoader;
+import woflo.petsplus.data.NatureFlavorDataLoader;
 import woflo.petsplus.data.PetRoleDataLoader;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.effects.AreaEffectEffect;
@@ -141,6 +142,8 @@ public final class PetsPlusRegistries {
             .registerReloadListener(new PetRoleDataLoader());
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
             .registerReloadListener(new AbilityDataLoader());
+        ResourceManagerHelper.get(ResourceType.SERVER_DATA)
+            .registerReloadListener(new NatureFlavorDataLoader());
         AbilityManager.reloadFromRegistry();
     }
 

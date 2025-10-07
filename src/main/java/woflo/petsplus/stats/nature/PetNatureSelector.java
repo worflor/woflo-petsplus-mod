@@ -13,8 +13,10 @@ import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.registry.tag.TagKey;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.state.property.Properties;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.Heightmap;
 import net.minecraft.world.LightType;
@@ -46,7 +48,18 @@ public final class PetNatureSelector {
 
     private static final Identifier OVERWORLD_DIMENSION = Identifier.of("minecraft", "overworld");
     private static final Identifier NETHER_DIMENSION = Identifier.of("minecraft", "the_nether");
-    private static final TagKey<net.minecraft.block.Block> ORE_BLOCKS = TagKey.of(RegistryKeys.BLOCK, Identifier.of("minecraft", "ores"));
+    private static final TagKey<Block> ORE_BLOCKS = TagKey.of(RegistryKeys.BLOCK, Identifier.of("minecraft", "ores"));
+
+    public static final TagKey<Block> NATURE_ARCHAEOLOGY_BLOCKS = TagKey.of(RegistryKeys.BLOCK,
+        Identifier.of("petsplus", "natures/archaeology_sites"));
+    public static final TagKey<Block> NATURE_TRIAL_BLOCKS = TagKey.of(RegistryKeys.BLOCK,
+        Identifier.of("petsplus", "natures/trial_chamber_features"));
+    public static final TagKey<Block> NATURE_CHERRY_BLOOM_BLOCKS = TagKey.of(RegistryKeys.BLOCK,
+        Identifier.of("petsplus", "natures/cherry_bloom"));
+    public static final TagKey<Block> NATURE_REDSTONE_COMPONENTS = TagKey.of(RegistryKeys.BLOCK,
+        Identifier.of("petsplus", "natures/redstone_components"));
+    public static final TagKey<Block> NATURE_REDSTONE_POWER_SOURCES = TagKey.of(RegistryKeys.BLOCK,
+        Identifier.of("petsplus", "natures/redstone_power_sources"));
 
     private PetNatureSelector() {
     }
@@ -86,6 +99,9 @@ public final class PetNatureSelector {
         registerNature("frosty", PetNatureSelector::matchesFrosty);
         registerNature("mire", ctx -> ctx.environment().isNearMudOrMangrove() || ctx.environment().isSwampBiome());
         registerNature("relic", ctx -> ctx.environment().isNearMajorStructure());
+        registerNature("ceramic", PetNatureSelector::matchesCeramic);
+        registerNature("blossom", PetNatureSelector::matchesBlossom);
+        registerNature("clockwork", PetNatureSelector::matchesClockwork);
         registerNature("unnatural", ctx -> !ctx.primaryOwned() && !ctx.partnerOwned(), ctx -> false);
     }
 
@@ -159,6 +175,7 @@ public final class PetNatureSelector {
         int height = pos.getY();
 
         EnvironmentSample sample = sampleEnvironment(world, pos);
+        sample.finalizeAfterScan();
         boolean fullySubmerged = entity.isSubmergedIn(FluidTags.WATER);
 
         return new PetBreedEvent.BirthContext.Environment(
@@ -180,7 +197,11 @@ public final class PetNatureSelector {
             sample.nearLavaOrMagma(),
             sample.nearPowderSnow(),
             sample.nearMudOrMangrove(),
-            sample.nearMajorStructure()
+            sample.nearMajorStructure(),
+            sample.hasArchaeologySite(),
+            sample.nearTrialChamber(),
+            sample.hasCherryBloom(),
+            sample.hasActiveRedstone()
         );
     }
 
@@ -257,6 +278,60 @@ public final class PetNatureSelector {
         return context.nearbyPlayers() >= 3 || context.nearbyPets() >= 3;
     }
 
+    private static boolean matchesCeramic(NatureContext context) {
+        PetBreedEvent.BirthContext.Environment env = context.environment();
+        if (env == null || !env.hasArchaeologySite()) {
+            return false;
+        }
+        Identifier biomeId = env.getBiomeId();
+        boolean aridBiome = biomeId.equals(BiomeKeys.DESERT.getValue())
+            || biomeId.equals(BiomeKeys.BADLANDS.getValue())
+            || biomeId.equals(BiomeKeys.ERODED_BADLANDS.getValue())
+            || biomeId.equals(BiomeKeys.WOODED_BADLANDS.getValue());
+        if (env.isNearTrialChamber()) {
+            return true;
+        }
+        boolean digFriendlyWeather = env.hasOpenSky() && !context.isRaining() && !context.isThundering();
+        if (aridBiome && digFriendlyWeather) {
+            return true;
+        }
+        if (env.isNearMajorStructure() && (context.isIndoors() || env.hasCozyBlocks())) {
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean matchesBlossom(NatureContext context) {
+        PetBreedEvent.BirthContext.Environment env = context.environment();
+        if (env == null || !env.hasCherryBloom()) {
+            return false;
+        }
+        Identifier biomeId = env.getBiomeId();
+        boolean cherryGroves = biomeId.equals(BiomeKeys.CHERRY_GROVE.getValue());
+        boolean meadow = biomeId.equals(BiomeKeys.MEADOW.getValue());
+        if (!env.hasOpenSky()) {
+            return false;
+        }
+        if (context.isRaining() || context.isThundering()) {
+            return false;
+        }
+        return cherryGroves || meadow || env.hasLushFoliage();
+    }
+
+    private static boolean matchesClockwork(NatureContext context) {
+        PetBreedEvent.BirthContext.Environment env = context.environment();
+        if (env == null || !env.hasActiveRedstone()) {
+            return false;
+        }
+        if (isDimension(context, NETHER_DIMENSION)) {
+            return false;
+        }
+        if (!(context.isIndoors() || env.hasCozyBlocks() || env.isNearMajorStructure())) {
+            return false;
+        }
+        return env.hasActiveRedstone();
+    }
+
     private static boolean matchesFrosty(NatureContext context) {
         return (context.environment().hasSnowyPrecipitation() && context.environment().hasOpenSky())
             || context.environment().isNearPowderSnow()
@@ -265,6 +340,29 @@ public final class PetNatureSelector {
 
     private static boolean isDimension(NatureContext context, Identifier dimension) {
         return Objects.equals(context.dimensionId(), dimension);
+    }
+
+    public static boolean isBlockEmittingRedstone(ServerWorld world, BlockPos pos, BlockState state) {
+        if (state == null) {
+            return false;
+        }
+        if (state.contains(Properties.POWERED) && Boolean.TRUE.equals(state.get(Properties.POWERED))) {
+            return true;
+        }
+        if (state.contains(Properties.POWER) && state.get(Properties.POWER) > 0) {
+            return true;
+        }
+        if (state.contains(Properties.LIT) && Boolean.TRUE.equals(state.get(Properties.LIT))) {
+            return true;
+        }
+        if (state.emitsRedstonePower()) {
+            for (Direction direction : Direction.values()) {
+                if (state.getWeakRedstonePower(world, pos, direction) > 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static EnvironmentSample sampleEnvironment(ServerWorld world, BlockPos center) {
@@ -313,6 +411,21 @@ public final class PetNatureSelector {
                     }
                     if (!sample.nearMajorStructure && dx <= 6 && dz <= 6 && dy >= -3 && dy <= 3 && isRelicBlock(state)) {
                         sample.nearMajorStructure = true;
+                    }
+                    if (state.isIn(NATURE_TRIAL_BLOCKS)) {
+                        sample.markTrialBlock();
+                    }
+                    if (state.isIn(NATURE_ARCHAEOLOGY_BLOCKS)) {
+                        sample.recordArchaeologyBlock(state);
+                    }
+                    if (state.isIn(NATURE_CHERRY_BLOOM_BLOCKS)) {
+                        sample.recordCherryBlock(state);
+                    }
+                    boolean redstoneComponent = state.isIn(NATURE_REDSTONE_COMPONENTS);
+                    boolean redstoneSource = state.isIn(NATURE_REDSTONE_POWER_SOURCES);
+                    if (redstoneComponent || redstoneSource) {
+                        boolean powered = isBlockEmittingRedstone(world, mutable, state);
+                        sample.recordRedstone(redstoneComponent, redstoneSource, powered);
                     }
 
                     if (sample.isComplete()) {
@@ -609,6 +722,16 @@ public final class PetNatureSelector {
         private boolean nearPowderSnow;
         private boolean nearMudOrMangrove;
         private boolean nearMajorStructure;
+        private boolean hasArchaeologySite;
+        private boolean trialBlocksPresent;
+        private boolean hasCherryBloom;
+        private boolean hasActiveRedstone;
+        private int suspiciousDigBlocks;
+        private int decoratedPotBlocks;
+        private int cherryPetalBlocks;
+        private int cherryCanopyBlocks;
+        private int cherryPollinatorBlocks;
+        private final RedstoneNetworkTracker redstoneTracker = new RedstoneNetworkTracker();
 
         boolean hasCozyBlocks() {
             return hasCozyBlocks;
@@ -638,6 +761,113 @@ public final class PetNatureSelector {
             return nearMajorStructure;
         }
 
+        boolean hasArchaeologySite() {
+            return hasArchaeologySite;
+        }
+
+        boolean nearTrialChamber() {
+            return trialBlocksPresent;
+        }
+
+        boolean hasCherryBloom() {
+            return hasCherryBloom;
+        }
+
+        boolean hasActiveRedstone() {
+            return hasActiveRedstone;
+        }
+
+        void recordArchaeologyBlock(BlockState state) {
+            if (state.isOf(Blocks.SUSPICIOUS_SAND) || state.isOf(Blocks.SUSPICIOUS_GRAVEL)) {
+                suspiciousDigBlocks++;
+            } else if (state.isOf(Blocks.DECORATED_POT)) {
+                decoratedPotBlocks++;
+            }
+            updateArchaeologySignal();
+        }
+
+        void markTrialBlock() {
+            if (!trialBlocksPresent) {
+                trialBlocksPresent = true;
+                updateArchaeologySignal();
+            }
+        }
+
+        void recordCherryBlock(BlockState state) {
+            if (state.isOf(Blocks.PINK_PETALS)) {
+                cherryPetalBlocks++;
+            } else if (state.isOf(Blocks.CHERRY_LEAVES)
+                || state.isOf(Blocks.CHERRY_LOG)
+                || state.isOf(Blocks.STRIPPED_CHERRY_LOG)
+                || state.isOf(Blocks.CHERRY_WOOD)
+                || state.isOf(Blocks.STRIPPED_CHERRY_WOOD)
+                || state.isOf(Blocks.CHERRY_PLANKS)
+                || state.isOf(Blocks.CHERRY_SLAB)
+                || state.isOf(Blocks.CHERRY_STAIRS)
+                || state.isOf(Blocks.CHERRY_SAPLING)) {
+                cherryCanopyBlocks++;
+            } else if (state.isOf(Blocks.FLOWERING_AZALEA)
+                || state.isOf(Blocks.AZALEA)
+                || state.isOf(Blocks.BEE_NEST)
+                || state.isOf(Blocks.BEEHIVE)) {
+                cherryPollinatorBlocks++;
+            }
+            updateCherrySignal();
+        }
+
+        void recordRedstone(boolean component, boolean powerSource, boolean powered) {
+            redstoneTracker.record(component, powerSource, powered);
+            if (!hasActiveRedstone && redstoneTracker.isActive()) {
+                hasActiveRedstone = true;
+            }
+        }
+
+        void finalizeAfterScan() {
+            updateArchaeologySignal();
+            updateCherrySignal();
+            if (!hasActiveRedstone && redstoneTracker.isActive()) {
+                hasActiveRedstone = true;
+            }
+        }
+
+        private void updateArchaeologySignal() {
+            if (hasArchaeologySite) {
+                return;
+            }
+            if (trialBlocksPresent) {
+                hasArchaeologySite = true;
+                return;
+            }
+            if (suspiciousDigBlocks >= 2) {
+                hasArchaeologySite = true;
+                return;
+            }
+            if (decoratedPotBlocks >= 3) {
+                hasArchaeologySite = true;
+                return;
+            }
+            if (decoratedPotBlocks >= 2 && suspiciousDigBlocks >= 1) {
+                hasArchaeologySite = true;
+            }
+        }
+
+        private void updateCherrySignal() {
+            if (hasCherryBloom) {
+                return;
+            }
+            if (cherryCanopyBlocks >= 3 && cherryPetalBlocks >= 2) {
+                hasCherryBloom = true;
+                return;
+            }
+            if (cherryCanopyBlocks >= 2 && cherryPetalBlocks >= 1 && cherryPollinatorBlocks >= 1) {
+                hasCherryBloom = true;
+                return;
+            }
+            if (cherryCanopyBlocks >= 4 && cherryPollinatorBlocks >= 1) {
+                hasCherryBloom = true;
+            }
+        }
+
         boolean isComplete() {
             return hasCozyBlocks
                 && hasValuableOres
@@ -645,7 +875,72 @@ public final class PetNatureSelector {
                 && nearLavaOrMagma
                 && nearPowderSnow
                 && nearMudOrMangrove
-                && nearMajorStructure;
+                && nearMajorStructure
+                && hasArchaeologySite
+                && hasCherryBloom
+                && hasActiveRedstone;
+        }
+    }
+
+    public static final class RedstoneNetworkTracker {
+        private int componentCount;
+        private int powerSourceCount;
+        private int dualRoleCount;
+        private int poweredComponentCount;
+        private int poweredPowerSourceCount;
+        private int poweredDualRoleCount;
+
+        public void record(boolean component, boolean powerSource, boolean powered) {
+            if (!component && !powerSource) {
+                return;
+            }
+            if (component) {
+                componentCount++;
+                if (powered) {
+                    poweredComponentCount++;
+                }
+            }
+            if (powerSource) {
+                powerSourceCount++;
+                if (powered) {
+                    poweredPowerSourceCount++;
+                }
+            }
+            if (component && powerSource) {
+                dualRoleCount++;
+                if (powered) {
+                    poweredDualRoleCount++;
+                }
+            }
+        }
+
+        private int totalNodeCount() {
+            return componentCount + powerSourceCount - dualRoleCount;
+        }
+
+        private int poweredNodeCount() {
+            return poweredComponentCount + poweredPowerSourceCount - poweredDualRoleCount;
+        }
+
+        public boolean isActive() {
+            if (powerSourceCount == 0 || componentCount == 0) {
+                return false;
+            }
+            if (componentCount < 2) {
+                return false;
+            }
+            int nodes = totalNodeCount();
+            if (nodes < 3) {
+                return false;
+            }
+            int poweredNodes = poweredNodeCount();
+            if (nodes >= 5) {
+                return poweredNodes >= 3 && poweredComponentCount >= 2;
+            }
+            if (nodes == 4) {
+                return poweredNodes >= 3 && poweredComponentCount >= 2;
+            }
+            return poweredNodes == 3 && poweredComponentCount >= 2;
         }
     }
 

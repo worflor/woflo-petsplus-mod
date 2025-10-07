@@ -50,10 +50,16 @@ public final class NatureFlavorHandler {
         BREAK_SNOW,
         INVENTORY_VALUABLE,
         INVENTORY_RELIC,
-        REDSTONE_INTERACTION
+        REDSTONE_INTERACTION,
+        ARCHAEOLOGY_BRUSH,
+        USE_TRIAL_KEY,
+        CHERRY_BLOSSOM_BLOOM,
+        DECORATED_POT_PLACED,
+        CHERRY_PETAL_HARVEST,
+        REDSTONE_PULSE
     }
 
-    private enum Slot {
+    public enum Slot {
         MAJOR,
         MINOR,
         QUIRK
@@ -66,8 +72,13 @@ public final class NatureFlavorHandler {
         List<AmbientHook> hooksFor(Trigger trigger) {
             return hooks.getOrDefault(trigger, List.of());
         }
+
+        void forEach(java.util.function.BiConsumer<Trigger, List<AmbientHook>> consumer) {
+            hooks.forEach((trigger, list) -> consumer.accept(trigger, list));
+        }
     }
 
+    private static final Map<Identifier, NatureFlavor> DEFAULT_FLAVORS = new HashMap<>();
     private static final Map<Identifier, NatureFlavor> FLAVORS = new HashMap<>();
 
     static {
@@ -131,11 +142,6 @@ public final class NatureFlavorHandler {
             .hook(Trigger.NIGHTFALL, Slot.MINOR, 0.55f, 220)
             .hook(Trigger.WEATHER_THUNDER_START, Slot.QUIRK, -0.4f, 260));
 
-        register("verdant", builder -> builder
-            .hook(Trigger.PLACE_SAPLING, Slot.MAJOR, 0.75f, 160)
-            .hook(Trigger.WEATHER_CLEAR, Slot.MINOR, 0.5f, 240)
-            .hook(Trigger.BREAK_MUSHROOM, Slot.QUIRK, 0.3f, 240));
-
         register("summit", builder -> builder
             .hook(Trigger.USE_FIREWORK, Slot.MAJOR, 0.8f, 140)
             .hook(Trigger.DAYBREAK, Slot.MINOR, 0.5f, 220)
@@ -162,14 +168,38 @@ public final class NatureFlavorHandler {
             .hook(Trigger.OWNER_RESPAWN, Slot.QUIRK, 0.3f, 260));
 
         register("relic", builder -> builder
+            .hook(Trigger.ARCHAEOLOGY_BRUSH, Slot.MAJOR, 0.8f, 180)
             .hook(Trigger.INVENTORY_RELIC, Slot.MAJOR, 0.8f, 220)
             .hook(Trigger.JUKEBOX_PLAY, Slot.MINOR, 0.5f, 260)
             .hook(Trigger.INVENTORY_VALUABLE, Slot.QUIRK, 0.3f, 260));
 
+        register("ceramic", builder -> builder
+            .hook(Trigger.ARCHAEOLOGY_BRUSH, Slot.MAJOR, 0.75f, 160)
+            .hook(Trigger.DECORATED_POT_PLACED, Slot.MINOR, 0.55f, 200)
+            .hook(Trigger.USE_TRIAL_KEY, Slot.QUIRK, 0.45f, 220));
+
+        register("blossom", builder -> builder
+            .hook(Trigger.CHERRY_BLOSSOM_BLOOM, Slot.MAJOR, 0.75f, 180)
+            .hook(Trigger.CHERRY_PETAL_HARVEST, Slot.MINOR, 0.55f, 200)
+            .hook(Trigger.PLACE_SAPLING, Slot.QUIRK, 0.35f, 220));
+
+        register("clockwork", builder -> builder
+            .hook(Trigger.REDSTONE_PULSE, Slot.MAJOR, 0.8f, 160)
+            .hook(Trigger.REDSTONE_INTERACTION, Slot.MINOR, 0.55f, 180)
+            .hook(Trigger.USE_FIREWORK, Slot.QUIRK, 0.35f, 220));
+
         register("unnatural", builder -> builder
             .hook(Trigger.REDSTONE_INTERACTION, Slot.MAJOR, 0.8f, 140)
             .hook(Trigger.USE_ENDER_ARTIFACT, Slot.MINOR, 0.55f, 220)
+            .hook(Trigger.USE_TRIAL_KEY, Slot.MINOR, 0.6f, 200)
             .hook(Trigger.WEATHER_THUNDER_START, Slot.QUIRK, 0.35f, 240));
+
+        register("verdant", builder -> builder
+            .hook(Trigger.PLACE_SAPLING, Slot.MAJOR, 0.75f, 160)
+            .hook(Trigger.WEATHER_CLEAR, Slot.MINOR, 0.5f, 240)
+            .hook(Trigger.BREAK_MUSHROOM, Slot.QUIRK, 0.3f, 240)
+            .hook(Trigger.CHERRY_BLOSSOM_BLOOM, Slot.MINOR, 0.6f, 220)
+            .hook(Trigger.CHERRY_PETAL_HARVEST, Slot.QUIRK, 0.4f, 220));
     }
 
     private NatureFlavorHandler() {
@@ -305,7 +335,10 @@ public final class NatureFlavorHandler {
     private static void register(String path, java.util.function.Consumer<NatureFlavorBuilder> consumer) {
         NatureFlavorBuilder builder = new NatureFlavorBuilder();
         consumer.accept(builder);
-        FLAVORS.put(Identifier.of("petsplus", path), builder.build());
+        Identifier id = Identifier.of("petsplus", path);
+        NatureFlavor flavor = builder.build();
+        DEFAULT_FLAVORS.put(id, flavor);
+        FLAVORS.put(id, flavor);
     }
 
     private static final class NatureFlavorBuilder {
@@ -322,5 +355,62 @@ public final class NatureFlavorHandler {
             hooks.forEach((trigger, list) -> map.put(trigger, List.copyOf(list)));
             return new NatureFlavor(map);
         }
+    }
+
+    public record HookConfig(Trigger trigger, Slot slot, float scale, long cooldownTicks, boolean append) {
+    }
+
+    public record NatureFlavorOverride(boolean replace, List<HookConfig> hooks) {
+    }
+
+    public static synchronized void reloadFromDatapack(Map<Identifier, NatureFlavorOverride> overrides) {
+        FLAVORS.clear();
+        FLAVORS.putAll(DEFAULT_FLAVORS);
+        if (overrides == null || overrides.isEmpty()) {
+            return;
+        }
+
+        overrides.forEach((natureId, override) -> {
+            if (override == null) {
+                return;
+            }
+
+            NatureFlavor existing = override.replace() ? null : FLAVORS.get(natureId);
+            EnumMap<Trigger, List<AmbientHook>> mutable = new EnumMap<>(Trigger.class);
+            if (existing != null) {
+                existing.forEach((trigger, list) -> mutable.put(trigger, new ArrayList<>(list)));
+            }
+
+            List<HookConfig> hooks = override.hooks();
+            if (hooks != null) {
+                for (HookConfig config : hooks) {
+                    if (config == null || config.trigger() == null || config.slot() == null) {
+                        continue;
+                    }
+                    if (!config.append()) {
+                        mutable.remove(config.trigger());
+                    }
+                }
+                for (HookConfig config : hooks) {
+                    if (config == null || config.trigger() == null || config.slot() == null) {
+                        continue;
+                    }
+                    mutable.computeIfAbsent(config.trigger(), ignored -> new ArrayList<>())
+                        .add(new AmbientHook(config.trigger(), config.slot(), config.scale(), config.cooldownTicks()));
+                }
+            }
+
+            if (mutable.isEmpty()) {
+                if (override.replace()) {
+                    FLAVORS.remove(natureId);
+                }
+                return;
+            }
+
+            NatureFlavorBuilder builder = new NatureFlavorBuilder();
+            mutable.forEach((trigger, list) -> list.forEach(hook ->
+                builder.hook(hook.trigger(), hook.slot(), hook.scale(), hook.cooldownTicks())));
+            FLAVORS.put(natureId, builder.build());
+        });
     }
 }
