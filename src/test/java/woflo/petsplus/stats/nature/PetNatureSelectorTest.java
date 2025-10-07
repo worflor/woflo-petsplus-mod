@@ -8,6 +8,7 @@ import net.minecraft.world.biome.BiomeKeys;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import woflo.petsplus.api.event.PetBreedEvent;
+import woflo.petsplus.stats.nature.PetNatureSelector;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
