@@ -11,7 +11,7 @@
 ---
 
 <h4 align="center">Recent Changes</h3>
-<ul align="center" style="list-style-type:none; padding-left:0;">
+<ul align="center" style="list-style-type:none; padding-left:5;">
   <li>Added [nature] - Twilight, to compliment Nocturne.</li>
   <li>Added [nature] - Blossom, pick it... choose it... love it...</li>
   <li>Added [nature] - Clockwork, technical and curious.</li>
@@ -40,7 +40,7 @@ Curious how each layer fits together? The [feature docs](docs/features/_readme.m
 
 ### Play It!
 1. Download the latest jar file. 
-2. Drop it into your Fabric `mods/` folder with Fabric API.
+2. Drop it into your `mods/` folder along with the Fabric API.
 3. Launch and enjoy.
 
 ### Tweak It!
@@ -48,9 +48,7 @@ Curious how each layer fits together? The [feature docs](docs/features/_readme.m
 - Ship tweaks with your pack or server so everyone shares the same vibe.
 
 ### Build It!
-note: i reserve the right to accept or reject contributions for any reason.  
-if you’d like your feature considered, explain **why it’s worth adding** — what it brings to players, how it fits the vibe, or what problem it solves.  
-clear reasoning = higher chance of getting merged.
+note: i prefer **idea suggestions** over *'code contributions'*. If your idea is well thought out, credit(s) will be attributed. rejection of ideas/code for any reason is fine; i'm picky. the better the documentation/reasoning, higher liklihood of addition.
 
 ```bash
 git clone https://github.com/woflo-dev/petsplus.git
@@ -58,11 +56,9 @@ cd petsplus
 ./gradlew build
 ```
 #### Compatibility Notes
-- Minecraft 1.21.10
-- Fabric
-- Java 21
+- Minecraft 1.21.10 
+- Fabric | Java 21
 - Needs Fabric API
-
 
 ### Cred-It!
 - Mod, systems, code: woflo 
