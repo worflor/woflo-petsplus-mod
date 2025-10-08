@@ -59,7 +59,7 @@ public class OwnerCombatState {
     }
     
     public static OwnerCombatState getOrCreate(PlayerEntity owner) {
-        if (owner.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+        if (owner.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
             return StateManager.forWorld(serverWorld).getOwnerState(owner);
         }
         return STATES.computeIfAbsent(owner, OwnerCombatState::new);
@@ -67,7 +67,7 @@ public class OwnerCombatState {
     
     @Nullable
     public static OwnerCombatState get(PlayerEntity owner) {
-        if (owner.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+        if (owner.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
             StateManager manager = StateManager.forWorld(serverWorld);
             return manager.getAllOwnerStates().get(owner);
         }
@@ -79,7 +79,7 @@ public class OwnerCombatState {
     }
     
     public static void remove(PlayerEntity owner) {
-        if (owner.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+        if (owner.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
             StateManager.forWorld(serverWorld).removeOwner(owner);
         }
         STATES.remove(owner);
@@ -96,9 +96,9 @@ public class OwnerCombatState {
     public void enterCombat() {
         if (!inCombat) {
             inCombat = true;
-            lastHitTick = owner.getWorld().getTime();
+            lastHitTick = owner.getEntityWorld().getTime();
             // Fire aggro-acquired style triggers when combat first starts
-            if (owner.getWorld() instanceof net.minecraft.server.world.ServerWorld) {
+            if (owner.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
                 woflo.petsplus.events.CombatEventHandler.triggerAbilitiesForOwner(owner, "aggro_acquired");
             }
         }
@@ -106,7 +106,7 @@ public class OwnerCombatState {
     }
     
     public void updateCombatTimer() {
-        long currentTime = owner.getWorld().getTime();
+        long currentTime = owner.getEntityWorld().getTime();
         combatEndTick = currentTime + COMBAT_TIMEOUT;
         
         // Update last action times
@@ -114,20 +114,20 @@ public class OwnerCombatState {
     }
     
     public void onHitTaken() {
-        lastHitTakenTick = owner.getWorld().getTime();
+        lastHitTakenTick = owner.getEntityWorld().getTime();
         enterCombat();
         markOwnerInterference(lastHitTakenTick);
     }
 
     public void tick() {
-        long currentTime = owner.getWorld().getTime();
+        long currentTime = owner.getEntityWorld().getTime();
 
         // Check if combat should end
         if (inCombat && currentTime >= combatEndTick) {
             exitCombat();
         }
 
-        if (owner.getWorld() instanceof ServerWorld serverWorld) {
+        if (owner.getEntityWorld() instanceof ServerWorld serverWorld) {
             pruneAggroTarget(currentTime, serverWorld);
         } else if (currentTime >= activeAggroTargetExpireTick) {
             clearAggroTarget();
@@ -171,7 +171,7 @@ public class OwnerCombatState {
     
     private void triggerCombatEndAbilities() {
         // This would trigger "on_combat_end" abilities for nearby pets
-        if (owner.getWorld() instanceof net.minecraft.server.world.ServerWorld) {
+        if (owner.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
             woflo.petsplus.events.CombatEventHandler.triggerAbilitiesForOwner(owner, "on_combat_end");
         }
     }
@@ -397,11 +397,11 @@ public class OwnerCombatState {
     }
     
     public long getTimeSinceLastHit() {
-        return owner.getWorld().getTime() - lastHitTick;
+        return owner.getEntityWorld().getTime() - lastHitTick;
     }
     
     public long getTimeSinceLastHitTaken() {
-        return owner.getWorld().getTime() - lastHitTakenTick;
+        return owner.getEntityWorld().getTime() - lastHitTakenTick;
     }
 
     /** Returns true if the owner took damage within the last given window ticks. */

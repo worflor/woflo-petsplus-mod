@@ -48,7 +48,7 @@ public class SleepEventHandler {
             return;
         }
 
-        sleepStartTime.put(playerId, player.getWorld().getTime());
+        sleepStartTime.put(playerId, player.getEntityWorld().getTime());
     }
 
     /**
@@ -67,7 +67,7 @@ public class SleepEventHandler {
             return;
         }
 
-        ServerWorld world = player.getWorld();
+        ServerWorld world = player.getEntityWorld();
         long sleepDuration = world.getTime() - startTime;
 
         // A full sleep cycle is typically 100 ticks (5 seconds) minimum
@@ -127,9 +127,9 @@ public class SleepEventHandler {
     private static void onPlayerRespawn(ServerPlayerEntity oldPlayer, ServerPlayerEntity newPlayer, boolean alive) {
         if (alive) {
             // Check if respawn was from a respawn anchor in the Nether
-            if (newPlayer.getWorld().getRegistryKey().getValue().getPath().equals("the_nether")) {
+            if (newPlayer.getEntityWorld().getRegistryKey().getValue().getPath().equals("the_nether")) {
                 // Trigger sleep-like benefits for respawn anchor usage
-                onSuccessfulSleep(newPlayer, newPlayer.getWorld(), 100L, true);
+                onSuccessfulSleep(newPlayer, newPlayer.getEntityWorld(), 100L, true);
                 EmotionContextCues.sendCue(newPlayer,
                     "sleep.anchor",
                     Text.translatable("petsplus.emotion_cue.sleep.anchor"),
@@ -144,7 +144,7 @@ public class SleepEventHandler {
      * Manual trigger for sleep events (for testing or special cases)
      */
     public static void triggerSleepEvent(ServerPlayerEntity player) {
-        onSuccessfulSleep(player, player.getWorld(), 100L, false);
+        onSuccessfulSleep(player, player.getEntityWorld(), 100L, false);
     }
 
     /**
@@ -175,14 +175,14 @@ public class SleepEventHandler {
         if (startTime == null || !isPlayerSleeping(player)) {
             return 0;
         }
-        return player.getWorld().getTime() - startTime;
+        return player.getEntityWorld().getTime() - startTime;
     }
 
     /**
      * Force trigger sleep completion for a player (admin/debug use)
      */
     public static void forceSleepCompletion(ServerPlayerEntity player) {
-        onSuccessfulSleep(player, player.getWorld(), 100L, false);
+        onSuccessfulSleep(player, player.getEntityWorld(), 100L, false);
     }
 
 }

@@ -17,7 +17,7 @@ public class PetAIDebugger {
      * Log current AI and pathfinding state of a pet for debugging.
      */
     public static void logPetAIState(MobEntity pet) {
-        if (pet.getWorld().isClient) return;
+        if (pet.getEntityWorld().isClient()) return;
         
         PetComponent petComponent = PetComponent.get(pet);
         if (petComponent == null) {
@@ -97,3 +97,5 @@ public class PetAIDebugger {
         return String.format(Locale.ROOT, "%.2f", value);
     }
 }
+
+

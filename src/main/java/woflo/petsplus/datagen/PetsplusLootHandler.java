@@ -27,10 +27,10 @@ public class PetsplusLootHandler {
      * Generates mourning items and potential memorial tokens.
      */
     public static void handlePetDeath(MobEntity pet, ServerPlayerEntity owner) {
-        if (pet.getWorld().isClient) return;
+        if (pet.getEntityWorld().isClient()) return;
         
-        ServerWorld world = (ServerWorld) pet.getWorld();
-        Vec3d dropPos = pet.getPos();
+        ServerWorld world = (ServerWorld) pet.getEntityWorld();
+        Vec3d dropPos = pet.getEntityPos();
         
         List<ItemStack> drops = generatePetDeathDrops(pet, owner);
         
@@ -92,9 +92,9 @@ public class PetsplusLootHandler {
      * Handles loot from Enchanted-Bound mining bonuses.
      */
     public static void handleEnchantedBoundMiningBonus(ServerPlayerEntity player, BlockPos blockPos, ItemStack originalDrop) {
-        if (player.getWorld().isClient) return;
+        if (player.getEntityWorld().isClient()) return;
         
-        ServerWorld world = (ServerWorld) player.getWorld();
+        ServerWorld world = (ServerWorld) player.getEntityWorld();
         
         // 5% base chance for extra drops
         float bonusChance = 0.05f;
@@ -127,9 +127,9 @@ public class PetsplusLootHandler {
      * Generates scout exploration rewards.
      */
     public static void handleScoutExplorationReward(ServerPlayerEntity player, Vec3d pos) {
-        if (player.getWorld().isClient) return;
+        if (player.getEntityWorld().isClient()) return;
         
-        ServerWorld world = (ServerWorld) player.getWorld();
+        ServerWorld world = (ServerWorld) player.getEntityWorld();
         List<ItemStack> rewards = new ArrayList<>();
         
         // 60% chance for torches
@@ -162,9 +162,9 @@ public class PetsplusLootHandler {
      * Generates support healing ingredient rewards.
      */
     public static void handleSupportHealingReward(ServerPlayerEntity player, Vec3d pos) {
-        if (player.getWorld().isClient) return;
+        if (player.getEntityWorld().isClient()) return;
         
-        ServerWorld world = (ServerWorld) player.getWorld();
+        ServerWorld world = (ServerWorld) player.getEntityWorld();
         
         // Chance for various healing ingredients
         if (random.nextFloat() < 0.3f) {
@@ -186,9 +186,9 @@ public class PetsplusLootHandler {
      * Generates cursed one dark magic rewards.
      */
     public static void handleCursedOneReward(ServerPlayerEntity player, Vec3d pos) {
-        if (player.getWorld().isClient) return;
+        if (player.getEntityWorld().isClient()) return;
         
-        ServerWorld world = (ServerWorld) player.getWorld();
+        ServerWorld world = (ServerWorld) player.getEntityWorld();
         List<ItemStack> rewards = new ArrayList<>();
         
         // 50% chance for bones
@@ -225,10 +225,10 @@ public class PetsplusLootHandler {
      * Generates milestone celebration rewards.
      */
     public static void handleMilestoneCelebration(ServerPlayerEntity player, int milestone) {
-        if (player.getWorld().isClient) return;
+        if (player.getEntityWorld().isClient()) return;
         
-        ServerWorld world = (ServerWorld) player.getWorld();
-        Vec3d pos = player.getPos();
+        ServerWorld world = (ServerWorld) player.getEntityWorld();
+        Vec3d pos = player.getEntityPos();
         
         // Fireworks for celebration
         int fireworkCount = 3 + random.nextInt(6);
@@ -267,3 +267,5 @@ public class PetsplusLootHandler {
         player.getInventory().insertStack(new ItemStack(Items.BONE, 10));
     }
 }
+
+

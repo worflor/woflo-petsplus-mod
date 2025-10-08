@@ -30,7 +30,7 @@ public class GuardianAegisProtocolEffect implements Effect {
 
     @Override
     public boolean execute(EffectContext context) {
-        if (!(context.getWorld() instanceof ServerWorld world)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
         MobEntity pet = context.getPet();
@@ -41,7 +41,7 @@ public class GuardianAegisProtocolEffect implements Effect {
             return false;
         }
 
-        if (!(owner.getWorld() instanceof ServerWorld ownerWorld) || ownerWorld != world) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld ownerWorld) || ownerWorld != world) {
             return false;
         }
 
@@ -60,3 +60,5 @@ public class GuardianAegisProtocolEffect implements Effect {
         return durationTicks;
     }
 }
+
+

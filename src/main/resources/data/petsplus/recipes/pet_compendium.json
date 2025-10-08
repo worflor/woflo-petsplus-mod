@@ -15,7 +15,7 @@
     }
   },
   "result": {
-    "id": "petsplus:pet_compendium",
+    "item": "petsplus:pet_compendium",
     "count": 1
   },
   "show_notification": true

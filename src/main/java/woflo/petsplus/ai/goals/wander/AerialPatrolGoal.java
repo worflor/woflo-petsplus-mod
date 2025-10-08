@@ -46,7 +46,7 @@ public class AerialPatrolGoal extends AdaptiveGoal {
     protected void onTickGoal() {
         patrolTicks++;
         
-        if (patrolTarget == null || mob.getPos().distanceTo(patrolTarget) < 2.0 || patrolTicks % 60 == 0) {
+        if (patrolTarget == null || mob.getEntityPos().distanceTo(patrolTarget) < 2.0 || patrolTicks % 60 == 0) {
             pickNewPatrolTarget();
         }
         
@@ -79,3 +79,4 @@ public class AerialPatrolGoal extends AdaptiveGoal {
         return 0.6f;
     }
 }
+

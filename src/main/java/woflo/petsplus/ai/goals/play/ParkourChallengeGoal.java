@@ -92,7 +92,7 @@ public class ParkourChallengeGoal extends AdaptiveGoal {
             int dy = mob.getRandom().nextInt(3) - 1;
             
             BlockPos candidate = start.add(dx, dy, dz);
-            BlockState state = mob.getWorld().getBlockState(candidate);
+            BlockState state = mob.getEntityWorld().getBlockState(candidate);
             
             // Interesting blocks for parkour
             if (isInterestingParkourBlock(state.getBlock())) {
@@ -149,3 +149,4 @@ public class ParkourChallengeGoal extends AdaptiveGoal {
         return Math.min(1.0f, engagement);
     }
 }
+

@@ -203,7 +203,7 @@ class SupportPotionUtilsTest {
         Mockito.when(world.getTime()).thenReturn(120L);
 
         MobEntity pet = Mockito.mock(MobEntity.class);
-        Mockito.when(pet.getWorld()).thenReturn(world);
+        Mockito.when(pet.getEntityWorld()).thenReturn(world);
         Mockito.when(component.getPetEntity()).thenReturn(pet);
         Mockito.when(component.hasRole(PetRoleType.SUPPORT)).thenReturn(true);
 
@@ -225,7 +225,7 @@ class SupportPotionUtilsTest {
         PlayerEntity owner = Mockito.mock(PlayerEntity.class);
         ServerWorld world = Mockito.mock(ServerWorld.class);
         UUID ownerId = UUID.randomUUID();
-        Mockito.when(owner.getWorld()).thenReturn(world);
+        Mockito.when(owner.getEntityWorld()).thenReturn(world);
         Mockito.when(owner.getUuid()).thenReturn(ownerId);
         Mockito.when(world.getTime()).thenReturn(300L);
 
@@ -259,3 +259,4 @@ class SupportPotionUtilsTest {
         }
     }
 }
+

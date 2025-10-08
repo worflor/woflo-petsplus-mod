@@ -19,7 +19,7 @@ public class EnchantmentBoundEchoes {
      * Add bonus ticks to Haste pulse duration if pet is perched.
      */
     public static int getPerchedHasteBonusTicks(PlayerEntity owner) {
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return 0;
         }
         
@@ -63,7 +63,7 @@ public class EnchantmentBoundEchoes {
      * Check if mounted extra rolls should be enabled.
      */
     public static boolean shouldEnableMountedExtraRolls(PlayerEntity owner) {
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return false;
         }
         

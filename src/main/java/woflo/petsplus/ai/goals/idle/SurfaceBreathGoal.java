@@ -60,7 +60,7 @@ public class SurfaceBreathGoal extends AdaptiveGoal {
             }
             
             // Splash particles
-            if (surfaceTicks % 15 == 0 && mob.getWorld() instanceof ServerWorld serverWorld) {
+            if (surfaceTicks % 15 == 0 && mob.getEntityWorld() instanceof ServerWorld serverWorld) {
                 serverWorld.spawnParticles(
                     ParticleTypes.SPLASH,
                     mob.getX(), mob.getY(), mob.getZ(),
@@ -84,3 +84,4 @@ public class SurfaceBreathGoal extends AdaptiveGoal {
         return 0.5f;
     }
 }
+

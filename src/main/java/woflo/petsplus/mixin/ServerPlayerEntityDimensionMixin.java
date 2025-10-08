@@ -31,9 +31,10 @@ public abstract class ServerPlayerEntityDimensionMixin {
         CallbackInfoReturnable<Boolean> cir
     ) {
         ServerPlayerEntity player = (ServerPlayerEntity) (Object) this;
-        if (targetWorld != null && targetWorld != player.getWorld()) {
+        if (targetWorld != null && targetWorld != player.getEntityWorld()) {
             PlayerTickDispatcher.clearPlayer(player);
         }
     }
 }
+
 

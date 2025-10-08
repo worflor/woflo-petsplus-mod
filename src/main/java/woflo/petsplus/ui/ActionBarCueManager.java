@@ -65,7 +65,7 @@ public final class ActionBarCueManager implements PlayerTickListener {
             return;
         }
 
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.getEntityWorld().getServer();
         if (server == null) {
             return;
         }
@@ -115,7 +115,7 @@ public final class ActionBarCueManager implements PlayerTickListener {
             return;
         }
 
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.getEntityWorld().getServer();
         if (server == null) {
             return;
         }
@@ -135,7 +135,7 @@ public final class ActionBarCueManager implements PlayerTickListener {
             return;
         }
 
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.getEntityWorld().getServer();
         if (server == null) {
             return;
         }
@@ -279,7 +279,7 @@ public final class ActionBarCueManager implements PlayerTickListener {
 
         Vec3d position = source.position();
         if (position != null) {
-            double distanceSq = player.getPos().squaredDistanceTo(position);
+            double distanceSq = player.getEntityPos().squaredDistanceTo(position);
             if (distanceSq > source.maxDistanceSq()) {
                 return false;
             }
@@ -356,7 +356,7 @@ public final class ActionBarCueManager implements PlayerTickListener {
 
         void recordFocus(MobEntity pet, long currentTick, int recentPetLimit) {
             UUID petId = pet.getUuid();
-            Vec3d position = pet.getPos();
+            Vec3d position = pet.getEntityPos();
             recentPets.removeIf(entry -> Objects.equals(entry.petId(), petId));
             recentPets.add(0, new RecentPetFocus(petId, position, currentTick));
             pruneFocuses(currentTick, recentPetLimit);
@@ -527,7 +527,7 @@ public final class ActionBarCueManager implements PlayerTickListener {
         public static ActionBarCueSource forPet(MobEntity pet) {
             return new ActionBarCueSource(
                 pet.getUuid(),
-                pet.getPos(),
+                pet.getEntityPos(),
                 DEFAULT_DISTANCE_RADIUS_SQ
             );
         }
@@ -552,3 +552,5 @@ public final class ActionBarCueManager implements PlayerTickListener {
         CRITICAL
     }
 }
+
+

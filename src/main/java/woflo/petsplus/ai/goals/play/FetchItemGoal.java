@@ -63,9 +63,9 @@ public class FetchItemGoal extends AdaptiveGoal {
     protected void onStopGoal() {
         mob.getNavigation().stop();
         if (!carriedStack.isEmpty()) {
-            if (!mob.getWorld().isClient()) {
-                mob.getWorld().spawnEntity(new ItemEntity(
-                    mob.getWorld(),
+            if (!mob.getEntityWorld().isClient()) {
+                mob.getEntityWorld().spawnEntity(new ItemEntity(
+                    mob.getEntityWorld(),
                     mob.getX(),
                     mob.getY(),
                     mob.getZ(),
@@ -143,7 +143,7 @@ public class FetchItemGoal extends AdaptiveGoal {
      * Finds a nearby item to fetch.
      */
     private ItemEntity findNearbyItem() {
-        List<ItemEntity> items = mob.getWorld().getEntitiesByClass(
+        List<ItemEntity> items = mob.getEntityWorld().getEntitiesByClass(
             ItemEntity.class,
             mob.getBoundingBox().expand(12.0),
             item -> item.isAlive() && !item.getStack().isEmpty()
@@ -195,3 +195,6 @@ public class FetchItemGoal extends AdaptiveGoal {
         return Math.min(1.0f, engagement);
     }
 }
+
+
+

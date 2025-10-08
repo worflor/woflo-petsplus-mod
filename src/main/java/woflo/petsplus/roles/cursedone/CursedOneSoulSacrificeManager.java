@@ -26,7 +26,7 @@ public final class CursedOneSoulSacrificeManager {
      * @return {@code true} if state could be recorded.
      */
     public static boolean markActivation(MobEntity pet, int durationTicks, double reanimationMultiplier) {
-        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return false;
         }
 
@@ -47,7 +47,7 @@ public final class CursedOneSoulSacrificeManager {
      */
     public static int resolveReanimationDuration(MobEntity pet, int baseDuration) {
         PetComponent component = PetComponent.get(pet);
-        if (component == null || !(pet.getWorld() instanceof ServerWorld serverWorld)) {
+        if (component == null || !(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return baseDuration;
         }
 
@@ -72,7 +72,7 @@ public final class CursedOneSoulSacrificeManager {
      */
     public static boolean isDeathBurstSuppressed(MobEntity pet) {
         PetComponent component = PetComponent.get(pet);
-        if (component == null || !(pet.getWorld() instanceof ServerWorld serverWorld)) {
+        if (component == null || !(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return false;
         }
 
@@ -101,11 +101,11 @@ public final class CursedOneSoulSacrificeManager {
      * Emits a subtle particle pulse to highlight the active sacrifice state.
      */
     public static void emitActivationParticles(MobEntity pet, ServerPlayerEntity owner) {
-        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
 
-        Vec3d pos = pet.getPos();
+        Vec3d pos = pet.getEntityPos();
         serverWorld.spawnParticles(net.minecraft.particle.ParticleTypes.SOUL_FIRE_FLAME,
             pos.x, pos.y + 0.6, pos.z, 40,
             0.6, 0.4, 0.6, 0.02);
@@ -113,7 +113,7 @@ public final class CursedOneSoulSacrificeManager {
             pos.x, pos.y + 0.4, pos.z, 24,
             0.4, 0.3, 0.4, 0.05);
 
-        if (!Objects.equals(owner.getWorld(), serverWorld)) {
+        if (!Objects.equals(owner.getEntityWorld(), serverWorld)) {
             return;
         }
 
@@ -121,3 +121,5 @@ public final class CursedOneSoulSacrificeManager {
         owner.playSound(net.minecraft.sound.SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.5f, 1.25f);
     }
 }
+
+

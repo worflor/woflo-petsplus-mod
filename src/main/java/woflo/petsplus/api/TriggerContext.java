@@ -32,7 +32,7 @@ public class TriggerContext {
         this.eventData = new HashMap<>();
     }
     
-    public ServerWorld getWorld() {
+    public ServerWorld getEntityWorld() {
         return world;
     }
     

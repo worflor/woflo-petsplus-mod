@@ -96,7 +96,7 @@ public class EepyEeperCore {
 
     public static void emitSleepLinkParticles(ServerPlayerEntity player, MobEntity pet, boolean empowered) {
 
-        ServerWorld world = player.getWorld();
+        ServerWorld world = player.getEntityWorld();
 
         if (!pet.isAlive()) return;
 
@@ -168,7 +168,7 @@ public class EepyEeperCore {
 
     public static List<MobEntity> findNearbyEepyEepers(PlayerEntity owner, double radius) {
 
-        if (!(owner.getWorld() instanceof ServerWorld world)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld world)) {
 
             return List.of();
 
@@ -214,7 +214,7 @@ public class EepyEeperCore {
 
         // Simple implementation: 3 MC days cooldown
 
-        long currentTime = player.getWorld().getTime();
+        long currentTime = player.getEntityWorld().getTime();
 
         long timeSinceLastSleep = currentTime - lastSleep;
 

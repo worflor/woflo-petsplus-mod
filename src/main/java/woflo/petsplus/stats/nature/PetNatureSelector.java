@@ -264,7 +264,7 @@ public final class PetNatureSelector {
             return 0;
         }
         PetSwarmIndex swarmIndex = StateManager.forWorld(world).getSwarmIndex();
-        Vec3d center = source.getPos();
+        Vec3d center = source.getEntityPos();
         final int[] count = {0};
         swarmIndex.forEachPetInRange(center, radius, entry -> {
             MobEntity other = entry.pet();
@@ -1238,3 +1238,4 @@ public final class PetNatureSelector {
     private record NatureRule<T>(Identifier id, Predicate<T> predicate) {
     }
 }
+

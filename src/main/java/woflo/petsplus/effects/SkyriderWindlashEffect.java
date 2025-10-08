@@ -76,7 +76,7 @@ public class SkyriderWindlashEffect implements Effect {
 
     @Override
     public boolean execute(EffectContext context) {
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         MobEntity pet = context.getPet();
         PlayerEntity owner = context.getOwner();
 
@@ -128,3 +128,5 @@ public class SkyriderWindlashEffect implements Effect {
         return true;
     }
 }
+
+

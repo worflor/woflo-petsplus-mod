@@ -45,7 +45,7 @@ public final class GuardianCore {
      * Locate Guardian pets around the supplied owner that can be considered for Bulwark interception.
      */
     public static List<MobEntity> findNearbyGuardianPets(ServerPlayerEntity owner) {
-        ServerWorld world = (ServerWorld) owner.getWorld();
+        ServerWorld world = (ServerWorld) owner.getEntityWorld();
         return world.getEntitiesByClass(
             MobEntity.class,
             owner.getBoundingBox().expand(GUARDIAN_SEARCH_RANGE),
@@ -158,7 +158,7 @@ public final class GuardianCore {
         if (entry == null) {
             return false;
         }
-        if (!(guardian.getWorld() instanceof ServerWorld world)) {
+        if (!(guardian.getEntityWorld() instanceof ServerWorld world)) {
             return true;
         }
         if (!entry.matches(world)) {
@@ -178,7 +178,7 @@ public final class GuardianCore {
     public static void recordSuccessfulRedirect(ServerPlayerEntity owner, MobEntity guardian, PetComponent component,
                                                 float originalDamage, float redirectedAmount, float reserveFraction,
                                                 boolean hitReserveLimit, float finalRedirectedAmount) {
-        ServerWorld world = (ServerWorld) owner.getWorld();
+        ServerWorld world = (ServerWorld) owner.getEntityWorld();
         long currentTick = world.getTime();
 
         guardianCooldowns.put(guardian.getUuid(), new TimedEntry(world.getRegistryKey(), currentTick + BULWARK_COOLDOWN_TICKS));
@@ -261,3 +261,4 @@ public final class GuardianCore {
         }
     }
 }
+

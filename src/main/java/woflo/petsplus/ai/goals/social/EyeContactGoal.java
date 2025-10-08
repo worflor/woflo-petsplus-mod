@@ -62,7 +62,7 @@ public class EyeContactGoal extends AdaptiveGoal {
         if (ownerLookingTickCount < requiredDelay) return false;
         
         // Roll for response (checked every few ticks to avoid spam)
-        long now = mob.getWorld().getTime();
+        long now = mob.getEntityWorld().getTime();
         if (now - lastCheckTime < 10) return false; // Check every 0.5s
         lastCheckTime = now;
         
@@ -256,3 +256,4 @@ public class EyeContactGoal extends AdaptiveGoal {
         return engagement;
     }
 }
+

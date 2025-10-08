@@ -44,7 +44,7 @@ public final class PetBreedingHandler {
         if (!(childEntity instanceof MobEntity mobChild)) {
             return;
         }
-        if (!(mobChild.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(mobChild.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
 
@@ -200,7 +200,7 @@ public final class PetBreedingHandler {
             return 0;
         }
         PetSwarmIndex swarmIndex = StateManager.forWorld(world).getSwarmIndex();
-        Vec3d position = center.getPos();
+        Vec3d position = center.getEntityPos();
         final int[] count = {0};
         swarmIndex.forEachPetInRange(position, radius, entry -> {
             MobEntity other = entry.pet();
@@ -276,3 +276,5 @@ public final class PetBreedingHandler {
         return null;
     }
 }
+
+

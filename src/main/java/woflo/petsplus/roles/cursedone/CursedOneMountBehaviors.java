@@ -17,7 +17,7 @@ public final class CursedOneMountBehaviors {
      * Returns true if the owner has at least one active Cursed One pet within the given radius.
      */
     public static boolean hasNearbyCursedOne(ServerPlayerEntity owner, double radius) {
-        if (owner == null || !(owner.getWorld() instanceof ServerWorld world)) {
+        if (owner == null || !(owner.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
         double effectiveRadius = Math.max(0.0D, radius);
@@ -34,3 +34,4 @@ public final class CursedOneMountBehaviors {
         ).isEmpty();
     }
 }
+

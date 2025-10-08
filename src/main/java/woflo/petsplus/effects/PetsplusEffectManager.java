@@ -324,10 +324,10 @@ public final class PetsplusEffectManager {
             return;
         }
         switch (particleEvent) {
-            case "guardian" -> emitGuardianParticles(world, pet.getPos(), owner != null ? owner.getPos() : pet.getPos());
+            case "guardian" -> emitGuardianParticles(world, pet.getEntityPos(), owner != null ? owner.getEntityPos() : pet.getEntityPos());
             case "support" -> emitSupportParticles(world, pet, radius, recipients);
-            case "nap_time" -> emitNapTimeParticles(world, pet.getPos(), radius);
-            default -> emitGenericParticles(world, pet.getPos());
+            case "nap_time" -> emitNapTimeParticles(world, pet.getEntityPos(), radius);
+            default -> emitGenericParticles(world, pet.getEntityPos());
         }
     }
 
@@ -342,7 +342,7 @@ public final class PetsplusEffectManager {
     }
 
     private static void emitSupportParticles(ServerWorld world, MobEntity pet, double radius, Set<LivingEntity> recipients) {
-        Vec3d center = pet.getPos();
+        Vec3d center = pet.getEntityPos();
         int count = Math.max(4, recipients.size() * 3);
         for (int i = 0; i < count; i++) {
             double angle = i * (Math.PI * 2 / count);
@@ -426,3 +426,4 @@ public final class PetsplusEffectManager {
         boolean primed;
     }
 }
+

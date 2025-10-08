@@ -20,7 +20,7 @@ public abstract class MobEntityTickMixin {
     @Inject(method = "tick", at = @At("TAIL"))
     private void petsplus$onTick(CallbackInfo ci) {
         MobEntity mob = (MobEntity) (Object) this;
-        if (!(mob.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld)) {
+        if (!(mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld)) {
             return;
         }
 
@@ -30,3 +30,4 @@ public abstract class MobEntityTickMixin {
         MagnetizeDropsAndXpEffect.handleMobTick(mob, serverWorld);
     }
 }
+

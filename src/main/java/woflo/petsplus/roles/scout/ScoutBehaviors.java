@@ -65,7 +65,7 @@ public final class ScoutBehaviors {
         if (owner == null) {
             return false;
         }
-        ServerWorld world = owner.getWorld() instanceof ServerWorld serverWorld ? serverWorld : null;
+        ServerWorld world = owner.getEntityWorld() instanceof ServerWorld serverWorld ? serverWorld : null;
         StateManager manager = StateManager.forWorld(world);
         if (manager == null) {
             return false;
@@ -84,3 +84,4 @@ public final class ScoutBehaviors {
         }
     }
 }
+

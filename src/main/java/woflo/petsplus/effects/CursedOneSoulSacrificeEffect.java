@@ -43,7 +43,7 @@ public class CursedOneSoulSacrificeEffect implements Effect {
 
     @Override
     public boolean execute(EffectContext context) {
-        if (!(context.getWorld() instanceof ServerWorld)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld)) {
             return false;
         }
 
@@ -96,3 +96,5 @@ public class CursedOneSoulSacrificeEffect implements Effect {
         return durationTicks;
     }
 }
+
+

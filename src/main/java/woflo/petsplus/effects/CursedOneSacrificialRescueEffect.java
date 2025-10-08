@@ -52,7 +52,7 @@ public class CursedOneSacrificialRescueEffect implements Effect {
             return false;
         }
 
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         MobEntity pet = context.getPet();
         if (world == null || pet == null) {
             return false;
@@ -103,3 +103,5 @@ public class CursedOneSacrificialRescueEffect implements Effect {
         return true;
     }
 }
+
+

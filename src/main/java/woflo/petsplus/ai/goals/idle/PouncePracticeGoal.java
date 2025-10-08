@@ -38,7 +38,7 @@ public class PouncePracticeGoal extends AdaptiveGoal {
         // Pick a spot to pounce toward
         double angle = mob.getYaw() + (mob.getRandom().nextDouble() - 0.5) * 45;
         double distance = 2.0 + mob.getRandom().nextDouble() * 2;
-        pounceTarget = mob.getPos().add(
+        pounceTarget = mob.getEntityPos().add(
             Math.cos(Math.toRadians(angle)) * distance,
             0,
             Math.sin(Math.toRadians(angle)) * distance
@@ -69,7 +69,7 @@ public class PouncePracticeGoal extends AdaptiveGoal {
             } else {
                 // POUNCE!
                 mob.setSneaking(false);
-                Vec3d velocity = pounceTarget.subtract(mob.getPos()).normalize().multiply(0.5).add(0, 0.4, 0);
+                Vec3d velocity = pounceTarget.subtract(mob.getEntityPos()).normalize().multiply(0.5).add(0, 0.4, 0);
                 mob.setVelocity(velocity);
                 mob.velocityModified = true;
                 hasJumped = true;
@@ -104,3 +104,4 @@ public class PouncePracticeGoal extends AdaptiveGoal {
         return engagement;
     }
 }
+

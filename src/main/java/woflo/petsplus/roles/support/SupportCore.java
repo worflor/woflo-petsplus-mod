@@ -32,7 +32,7 @@ public class SupportCore {
      * Check if a player has active Support aura coverage.
      */
     public static boolean hasActiveSupportAura(ServerPlayerEntity player) {
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
 
@@ -64,3 +64,4 @@ public class SupportCore {
     }
 
 }
+

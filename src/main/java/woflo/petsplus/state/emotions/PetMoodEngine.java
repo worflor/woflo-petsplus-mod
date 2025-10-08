@@ -248,7 +248,7 @@ public final class PetMoodEngine {
     }
 
     void update() {
-        long now = parent.getPet().getWorld() instanceof ServerWorld sw ? sw.getTime() : lastMoodUpdate;
+        long now = parent.getPet().getEntityWorld() instanceof ServerWorld sw ? sw.getTime() : lastMoodUpdate;
         ensureFresh(now);
     }
 
@@ -295,7 +295,7 @@ public final class PetMoodEngine {
         if (delta == null) {
             return;
         }
-        long now = eventTime > 0 ? eventTime : parent.getPet().getWorld().getTime();
+        long now = eventTime > 0 ? eventTime : parent.getPet().getEntityWorld().getTime();
         pushEmotion(delta.emotion(), delta.amount(), now);
         lastStimulusTime = now;
         dirty = true;
@@ -412,7 +412,7 @@ public final class PetMoodEngine {
     }
 
     public void addContagionShare(PetComponent.Emotion emotion, float amount) {
-        long now = parent.getPet().getWorld().getTime();
+        long now = parent.getPet().getEntityWorld().getTime();
         float bondFactor = parent.computeBondResilience(now);
         addContagionShare(emotion, amount, now, bondFactor);
     }
@@ -625,7 +625,7 @@ public final class PetMoodEngine {
                         continue;
                     }
                     emotions.getCompound(key).ifPresent(tag -> {
-                        EmotionRecord record = new EmotionRecord(emotion, parent.getPet().getWorld().getTime());
+                        EmotionRecord record = new EmotionRecord(emotion, parent.getPet().getEntityWorld().getTime());
                         record.intensity = tag.getFloat("intensity").orElse(0f);
                         record.impactBudget = tag.getFloat("impact").orElse(0f);
                         record.cadenceEMA = tag.getFloat("cadence").orElse(0f);
@@ -639,7 +639,7 @@ public final class PetMoodEngine {
                         record.dangerWindow = tag.getFloat("danger").orElse(DANGER_BASE);
                         record.appraisalConfidence = tag.getFloat("appraisal").orElse(APPRAISAL_BASE);
                         record.weight = tag.getFloat("weight").orElse(0f);
-                        record.startTime = tag.getLong("start").orElse(parent.getPet().getWorld().getTime());
+                        record.startTime = tag.getLong("start").orElse(parent.getPet().getEntityWorld().getTime());
                         record.lastEventTime = tag.getLong("lastEvent").orElse(record.startTime);
                         record.lastUpdateTime = tag.getLong("lastUpdate").orElse(record.lastEventTime);
                         emotionRecords.put(emotion, record);
@@ -1102,7 +1102,7 @@ public final class PetMoodEngine {
         baseline += (volatility - 1.0f) * 0.15f;
         
         // Time of day influence (subtle circadian rhythm)
-        long timeOfDay = parent.getPet().getWorld().getTimeOfDay() % 24000;
+        long timeOfDay = parent.getPet().getEntityWorld().getTimeOfDay() % 24000;
         if (timeOfDay >= 6000 && timeOfDay <= 18000) {
             baseline += 0.05f; // Slightly more active during day
         } else {
@@ -2427,7 +2427,7 @@ public final class PetMoodEngine {
     // --------------------------------------------------------------------------------------------
 
     private Text getCachedMoodText(boolean withDebug) {
-        long currentTime = parent.getPet().getWorld().getTime();
+        long currentTime = parent.getPet().getEntityWorld().getTime();
         int level = getMoodLevel();
         int updateInterval = getAnimationUpdateInterval(level);
         commitPendingPaletteIfReady(level, updateInterval, currentTime);
@@ -2514,7 +2514,7 @@ public final class PetMoodEngine {
     private MutableText createBreathingText(String text,
             List<PetComponent.WeightedEmotionColor> palette,
             TextColor fallbackPrimary, TextColor fallbackSecondary, int level) {
-        long worldTime = parent.getPet().getWorld().getTime();
+        long worldTime = parent.getPet().getEntityWorld().getTime();
         int breathingSpeed = computeBreathingDuration(level, BASE_BREATHING_SPEEDS);
         int updateInterval = getAnimationUpdateInterval(level);
         long animationTime = (worldTime / updateInterval) * updateInterval;
@@ -2548,7 +2548,7 @@ public final class PetMoodEngine {
     private MutableText createBreathingGradient(String text,
             List<PetComponent.WeightedEmotionColor> palette,
             TextColor fallbackPrimary, TextColor fallbackSecondary, int level) {
-        long worldTime = parent.getPet().getWorld().getTime();
+        long worldTime = parent.getPet().getEntityWorld().getTime();
         int breathingSpeed = computeBreathingDuration(level, BASE_GRADIENT_SPEEDS);
         int updateInterval = getAnimationUpdateInterval(level);
         long animationTime = (worldTime / updateInterval) * updateInterval;
@@ -2575,7 +2575,7 @@ public final class PetMoodEngine {
     private MutableText createBreathingMovingGradient(String text,
             List<PetComponent.WeightedEmotionColor> palette,
             TextColor fallbackPrimary, TextColor fallbackSecondary, int level) {
-        long worldTime = parent.getPet().getWorld().getTime();
+        long worldTime = parent.getPet().getEntityWorld().getTime();
         int breathingSpeed = computeBreathingDuration(level, BASE_SHIMMER_SPEEDS);
         int updateInterval = getAnimationUpdateInterval(level);
         long animationTime = (worldTime / updateInterval) * updateInterval;
@@ -2952,5 +2952,6 @@ public final class PetMoodEngine {
     private record OpponentConflict(Candidate a, Candidate b, float combinedWeight) {
     }
 }
+
 
 

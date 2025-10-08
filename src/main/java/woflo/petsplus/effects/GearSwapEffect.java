@@ -55,7 +55,7 @@ public class GearSwapEffect implements Effect {
 
     @Override
     public boolean execute(EffectContext context) {
-        if (!(context.getWorld() instanceof ServerWorld)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld)) {
             return false;
         }
 
@@ -69,7 +69,7 @@ public class GearSwapEffect implements Effect {
             return false;
         }
 
-        if (!(owner.getWorld() instanceof ServerWorld ownerWorld) || ownerWorld != context.getWorld()) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld ownerWorld) || ownerWorld != context.getEntityWorld()) {
             return false;
         }
 
@@ -181,3 +181,5 @@ public class GearSwapEffect implements Effect {
         return Registries.SOUND_EVENT.getOptionalValue(key).orElse(fallback);
     }
 }
+
+

@@ -18,7 +18,9 @@ public abstract class ServerPlayerEntityTickMixin {
     @Inject(method = "tick", at = @At("TAIL"))
     private void petsplus$onTick(CallbackInfo ci) {
         ServerPlayerEntity player = (ServerPlayerEntity) (Object) this;
-        StateManager.forWorld((ServerWorld) player.getWorld()).handleOwnerTick(player);
-        PlayerTickDispatcher.dispatch(player, player.getServer().getTicks());
+        StateManager.forWorld((ServerWorld) player.getEntityWorld()).handleOwnerTick(player);
+        PlayerTickDispatcher.dispatch(player, player.getEntityWorld().getServer().getTicks());
     }
 }
+
+

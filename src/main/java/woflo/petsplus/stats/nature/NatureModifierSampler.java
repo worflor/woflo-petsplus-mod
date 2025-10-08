@@ -219,7 +219,7 @@ public final class NatureModifierSampler {
 
         UUID uuid = component.getPet().getUuid();
         Long stored = component.getStateData(PetComponent.StateKeys.TAMED_TICK, Long.class);
-        long tameTick = stored != null ? stored : component.getPet().getWorld().getTime();
+        long tameTick = stored != null ? stored : component.getPet().getEntityWorld().getTime();
         return uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits() ^ tameTick;
     }
 
@@ -361,3 +361,4 @@ public final class NatureModifierSampler {
         }
     }
 }
+

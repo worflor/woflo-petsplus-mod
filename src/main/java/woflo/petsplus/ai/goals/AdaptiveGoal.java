@@ -8,6 +8,9 @@ import woflo.petsplus.mixin.MobEntityAccessor;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
  * Base class for all adaptive behavior goals.
@@ -17,6 +20,9 @@ import java.util.EnumSet;
  * Priority system ensures we never interfere with higher-priority goals.
  */
 public abstract class AdaptiveGoal extends Goal {
+    private static final Map<MobEntity, Map<GoalType, Long>> FALLBACK_COOLDOWNS = new WeakHashMap<>();
+    private static final String COOLDOWN_PREFIX = "adaptive_goal:";
+    
     protected final MobEntity mob;
     protected final GoalType goalType;
     
@@ -121,6 +127,8 @@ public abstract class AdaptiveGoal extends Goal {
         // Record satisfaction/enjoyment for memory system
         float finalSatisfaction = calculateFinalSatisfaction();
         recordGoalExperience(finalSatisfaction);
+
+        applyGoalCooldown();
         
         // Record activity completion for behavioral momentum
         recordActivityCompletion();
@@ -275,8 +283,26 @@ public abstract class AdaptiveGoal extends Goal {
      * Check if cooldown has expired.
      */
     protected boolean isCooldownExpired() {
-        // TODO: Implement cooldown tracking in PetContext
-        return true;
+        int min = goalType.getMinCooldownTicks();
+        int max = goalType.getMaxCooldownTicks();
+        if (min <= 0 && max <= 0) {
+            return true;
+        }
+
+        long currentTime = mob.getEntityWorld().getTime();
+        PetComponent pc = PetComponent.get(mob);
+        if (pc != null) {
+            return !pc.isOnCooldown(getCooldownKey());
+        }
+
+        synchronized (FALLBACK_COOLDOWNS) {
+            Map<GoalType, Long> cooldowns = FALLBACK_COOLDOWNS.get(mob);
+            if (cooldowns == null) {
+                return true;
+            }
+            Long until = cooldowns.get(goalType);
+            return until == null || until <= currentTime;
+        }
     }
     
     /**
@@ -317,6 +343,42 @@ public abstract class AdaptiveGoal extends Goal {
         float completionBonus = (activeTicks >= committedDuration) ? 0.2f : 0.0f;
         
         return Math.min(1.0f, avgEngagement + completionBonus);
+    }
+
+    private void applyGoalCooldown() {
+        int min = goalType.getMinCooldownTicks();
+        int max = goalType.getMaxCooldownTicks();
+        if (min <= 0 && max <= 0) {
+            return;
+        }
+
+        int cooldownTicks;
+        if (max <= min) {
+            cooldownTicks = min;
+        } else {
+            cooldownTicks = min + mob.getRandom().nextInt((max - min) + 1);
+        }
+
+        if (cooldownTicks <= 0) {
+            return;
+        }
+
+        PetComponent pc = PetComponent.get(mob);
+        if (pc != null) {
+            pc.setCooldown(getCooldownKey(), cooldownTicks);
+            return;
+        }
+
+        long endTick = mob.getEntityWorld().getTime() + cooldownTicks;
+        synchronized (FALLBACK_COOLDOWNS) {
+            FALLBACK_COOLDOWNS
+                .computeIfAbsent(mob, ignored -> new HashMap<>())
+                .put(goalType, endTick);
+        }
+    }
+
+    private String getCooldownKey() {
+        return COOLDOWN_PREFIX + goalType.name();
     }
     
     /**
@@ -399,7 +461,7 @@ public abstract class AdaptiveGoal extends Goal {
         stimulusBus.dispatchStimuli(mob);
         
         // Handle contagion if enabled
-        if (cachedFeedback.triggersContagion() && mob.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+        if (cachedFeedback.triggersContagion() && mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
             triggerEmotionContagion(serverWorld, cachedFeedback);
         }
     }
@@ -446,3 +508,4 @@ public abstract class AdaptiveGoal extends Goal {
         }
     }
 }
+

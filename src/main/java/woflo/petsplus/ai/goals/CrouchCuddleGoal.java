@@ -35,7 +35,7 @@ public class CrouchCuddleGoal extends Goal {
 
     @Override
     public boolean canStart() {
-        if (pet.getWorld().isClient) {
+        if (pet.getEntityWorld().isClient()) {
             return false;
         }
 
@@ -44,7 +44,7 @@ public class CrouchCuddleGoal extends Goal {
 
     @Override
     public boolean shouldContinue() {
-        if (pet.getWorld().isClient) {
+        if (pet.getEntityWorld().isClient()) {
             return false;
         }
 
@@ -75,7 +75,7 @@ public class CrouchCuddleGoal extends Goal {
         pet.getNavigation().stop();
 
         if (distanceSq > SNUFFLE_DISTANCE_SQ) {
-            Vec3d ownerPos = owner.getPos();
+            Vec3d ownerPos = owner.getEntityPos();
             pet.getMoveControl().moveTo(ownerPos.x, ownerPos.y, ownerPos.z, HOVER_SPEED);
             pet.setVelocity(pet.getVelocity().multiply(0.5, 1.0, 0.5));
         } else {
@@ -96,7 +96,7 @@ public class CrouchCuddleGoal extends Goal {
 
     @Nullable
     private ServerPlayerEntity resolveActiveOwner() {
-        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return null;
         }
 
@@ -110,7 +110,7 @@ public class CrouchCuddleGoal extends Goal {
             return null;
         }
 
-        if (owner.getWorld() != serverWorld || !owner.isSneaking()) {
+        if (owner.getEntityWorld() != serverWorld || !owner.isSneaking()) {
             return null;
         }
 
@@ -122,3 +122,6 @@ public class CrouchCuddleGoal extends Goal {
         return owner;
     }
 }
+
+
+

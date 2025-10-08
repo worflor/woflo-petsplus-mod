@@ -64,7 +64,7 @@ public class PerkEarsScanGoal extends AdaptiveGoal {
         // Look in different directions
         double angle = mob.getRandom().nextDouble() * Math.PI * 2;
         double distance = 5.0 + mob.getRandom().nextDouble() * 5;
-        scanTarget = mob.getPos().add(
+        scanTarget = mob.getEntityPos().add(
             Math.cos(angle) * distance,
             mob.getRandom().nextDouble() * 2,
             Math.sin(angle) * distance
@@ -84,3 +84,4 @@ public class PerkEarsScanGoal extends AdaptiveGoal {
         return 0.5f; // Moderately alert
     }
 }
+

@@ -2,6 +2,7 @@ package woflo.petsplus.util;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
@@ -35,8 +36,13 @@ public final class PetPerchUtil {
         }
 
         String petUuid = component.getPet().getUuidAsString();
-        Optional<Boolean> leftMatch = matchesComponent(owner.getShoulderEntityLeft(), component, petUuid);
-        Optional<Boolean> rightMatch = matchesComponent(owner.getShoulderEntityRight(), component, petUuid);
+        if (!(owner instanceof ServerPlayerEntity serverOwner)) {
+            component.setPerched(false);
+            return false;
+        }
+
+        Optional<Boolean> leftMatch = matchesComponent(serverOwner.getLeftShoulderNbt(), component, petUuid);
+        Optional<Boolean> rightMatch = matchesComponent(serverOwner.getRightShoulderNbt(), component, petUuid);
 
         boolean seenData = leftMatch.isPresent() || rightMatch.isPresent();
         boolean perched = leftMatch.orElse(false) || rightMatch.orElse(false);
@@ -73,8 +79,12 @@ public final class PetPerchUtil {
             return false;
         }
 
-        return hasRoleOnShoulder(owner.getShoulderEntityLeft(), roleId)
-            || hasRoleOnShoulder(owner.getShoulderEntityRight(), roleId);
+        if (!(owner instanceof ServerPlayerEntity serverOwner)) {
+            return false;
+        }
+
+        return hasRoleOnShoulder(serverOwner.getLeftShoulderNbt(), roleId)
+            || hasRoleOnShoulder(serverOwner.getRightShoulderNbt(), roleId);
     }
 
     public static boolean ownerHasPerchedRole(@Nullable PlayerEntity owner, @Nullable PetRoleType roleType) {

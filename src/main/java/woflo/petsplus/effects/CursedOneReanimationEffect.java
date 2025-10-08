@@ -50,7 +50,7 @@ public class CursedOneReanimationEffect implements Effect {
         if (pet == null || !pet.isAlive()) {
             return false;
         }
-        if (!(context.getWorld() instanceof ServerWorld)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld)) {
             return false;
         }
 
@@ -80,3 +80,5 @@ public class CursedOneReanimationEffect implements Effect {
         return true;
     }
 }
+
+

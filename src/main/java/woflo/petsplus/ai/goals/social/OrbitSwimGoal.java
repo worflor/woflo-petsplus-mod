@@ -69,7 +69,7 @@ public class OrbitSwimGoal extends AdaptiveGoal {
         double offsetX = Math.cos(orbitAngle) * ORBIT_RADIUS;
         double offsetZ = Math.sin(orbitAngle) * ORBIT_RADIUS;
         
-        Vec3d targetPos = owner.getPos().add(offsetX, 0, offsetZ);
+        Vec3d targetPos = owner.getEntityPos().add(offsetX, 0, offsetZ);
         
         // Navigate to orbit position
         mob.getNavigation().startMovingTo(
@@ -120,3 +120,4 @@ public class OrbitSwimGoal extends AdaptiveGoal {
         return Math.min(1.0f, engagement);
     }
 }
+

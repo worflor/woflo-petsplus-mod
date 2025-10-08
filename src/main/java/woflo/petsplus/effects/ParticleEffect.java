@@ -1,7 +1,10 @@
 package woflo.petsplus.effects;
 
 import net.minecraft.entity.Entity;
+import net.minecraft.particle.DragonBreathParticleEffect;
+import net.minecraft.particle.EffectParticleEffect;
 import net.minecraft.particle.ParticleTypes;
+import net.minecraft.particle.TintedParticleEffect;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
@@ -46,7 +49,7 @@ public class ParticleEffect implements Effect {
     
     @Override
     public boolean execute(EffectContext context) {
-        if (!(context.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return false;
         }
         
@@ -55,7 +58,7 @@ public class ParticleEffect implements Effect {
             return false;
         }
         
-        Vec3d pos = targetEntity.getPos();
+        Vec3d pos = targetEntity.getEntityPos();
         double height = targetEntity.getHeight();
         
         // Parse particle type
@@ -102,7 +105,7 @@ public class ParticleEffect implements Effect {
             case "flame" -> ParticleTypes.FLAME;
             case "end_rod" -> ParticleTypes.END_ROD;
             case "portal" -> ParticleTypes.PORTAL;
-            case "dragon_breath" -> ParticleTypes.DRAGON_BREATH;
+            case "dragon_breath" -> DragonBreathParticleEffect.of(ParticleTypes.DRAGON_BREATH, 1.0F);
             case "sweep_attack" -> ParticleTypes.SWEEP_ATTACK;
             case "damage_indicator" -> ParticleTypes.DAMAGE_INDICATOR;
             case "angry_villager" -> ParticleTypes.ANGRY_VILLAGER;
@@ -133,7 +136,7 @@ public class ParticleEffect implements Effect {
             case "nautilus" -> ParticleTypes.NAUTILUS;
             case "dolphin" -> ParticleTypes.DOLPHIN;
             case "firework" -> ParticleTypes.FIREWORK;
-            case "flash" -> ParticleTypes.FLASH;
+            case "flash" -> TintedParticleEffect.create(ParticleTypes.FLASH, 1.0F, 1.0F, 1.0F);
             case "falling_nectar" -> ParticleTypes.FALLING_NECTAR;
             case "falling_honey" -> ParticleTypes.FALLING_HONEY;
             case "landing_honey" -> ParticleTypes.LANDING_HONEY;
@@ -151,7 +154,7 @@ public class ParticleEffect implements Effect {
             case "note" -> ParticleTypes.NOTE;
             case "poof" -> ParticleTypes.POOF;
             case "large_smoke" -> ParticleTypes.LARGE_SMOKE;
-            case "effect" -> ParticleTypes.EFFECT;
+            case "effect" -> EffectParticleEffect.of(ParticleTypes.EFFECT, 1.0F, 1.0F, 1.0F, 1.0F);
             case "witch" -> ParticleTypes.WITCH;
             case "dripping_dripstone_water" -> ParticleTypes.DRIPPING_DRIPSTONE_WATER;
             case "falling_dripstone_water" -> ParticleTypes.FALLING_DRIPSTONE_WATER;
@@ -174,3 +177,6 @@ public class ParticleEffect implements Effect {
         };
     }
 }
+
+
+

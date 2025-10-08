@@ -67,7 +67,7 @@ public class EclipsedVoidRescueEffect implements Effect {
             return false;
         }
 
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         MobEntity pet = context.getPet();
         if (world == null || pet == null) {
             return false;
@@ -191,7 +191,7 @@ public class EclipsedVoidRescueEffect implements Effect {
     }
 
     private BlockPos findSafeTeleportLocation(ServerWorld world, int petLevel) {
-        BlockPos worldSpawn = world.getSpawnPos();
+        BlockPos worldSpawn = world.getSpawnPoint().getPos();
         if (isSafeLocation(world, worldSpawn)) {
             return worldSpawn;
         }
@@ -281,7 +281,7 @@ public class EclipsedVoidRescueEffect implements Effect {
             pet.getCustomName().getString() :
             pet.getType().getName().getString();
 
-        owner.getWorld().playSound(null, owner.getX(), owner.getY(), owner.getZ(),
+        owner.getEntityWorld().playSound(null, owner.getX(), owner.getY(), owner.getZ(),
             SoundEvents.ENTITY_SHULKER_TELEPORT, SoundCategory.PLAYERS, 1.0F, 0.6F);
 
         owner.sendMessage(Text.of("§8" + petName + " §5pulled you from the void through shadow magic!"), false);
@@ -289,3 +289,5 @@ public class EclipsedVoidRescueEffect implements Effect {
         owner.sendMessage(Text.of("§8Teleported to safety at: §7" + safeLocation.getX() + ", " + safeLocation.getY() + ", " + safeLocation.getZ()), false);
     }
 }
+
+

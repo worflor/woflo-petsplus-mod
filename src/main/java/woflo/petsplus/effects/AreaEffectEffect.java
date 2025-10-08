@@ -67,13 +67,13 @@ public class AreaEffectEffect implements Effect {
     
     @Override
     public boolean execute(EffectContext context) {
-        if (!(context.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return false;
         }
         
         // Get center position (pet or owner)
         var centerEntity = context.getPet();
-        var centerPos = centerEntity.getPos();
+        var centerPos = centerEntity.getEntityPos();
         
         // Create search area
         Box searchBox = Box.of(centerPos, radius * 2, radius * 2, radius * 2);
@@ -133,3 +133,5 @@ public class AreaEffectEffect implements Effect {
         }
     }
 }
+
+

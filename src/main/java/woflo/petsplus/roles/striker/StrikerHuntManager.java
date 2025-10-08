@@ -237,7 +237,7 @@ public final class StrikerHuntManager implements PlayerTickListener {
     }
 
     private static ServerWorld world(ServerPlayerEntity player) {
-        return (ServerWorld) player.getWorld();
+        return (ServerWorld) player.getEntityWorld();
     }
 
     private static final class HuntState {
@@ -268,4 +268,5 @@ public final class StrikerHuntManager implements PlayerTickListener {
         }
     }
 }
+
 

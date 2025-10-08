@@ -34,7 +34,7 @@ public class ScoutEnhancedMarkEffect implements Effect {
         }
         
         // Check if pet has enhanced mark state and it hasn't expired
-        if (!(context.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return false;
         }
         
@@ -79,3 +79,5 @@ public class ScoutEnhancedMarkEffect implements Effect {
         return true;
     }
 }
+
+

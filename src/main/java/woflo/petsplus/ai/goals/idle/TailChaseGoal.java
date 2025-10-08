@@ -82,7 +82,7 @@ public class TailChaseGoal extends AdaptiveGoal {
             mob.bodyYaw = targetYaw;
 
             // Particle effect on spin completion
-            if (mob.getWorld().isClient) {
+            if (mob.getEntityWorld().isClient()) {
                 spawnSpinParticles();
             }
         }
@@ -125,3 +125,5 @@ public class TailChaseGoal extends AdaptiveGoal {
         // TODO: Add particle effects for visual flair
     }
 }
+
+

@@ -65,12 +65,12 @@ public record PetContext(
         float distanceToOwner = owner != null ? (float) mob.distanceTo(owner) : Float.MAX_VALUE;
         boolean ownerNearby = distanceToOwner < 16.0f;
         
-        List<Entity> nearbyEntities = mob.getWorld().getOtherEntities(mob, 
+        List<Entity> nearbyEntities = mob.getEntityWorld().getOtherEntities(mob, 
             mob.getBoundingBox().expand(8.0), 
             e -> true);
         
-        long worldTime = mob.getWorld().getTime();
-        boolean isDaytime = mob.getWorld().isDay();
+        long worldTime = mob.getEntityWorld().getTime();
+        boolean isDaytime = mob.getEntityWorld().isDay();
         
         // PetsPlus-specific data
         PetComponent.Mood mood = pc != null ? pc.getCurrentMood() : null;
@@ -161,3 +161,4 @@ public record PetContext(
         MATURE
     }
 }
+

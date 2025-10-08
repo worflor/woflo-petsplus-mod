@@ -44,7 +44,7 @@ class OwnerNextAttackBonusEffectTest {
         when(context.getWorld()).thenReturn(null);
         when(owner.isAlive()).thenReturn(true);
         when(owner.isRemoved()).thenReturn(false);
-        when(owner.getWorld()).thenReturn(ownerWorld);
+        when(owner.getEntityWorld()).thenReturn(ownerWorld);
         when(ownerWorld.getTime()).thenReturn(80L);
 
         try (MockedStatic<OwnerCombatState> ownerStateStatic = mockStatic(OwnerCombatState.class)) {
@@ -54,8 +54,10 @@ class OwnerNextAttackBonusEffectTest {
             boolean result = effect.execute(context);
 
             assertTrue(result, "Effect should fallback to the owner's world when context world missing");
-            verify(owner).getWorld();
+            verify(owner).getEntityWorld();
             verify(combatState).addNextAttackRider(eq("damage_bonus"), any());
         }
     }
 }
+
+

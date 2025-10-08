@@ -67,7 +67,7 @@ public class EepyRestfulDreamsEffect implements Effect {
         if (!"owner_sleep_complete".equals(context.getTriggerContext().getEventType())) {
             return false;
         }
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         if (world == null) {
             return false;
         }
@@ -151,3 +151,5 @@ public class EepyRestfulDreamsEffect implements Effect {
         return sharedAny;
     }
 }
+
+

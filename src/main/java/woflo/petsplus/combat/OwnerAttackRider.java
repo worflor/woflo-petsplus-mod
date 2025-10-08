@@ -63,7 +63,7 @@ public class OwnerAttackRider {
                 if (riderData.appliesToTarget(target)) {
                     // Create effect context for the on-hit effect
                     woflo.petsplus.api.EffectContext effectContext = new woflo.petsplus.api.EffectContext(
-                        (net.minecraft.server.world.ServerWorld) owner.getWorld(), 
+                        (net.minecraft.server.world.ServerWorld) owner.getEntityWorld(), 
                         null, // Pet may be null for owner-triggered effects
                         owner,
                         null // TriggerContext may be null for on-hit effects
@@ -114,7 +114,7 @@ public class OwnerAttackRider {
             return;
         }
         
-        long currentTime = owner.getWorld().getTime();
+        long currentTime = owner.getEntityWorld().getTime();
         
         // Check damage bonus rider expiry
         OwnerNextAttackBonusEffect.AttackRiderData riderData = 

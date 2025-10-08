@@ -257,7 +257,7 @@ public final class ScoutBackpack {
                 if (!fullyInserted && !overflow.isEmpty()) {
                     owner.dropItem(overflow, false);
                 }
-            } else if (pet.getWorld() instanceof ServerWorld serverWorld && !overflow.isEmpty()) {
+            } else if (pet.getEntityWorld() instanceof ServerWorld serverWorld && !overflow.isEmpty()) {
                 ItemEntity entity = new ItemEntity(serverWorld, pet.getX(), pet.getBodyY(0.5), pet.getZ(), overflow);
                 entity.setToDefaultPickupDelay();
                 serverWorld.spawnEntity(entity);
@@ -279,7 +279,7 @@ public final class ScoutBackpack {
         insertIntoBackpack(backing, copy);
         component.setInventory(INVENTORY_KEY, backing);
 
-        Vec3d pos = pet.getPos();
+        Vec3d pos = pet.getEntityPos();
         world.playSound(null, pos.x, pos.y, pos.z, SoundEvents.ENTITY_ITEM_PICKUP,
             SoundCategory.PLAYERS, 0.25f, 1.2f + world.random.nextFloat() * 0.1f);
         if (owner != null) {
@@ -490,3 +490,5 @@ public final class ScoutBackpack {
         }
     }
 }
+
+

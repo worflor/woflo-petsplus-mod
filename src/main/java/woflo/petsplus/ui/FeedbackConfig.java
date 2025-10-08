@@ -1,5 +1,6 @@
 package woflo.petsplus.ui;
 
+import net.minecraft.particle.EffectParticleEffect;
 import net.minecraft.particle.ParticleEffect;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.sound.SoundEvent;
@@ -279,7 +280,7 @@ public class FeedbackConfig {
 
         // Support: Potion aura pulse - visualize the actual potion radius
         register("support_potion_pulse", List.of(
-            new ParticleConfig(ParticleTypes.EFFECT, 6, 0.2, 0.1, 0.2, 0.02, "aura_radius_edge", 6.0, false),
+            new ParticleConfig(EffectParticleEffect.of(ParticleTypes.EFFECT, 1.0F, 1.0F, 1.0F, 1.0F), 6, 0.2, 0.1, 0.2, 0.02, "aura_radius_edge", 6.0, false),
             new ParticleConfig(ParticleTypes.ENCHANT, 2, 0.1, 0.05, 0.1, 0.01, "area", 2.0, false)
         ), null, 0, true);
 

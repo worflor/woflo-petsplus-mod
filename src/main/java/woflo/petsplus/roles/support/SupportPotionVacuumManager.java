@@ -35,7 +35,7 @@ public final class SupportPotionVacuumManager {
     }
 
     public void trackOrUpdate(ItemEntity entity) {
-        if (!(entity.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(entity.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
         if (!isPotionStack(entity)) {
@@ -47,7 +47,7 @@ public final class SupportPotionVacuumManager {
     }
 
     public void handleStackChanged(ItemEntity entity) {
-        if (entity.getWorld().isClient()) {
+        if (entity.getEntityWorld().isClient()) {
             return;
         }
         if (entity.isRemoved() || entity.getStack().isEmpty()) {
@@ -58,7 +58,7 @@ public final class SupportPotionVacuumManager {
     }
 
     public void remove(ItemEntity entity) {
-        if (!(entity.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(entity.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
         WorldCache cache = worldCaches.get(serverWorld);
@@ -71,10 +71,10 @@ public final class SupportPotionVacuumManager {
     }
 
     public List<ItemEntity> collectPotionsNearby(MobEntity pet, double radius) {
-        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return Collections.emptyList();
         }
-        return collectPotionsNearby(serverWorld, pet.getPos(), radius);
+        return collectPotionsNearby(serverWorld, pet.getEntityPos(), radius);
     }
 
     public List<ItemEntity> collectPotionsNearby(ServerWorld world, Vec3d center, double radius) {
@@ -97,7 +97,7 @@ public final class SupportPotionVacuumManager {
         private final Map<ItemEntity, TrackedEntry> entries = new IdentityHashMap<>();
 
         void update(ItemEntity entity) {
-            long sectionKey = sectionKey(entity.getPos());
+            long sectionKey = sectionKey(entity.getEntityPos());
             TrackedEntry entry = entries.get(entity);
             if (entry == null) {
                 entry = new TrackedEntry(entity, sectionKey);
@@ -186,3 +186,7 @@ public final class SupportPotionVacuumManager {
         }
     }
 }
+
+
+
+

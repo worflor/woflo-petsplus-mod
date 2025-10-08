@@ -15,7 +15,7 @@ public abstract class ItemEntityMixin {
     @Inject(method = "tick", at = @At("HEAD"))
     private void petsplus$trackSupportPotions(CallbackInfo ci) {
         ItemEntity self = (ItemEntity) (Object) this;
-        World world = self.getWorld();
+        World world = self.getEntityWorld();
         if (world.isClient()) {
             return;
         }
@@ -25,7 +25,7 @@ public abstract class ItemEntityMixin {
     @Inject(method = "onPlayerCollision", at = @At("TAIL"))
     private void petsplus$onPotionPicked(PlayerEntity player, CallbackInfo ci) {
         ItemEntity self = (ItemEntity) (Object) this;
-        World world = self.getWorld();
+        World world = self.getEntityWorld();
         if (world.isClient()) {
             return;
         }
@@ -33,3 +33,6 @@ public abstract class ItemEntityMixin {
     }
 
 }
+
+
+

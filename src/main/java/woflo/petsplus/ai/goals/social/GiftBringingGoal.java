@@ -113,7 +113,7 @@ public class GiftBringingGoal extends AdaptiveGoal {
      * Finds an interesting item to gift.
      */
     private ItemEntity findInterestingItem() {
-        return mob.getWorld().getEntitiesByClass(
+        return mob.getEntityWorld().getEntitiesByClass(
             ItemEntity.class,
             mob.getBoundingBox().expand(15.0),
             item -> item.isAlive() && isInterestingGift(item.getStack())
@@ -180,3 +180,4 @@ public class GiftBringingGoal extends AdaptiveGoal {
         return Math.min(1.0f, engagement);
     }
 }
+

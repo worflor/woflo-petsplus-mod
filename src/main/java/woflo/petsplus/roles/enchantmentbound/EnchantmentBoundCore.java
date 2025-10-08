@@ -38,7 +38,7 @@ public final class EnchantmentBoundCore {
     }
 
     private static List<MobEntity> getNearbyEnchantmentBoundPets(ServerPlayerEntity player, double radius) {
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld world)) {
             return java.util.Collections.emptyList();
         }
 
@@ -64,7 +64,7 @@ public final class EnchantmentBoundCore {
             return 0.0f;
         }
         
-        if (!(player.getWorld() instanceof ServerWorld)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld)) {
             return 0.0f;
         }
 
@@ -83,7 +83,7 @@ public final class EnchantmentBoundCore {
      * Check if player has active Mystic Bond (L7+ Enchantment-Bound).
      */
     public static boolean hasActiveMysticBond(ServerPlayerEntity player) {
-        if (!(player.getWorld() instanceof ServerWorld)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld)) {
             return false;
         }
 
@@ -101,7 +101,7 @@ public final class EnchantmentBoundCore {
             return;
         }
         
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld world)) {
             return;
         }
 

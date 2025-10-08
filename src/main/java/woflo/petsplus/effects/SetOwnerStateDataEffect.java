@@ -40,7 +40,7 @@ public final class SetOwnerStateDataEffect implements Effect {
             return false;
         }
 
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         if (world == null) {
             return false;
         }
@@ -56,3 +56,5 @@ public final class SetOwnerStateDataEffect implements Effect {
         return true;
     }
 }
+
+

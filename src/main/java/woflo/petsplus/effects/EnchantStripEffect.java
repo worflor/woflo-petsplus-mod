@@ -50,7 +50,7 @@ public class EnchantStripEffect implements Effect {
 
     @Override
     public boolean execute(EffectContext context) {
-        if (!(context.getWorld() instanceof ServerWorld world)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
 
@@ -64,7 +64,7 @@ public class EnchantStripEffect implements Effect {
             return false;
         }
 
-        if (!(owner.getWorld() instanceof ServerWorld ownerWorld) || ownerWorld != world) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld ownerWorld) || ownerWorld != world) {
             return false;
         }
 
@@ -112,7 +112,7 @@ public class EnchantStripEffect implements Effect {
         if (dropAsBook) {
             ItemStack book = createBookCopy(strongest);
             if (!owner.getInventory().insertStack(book)) {
-                ItemScatterer.spawn(owner.getWorld(), owner.getX(), owner.getY() + 0.5, owner.getZ(), book);
+                ItemScatterer.spawn(owner.getEntityWorld(), owner.getX(), owner.getY() + 0.5, owner.getZ(), book);
             }
         }
 
@@ -195,7 +195,7 @@ public class EnchantStripEffect implements Effect {
             owner.getX(), owner.getBodyY(0.6), owner.getZ(),
             28, 0.6, 0.6, 0.6, 0.0);
 
-        if (pet != null && pet.getWorld() == world) {
+        if (pet != null && pet.getEntityWorld() == world) {
             world.spawnParticles(ParticleTypes.SOUL,
                 pet.getX(), pet.getBodyY(0.5), pet.getZ(),
                 16, 0.4, 0.4, 0.4, 0.02);
@@ -215,3 +215,5 @@ public class EnchantStripEffect implements Effect {
     private record SelectedEnchantment(RegistryEntry<Enchantment> entry, int level) {
     }
 }
+
+

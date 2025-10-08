@@ -77,7 +77,7 @@ public class EclipsedEventHorizonEffect implements Effect {
 
     @Override
     public boolean execute(EffectContext context) {
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         MobEntity pet = context.getPet();
         PlayerEntity owner = context.getOwner();
         if (world == null || pet == null || owner == null) {
@@ -93,7 +93,7 @@ public class EclipsedEventHorizonEffect implements Effect {
             return false;
         }
 
-        Vec3d center = owner.getPos();
+        Vec3d center = owner.getEntityPos();
         Box zone = Box.of(center, radius * 2, radius * 2, radius * 2);
         List<HostileEntity> hostiles = world.getEntitiesByClass(HostileEntity.class, zone, entity -> entity.squaredDistanceTo(center) <= radius * radius && entity.isAlive());
         boolean affectedHostiles = false;
@@ -162,3 +162,6 @@ public class EclipsedEventHorizonEffect implements Effect {
         }
     }
 }
+
+
+

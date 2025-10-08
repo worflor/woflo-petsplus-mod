@@ -344,7 +344,7 @@ public class PetComponent {
 
     public PetComponent(MobEntity pet) {
         this.pet = pet;
-        this.roleId = DEFAULT_ROLE_ID;
+        this.roleId = null;
         this.stateData = new HashMap<>();
         this.lastAttackTick = 0;
         this.isPerched = false;
@@ -472,7 +472,7 @@ public class PetComponent {
     }
 
     public void requestGossipOptOutWander() {
-        if (pet == null || pet.getWorld() == null || pet.getWorld().isClient()) {
+        if (pet == null || pet.getEntityWorld() == null || pet.getEntityWorld().isClient()) {
             return;
         }
         if (pet.isAiDisabled() || pet.getNavigation() == null) {
@@ -551,7 +551,7 @@ public class PetComponent {
     }
 
     public static PetComponent getOrCreate(MobEntity pet) {
-        if (pet.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+        if (pet.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
             return StateManager.forWorld(serverWorld).getPetComponent(pet);
         }
         return COMPONENTS.computeIfAbsent(pet, PetComponent::new);
@@ -562,7 +562,7 @@ public class PetComponent {
         if (pet == null) {
             return null;
         }
-        if (pet.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+        if (pet.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
             StateManager manager = StateManager.forWorld(serverWorld);
             return manager.getAllPetComponents().get(pet);
         }
@@ -574,7 +574,7 @@ public class PetComponent {
     }
     
     public static void remove(MobEntity pet) {
-        if (pet.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+        if (pet.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
             StateManager.forWorld(serverWorld).removePet(pet);
         }
         COMPONENTS.remove(pet);
@@ -851,6 +851,15 @@ public class PetComponent {
         return roleId != null ? roleId : DEFAULT_ROLE_ID;
     }
 
+    @Nullable
+    public Identifier getAssignedRoleId() {
+        return roleId;
+    }
+
+    public boolean hasAssignedRole() {
+        return roleId != null;
+    }
+
     public boolean hasRole(@Nullable Identifier id) {
         if (id == null) {
             return false;
@@ -879,7 +888,7 @@ public class PetComponent {
         }
 
         // Apply AI enhancements when role changes
-        if (this.pet.getWorld() instanceof ServerWorld) {
+        if (this.pet.getEntityWorld() instanceof ServerWorld) {
             try {
                 woflo.petsplus.ai.PetAIEnhancements.enhancePetAI(this.pet, this);
             } catch (Throwable error) {
@@ -887,7 +896,7 @@ public class PetComponent {
             }
         }
 
-        if (this.pet.getWorld() instanceof ServerWorld serverWorld) {
+        if (this.pet.getEntityWorld() instanceof ServerWorld serverWorld) {
             resetTickScheduling(serverWorld.getTime());
         }
         
@@ -951,7 +960,7 @@ public class PetComponent {
 
     @Nullable
     public PlayerEntity getOwner() {
-        if (!(pet.getWorld() instanceof ServerWorld world)) return null;
+        if (!(pet.getEntityWorld() instanceof ServerWorld world)) return null;
         return ownerModule.getOwner(world);
     }
 
@@ -967,7 +976,7 @@ public class PetComponent {
         if (schedulingModule.isInitialized()) {
             return;
         }
-        if (!(pet.getWorld() instanceof ServerWorld) || stateManager == null) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld) || stateManager == null) {
             return;
         }
         schedulingModule.markInitialized();
@@ -1007,7 +1016,7 @@ public class PetComponent {
     }
 
     private void submitScheduledTask(PetWorkScheduler.TaskType type, long nextTick) {
-        if (!(pet.getWorld() instanceof ServerWorld) || stateManager == null) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld) || stateManager == null) {
             return;
         }
         long sanitized = nextTick == Long.MAX_VALUE ? Long.MAX_VALUE : Math.max(0L, nextTick);
@@ -1070,7 +1079,7 @@ public class PetComponent {
      * only when necessary.
      */
     public boolean updateSwarmTrackingIfMoved(PetSwarmIndex index) {
-        if (!(pet.getWorld() instanceof ServerWorld)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld)) {
             return false;
         }
         double x = pet.getX();
@@ -1114,11 +1123,11 @@ public class PetComponent {
     }
     
     public boolean isOnCooldown(String key) {
-        return schedulingModule.isOnCooldown(key, pet.getWorld().getTime());
+        return schedulingModule.isOnCooldown(key, pet.getEntityWorld().getTime());
     }
 
     public void setCooldown(String key, int ticks) {
-        schedulingModule.setCooldown(key, pet.getWorld().getTime() + ticks);
+        schedulingModule.setCooldown(key, pet.getEntityWorld().getTime() + ticks);
     }
 
     public void clearCooldown(String key) {
@@ -1143,7 +1152,7 @@ public class PetComponent {
     }
 
     public void applyCooldownExpirations(List<String> keys, long currentTick) {
-        if (!(pet.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld)) {
+        if (!(pet.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld)) {
             return;
         }
         if (keys == null || keys.isEmpty()) {
@@ -1168,7 +1177,7 @@ public class PetComponent {
         Map<String, Long> cooldowns = schedulingModule.getAllCooldowns();
         Long cooldownEnd = cooldowns.get(key);
         if (cooldownEnd == null) return 0;
-        return Math.max(0, cooldownEnd - pet.getWorld().getTime());
+        return Math.max(0, cooldownEnd - pet.getEntityWorld().getTime());
     }
 
     public void setFollowSpacingSample(double offsetX, double offsetZ, float padding, long sampleTick) {
@@ -1244,14 +1253,14 @@ public class PetComponent {
 
     public void beginCrouchCuddle(UUID ownerId, long expiryTick) {
         ownerModule.recordCrouchCuddle(ownerId, expiryTick);
-        if (pet.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+        if (pet.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
             setStateData(StateKeys.LAST_CROUCH_CUDDLE_TICK, serverWorld.getTime());
         }
     }
 
     public void refreshCrouchCuddle(UUID ownerId, long expiryTick) {
         ownerModule.recordCrouchCuddle(ownerId, expiryTick);
-        if (pet.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+        if (pet.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
             setStateData(StateKeys.LAST_CROUCH_CUDDLE_TICK, serverWorld.getTime());
         }
     }
@@ -1606,7 +1615,7 @@ public class PetComponent {
             setStateData(StateKeys.ASSIGNED_NATURE, natureId.toString());
         }
 
-        if (pet.getWorld() instanceof net.minecraft.server.world.ServerWorld && characteristicsModule.getImprint() != null) {
+        if (pet.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld && characteristicsModule.getImprint() != null) {
             woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
         }
     }
@@ -1688,13 +1697,13 @@ public class PetComponent {
         if (stored != null) {
             return stored;
         }
-        long now = pet.getWorld().getTime();
+        long now = pet.getEntityWorld().getTime();
         setStateData(StateKeys.TAMED_TICK, now);
         return now;
     }
 
     public float getBondAgeDays() {
-        return getBondAgeDays(pet.getWorld().getTime());
+        return getBondAgeDays(pet.getEntityWorld().getTime());
     }
 
     public float getBondAgeDays(long currentTick) {
@@ -1710,7 +1719,7 @@ public class PetComponent {
     }
 
     public float computeBondResilience() {
-        return computeBondResilience(pet.getWorld().getTime());
+        return computeBondResilience(pet.getEntityWorld().getTime());
     }
 
     public float computeBondResilience(long currentTick) {
@@ -1948,7 +1957,7 @@ public class PetComponent {
     public Mood getCurrentMood() { return moodEngine.getCurrentMood(); }
     public int getMoodLevel() { return moodEngine.getMoodLevel(); }
     public void updateMood() {
-        long now = pet.getWorld() instanceof ServerWorld sw ? sw.getTime() : System.currentTimeMillis();
+        long now = pet.getEntityWorld() instanceof ServerWorld sw ? sw.getTime() : System.currentTimeMillis();
         moodEngine.ensureFresh(now);
     }
 
@@ -1960,7 +1969,7 @@ public class PetComponent {
 
     /** Push an emotion with additive weight; creates or refreshes a slot. */
     public void pushEmotion(Emotion emotion, float amount) {
-        long now = pet.getWorld() instanceof ServerWorld sw ? sw.getTime() : 0L;
+        long now = pet.getEntityWorld() instanceof ServerWorld sw ? sw.getTime() : 0L;
         moodEngine.applyStimulus(new EmotionDelta(emotion, amount), now);
         if (!MoodService.getInstance().isInStimulusDispatch()) {
             EmotionBaselineTracker.recordDirectChange(this);
@@ -2021,7 +2030,7 @@ public class PetComponent {
         }
 
         // Check recent damage (within last 3 seconds)
-        long currentTick = pet.getWorld().getTime();
+        long currentTick = pet.getEntityWorld().getTime();
         return (currentTick - lastAttackTick) < 60; // 60 ticks = 3 seconds
     }
 
@@ -2030,7 +2039,7 @@ public class PetComponent {
      */
     public boolean isXpFlashing() {
         if (xpFlashStartTick < 0) return false;
-        long currentTick = pet.getWorld().getTime();
+        long currentTick = pet.getEntityWorld().getTime();
         return (currentTick - xpFlashStartTick) < XP_FLASH_DURATION;
     }
 
@@ -2157,7 +2166,7 @@ public class PetComponent {
      */
     public void ensureImprint() {
         if (characteristicsModule.getImprint() == null) {
-            long tameTime = pet.getWorld().getTime();
+            long tameTime = pet.getEntityWorld().getTime();
             if (getStateData(StateKeys.TAMED_TICK, Long.class) == null) {
                 setStateData(StateKeys.TAMED_TICK, tameTime);
             }
@@ -2201,7 +2210,7 @@ public class PetComponent {
      * subsequent calls (and future loads) remain in lockstep.
      */
     private Long cacheTamedTickFallback() {
-        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return null;
         }
         long tameTick = serverWorld.getTime();
@@ -2288,13 +2297,13 @@ public class PetComponent {
         if (xpGained < 0) return false;
 
         int oldLevel = progressionModule.getLevel();
-        if (pet.getWorld() instanceof ServerWorld serverWorld) {
-            progressionModule.addExperience(xpGained, serverWorld, pet.getWorld().getTime());
+        if (pet.getEntityWorld() instanceof ServerWorld serverWorld) {
+            progressionModule.addExperience(xpGained, serverWorld, pet.getEntityWorld().getTime());
         }
 
         // Trigger XP flash animation when new experience is earned
         if (xpGained > 0) {
-            this.xpFlashStartTick = pet.getWorld().getTime();
+            this.xpFlashStartTick = pet.getEntityWorld().getTime();
         }
         
         boolean leveledUp = progressionModule.getLevel() > oldLevel;
@@ -2403,7 +2412,7 @@ public class PetComponent {
             return;
         }
         
-        long currentTick = pet.getWorld().getTime();
+        long currentTick = pet.getEntityWorld().getTime();
         relationshipModule.recordInteraction(
             entityId,
             interactionType,
@@ -2766,7 +2775,7 @@ public class PetComponent {
     @Deprecated
     public void onOwnerChanged(UUID previousOwnerUuid, UUID newOwnerUuid) {
         // Clear previous best friend tracking
-        if (previousOwnerUuid != null && pet.getWorld() instanceof ServerWorld serverWorld) {
+        if (previousOwnerUuid != null && pet.getEntityWorld() instanceof ServerWorld serverWorld) {
             BestFriendTracker tracker = BestFriendTracker.get(serverWorld);
             tracker.clearIfBestFriend(previousOwnerUuid, pet.getUuid());
         }
@@ -3072,4 +3081,7 @@ public class PetComponent {
         // Chunk dirty marking is handled automatically by the component system
     }
 }
+
+
+
 

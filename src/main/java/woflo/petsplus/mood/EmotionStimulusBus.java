@@ -96,7 +96,7 @@ public final class EmotionStimulusBus {
 
     public void queueStimulus(MobEntity pet, StimulusAction action) {
         Objects.requireNonNull(pet, "pet");
-        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
         synchronized (pending) {
@@ -109,7 +109,7 @@ public final class EmotionStimulusBus {
 
     public void queueSimpleStimulus(MobEntity pet, SimpleStimulusAction action) {
         Objects.requireNonNull(pet, "pet");
-        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
         synchronized (pending) {
@@ -134,7 +134,7 @@ public final class EmotionStimulusBus {
 
     public CompletableFuture<Void> dispatchStimuliAsync(MobEntity pet,
                                                         @Nullable AsyncWorkCoordinator coordinator) {
-        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return CompletableFuture.completedFuture(null);
         }
         PendingStimuli stimuli;
@@ -333,7 +333,7 @@ public final class EmotionStimulusBus {
         if (result == null || result.isEmpty()) {
             return;
         }
-        if (!(pet.getWorld() instanceof ServerWorld world) || world != expectedWorld || pet.isRemoved()) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld world) || world != expectedWorld || pet.isRemoved()) {
             return;
         }
 
@@ -439,3 +439,4 @@ public final class EmotionStimulusBus {
     }
 
 }
+

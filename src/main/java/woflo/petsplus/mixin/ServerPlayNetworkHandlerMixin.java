@@ -43,7 +43,7 @@ public abstract class ServerPlayNetworkHandlerMixin {
             return;
         }
 
-        if (!(serverPlayer.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(serverPlayer.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
 
@@ -90,3 +90,4 @@ public abstract class ServerPlayNetworkHandlerMixin {
         return isAttack[0];
     }
 }
+

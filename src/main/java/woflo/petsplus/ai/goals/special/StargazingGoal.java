@@ -27,12 +27,12 @@ public class StargazingGoal extends AdaptiveGoal {
         
         // Only at night, clear sky, peaceful environment
         if (ctx.isDaytime()) return false;
-        if (mob.getWorld().isRaining()) return false;
+        if (mob.getEntityWorld().isRaining()) return false;
         if (!mob.isOnGround()) return false;
         
         // Check if sky is visible (not underground/covered)
         BlockPos above = mob.getBlockPos().up(10);
-        if (!mob.getWorld().isSkyVisible(above)) return false;
+        if (!mob.getEntityWorld().isSkyVisible(above)) return false;
         
         gazeSpot = findGoodGazingSpot();
         return gazeSpot != null;
@@ -43,7 +43,7 @@ public class StargazingGoal extends AdaptiveGoal {
         PetContext ctx = getContext();
         return gazeTicks < MAX_GAZE_TICKS && 
                !ctx.isDaytime() && 
-               !mob.getWorld().isRaining();
+               !mob.getEntityWorld().isRaining();
     }
     
     @Override
@@ -106,13 +106,13 @@ public class StargazingGoal extends AdaptiveGoal {
             BlockPos candidate = start.add(dx, 0, dz);
             
             // Must have clear sky view
-            if (mob.getWorld().isSkyVisible(candidate.up(5))) {
+            if (mob.getEntityWorld().isSkyVisible(candidate.up(5))) {
                 return candidate;
             }
         }
         
         // Fallback to current position if sky visible
-        if (mob.getWorld().isSkyVisible(start.up(5))) {
+        if (mob.getEntityWorld().isSkyVisible(start.up(5))) {
             return start;
         }
         
@@ -153,3 +153,4 @@ public class StargazingGoal extends AdaptiveGoal {
         return Math.min(1.0f, engagement);
     }
 }
+

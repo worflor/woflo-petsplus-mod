@@ -57,10 +57,10 @@ public class RetargetNearestHostileEffect implements Effect {
         }
 
         // Create bounding box around pet
-        Box searchBox = Box.of(pet.getPos(), radius * 2, radius * 2, radius * 2);
+        Box searchBox = Box.of(pet.getEntityPos(), radius * 2, radius * 2, radius * 2);
         
         // Find all hostile entities in range
-        List<LivingEntity> entities = context.getWorld().getEntitiesByClass(
+        List<LivingEntity> entities = context.getEntityWorld().getEntitiesByClass(
             LivingEntity.class, 
             searchBox, 
             entity -> entity instanceof HostileEntity && 
@@ -86,3 +86,5 @@ public class RetargetNearestHostileEffect implements Effect {
         return false;
     }
 }
+
+

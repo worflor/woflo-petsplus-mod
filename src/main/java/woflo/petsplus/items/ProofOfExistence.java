@@ -612,7 +612,7 @@ public class ProofOfExistence {
         Identifier roleId = petComp.getRoleId();
         PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
         long seed = pet.getUuid().getMostSignificantBits() ^ pet.getUuid().getLeastSignificantBits();
-        long deathTick = pet.getWorld().getTime();
+        long deathTick = pet.getEntityWorld().getTime();
         
         // Analyze history and capture emotional state
         HistoryAnalysis history = HistoryAnalysis.analyze(petComp, deathTick);
@@ -780,7 +780,7 @@ public class ProofOfExistence {
         ItemStack memorial = createMemorial(pet, petComp);
         
         // Create item entity at pet's location
-        Vec3d pos = pet.getPos();
+        Vec3d pos = pet.getEntityPos();
         ItemEntity itemEntity = new ItemEntity(world, pos.x, pos.y, pos.z, memorial);
         itemEntity.setPickupDelay(PICKUP_DELAY_TICKS); // Short delay so owner can pick it up easily
         
@@ -861,3 +861,4 @@ public class ProofOfExistence {
         return LocalDateTime.now().format(DateTimeFormatter.ofPattern("MMM dd, yyyy"));
     }
 }
+

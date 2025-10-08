@@ -73,7 +73,7 @@ public final class EmotionContextCues implements PlayerTickListener {
             return;
         }
 
-        long now = player.getWorld().getTime();
+        long now = player.getEntityWorld().getTime();
         String definitionId = resolveDefinitionId(cueId);
         EmotionCueDefinition definition = EmotionCueConfig.get().definition(definitionId);
         long cooldown = definition != null ? definition.cooldownTicks() : fallbackCooldown;
@@ -175,7 +175,7 @@ public final class EmotionContextCues implements PlayerTickListener {
         UUID playerId = player.getUuid();
         NEXT_WAKE_TICKS.remove(playerId);
 
-        if (player.getServer() == null) {
+        if (player.getEntityWorld().getServer() == null) {
             clear(player);
             return;
         }
@@ -184,7 +184,7 @@ public final class EmotionContextCues implements PlayerTickListener {
             return;
         }
 
-        long worldTick = player.getWorld().getTime();
+        long worldTick = player.getEntityWorld().getTime();
         pruneStimuli(player, worldTick);
         flushDigest(player, worldTick);
 
@@ -234,7 +234,7 @@ public final class EmotionContextCues implements PlayerTickListener {
         }
         UUID playerId = player.getUuid();
         NEXT_WAKE_TICKS.merge(playerId, tick, Math::min);
-        if (player.getServer() != null && tick <= player.getServer().getTicks()) {
+        if (player.getEntityWorld().getServer() != null && tick <= player.getEntityWorld().getServer().getTicks()) {
             PlayerTickDispatcher.requestImmediateRun(player, INSTANCE);
         }
     }
@@ -263,18 +263,18 @@ public final class EmotionContextCues implements PlayerTickListener {
     }
 
     private static long resolveServerTick(ServerPlayerEntity player) {
-        if (player == null || player.getServer() == null) {
+        if (player == null || player.getEntityWorld().getServer() == null) {
             return Long.MIN_VALUE;
         }
-        return player.getServer().getTicks();
+        return player.getEntityWorld().getServer().getTicks();
     }
 
     private static long convertWorldTickToServer(ServerPlayerEntity player, long targetWorldTick, long worldNow) {
-        if (player == null || player.getServer() == null) {
+        if (player == null || player.getEntityWorld().getServer() == null) {
             return Long.MAX_VALUE;
         }
         long delta = Math.max(0L, targetWorldTick - worldNow);
-        long serverNow = player.getServer().getTicks();
+        long serverNow = player.getEntityWorld().getServer().getTicks();
         return serverNow + Math.max(1L, delta);
     }
 
@@ -555,4 +555,6 @@ public final class EmotionContextCues implements PlayerTickListener {
         }
     }
 }
+
+
 

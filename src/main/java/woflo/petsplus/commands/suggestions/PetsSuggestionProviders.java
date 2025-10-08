@@ -248,7 +248,7 @@ public class PetsSuggestionProviders {
     }
     
     private static List<MobEntity> findNearbyOwnedPets(ServerPlayerEntity owner, double radius) {
-        ServerWorld world = owner.getWorld();
+        ServerWorld world = owner.getEntityWorld();
         Box searchArea = owner.getBoundingBox().expand(radius);
         
         return world.getEntitiesByClass(MobEntity.class, searchArea, entity -> {

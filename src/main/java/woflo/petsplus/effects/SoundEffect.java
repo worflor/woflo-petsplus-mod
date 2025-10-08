@@ -43,7 +43,7 @@ public class SoundEffect implements Effect {
     
     @Override
     public boolean execute(EffectContext context) {
-        if (!(context.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return false;
         }
         
@@ -58,7 +58,7 @@ public class SoundEffect implements Effect {
         }
         
         SoundCategory soundCategory = parseSoundCategory(category);
-        Vec3d pos = target.getPos();
+        Vec3d pos = target.getEntityPos();
         
         serverWorld.playSound(
             null, // player (null = all can hear)
@@ -175,3 +175,6 @@ public class SoundEffect implements Effect {
         };
     }
 }
+
+
+

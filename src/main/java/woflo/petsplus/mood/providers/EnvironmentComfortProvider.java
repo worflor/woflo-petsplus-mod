@@ -29,7 +29,7 @@ public class EnvironmentComfortProvider implements EmotionProvider, ReactiveEmot
             return;
         }
         dispatchListener = (pet, component, time) -> {
-            if (!(pet.getWorld() instanceof ServerWorld world)) {
+            if (!(pet.getEntityWorld() instanceof ServerWorld world)) {
                 return;
             }
             contribute(world, pet, component, time, MoodService.getInstance());
@@ -180,3 +180,4 @@ public class EnvironmentComfortProvider implements EmotionProvider, ReactiveEmot
         return finalMultiplier;
     }
 }
+

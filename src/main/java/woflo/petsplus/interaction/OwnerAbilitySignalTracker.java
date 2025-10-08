@@ -63,8 +63,8 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
         }
 
         state.sneaking = sneaking;
-        long now = player.getWorld().getTime();
-        long serverTick = player.getServer() != null ? player.getServer().getTicks() : now;
+        long now = player.getEntityWorld().getTime();
+        long serverTick = player.getEntityWorld().getServer() != null ? player.getEntityWorld().getServer().getTicks() : now;
 
         if (sneaking) {
             boolean triggeredDouble = false;
@@ -100,7 +100,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
     }
 
     private static MobEntity findLookTarget(ServerPlayerEntity player) {
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld world)) {
             return null;
         }
 
@@ -117,7 +117,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
 
         for (PetSwarmIndex.SwarmEntry entry : swarm) {
             MobEntity mob = entry.pet();
-            if (mob == null || !mob.isAlive() || mob.isRemoved() || mob.getWorld() != world) {
+            if (mob == null || !mob.isAlive() || mob.isRemoved() || mob.getEntityWorld() != world) {
                 continue;
             }
 
@@ -149,7 +149,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
     }
 
     private static void startProximityChannels(ServerPlayerEntity player, SneakState state, long serverTick) {
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld world)) {
             return;
         }
 
@@ -167,7 +167,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
         boolean hasChannel = false;
         for (PetSwarmIndex.SwarmEntry entry : swarm) {
             MobEntity pet = entry.pet();
-            if (pet == null || pet.isRemoved() || !pet.isAlive() || pet.getWorld() != world) {
+            if (pet == null || pet.isRemoved() || !pet.isAlive() || pet.getEntityWorld() != world) {
                 continue;
             }
 
@@ -200,7 +200,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
     }
 
     private static void cancelProximityChannels(ServerPlayerEntity player) {
-        ServerWorld world = (ServerWorld) player.getWorld();
+        ServerWorld world = (ServerWorld) player.getEntityWorld();
         Map<MobEntity, ProximityChannel> worldChannels = ACTIVE_CHANNELS.get(world);
         if (worldChannels == null || worldChannels.isEmpty()) {
             return;
@@ -235,7 +235,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
 
     @Override
     public void run(ServerPlayerEntity player, long currentTick) {
-        if (player == null || player.getWorld().isClient()) {
+        if (player == null || player.getEntityWorld().isClient()) {
             return;
         }
 
@@ -246,7 +246,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
 
         state.nextTick = Long.MAX_VALUE;
 
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld world)) {
             cancelProximityChannels(player);
             return;
         }
@@ -289,7 +289,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
                 continue;
             }
 
-            if (player.isRemoved() || player.isSpectator() || player.getWorld() != world) {
+            if (player.isRemoved() || player.isSpectator() || player.getEntityWorld() != world) {
                 component.endCrouchCuddle(channel.ownerId);
                 iterator.remove();
                 continue;
@@ -359,7 +359,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
             return;
         }
 
-        if (!(pet.getWorld() instanceof ServerWorld world)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld world)) {
             return;
         }
 
@@ -387,8 +387,8 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
         }
 
         state.nextTick = tick;
-        if (player != null && player.getServer() != null) {
-            if (tick <= player.getServer().getTicks()) {
+        if (player != null && player.getEntityWorld().getServer() != null) {
+            if (tick <= player.getEntityWorld().getServer().getTicks()) {
                 PlayerTickDispatcher.requestImmediateRun(player, INSTANCE);
             }
         }
@@ -424,3 +424,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
         }
     }
 }
+
+
+
+

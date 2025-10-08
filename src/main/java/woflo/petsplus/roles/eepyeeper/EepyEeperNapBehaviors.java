@@ -18,7 +18,7 @@ public class EepyEeperNapBehaviors {
      * Get extra radius for regen when pet is sitting or perched.
      */
     public static double getNapExtraRadius(PlayerEntity owner) {
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return 0.0;
         }
         

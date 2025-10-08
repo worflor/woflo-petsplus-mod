@@ -33,7 +33,7 @@ public final class PetSwarmIndex {
     }
 
     public void updatePet(MobEntity pet, PetComponent component) {
-        if (!(pet.getWorld() instanceof net.minecraft.server.world.ServerWorld)) {
+        if (!(pet.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld)) {
             return;
         }
 
@@ -825,3 +825,4 @@ public final class PetSwarmIndex {
         }
     }
 }
+

@@ -33,11 +33,11 @@ class GuardianFortressBondPetDrEffectTest {
         UUID ownerId = UUID.randomUUID();
         UUID petId = UUID.randomUUID();
 
-        Mockito.when(owner.getWorld()).thenReturn(world);
+        Mockito.when(owner.getEntityWorld()).thenReturn(world);
         Mockito.when(owner.getUuid()).thenReturn(ownerId);
         Mockito.when(owner.squaredDistanceTo(Mockito.any(MobEntity.class))).thenReturn(1.0);
 
-        Mockito.when(mockPet.getWorld()).thenReturn(world);
+        Mockito.when(mockPet.getEntityWorld()).thenReturn(world);
         Mockito.when(mockPet.getUuid()).thenReturn(petId);
         Mockito.when(mockPet.isAlive()).thenReturn(true);
 
@@ -72,8 +72,9 @@ class GuardianFortressBondPetDrEffectTest {
             assertTrue(effect.execute(context));
             assertEquals(4.0, interception.getRemainingDamageAmount(), 1.0E-6);
         } finally {
-            Mockito.when(owner.getWorld()).thenReturn(null);
+            Mockito.when(owner.getEntityWorld()).thenReturn(null);
             GuardianFortressBondManager.clearBond(owner);
         }
     }
 }
+

@@ -75,7 +75,7 @@ public class PettingHandler {
     }
 
     private static void performPetting(ServerPlayerEntity player, MobEntity pet, PetComponent petComp, long currentTime) {
-        ServerWorld world = (ServerWorld) pet.getWorld();
+        ServerWorld world = (ServerWorld) pet.getEntityWorld();
         Identifier roleId = petComp.getRoleId();
 
         // Update petting state
@@ -257,3 +257,5 @@ public class PettingHandler {
         return PetsPlusConfig.getInstance().getPettingBoostMultiplier();
     }
 }
+
+

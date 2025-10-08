@@ -40,7 +40,7 @@ public final class GuardianBulwark {
     }
 
     public static boolean applyDamageToGuardian(MobEntity guardian, DamageSource source, float amount) {
-        if (!(guardian.getWorld() instanceof ServerWorld world)) {
+        if (!(guardian.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
         if (amount <= 0.0f) {
@@ -156,3 +156,4 @@ public final class GuardianBulwark {
         }
     }
 }
+

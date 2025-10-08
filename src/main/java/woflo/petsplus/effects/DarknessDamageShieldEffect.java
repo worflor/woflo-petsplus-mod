@@ -75,7 +75,7 @@ public class DarknessDamageShieldEffect implements Effect {
         if (component == null || !component.hasRole(PetRoleType.ECLIPSED) || component.getLevel() < minimumLevel) {
             return false;
         }
-        if (!(context.getWorld() instanceof ServerWorld)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld)) {
             return false;
         }
         if (requirePetDarkness && !isInDarkness(pet)) {
@@ -100,6 +100,8 @@ public class DarknessDamageShieldEffect implements Effect {
     }
 
     private static boolean isInDarkness(LivingEntity entity) {
-        return entity.getWorld().getLightLevel(entity.getBlockPos()) <= 7;
+        return entity.getEntityWorld().getLightLevel(entity.getBlockPos()) <= 7;
     }
 }
+
+

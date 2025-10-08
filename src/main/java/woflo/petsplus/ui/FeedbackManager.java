@@ -55,7 +55,7 @@ public class FeedbackManager {
      */
     public static void emitFeedback(String eventName, Entity entity, ServerWorld world) {
         if (entity == null || world == null) return;
-        emitFeedback(eventName, entity.getPos(), world, entity);
+        emitFeedback(eventName, entity.getEntityPos(), world, entity);
     }
 
     /**
@@ -417,7 +417,7 @@ public class FeedbackManager {
             return;
         }
 
-        Vec3d targetPos = target.getPos();
+        Vec3d targetPos = target.getEntityPos();
         double centerY = targetPos.y + target.getHeight() * 0.5;
         double spread = 0.12 + 0.04 * Math.min(stacks, 5);
         double verticalSpread = Math.max(0.1, target.getHeight() * 0.35);

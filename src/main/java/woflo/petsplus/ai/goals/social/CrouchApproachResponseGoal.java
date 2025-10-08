@@ -323,7 +323,7 @@ public class CrouchApproachResponseGoal extends AdaptiveGoal {
         }
         
         Long signalTick = pc.getStateData("crouch_approach_signal_tick", Long.class, -1L);
-        long worldTime = mob.getWorld().getTime();
+        long worldTime = mob.getEntityWorld().getTime();
         
         if (signalTick < 0 || worldTime - signalTick > SIGNAL_TIMEOUT) {
             return false;
@@ -396,3 +396,4 @@ public class CrouchApproachResponseGoal extends AdaptiveGoal {
         return engagement;
     }
 }
+

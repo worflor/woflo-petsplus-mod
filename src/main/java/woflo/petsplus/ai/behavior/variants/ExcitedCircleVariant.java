@@ -21,7 +21,7 @@ public class ExcitedCircleVariant implements BehaviorVariant {
         
         // Start at current angle relative to owner
         if (targetOwner != null) {
-            Vec3d toMob = mob.getPos().subtract(targetOwner.getPos());
+            Vec3d toMob = mob.getEntityPos().subtract(targetOwner.getEntityPos());
             this.circleAngle = (float) Math.toDegrees(Math.atan2(toMob.z, toMob.x));
         }
     }
@@ -95,3 +95,4 @@ public class ExcitedCircleVariant implements BehaviorVariant {
         return 100; // 5 seconds
     }
 }
+

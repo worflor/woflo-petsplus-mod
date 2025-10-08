@@ -31,7 +31,7 @@ class PerchPotionSipReductionEffectTest {
         Mockito.when(world.getTime()).thenReturn(100L);
 
         MobEntity pet = Mockito.mock(MobEntity.class);
-        Mockito.when(pet.getWorld()).thenReturn(world);
+        Mockito.when(pet.getEntityWorld()).thenReturn(world);
         PlayerEntity owner = Mockito.mock(PlayerEntity.class);
 
         PetComponent component = Mockito.mock(PetComponent.class);
@@ -64,3 +64,4 @@ class PerchPotionSipReductionEffectTest {
         assertEquals(0.65, SupportPotionUtils.getConsumptionPerPulse(component), 1.0E-6);
     }
 }
+

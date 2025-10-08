@@ -36,10 +36,10 @@ public final class GuardianAegisProtocolManager {
         if (guardian == null || owner == null) {
             return 0;
         }
-        if (!(owner.getWorld() instanceof ServerWorld ownerWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld ownerWorld)) {
             return 0;
         }
-        if (!(guardian.getWorld() instanceof ServerWorld guardianWorld)) {
+        if (!(guardian.getEntityWorld() instanceof ServerWorld guardianWorld)) {
             return 0;
         }
         if (ownerWorld != guardianWorld) {
@@ -80,7 +80,7 @@ public final class GuardianAegisProtocolManager {
             return;
         }
         StackState state = OWNER_STACKS.remove(owner.getUuid());
-        if (state != null && owner.getWorld() instanceof ServerWorld ownerWorld && state.matches(ownerWorld)) {
+        if (state != null && owner.getEntityWorld() instanceof ServerWorld ownerWorld && state.matches(ownerWorld)) {
             MobEntity guardian = ownerWorld.getEntity(state.guardianId()) instanceof MobEntity mob ? mob : null;
             if (guardian != null) {
                 PetComponent component = PetComponent.get(guardian);
@@ -130,7 +130,7 @@ public final class GuardianAegisProtocolManager {
         if (state == null) {
             return null;
         }
-        if (!(owner.getWorld() instanceof ServerWorld ownerWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld ownerWorld)) {
             OWNER_STACKS.remove(owner.getUuid());
             return null;
         }
@@ -151,3 +151,4 @@ public final class GuardianAegisProtocolManager {
         }
     }
 }
+

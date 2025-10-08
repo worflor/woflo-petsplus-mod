@@ -428,7 +428,7 @@ public class PetsplusAdminCommands {
     private static int testAbilityLoot(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
         
-        PetsplusLootHandler.handleScoutExplorationReward(player, player.getPos());
+        PetsplusLootHandler.handleScoutExplorationReward(player, player.getEntityPos());
         player.sendMessage(Text.literal("Ability reward loot spawned!").formatted(Formatting.GREEN), false);
         return 1;
     }
@@ -449,7 +449,7 @@ public class PetsplusAdminCommands {
         }
         
         // Force apply aura effects
-        var world = (net.minecraft.server.world.ServerWorld) player.getWorld();
+        var world = (net.minecraft.server.world.ServerWorld) player.getEntityWorld();
         var stateManager = woflo.petsplus.state.StateManager.forWorld(world);
         woflo.petsplus.effects.PetsplusEffectManager.applyRoleAuraEffects(
             world,
@@ -758,5 +758,7 @@ public class PetsplusAdminCommands {
         return Text.literal(RoleIdentifierUtil.formatName(roleId));
     }
 }
+
+
 
 

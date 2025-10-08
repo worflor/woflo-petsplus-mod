@@ -48,10 +48,10 @@ public final class GuardianFortressBondManager {
         if (reductionPct <= 0.0) {
             return false;
         }
-        if (!(owner.getWorld() instanceof ServerWorld ownerWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld ownerWorld)) {
             return false;
         }
-        if (!(pet.getWorld() instanceof ServerWorld petWorld)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld petWorld)) {
             return false;
         }
         if (ownerWorld != petWorld) {
@@ -109,7 +109,7 @@ public final class GuardianFortressBondManager {
         if (pet == null || result == null) {
             return false;
         }
-        if (!(pet.getWorld() instanceof ServerWorld petWorld)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld petWorld)) {
             return false;
         }
 
@@ -142,7 +142,7 @@ public final class GuardianFortressBondManager {
         if (state == null) {
             return null;
         }
-        if (!(owner.getWorld() instanceof ServerWorld ownerWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld ownerWorld)) {
             endBond(owner, null, state, BondEndReason.CLEARED);
             return null;
         }
@@ -168,7 +168,7 @@ public final class GuardianFortressBondManager {
 
     @Nullable
     private static BondState resolveBond(ServerPlayerEntity owner, MobEntity pet) {
-        if (!(owner.getWorld() instanceof ServerWorld ownerWorld) || !(pet.getWorld() instanceof ServerWorld petWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld ownerWorld) || !(pet.getEntityWorld() instanceof ServerWorld petWorld)) {
             return null;
         }
         BondState state = OWNER_BONDS.get(owner.getUuid());
@@ -235,7 +235,7 @@ public final class GuardianFortressBondManager {
         OWNER_BONDS.remove(state.ownerId());
         PET_BONDS.remove(state.petId());
 
-        if (pet == null && owner != null && owner.getWorld() instanceof ServerWorld serverWorld && state.matches(serverWorld)) {
+        if (pet == null && owner != null && owner.getEntityWorld() instanceof ServerWorld serverWorld && state.matches(serverWorld)) {
             pet = state.resolvePet(serverWorld);
         }
 
@@ -262,7 +262,7 @@ public final class GuardianFortressBondManager {
         BondState state = OWNER_BONDS.remove(owner.getUuid());
         if (state != null) {
             PET_BONDS.remove(state.petId());
-            if (owner.getWorld() instanceof ServerWorld ownerWorld && state.matches(ownerWorld)) {
+            if (owner.getEntityWorld() instanceof ServerWorld ownerWorld && state.matches(ownerWorld)) {
                 MobEntity pet = ownerWorld.getEntity(state.petId()) instanceof MobEntity mob ? mob : null;
                 if (pet != null) {
                     PetComponent component = PetComponent.get(pet);
@@ -283,7 +283,7 @@ public final class GuardianFortressBondManager {
         if (state == null) {
             return false;
         }
-        if (!(owner.getWorld() instanceof ServerWorld ownerWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld ownerWorld)) {
             endBond(owner, null, state, BondEndReason.CLEARED);
             return false;
         }
@@ -372,3 +372,4 @@ public final class GuardianFortressBondManager {
         }
     }
 }
+

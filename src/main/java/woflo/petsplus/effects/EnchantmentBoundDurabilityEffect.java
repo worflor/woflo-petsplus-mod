@@ -54,7 +54,7 @@ public class EnchantmentBoundDurabilityEffect implements Effect {
         if (!(context.getOwner() instanceof ServerPlayerEntity owner)) {
             return false;
         }
-        if (!(context.getWorld() instanceof ServerWorld world)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
         PetComponent component = PetComponent.get(context.getPet());
@@ -96,3 +96,5 @@ public class EnchantmentBoundDurabilityEffect implements Effect {
         return true;
     }
 }
+
+

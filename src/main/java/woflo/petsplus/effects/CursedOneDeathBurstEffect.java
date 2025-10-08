@@ -58,7 +58,7 @@ public class CursedOneDeathBurstEffect implements Effect {
 
     @Override
     public boolean execute(EffectContext context) {
-        if (!(context.getWorld() instanceof ServerWorld world)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
 
@@ -81,7 +81,7 @@ public class CursedOneDeathBurstEffect implements Effect {
             return false;
         }
 
-        Vec3d center = pet.getPos();
+        Vec3d center = pet.getEntityPos();
         Box area = Box.of(center, activeRadius * 2.0, activeRadius * 2.0, activeRadius * 2.0);
 
         List<HostileEntity> targets = world.getEntitiesByClass(HostileEntity.class, area,
@@ -184,3 +184,6 @@ public class CursedOneDeathBurstEffect implements Effect {
             visualRadius * 0.35, visualRadius * 0.25, visualRadius * 0.35, 0.01);
     }
 }
+
+
+

@@ -87,7 +87,7 @@ public class EclipsedEdgeStepEffect implements Effect {
 
         MobEntity pet = context.getPet();
         PlayerEntity owner = context.getOwner();
-        if (!(context.getWorld() instanceof ServerWorld world) || pet == null || owner == null) {
+        if (!(context.getEntityWorld() instanceof ServerWorld world) || pet == null || owner == null) {
             return false;
         }
 
@@ -147,3 +147,5 @@ public class EclipsedEdgeStepEffect implements Effect {
         world.spawnParticles(ParticleTypes.END_ROD, pet.getX(), pet.getY() + 1.0D, pet.getZ(), 4, 0.2D, 0.2D, 0.2D, 0.01D);
     }
 }
+
+

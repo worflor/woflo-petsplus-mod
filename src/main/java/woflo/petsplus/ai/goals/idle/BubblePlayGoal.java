@@ -47,7 +47,7 @@ public class BubblePlayGoal extends AdaptiveGoal {
         mob.setYaw(mob.getYaw() + 10);
         
         // Spawn bubble particles
-        if (playTicks % 5 == 0 && mob.getWorld() instanceof ServerWorld serverWorld) {
+        if (playTicks % 5 == 0 && mob.getEntityWorld() instanceof ServerWorld serverWorld) {
             serverWorld.spawnParticles(
                 ParticleTypes.BUBBLE,
                 mob.getX(), mob.getY() + 0.5, mob.getZ(),
@@ -71,3 +71,4 @@ public class BubblePlayGoal extends AdaptiveGoal {
         return 0.6f; // Fun bubble play
     }
 }
+

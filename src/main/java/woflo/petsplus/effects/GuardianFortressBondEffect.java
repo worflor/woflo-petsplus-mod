@@ -31,7 +31,7 @@ public class GuardianFortressBondEffect implements Effect {
 
     @Override
     public boolean execute(EffectContext context) {
-        if (!(context.getWorld() instanceof ServerWorld world)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
         MobEntity pet = context.getPet();
@@ -41,7 +41,7 @@ public class GuardianFortressBondEffect implements Effect {
         if (!(context.getOwner() instanceof ServerPlayerEntity owner)) {
             return false;
         }
-        if (owner.getWorld() != world) {
+        if (owner.getEntityWorld() != world) {
             return false;
         }
 
@@ -64,3 +64,5 @@ public class GuardianFortressBondEffect implements Effect {
         return durationTicks;
     }
 }
+
+

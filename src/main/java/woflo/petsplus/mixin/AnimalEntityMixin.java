@@ -30,14 +30,14 @@ public abstract class AnimalEntityMixin {
     @Inject(method = "lovePlayer(Lnet/minecraft/entity/player/PlayerEntity;)V", at = @At("HEAD"))
     private void petsplus$onFed(PlayerEntity player, CallbackInfo ci) {
         AnimalEntity animal = (AnimalEntity) (Object) this;
-        if (animal instanceof MobEntity mob && player != null && !animal.getWorld().isClient) {
+        if (animal instanceof MobEntity mob && player != null && !animal.getEntityWorld().isClient()) {
             PetComponent petComponent = PetComponent.get(mob);
             if (petComponent != null) {
                 // Track feeding interaction for relationship system
                 RelationshipEventHandler.onPetFed(mob, player);
             } else {
                 // Wild animal being fed - notify nearby pets to learn
-                if (mob.getWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+                if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
                     java.util.List<MobEntity> nearbyPets = serverWorld.getEntitiesByClass(
                         MobEntity.class,
                         mob.getBoundingBox().expand(16.0),
@@ -55,3 +55,5 @@ public abstract class AnimalEntityMixin {
         }
     }
 }
+
+

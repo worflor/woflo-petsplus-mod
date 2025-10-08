@@ -92,7 +92,7 @@ public class SkyriderProjectileLevitationEffect implements Effect {
 
     @Override
     public boolean execute(EffectContext context) {
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         MobEntity pet = context.getPet();
         PlayerEntity owner = context.getOwner();
 
@@ -154,7 +154,7 @@ public class SkyriderProjectileLevitationEffect implements Effect {
     }
 
     private void applySplashLevitation(ServerWorld world, LivingEntity victim, Entity pet, Entity owner) {
-        Vec3d center = victim.getPos();
+        Vec3d center = victim.getEntityPos();
         double radius = Math.sqrt(splashRadiusSq);
         Box area = new Box(center.x - radius, center.y - radius, center.z - radius, center.x + radius, center.y + radius, center.z + radius);
         List<LivingEntity> nearby = world.getEntitiesByClass(LivingEntity.class, area, entity ->
@@ -169,3 +169,6 @@ public class SkyriderProjectileLevitationEffect implements Effect {
         }
     }
 }
+
+
+

@@ -62,7 +62,7 @@ public class Ability {
         }
         
         EffectContext effectContext = new EffectContext(
-            context.getWorld(),
+            context.getEntityWorld(),
             context.getPet(),
             context.getOwner(),
             context
@@ -89,3 +89,4 @@ public class Ability {
         return 1; // Default level requirement
     }
 }
+

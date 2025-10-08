@@ -37,9 +37,9 @@ public class TagTargetEffect implements Effect {
         Entity target = getTarget(context);
         if (target == null) return false;
 
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         if (world == null) {
-            if (target.getWorld() instanceof ServerWorld targetWorld) {
+            if (target.getEntityWorld() instanceof ServerWorld targetWorld) {
                 world = targetWorld;
             } else {
                 return false;
@@ -91,7 +91,7 @@ public class TagTargetEffect implements Effect {
         if (expiryTime == null) return false;
         
         // Check if tag has expired
-        if (entity.getWorld().getTime() >= expiryTime) {
+        if (entity.getEntityWorld().getTime() >= expiryTime) {
             tags.remove(key);
             if (tags.isEmpty()) {
                 ENTITY_TAGS.remove(entity);
@@ -126,3 +126,4 @@ public class TagTargetEffect implements Effect {
         });
     }
 }
+

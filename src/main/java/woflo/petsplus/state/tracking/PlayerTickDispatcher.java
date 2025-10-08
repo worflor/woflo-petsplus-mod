@@ -83,7 +83,7 @@ public final class PlayerTickDispatcher {
             return;
         }
 
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.getEntityWorld().getServer();
         if (server == null) {
             return;
         }
@@ -115,9 +115,8 @@ public final class PlayerTickDispatcher {
         if (player == null) {
             return "<unknown>";
         }
-        return player.getGameProfile() != null
-            ? player.getGameProfile().getName()
-            : player.getName().getString();
+        return player.getName().getString();
     }
 }
+
 

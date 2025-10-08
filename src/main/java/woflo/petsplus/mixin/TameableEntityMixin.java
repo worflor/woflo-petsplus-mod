@@ -78,7 +78,7 @@ public abstract class TameableEntityMixin implements PetsplusTameable {
         PetComponent component = petsplus$getComponent();
         component.setStateData("petsplus:owner_uuid", ownerUuid.toString());
         component.setOwnerUuid(ownerUuid);
-        if (petsplus$self().getWorld() instanceof ServerWorld serverWorld) {
+        if (petsplus$self().getEntityWorld() instanceof ServerWorld serverWorld) {
             PlayerEntity player = serverWorld.getPlayerByUuid(ownerUuid);
             if (player != null) {
                 petsplus$self().setOwner(player);
@@ -116,7 +116,7 @@ public abstract class TameableEntityMixin implements PetsplusTameable {
     public void petsplus$setSitting(boolean sitting) {
         petsplus$self().setSitting(sitting);
         petsplus$getComponent().setStateData("petsplus:sitting", sitting);
-        if (petsplus$self().getWorld() instanceof ServerWorld) {
+        if (petsplus$self().getEntityWorld() instanceof ServerWorld) {
             StargazeMechanic.handlePetSittingChange((net.minecraft.entity.mob.MobEntity) (Object) this, sitting);
         }
     }

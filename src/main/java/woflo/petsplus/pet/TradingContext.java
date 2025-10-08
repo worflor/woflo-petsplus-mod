@@ -30,7 +30,7 @@ public class TradingContext {
         this.initiator = initiator;
         this.recipient = recipient;
         this.hand = hand;
-        this.tradeCenter = recipient.getPos();
+        this.tradeCenter = recipient.getEntityPos();
         this.searchBox = createSearchBox(tradeCenter);
     }
     
@@ -54,7 +54,7 @@ public class TradingContext {
      * - It has a PetComponent
      */
     public List<MobEntity> findEligiblePets() {
-        return initiator.getWorld().getEntitiesByClass(
+        return initiator.getEntityWorld().getEntitiesByClass(
             MobEntity.class,
             searchBox,
             this::isEligiblePet
@@ -120,3 +120,5 @@ public class TradingContext {
         return searchBox; 
     }
 }
+
+

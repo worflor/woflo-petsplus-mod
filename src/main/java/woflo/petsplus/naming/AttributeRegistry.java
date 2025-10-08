@@ -294,7 +294,7 @@ public class AttributeRegistry {
                     Petsplus.LOGGER.info("Pet {} recognized as creator pet ({})", pet.getUuid(), normalizedCreator);
 
                     PlayerEntity owner = comp.getOwner();
-                    if (owner instanceof ServerPlayerEntity serverPlayer && !serverPlayer.getWorld().isClient()) {
+                    if (owner instanceof ServerPlayerEntity serverPlayer && !serverPlayer.getEntityWorld().isClient()) {
                         serverPlayer.sendMessage(Text.literal(";)"), false);
                     }
                 }
@@ -307,7 +307,7 @@ public class AttributeRegistry {
             Petsplus.LOGGER.info("Pet {} granted creator tag", pet.getUuid());
 
             PlayerEntity owner = comp.getOwner();
-            if (owner instanceof ServerPlayerEntity serverPlayer && !serverPlayer.getWorld().isClient()) {
+            if (owner instanceof ServerPlayerEntity serverPlayer && !serverPlayer.getEntityWorld().isClient()) {
                 serverPlayer.sendMessage(Text.literal("✨ Your pet has been blessed with the developer's crown! ✨"), false);
             }
         });
@@ -338,7 +338,7 @@ public class AttributeRegistry {
             }
 
             PlayerEntity owner = comp.getOwner();
-            if (owner instanceof ServerPlayerEntity serverPlayer && !serverPlayer.getWorld().isClient()) {
+            if (owner instanceof ServerPlayerEntity serverPlayer && !serverPlayer.getEntityWorld().isClient()) {
                 serverPlayer.sendMessage(Text.literal(";)"), false);
             }
         });
@@ -346,3 +346,6 @@ public class AttributeRegistry {
         Petsplus.LOGGER.info("Registered {} built-in attribute handlers", HANDLERS.size());
     }
 }
+
+
+

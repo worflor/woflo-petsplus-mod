@@ -809,13 +809,13 @@ public final class SupportPotionUtils {
         }
 
         MobEntity pet = component.getPet();
-        if (pet == null || pet.getWorld().isClient) {
+        if (pet == null || pet.getEntityWorld().isClient()) {
             return;
         }
 
         ItemStack bottle = new ItemStack(Items.GLASS_BOTTLE);
 
-        if (pet.getWorld() instanceof ServerWorld serverWorld) {
+        if (pet.getEntityWorld() instanceof ServerWorld serverWorld) {
             ItemEntity bottleEntity = new ItemEntity(
                 serverWorld,
                 pet.getX(),
@@ -871,7 +871,7 @@ public final class SupportPotionUtils {
         }
 
         MobEntity pet = component.getPetEntity();
-        ServerWorld world = pet != null && pet.getWorld() instanceof ServerWorld sw ? sw : null;
+        ServerWorld world = pet != null && pet.getEntityWorld() instanceof ServerWorld sw ? sw : null;
         long now = world != null ? world.getTime() : Long.MIN_VALUE;
 
         Double multiplierSnapshot = component.getStateData(STATE_PERCH_SIP_MULTIPLIER, Double.class);
@@ -895,7 +895,7 @@ public final class SupportPotionUtils {
     }
 
     public static double resolvePerchSipDiscount(PlayerEntity owner) {
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return 0.0;
         }
 
@@ -1028,3 +1028,5 @@ public final class SupportPotionUtils {
         return canonicalizeSerializedEffects(serialized);
     }
 }
+
+

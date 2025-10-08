@@ -30,10 +30,10 @@ public class WaterSplashGoal extends AdaptiveGoal {
         
         // Must be in shallow water (water block above solid ground)
         BlockPos below = mob.getBlockPos().down();
-        BlockState belowState = mob.getWorld().getBlockState(below);
-        BlockState currentState = mob.getWorld().getBlockState(mob.getBlockPos());
+        BlockState belowState = mob.getEntityWorld().getBlockState(below);
+        BlockState currentState = mob.getEntityWorld().getBlockState(mob.getBlockPos());
         
-        return currentState.isOf(Blocks.WATER) && belowState.isSolidBlock(mob.getWorld(), below);
+        return currentState.isOf(Blocks.WATER) && belowState.isSolidBlock(mob.getEntityWorld(), below);
     }
     
     @Override
@@ -74,7 +74,7 @@ public class WaterSplashGoal extends AdaptiveGoal {
         mob.bodyYaw += 5;
         
         // Create splash particles
-        if (splashTicks % 10 == 0 && mob.getWorld() instanceof ServerWorld world) {
+        if (splashTicks % 10 == 0 && mob.getEntityWorld() instanceof ServerWorld world) {
             world.spawnParticles(
                 ParticleTypes.SPLASH,
                 mob.getX(), mob.getY() + 0.2, mob.getZ(),
@@ -127,3 +127,4 @@ public class WaterSplashGoal extends AdaptiveGoal {
         return Math.min(1.0f, engagement);
     }
 }
+

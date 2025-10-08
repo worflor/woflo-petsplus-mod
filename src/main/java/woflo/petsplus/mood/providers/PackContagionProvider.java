@@ -40,7 +40,7 @@ public class PackContagionProvider implements EmotionProvider, ReactiveEmotionPr
             return;
         }
         dispatchListener = (pet, component, time) -> {
-            if (!(pet.getWorld() instanceof ServerWorld world)) {
+            if (!(pet.getEntityWorld() instanceof ServerWorld world)) {
                 return;
             }
             contribute(world, pet, component, time, MoodService.getInstance());
@@ -125,3 +125,4 @@ public class PackContagionProvider implements EmotionProvider, ReactiveEmotionPr
         }
     }
 }
+

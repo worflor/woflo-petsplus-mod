@@ -66,7 +66,7 @@ public class EepyNapAuraEffect implements Effect {
 
     @Override
     public boolean execute(EffectContext context) {
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         MobEntity pet = context.getPet();
         PlayerEntity owner = context.getOwner();
 
@@ -114,7 +114,7 @@ public class EepyNapAuraEffect implements Effect {
     }
 
     private void emitParticlesAndAmbient(ServerWorld world, MobEntity pet) {
-        Vec3d pos = pet.getPos();
+        Vec3d pos = pet.getEntityPos();
         if (particleCount > 0) {
             world.spawnParticles(
                 net.minecraft.particle.ParticleTypes.END_ROD,
@@ -156,3 +156,6 @@ public class EepyNapAuraEffect implements Effect {
         // Removed nap time spam - too frequent, not meaningful
     }
 }
+
+
+

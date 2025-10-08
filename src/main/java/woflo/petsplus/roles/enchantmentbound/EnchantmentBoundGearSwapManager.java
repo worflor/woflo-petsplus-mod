@@ -70,7 +70,7 @@ public final class EnchantmentBoundGearSwapManager {
 
     /** Drops all stored gear on the ground, returning {@code true} if any items were emitted. */
     public static boolean dropStoredGear(MobEntity pet, PetComponent component) {
-        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return false;
         }
         boolean dropped = false;
@@ -96,3 +96,4 @@ public final class EnchantmentBoundGearSwapManager {
         return SLOT_KEY_PREFIX + clamped;
     }
 }
+

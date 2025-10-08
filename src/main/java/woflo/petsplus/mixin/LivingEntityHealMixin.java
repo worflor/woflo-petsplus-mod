@@ -23,7 +23,7 @@ public abstract class LivingEntityHealMixin {
     private void petsplus$trackHealing(float amount, CallbackInfo ci) {
         LivingEntity entity = (LivingEntity) (Object) this;
         
-        if (entity.getWorld().isClient || amount <= 0.0f) {
+        if (entity.getEntityWorld().isClient() || amount <= 0.0f) {
             return;
         }
         
@@ -49,3 +49,5 @@ public abstract class LivingEntityHealMixin {
         }
     }
 }
+
+

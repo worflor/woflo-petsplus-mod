@@ -62,9 +62,9 @@ public class ProjectileDrForOwnerEffect implements Effect {
             return false;
         }
 
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         if (world == null) {
-            World ownerWorld = owner.getWorld();
+            World ownerWorld = owner.getEntityWorld();
             if (ownerWorld instanceof ServerWorld serverWorld) {
                 world = serverWorld;
             } else {
@@ -103,7 +103,7 @@ public class ProjectileDrForOwnerEffect implements Effect {
             return 0.0;
         }
 
-        World world = player.getWorld();
+        World world = player.getEntityWorld();
         if (world == null) {
             ACTIVE_DR.remove(player);
             return 0.0;
@@ -139,3 +139,4 @@ public class ProjectileDrForOwnerEffect implements Effect {
         }
     }
 }
+

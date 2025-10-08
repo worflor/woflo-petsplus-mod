@@ -47,7 +47,7 @@ public class CooldownParticleManager {
      * Creates a unique, subtle particle pattern for cooldown refresh
      */
     private static void spawnCooldownParticles(ServerWorld world, MobEntity pet) {
-        Vec3d petPos = pet.getPos();
+        Vec3d petPos = pet.getEntityPos();
         Random random = world.getRandom();
         
         // Create a subtle "refresh" effect - small spiral of cyan particles

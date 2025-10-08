@@ -40,7 +40,7 @@ public final class EnchantmentBoundFocusHelper {
         if (owner == null || bucket == null) {
             return false;
         }
-        long now = owner.getWorld().getTime();
+        long now = owner.getEntityWorld().getTime();
         OwnerCombatState combatState = OwnerCombatState.getOrCreate(owner);
         long until = combatState.getTempState(KEY_PREFIX + bucket.keySuffix());
         return until > now;
@@ -66,7 +66,7 @@ public final class EnchantmentBoundFocusHelper {
         int maxCharges = Math.max(1, petLevel >= 30 ? chargesAtThirty : 1);
 
         OwnerCombatState combatState = OwnerCombatState.getOrCreate(owner);
-        long now = owner.getWorld().getTime();
+        long now = owner.getEntityWorld().getTime();
 
         long activeUntil = combatState.getTempState(KEY_PREFIX + bucket.keySuffix());
         if (activeUntil > now) {
@@ -95,9 +95,10 @@ public final class EnchantmentBoundFocusHelper {
         combatState.setTempState(KEY_PREFIX + bucket.keySuffix(), now + durationTicks);
 
         if (playSound) {
-            owner.getWorld().playSound(null, owner.getX(), owner.getY(), owner.getZ(),
+            owner.getEntityWorld().playSound(null, owner.getX(), owner.getY(), owner.getZ(),
                 SoundEvents.BLOCK_ENCHANTMENT_TABLE_USE, SoundCategory.PLAYERS, 0.5f, 1.3f);
         }
         return true;
     }
 }
+

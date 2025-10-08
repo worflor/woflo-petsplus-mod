@@ -279,7 +279,7 @@ public class CombatEventHandler {
         if (!(owner instanceof ServerPlayerEntity serverOwner)) {
             return DamageProcessingOutcome.allowOutcome(amount);
         }
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return DamageProcessingOutcome.allowOutcome(amount);
         }
         if (amount <= 0.0F) {
@@ -359,7 +359,7 @@ public class CombatEventHandler {
         if (!(attacker instanceof ServerPlayerEntity serverAttacker)) {
             return DamageProcessingOutcome.allowOutcome(amount);
         }
-        if (!(attacker.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(attacker.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return DamageProcessingOutcome.allowOutcome(amount);
         }
         if (amount <= 0.0F) {
@@ -414,7 +414,7 @@ public class CombatEventHandler {
                                                                      LivingEntity victim,
                                                                      DamageSource damageSource,
                                                                      float amount) {
-        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return DamageProcessingOutcome.allowOutcome(amount);
         }
         if (amount <= 0.0F) {
@@ -485,7 +485,7 @@ public class CombatEventHandler {
                                                             PetComponent component,
                                                             DamageSource damageSource,
                                                             float amount) {
-        if (!(pet.getWorld() instanceof ServerWorld world)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld world)) {
             return DamageProcessingOutcome.allowOutcome(amount);
         }
         if (amount <= 0.0F) {
@@ -572,7 +572,7 @@ public class CombatEventHandler {
         SUPPRESS_INTERCEPTION.set(true);
         try {
             boolean applied = false;
-            if (entity.getWorld() instanceof ServerWorld serverWorld) {
+            if (entity.getEntityWorld() instanceof ServerWorld serverWorld) {
                 applied = entity.damage(serverWorld, damageSource, amount);
             }
             if (!applied) {
@@ -606,7 +606,7 @@ public class CombatEventHandler {
      */
     private static ActionResult onPlayerAttack(PlayerEntity player, World world, Hand hand, Entity target, EntityHitResult hitResult) {
         // Ensure this only runs on the server side to prevent client-side execution
-        if (world.isClient) {
+        if (world.isClient()) {
             return ActionResult.PASS;
         }
         
@@ -632,7 +632,7 @@ public class CombatEventHandler {
                                                   boolean damageAlreadyApplied) {
         OwnerCombatState combatState = OwnerCombatState.getOrCreate(owner);
         combatState.onHitTaken();
-        long now = owner.getWorld().getTime();
+        long now = owner.getEntityWorld().getTime();
 
         if (isFallDamage(damageSource)) {
             Map<String, Object> payload = new HashMap<>();
@@ -663,7 +663,7 @@ public class CombatEventHandler {
         if (owner instanceof ServerPlayerEntity) {
             List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(owner);
             if (!swarm.isEmpty()) {
-                Vec3d ownerPos = owner.getPos();
+                Vec3d ownerPos = owner.getEntityPos();
                 double radiusSq = 32.0 * 32.0;
                 for (PetSwarmIndex.SwarmEntry entry : swarm) {
                     MobEntity pet = entry.pet();
@@ -711,7 +711,7 @@ public class CombatEventHandler {
     private static void handleOwnerDealtDamage(PlayerEntity owner, LivingEntity victim, float damage) {
         OwnerCombatState combatState = OwnerCombatState.getOrCreate(owner);
         combatState.enterCombat();
-        long now = owner.getWorld().getTime();
+        long now = owner.getEntityWorld().getTime();
         combatState.markOwnerInterference(now);
 
         float modifiedDamage = damage;
@@ -726,7 +726,7 @@ public class CombatEventHandler {
             List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(owner);
             for (PetSwarmIndex.SwarmEntry entry : swarm) {
                 MobEntity pet = entry.pet();
-                if (pet != null && pet.isAlive() && pet.getPos().distanceTo(victim.getPos()) < ULTRA_RARE_TRIGGER_RADIUS) {
+                if (pet != null && pet.isAlive() && pet.getEntityPos().distanceTo(victim.getEntityPos()) < ULTRA_RARE_TRIGGER_RADIUS) {
                     // Track which pets are engaged with this enemy
                     COORDINATED_ATTACKS.computeIfAbsent(victim.getUuid(), k -> new ConcurrentHashMap<>())
                         .put(pet.getUuid(), now);
@@ -754,7 +754,7 @@ public class CombatEventHandler {
 
         // Create trigger context
         TriggerContext context = new TriggerContext(
-            (net.minecraft.server.world.ServerWorld) owner.getWorld(),
+            (net.minecraft.server.world.ServerWorld) owner.getEntityWorld(),
             null, // Pet will be set when triggering specific pet abilities
             owner,
             "owner_dealt_damage"
@@ -774,7 +774,7 @@ public class CombatEventHandler {
         // Trigger abilities for nearby pets
         triggerNearbyPetAbilities(owner, context);
 
-        if (owner.getWorld() instanceof ServerWorld) {
+        if (owner.getEntityWorld() instanceof ServerWorld) {
             if (victim instanceof MobEntity victimMob) {
                 PetComponent victimComponent = PetComponent.get(victimMob);
                 if (victimComponent != null && victimComponent.isOwnedBy(owner)) {
@@ -800,7 +800,7 @@ public class CombatEventHandler {
         if (owner instanceof ServerPlayerEntity) {
             List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(owner);
             if (!swarm.isEmpty()) {
-                Vec3d ownerPos = owner.getPos();
+                Vec3d ownerPos = owner.getEntityPos();
                 double radiusSq = 32.0 * 32.0;
                 for (PetSwarmIndex.SwarmEntry entry : swarm) {
                     MobEntity pet = entry.pet();
@@ -895,12 +895,12 @@ public class CombatEventHandler {
             triggerAbilitiesForOwner(shooter, "owner_projectile_crit");
 
             float intensity = damageIntensity(damage, target.getMaxHealth());
-            long now = shooter.getWorld().getTime();
+            long now = shooter.getEntityWorld().getTime();
 
             if (shooter instanceof ServerPlayerEntity) {
                 List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(shooter);
                 if (!swarm.isEmpty()) {
-                    Vec3d shooterPos = shooter.getPos();
+                    Vec3d shooterPos = shooter.getEntityPos();
                     double radiusSq = 32.0 * 32.0;
                     for (PetSwarmIndex.SwarmEntry entry : swarm) {
                         MobEntity pet = entry.pet();
@@ -1048,7 +1048,7 @@ public class CombatEventHandler {
         if (!(owner instanceof ServerPlayerEntity serverOwner)) {
             return;
         }
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
         if (eventType == null || eventType.isEmpty()) {
@@ -1082,7 +1082,7 @@ public class CombatEventHandler {
         if (!(owner instanceof ServerPlayerEntity serverOwner)) {
             return;
         }
-        if (!(entity.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(entity.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
 
@@ -1120,7 +1120,7 @@ public class CombatEventHandler {
             if (victimPc == null) {
                 // Wild animal - notify nearby pets to learn
                 List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(serverOwner);
-                Vec3d entityPos = entity.getPos();
+                Vec3d entityPos = entity.getEntityPos();
                 double observeRadiusSq = 16.0 * 16.0; // Pets within 16 blocks observe
                 
                 for (PetSwarmIndex.SwarmEntry entry : swarm) {
@@ -1151,7 +1151,7 @@ public class CombatEventHandler {
             
             List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(owner);
             if (!swarm.isEmpty()) {
-                Vec3d ownerPos = owner.getPos();
+                Vec3d ownerPos = owner.getEntityPos();
                 double radiusSq = ULTRA_RARE_TRIGGER_RADIUS * ULTRA_RARE_TRIGGER_RADIUS;
                 int triggeredCount = 0;
                 
@@ -1279,7 +1279,7 @@ public class CombatEventHandler {
     private static void handlePetDamageReceived(MobEntity pet, PetComponent petComponent, DamageSource damageSource, float amount) {
         // Ensure thread-safe access to pet state
         synchronized (pet) {
-            long now = pet.getWorld().getTime();
+            long now = pet.getEntityWorld().getTime();
             petComponent.setLastAttackTick(now);
 
         float maxHealth = pet.getMaxHealth();
@@ -1452,7 +1452,7 @@ public class CombatEventHandler {
         
         // Ensure thread-safe access to pet state
         synchronized (pet) {
-            long now = pet.getWorld().getTime();
+            long now = pet.getEntityWorld().getTime();
             petComponent.setLastAttackTick(now);
 
         float petHealthPercent = pet.getMaxHealth() > 0f ? MathHelper.clamp(pet.getHealth() / pet.getMaxHealth(), 0f, 1f) : 1f;
@@ -1484,7 +1484,7 @@ public class CombatEventHandler {
             
             // Check if pet is helping another player defend against this hostile player
             // Look for nearby non-owner players who might be the beneficiary
-            if (owner != null && pet.getWorld() instanceof ServerWorld serverWorld) {
+            if (owner != null && pet.getEntityWorld() instanceof ServerWorld serverWorld) {
                 List<ServerPlayerEntity> nearbyPlayersRaw = serverWorld.getPlayers(p -> 
                     p != owner && 
                     p != playerVictim && 
@@ -1608,7 +1608,7 @@ public class CombatEventHandler {
         }
 
         // Fire pet_dealt_damage trigger for abilities
-        if (owner instanceof ServerPlayerEntity serverOwner && pet.getWorld() instanceof ServerWorld serverWorld) {
+        if (owner instanceof ServerPlayerEntity serverOwner && pet.getEntityWorld() instanceof ServerWorld serverWorld) {
             TriggerContext ctx = new TriggerContext(serverWorld, pet, serverOwner, "pet_dealt_damage")
                 .withData("victim_hp_pct", (double) (victim.getHealth() / victimMaxHealth))
                 .withData("damage", (double) damage)
@@ -1714,7 +1714,7 @@ public class CombatEventHandler {
     }
 
     private static void notifyPetsOfOwnerTarget(PlayerEntity owner, LivingEntity target, long now) {
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
 
@@ -1722,7 +1722,7 @@ public class CombatEventHandler {
         if (swarm.isEmpty()) {
             return;
         }
-        Vec3d ownerPos = owner.getPos();
+        Vec3d ownerPos = owner.getEntityPos();
         double radiusSq = OWNER_ASSIST_BROADCAST_RADIUS * OWNER_ASSIST_BROADCAST_RADIUS;
         for (PetSwarmIndex.SwarmEntry entry : swarm) {
             MobEntity pet = entry.pet();
@@ -1760,7 +1760,7 @@ public class CombatEventHandler {
 
     private static void attemptOwnerAssistChain(MobEntity pet, PetComponent petComponent, LivingEntity defeatedTarget) {
         PlayerEntity owner = petComponent.getOwner();
-        if (owner == null || !(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (owner == null || !(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
 
@@ -1894,7 +1894,7 @@ public class CombatEventHandler {
     }
 
     private static void maybeCommandIntercept(PlayerEntity owner, OwnerCombatState combatState, DamageSource damageSource, long now) {
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
 
@@ -1970,7 +1970,7 @@ public class CombatEventHandler {
         if (swarm.isEmpty()) {
             return;
         }
-        Vec3d ownerPos = owner.getPos();
+        Vec3d ownerPos = owner.getEntityPos();
         double radiusSq = 16.0 * 16.0;
         for (PetSwarmIndex.SwarmEntry entry : swarm) {
             MobEntity pet = entry.pet();
@@ -2016,8 +2016,8 @@ public class CombatEventHandler {
     }
 
     private static Vec3d computeInterceptPoint(PlayerEntity owner, LivingEntity attacker) {
-        Vec3d ownerPos = owner.getPos();
-        Vec3d attackerPos = attacker.getPos();
+        Vec3d ownerPos = owner.getEntityPos();
+        Vec3d attackerPos = attacker.getEntityPos();
         Vec3d direction = attackerPos.subtract(ownerPos);
         double distance = direction.length();
         if (distance < 1.0E-3) {
@@ -2052,13 +2052,13 @@ public class CombatEventHandler {
     }
 
     private static boolean hasNearbyCreeperProofAlly(MobEntity pet, @Nullable PlayerEntity owner) {
-        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return false;
         }
 
         double radius = Math.max(4.0, pet.getWidth() + 3.0);
         double radiusSq = radius * radius;
-        Vec3d petPos = pet.getPos();
+        Vec3d petPos = pet.getEntityPos();
 
         boolean found = false;
         if (owner instanceof ServerPlayerEntity) {
@@ -2145,7 +2145,7 @@ public class CombatEventHandler {
         if (!(owner instanceof ServerPlayerEntity serverOwner)) {
             return List.of();
         }
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return List.of();
         }
         
@@ -2299,7 +2299,7 @@ public class CombatEventHandler {
             return;
         }
 
-        long now = pet.getWorld().getTime();
+        long now = pet.getEntityWorld().getTime();
         boolean isOwnerAttack = attacker instanceof PlayerEntity playerAttacker && owner != null && playerAttacker.equals(owner);
         boolean petIsCursed = petComponent.hasRole(PetRoleType.CURSED_ONE);
         boolean treatAsOwnerSadness = isOwnerAttack && !petIsCursed;
@@ -2397,3 +2397,6 @@ public class CombatEventHandler {
         }
     }
 }
+
+
+

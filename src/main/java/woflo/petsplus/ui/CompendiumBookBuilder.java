@@ -62,7 +62,7 @@ public class CompendiumBookBuilder {
         
         // Restore the original off-hand item
         // We schedule this to happen after the client opens the GUI
-        player.getServer().execute(() -> {
+        player.getEntityWorld().getServer().execute(() -> {
             player.setStackInHand(Hand.OFF_HAND, offHandBackup);
         });
     }
@@ -307,3 +307,4 @@ public class CompendiumBookBuilder {
         return path.substring(0, 1).toUpperCase() + path.substring(1).toLowerCase().replace('_', ' ');
     }
 }
+

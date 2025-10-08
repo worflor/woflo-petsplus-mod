@@ -63,7 +63,7 @@ public class DreamEscapeRescueEffect implements Effect {
             return false;
         }
 
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         MobEntity pet = context.getPet();
         if (!(context.getOwner() instanceof ServerPlayerEntity owner) || world == null || pet == null) {
             return false;
@@ -126,12 +126,14 @@ public class DreamEscapeRescueEffect implements Effect {
     private static void teleportOwner(ServerWorld world, ServerPlayerEntity owner) {
         Respawn respawn = owner.getRespawn();
         if (respawn != null) {
-            BlockPos pos = respawn.pos();
+            var spawnPoint = respawn.respawnData();
+            BlockPos pos = spawnPoint.getPos();
             owner.teleport(world, pos.getX() + 0.5D, pos.getY() + 1.0D, pos.getZ() + 0.5D,
-                Set.of(), respawn.angle(), 0.0F, false);
+                Set.of(), spawnPoint.yaw(), spawnPoint.pitch(), false);
             return;
         }
-        BlockPos spawn = world.getSpawnPos();
+        var spawnPoint = world.getSpawnPoint();
+        BlockPos spawn = spawnPoint.getPos();
         owner.teleport(world, spawn.getX() + 0.5D, spawn.getY() + 1.0D, spawn.getZ() + 0.5D,
             Set.of(), owner.getYaw(), owner.getPitch(), false);
     }
@@ -199,3 +201,5 @@ public class DreamEscapeRescueEffect implements Effect {
         owner.sendMessage(Text.translatable("petsplus.eepyeeper.dream_sacrifice", petName), false);
     }
 }
+
+

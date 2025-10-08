@@ -63,11 +63,11 @@ public class OwnerAssistAttackGoal extends Goal {
 
     @Override
     public boolean canStart() {
-        if (mob.getWorld().isClient() || !mob.isAlive()) {
+        if (mob.getEntityWorld().isClient() || !mob.isAlive()) {
             return false;
         }
 
-        long now = mob.getWorld().getTime();
+        long now = mob.getEntityWorld().getTime();
         if (isPetRegrouping(petComponent, now) || isPetHesitating(petComponent, now)) {
             return false;
         }
@@ -77,7 +77,7 @@ public class OwnerAssistAttackGoal extends Goal {
             return false;
         }
 
-        if (!(mob.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(mob.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return false;
         }
 
@@ -134,7 +134,7 @@ public class OwnerAssistAttackGoal extends Goal {
         if (mob instanceof TameableEntity tameable && tameable.isSitting()) {
             return false;
         }
-        if (!(mob.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(mob.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return false;
         }
 
@@ -178,7 +178,7 @@ public class OwnerAssistAttackGoal extends Goal {
         moodSample = sampleMoods();
         float fear = moodSample.fear();
         if (fear > 0.96f) {
-            markAssistRegroup(petComponent, mob.getWorld().getTime());
+            markAssistRegroup(petComponent, mob.getEntityWorld().getTime());
             return false;
         }
 
@@ -214,7 +214,7 @@ public class OwnerAssistAttackGoal extends Goal {
         lostTargetGrace = TARGET_LOSS_GRACE_TICKS;
         moodSample = sampleMoods();
 
-        if (owner != null && mob.getWorld() instanceof ServerWorld serverWorld && assistTarget != null) {
+        if (owner != null && mob.getEntityWorld() instanceof ServerWorld serverWorld && assistTarget != null) {
             OwnerCombatState combatState = OwnerCombatState.get(owner);
             if (combatState != null) {
                 combatState.extendAggroIfMatching(assistTarget, serverWorld.getTime(), AGGRO_REFRESH_TICKS,
@@ -264,7 +264,7 @@ public class OwnerAssistAttackGoal extends Goal {
     }
 
     private void refreshSnapshot() {
-        if (owner == null || assistTarget == null || !(mob.getWorld() instanceof ServerWorld serverWorld)) {
+        if (owner == null || assistTarget == null || !(mob.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
         OwnerCombatState combatState = OwnerCombatState.get(owner);
@@ -297,7 +297,7 @@ public class OwnerAssistAttackGoal extends Goal {
         if (assistTarget == null) {
             return false;
         }
-        Vec3d targetPos = assistTarget.getPos();
+        Vec3d targetPos = assistTarget.getEntityPos();
         double distanceSq = mob.squaredDistanceTo(targetPos);
         if (packSample.cohesion() < 0.2f) {
             return true;
@@ -347,7 +347,7 @@ public class OwnerAssistAttackGoal extends Goal {
         if (candidate == null || !candidate.isAlive() || candidate.isRemoved() || !candidate.isAttackable()) {
             return false;
         }
-        if (candidate.getWorld() != mob.getWorld()) {
+        if (candidate.getEntityWorld() != mob.getEntityWorld()) {
             return false;
         }
         if (!mob.canTarget(candidate)) {
@@ -375,7 +375,7 @@ public class OwnerAssistAttackGoal extends Goal {
 
     private void updatePackContext(@Nullable LivingEntity target) {
         packSample = PackSample.EMPTY;
-        if (target == null || owner == null || !(mob.getWorld() instanceof ServerWorld serverWorld)) {
+        if (target == null || owner == null || !(mob.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
 
@@ -659,3 +659,7 @@ public class OwnerAssistAttackGoal extends Goal {
         static final PackSample EMPTY = new PackSample(0f, 0f, 0f, 0f);
     }
 }
+
+
+
+

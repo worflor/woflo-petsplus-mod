@@ -512,7 +512,7 @@ public class AbilityManager {
 
     private static TriggerContext cloneContextForPet(MobEntity pet, TriggerContext context) {
         TriggerContext petContext = new TriggerContext(
-            context.getWorld(),
+            context.getEntityWorld(),
             pet,
             context.getOwner(),
             context.getEventType()
@@ -793,3 +793,5 @@ public class AbilityManager {
         }
     }
 }
+
+

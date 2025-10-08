@@ -235,7 +235,7 @@ public final class NatureFlavorHandler {
         if (owner == null) {
             return;
         }
-        if (!(owner.getWorld() instanceof ServerWorld world)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld world)) {
             return;
         }
         StateManager stateManager = StateManager.forWorld(world);
@@ -247,7 +247,7 @@ public final class NatureFlavorHandler {
 
         MoodService moodService = MoodService.getInstance();
         long time = world.getTime();
-        Vec3d center = owner.getPos();
+        Vec3d center = owner.getEntityPos();
         double normalizedRadius = Math.max(0.0D, radius);
         double squaredRadius = normalizedRadius * normalizedRadius;
         boolean limitByRadius = normalizedRadius > 0.0D;
@@ -440,3 +440,5 @@ public final class NatureFlavorHandler {
         });
     }
 }
+
+

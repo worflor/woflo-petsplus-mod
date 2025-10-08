@@ -31,7 +31,7 @@ public final class MoodAdvancementTracker implements MoodListener {
     @Override
     public void onMoodChanged(MobEntity pet, PetComponent.Mood oldMood, int oldLevel,
                               PetComponent.Mood newMood, int newLevel) {
-        if (!(pet.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
 
@@ -110,3 +110,4 @@ public final class MoodAdvancementTracker implements MoodListener {
         long angryArmedTick;
     }
 }
+

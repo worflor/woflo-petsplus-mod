@@ -25,7 +25,7 @@ public class DivePlayGoal extends AdaptiveGoal {
     @Override
     protected boolean canStartGoal() {
         return mob.isTouchingWater() && 
-               mob.getWorld() instanceof ServerWorld;
+               mob.getEntityWorld() instanceof ServerWorld;
     }
     
     @Override
@@ -63,7 +63,7 @@ public class DivePlayGoal extends AdaptiveGoal {
             mob.setPitch(60); // Look down
             
             // Bubble particles
-            if (diveTicks % 5 == 0 && mob.getWorld() instanceof ServerWorld world) {
+            if (diveTicks % 5 == 0 && mob.getEntityWorld() instanceof ServerWorld world) {
                 world.spawnParticles(
                     ParticleTypes.BUBBLE,
                     mob.getX(), mob.getY() + 0.5, mob.getZ(),
@@ -82,8 +82,8 @@ public class DivePlayGoal extends AdaptiveGoal {
             mob.setPitch(-30); // Look up
             
             // Splash particles when breaking surface
-            if (mob.getY() > mob.getWorld().getSeaLevel() - 1 && diveTicks % 3 == 0) {
-                if (mob.getWorld() instanceof ServerWorld world) {
+            if (mob.getY() > mob.getEntityWorld().getSeaLevel() - 1 && diveTicks % 3 == 0) {
+                if (mob.getEntityWorld() instanceof ServerWorld world) {
                     world.spawnParticles(
                         ParticleTypes.SPLASH,
                         mob.getX(), mob.getY(), mob.getZ(),
@@ -133,3 +133,4 @@ public class DivePlayGoal extends AdaptiveGoal {
         return Math.min(1.0f, engagement);
     }
 }
+

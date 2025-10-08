@@ -108,7 +108,7 @@ public class InvestigateBlockGoal extends AdaptiveGoal {
             int dy = mob.getRandom().nextInt(5) - 2;
             
             BlockPos candidate = start.add(dx, dy, dz);
-            BlockState state = mob.getWorld().getBlockState(candidate);
+            BlockState state = mob.getEntityWorld().getBlockState(candidate);
             
             if (isInterestingBlock(state.getBlock())) {
                 return candidate;
@@ -174,3 +174,4 @@ public class InvestigateBlockGoal extends AdaptiveGoal {
         return Math.min(1.0f, engagement);
     }
 }
+

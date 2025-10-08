@@ -61,7 +61,7 @@ public class StrikerMarkFeedbackEffect implements Effect {
             StrikerHuntManager.getInstance().onTargetMarked(serverOwner, target, threshold, level, stacks, fill);
         }
 
-        if (highlightTarget && context.getWorld() instanceof ServerWorld world) {
+        if (highlightTarget && context.getEntityWorld() instanceof ServerWorld world) {
             spawnMarkParticles(world, target);
         }
 
@@ -78,7 +78,7 @@ public class StrikerMarkFeedbackEffect implements Effect {
             return;
         }
 
-        Vec3d pos = target.getPos();
+        Vec3d pos = target.getEntityPos();
         double y = target.getBodyY(0.5);
         for (int i = 0; i < particleCount; i++) {
             double offsetX = (world.random.nextDouble() - 0.5) * particleSpread;
@@ -89,3 +89,6 @@ public class StrikerMarkFeedbackEffect implements Effect {
         }
     }
 }
+
+
+

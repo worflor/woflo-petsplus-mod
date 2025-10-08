@@ -31,7 +31,7 @@ public final class EnchantmentBoundAbilityHooks {
             if (owner == null) {
                 return;
             }
-            ServerWorld world = (ServerWorld) owner.getWorld();
+            ServerWorld world = (ServerWorld) owner.getEntityWorld();
             if (world == null) {
                 return;
             }
@@ -54,7 +54,7 @@ public final class EnchantmentBoundAbilityHooks {
         if (attacker instanceof ServerPlayerEntity serverOwner) {
             return serverOwner;
         }
-        if (attacker instanceof PlayerEntity player && player.getWorld() instanceof ServerWorld) {
+        if (attacker instanceof PlayerEntity player && player.getEntityWorld() instanceof ServerWorld) {
             return (ServerPlayerEntity) player;
         }
         if (attacker instanceof net.minecraft.entity.mob.MobEntity mob) {
@@ -69,3 +69,4 @@ public final class EnchantmentBoundAbilityHooks {
         return null;
     }
 }
+

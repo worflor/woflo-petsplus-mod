@@ -113,7 +113,7 @@ public final class StrikerExecutionEffect implements Effect {
                .withData("execution_triggered", Boolean.TRUE);
 
         if (emitFeedback) {
-            ServerWorld world = context.getWorld();
+            ServerWorld world = context.getEntityWorld();
             if (world != null) {
                 FeedbackManager.emitStrikerExecution(serverOwner, victim, world,
                     execution.momentumStacks(), execution.momentumFill());
@@ -158,3 +158,5 @@ public final class StrikerExecutionEffect implements Effect {
         }
     }
 }
+
+

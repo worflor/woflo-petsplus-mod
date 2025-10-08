@@ -63,7 +63,7 @@ public class MagnetizeDropsAndXpEffect implements Effect {
     @Override
     public boolean execute(EffectContext context) {
         PlayerEntity owner = context.getOwner();
-        if (!(context.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return false;
         }
 
@@ -86,7 +86,7 @@ public class MagnetizeDropsAndXpEffect implements Effect {
         Map<UUID, MagnetizationState> worldStates = ACTIVE_MAGNETIZATIONS.computeIfAbsent(world, w -> new HashMap<>());
         UUID ownerId = owner.getUuid();
         long expiryTick = world.getTime() + duration;
-        Vec3d anchor = owner.getPos();
+        Vec3d anchor = owner.getEntityPos();
         PetComponent component = pet != null ? PetComponent.get(pet) : null;
         ScoutBackpack.RoutingMode routingMode = ScoutBackpack.RoutingMode.PLAYER;
         boolean routeToBackpack = false;
@@ -137,7 +137,7 @@ public class MagnetizeDropsAndXpEffect implements Effect {
         if (player == null) {
             return;
         }
-        ServerWorld world = (ServerWorld) player.getWorld();
+        ServerWorld world = (ServerWorld) player.getEntityWorld();
         Map<UUID, MagnetizationState> worldStates = ACTIVE_MAGNETIZATIONS.get(world);
         if (worldStates != null) {
             worldStates.remove(player.getUuid());
@@ -183,7 +183,7 @@ public class MagnetizeDropsAndXpEffect implements Effect {
     }
 
     private static void magnetizeToPlayer(ItemEntity item, PlayerEntity player) {
-        Vec3d toPlayer = player.getPos().subtract(item.getPos());
+        Vec3d toPlayer = player.getEntityPos().subtract(item.getEntityPos());
         if (toPlayer.lengthSquared() == 0) {
             return;
         }
@@ -192,8 +192,8 @@ public class MagnetizeDropsAndXpEffect implements Effect {
     }
 
     private static void magnetizeToEntity(ItemEntity item, MobEntity entity) {
-        Vec3d target = entity.getPos().add(0.0, entity.getStandingEyeHeight() * 0.3, 0.0);
-        Vec3d toEntity = target.subtract(item.getPos());
+        Vec3d target = entity.getEntityPos().add(0.0, entity.getStandingEyeHeight() * 0.3, 0.0);
+        Vec3d toEntity = target.subtract(item.getEntityPos());
         if (toEntity.lengthSquared() == 0) {
             return;
         }
@@ -202,7 +202,7 @@ public class MagnetizeDropsAndXpEffect implements Effect {
     }
 
     private static void magnetizeToPlayer(ExperienceOrbEntity orb, PlayerEntity player) {
-        Vec3d toPlayer = player.getPos().subtract(orb.getPos());
+        Vec3d toPlayer = player.getEntityPos().subtract(orb.getEntityPos());
         if (toPlayer.lengthSquared() == 0) {
             return;
         }
@@ -314,7 +314,7 @@ public class MagnetizeDropsAndXpEffect implements Effect {
                 return;
             }
 
-            ServerWorld world = (ServerWorld) player.getWorld();
+            ServerWorld world = (ServerWorld) player.getEntityWorld();
             Map<UUID, MagnetizationState> worldStates = ACTIVE_MAGNETIZATIONS.get(world);
             if (worldStates == null || worldStates.isEmpty()) {
                 nextRunTicks.remove(player.getUuid());
@@ -329,7 +329,7 @@ public class MagnetizeDropsAndXpEffect implements Effect {
 
             long worldTick = world.getTime();
             if (worldTick >= state.getExpirationTick()
-                || player.getPos().squaredDistanceTo(state.getAnchor()) > state.getRadius() * state.getRadius()
+                || player.getEntityPos().squaredDistanceTo(state.getAnchor()) > state.getRadius() * state.getRadius()
                 || !player.isAlive()) {
                 worldStates.remove(player.getUuid());
                 if (worldStates.isEmpty()) {
@@ -364,3 +364,6 @@ public class MagnetizeDropsAndXpEffect implements Effect {
         }
     }
 }
+
+
+

@@ -719,8 +719,8 @@ public class GoalSuggester {
         
         // === WEATHER MODIFIERS ===
         // Check if world is raining or thundering
-        boolean isRaining = ctx.mob().getWorld().isRaining();
-        boolean isThundering = ctx.mob().getWorld().isThundering();
+        boolean isRaining = ctx.mob().getEntityWorld().isRaining();
+        boolean isThundering = ctx.mob().getEntityWorld().isThundering();
         
         if (isRaining) {
             // Rain reduces outdoor wandering
@@ -765,7 +765,7 @@ public class GoalSuggester {
         // === BIOME-BASED MODIFIERS (using mob's current biome) ===
         
         try {
-            var biome = ctx.mob().getWorld().getBiome(ctx.currentPos());
+            var biome = ctx.mob().getEntityWorld().getBiome(ctx.currentPos());
             
             // Check biome keys
             var biomeKey = biome.getKey();
@@ -1020,3 +1020,4 @@ public class GoalSuggester {
         return reason.toString();
     }
 }
+

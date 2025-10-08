@@ -47,7 +47,7 @@ class AdaptiveAIManagerTest {
         when(petsplus.petsplus$getOwner()).thenReturn(null);
 
         World world = new World(null, false);
-        when(pet.getWorld()).thenReturn(world);
+        when(pet.getEntityWorld()).thenReturn(world);
 
         PetComponent component = mock(PetComponent.class);
         when(component.getOwnerUuid()).thenReturn(ownerUuid);
@@ -85,3 +85,4 @@ class AdaptiveAIManagerTest {
         }
     }
 }
+

@@ -104,7 +104,7 @@ public class ToyPounceGoal extends AdaptiveGoal {
             for (int dy = -3; dy <= 3; dy++) {
                 for (int dz = -8; dz <= 8; dz++) {
                     BlockPos check = pos.add(dx, dy, dz);
-                    Block block = mob.getWorld().getBlockState(check).getBlock();
+                    Block block = mob.getEntityWorld().getBlockState(check).getBlock();
                     
                     if (block == Blocks.WHITE_WOOL || block == Blocks.HAY_BLOCK ||
                         block == Blocks.SLIME_BLOCK || block.getName().getString().contains("wool")) {
@@ -118,7 +118,7 @@ public class ToyPounceGoal extends AdaptiveGoal {
     }
     
     private void spawnSuccessParticles() {
-        if (mob.getWorld() instanceof ServerWorld serverWorld) {
+        if (mob.getEntityWorld() instanceof ServerWorld serverWorld) {
             serverWorld.spawnParticles(
                 ParticleTypes.HEART,
                 mob.getX(), mob.getY() + 0.5, mob.getZ(),
@@ -158,3 +158,4 @@ public class ToyPounceGoal extends AdaptiveGoal {
         return engagement;
     }
 }
+

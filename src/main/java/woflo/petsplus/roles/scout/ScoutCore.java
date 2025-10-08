@@ -78,7 +78,7 @@ public class ScoutCore implements PlayerTickListener {
         UUID playerId = player.getUuid();
         nextDetectionTick.put(playerId, currentTick + IDLE_RECHECK_TICKS);
 
-        if (!(player.getWorld() instanceof ServerWorld)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld)) {
             return;
         }
 
@@ -98,7 +98,7 @@ public class ScoutCore implements PlayerTickListener {
      * Check if player has a nearby Scout pet with Loot Wisp ability (L3+).
      */
     private static boolean hasNearbyScoutWithLootWisp(ServerPlayerEntity player) {
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
         StateManager manager = StateManager.forWorld(world);
@@ -115,7 +115,7 @@ public class ScoutCore implements PlayerTickListener {
      * Check if a player has active Scout detection coverage.
      */
     public static boolean hasActiveScoutDetection(ServerPlayerEntity player) {
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
         StateManager manager = StateManager.forWorld(world);
@@ -137,3 +137,4 @@ public class ScoutCore implements PlayerTickListener {
         return 0.1f; // 10% speed bonus when Scout is nearby
     }
 }
+

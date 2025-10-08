@@ -47,7 +47,7 @@ public class EnchantmentBoundMiningHasteEffect implements Effect {
             return false;
         }
         MobEntity pet = context.getPet();
-        if (pet == null || !(context.getWorld() instanceof ServerWorld)) {
+        if (pet == null || !(context.getEntityWorld() instanceof ServerWorld)) {
             return false;
         }
         PetComponent component = PetComponent.get(pet);
@@ -59,3 +59,5 @@ public class EnchantmentBoundMiningHasteEffect implements Effect {
         return true;
     }
 }
+
+

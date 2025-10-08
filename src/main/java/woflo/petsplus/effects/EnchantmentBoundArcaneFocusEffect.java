@@ -68,7 +68,7 @@ public class EnchantmentBoundArcaneFocusEffect implements Effect {
         if (!(context.getOwner() instanceof ServerPlayerEntity owner)) {
             return false;
         }
-        if (!(context.getWorld() instanceof ServerWorld)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld)) {
             return false;
         }
         MobEntity pet = context.getPet();
@@ -93,3 +93,5 @@ public class EnchantmentBoundArcaneFocusEffect implements Effect {
             durationTicks, cooldownTicks, chargesAtThirty, playSound);
     }
 }
+
+

@@ -171,7 +171,7 @@ public class CursedOneResurrection {
         }
         
         // Notify owner
-        if (petComp.getOwner() != null && petComp.getOwner().getWorld() == world) {
+        if (petComp.getOwner() != null && petComp.getOwner().getEntityWorld() == world) {
             double distance = petComp.getOwner().distanceTo(pet);
             if (distance <= 32) {
                 String petName = pet.hasCustomName() ?
@@ -764,7 +764,7 @@ public class CursedOneResurrection {
         if (petComp.getLevel() < 15) {
             return false;
         }
-        if (!(mobEntity.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(mobEntity.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return false;
         }
 
@@ -831,7 +831,7 @@ public class CursedOneResurrection {
             AfterimageManager.startEncasement(cursedPet, "cursed_reanimation", reanimationDuration);
             
             // Notify owner if nearby
-            if (petComp.getOwner() != null && petComp.getOwner().getWorld() == world) {
+            if (petComp.getOwner() != null && petComp.getOwner().getEntityWorld() == world) {
                 double distance = petComp.getOwner().distanceTo(cursedPet);
                 if (distance <= 32) {
                     String petName = cursedPet.hasCustomName() ?
@@ -1080,7 +1080,7 @@ public class CursedOneResurrection {
             playResurrectionFeedback(owner, cursedPet);
 
             // Emit resurrection particles
-            if (owner.getWorld() instanceof ServerWorld serverWorld) {
+            if (owner.getEntityWorld() instanceof ServerWorld serverWorld) {
                 woflo.petsplus.ui.FeedbackManager.emitFeedback("cursed_one_resurrect", owner, serverWorld);
             }
 
@@ -1137,7 +1137,7 @@ public class CursedOneResurrection {
         );
         
         // Create dramatic death effect
-        cursedPet.getWorld().playSound(
+        cursedPet.getEntityWorld().playSound(
             null,
             cursedPet.getX(), cursedPet.getY(), cursedPet.getZ(),
             SoundEvents.ENTITY_WITHER_SPAWN,
@@ -1150,12 +1150,12 @@ public class CursedOneResurrection {
         PetComponent.remove(cursedPet);
         
         // Kill the pet
-        cursedPet.damage((ServerWorld) cursedPet.getWorld(), cursedPet.getDamageSources().magic(), Float.MAX_VALUE);
+        cursedPet.damage((ServerWorld) cursedPet.getEntityWorld(), cursedPet.getDamageSources().magic(), Float.MAX_VALUE);
     }
     
     private static void playResurrectionFeedback(ServerPlayerEntity owner, MobEntity cursedPet) {
         // Play resurrection sound (totem sound but lower pitch)
-        owner.getWorld().playSound(
+        owner.getEntityWorld().playSound(
             null,
             owner.getX(), owner.getY(), owner.getZ(),
             SoundEvents.ITEM_TOTEM_USE,
@@ -1236,7 +1236,7 @@ public class CursedOneResurrection {
             return; // Not a player
         }
 
-        if (!(entity.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(entity.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
 
@@ -1268,7 +1268,7 @@ public class CursedOneResurrection {
             cursedPet.getType().getName().getString();
 
         // Send message to nearby players about the cursed bond
-        ServerWorld world = (ServerWorld) cursedPet.getWorld();
+        ServerWorld world = (ServerWorld) cursedPet.getEntityWorld();
         List<ServerPlayerEntity> nearbyPlayers = world.getEntitiesByClass(
             ServerPlayerEntity.class,
             cursedPet.getBoundingBox().expand(32),

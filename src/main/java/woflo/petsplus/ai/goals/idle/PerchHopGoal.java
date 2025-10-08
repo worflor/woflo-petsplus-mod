@@ -60,8 +60,8 @@ public class PerchHopGoal extends AdaptiveGoal {
             int dy = mob.getRandom().nextInt(3) - 1;
             
             BlockPos candidate = mob.getBlockPos().add(dx, dy, dz);
-            if (!mob.getWorld().getBlockState(candidate).isAir() &&
-                mob.getWorld().getBlockState(candidate.up()).isAir()) {
+            if (!mob.getEntityWorld().getBlockState(candidate).isAir() &&
+                mob.getEntityWorld().getBlockState(candidate.up()).isAir()) {
                 return candidate.up();
             }
         }
@@ -81,3 +81,4 @@ public class PerchHopGoal extends AdaptiveGoal {
         return 0.5f;
     }
 }
+

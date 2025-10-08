@@ -45,7 +45,7 @@ public final class BossBarManager implements PlayerTickListener {
             return 0L;
         }
 
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.getEntityWorld().getServer();
         if (server != null) {
             return server.getTicks();
         }
@@ -526,7 +526,7 @@ public final class BossBarManager implements PlayerTickListener {
      */
     private static long getCurrentTick(ServerPlayerEntity player) {
         try {
-            return player.getWorld().getTime();
+            return player.getEntityWorld().getTime();
         } catch (Exception e) {
             return System.currentTimeMillis() / 50; // Fallback to approximate tick count
         }
@@ -644,3 +644,5 @@ public final class BossBarManager implements PlayerTickListener {
         activeBossBars.clear();
     }
 }
+
+

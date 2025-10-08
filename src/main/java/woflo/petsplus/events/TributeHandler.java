@@ -207,10 +207,10 @@ public class TributeHandler {
             player.sendMessage(Text.translatable("petsplus.tribute.payment_success", milestoneLevel), true);
 
             // Enhanced visual and audio feedback with orbital completion effect
-            woflo.petsplus.ui.TributeOrbitalEffects.emitTributeCompleteEffect(pet, (ServerWorld) pet.getWorld(), milestoneLevel);
+            woflo.petsplus.ui.TributeOrbitalEffects.emitTributeCompleteEffect(pet, (ServerWorld) pet.getEntityWorld(), milestoneLevel);
 
             // Legacy particle effects for compatibility
-            ((ServerWorld) pet.getWorld()).spawnParticles(
+            ((ServerWorld) pet.getEntityWorld()).spawnParticles(
                 net.minecraft.particle.ParticleTypes.END_ROD,
                 pet.getX(), pet.getY() + pet.getHeight() * 0.7, pet.getZ(),
                 15, 0.4, 0.4, 0.4, 0.08
@@ -231,7 +231,7 @@ public class TributeHandler {
             }
 
             if (previousLevel < 30 && petComp.getLevel() >= 30) {
-                ServerWorld serverWorld = (ServerWorld) pet.getWorld();
+                ServerWorld serverWorld = (ServerWorld) pet.getEntityWorld();
                 BestFriendTracker tracker = BestFriendTracker.get(serverWorld);
                 if (tracker.registerBestFriend(serverWorld, player.getUuid(), pet.getUuid())) {
                     HistoryManager.recordBestFriendForeverer(pet, player);
@@ -285,3 +285,6 @@ public class TributeHandler {
         }
     }
 }
+
+
+

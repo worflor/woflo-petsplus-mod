@@ -47,8 +47,8 @@ public final class PlayerStateTracker implements PlayerTickListener {
             FallState state = FALL_STATES.computeIfAbsent(player, ignored -> new FallState());
 
             if (state.nextTick == Long.MAX_VALUE && isFalling(player)) {
-                if (player.getServer() != null) {
-                    state.nextTick = player.getServer().getTicks();
+                if (player.getEntityWorld().getServer() != null) {
+                    state.nextTick = player.getEntityWorld().getServer().getTicks();
                     shouldRequestImmediateRun = true;
                 }
             }
@@ -120,8 +120,8 @@ public final class PlayerStateTracker implements PlayerTickListener {
         // Trigger any resurrection abilities if it was a death respawn
         Map<String, Object> payload = new HashMap<>();
         payload.put("death_respawn", !alive);
-        payload.put("respawn_dimension", newPlayer.getWorld().getRegistryKey().getValue().toString());
-        StateManager.forWorld(newPlayer.getWorld()).fireAbilityTrigger(newPlayer, "owner_respawn", payload);
+        payload.put("respawn_dimension", newPlayer.getEntityWorld().getRegistryKey().getValue().toString());
+        StateManager.forWorld(newPlayer.getEntityWorld()).fireAbilityTrigger(newPlayer, "owner_respawn", payload);
     }
     
     /**
@@ -183,7 +183,7 @@ public final class PlayerStateTracker implements PlayerTickListener {
     }
 
     private static void resumeMonitoring(ServerPlayerEntity player) {
-        if (player == null || player.getServer() == null) {
+        if (player == null || player.getEntityWorld().getServer() == null) {
             return;
         }
 
@@ -191,7 +191,7 @@ public final class PlayerStateTracker implements PlayerTickListener {
         synchronized (FALL_STATES) {
             FallState state = FALL_STATES.computeIfAbsent(player, ignored -> new FallState());
             if (state.nextTick == Long.MAX_VALUE) {
-                state.nextTick = player.getServer().getTicks();
+                state.nextTick = player.getEntityWorld().getServer().getTicks();
                 shouldRequestImmediateRun = true;
             }
         }
@@ -201,3 +201,4 @@ public final class PlayerStateTracker implements PlayerTickListener {
         }
     }
 }
+

@@ -21,7 +21,7 @@ class PetAIEnhancementsTest {
     void enhancePetAIReinitializesAdaptiveGoalsEachTime() {
         MobEntity pet = mock(MobEntity.class, withSettings().extraInterfaces(MobEntityAccessor.class, PetsplusTameable.class));
         World world = new World(null, false);
-        when(pet.getWorld()).thenReturn(world);
+        when(pet.getEntityWorld()).thenReturn(world);
 
         PetComponent component = mock(PetComponent.class);
         when(component.getRoleId()).thenReturn(Identifier.of("petsplus", "guardian"));
@@ -44,3 +44,4 @@ class PetAIEnhancementsTest {
         }
     }
 }
+

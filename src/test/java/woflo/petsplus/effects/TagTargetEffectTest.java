@@ -49,7 +49,7 @@ class TagTargetEffectTest {
         when(context.getTriggerContext()).thenReturn(null);
         when(context.getTarget()).thenReturn(storedTarget);
         when(context.getWorld()).thenReturn(world);
-        when(storedTarget.getWorld()).thenReturn(world);
+        when(storedTarget.getEntityWorld()).thenReturn(world);
         when(world.getTime()).thenReturn(100L);
 
         TagTargetEffect effect = new TagTargetEffect("target", "petsplus:test", 40);
@@ -71,7 +71,7 @@ class TagTargetEffectTest {
 
         when(context.getData("target", Entity.class)).thenReturn(target);
         when(context.getWorld()).thenReturn(null);
-        when(target.getWorld()).thenReturn(world);
+        when(target.getEntityWorld()).thenReturn(world);
         when(world.getTime()).thenReturn(150L);
 
         TagTargetEffect effect = new TagTargetEffect("target", "petsplus:test", 20);
@@ -84,3 +84,5 @@ class TagTargetEffectTest {
         TagTargetEffect.removeTag(target, "petsplus:test");
     }
 }
+
+

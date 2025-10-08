@@ -74,13 +74,15 @@ class ProjectileDrForOwnerEffectTest {
         when(context.getWorld()).thenReturn(null);
         when(owner.isRemoved()).thenReturn(false);
         when(owner.isAlive()).thenReturn(true);
-        when(owner.getWorld()).thenReturn(world);
+        when(owner.getEntityWorld()).thenReturn(world);
         when(world.getTime()).thenReturn(200L);
 
         boolean applied = effect.execute(context);
 
         assertTrue(applied, "Effect should resolve owner world when context world missing");
-        verify(owner).getWorld();
+        verify(owner).getEntityWorld();
         verify(world).getTime();
     }
 }
+
+

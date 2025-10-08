@@ -58,7 +58,7 @@ public class XpEventHandler {
     }
 
     private static void handlePlayerXpGain(ServerPlayerEntity player, int xpGained) {
-        ServerWorld world = (ServerWorld) player.getWorld();
+        ServerWorld world = (ServerWorld) player.getEntityWorld();
         StateManager stateManager = StateManager.forWorld(world);
         EnumSet<OwnerEventType> eventTypes = EnumSet.of(OwnerEventType.XP_GAIN);
         EnumMap<OwnerEventType, Object> payload = new EnumMap<>(OwnerEventType.class);
@@ -87,7 +87,7 @@ public class XpEventHandler {
             return;
         }
 
-        Vec3d center = owner.getPos();
+        Vec3d center = owner.getEntityPos();
         double radius = 32.0;
         double radiusSq = radius * radius;
 
@@ -182,7 +182,7 @@ public class XpEventHandler {
                 }
 
                 if (previousLevel < 30 && petComp.getLevel() >= 30) {
-                    ServerWorld ownerWorld = (ServerWorld) owner.getWorld();
+                    ServerWorld ownerWorld = (ServerWorld) owner.getEntityWorld();
                     BestFriendTracker tracker = BestFriendTracker.get(ownerWorld);
                     if (tracker.registerBestFriend(ownerWorld, owner.getUuid(), pet.getUuid())) {
                         HistoryManager.recordBestFriendForeverer(pet, owner);
@@ -221,7 +221,7 @@ public class XpEventHandler {
      * Amplifies XP gain when pets or players are actively fighting.
      */
     private static float getParticipationModifier(ServerPlayerEntity player, MobEntity pet) {
-        long currentTime = player.getWorld().getTime();
+        long currentTime = player.getEntityWorld().getTime();
         PetsPlusConfig config = PetsPlusConfig.getInstance();
         
         // Check for recent combat activity (within last 30 seconds = 600 ticks)
@@ -243,14 +243,14 @@ public class XpEventHandler {
      * Call this when a player deals damage to track combat activity.
      */
     public static void trackPlayerCombat(ServerPlayerEntity player) {
-        LAST_COMBAT_TIME.put(player, player.getWorld().getTime());
+        LAST_COMBAT_TIME.put(player, player.getEntityWorld().getTime());
     }
     
     /**
      * Call this when a pet deals damage to track combat activity.
      */
     public static void trackPetCombat(MobEntity pet) {
-        LAST_PET_COMBAT.put(pet, pet.getWorld().getTime());
+        LAST_PET_COMBAT.put(pet, pet.getEntityWorld().getTime());
     }
     
     private static void handlePetLevelUp(ServerPlayerEntity owner, MobEntity pet, PetComponent petComp) {
@@ -269,7 +269,7 @@ public class XpEventHandler {
         }
         
         // Play level up sound
-        owner.getWorld().playSound(
+        owner.getEntityWorld().playSound(
             null, 
             pet.getX(), pet.getY(), pet.getZ(), 
             SoundEvents.ENTITY_VILLAGER_YES, 
@@ -299,7 +299,7 @@ public class XpEventHandler {
         // Additional effects for feature levels
         if (petComp.isFeatureLevel()) {
             // Play extra celebratory sound
-            owner.getWorld().playSound(
+            owner.getEntityWorld().playSound(
                 null,
                 pet.getX(), pet.getY(), pet.getZ(),
                 SoundEvents.ENTITY_VILLAGER_CELEBRATE,
@@ -372,7 +372,7 @@ public class XpEventHandler {
             Petsplus.LOGGER.warn("Unknown sound '{}' configured for milestone on pet {}", cue.soundId(), pet.getUuid());
             return;
         }
-        owner.getWorld().playSound(null, pet.getX(), pet.getY(), pet.getZ(), entry.value(), SoundCategory.NEUTRAL, cue.volume(), cue.pitch());
+        owner.getEntityWorld().playSound(null, pet.getX(), pet.getY(), pet.getZ(), entry.value(), SoundCategory.NEUTRAL, cue.volume(), cue.pitch());
     }
     
     /**
@@ -488,3 +488,4 @@ public class XpEventHandler {
         }
     }
 }
+

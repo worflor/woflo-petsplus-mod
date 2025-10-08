@@ -55,7 +55,7 @@ public class EnchantmentBoundSwimGraceEffect implements Effect {
         if (!(ownerEntity instanceof ServerPlayerEntity owner)) {
             return false;
         }
-        if (!(context.getWorld() instanceof ServerWorld world)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
         MobEntity pet = context.getPet();
@@ -86,9 +86,11 @@ public class EnchantmentBoundSwimGraceEffect implements Effect {
     }
 
     private int getEnchantLevel(PlayerEntity owner, net.minecraft.registry.RegistryKey<Enchantment> key) {
-        RegistryEntry<Enchantment> entry = owner.getWorld().getRegistryManager()
+        RegistryEntry<Enchantment> entry = owner.getEntityWorld().getRegistryManager()
             .getOrThrow(RegistryKeys.ENCHANTMENT)
             .getOrThrow(key);
         return getEnchantLevel(owner, entry);
     }
 }
+
+

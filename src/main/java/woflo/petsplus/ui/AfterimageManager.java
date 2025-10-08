@@ -85,7 +85,7 @@ public final class AfterimageManager {
      * Begin an encasement effect around the supplied entity.
      */
     public static void startEncasement(MobEntity entity, String styleKey, int durationTicks) {
-        if (!(entity.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(entity.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
 
@@ -104,7 +104,7 @@ public final class AfterimageManager {
      * Finish the encasement effect, optionally bursting outwards.
      */
     public static void finishEncasement(MobEntity entity, boolean burst) {
-        if (!(entity.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(entity.getEntityWorld() instanceof ServerWorld serverWorld)) {
             ACTIVE_INSTANCES.remove(entity.getUuid());
             return;
         }
@@ -260,7 +260,7 @@ public final class AfterimageManager {
 
         private EncasementInstance(MobEntity entity, EncasementStyle style, long startTick, long durationTicks) {
             this.entityId = entity.getUuid();
-            this.worldId = entity.getWorld().getRegistryKey().getValue();
+            this.worldId = entity.getEntityWorld().getRegistryKey().getValue();
             this.style = style;
             this.startTick = startTick;
             this.durationTicks = Math.max(durationTicks, style.encaseTicks + 20);
@@ -464,3 +464,4 @@ public final class AfterimageManager {
         }
     }
 }
+

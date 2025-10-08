@@ -28,7 +28,7 @@ public class EffectContext {
         this.effectData = new HashMap<>();
     }
     
-    public ServerWorld getWorld() {
+    public ServerWorld getEntityWorld() {
         return world;
     }
     

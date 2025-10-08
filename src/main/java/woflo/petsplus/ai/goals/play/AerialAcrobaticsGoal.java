@@ -24,7 +24,7 @@ public class AerialAcrobaticsGoal extends AdaptiveGoal {
     @Override
     protected boolean canStartGoal() {
         return !mob.isOnGround() && 
-               mob.getY() > mob.getWorld().getSeaLevel() + 5;
+               mob.getY() > mob.getEntityWorld().getSeaLevel() + 5;
     }
     
     @Override
@@ -147,3 +147,4 @@ public class AerialAcrobaticsGoal extends AdaptiveGoal {
         return engagement;
     }
 }
+

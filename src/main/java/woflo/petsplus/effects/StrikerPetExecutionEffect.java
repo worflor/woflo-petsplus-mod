@@ -97,7 +97,7 @@ public final class StrikerPetExecutionEffect implements Effect {
         }
 
         if (emitFeedback) {
-            ServerWorld world = context.getWorld();
+            ServerWorld world = context.getEntityWorld();
             if (world != null) {
                 FeedbackManager.emitStrikerExecution(serverOwner, victim, world,
                     execution.momentumStacks(), execution.momentumFill());
@@ -107,3 +107,5 @@ public final class StrikerPetExecutionEffect implements Effect {
         return true;
     }
 }
+
+

@@ -66,7 +66,7 @@ public class EclipsedCore implements PlayerTickListener {
         UUID playerId = player.getUuid();
         NEXT_FIELD_TICK.put(playerId, currentTick + IDLE_RECHECK_TICKS);
 
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld world)) {
             return;
         }
 
@@ -105,7 +105,7 @@ public class EclipsedCore implements PlayerTickListener {
     }
 
     private static List<MobEntity> getNearbyEclipsedPets(ServerPlayerEntity player, double radius) {
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld world)) {
             return java.util.Collections.emptyList();
         }
 
@@ -127,7 +127,7 @@ public class EclipsedCore implements PlayerTickListener {
      * Check if entity is in darkness (low light level).
      */
     private static boolean isInDarkness(LivingEntity entity) {
-        return entity.getWorld().getLightLevel(entity.getBlockPos()) <= 7;
+        return entity.getEntityWorld().getLightLevel(entity.getBlockPos()) <= 7;
     }
     
     /**
@@ -142,7 +142,7 @@ public class EclipsedCore implements PlayerTickListener {
      * Check if player has active Eclipse Field (L7+ Eclipsed).
      */
     public static boolean hasActiveEclipseField(ServerPlayerEntity player) {
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
         
@@ -168,7 +168,7 @@ public class EclipsedCore implements PlayerTickListener {
             return 0.0f;
         }
         
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld world)) {
             return 0.0f;
         }
         
@@ -197,7 +197,7 @@ public class EclipsedCore implements PlayerTickListener {
             StatusEffects.NIGHT_VISION, 200, 0, true, false)); // 10 seconds
         
         // Additional invisibility during eclipse
-        if (player.getWorld() instanceof ServerWorld world && isEclipseTime(world)) {
+        if (player.getEntityWorld() instanceof ServerWorld world && isEclipseTime(world)) {
             player.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(
                 StatusEffects.INVISIBILITY, 100, 0, true, false)); // 5 seconds
         }
@@ -211,7 +211,7 @@ public class EclipsedCore implements PlayerTickListener {
             return;
         }
         
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld world)) {
             return;
         }
         
@@ -251,7 +251,7 @@ public class EclipsedCore implements PlayerTickListener {
             return 0;
         }
         
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld world)) {
             return 0;
         }
         

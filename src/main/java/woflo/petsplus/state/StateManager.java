@@ -394,7 +394,7 @@ public class StateManager {
             state.tick();
         }
 
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.getEntityWorld().getServer();
         if (server == null) {
             return;
         }
@@ -2612,3 +2612,4 @@ public class StateManager {
         }
     }
 }
+

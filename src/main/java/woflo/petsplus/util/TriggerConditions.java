@@ -5,6 +5,7 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.passive.AbstractHorseEntity;
 import net.minecraft.entity.passive.LlamaEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.Box;
@@ -47,8 +48,11 @@ public class TriggerConditions {
      * @return true if player has something perched
      */
     public static boolean isPerched(PlayerEntity player) {
-        return !player.getShoulderEntityLeft().isEmpty() || 
-               !player.getShoulderEntityRight().isEmpty();
+        if (!(player instanceof ServerPlayerEntity serverPlayer)) {
+            return false;
+        }
+        return !serverPlayer.getLeftShoulderNbt().isEmpty() ||
+               !serverPlayer.getRightShoulderNbt().isEmpty();
     }
     
     /**
@@ -226,7 +230,7 @@ public class TriggerConditions {
      * @return true if player is in combat
      */
     public static boolean isInCombat(PlayerEntity player) {
-        if (player.getWorld() instanceof ServerWorld serverWorld) {
+        if (player.getEntityWorld() instanceof ServerWorld serverWorld) {
             StateManager stateManager = StateManager.forWorld(serverWorld);
             OwnerCombatState combatState = stateManager.getOwnerState(player);
             return combatState.isInCombat();
@@ -240,7 +244,7 @@ public class TriggerConditions {
      * @param inCombat Whether they should be in combat
      */
     public static void setCombatState(PlayerEntity player, boolean inCombat) {
-        if (player.getWorld() instanceof ServerWorld serverWorld) {
+        if (player.getEntityWorld() instanceof ServerWorld serverWorld) {
             StateManager stateManager = StateManager.forWorld(serverWorld);
             OwnerCombatState combatState = stateManager.getOwnerState(player);
             if (inCombat) {
@@ -261,11 +265,11 @@ public class TriggerConditions {
      */
     @Nullable
     public static HostileEntity findNearestHostile(PlayerEntity player, double radius) {
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld world)) {
             return null;
         }
         
-        Box searchBox = Box.of(player.getPos(), radius * 2, radius * 2, radius * 2);
+        Box searchBox = Box.of(player.getEntityPos(), radius * 2, radius * 2, radius * 2);
         return world.getEntitiesByClass(HostileEntity.class, searchBox, entity -> 
             entity.isAlive() && entity.squaredDistanceTo(player) <= radius * radius
         ).stream().min((a, b) -> 
@@ -322,7 +326,7 @@ public class TriggerConditions {
      * Get the number of boss entities near a location.
      */
     public static int countNearbyBosses(LivingEntity center, double radius) {
-        return (int) center.getWorld().getOtherEntities(center, 
+        return (int) center.getEntityWorld().getOtherEntities(center, 
             center.getBoundingBox().expand(radius), 
             entity -> entity instanceof LivingEntity living && isBossEntity(living))
             .size();
@@ -390,3 +394,4 @@ public class TriggerConditions {
         ArmorInfo armorInfo
     ) {}
 }
+

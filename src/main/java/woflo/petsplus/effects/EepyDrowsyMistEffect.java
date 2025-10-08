@@ -79,7 +79,7 @@ public class EepyDrowsyMistEffect implements Effect {
 
     @Override
     public boolean execute(EffectContext context) {
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         MobEntity pet = context.getPet();
         if (pet == null || pet.isRemoved() || !pet.isAlive()) {
             return false;
@@ -114,7 +114,7 @@ public class EepyDrowsyMistEffect implements Effect {
         long now = world.getTime();
         int duration = config.resolveDuration(level);
         long expiryTick = now + duration;
-        Vec3d anchor = pet.getPos();
+        Vec3d anchor = pet.getEntityPos();
 
         ConcurrentMap<UUID, MistInstance> worldStates = ACTIVE_MISTS.computeIfAbsent(world, ignored -> new ConcurrentHashMap<>());
         MistInstance instance = worldStates.compute(pet.getUuid(), (uuid, existing) -> {
@@ -429,3 +429,6 @@ public class EepyDrowsyMistEffect implements Effect {
         }
     }
 }
+
+
+

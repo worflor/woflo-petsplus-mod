@@ -70,7 +70,7 @@ public class PerchOnShoulderGoal extends AdaptiveGoal {
         
         if (!onShoulder) {
             // Approach shoulder position
-            Vec3d targetPos = owner.getPos().add(shoulderOffset);
+            Vec3d targetPos = owner.getEntityPos().add(shoulderOffset);
             
             mob.getNavigation().startMovingTo(
                 targetPos.x, targetPos.y, targetPos.z,
@@ -83,7 +83,7 @@ public class PerchOnShoulderGoal extends AdaptiveGoal {
             }
         } else {
             // Stay on shoulder
-            Vec3d shoulderPos = owner.getPos().add(shoulderOffset);
+            Vec3d shoulderPos = owner.getEntityPos().add(shoulderOffset);
             mob.setPosition(shoulderPos);
             mob.setVelocity(Vec3d.ZERO);
             
@@ -132,3 +132,4 @@ public class PerchOnShoulderGoal extends AdaptiveGoal {
         return Math.min(1.0f, engagement);
     }
 }
+

@@ -21,7 +21,7 @@ public class PetAIEnhancements {
      * This is called when a pet is registered or when their role changes.
      */
     public static void enhancePetAI(MobEntity pet, PetComponent petComponent) {
-        if (pet.getWorld().isClient) return;
+        if (pet.getEntityWorld().isClient()) return;
         
         try {
             // Enhanced follow behavior for all pets
@@ -184,3 +184,4 @@ public class PetAIEnhancements {
         };
     }
 }
+

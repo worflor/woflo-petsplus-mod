@@ -56,7 +56,7 @@ public class OwnerOrbitGoal extends AdaptiveGoal {
         orbitAngle += 0.05; // Slow rotation
         
         // Calculate orbit position
-        orbitTarget = owner.getPos().add(
+        orbitTarget = owner.getEntityPos().add(
             Math.cos(orbitAngle) * orbitRadius,
             0,
             Math.sin(orbitAngle) * orbitRadius
@@ -93,3 +93,4 @@ public class OwnerOrbitGoal extends AdaptiveGoal {
         return engagement;
     }
 }
+

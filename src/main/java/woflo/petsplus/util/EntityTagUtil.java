@@ -18,7 +18,7 @@ public class EntityTagUtil {
     public static void tagEntity(Entity entity, String key, int durationTicks) {
         if (entity == null || key == null) return;
         
-        long expiryTime = entity.getWorld().getTime() + durationTicks;
+        long expiryTime = entity.getEntityWorld().getTime() + durationTicks;
         ENTITY_TAGS.computeIfAbsent(entity, k -> new HashMap<>()).put(key, expiryTime);
     }
     
@@ -28,7 +28,7 @@ public class EntityTagUtil {
     public static boolean hasTag(Entity entity, String key) {
         if (entity == null || key == null) return false;
         
-        long currentTime = entity.getWorld().getTime();
+        long currentTime = entity.getEntityWorld().getTime();
         
         Map<String, Long> entityTags = ENTITY_TAGS.get(entity);
         if (entityTags != null) {

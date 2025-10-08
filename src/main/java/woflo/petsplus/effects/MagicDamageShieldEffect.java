@@ -55,7 +55,7 @@ public class MagicDamageShieldEffect implements Effect {
         if (component == null || !component.hasRole(PetRoleType.ENCHANTMENT_BOUND) || component.getLevel() < minimumLevel) {
             return false;
         }
-        if (!(context.getWorld() instanceof ServerWorld)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld)) {
             return false;
         }
 
@@ -79,3 +79,5 @@ public class MagicDamageShieldEffect implements Effect {
             || source.isOf(DamageTypes.DRAGON_BREATH);
     }
 }
+
+

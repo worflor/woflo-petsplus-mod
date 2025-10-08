@@ -38,7 +38,7 @@ public class SetPetStateDataEffect implements Effect {
             return false;
         }
         
-        if (!(context.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return false;
         }
         
@@ -49,3 +49,5 @@ public class SetPetStateDataEffect implements Effect {
         return true;
     }
 }
+
+

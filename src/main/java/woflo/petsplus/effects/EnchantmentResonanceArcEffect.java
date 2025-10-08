@@ -67,7 +67,7 @@ public final class EnchantmentResonanceArcEffect implements Effect {
             return false;
         }
 
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         if (world == null) {
             return false;
         }
@@ -114,7 +114,7 @@ public final class EnchantmentResonanceArcEffect implements Effect {
             target.damage(world, damageSource, (float) arcDamage);
 
             // Spawn arc particles from primary victim to target
-            spawnArcParticles(world, primaryVictim.getPos(), target.getPos());
+            spawnArcParticles(world, primaryVictim.getEntityPos(), target.getEntityPos());
 
             arcsCreated++;
         }
@@ -195,3 +195,6 @@ public final class EnchantmentResonanceArcEffect implements Effect {
         }
     }
 }
+
+
+

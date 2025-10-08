@@ -82,7 +82,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
             return false;
         }
 
-        long now = owner.getWorld().getTime();
+        long now = owner.getEntityWorld().getTime();
         boolean hesitating = OwnerAssistAttackGoal.isPetHesitating(petComponent, now);
         boolean moodHoldActive = petComponent.isMoodFollowHoldActive(now);
         float moodDistanceBonus = moodHoldActive ? petComponent.getMoodFollowDistanceBonus(now) : 0.0f;
@@ -127,7 +127,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
             return true;
         }
 
-        long now = owner.getWorld().getTime();
+        long now = owner.getEntityWorld().getTime();
         if (OwnerAssistAttackGoal.isPetHesitating(petComponent, now)) {
             return true;
         }
@@ -139,7 +139,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
     public void start() {
         this.stuckCounter = 0;
         this.lastMoveTarget = null;
-        long now = this.mob.getWorld().getTime();
+        long now = this.mob.getEntityWorld().getTime();
         float moodDistanceBonus = petComponent.getMoodFollowDistanceBonus(now);
         this.activeFollowDistance = baseFollowDistance + moodDistanceBonus + petComponent.getFollowSpacingPadding();
     }
@@ -157,7 +157,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
             return;
         }
 
-        long now = owner.getWorld().getTime();
+        long now = owner.getEntityWorld().getTime();
         boolean hesitating = OwnerAssistAttackGoal.isPetHesitating(petComponent, now);
         boolean moodHoldActive = petComponent.isMoodFollowHoldActive(now);
         float moodDistanceBonus = moodHoldActive ? petComponent.getMoodFollowDistanceBonus(now) : 0.0f;
@@ -166,7 +166,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
         float spacingPadding = petComponent.getFollowSpacingPadding();
 
         PetSwarmIndex swarmIndex = null;
-        if (owner.getWorld() instanceof ServerWorld serverWorld) {
+        if (owner.getEntityWorld() instanceof ServerWorld serverWorld) {
             swarmIndex = StateManager.forWorld(serverWorld).getSwarmIndex();
         }
         if (swarmIndex != null && !moodHoldActive) {
@@ -201,7 +201,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
         Entity lookTarget = (!hesitating && this.spacingFocus != null) ? this.spacingFocus : owner;
         this.mob.getLookControl().lookAt(lookTarget, lookYaw, this.mob.getMaxLookPitchChange());
 
-        Vec3d moveTarget = owner.getPos().add(offsetX, 0.0, offsetZ);
+        Vec3d moveTarget = owner.getEntityPos().add(offsetX, 0.0, offsetZ);
         double distanceToOwnerSq = this.mob.squaredDistanceTo(owner);
 
         if (moodHoldActive && !hesitating && distanceToOwnerSq <= (baseDistance * baseDistance)) {
@@ -261,8 +261,8 @@ public class EnhancedFollowOwnerGoal extends Goal {
             return FollowSpacingResult.empty();
         }
 
-        Vec3d ownerPos = owner.getPos();
-        Vec3d petPos = this.mob.getPos();
+        Vec3d ownerPos = owner.getEntityPos();
+        Vec3d petPos = this.mob.getEntityPos();
         Vec3d ownerToPet = petPos.subtract(ownerPos);
         double ownerDistanceSq = ownerToPet.lengthSquared();
         Vec3d forward;
@@ -421,7 +421,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
      * Emergency teleport when normal pathfinding fails.
      */
     private void tryEmergencyTeleport(PlayerEntity owner) {
-        WorldView world = this.mob.getWorld();
+        WorldView world = this.mob.getEntityWorld();
         BlockPos ownerPos = owner.getBlockPos();
 
         for (int i = 0; i < 10; i++) {
@@ -448,3 +448,5 @@ public class EnhancedFollowOwnerGoal extends Goal {
                world.getFluidState(pos).isEmpty();
     }
 }
+
+

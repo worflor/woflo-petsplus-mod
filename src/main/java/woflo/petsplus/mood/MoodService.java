@@ -30,7 +30,7 @@ public final class MoodService implements MoodAPI {
 
     @Override
     public void pushEmotion(MobEntity pet, PetComponent.Emotion emotion, float amount) {
-        if (!(pet.getWorld() instanceof ServerWorld)) return;
+        if (!(pet.getEntityWorld() instanceof ServerWorld)) return;
         PetComponent comp = PetComponent.getOrCreate(pet);
         comp.pushEmotion(emotion, amount);
         if (!isInStimulusDispatch()) {
@@ -172,3 +172,4 @@ public final class MoodService implements MoodAPI {
         }
     }
 }
+

@@ -49,7 +49,7 @@ public final class PetTargetingUtil {
      */
     @Nullable
     public static MobEntity findTargetPet(ServerPlayerEntity player, boolean useRaycast) {
-        if (!(player.getWorld() instanceof ServerWorld world)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld world)) {
             return null;
         }
         
@@ -92,7 +92,7 @@ public final class PetTargetingUtil {
         
         for (PetSwarmIndex.SwarmEntry entry : swarm) {
             MobEntity mob = entry.pet();
-            if (mob == null || !mob.isAlive() || mob.isRemoved() || mob.getWorld() != world) {
+            if (mob == null || !mob.isAlive() || mob.isRemoved() || mob.getEntityWorld() != world) {
                 continue;
             }
             
@@ -166,3 +166,4 @@ public final class PetTargetingUtil {
         return PROXIMITY_FALLBACK_DISTANCE;
     }
 }
+

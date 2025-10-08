@@ -81,8 +81,10 @@ public interface SittingOffsetTracker {
         this.petsplus$setSittingOffsetApplied(applied);
 
         MobEntity mob = this.petsplus$asMobEntity();
-        if (!mob.getWorld().isClient) {
+        if (!mob.getEntityWorld().isClient()) {
             PetComponent.getOrCreate(mob).setStateData("petsplus:sitting_offset", applied);
         }
     }
 }
+
+

@@ -47,7 +47,7 @@ public final class OwnerApproachDetector {
         UUID playerId = player.getUuid();
         MovementHistory history = MOVEMENT_CACHE.computeIfAbsent(playerId, id -> new MovementHistory());
         
-        Vec3d currentPos = player.getPos();
+        Vec3d currentPos = player.getEntityPos();
         history.addPosition(currentPos, tick);
     }
     
@@ -78,8 +78,8 @@ public final class OwnerApproachDetector {
         }
         
         // Calculate direction from player to pet
-        Vec3d playerPos = player.getPos();
-        Vec3d petPos = pet.getPos();
+        Vec3d playerPos = player.getEntityPos();
+        Vec3d petPos = pet.getEntityPos();
         Vec3d toPet = petPos.subtract(playerPos).normalize();
         
         // Check if movement vector aligns with direction to pet
@@ -131,8 +131,8 @@ public final class OwnerApproachDetector {
             return Vec3d.ZERO;
         }
         
-        Vec3d playerPos = player.getPos();
-        Vec3d petPos = pet.getPos();
+        Vec3d playerPos = player.getEntityPos();
+        Vec3d petPos = pet.getEntityPos();
         
         Vec3d direction = petPos.subtract(playerPos);
         double length = direction.length();
@@ -203,3 +203,4 @@ public final class OwnerApproachDetector {
         }
     }
 }
+

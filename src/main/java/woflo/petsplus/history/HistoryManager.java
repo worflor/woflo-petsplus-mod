@@ -34,7 +34,7 @@ public class HistoryManager {
         try {
             PetComponent component = PetComponent.get(pet);
             if (component != null) {
-                long timestamp = pet.getWorld().getTime();
+                long timestamp = pet.getEntityWorld().getTime();
                 HistoryEvent event = HistoryEvent.trade(
                     timestamp,
                     fromOwner.getUuid(),
@@ -69,7 +69,7 @@ public class HistoryManager {
         try {
             PetComponent component = PetComponent.get(pet);
             if (component != null && component.getOwner() instanceof ServerPlayerEntity owner) {
-                long timestamp = pet.getWorld().getTime();
+                long timestamp = pet.getEntityWorld().getTime();
                 HistoryEvent event = HistoryEvent.levelUp(
                     timestamp,
                     owner.getUuid(),
@@ -102,7 +102,7 @@ public class HistoryManager {
         try {
             PetComponent component = PetComponent.get(pet);
             if (component != null && component.getOwner() instanceof ServerPlayerEntity owner) {
-                long timestamp = pet.getWorld().getTime();
+                long timestamp = pet.getEntityWorld().getTime();
                 HistoryEvent event = HistoryEvent.combat(
                     timestamp,
                     owner.getUuid(),
@@ -135,7 +135,7 @@ public class HistoryManager {
         try {
             PetComponent component = PetComponent.get(pet);
             if (component != null && component.getOwner() instanceof ServerPlayerEntity owner) {
-                long timestamp = pet.getWorld().getTime();
+                long timestamp = pet.getEntityWorld().getTime();
                 HistoryEvent event = HistoryEvent.moodMilestone(
                     timestamp,
                     owner.getUuid(),
@@ -168,7 +168,7 @@ public class HistoryManager {
         try {
             PetComponent component = PetComponent.get(pet);
             if (component != null) {
-                long timestamp = pet.getWorld().getTime();
+                long timestamp = pet.getEntityWorld().getTime();
                 HistoryEvent event = HistoryEvent.ownershipStart(
                     timestamp,
                     owner.getUuid(),
@@ -200,7 +200,7 @@ public class HistoryManager {
         try {
             PetComponent component = PetComponent.get(pet);
             if (component != null && component.getOwner() instanceof ServerPlayerEntity owner) {
-                long timestamp = pet.getWorld().getTime();
+                long timestamp = pet.getEntityWorld().getTime();
                 HistoryEvent event = HistoryEvent.roleChange(
                     timestamp,
                     owner.getUuid(),
@@ -233,7 +233,7 @@ public class HistoryManager {
         try {
             PetComponent component = PetComponent.get(pet);
             if (component != null) {
-                long timestamp = pet.getWorld().getTime();
+                long timestamp = pet.getEntityWorld().getTime();
                 HistoryEvent event = HistoryEvent.dreamEscape(
                     timestamp,
                     owner.getUuid(),
@@ -265,7 +265,7 @@ public class HistoryManager {
         try {
             PetComponent component = PetComponent.get(pet);
             if (component != null) {
-                long timestamp = pet.getWorld().getTime();
+                long timestamp = pet.getEntityWorld().getTime();
                 HistoryEvent event = HistoryEvent.petSacrifice(
                     timestamp,
                     owner.getUuid(),
@@ -298,7 +298,7 @@ public class HistoryManager {
         try {
             PetComponent component = PetComponent.get(pet);
             if (component != null) {
-                long timestamp = pet.getWorld().getTime();
+                long timestamp = pet.getEntityWorld().getTime();
                 HistoryEvent event = HistoryEvent.guardianProtection(
                     timestamp,
                     owner.getUuid(),
@@ -332,7 +332,7 @@ public class HistoryManager {
         try {
             PetComponent component = PetComponent.get(pet);
             if (component != null) {
-                long timestamp = pet.getWorld().getTime();
+                long timestamp = pet.getEntityWorld().getTime();
                 HistoryEvent event = HistoryEvent.allyHealed(
                     timestamp,
                     owner.getUuid(),
@@ -365,7 +365,7 @@ public class HistoryManager {
         try {
             PetComponent component = PetComponent.get(pet);
             if (component != null) {
-                long timestamp = pet.getWorld().getTime();
+                long timestamp = pet.getEntityWorld().getTime();
                 HistoryEvent event = HistoryEvent.bestFriendForeverer(
                     timestamp,
                     owner.getUuid(),
@@ -396,7 +396,7 @@ public class HistoryManager {
         try {
             PetComponent component = PetComponent.get(pet);
             if (component != null) {
-                long timestamp = pet.getWorld().getTime();
+                long timestamp = pet.getEntityWorld().getTime();
                 HistoryEvent event = HistoryEvent.orNot(
                     timestamp,
                     owner.getUuid(),
@@ -419,3 +419,4 @@ public class HistoryManager {
         return MAX_HISTORY_SIZE;
     }
 }
+

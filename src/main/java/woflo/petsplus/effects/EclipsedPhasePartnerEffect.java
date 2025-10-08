@@ -61,7 +61,7 @@ public class EclipsedPhasePartnerEffect implements Effect {
 
     @Override
     public boolean execute(EffectContext context) {
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         MobEntity pet = context.getPet();
         PlayerEntity owner = context.getOwner();
         if (world == null || pet == null || owner == null) {
@@ -77,7 +77,7 @@ public class EclipsedPhasePartnerEffect implements Effect {
             return false;
         }
 
-        Vec3d center = owner.getPos();
+        Vec3d center = owner.getEntityPos();
         Box search = Box.of(center, radius * 2, radius * 2, radius * 2);
         List<HostileEntity> hostiles = world.getEntitiesByClass(HostileEntity.class, search, entity -> entity.isAlive() && entity.squaredDistanceTo(center) <= radius * radius);
         if (hostiles.isEmpty()) {
@@ -103,8 +103,8 @@ public class EclipsedPhasePartnerEffect implements Effect {
     }
 
     private void emitFeedback(ServerWorld world, MobEntity pet, Entity target) {
-        Vec3d start = pet.getPos();
-        Vec3d end = target.getPos();
+        Vec3d start = pet.getEntityPos();
+        Vec3d end = target.getEntityPos();
         for (int i = 0; i <= 8; i++) {
             double t = i / 8.0D;
             double x = start.x + (end.x - start.x) * t;
@@ -115,3 +115,6 @@ public class EclipsedPhasePartnerEffect implements Effect {
         world.playSound(null, start.x, start.y, start.z, SoundEvents.ENTITY_ENDERMAN_AMBIENT, SoundCategory.NEUTRAL, 0.4F, 1.2F);
     }
 }
+
+
+

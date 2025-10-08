@@ -60,11 +60,14 @@ public class PetDeathHandler {
     
     private static void onEntityDeath(LivingEntity entity, DamageSource damageSource) {
         if (!(entity instanceof MobEntity mobEntity)) return;
-        if (!(entity.getWorld() instanceof ServerWorld serverWorld)) return;
+        if (!(entity.getEntityWorld() instanceof ServerWorld serverWorld)) return;
         
         PetComponent petComp = PetComponent.get(mobEntity);
         if (petComp == null) return; // Not a pet
         
+        if (!petComp.hasAssignedRole() || petComp.getOwnerUuid() == null) {
+            return;
+        }
         // All pets that reach this point die permanently
         // (Cursed One resurrection prevention is handled in CursedOneResurrection.java)
         if (!isAssuredPermanentDeath(mobEntity, petComp)) {
@@ -108,7 +111,7 @@ public class PetDeathHandler {
         ProofOfExistence.dropMemorial(pet, petComp, world);
 
         // Notify owner if nearby and alive
-        if (serverOwner != null && !serverOwner.isDead() && serverOwner.getWorld() == world) {
+        if (serverOwner != null && !serverOwner.isDead() && serverOwner.getEntityWorld() == world) {
             double distance = serverOwner.distanceTo(pet);
             if (distance <= 64) { // Within 64 blocks
 
@@ -172,4 +175,5 @@ public class PetDeathHandler {
         return true;
     }
 }
+
 

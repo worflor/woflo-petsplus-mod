@@ -67,7 +67,7 @@ public class PetDetectionHandler {
             return;
         }
 
-        MinecraftServer server = mob.getServer();
+        MinecraftServer server = mob.getEntityWorld().getServer();
         if (server == null) {
             return;
         }
@@ -90,7 +90,7 @@ public class PetDetectionHandler {
                     return;
                 }
 
-                Identifier existingRole = existingComponent.getRoleId();
+                Identifier existingRole = existingComponent.getAssignedRoleId();
                 if (existingRole != null && PetsPlusRegistries.petRoleTypeRegistry().get(existingRole) != null) {
                     pendingRoleSelection.remove(mob);
 
@@ -127,11 +127,11 @@ public class PetDetectionHandler {
             }
         }
         if (owner == null && mob.getType().toString().contains("ocelot")) {
-            PlayerEntity nearest = mob.getWorld().getClosestPlayer(mob, 8.0);
+            PlayerEntity nearest = mob.getEntityWorld().getClosestPlayer(mob, 8.0);
             if (nearest != null && nearest.isAlive()) owner = nearest;
         }
         if (owner == null && mob instanceof FoxEntity fox) {
-            PlayerEntity nearest = mob.getWorld().getClosestPlayer(mob, 8.0);
+            PlayerEntity nearest = mob.getEntityWorld().getClosestPlayer(mob, 8.0);
             if (nearest != null && nearest.isAlive()) {
                 boolean trusted = false;
                 try {
@@ -319,7 +319,7 @@ public class PetDetectionHandler {
         PetComponent existingComponent = PetComponent.get(mob);
         boolean hasRegisteredRole = false;
         if (existingComponent != null && !pendingRoleSelection.containsKey(mob)) {
-            Identifier roleId = existingComponent.getRoleId();
+            Identifier roleId = existingComponent.getAssignedRoleId();
             hasRegisteredRole = PetsPlusRegistries.petRoleTypeRegistry().get(roleId) != null;
         }
 
@@ -328,7 +328,7 @@ public class PetDetectionHandler {
             promptRoleSelection(mob, owner);
         }
 
-        if (mob.getWorld() instanceof ServerWorld serverWorld) {
+        if (mob.getEntityWorld() instanceof ServerWorld serverWorld) {
             PetComponent component = existingComponent != null ? existingComponent : PetComponent.getOrCreate(mob);
             component.ensureImprint();
             if (component.getNatureId() == null) {
@@ -393,3 +393,4 @@ public class PetDetectionHandler {
         Petsplus.LOGGER.debug("Unregistered pet {}", mob.getType().toString());
     }
 }
+

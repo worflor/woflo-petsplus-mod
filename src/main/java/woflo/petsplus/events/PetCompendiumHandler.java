@@ -77,14 +77,14 @@ public class PetCompendiumHandler {
         }
         
         // Cooldown check
-        long currentTime = player.getWorld().getTime();
+        long currentTime = player.getEntityWorld().getTime();
         Long lastUse = LAST_USE_TIME.get(player.getUuid());
         if (lastUse != null && currentTime - lastUse < USE_COOLDOWN_TICKS) {
             return ActionResult.PASS;
         }
         
         // Try to find the pet entity in the player's world
-        Entity entity = player.getWorld().getEntity(lastPetUuid);
+        Entity entity = player.getEntityWorld().getEntity(lastPetUuid);
         
         if (entity == null) {
             // Pet not in current world (different dimension, unloaded, or dead)
@@ -137,7 +137,7 @@ public class PetCompendiumHandler {
         
         // Visual and audio feedback
         player.swingHand(player.getActiveHand(), true);
-        player.getWorld().playSound(null, player.getBlockPos(), 
+        player.getEntityWorld().playSound(null, player.getBlockPos(), 
             SoundEvents.ITEM_BOOK_PAGE_TURN, 
             SoundCategory.PLAYERS, 0.8f, 1.2f); // Slightly higher pitch for "refresh"
         
@@ -195,9 +195,12 @@ public class PetCompendiumHandler {
     }
     
     private static void openCompendiumScreen(ServerPlayerEntity player, MobEntity pet, PetComponent pc) {
-        long currentTick = player.getWorld().getTime();
+        long currentTick = player.getEntityWorld().getTime();
         
         // Open the actual written book GUI
         woflo.petsplus.ui.CompendiumBookBuilder.openCompendium(player, pet, pc, currentTick);
     }
 }
+
+
+

@@ -43,7 +43,7 @@ public class PerchPotionSipReductionEffect implements Effect {
 
         PlayerEntity owner = context.getOwner();
         MobEntity pet = context.getPet();
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
 
         if (owner == null || pet == null || world == null) {
             return false;
@@ -66,3 +66,4 @@ public class PerchPotionSipReductionEffect implements Effect {
     }
     
 }
+

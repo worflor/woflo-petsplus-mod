@@ -29,7 +29,7 @@ public final class OwnerAbilitySignalAbilityBridge {
             return;
         }
 
-        ServerWorld world = (ServerWorld) owner.getWorld();
+        ServerWorld world = (ServerWorld) owner.getEntityWorld();
         String eventType = mapEventType(type);
         if (eventType == null) {
             return;
@@ -56,3 +56,4 @@ public final class OwnerAbilitySignalAbilityBridge {
         };
     }
 }
+

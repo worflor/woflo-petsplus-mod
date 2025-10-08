@@ -60,12 +60,12 @@ public final class StargazeMechanic implements PlayerTickListener {
             return 0L;
         }
 
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.getEntityWorld().getServer();
         if (server != null) {
             return server.getTicks();
         }
 
-        return player.getWorld().getTime();
+        return player.getEntityWorld().getTime();
     }
 
     private static void scheduleTick(ServerPlayerEntity player, long desiredTick) {
@@ -77,7 +77,7 @@ public final class StargazeMechanic implements PlayerTickListener {
         UUID playerId = player.getUuid();
         NEXT_WAKE_TICKS.merge(playerId, normalizedTick, Math::min);
 
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.getEntityWorld().getServer();
         if (server != null && normalizedTick <= server.getTicks()) {
             PlayerTickDispatcher.requestImmediateRun(player, INSTANCE);
         }
@@ -103,7 +103,7 @@ public final class StargazeMechanic implements PlayerTickListener {
      */
     public static void startStargazeWindow(ServerPlayerEntity player) {
         long windowDuration = PetsPlusConfig.getInstance().getSectionInt("bond", "stargazeWindowTicks", 2400); // 2 minutes
-        stargazeWindows.put(player.getUuid(), player.getWorld().getTime() + windowDuration);
+        stargazeWindows.put(player.getUuid(), player.getEntityWorld().getTime() + windowDuration);
 
         player.sendMessage(Text.translatable("petsplus.stargaze.shimmer"), false);
     }
@@ -112,12 +112,12 @@ public final class StargazeMechanic implements PlayerTickListener {
      * Invoked from mixins when a player toggles sneaking.
      */
     public static void handleSneakToggle(ServerPlayerEntity player, boolean sneaking) {
-        if (player == null || player.getWorld().isClient()) {
+        if (player == null || player.getEntityWorld().isClient()) {
             return;
         }
 
         UUID playerId = player.getUuid();
-        long now = player.getWorld().getTime();
+        long now = player.getEntityWorld().getTime();
 
         if (!sneaking) {
             StargazeSession session = activeSessions.remove(playerId);
@@ -136,7 +136,7 @@ public final class StargazeMechanic implements PlayerTickListener {
             return;
         }
 
-        if (!isNightTime((ServerWorld) player.getWorld())) {
+        if (!isNightTime((ServerWorld) player.getEntityWorld())) {
             player.sendMessage(Text.translatable("petsplus.stargaze.wait_for_night"), false);
             return;
         }
@@ -161,7 +161,7 @@ public final class StargazeMechanic implements PlayerTickListener {
      * Called when a tracked player sends a movement packet.
      */
     public static void handlePlayerMove(ServerPlayerEntity player) {
-        if (player == null || player.getWorld().isClient()) {
+        if (player == null || player.getEntityWorld().isClient()) {
             return;
         }
 
@@ -182,14 +182,14 @@ public final class StargazeMechanic implements PlayerTickListener {
 
     @Override
     public void run(ServerPlayerEntity player, long currentTick) {
-        if (player == null || player.getWorld().isClient()) {
+        if (player == null || player.getEntityWorld().isClient()) {
             return;
         }
 
         UUID playerId = player.getUuid();
         NEXT_WAKE_TICKS.remove(playerId);
 
-        long now = player.getWorld().getTime();
+        long now = player.getEntityWorld().getTime();
         // Drop expired windows when players stay idle beyond the grace period.
         isWindowActive(player, now);
 
@@ -229,7 +229,7 @@ public final class StargazeMechanic implements PlayerTickListener {
             return;
         }
 
-        ServerWorld world = (ServerWorld) player.getWorld();
+        ServerWorld world = (ServerWorld) player.getEntityWorld();
         if (!isNightTime(world)) {
             activeSessions.remove(player.getUuid());
             player.sendMessage(Text.translatable("petsplus.stargaze.wait_for_night"), false);
@@ -254,7 +254,7 @@ public final class StargazeMechanic implements PlayerTickListener {
 
         double range = PetsPlusConfig.getInstance().getSectionDouble("bond", "stargazeRange", 3.0);
         double maxDistance = range + 0.5;
-        if (player.getPos().distanceTo(pet.getPos()) > maxDistance) {
+        if (player.getEntityPos().distanceTo(pet.getEntityPos()) > maxDistance) {
             activeSessions.remove(player.getUuid());
             player.sendMessage(Text.translatable("petsplus.stargaze.too_far"), false);
             cancelScheduledRuns(player);
@@ -283,8 +283,8 @@ public final class StargazeMechanic implements PlayerTickListener {
     }
 
     private static void emitAmbientParticles(ServerWorld world, ServerPlayerEntity player, MobEntity pet) {
-        Vec3d playerPos = player.getPos();
-        Vec3d petPos = pet.getPos();
+        Vec3d playerPos = player.getEntityPos();
+        Vec3d petPos = pet.getEntityPos();
 
         world.spawnParticles(
             net.minecraft.particle.ParticleTypes.ENCHANT,
@@ -335,18 +335,18 @@ public final class StargazeMechanic implements PlayerTickListener {
         player.sendMessage(Text.of("§5✦ §d" + petName + " gazes at you with pure love... You know they've got your back. §5✦"), false);
 
         // Particle effects (heart particles)
-        Vec3d petPos = pet.getPos();
-        Vec3d playerPos = player.getPos();
+        Vec3d petPos = pet.getEntityPos();
+        Vec3d playerPos = player.getEntityPos();
         Vec3d midPoint = petPos.add(playerPos).multiply(0.5);
 
-        ((ServerWorld) player.getWorld()).spawnParticles(
+        ((ServerWorld) player.getEntityWorld()).spawnParticles(
             net.minecraft.particle.ParticleTypes.HEART,
             midPoint.x, midPoint.y + 1, midPoint.z,
             10, 0.5, 0.5, 0.5, 0.1
         );
 
         // Sound effect
-        player.getWorld().playSound(null, player.getX(), player.getY(), player.getZ(),
+        player.getEntityWorld().playSound(null, player.getX(), player.getY(), player.getZ(),
             net.minecraft.sound.SoundEvents.ENTITY_ALLAY_AMBIENT_WITH_ITEM,
             net.minecraft.sound.SoundCategory.NEUTRAL, 0.8f, 1.2f);
     }
@@ -357,7 +357,7 @@ public final class StargazeMechanic implements PlayerTickListener {
     private static MobEntity findNearbySittingPet(ServerPlayerEntity player) {
         double range = PetsPlusConfig.getInstance().getSectionDouble("bond", "stargazeRange", 3.0);
 
-        return ((ServerWorld) player.getWorld()).getEntitiesByClass(
+        return ((ServerWorld) player.getEntityWorld()).getEntitiesByClass(
             MobEntity.class,
             player.getBoundingBox().expand(range),
             entity -> {
@@ -420,7 +420,7 @@ public final class StargazeMechanic implements PlayerTickListener {
      * Check if a player is currently in a stargaze window
      */
     public static boolean isInStargazeWindow(ServerPlayerEntity player) {
-        return isWindowActive(player, player.getWorld().getTime());
+        return isWindowActive(player, player.getEntityWorld().getTime());
     }
 
     /**
@@ -429,7 +429,7 @@ public final class StargazeMechanic implements PlayerTickListener {
     public static long getStargazeWindowRemaining(ServerPlayerEntity player) {
         Long windowEnd = stargazeWindows.get(player.getUuid());
         if (windowEnd == null) return 0;
-        return Math.max(0, windowEnd - player.getWorld().getTime());
+        return Math.max(0, windowEnd - player.getEntityWorld().getTime());
     }
 
     /**
@@ -443,7 +443,7 @@ public final class StargazeMechanic implements PlayerTickListener {
     }
 
     private static boolean isCrouchChannelActive(ServerPlayerEntity player, long now) {
-        if (!(player.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(player.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return false;
         }
 
@@ -472,7 +472,7 @@ public final class StargazeMechanic implements PlayerTickListener {
             return;
         }
 
-        if (!(pet.getWorld() instanceof ServerWorld world)) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld world)) {
             return;
         }
 
@@ -493,3 +493,8 @@ public final class StargazeMechanic implements PlayerTickListener {
         }
     }
 }
+
+
+
+
+

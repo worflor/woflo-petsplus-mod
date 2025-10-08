@@ -78,7 +78,7 @@ public class SupportPotionPulseEffect implements Effect {
     public boolean execute(EffectContext context) {
         PlayerEntity owner = context.getOwner();
         MobEntity pet = context.getPet();
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         if (!(owner instanceof ServerPlayerEntity serverOwner) || pet == null || world == null) {
             return false;
         }
@@ -273,12 +273,12 @@ public class SupportPotionPulseEffect implements Effect {
         }
         switch (particleEvent) {
             case "support" -> emitSupportParticles(world, pet, radius, recipients);
-            default -> emitGenericParticles(world, pet.getPos());
+            default -> emitGenericParticles(world, pet.getEntityPos());
         }
     }
 
     private void emitSupportParticles(ServerWorld world, MobEntity pet, double radius, Set<LivingEntity> recipients) {
-        Vec3d center = pet.getPos();
+        Vec3d center = pet.getEntityPos();
         int count = Math.max(4, recipients.size() * 3);
         for (int i = 0; i < count; i++) {
             double angle = i * (Math.PI * 2 / count);
@@ -297,3 +297,6 @@ public class SupportPotionPulseEffect implements Effect {
         return pet instanceof PetsplusTameable tameable && tameable.petsplus$isSitting();
     }
 }
+
+
+

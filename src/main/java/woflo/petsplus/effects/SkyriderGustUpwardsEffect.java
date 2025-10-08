@@ -79,7 +79,7 @@ public class SkyriderGustUpwardsEffect implements Effect {
             return false;
         }
 
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         MobEntity pet = context.getPet();
 
         boolean triggered = applyLift(serverOwner, verticalBoost, forwardPush, ownerSlowFallTicks, true);
@@ -89,7 +89,7 @@ public class SkyriderGustUpwardsEffect implements Effect {
                 forwardPush * 0.8, ownerSlowFallTicks);
         }
 
-        if (includePet && pet != null && pet.getWorld() == world) {
+        if (includePet && pet != null && pet.getEntityWorld() == world) {
             triggered |= applyLift(pet, Math.max(0.0, verticalBoost * petLiftScale),
                 forwardPush * 0.5, petSlowFallTicks, true);
         }
@@ -204,15 +204,15 @@ public class SkyriderGustUpwardsEffect implements Effect {
     private boolean hasLaunchSpace(LivingEntity living, double vertical) {
         double height = MathHelper.clamp(vertical + living.getHeight() * 0.5, 0.5, 4.0);
         Box box = living.getBoundingBox().stretch(0.25, height, 0.25).offset(0.0, 0.05, 0.0);
-        return living.getWorld().isSpaceEmpty(living, box);
+        return living.getEntityWorld().isSpaceEmpty(living, box);
     }
 
     private void spawnGustParticles(Entity entity, boolean verticalLaunch) {
-        if (!(entity.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(entity.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
 
-        Vec3d pos = entity.getPos();
+        Vec3d pos = entity.getEntityPos();
         double baseY = pos.y + entity.getStandingEyeHeight() * 0.4;
         double swirlRadius = 0.4 + entity.getWidth() * 0.3;
 
@@ -235,3 +235,6 @@ public class SkyriderGustUpwardsEffect implements Effect {
     }
 
 }
+
+
+

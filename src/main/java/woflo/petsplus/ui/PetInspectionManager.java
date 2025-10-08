@@ -174,7 +174,7 @@ public final class PetInspectionManager {
         boolean injured = healthPercent < 1.0f;
         boolean critical = healthPercent <= 0.25f;
         boolean inCombat = pet.getAttacking() != null || pet.getAttacker() != null ||
-                          (pet.getWorld().getTime() - comp.getLastAttackTick()) < 60; // 3 seconds since last damage
+                          (pet.getEntityWorld().getTime() - comp.getLastAttackTick()) < 60; // 3 seconds since last damage
 
         // Check for cooldowns and auras
         boolean hasCooldowns = hasActiveCooldowns(comp);
@@ -286,9 +286,9 @@ public final class PetInspectionManager {
         boolean currentlyHasFocus = inspecting.containsKey(player.getUuid());
         double bestDot = currentlyHasFocus ? 0.94 : 0.96; // Looser when maintaining focus
         MobEntity best = null;
-        for (Entity e : player.getWorld().getOtherEntities(player, player.getBoundingBox().expand(VIEW_DIST))) {
+        for (Entity e : player.getEntityWorld().getOtherEntities(player, player.getBoundingBox().expand(VIEW_DIST))) {
             if (!(e instanceof MobEntity mob)) continue;
-            Vec3d to = e.getPos().add(0, e.getStandingEyeHeight() * 0.5, 0).subtract(start).normalize();
+            Vec3d to = e.getEntityPos().add(0, e.getStandingEyeHeight() * 0.5, 0).subtract(start).normalize();
             double dot = to.dotProduct(look);
             if (dot > bestDot && player.squaredDistanceTo(e) <= VIEW_DIST * VIEW_DIST) {
                 bestDot = dot;
@@ -427,7 +427,7 @@ public final class PetInspectionManager {
         }
 
         // Create or update scoreboard objective
-        var scoreboard = player.getServer().getScoreboard();
+        var scoreboard = player.getEntityWorld().getServer().getScoreboard();
         var objective = scoreboard.getNullableObjective("pet_emotions");
 
         if (objective == null) {
@@ -496,7 +496,7 @@ public final class PetInspectionManager {
      * Clear the emotion debug scoreboard
      */
     private static void clearEmotionScoreboard(ServerPlayerEntity player) {
-        var scoreboard = player.getServer().getScoreboard();
+        var scoreboard = player.getEntityWorld().getServer().getScoreboard();
         var objective = scoreboard.getNullableObjective("pet_emotions");
 
         if (objective != null) {
@@ -579,3 +579,6 @@ public final class PetInspectionManager {
         }
     }
 }
+
+
+

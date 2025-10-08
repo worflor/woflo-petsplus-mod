@@ -83,7 +83,7 @@ public class EnchantmentBoundExtraDropsEffect implements Effect {
         if (!(context.getOwner() instanceof ServerPlayerEntity owner)) {
             return false;
         }
-        if (!(context.getWorld() instanceof ServerWorld world)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
         PetComponent component = PetComponent.get(context.getPet());
@@ -194,7 +194,7 @@ public class EnchantmentBoundExtraDropsEffect implements Effect {
     }
 
     private int getEnchantLevel(PlayerEntity owner, net.minecraft.registry.RegistryKey<Enchantment> key) {
-        RegistryEntry<Enchantment> entry = owner.getWorld().getRegistryManager()
+        RegistryEntry<Enchantment> entry = owner.getEntityWorld().getRegistryManager()
             .getOrThrow(RegistryKeys.ENCHANTMENT)
             .getOrThrow(key);
         return getEnchantLevel(owner, entry);
@@ -205,3 +205,5 @@ public class EnchantmentBoundExtraDropsEffect implements Effect {
         MOB
     }
 }
+
+

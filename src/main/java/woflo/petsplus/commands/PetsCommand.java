@@ -628,7 +628,7 @@ public class PetsCommand {
     }
 
     private static List<MobEntity> findNearbyOwnedPets(ServerPlayerEntity player) {
-        return player.getWorld().getEntitiesByClass(
+        return player.getEntityWorld().getEntitiesByClass(
             MobEntity.class,
             player.getBoundingBox().expand(10),
             entity -> {

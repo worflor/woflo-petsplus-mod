@@ -76,7 +76,7 @@ public class PetOwnershipTransfers {
             pet.attachLeash(recipient, true);
             
             // Update state manager
-            StateManager stateManager = StateManager.forWorld((ServerWorld) pet.getWorld());
+            StateManager stateManager = StateManager.forWorld((ServerWorld) pet.getEntityWorld());
             if (stateManager != null) {
                 stateManager.getPetComponent(pet);
                 // Note: invalidatePetSwarmCache is a static method in CombatEventHandler
@@ -228,3 +228,4 @@ public class PetOwnershipTransfers {
         }
     }
 }
+

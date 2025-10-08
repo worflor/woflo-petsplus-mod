@@ -42,9 +42,9 @@ public class OwnerNextAttackBonusEffect implements Effect {
             return false;
         }
 
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         if (world == null) {
-            if (owner.getWorld() instanceof ServerWorld ownerWorld) {
+            if (owner.getEntityWorld() instanceof ServerWorld ownerWorld) {
                 world = ownerWorld;
             } else {
                 return false;
@@ -96,3 +96,4 @@ public class OwnerNextAttackBonusEffect implements Effect {
         }
     }
 }
+

@@ -31,7 +31,7 @@ public class CombatThreatProvider implements EmotionProvider, ReactiveEmotionPro
             return;
         }
         dispatchListener = (pet, component, time) -> {
-            if (!(pet.getWorld() instanceof ServerWorld world)) {
+            if (!(pet.getEntityWorld() instanceof ServerWorld world)) {
                 return;
             }
             contribute(world, pet, component, time, MoodService.getInstance());
@@ -191,7 +191,7 @@ public class CombatThreatProvider implements EmotionProvider, ReactiveEmotionPro
         double centerX = 0, centerY = 0, centerZ = 0;
         double avgDistanceToCenter = 0;
         for (LivingEntity hostile : hostiles) {
-            net.minecraft.util.math.Vec3d pos = hostile.getPos();
+            net.minecraft.util.math.Vec3d pos = hostile.getEntityPos();
             centerX += pos.x;
             centerY += pos.y;
             centerZ += pos.z;
@@ -203,7 +203,7 @@ public class CombatThreatProvider implements EmotionProvider, ReactiveEmotionPro
         // Calculate how spread out the mobs are
         double totalDistance = 0;
         for (LivingEntity hostile : hostiles) {
-            net.minecraft.util.math.Vec3d pos = hostile.getPos();
+            net.minecraft.util.math.Vec3d pos = hostile.getEntityPos();
             double dist = Math.sqrt(Math.pow(pos.x - centerX, 2) + Math.pow(pos.y - centerY, 2) + Math.pow(pos.z - centerZ, 2));
             totalDistance += dist;
         }
@@ -235,3 +235,5 @@ public class CombatThreatProvider implements EmotionProvider, ReactiveEmotionPro
         }
     }
 }
+
+

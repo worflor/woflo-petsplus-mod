@@ -66,7 +66,7 @@ public final class AuraTargetResolver {
         }
 
         double squaredRadius = radius <= 0 ? 0 : radius * radius;
-        Vec3d center = pet.getPos();
+        Vec3d center = pet.getEntityPos();
         Set<LivingEntity> resolved = new LinkedHashSet<>();
 
         switch (target) {
@@ -96,7 +96,7 @@ public final class AuraTargetResolver {
         if (owner == null || owner.isRemoved() || !owner.isAlive()) {
             return;
         }
-        if (squaredRadius == 0 || owner.getPos().squaredDistanceTo(center) <= squaredRadius) {
+        if (squaredRadius == 0 || owner.getEntityPos().squaredDistanceTo(center) <= squaredRadius) {
             resolved.add(owner);
         }
     }
@@ -106,7 +106,7 @@ public final class AuraTargetResolver {
                                                    @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot,
                                                    @Nullable OwnerSpatialResult spatialResult) {
         Set<LivingEntity> allies = new LinkedHashSet<>();
-        if (owner != null && (squaredRadius == 0 || owner.getPos().squaredDistanceTo(center) <= squaredRadius)) {
+        if (owner != null && (squaredRadius == 0 || owner.getEntityPos().squaredDistanceTo(center) <= squaredRadius)) {
             allies.add(owner);
         }
 
@@ -197,7 +197,7 @@ public final class AuraTargetResolver {
                 remove(player);
                 return;
             }
-            if (!(player.getWorld() instanceof ServerWorld world)) {
+            if (!(player.getEntityWorld() instanceof ServerWorld world)) {
                 remove(player);
                 return;
             }
@@ -233,7 +233,7 @@ public final class AuraTargetResolver {
             if (owner == null) {
                 return List.of();
             }
-            if (!(owner.getWorld() instanceof ServerWorld world)) {
+            if (!(owner.getEntityWorld() instanceof ServerWorld world)) {
                 return List.of();
             }
 
@@ -246,7 +246,7 @@ public final class AuraTargetResolver {
             double radiusSq = squaredRadius == 0 ? effectiveRadius * effectiveRadius : Math.min(squaredRadius, effectiveRadius * effectiveRadius);
 
             List<ServerPlayerEntity> players = index.query(center, effectiveRadius, radiusSq);
-            if ((radiusSq == 0 || owner.getPos().squaredDistanceTo(center) <= radiusSq) && !players.contains(owner)) {
+            if ((radiusSq == 0 || owner.getEntityPos().squaredDistanceTo(center) <= radiusSq) && !players.contains(owner)) {
                 players.add(owner);
             }
             return players;
@@ -371,3 +371,5 @@ public final class AuraTargetResolver {
         }
     }
 }
+
+

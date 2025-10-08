@@ -275,7 +275,7 @@ public class StrikerExecution {
      * Handle owner dealing damage to trigger Striker abilities.
      */
     public static void onOwnerDealDamage(PlayerEntity owner, LivingEntity victim, float damage) {
-        if (!(owner.getWorld() instanceof ServerWorld)) return;
+        if (!(owner.getEntityWorld() instanceof ServerWorld)) return;
         // Update combat state
         OwnerCombatState combatState = OwnerCombatState.getOrCreate(owner);
         combatState.enterCombat();
@@ -308,7 +308,7 @@ public class StrikerExecution {
     }
     
     private static MobEntity findNearbyStrikerPet(PlayerEntity owner) {
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return null;
         }
         
@@ -337,8 +337,8 @@ public class StrikerExecution {
     private static boolean hasRecentDamageFromOwnerOrPet(LivingEntity target, PlayerEntity owner) {
         DamageStamp stamp = RECENT_DAMAGE.get(target);
         if (stamp == null) return false;
-        if (owner == null || owner.getWorld() == null) return false;
-        long now = owner.getWorld().getTime();
+        if (owner == null || owner.getEntityWorld() == null) return false;
+        long now = owner.getEntityWorld().getTime();
         long window = Math.max(1, (long) PetsPlusConfig.getInstance().getRoleInt(PetRoleType.STRIKER.id(), "recentDamageWindowTicks", 100));
         return owner.getUuid().equals(stamp.ownerId()) && (now - stamp.tick()) <= window;
     }
@@ -358,8 +358,8 @@ public class StrikerExecution {
     }
     
     private static void markRecentDamage(LivingEntity target, PlayerEntity owner) {
-        if (owner == null || target == null || owner.getWorld() == null) return;
-        RECENT_DAMAGE.put(target, new DamageStamp(owner.getUuid(), owner.getWorld().getTime()));
+        if (owner == null || target == null || owner.getEntityWorld() == null) return;
+        RECENT_DAMAGE.put(target, new DamageStamp(owner.getUuid(), owner.getEntityWorld().getTime()));
     }
 
     private static MomentumState getMomentumState(PlayerEntity owner) {
@@ -372,7 +372,7 @@ public class StrikerExecution {
             return MomentumState.EMPTY;
         }
 
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return new MomentumState(momentum.stacks(), 1.0f);
         }
 
@@ -405,7 +405,7 @@ public class StrikerExecution {
             return 0;
         }
         MomentumState state = getMomentumState(owner);
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return state.stacks() > 0 ? Integer.MAX_VALUE : 0;
         }
 
@@ -436,7 +436,7 @@ public class StrikerExecution {
             return MomentumState.EMPTY;
         }
 
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return MomentumState.EMPTY;
         }
 
@@ -457,7 +457,7 @@ public class StrikerExecution {
 
     private static void flagExecutionKill(PlayerEntity owner, LivingEntity target, float thresholdPct,
                                           int strikerLevel, int momentumStacks, float momentumFill) {
-        if (!(owner instanceof ServerPlayerEntity) || !(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(owner instanceof ServerPlayerEntity) || !(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
 
@@ -479,7 +479,7 @@ public class StrikerExecution {
         if (owner == null || target == null) {
             return null;
         }
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             EXECUTION_KILL_FLAGS.remove(target);
             return null;
         }
@@ -504,7 +504,7 @@ public class StrikerExecution {
     }
 
     public static void flagFinisherConsumption(PlayerEntity owner, LivingEntity target) {
-        if (owner == null || target == null || !(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (owner == null || target == null || !(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
 
@@ -517,7 +517,7 @@ public class StrikerExecution {
         if (owner == null || target == null) {
             return false;
         }
-        if (!(owner.getWorld() instanceof ServerWorld serverWorld)) {
+        if (!(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
             RECENT_FINISHER_FLAGS.remove(target);
             return false;
         }
@@ -559,3 +559,4 @@ public class StrikerExecution {
         return clamp01(sanitizedBase + bonus);
     }
 }
+

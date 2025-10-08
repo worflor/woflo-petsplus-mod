@@ -43,7 +43,7 @@ public class WaterCruiseGoal extends AdaptiveGoal {
     protected void onTickGoal() {
         cruiseTicks++;
         
-        if (cruiseTarget == null || mob.getPos().distanceTo(cruiseTarget) < 2.0 || cruiseTicks % 80 == 0) {
+        if (cruiseTarget == null || mob.getEntityPos().distanceTo(cruiseTarget) < 2.0 || cruiseTicks % 80 == 0) {
             pickNewCruiseTarget();
         }
         
@@ -79,3 +79,4 @@ public class WaterCruiseGoal extends AdaptiveGoal {
         return 0.6f;
     }
 }
+

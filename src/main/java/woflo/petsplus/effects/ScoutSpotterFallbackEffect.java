@@ -65,7 +65,7 @@ public class ScoutSpotterFallbackEffect implements Effect {
 
     @Override
     public boolean execute(EffectContext context) {
-        ServerWorld world = context.getWorld();
+        ServerWorld world = context.getEntityWorld();
         MobEntity pet = context.getPet();
         PlayerEntity owner = context.getOwner();
         if (world == null || !(owner instanceof ServerPlayerEntity serverOwner) || pet == null) {
@@ -160,3 +160,5 @@ public class ScoutSpotterFallbackEffect implements Effect {
         return true;
     }
 }
+
+

@@ -115,11 +115,11 @@ public class HideAndSeekGoal extends AdaptiveGoal {
             double distance = Math.sqrt(dx * dx + dz * dz);
             if (distance > 3.0 && distance < 8.0) {
                 // Check if there's a block nearby for cover
-                if (!mob.getWorld().getBlockState(candidate).isAir() ||
-                    !mob.getWorld().getBlockState(candidate.north()).isAir() ||
-                    !mob.getWorld().getBlockState(candidate.south()).isAir() ||
-                    !mob.getWorld().getBlockState(candidate.east()).isAir() ||
-                    !mob.getWorld().getBlockState(candidate.west()).isAir()) {
+                if (!mob.getEntityWorld().getBlockState(candidate).isAir() ||
+                    !mob.getEntityWorld().getBlockState(candidate.north()).isAir() ||
+                    !mob.getEntityWorld().getBlockState(candidate.south()).isAir() ||
+                    !mob.getEntityWorld().getBlockState(candidate.east()).isAir() ||
+                    !mob.getEntityWorld().getBlockState(candidate.west()).isAir()) {
                     return candidate;
                 }
             }
@@ -164,3 +164,4 @@ public class HideAndSeekGoal extends AdaptiveGoal {
         return engagement;
     }
 }
+

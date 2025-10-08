@@ -93,7 +93,7 @@ public class StrikerBloodlustSurgeEffect implements Effect {
         applyStatusEffect(serverOwner, StatusEffects.SPEED, computeAmplifier(ownerSpeedPerStack, stacks), duration);
 
         MobEntity pet = context.getPet();
-        if (buffPet && pet != null && pet.getWorld() instanceof ServerWorld) {
+        if (buffPet && pet != null && pet.getEntityWorld() instanceof ServerWorld) {
             applyStatusEffect(pet, StatusEffects.STRENGTH, computeAmplifier(petStrengthPerStack, stacks), duration);
             applyStatusEffect(pet, StatusEffects.SPEED, computeAmplifier(petSpeedPerStack, stacks), duration);
         }
@@ -102,7 +102,7 @@ public class StrikerBloodlustSurgeEffect implements Effect {
             owner.swingHand(Hand.MAIN_HAND, true);
         }
 
-        if (playFeedback && context.getWorld() instanceof ServerWorld serverWorld) {
+        if (playFeedback && context.getEntityWorld() instanceof ServerWorld serverWorld) {
             FeedbackManager.emitRoleAbility(PetRoleType.STRIKER.id(), "bloodlust", owner, serverWorld);
         }
 
@@ -134,3 +134,5 @@ public class StrikerBloodlustSurgeEffect implements Effect {
         return MathHelper.clamp(amplifier, 0, maxAmplifier);
     }
 }
+
+
