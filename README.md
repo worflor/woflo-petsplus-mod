@@ -13,7 +13,7 @@
 <h3 align="center">Recent Changes</h3>
 <ul align="center" style="list-style-type:none; padding-left:0;">
   <li>Added [nature] - Twilight, to compliment Nocturne.</li>
-  <li>Added [nature] - Blossom, its... special.... </li>
+  <li>Added [nature] - Blossom, pick it... choose it... love it...</li>
   <li>Added [nature] - Clockwork, redstone gap filled</li>
   <li>Added [nature] - Scrappy and Sentinel, brothers but different</li>
   <li>Changed [nature] - Rebalanced all the natures in terms of base impact.</li>
