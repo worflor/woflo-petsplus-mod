@@ -1,6 +1,8 @@
 package woflo.petsplus.mixin;
 
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.server.world.ServerWorld;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -19,10 +21,11 @@ public abstract class MobEntityTickMixin {
 
     @Inject(method = "tick", at = @At("TAIL"))
     private void petsplus$onTick(CallbackInfo ci) {
-        MobEntity mob = (MobEntity) (Object) this;
-        if (!(mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld)) {
+        Entity entity = (Entity) (Object) this;
+        if (!(entity.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
+        MobEntity mob = (MobEntity) entity;
 
         StateManager.forWorld(serverWorld).handlePetTick(mob);
         AfterimageManager.handleMobTick(mob, serverWorld);
@@ -30,4 +33,3 @@ public abstract class MobEntityTickMixin {
         MagnetizeDropsAndXpEffect.handleMobTick(mob, serverWorld);
     }
 }
-
