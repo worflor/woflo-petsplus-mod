@@ -360,6 +360,17 @@ public class PetsplusAdminCommands {
         }
 
         Identifier natureId = IdentifierArgumentType.getIdentifier(context, "nature");
+        
+        // Validate nature ID against registry
+        if (!PetNatureSelector.getRegisteredNatureIds().contains(natureId)) {
+            player.sendMessage(Text.literal("Invalid nature ID: '")
+                .append(Text.literal(natureId.toString()).formatted(Formatting.YELLOW))
+                .append(Text.literal("'"))
+                .formatted(Formatting.RED), false);
+            player.sendMessage(Text.literal("Use tab completion to see valid nature IDs.").formatted(Formatting.GRAY), false);
+            return 0;
+        }
+        
         petComp.setNatureId(natureId);
         petComp.clearStateData(PetComponent.StateKeys.BREEDING_ASSIGNED_NATURE);
         petComp.clearStateData(PetComponent.StateKeys.WILD_ASSIGNED_NATURE);

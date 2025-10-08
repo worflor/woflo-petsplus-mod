@@ -34,6 +34,10 @@ public class CompendiumBookBuilder {
     private static final int MAX_EMOTION_CUES = 15;
     private static final int MAX_GOSSIP_ENTRIES = 15;
     private static final int MAX_HISTORY_EVENTS = 10;
+    private static final int MAX_TITLE_LENGTH = 20;
+    private static final int MAX_NATURE_NAME_LENGTH = 25;
+    private static final int MAX_PAGE_NUMBER = 100; // Safety limit for page numbers
+    private static final float MAX_HEALTH_VALUE = 10000.0f; // Maximum reasonable health value
     
     /**
      * Opens the Pet Compendium book for a player.
@@ -62,10 +66,15 @@ public class CompendiumBookBuilder {
         
         // Store the current off-hand stack so we can restore it later
         ItemStack offHandBackup = player.getOffHandStack().copy();
-        player.setStackInHand(Hand.OFF_HAND, book);
-        player.playerScreenHandler.sendContentUpdates();
-
+        ItemStack currentOffHand = player.getOffHandStack();
+        
         try {
+            // Only replace the off-hand item if it's different from what we're trying to restore
+            if (!ItemStack.areEqual(currentOffHand, book)) {
+                player.setStackInHand(Hand.OFF_HAND, book);
+                player.playerScreenHandler.sendContentUpdates();
+            }
+            
             // Let vanilla handle syncing and opening the written book screen
             player.useBook(player.getStackInHand(Hand.OFF_HAND), Hand.OFF_HAND);
         } catch (Exception exception) {
@@ -78,19 +87,38 @@ public class CompendiumBookBuilder {
             );
             woflo.petsplus.Petsplus.LOGGER.error("Failed to open Pet Compendium written book UI", exception);
         } finally {
-            // Restore the original off-hand item on the next tick to avoid race conditions
+            // Restore the original off-hand item with a delay to avoid race conditions
+            // Use a longer delay to ensure the book UI is fully closed
             server.execute(() -> {
-                player.setStackInHand(Hand.OFF_HAND, offHandBackup);
-                player.playerScreenHandler.sendContentUpdates();
+                // Double-check the current stack before restoring
+                ItemStack currentStack = player.getOffHandStack();
+                if (currentStack.getItem() == Items.WRITTEN_BOOK) {
+                    player.setStackInHand(Hand.OFF_HAND, offHandBackup);
+                    player.playerScreenHandler.sendContentUpdates();
+                }
             });
         }
     }
     
     private static String buildTitle(MobEntity pet) {
+        String baseTitle;
         if (pet.hasCustomName()) {
-            return pet.getCustomName().getString() + "'s Journey";
+            String petName = pet.getCustomName().getString();
+            // Truncate long pet names to prevent title overflow
+            if (petName.length() > MAX_TITLE_LENGTH) {
+                petName = petName.substring(0, MAX_TITLE_LENGTH - 3) + "...";
+            }
+            baseTitle = petName + "'s Journey";
+        } else {
+            baseTitle = pet.getType().getName().getString() + " Compendium";
         }
-        return pet.getType().getName().getString() + " Compendium";
+        
+        // Ensure title doesn't exceed reasonable length
+        if (baseTitle.length() > 32) {
+            baseTitle = baseTitle.substring(0, 29) + "...";
+        }
+        
+        return baseTitle;
     }
     
     private static List<RawFilteredPair<Text>> buildAllPages(
@@ -130,7 +158,7 @@ public class CompendiumBookBuilder {
         rawPages.addAll(buildGossipPages(pc, currentTick, natureId));
         
         // Now build the actual ToC with correct page numbers
-        rawPages.set(tocIndex, buildTableOfContents(pageMap, natureId));
+        rawPages.set(tocIndex, buildTableOfContents(pageMap, natureId, rawPages.size()));
         
         // Convert to RawFilteredPair
         return rawPages.stream()
@@ -147,9 +175,15 @@ public class CompendiumBookBuilder {
         page.append(Text.literal(accentCode + "§l⬥ ").append(Text.literal("§f§lPet Compendium§r\n")));
         page.append(Text.literal(CompendiumColorTheme.DARK_GRAY + "─────────────────\n\n"));
         
-        // Pet name
+        // Pet name with length validation
         String petName = pet.hasCustomName() ? pet.getCustomName().getString() : 
             pet.getType().getName().getString();
+        
+        // Truncate long pet names to prevent overflow
+        if (petName.length() > MAX_TITLE_LENGTH) {
+            petName = petName.substring(0, MAX_TITLE_LENGTH - 3) + "...";
+        }
+        
         page.append(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Name:\n"));
         page.append(Text.literal(CompendiumColorTheme.WHITE + "  " + petName + "\n\n"));
         
@@ -187,8 +221,7 @@ public class CompendiumBookBuilder {
             page.append(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Nature:\n"));
             page.append(Text.literal(accentCode + "  " + natureName + "\n\n"));
             
-            // Nature description hint
-            page.append(Text.literal(CompendiumColorTheme.DARK_GRAY + "(This colors their\npersonality)\n\n"));
+            page.append(Text.literal(CompendiumColorTheme.DARK_GRAY + "\n\n"));
         }
         
         // Bond strength
@@ -202,24 +235,25 @@ public class CompendiumBookBuilder {
         return page;
     }
     
-    private static Text buildTableOfContents(Map<String, Integer> pageMap, @Nullable Identifier natureId) {
+    private static Text buildTableOfContents(Map<String, Integer> pageMap, @Nullable Identifier natureId, int totalPages) {
         MutableText page = Text.literal("");
         
         page.append(Text.literal(CompendiumColorTheme.formatSectionHeader("Table of Contents", natureId) + "\n\n"));
         
-        // Add clickable links to each section
-        page.append(createPageLink("⚔ Combat Record", pageMap.get("combat"), natureId));
-        page.append(createPageLink("📜 History Journal", pageMap.get("history"), natureId));
-        page.append(createPageLink("💭 Emotion Cues", pageMap.get("emotions"), natureId));
-        page.append(createPageLink("🗨 Gossip & Rumors", pageMap.get("gossip"), natureId));
+        // Add clickable links to each section with page validation
+        page.append(createPageLink("⚔ Combat Record", pageMap.get("combat"), natureId, totalPages));
+        page.append(createPageLink("📜 History Journal", pageMap.get("history"), natureId, totalPages));
+        page.append(createPageLink("💭 Emotion Cues", pageMap.get("emotions"), natureId, totalPages));
+        page.append(createPageLink("🗨 Gossip & Rumors", pageMap.get("gossip"), natureId, totalPages));
         
         page.append(Text.literal("\n\n" + CompendiumColorTheme.DARK_GRAY + "(Click to jump)"));
         
         return page;
     }
     
-    private static Text createPageLink(String label, Integer pageNum, @Nullable Identifier natureId) {
-        final int finalPageNum = (pageNum != null) ? pageNum : 1;
+    private static Text createPageLink(String label, Integer pageNum, @Nullable Identifier natureId, int totalPages) {
+        // Validate page number to prevent out-of-bounds navigation
+        int finalPageNum = (pageNum != null && pageNum > 0 && pageNum <= totalPages && pageNum <= MAX_PAGE_NUMBER) ? pageNum : 1;
         
         String accentCode = CompendiumColorTheme.getNatureAccentCode(natureId);
         
@@ -281,13 +315,43 @@ public class CompendiumBookBuilder {
     }
     
     /**
-     * Converts a list of Text lines into a single Text page.
+     * Converts a list of Text lines into a single Text page with proper line wrapping.
      */
     private static Text linesToPage(List<Text> lines, @Nullable Identifier natureId) {
         MutableText page = Text.literal("");
         
         for (int i = 0; i < lines.size(); i++) {
-            page.append(lines.get(i));
+            Text line = lines.get(i);
+            
+            // Check if we need to wrap the line to prevent overflow
+            String lineString = line.getString();
+            if (lineString.length() > 50) { // Approximate max line length for books
+                // Split long lines into multiple lines
+                String[] words = lineString.split(" ");
+                StringBuilder currentLine = new StringBuilder();
+                
+                for (String word : words) {
+                    if (currentLine.length() + word.length() + 1 > 50) {
+                        if (currentLine.length() > 0) {
+                            page.append(Text.literal(currentLine.toString()));
+                            page.append("\n");
+                            currentLine = new StringBuilder();
+                        }
+                    }
+                    
+                    if (currentLine.length() > 0) {
+                        currentLine.append(" ");
+                    }
+                    currentLine.append(word);
+                }
+                
+                if (currentLine.length() > 0) {
+                    page.append(Text.literal(currentLine.toString()));
+                }
+            } else {
+                page.append(line);
+            }
+            
             if (i < lines.size() - 1) {
                 page.append("\n");
             }
@@ -297,7 +361,19 @@ public class CompendiumBookBuilder {
     }
     
     private static String buildHealthBar(float current, float max, @Nullable Identifier natureId) {
+        // Handle extreme health values to prevent display issues
+        if (max <= 0) {
+            max = 1.0f; // Prevent division by zero
+        }
+        
+        // Cap health values to reasonable limits
+        current = Math.min(current, MAX_HEALTH_VALUE);
+        max = Math.min(max, MAX_HEALTH_VALUE);
+        
         float percentage = current / max;
+        // Ensure percentage is within valid range
+        percentage = Math.max(0.0f, Math.min(1.0f, percentage));
+        
         int filled = Math.round(percentage * 10);
         filled = Math.max(0, Math.min(10, filled));
         
@@ -313,22 +389,43 @@ public class CompendiumBookBuilder {
             }
         }
         
+        // Format health values with appropriate precision
+        String currentStr, maxStr;
+        if (current >= 1000) {
+            currentStr = String.format("%.0f", current);
+            maxStr = String.format("%.0f", max);
+        } else if (current >= 100) {
+            currentStr = String.format("%.1f", current);
+            maxStr = String.format("%.1f", max);
+        } else {
+            currentStr = String.format("%.1f", current);
+            maxStr = String.format("%.1f", max);
+        }
+        
         bar.append("\n  ").append(CompendiumColorTheme.LIGHT_GRAY)
-            .append(String.format("%.1f", current))
+            .append(currentStr)
             .append(CompendiumColorTheme.DARK_GRAY).append(" / ")
-            .append(CompendiumColorTheme.WHITE).append(String.format("%.1f", max));
+            .append(CompendiumColorTheme.WHITE).append(maxStr);
         
         return bar.toString();
     }
     
     private static String formatNatureName(PetComponent pc, Identifier natureId) {
+        String natureName;
+        
         if (natureId.equals(AstrologyRegistry.LUNARIS_NATURE_ID)) {
-            return AstrologyRegistry.getDisplayTitle(pc.getAstrologySignId());
+            natureName = AstrologyRegistry.getDisplayTitle(pc.getAstrologySignId());
+        } else {
+            String path = natureId.getPath();
+            natureName = path.substring(0, 1).toUpperCase() + path.substring(1).toLowerCase().replace('_', ' ');
         }
-        String path = natureId.getPath();
-        return path.substring(0, 1).toUpperCase() + path.substring(1).toLowerCase().replace('_', ' ');
+        
+        // Validate and truncate nature name if too long
+        if (natureName.length() > MAX_NATURE_NAME_LENGTH) {
+            natureName = natureName.substring(0, MAX_NATURE_NAME_LENGTH - 3) + "...";
+        }
+        
+        return natureName;
     }
 }
-
-
 

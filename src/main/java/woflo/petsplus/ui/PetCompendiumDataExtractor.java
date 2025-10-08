@@ -95,8 +95,18 @@ public class PetCompendiumDataExtractor {
         
         // Role
         Identifier roleId = pc.getRoleId();
-        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
-        String roleName = getRoleDisplayName(roleId, roleType);
+        PetRoleType roleType = null;
+        String roleName = "Unknown";
+        
+        try {
+            if (roleId != null) {
+                roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+                roleName = getRoleDisplayName(roleId, roleType);
+            }
+        } catch (Exception e) {
+            // Log error and use fallback
+            System.err.println("Error retrieving role type for ID " + roleId + ": " + e.getMessage());
+        }
         
         lines.add(Text.literal("§7Role: §f" + roleName));
         lines.add(Text.empty());
@@ -104,37 +114,47 @@ public class PetCompendiumDataExtractor {
         // Nature (single nature per pet)
         Identifier natureId = pc.getNatureId();
         if (natureId != null) {
-            String natureName = formatNatureName(pc);
-            lines.add(Text.literal("§7Nature: §b" + natureName));
+            try {
+                String natureName = formatNatureName(pc);
+                lines.add(Text.literal("§7Nature: §b" + natureName));
+            } catch (Exception e) {
+                System.err.println("Error formatting nature name for ID " + natureId + ": " + e.getMessage());
+                lines.add(Text.literal("§7Nature: §bUnknown"));
+            }
             lines.add(Text.empty());
         }
         
         // Imprint/Traits
         PetImprint imprint = pc.getImprint();
         if (imprint != null) {
-            float vitality = imprint.getVitalityMultiplier() - 1.0f; // Convert 1.08x → 0.08
-            float attack = imprint.getAttackMultiplier() - 1.0f;
-            float defense = imprint.getDefenseMultiplier() - 1.0f;
-            
-            boolean hasNotableTraits = Math.abs(vitality) > MODIFIER_THRESHOLD ||
-                                      Math.abs(attack) > MODIFIER_THRESHOLD ||
-                                      Math.abs(defense) > MODIFIER_THRESHOLD;
-            
-            if (hasNotableTraits) {
-                lines.add(Text.literal("§7Traits:"));
+            try {
+                float vitality = imprint.getVitalityMultiplier() - 1.0f; // Convert 1.08x → 0.08
+                float attack = imprint.getAttackMultiplier() - 1.0f;
+                float defense = imprint.getDefenseMultiplier() - 1.0f;
                 
-                if (Math.abs(vitality) > MODIFIER_THRESHOLD) {
-                    String desc = vitality > 0 ? "Vigorous" : "Delicate";
-                    lines.add(Text.literal("  §8" + desc + ": §f" + formatModifier(vitality)));
+                boolean hasNotableTraits = Math.abs(vitality) > MODIFIER_THRESHOLD ||
+                                          Math.abs(attack) > MODIFIER_THRESHOLD ||
+                                          Math.abs(defense) > MODIFIER_THRESHOLD;
+                
+                if (hasNotableTraits) {
+                    lines.add(Text.literal("§7Traits:"));
+                    
+                    if (Math.abs(vitality) > MODIFIER_THRESHOLD) {
+                        String desc = vitality > 0 ? "Vigorous" : "Delicate";
+                        lines.add(Text.literal("  §8" + desc + ": §f" + formatModifier(vitality)));
+                    }
+                    if (Math.abs(attack) > MODIFIER_THRESHOLD) {
+                        String desc = attack > 0 ? "Fierce" : "Gentle";
+                        lines.add(Text.literal("  §8" + desc + ": §f" + formatModifier(attack)));
+                    }
+                    if (Math.abs(defense) > MODIFIER_THRESHOLD) {
+                        String desc = defense > 0 ? "Resilient" : "Fragile";
+                        lines.add(Text.literal("  §8" + desc + ": §f" + formatModifier(defense)));
+                    }
                 }
-                if (Math.abs(attack) > MODIFIER_THRESHOLD) {
-                    String desc = attack > 0 ? "Fierce" : "Gentle";
-                    lines.add(Text.literal("  §8" + desc + ": §f" + formatModifier(attack)));
-                }
-                if (Math.abs(defense) > MODIFIER_THRESHOLD) {
-                    String desc = defense > 0 ? "Resilient" : "Fragile";
-                    lines.add(Text.literal("  §8" + desc + ": §f" + formatModifier(defense)));
-                }
+            } catch (Exception e) {
+                System.err.println("Error extracting imprint data: " + e.getMessage());
+                lines.add(Text.literal("§7Traits: §8Unable to retrieve"));
             }
         }
         
@@ -321,21 +341,32 @@ public class PetCompendiumDataExtractor {
             double totalDamage = 0;
             int protectionCount = 0;
             for (HistoryEvent event : history) {
-                if (event.eventType().equals(HistoryEvent.EventType.ACHIEVEMENT) &&
-                    event.eventData().contains("guardian_protection")) {
-                    protectionCount++;
-                    // Extract damage value from JSON
-                    String data = event.eventData();
-                    int damageIdx = data.indexOf("\"damage\":");
-                    if (damageIdx != -1) {
-                        try {
-                            int start = damageIdx + 9;
-                            int end = data.indexOf(',', start);
-                            if (end == -1) end = data.indexOf('}', start);
-                            String damageStr = data.substring(start, end).trim();
-                            totalDamage += Double.parseDouble(damageStr);
-                        } catch (Exception ignored) {}
+                try {
+                    if (event != null && event.eventType() != null && 
+                        event.eventType().equals(HistoryEvent.EventType.ACHIEVEMENT) &&
+                        event.eventData() != null && event.eventData().contains("guardian_protection")) {
+                        protectionCount++;
+                        // Extract damage value from JSON
+                        String data = event.eventData();
+                        int damageIdx = data.indexOf("\"damage\":");
+                        if (damageIdx != -1) {
+                            try {
+                                int start = damageIdx + 9;
+                                int end = data.indexOf(',', start);
+                                if (end == -1) end = data.indexOf('}', start);
+                                if (end > start) {
+                                    String damageStr = data.substring(start, end).trim();
+                                    totalDamage += Double.parseDouble(damageStr);
+                                }
+                            } catch (NumberFormatException e) {
+                                System.err.println("Error parsing damage value: " + e.getMessage());
+                            } catch (StringIndexOutOfBoundsException e) {
+                                System.err.println("Error extracting damage substring: " + e.getMessage());
+                            }
+                        }
                     }
+                } catch (Exception e) {
+                    System.err.println("Error processing guardian protection event: " + e.getMessage());
                 }
             }
             if (totalDamage > 0) {
@@ -482,6 +513,10 @@ public class PetCompendiumDataExtractor {
     }
     
     private static int extractIntValue(String json, String key) {
+        if (json == null || json.isEmpty() || key == null || key.isEmpty()) {
+            return 0;
+        }
+        
         try {
             int keyIdx = json.indexOf("\"" + key + "\":");
             if (keyIdx == -1) return 0;
@@ -490,14 +525,30 @@ public class PetCompendiumDataExtractor {
             int end = json.indexOf(',', start);
             if (end == -1) end = json.indexOf('}', start);
             
+            if (end <= start || end > json.length()) {
+                System.err.println("Invalid bounds for extracting int value for key: " + key);
+                return 0;
+            }
+            
             String valueStr = json.substring(start, end).trim();
             return Integer.parseInt(valueStr);
+        } catch (NumberFormatException e) {
+            System.err.println("Failed to parse integer value for key " + key + ": " + e.getMessage());
+            return 0;
+        } catch (StringIndexOutOfBoundsException e) {
+            System.err.println("String index error extracting int value for key " + key + ": " + e.getMessage());
+            return 0;
         } catch (Exception e) {
+            System.err.println("Unexpected error extracting int value for key " + key + ": " + e.getMessage());
             return 0;
         }
     }
     
     private static String extractStringValue(String json, String key) {
+        if (json == null || json.isEmpty() || key == null || key.isEmpty()) {
+            return "Unknown";
+        }
+        
         try {
             int keyIdx = json.indexOf("\"" + key + "\":\"");
             if (keyIdx == -1) return "Unknown";
@@ -505,21 +556,43 @@ public class PetCompendiumDataExtractor {
             int start = keyIdx + key.length() + 4;
             int end = json.indexOf('"', start);
             
+            if (end <= start || end > json.length()) {
+                System.err.println("Invalid bounds for extracting string value for key: " + key);
+                return "Unknown";
+            }
+            
             return json.substring(start, end);
+        } catch (StringIndexOutOfBoundsException e) {
+            System.err.println("String index error extracting string value for key " + key + ": " + e.getMessage());
+            return "Unknown";
         } catch (Exception e) {
+            System.err.println("Unexpected error extracting string value for key " + key + ": " + e.getMessage());
             return "Unknown";
         }
     }
     
     private static String extractAchievementName(String json) {
-        String type = extractStringValue(json, "achievement_type");
+        if (json == null || json.isEmpty()) {
+            return "Achievement unlocked";
+        }
         
-        // Format achievement type nicely
-        if (type.equals("Unknown")) return "Achievement unlocked";
-        
-        return type.replace('_', ' ')
-                  .substring(0, 1).toUpperCase() + 
-               type.replace('_', ' ').substring(1).toLowerCase();
+        try {
+            String type = extractStringValue(json, "achievement_type");
+            
+            // Format achievement type nicely
+            if (type.equals("Unknown") || type.isEmpty()) return "Achievement unlocked";
+            
+            String formatted = type.replace('_', ' ');
+            if (formatted.isEmpty()) return "Achievement unlocked";
+            
+            return formatted.substring(0, 1).toUpperCase() + formatted.substring(1).toLowerCase();
+        } catch (StringIndexOutOfBoundsException e) {
+            System.err.println("String index error formatting achievement name: " + e.getMessage());
+            return "Achievement unlocked";
+        } catch (Exception e) {
+            System.err.println("Unexpected error extracting achievement name: " + e.getMessage());
+            return "Achievement unlocked";
+        }
     }
     
     /**
@@ -534,8 +607,15 @@ public class PetCompendiumDataExtractor {
         List<List<Text>> pages = new ArrayList<>();
         List<Text> currentPage = new ArrayList<>();
         
-        // Get suppressed cues from EmotionContextCues
-        java.util.Deque<Text> journal = woflo.petsplus.events.EmotionContextCues.getJournalForPlayer(player.getUuid());
+        // Get suppressed cues from EmotionContextCues with null checks
+        java.util.Deque<Text> journal = null;
+        try {
+            if (player != null && player.getUuid() != null) {
+                journal = woflo.petsplus.events.EmotionContextCues.getJournalForPlayer(player.getUuid());
+            }
+        } catch (Exception e) {
+            System.err.println("Error accessing emotion journal: " + e.getMessage());
+        }
         
         if (journal == null || journal.isEmpty()) {
             currentPage.add(Text.literal(CompendiumColorTheme.formatSectionHeader("Emotion Journal", natureId)));
@@ -594,7 +674,14 @@ public class PetCompendiumDataExtractor {
         List<List<Text>> pages = new ArrayList<>();
         List<Text> currentPage = new ArrayList<>();
         
-        woflo.petsplus.state.gossip.PetGossipLedger ledger = pc.getGossipLedger();
+        woflo.petsplus.state.gossip.PetGossipLedger ledger = null;
+        try {
+            if (pc != null) {
+                ledger = pc.getGossipLedger();
+            }
+        } catch (Exception e) {
+            System.err.println("Error accessing gossip ledger: " + e.getMessage());
+        }
         
         if (ledger == null || ledger.isEmpty()) {
             currentPage.add(Text.literal(CompendiumColorTheme.formatSectionHeader("Gossip & Rumors", natureId)));

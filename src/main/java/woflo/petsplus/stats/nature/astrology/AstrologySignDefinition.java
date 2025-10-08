@@ -26,6 +26,7 @@ public final class AstrologySignDefinition {
     private final boolean allowIndoors;
     private final Set<Integer> moonPhases;
     private final Range dayRange;
+    private final Set<NightPeriod> nightPeriods;
     private final Set<Identifier> allowedDimensions;
     private final Set<EnvironmentTag> requiredEnvironment;
     private final NearbyConstraints nearbyConstraints;
@@ -45,6 +46,7 @@ public final class AstrologySignDefinition {
                             boolean requiresOpenSky,
                             boolean allowIndoors,
                             Set<Integer> moonPhases,
+                            Set<NightPeriod> nightPeriods,
                             Set<Identifier> allowedDimensions,
                             Set<EnvironmentTag> requiredEnvironment,
                             NearbyConstraints nearbyConstraints,
@@ -63,6 +65,7 @@ public final class AstrologySignDefinition {
         this.requiresOpenSky = requiresOpenSky;
         this.allowIndoors = allowIndoors;
         this.moonPhases = moonPhases != null ? Set.copyOf(moonPhases) : Set.of();
+        this.nightPeriods = nightPeriods != null ? Set.copyOf(nightPeriods) : Set.of();
         this.allowedDimensions = allowedDimensions != null ? Set.copyOf(allowedDimensions) : Set.of();
         this.requiredEnvironment = requiredEnvironment != null ? EnumSet.copyOf(requiredEnvironment) : EnumSet.noneOf(EnvironmentTag.class);
         this.nearbyConstraints = Objects.requireNonNull(nearbyConstraints, "nearbyConstraints");
@@ -108,6 +111,10 @@ public final class AstrologySignDefinition {
 
     public Set<Integer> moonPhases() {
         return moonPhases;
+    }
+
+    public Set<NightPeriod> nightPeriods() {
+        return nightPeriods;
     }
 
     public Set<Identifier> allowedDimensions() {
@@ -174,6 +181,10 @@ public final class AstrologySignDefinition {
             return false;
         }
 
+        if (!nightPeriods.isEmpty() && !nightPeriods.contains(getNightPeriod(context.timeOfDay()))) {
+            return false;
+        }
+
         if (requiresOpenSky && !context.hasOpenSky()) {
             return false;
         }
@@ -220,6 +231,19 @@ public final class AstrologySignDefinition {
         };
     }
 
+    private static NightPeriod getNightPeriod(long timeOfDay) {
+        long t = timeOfDay % 24000L;
+        if (t >= 13000L && t < 16000L) {
+            return NightPeriod.EARLY_NIGHT;
+        } else if (t >= 16000L && t < 20000L) {
+            return NightPeriod.MIDDLE_NIGHT;
+        } else if (t >= 20000L && t < 23000L) {
+            return NightPeriod.LATE_NIGHT;
+        }
+        // Default to early night for times outside night periods
+        return NightPeriod.EARLY_NIGHT;
+    }
+
     /**
      * Range of in-game days (0-359) that map to a sign.
      */
@@ -252,6 +276,12 @@ public final class AstrologySignDefinition {
         NIGHT,
         DAWN,
         DUSK
+    }
+
+    public enum NightPeriod {
+        EARLY_NIGHT,   // 13000-16000 (sunset to mid-evening)
+        MIDDLE_NIGHT,  // 16000-20000 (mid-evening to pre-midnight)
+        LATE_NIGHT     // 20000-23000 (pre-midnight to pre-dawn)
     }
 
     public enum WeatherWindow {
@@ -424,6 +454,7 @@ public final class AstrologySignDefinition {
         private boolean requiresOpenSky;
         private boolean allowIndoors = true;
         private Set<Integer> moonPhases = Collections.emptySet();
+        private Set<NightPeriod> nightPeriods = Collections.emptySet();
         private Set<Identifier> allowedDimensions = Collections.emptySet();
         private Set<EnvironmentTag> requiredEnvironment = EnumSet.noneOf(EnvironmentTag.class);
         private NearbyConstraints nearbyConstraints = NearbyConstraints.ANY;
@@ -475,6 +506,11 @@ public final class AstrologySignDefinition {
 
         public Builder moonPhases(Set<Integer> phases) {
             this.moonPhases = phases;
+            return this;
+        }
+
+        public Builder nightPeriods(Set<NightPeriod> periods) {
+            this.nightPeriods = periods;
             return this;
         }
 
@@ -547,6 +583,7 @@ public final class AstrologySignDefinition {
                 requiresOpenSky,
                 allowIndoors,
                 moonPhases,
+                nightPeriods,
                 allowedDimensions,
                 requiredEnvironment,
                 nearbyConstraints,
