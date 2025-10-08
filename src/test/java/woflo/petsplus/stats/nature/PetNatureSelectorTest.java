@@ -305,10 +305,10 @@ class PetNatureSelectorTest {
     @Test
     void displayTitlesUseConfiguredEpithet() {
         String capricornTitle = AstrologyRegistry.getDisplayTitle(Identifier.of("petsplus", "lunaris/capricorn"));
-        assertEquals("Lunaris Aegis", capricornTitle);
+        assertEquals("Lunaris Apex", capricornTitle);
 
         String aquariusTitle = AstrologyRegistry.getDisplayTitle(Identifier.of("petsplus", "lunaris/aquarius"));
-        assertEquals("Astra-Lunaris", aquariusTitle);
+        assertEquals("Cascade Lunaris", aquariusTitle);
     }
     private static PetBreedEvent.BirthContext.Environment environment(Identifier biomeId,
                                                                       boolean hasOpenSky,
