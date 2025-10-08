@@ -82,8 +82,9 @@ The system tracks:
 For example:
 
 - A **Frisky** pet might lean slightly toward playful emotions
-- A **Solace** pet could have heightened resilience when alone
-- An **Infernal** pet may show more aggression or protectiveness
+- A **Blossom** pet has super contageous emotions
+- A **Festival** pet greatly prefers crowds over isolation
+- A **Scrappy** pet feels the need to prove itself 
 
 The specifics of stat bonuses and emotional weights aren't critical to understand upfront. What matters is that natures give your pet a consistent behavioral flavor that fits their origin story. The variance ensures no two pets feel exactly the same, even with the same nature.
 
