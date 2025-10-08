@@ -10,19 +10,19 @@
 
 ---
 
-<h3 align="center">Recent Changes</h3>
+<h4 align="center">Recent Changes</h3>
 <ul align="center" style="list-style-type:none; padding-left:0;">
   <li>Added [nature] - Twilight, to compliment Nocturne.</li>
   <li>Added [nature] - Blossom, pick it... choose it... love it...</li>
-  <li>Added [nature] - Clockwork, technical and curious</li>
-  <li>Added [nature] - Scrappy and Sentinel, brothers but different</li>
+  <li>Added [nature] - Clockwork, technical and curious.</li>
+  <li>Added [nature] - Scrappy and Sentinel, brothers but different.</li>
   <li>Changed [nature] - Rebalanced all the natures in terms of base impact.</li>
 </ul>
 
 ---
 
 <p align="center">
-  For those who wish their minecraft pet could do more... be more... FEEL more.
+  "I wish my block game contained a real-time emotion engine😔" - Someone, somewhere, at some point. 
   <br>
   <strong>Mod is NOT officially released / out of development.</strong>
 </p>
