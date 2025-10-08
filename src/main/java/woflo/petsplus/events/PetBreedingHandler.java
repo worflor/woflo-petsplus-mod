@@ -20,6 +20,7 @@ import woflo.petsplus.state.StateManager;
 import woflo.petsplus.stats.PetAttributeManager;
 import woflo.petsplus.stats.PetImprint;
 import woflo.petsplus.stats.nature.PetNatureSelector;
+import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -85,6 +86,10 @@ public final class PetBreedingHandler {
             if (assignedNature != null) {
                 childComponent.setNatureId(assignedNature);
                 childComponent.setStateData(PetComponent.StateKeys.BREEDING_ASSIGNED_NATURE, assignedNature.toString());
+                if (assignedNature.equals(AstrologyRegistry.LUNARIS_NATURE_ID)) {
+                    Identifier signId = AstrologyRegistry.resolveSign(birthContext, serverWorld.getMoonPhase());
+                    AstrologyRegistry.applySign(childComponent, signId);
+                }
             }
 
             if (resolvedOwner != null) {
@@ -276,5 +281,3 @@ public final class PetBreedingHandler {
         return null;
     }
 }
-
-

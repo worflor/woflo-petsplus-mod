@@ -43,6 +43,7 @@ import woflo.petsplus.state.modules.*;
 import woflo.petsplus.state.modules.impl.*;
 import woflo.petsplus.state.relationships.SpeciesMemory;
 import woflo.petsplus.util.BehaviorSeedUtil;
+import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
 
 import net.minecraft.util.math.ChunkSectionPos;
 
@@ -338,6 +339,7 @@ public class PetComponent {
         public static final String BREEDING_ASSIGNED_NATURE = "breeding_assigned_nature";
         public static final String ASSIGNED_NATURE = "assigned_nature";
         public static final String WILD_ASSIGNED_NATURE = "wild_assigned_nature";
+        public static final String ASTROLOGY_SIGN = "astrology_sign";
 
         private StateKeys() {}
     }
@@ -1615,8 +1617,36 @@ public class PetComponent {
             setStateData(StateKeys.ASSIGNED_NATURE, natureId.toString());
         }
 
+        if (natureId == null || !natureId.equals(AstrologyRegistry.LUNARIS_NATURE_ID)) {
+            setAstrologySignId(null);
+        }
+
         if (pet.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld && characteristicsModule.getImprint() != null) {
             woflo.petsplus.stats.PetAttributeManager.applyAttributeModifiers(this.pet, this);
+        }
+    }
+
+    public @Nullable Identifier getAstrologySignId() {
+        Identifier direct = getStateData(StateKeys.ASTROLOGY_SIGN, Identifier.class);
+        if (direct != null) {
+            return direct;
+        }
+        String stored = getStateData(StateKeys.ASTROLOGY_SIGN, String.class);
+        if (stored == null || stored.isBlank()) {
+            return null;
+        }
+        return Identifier.tryParse(stored);
+    }
+
+    public void setAstrologySignId(@Nullable Identifier signId) {
+        Identifier current = getAstrologySignId();
+        if (Objects.equals(current, signId)) {
+            return;
+        }
+        if (signId == null) {
+            clearStateData(StateKeys.ASTROLOGY_SIGN);
+        } else {
+            setStateData(StateKeys.ASTROLOGY_SIGN, signId.toString());
         }
     }
 
@@ -3081,7 +3111,4 @@ public class PetComponent {
         // Chunk dirty marking is handled automatically by the component system
     }
 }
-
-
-
 

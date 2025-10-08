@@ -9,7 +9,7 @@ Unfortunately, your *real pets* have *real feelings* now.
 ### [Natures](natures.md)
 **Your pet's permanent personality.**
 
-Where you tame a pet shapes who they become. Tame in cold climates for Frisky, hot areas for Fierce. Born pets roll special natures like Nocturne under a full moon, Echoed in the Deep Dark, or Solace if birthed alone. Each pet gets unique stat variance, so no two companions are identical. These baseline traits determine how your pet feels about everything.
+Where you tame a pet shapes who they become. Tame in cold climates for Frisky, hot areas for Fierce. Born pets roll special natures like Blossom in a Cherry Grove, Echoed in the Deep Dark, or Solace if birthed alone. Each pet gets unique stat variance, so no two companions are identical. These baseline traits determine how your pet feels about everything.
 
 ### [Emotions](emotions.md)
 **29 different feelings, all shifting in real-time.**

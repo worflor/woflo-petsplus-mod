@@ -6,24 +6,25 @@
 
 <h1 align="center">woflo's Pets+</h1>
 <h3 align="center">dev-0.94-Rebranding-to-Realtime</h3>
-<h4 align="center">next: stablerer backends</h4>
+<h4 align="center">next: tribute system overhaul + leveling changes + nature tweaks</h4>
 
 ---
 
 <h4 align="center">Recent Changes</h3>
-<ul align="center" style="list-style-type:none; padding-left:5;">
-  <li>Added [nature] - Twilight, to compliment Nocturne.</li>
-  <li>Added [nature] - Blossom, pick it... choose it... love it...</li>
+<ul align="center" style="list-style-type:none; padding-left:0;">
+  <li>Added [nature] - Blossom, its not out of this relationship. It's in, it's so in, it's humiliating.</li>
   <li>Added [nature] - Clockwork, technical and curious.</li>
-  <li>Added [nature] - Scrappy and Sentinel, brothers but different.</li>
-  <li>Changed [nature] - Rebalanced all the natures in terms of base impact.</li>
-  <li>Updated [version] - 1.21.8 -> 1.21.10.</li>
+  <li>Added [nature] - Scrappy and Sentinel, birds of a feather.</li>
+  <li>Replaced [nature] - Twilight and Nocturne are now Lunaris.</li>
+  <li>Added [nature] - Lunaris, astrology girlies rejoice. All 12 signs uniquely manifest through the Lunaris nature (Lunaris Aegis, Astra-Lunaris, Lunaris Unda, Ignis-Lunaris, Lunaris Verdura, Lunaris Gemina, Lunaris Haven, Lunaris Regis, Seren-Lunaris, Lunaris Lumen, Vesper-Lunaris, Lunaris Stratos).</li>
+  <li>Changed [nature] - Rebalanced all the natures in terms of base impact; refining core identities to be more unique.</li>
+  <li>Updated [version] - 1.21.8 -> 1.21.10. ;-;</li>
 </ul>
 
 ---
 
 <p align="center">
-  "I wish my block game contained a real-time emotion engine😔" - Someone, somewhere, at some point. 
+  "I wish my block game contained a real-time emotion engine😔" - Someone, somewhere, at some point. probably.
   <br>
   <strong>Mod is NOT officially released.</strong>
 </p>
@@ -49,7 +50,7 @@ Curious how each layer fits together? The [feature docs](docs/features/_readme.m
 - Ship tweaks with your pack or server so everyone shares the same vibe.
 
 ### Build It!
-note: i prefer **idea suggestions** over *'code contributions'*. If your idea is well thought out, credit(s) will be attributed. rejection of ideas/code for any reason is fine; i'm picky. the better the documentation/reasoning, higher liklihood of addition.
+note: i prefer **idea suggestions** over *code contributions*. If your idea is well thought out, credit(s) will be attributed. rejection of ideas/code for any reason is fine; i'm picky. the better the documentation/reasoning, the higher liklihood of integration.
 
 ```bash
 git clone https://github.com/woflo-dev/petsplus.git
@@ -57,7 +58,7 @@ cd petsplus
 ./gradlew build
 ```
 #### Compatibility Notes
-- Minecraft 1.21.10 
+- Minecraft 1.21.10
 - Fabric | Java 21
 - Needs Fabric API
 

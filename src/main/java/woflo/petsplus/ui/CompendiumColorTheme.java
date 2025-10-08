@@ -48,8 +48,8 @@ public class CompendiumColorTheme {
         if (path.equals("radiant")) {
             return TextColor.fromRgb(0xFDE68A); // Golden yellow
         }
-        if (path.equals("nocturne")) {
-            return TextColor.fromRgb(0xA78BFA); // Deep purple
+        if (path.equals("lunaris")) {
+            return TextColor.fromRgb(0x9F7AEA); // Astral violet
         }
         if (path.equals("tempest")) {
             return TextColor.fromRgb(0x60A5FA); // Storm blue
@@ -145,7 +145,7 @@ public class CompendiumColorTheme {
         
         // Born - Celestial
         if (path.equals("radiant")) return "§e";   // Yellow
-        if (path.equals("nocturne")) return "§5";  // Dark purple
+        if (path.equals("lunaris")) return "§5";  // Dark purple
         if (path.equals("tempest")) return "§9";   // Blue
         
         // Born - Environment
@@ -202,3 +202,4 @@ public class CompendiumColorTheme {
         return DARK_GRAY + "▸ " + accent + label + RESET;
     }
 }
+

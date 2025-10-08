@@ -7,6 +7,7 @@ import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetComponent.Emotion;
 import woflo.petsplus.stats.PetImprint;
 import woflo.petsplus.stats.StatModifierProvider;
+import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
 import woflo.petsplus.util.BehaviorSeedUtil;
 
 import java.util.Map;
@@ -61,10 +62,6 @@ public final class NatureModifierSampler {
         register("hearth", NatureStat.DEFENSE, 0.06f, NatureStat.LOYALTY, 0.03f,
             0.85f, 0.80f, 1.20f, 1.10f,
             Emotion.CONTENT, 0.36f, Emotion.PACK_SPIRIT, 0.28f, Emotion.SOBREMESA, 0.22f);
-        
-        register("nocturne", NatureStat.AGILITY, 0.05f, NatureStat.FOCUS, 0.02f,
-            1.20f, 1.10f, 0.90f, 0.95f,
-            Emotion.YUGEN, 0.40f, Emotion.ECHOED_RESONANCE, 0.28f, Emotion.VIGILANT, 0.22f);
         
         register("tempest", NatureStat.ATTACK, 0.06f, NatureStat.VITALITY, 0.03f,
             1.35f, 1.15f, 1.05f, 0.95f,
@@ -130,10 +127,6 @@ public final class NatureModifierSampler {
             1.55f, 0.70f, 1.30f, 0.75f,
             Emotion.ECHOED_RESONANCE, 0.42f, Emotion.ARCANE_OVERFLOW, 0.32f, Emotion.FERNWEH, 0.28f);
         
-        register("twilight", NatureStat.AGILITY, 0.05f, NatureStat.SPEED, 0.03f,
-            1.05f, 1.05f, 1.00f, 1.00f,
-            Emotion.HOPEFUL, 0.36f, Emotion.CURIOUS, 0.28f, Emotion.RESTLESS, 0.22f);
-        
         register("homestead", NatureStat.LOYALTY, 0.05f, NatureStat.VITALITY, 0.03f,
             0.75f, 1.05f, 1.10f, 1.15f,
             Emotion.CONTENT, 0.38f, Emotion.QUERECIA, 0.28f, Emotion.SOBREMESA, 0.22f);
@@ -180,6 +173,9 @@ public final class NatureModifierSampler {
 
         PetImprint imprint = component.getImprint();
         long seed = resolveSeed(component, imprint);
+        if (natureId.equals(AstrologyRegistry.LUNARIS_NATURE_ID)) {
+            return AstrologyRegistry.sampleAdjustment(component, seed);
+        }
         return sample(natureId, seed);
     }
 
@@ -361,4 +357,3 @@ public final class NatureModifierSampler {
         }
     }
 }
-

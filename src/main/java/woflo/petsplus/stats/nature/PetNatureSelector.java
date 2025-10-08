@@ -31,6 +31,7 @@ import woflo.petsplus.api.event.PetBreedEvent;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
+import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -81,8 +82,7 @@ public final class PetNatureSelector {
         
         // === BORN NATURES (Bred pets only) ===
         registerNature("radiant", PetNatureSelector::matchesRadiant);
-        registerNature("twilight", PetNatureSelector::matchesTwilight);
-        registerNature("nocturne", PetNatureSelector::matchesNocturne);
+        registerNature("lunaris", PetNatureSelector::matchesLunaris);
         registerNature("homestead", PetNatureSelector::matchesHomestead);
         registerNature("hearth", PetNatureSelector::matchesHearth);
         registerNature("tempest", PetNatureSelector::matchesTempest);
@@ -163,6 +163,24 @@ public final class PetNatureSelector {
         PetBreedEvent.BirthContext.Environment environment = captureEnvironment(world, pet);
 
         return new TameContext(dimensionId, indoors, daytime, raining, thundering, fullMoon, nearbyPlayers, nearbyPets, timeOfDay, environment);
+    }
+
+    public static AstrologyRegistry.PetNatureSelectorContext toAstrologyContext(TameContext context, long worldTime) {
+        PetBreedEvent.BirthContext.Environment environment = context.environment();
+        boolean openSky = environment != null && environment.hasOpenSky();
+        return new AstrologyRegistry.PetNatureSelectorContext(
+            context.dimensionId(),
+            worldTime,
+            context.getTimeOfDay(),
+            context.isIndoors(),
+            context.isDaytime(),
+            context.isRaining(),
+            context.isThundering(),
+            openSky,
+            context.nearbyPlayers(),
+            context.nearbyPets(),
+            environment
+        );
     }
 
     public static PetBreedEvent.BirthContext.Environment captureEnvironment(ServerWorld world, MobEntity entity) {
@@ -283,20 +301,23 @@ public final class PetNatureSelector {
             && !context.isThundering();
     }
 
-    private static boolean matchesNocturne(NatureContext context) {
-        return !context.isDaytime()
-            && context.isFullMoon()
-            && context.environment().hasOpenSky();
-    }
-
-    private static boolean matchesTwilight(NatureContext context) {
-        long timeOfDay = context.getTimeOfDay();
-        // Dusk: 12000-13000 (sunset), 13000-23000 (night transition)
-        // Dawn: 23000-24000 (night end), 0-1000 (sunrise)
-        boolean isDusk = timeOfDay >= 12000 && timeOfDay <= 14000;
-        boolean isNightTransition = timeOfDay >= 13000 && timeOfDay <= 23000;
-        boolean isDawn = timeOfDay >= 23000 || timeOfDay <= 1000;
-        return (isDusk || isDawn || isNightTransition) && context.environment().hasOpenSky();
+    private static boolean matchesLunaris(NatureContext context) {
+        if (!isDimension(context, OVERWORLD_DIMENSION)) {
+            return false;
+        }
+        PetBreedEvent.BirthContext.Environment env = context.environment();
+        if (env == null || !env.hasOpenSky()) {
+            return false;
+        }
+        if (context.isIndoors()) {
+            return false;
+        }
+        long timeOfDay = context.getTimeOfDay() % 24000L;
+        boolean isDusk = timeOfDay >= 11800L && timeOfDay <= 14100L;
+        boolean isDawn = timeOfDay <= 1200L || timeOfDay >= 23000L;
+        boolean isNight = !context.isDaytime();
+        boolean lunarAligned = context.isFullMoon() || env.getSkyLightLevel() <= 4 || context.isThundering();
+        return (isNight || isDusk || isDawn) && (lunarAligned || isDusk || isDawn);
     }
 
     private static boolean matchesHomestead(NatureContext context) {
@@ -1238,4 +1259,3 @@ public final class PetNatureSelector {
     private record NatureRule<T>(Identifier id, Predicate<T> predicate) {
     }
 }
-

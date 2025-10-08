@@ -12,6 +12,7 @@ import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.history.HistoryEvent;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.stats.PetImprint;
+import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -103,7 +104,7 @@ public class PetCompendiumDataExtractor {
         // Nature (single nature per pet)
         Identifier natureId = pc.getNatureId();
         if (natureId != null) {
-            String natureName = formatNatureName(natureId);
+            String natureName = formatNatureName(pc);
             lines.add(Text.literal("§7Nature: §b" + natureName));
             lines.add(Text.empty());
         }
@@ -244,8 +245,15 @@ public class PetCompendiumDataExtractor {
         return RoleIdentifierUtil.formatName(roleId);
     }
     
-    private static String formatNatureName(Identifier natureId) {
+    private static String formatNatureName(PetComponent pc) {
         // Extract path from identifier and format it nicely
+        Identifier natureId = pc.getNatureId();
+        if (natureId == null) {
+            return "None";
+        }
+        if (natureId.equals(AstrologyRegistry.LUNARIS_NATURE_ID)) {
+            return AstrologyRegistry.getDisplayTitle(pc.getAstrologySignId());
+        }
         String path = natureId.getPath();
         return path.substring(0, 1).toUpperCase() + path.substring(1).toLowerCase().replace('_', ' ');
     }
@@ -686,3 +694,5 @@ public class PetCompendiumDataExtractor {
         return bar.toString();
     }
 }
+
+

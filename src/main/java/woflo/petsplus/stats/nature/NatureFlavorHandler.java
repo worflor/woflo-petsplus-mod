@@ -9,8 +9,9 @@ import net.minecraft.util.math.Vec3d;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.mood.MoodService;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
+import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -80,6 +81,7 @@ public final class NatureFlavorHandler {
 
     private static final Map<Identifier, NatureFlavor> DEFAULT_FLAVORS = new HashMap<>();
     private static final Map<Identifier, NatureFlavor> FLAVORS = new HashMap<>();
+    private static final Map<Identifier, NatureFlavor> ASTROLOGY_FLAVORS = new HashMap<>();
 
     static {
         register("radiant", builder -> builder
@@ -87,16 +89,11 @@ public final class NatureFlavorHandler {
             .hook(Trigger.DAYBREAK, Slot.MINOR, 0.6f, 200)
             .hook(Trigger.WEATHER_CLEAR, Slot.QUIRK, 0.45f, 240));
 
-        register("twilight", builder -> builder
-            .hook(Trigger.DAYBREAK, Slot.MAJOR, 0.75f, 180)
-            .hook(Trigger.NIGHTFALL, Slot.MAJOR, 0.75f, 180)
-            .hook(Trigger.WEATHER_CLEAR, Slot.MINOR, 0.5f, 220)
+        register("lunaris", builder -> builder
+            .hook(Trigger.NIGHTFALL, Slot.MAJOR, 0.7f, 200)
+            .hook(Trigger.DAYBREAK, Slot.MINOR, 0.6f, 220)
+            .hook(Trigger.WEATHER_THUNDER_START, Slot.MINOR, 0.5f, 240)
             .hook(Trigger.OWNER_SLEEP, Slot.QUIRK, 0.35f, 240));
-
-        register("nocturne", builder -> builder
-            .hook(Trigger.NIGHTFALL, Slot.MAJOR, 0.75f, 200)
-            .hook(Trigger.WEATHER_THUNDER_START, Slot.MINOR, 0.55f, 200)
-            .hook(Trigger.OWNER_SLEEP, Slot.QUIRK, 0.35f, 260));
 
         register("homestead", builder -> builder
             .hook(Trigger.PLACE_SAPLING, Slot.MAJOR, 0.7f, 180)
@@ -289,19 +286,42 @@ public final class NatureFlavorHandler {
             return;
         }
 
-        NatureFlavor flavor = FLAVORS.get(natureId);
-        if (flavor == null) {
-            return;
-        }
-
         PetComponent.NatureEmotionProfile profile = component.getNatureEmotionProfile();
         if (profile == null || profile.isEmpty()) {
             return;
         }
 
+        boolean applied = applyFlavor(component, trigger, time, profile, FLAVORS.get(natureId));
+
+        if (natureId.equals(AstrologyRegistry.LUNARIS_NATURE_ID)) {
+            Identifier signId = component.getAstrologySignId();
+            if (signId != null) {
+                applied |= applyFlavor(component, trigger, time, profile, ASTROLOGY_FLAVORS.get(signId));
+            }
+        }
+
+        if (applied) {
+            markTriggered(component, trigger, time);
+        }
+    }
+
+    private static boolean canTrigger(PetComponent component, Trigger trigger, long cooldown, long now) {
+        String key = cooldownKey(trigger);
+        Long last = component.getStateData(key, Long.class, 0L);
+        return now - last >= cooldown;
+    }
+
+    private static boolean applyFlavor(PetComponent component,
+                                       Trigger trigger,
+                                       long time,
+                                       PetComponent.NatureEmotionProfile profile,
+                                       @Nullable NatureFlavor flavor) {
+        if (flavor == null) {
+            return false;
+        }
         List<AmbientHook> hooks = flavor.hooksFor(trigger);
         if (hooks.isEmpty()) {
-            return;
+            return false;
         }
 
         boolean applied = false;
@@ -321,16 +341,7 @@ public final class NatureFlavorHandler {
             component.pushEmotion(emotion, amount);
             applied = true;
         }
-
-        if (applied) {
-            markTriggered(component, trigger, time);
-        }
-    }
-
-    private static boolean canTrigger(PetComponent component, Trigger trigger, long cooldown, long now) {
-        String key = cooldownKey(trigger);
-        Long last = component.getStateData(key, Long.class, 0L);
-        return now - last >= cooldown;
+        return applied;
     }
 
     private static void markTriggered(PetComponent component, Trigger trigger, long time) {
@@ -402,43 +413,70 @@ public final class NatureFlavorHandler {
             }
 
             NatureFlavor existing = override.replace() ? null : FLAVORS.get(natureId);
-            EnumMap<Trigger, List<AmbientHook>> mutable = new EnumMap<>(Trigger.class);
-            if (existing != null) {
-                existing.forEach((trigger, list) -> mutable.put(trigger, new ArrayList<>(list)));
-            }
-
-            List<HookConfig> hooks = override.hooks();
-            if (hooks != null) {
-                for (HookConfig config : hooks) {
-                    if (config == null || config.trigger() == null || config.slot() == null) {
-                        continue;
-                    }
-                    if (!config.append()) {
-                        mutable.remove(config.trigger());
-                    }
-                }
-                for (HookConfig config : hooks) {
-                    if (config == null || config.trigger() == null || config.slot() == null) {
-                        continue;
-                    }
-                    mutable.computeIfAbsent(config.trigger(), ignored -> new ArrayList<>())
-                        .add(new AmbientHook(config.trigger(), config.slot(), config.scale(), config.cooldownTicks()));
-                }
-            }
-
-            if (mutable.isEmpty()) {
+            NatureFlavor merged = mergeOverride(existing, override);
+            if (merged == null) {
                 if (override.replace()) {
                     FLAVORS.remove(natureId);
                 }
                 return;
             }
-
-            NatureFlavorBuilder builder = new NatureFlavorBuilder();
-            mutable.forEach((trigger, list) -> list.forEach(hook ->
-                builder.hook(hook.trigger(), hook.slot(), hook.scale(), hook.cooldownTicks())));
-            FLAVORS.put(natureId, builder.build());
+            FLAVORS.put(natureId, merged);
         });
     }
+
+    public static synchronized void reloadAstrologyOverrides(Map<Identifier, NatureFlavorOverride> overrides) {
+        ASTROLOGY_FLAVORS.clear();
+        if (overrides == null || overrides.isEmpty()) {
+            return;
+        }
+        overrides.forEach((signId, override) -> {
+            if (override == null) {
+                return;
+            }
+            NatureFlavor existing = override.replace() ? null : ASTROLOGY_FLAVORS.get(signId);
+            NatureFlavor merged = mergeOverride(existing, override);
+            if (merged == null) {
+                if (override.replace()) {
+                    ASTROLOGY_FLAVORS.remove(signId);
+                }
+                return;
+            }
+            ASTROLOGY_FLAVORS.put(signId, merged);
+        });
+    }
+
+    private static @Nullable NatureFlavor mergeOverride(@Nullable NatureFlavor existing, NatureFlavorOverride override) {
+        EnumMap<Trigger, List<AmbientHook>> mutable = new EnumMap<>(Trigger.class);
+        if (existing != null) {
+            existing.forEach((trigger, list) -> mutable.put(trigger, new ArrayList<>(list)));
+        }
+
+        List<HookConfig> hooks = override.hooks();
+        if (hooks != null) {
+            for (HookConfig config : hooks) {
+                if (config == null || config.trigger() == null || config.slot() == null) {
+                    continue;
+                }
+                if (!config.append()) {
+                    mutable.remove(config.trigger());
+                }
+            }
+            for (HookConfig config : hooks) {
+                if (config == null || config.trigger() == null || config.slot() == null) {
+                    continue;
+                }
+                mutable.computeIfAbsent(config.trigger(), ignored -> new ArrayList<>())
+                    .add(new AmbientHook(config.trigger(), config.slot(), config.scale(), config.cooldownTicks()));
+            }
+        }
+
+        if (mutable.isEmpty()) {
+            return null;
+        }
+
+        NatureFlavorBuilder builder = new NatureFlavorBuilder();
+        mutable.forEach((trigger, list) -> list.forEach(hook ->
+            builder.hook(hook.trigger(), hook.slot(), hook.scale(), hook.cooldownTicks())));
+        return builder.build();
+    }
 }
-
-

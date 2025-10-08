@@ -25,13 +25,14 @@ Wild natures are simple by design. You can't control where animals spawn, so the
 
 Bred pets roll for born natures, which are influenced by the specific circumstances at the moment of birth. These are rare, controllable, and significantly more varied.
 
-Born natures require intentional setup. Want a Nocturne pet? Wait for a full moon and breed under open sky. Chasing Infernal? Take your breeding pair into the Nether. These conditions encourage exploration, pack migration, and environmental storytelling.
+Born natures require intentional setup. Want a Lunaris pet? Plan a twilight or midnight birth beneath open sky and let the stars decide their sign. Chasing Infernal? Take your breeding pair into the Nether. These conditions encourage exploration, pack migration, and environmental storytelling.
 
 **Available Born Natures:**
 
 - **Radiant** — Daytime, open sky, clear weather
-- **Twilight** — Dawn or dusk, open sky
-- **Homestead** — Near established farms and settlements
+- **Lunaris**: Night, dusk, or dawn under open sky; grants a secret star sign that shapes the pet's stats and moods.
+  * Example epithets: Lunaris Aegis, Lunaris Verdura, Lunaris Stratos (determined by the hidden sign).
+- **Homestead** — Near farms and settlements
 - **Hearth** — Indoors with cozy blocks nearby
 - **Gloom** — Indoors, low light, no valuable blocks
 - **Festival** — 3+ nearby pets or players
@@ -39,16 +40,15 @@ Born natures require intentional setup. Want a Nocturne pet? Wait for a full moo
 - **Verdant** — Lush foliage present
 - **Frosty** — Snowy biome conditions
 - **Tempest** — Rainy or thundering weather
-- **Nocturne** — Nighttime, full moon, open sky
 - **Summit** — Height ≥ 100, open sky
 - **Tidal** — Fully submerged in ocean biome
 - **Mire** — Swamp biome or near mud/mangrove
 - **Blossom** — Cherry Grove biome
 - **Molten** — Near lava or magma blocks
 - **Gilded** — Valuable ores nearby
-- **Clockwork** — Near complex redstone
+- **Clockwork** — Near redstone machinery
 - **Sentinel** — Post-combat with organized, well-stocked storage
-- **Scrappy** — Post-combat with sparse or disorganized resources
+- **Scrappy** — Post-combat with disorganized, cluttered storage
 - **Infernal** — The Nether
 - **Relic** — Near major structures (strongholds, ruins)
 - **Ceramic** — Near Trial Ruins
@@ -82,11 +82,13 @@ The system tracks:
 For example:
 
 - A **Frisky** pet might lean slightly toward playful emotions
-- A **Blossom** pet has super contageous emotions
+- A **Blossom** pet has contageous emotions, tugging nearby attention
 - A **Festival** pet greatly prefers crowds over isolation
+- A **Solace** pet prefers isolation over crowds
 - A **Scrappy** pet feels the need to prove itself 
+- A **Lunaris** pet is different depending on when it became Lunaris, with variations like: *Lunaris Gemina*, *Astra-Lunaris*, *Lunaris Regis*, and *Vesper-Lunaris*, along with eight more.
 
-The specifics of stat bonuses and emotional weights aren't critical to understand upfront. What matters is that natures give your pet a consistent behavioral flavor that fits their origin story. The variance ensures no two pets feel exactly the same, even with the same nature.
+Nature specific variation documentation isn't done yet.
 
 ## Checking Your Pet's Nature
 

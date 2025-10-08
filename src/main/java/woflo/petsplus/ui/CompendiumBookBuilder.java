@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
 
 /**
  * Builds and displays the Pet Compendium as an interactive written book.
@@ -164,7 +165,7 @@ public class CompendiumBookBuilder {
         
         // Nature
         if (natureId != null) {
-            String natureName = formatNatureName(natureId);
+            String natureName = formatNatureName(pc, natureId);
             page.append(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Nature:\n"));
             page.append(Text.literal(accentCode + "  " + natureName + "\n\n"));
             
@@ -302,9 +303,14 @@ public class CompendiumBookBuilder {
         return bar.toString();
     }
     
-    private static String formatNatureName(Identifier natureId) {
+    private static String formatNatureName(PetComponent pc, Identifier natureId) {
+        if (natureId.equals(AstrologyRegistry.LUNARIS_NATURE_ID)) {
+            return AstrologyRegistry.getDisplayTitle(pc.getAstrologySignId());
+        }
         String path = natureId.getPath();
         return path.substring(0, 1).toUpperCase() + path.substring(1).toLowerCase().replace('_', ' ');
     }
 }
+
+
 

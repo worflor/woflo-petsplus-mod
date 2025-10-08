@@ -14,7 +14,7 @@ The hard question: how does this fit into modpacks without feeling like a rock p
 
 Grinding is boring. Repetition for repetition's sake hits a fun-limit fast. The player shouldn't have to do the same action hundreds of times to unlock features—that's a treadmill, not gameplay.
 
-Instead, the mod taps into what players already do. Existing features + existing conditions = new outcomes. Breed pets under a full moon, get Nocturne nature. Fight near your pet, emotions shift. Travel to the Deep Dark, unlock Echoed Resonance. The world *already there* becomes the input for new mechanics.
+Instead, the mod taps into what players already do. Existing features + existing conditions = new outcomes. Breed pets under a full moon, get Lunaris nature. Fight near your pet, emotions shift. Travel to the Deep Dark, unlock Echoed Resonance. The world *already there* becomes the input for new mechanics.
 
 Minecraft handles difficulty. I work around it. The goal isn't creating new chores—it's letting players express skill and intention through choices they're already making. Interesting new behavior emerges when systems respect the player's existing interactions instead of demanding new ones.
 

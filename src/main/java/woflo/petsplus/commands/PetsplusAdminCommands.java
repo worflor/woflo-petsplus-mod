@@ -23,9 +23,12 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.commands.arguments.PetRoleArgumentType;
 import woflo.petsplus.datagen.PetsplusLootHandler;
+import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.stats.PetAttributeManager;
 import woflo.petsplus.stats.nature.NatureModifierSampler;
 import woflo.petsplus.stats.nature.PetNatureSelector;
+import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
 import woflo.petsplus.util.PetTargetingUtil;
 
 import java.util.Locale;
@@ -299,9 +302,9 @@ public class PetsplusAdminCommands {
         player.sendMessage(Text.literal("Bond Strength: " + petComp.getBondStrength()), false);
         Identifier natureId = petComp.getNatureId();
         String natureSource = describeNatureSource(petComp);
+        Text natureDisplay = AstrologyRegistry.getNatureText(petComp).formatted(Formatting.AQUA);
         player.sendMessage(Text.literal("Nature: ")
-            .append((natureId != null ? Text.literal(natureId.toString()).formatted(Formatting.AQUA)
-                : Text.literal("None").formatted(Formatting.GRAY)))
+            .append(natureId != null ? natureDisplay : Text.literal("None").formatted(Formatting.GRAY))
             .append(Text.literal(" (" + natureSource + ")").formatted(Formatting.DARK_GRAY)), false);
         player.sendMessage(Text.literal("Owner: " + (petComp.getOwner() != null ? petComp.getOwner().getName().getString() : "None")), false);
         player.sendMessage(Text.literal("Waiting for Tribute: " + petComp.isWaitingForTribute()), false);
@@ -327,7 +330,7 @@ public class PetsplusAdminCommands {
         Identifier natureId = petComp.getNatureId();
         String source = describeNatureSource(petComp);
         Text natureText = natureId != null
-            ? Text.literal(natureId.toString()).formatted(Formatting.AQUA)
+            ? AstrologyRegistry.getNatureText(petComp).formatted(Formatting.AQUA)
             : Text.literal("None").formatted(Formatting.GRAY);
         player.sendMessage(Text.literal("Current nature: ").formatted(Formatting.GOLD)
             .append(natureText)
@@ -360,10 +363,19 @@ public class PetsplusAdminCommands {
         petComp.setNatureId(natureId);
         petComp.clearStateData(PetComponent.StateKeys.BREEDING_ASSIGNED_NATURE);
         petComp.clearStateData(PetComponent.StateKeys.WILD_ASSIGNED_NATURE);
+        if (natureId.equals(AstrologyRegistry.LUNARIS_NATURE_ID) && targetPet.getEntityWorld() instanceof ServerWorld serverWorld) {
+            PetNatureSelector.TameContext tameContext = PetNatureSelector.captureTameContext(serverWorld, targetPet);
+            AstrologyRegistry.PetNatureSelectorContext astroContext =
+                PetNatureSelector.toAstrologyContext(tameContext, serverWorld.getTime());
+            Identifier signId = AstrologyRegistry.resolveSign(astroContext, serverWorld.getMoonPhase());
+            AstrologyRegistry.applySign(petComp, signId);
+        }
+        PetAttributeManager.applyAttributeModifiers(targetPet, petComp);
 
+        Text display = AstrologyRegistry.getNatureText(petComp).formatted(Formatting.AQUA);
         player.sendMessage(Text.literal("Set pet nature to ")
             .formatted(Formatting.GREEN)
-            .append(Text.literal(natureId.toString()).formatted(Formatting.AQUA)), false);
+            .append(display), false);
         return 1;
     }
 
@@ -402,6 +414,7 @@ public class PetsplusAdminCommands {
         petComp.setNatureId(null);
         petComp.clearStateData(PetComponent.StateKeys.BREEDING_ASSIGNED_NATURE);
         petComp.clearStateData(PetComponent.StateKeys.WILD_ASSIGNED_NATURE);
+        PetAttributeManager.applyAttributeModifiers(targetPet, petComp);
 
         player.sendMessage(Text.literal("Cleared pet nature.").formatted(Formatting.GREEN), false);
         return 1;
@@ -758,7 +771,3 @@ public class PetsplusAdminCommands {
         return Text.literal(RoleIdentifierUtil.formatName(roleId));
     }
 }
-
-
-
-

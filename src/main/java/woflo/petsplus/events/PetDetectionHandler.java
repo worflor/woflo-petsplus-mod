@@ -20,6 +20,8 @@ import woflo.petsplus.naming.AttributeRegistry;
 import woflo.petsplus.naming.NameParser;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.stats.nature.PetNatureSelector;
+import woflo.petsplus.stats.PetAttributeManager;
+import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
@@ -345,6 +347,13 @@ public class PetDetectionHandler {
                 if (wildNature != null) {
                     component.setNatureId(wildNature);
                     component.setStateData(PetComponent.StateKeys.WILD_ASSIGNED_NATURE, wildNature.toString());
+                    if (wildNature.equals(AstrologyRegistry.LUNARIS_NATURE_ID)) {
+                        AstrologyRegistry.PetNatureSelectorContext astroContext =
+                            PetNatureSelector.toAstrologyContext(context, serverWorld.getTime());
+                        Identifier signId = AstrologyRegistry.resolveSign(astroContext, serverWorld.getMoonPhase());
+                        AstrologyRegistry.applySign(component, signId);
+                    }
+                    PetAttributeManager.applyAttributeModifiers(mob, component);
                 }
             }
         }

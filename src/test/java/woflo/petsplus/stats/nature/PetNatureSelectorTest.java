@@ -9,10 +9,12 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import woflo.petsplus.api.event.PetBreedEvent;
 import woflo.petsplus.stats.nature.PetNatureSelector;
+import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
 
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -215,6 +217,99 @@ class PetNatureSelectorTest {
         assertTrue(tracker.isActive(), "multi-node powered loops should register as active redstone");
     }
 
+    @Test
+    void lunarisSelectsUnderOpenNightSky() {
+        PetBreedEvent.BirthContext.Environment environment = environment(
+            BiomeKeys.PLAINS.getValue(),
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+        );
+        PetBreedEvent.BirthContext context = new PetBreedEvent.BirthContext(
+            80L * 24000L,
+            13000L,
+            Identifier.of("minecraft", "overworld"),
+            false,
+            false,
+            false,
+            false,
+            0,
+            0,
+            true,
+            true,
+            true,
+            environment
+        );
+        MobEntity mob = Mockito.mock(MobEntity.class);
+        when(mob.getRandom()).thenReturn(Random.create(12345));
+
+        Identifier selected = PetNatureSelector.selectNature(mob, context);
+        assertEquals(AstrologyRegistry.LUNARIS_NATURE_ID, selected);
+    }
+
+    @Test
+    void resolveSignUsesDayOfYear() {
+        PetBreedEvent.BirthContext.Environment environment = environment(
+            BiomeKeys.PLAINS.getValue(),
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+        );
+        PetBreedEvent.BirthContext ariesContext = new PetBreedEvent.BirthContext(
+            82L * 24000L,
+            13000L,
+            Identifier.of("minecraft", "overworld"),
+            false,
+            false,
+            false,
+            false,
+            0,
+            0,
+            true,
+            true,
+            true,
+            environment
+        );
+        Identifier aries = AstrologyRegistry.resolveSign(ariesContext, 0);
+        assertEquals(Identifier.of("petsplus", "lunaris/aries"), aries);
+
+        PetBreedEvent.BirthContext aquariusContext = new PetBreedEvent.BirthContext(
+            25L * 24000L,
+            13000L,
+            Identifier.of("minecraft", "overworld"),
+            false,
+            false,
+            false,
+            false,
+            0,
+            0,
+            true,
+            true,
+            true,
+            environment
+        );
+        Identifier aquarius = AstrologyRegistry.resolveSign(aquariusContext, 0);
+        assertEquals(Identifier.of("petsplus", "lunaris/aquarius"), aquarius);
+    }
+
+    @Test
+    void displayTitlesUseConfiguredEpithet() {
+        String capricornTitle = AstrologyRegistry.getDisplayTitle(Identifier.of("petsplus", "lunaris/capricorn"));
+        assertEquals("Lunaris Aegis", capricornTitle);
+
+        String aquariusTitle = AstrologyRegistry.getDisplayTitle(Identifier.of("petsplus", "lunaris/aquarius"));
+        assertEquals("Astra-Lunaris", aquariusTitle);
+    }
     private static PetBreedEvent.BirthContext.Environment environment(Identifier biomeId,
                                                                       boolean hasOpenSky,
                                                                       boolean hasCozyBlocks,
