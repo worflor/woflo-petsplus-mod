@@ -7,6 +7,7 @@ import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.world.World;
 import woflo.petsplus.Petsplus;
+import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.handler.PetTradingHandler;
 
 /**
@@ -51,6 +52,11 @@ public class LeadTradingHandler {
         // Forward interactions with other players to the trading handler. It will enforce any
         // configuration requirements (such as requiring the initiator to sneak).
         if (entity instanceof PlayerEntity targetPlayer) {
+            boolean requireSneak = PetsPlusConfig.getInstance().isLeashTradingSneakRequired();
+            if (requireSneak && !player.isSneaking()) {
+                return ActionResult.PASS;
+            }
+
             ActionResult result = PetTradingHandler.tryInitiateTrade(player, targetPlayer, hand);
             if (result != ActionResult.PASS) {
                 return result;
