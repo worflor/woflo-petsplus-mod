@@ -5,7 +5,7 @@
 </p>
 
 <h1 align="center">Pets+</h1>
-<h3 align="center">dev-0.93-Rebranding-to-Realtime</h3>
+<h3 align="center">dev-0.94-Rebranding-to-Realtime</h3>
 <h4 align="center">next: stablerer backends</h4>
 
 ---
@@ -17,6 +17,7 @@
   <li>Added [nature] - Clockwork, technical and curious.</li>
   <li>Added [nature] - Scrappy and Sentinel, brothers but different.</li>
   <li>Changed [nature] - Rebalanced all the natures in terms of base impact.</li>
+  <li>Updated [version] - 1.21.8 -> 1.21.10.</li>
 </ul>
 
 ---
