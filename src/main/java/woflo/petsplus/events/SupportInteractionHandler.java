@@ -113,8 +113,10 @@ public class SupportInteractionHandler {
 
         SupportPotionUtils.writeStoredState(comp, outcome.result());
 
-        // Consume exactly one from the player stack
-        stack.decrement(1);
+        // Consume exactly one from the player stack (unless creative)
+        if (!player.getAbilities().creativeMode) {
+            stack.decrement(1);
+        }
 
         // Feedback
         ((ServerWorld) world).spawnParticles(net.minecraft.particle.ParticleTypes.HEART,
