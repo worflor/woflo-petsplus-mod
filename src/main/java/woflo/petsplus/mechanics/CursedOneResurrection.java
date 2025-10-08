@@ -21,6 +21,7 @@ import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.ui.AfterimageManager;
 import woflo.petsplus.ui.UIFeedbackManager;
 import woflo.petsplus.roles.cursedone.CursedOneSoulSacrificeManager;
+import woflo.petsplus.events.PetDetectionHandler;
 
 import java.util.List;
 import java.util.Map;
@@ -1147,6 +1148,7 @@ public class CursedOneResurrection {
         );
         
         // Remove the pet component first to prevent death penalty
+        PetDetectionHandler.clearPending(cursedPet);
         PetComponent.remove(cursedPet);
         
         // Kill the pet
@@ -1298,6 +1300,7 @@ public class CursedOneResurrection {
         }
 
         // Remove the pet component first to prevent normal death penalty
+        PetDetectionHandler.clearPending(cursedPet);
         PetComponent.remove(cursedPet);
 
         // Kill the pet with magic damage (representing the cursed bond)

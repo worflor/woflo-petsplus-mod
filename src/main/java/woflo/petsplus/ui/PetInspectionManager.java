@@ -288,6 +288,8 @@ public final class PetInspectionManager {
         MobEntity best = null;
         for (Entity e : player.getEntityWorld().getOtherEntities(player, player.getBoundingBox().expand(VIEW_DIST))) {
             if (!(e instanceof MobEntity mob)) continue;
+            if (!player.canSee(mob)) continue;
+            if (mob.isInvisibleTo(player)) continue;
             Vec3d to = e.getEntityPos().add(0, e.getStandingEyeHeight() * 0.5, 0).subtract(start).normalize();
             double dot = to.dotProduct(look);
             if (dot > bestDot && player.squaredDistanceTo(e) <= VIEW_DIST * VIEW_DIST) {

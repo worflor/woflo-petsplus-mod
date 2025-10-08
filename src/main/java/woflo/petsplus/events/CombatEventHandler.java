@@ -709,6 +709,10 @@ public class CombatEventHandler {
     }
     
     private static void handleOwnerDealtDamage(PlayerEntity owner, LivingEntity victim, float damage) {
+        if (damage > 0.0F && owner instanceof ServerPlayerEntity serverOwner
+            && owner.getEntityWorld() instanceof ServerWorld) {
+            XpEventHandler.trackPlayerCombat(serverOwner);
+        }
         OwnerCombatState combatState = OwnerCombatState.getOrCreate(owner);
         combatState.enterCombat();
         long now = owner.getEntityWorld().getTime();
@@ -1446,10 +1450,13 @@ public class CombatEventHandler {
      * Handle when a pet deals damage - triggers aggressive/triumphant emotions based on context
      */
     private static void handlePetDealtDamage(MobEntity pet, PetComponent petComponent, LivingEntity victim, float damage) {
+        if (damage > 0.0F && pet.getEntityWorld() instanceof ServerWorld) {
+            XpEventHandler.trackPetCombat(pet);
+        }
         float victimMaxHealth = Math.max(1f, victim.getMaxHealth());
         float damageIntensity = damageIntensity(damage, victimMaxHealth);
         PlayerEntity owner = petComponent.getOwner();
-        
+
         // Ensure thread-safe access to pet state
         synchronized (pet) {
             long now = pet.getEntityWorld().getTime();

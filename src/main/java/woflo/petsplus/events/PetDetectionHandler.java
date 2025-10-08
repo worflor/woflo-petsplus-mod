@@ -1,7 +1,5 @@
 package woflo.petsplus.events;
 
-import woflo.petsplus.api.registry.RoleIdentifierUtil;
-
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.passive.FoxEntity;
@@ -16,6 +14,7 @@ import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
+import woflo.petsplus.api.registry.RoleIdentifierUtil;
 import woflo.petsplus.naming.AttributeKey;
 import woflo.petsplus.naming.AttributeRegistry;
 import woflo.petsplus.naming.NameParser;
@@ -26,17 +25,25 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.jetbrains.annotations.Nullable;
+
 /**
  * Handles detection and registration of pets for the PetsPlus system.
  */
 public class PetDetectionHandler {
     // Track pets awaiting role selection
     private static final Map<MobEntity, PlayerEntity> pendingRoleSelection = new ConcurrentHashMap<>();
-    
+
+    public static void clearPending(@Nullable MobEntity mob) {
+        if (mob != null) {
+            pendingRoleSelection.remove(mob);
+        }
+    }
+
     public static void register() {
         ServerEntityEvents.ENTITY_LOAD.register(PetDetectionHandler::onEntityLoad);
         ServerEntityEvents.ENTITY_UNLOAD.register(PetDetectionHandler::onEntityUnload);
-        
+
         Petsplus.LOGGER.info("Pet detection handlers registered");
     }
     
@@ -55,6 +62,7 @@ public class PetDetectionHandler {
     private static void onEntityUnload(net.minecraft.entity.Entity entity, net.minecraft.server.world.ServerWorld world) {
         if (entity instanceof MobEntity mob) {
             PetComponent.remove(mob);
+            clearPending(mob);
         }
     }
     
@@ -74,7 +82,7 @@ public class PetDetectionHandler {
 
         server.execute(() -> {
             if (!mob.isAlive()) {
-                pendingRoleSelection.remove(mob);
+                clearPending(mob);
                 return;
             }
 
@@ -92,7 +100,7 @@ public class PetDetectionHandler {
 
                 Identifier existingRole = existingComponent.getAssignedRoleId();
                 if (existingRole != null && PetsPlusRegistries.petRoleTypeRegistry().get(existingRole) != null) {
-                    pendingRoleSelection.remove(mob);
+                    clearPending(mob);
 
                     // Parse name attributes for existing pets that don't have them yet
                     if (mob.hasCustomName() && existingComponent.getNameAttributes().isEmpty()) {
@@ -164,7 +172,7 @@ public class PetDetectionHandler {
             return false;
         }
 
-        pendingRoleSelection.remove(mob);
+        clearPending(mob);
         Petsplus.LOGGER.info("Skipping manual role prompt for pet {} due to inherited role {}", mob.getUuid(), inheritedRole);
         return true;
     }
@@ -390,6 +398,7 @@ public class PetDetectionHandler {
      */
     public static void unregisterPet(MobEntity mob) {
         PetComponent.remove(mob);
+        clearPending(mob);
         Petsplus.LOGGER.debug("Unregistered pet {}", mob.getType().toString());
     }
 }

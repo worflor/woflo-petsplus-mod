@@ -185,7 +185,7 @@ public class TributeHandler {
     private static boolean payTribute(ServerPlayerEntity player, MobEntity pet, PetComponent petComp, int milestoneLevel, Item tributeItem, ItemStack stack, boolean consumeItem) {
         try {
             // Consume exactly one item
-            if (consumeItem) {
+            if (consumeItem && !player.getAbilities().creativeMode) {
                 stack.decrement(1);
             }
 

@@ -211,6 +211,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
         while (iterator.hasNext()) {
             Map.Entry<MobEntity, ProximityChannel> entry = iterator.next();
             if (entry.getValue().ownerId.equals(ownerId)) {
+                entry.getValue().clearCrouchApproach();
                 iterator.remove();
                 PetComponent component = PetComponent.get(entry.getKey());
                 if (component != null) {
@@ -257,6 +258,10 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
             return;
         }
 
+        if (player.isSneaking()) {
+            OwnerApproachDetector.trackPlayerMovement(player, currentTick);
+        }
+
         long now = world.getTime();
         UUID ownerId = player.getUuid();
         Iterator<Map.Entry<MobEntity, ProximityChannel>> iterator = worldChannels.entrySet().iterator();
@@ -276,6 +281,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
                 if (component != null) {
                     component.endCrouchCuddle(channel.ownerId);
                 }
+                channel.clearCrouchApproach();
                 iterator.remove();
                 continue;
             }
@@ -285,43 +291,58 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
                 if (component != null) {
                     component.endCrouchCuddle(channel.ownerId);
                 }
+                channel.clearCrouchApproach();
                 iterator.remove();
                 continue;
             }
 
             if (player.isRemoved() || player.isSpectator() || player.getEntityWorld() != world) {
                 component.endCrouchCuddle(channel.ownerId);
+                channel.clearCrouchApproach();
                 iterator.remove();
                 continue;
             }
 
             if (!player.isSneaking()) {
                 component.endCrouchCuddle(channel.ownerId);
+                channel.clearCrouchApproach();
                 iterator.remove();
                 continue;
             }
 
             if (!component.isOwnedBy(player)) {
                 component.endCrouchCuddle(channel.ownerId);
+                channel.clearCrouchApproach();
                 iterator.remove();
                 continue;
             }
 
             if (!component.isCrouchCuddleActiveWith(player, now)) {
                 component.endCrouchCuddle(channel.ownerId);
+                channel.clearCrouchApproach();
                 iterator.remove();
                 continue;
             }
 
             if (player.squaredDistanceTo(pet) > PROXIMITY_RANGE_SQ) {
                 component.endCrouchCuddle(channel.ownerId);
+                channel.clearCrouchApproach();
                 iterator.remove();
                 continue;
             }
 
             hasActive = true;
 
+            if (!channel.hasEmittedCrouchApproach()
+                && player.isSneaking()
+                && OwnerApproachDetector.isApproachingPet(player, pet)
+                && isLookingAtPet(player, pet)) {
+                OwnerAbilitySignalEvent.fire(OwnerAbilitySignalEvent.Type.CROUCH_APPROACH, player, pet);
+                channel.markCrouchApproachEmitted();
+            }
+
             if (now >= channel.completionTick) {
+                channel.clearCrouchApproach();
                 iterator.remove();
                 component.endCrouchCuddle(channel.ownerId);
                 OwnerAbilitySignalEvent.fire(OwnerAbilitySignalEvent.Type.PROXIMITY_CHANNEL, player, pet);
@@ -370,6 +391,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
 
         ProximityChannel removed = worldChannels.remove(pet);
         if (removed != null) {
+            removed.clearCrouchApproach();
             PetComponent component = PetComponent.get(pet);
             if (component != null) {
                 component.endCrouchCuddle(removed.ownerId);
@@ -403,6 +425,23 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
         state.nextTick = idleTick;
     }
 
+    private static boolean isLookingAtPet(ServerPlayerEntity player, MobEntity pet) {
+        Vec3d eyePos = player.getCameraPosVec(1.0f);
+        Vec3d lookVec = player.getRotationVec(1.0f);
+        Vec3d toEntity = pet.getBoundingBox().getCenter().subtract(eyePos);
+        double lengthSq = toEntity.lengthSquared();
+        if (lengthSq < 1.0e-4) {
+            return true;
+        }
+
+        double alignment = toEntity.normalize().dotProduct(lookVec);
+        if (alignment < DOUBLE_CROUCH_ALIGNMENT_THRESHOLD) {
+            return false;
+        }
+
+        return player.canSee(pet);
+    }
+
     private static final class SneakState {
         private boolean sneaking;
         private long lastPressTick = -1;
@@ -413,6 +452,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
     private static final class ProximityChannel {
         private final UUID ownerId;
         private long completionTick;
+        private boolean crouchApproachEmitted;
 
         private ProximityChannel(UUID ownerId, long completionTick) {
             this.ownerId = ownerId;
@@ -421,6 +461,18 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
 
         private void refresh(long newCompletionTick) {
             this.completionTick = Math.max(this.completionTick, newCompletionTick);
+        }
+
+        private boolean hasEmittedCrouchApproach() {
+            return crouchApproachEmitted;
+        }
+
+        private void markCrouchApproachEmitted() {
+            this.crouchApproachEmitted = true;
+        }
+
+        private void clearCrouchApproach() {
+            this.crouchApproachEmitted = false;
         }
     }
 }

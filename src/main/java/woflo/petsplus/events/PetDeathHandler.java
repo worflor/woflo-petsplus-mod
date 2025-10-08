@@ -145,6 +145,7 @@ public class PetDeathHandler {
         
         // Remove the pet component (marks for cleanup)
         PetComponent.remove(pet);
+        PetDetectionHandler.clearPending(pet);
         
         // Remove the pet entity from the world permanently
         pet.discard(); // This removes the entity completely
