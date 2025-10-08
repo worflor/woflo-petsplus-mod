@@ -14,6 +14,7 @@ import woflo.petsplus.api.registry.RoleIdentifierUtil;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import net.minecraft.command.argument.IdentifierArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
@@ -41,6 +42,7 @@ import woflo.petsplus.events.EmotionContextCues;
 import woflo.petsplus.naming.AttributeKey;
 import woflo.petsplus.naming.NameParser;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.stats.nature.PetNatureSelector;
 import woflo.petsplus.ui.ChatLinks;
 import woflo.petsplus.util.PetTargetingUtil;
 
@@ -130,6 +132,21 @@ public class PetsCommand {
                         .executes(context -> toggleDebug(context, true)))
                     .then(CommandManager.literal("off")
                         .executes(context -> toggleDebug(context, false))))
+                .then(CommandManager.literal("nature")
+                    .then(CommandManager.literal("info")
+                        .executes(PetsplusAdminCommands::showPetNature))
+                    .then(CommandManager.literal("set")
+                        .then(CommandManager.argument("nature", IdentifierArgumentType.identifier())
+                            .suggests((context, builder) -> {
+                                for (Identifier id : PetNatureSelector.getRegisteredNatureIds()) {
+                                    builder.suggest(id.toString());
+                                }
+                                builder.suggest("petsplus:custom");
+                                return builder.buildFuture();
+                            })
+                            .executes(PetsplusAdminCommands::setPetNature)))
+                    .then(CommandManager.literal("clear")
+                        .executes(PetsplusAdminCommands::clearPetNature)))
                 .then(CommandManager.literal("setlevel")
                     .then(CommandManager.argument("level", StringArgumentType.string())
                         .executes(PetsCommand::adminSetPetLevel)))

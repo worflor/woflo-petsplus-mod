@@ -5,7 +5,7 @@ import net.minecraft.component.type.WrittenBookContentComponent;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.network.packet.s2c.play.OpenWrittenBookS2CPacket;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.ClickEvent;
 import net.minecraft.text.HoverEvent;
@@ -53,19 +53,37 @@ public class CompendiumBookBuilder {
         ItemStack book = new ItemStack(Items.WRITTEN_BOOK);
         book.set(DataComponentTypes.WRITTEN_BOOK_CONTENT, 
             new WrittenBookContentComponent(RawFilteredPair.of(title), author, 0, textPages, true));
+
+        MinecraftServer server = player.getEntityWorld().getServer();
+        if (server == null) {
+            woflo.petsplus.Petsplus.LOGGER.warn("Unable to resolve server instance when opening Pet Compendium for {}", player.getName().getString());
+            return;
+        }
         
-        // Store the book in the player's off-hand temporarily to open it
+        // Store the current off-hand stack so we can restore it later
         ItemStack offHandBackup = player.getOffHandStack().copy();
         player.setStackInHand(Hand.OFF_HAND, book);
-        
-        // Send packet to open the book in the off-hand
-        player.networkHandler.sendPacket(new OpenWrittenBookS2CPacket(Hand.OFF_HAND));
-        
-        // Restore the original off-hand item
-        // We schedule this to happen after the client opens the GUI
-        player.getEntityWorld().getServer().execute(() -> {
-            player.setStackInHand(Hand.OFF_HAND, offHandBackup);
-        });
+        player.playerScreenHandler.sendContentUpdates();
+
+        try {
+            // Let vanilla handle syncing and opening the written book screen
+            player.useBook(player.getStackInHand(Hand.OFF_HAND), Hand.OFF_HAND);
+        } catch (Exception exception) {
+            // If the GUI fails to open, provide a user-facing fallback message
+            player.sendMessage(
+                Text.literal("Unable to open the Pet Compendium.")
+                    .formatted(Formatting.RED)
+                    .append(Text.literal(" Please report this issue.").formatted(Formatting.GRAY)),
+                false
+            );
+            woflo.petsplus.Petsplus.LOGGER.error("Failed to open Pet Compendium written book UI", exception);
+        } finally {
+            // Restore the original off-hand item on the next tick to avoid race conditions
+            server.execute(() -> {
+                player.setStackInHand(Hand.OFF_HAND, offHandBackup);
+                player.playerScreenHandler.sendContentUpdates();
+            });
+        }
     }
     
     private static String buildTitle(MobEntity pet) {

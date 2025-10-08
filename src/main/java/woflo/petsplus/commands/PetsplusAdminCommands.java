@@ -302,7 +302,7 @@ public class PetsplusAdminCommands {
         player.sendMessage(Text.literal("Bond Strength: " + petComp.getBondStrength()), false);
         Identifier natureId = petComp.getNatureId();
         String natureSource = describeNatureSource(petComp);
-        Text natureDisplay = AstrologyRegistry.getNatureText(petComp).formatted(Formatting.AQUA);
+        Text natureDisplay = AstrologyRegistry.getNatureText(petComp).copy().formatted(Formatting.AQUA);
         player.sendMessage(Text.literal("Nature: ")
             .append(natureId != null ? natureDisplay : Text.literal("None").formatted(Formatting.GRAY))
             .append(Text.literal(" (" + natureSource + ")").formatted(Formatting.DARK_GRAY)), false);
@@ -312,7 +312,7 @@ public class PetsplusAdminCommands {
         return 1;
     }
 
-    private static int showPetNature(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+    static int showPetNature(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
 
         MobEntity targetPet = findTargetPet(player);
@@ -330,7 +330,7 @@ public class PetsplusAdminCommands {
         Identifier natureId = petComp.getNatureId();
         String source = describeNatureSource(petComp);
         Text natureText = natureId != null
-            ? AstrologyRegistry.getNatureText(petComp).formatted(Formatting.AQUA)
+            ? AstrologyRegistry.getNatureText(petComp).copy().formatted(Formatting.AQUA)
             : Text.literal("None").formatted(Formatting.GRAY);
         player.sendMessage(Text.literal("Current nature: ").formatted(Formatting.GOLD)
             .append(natureText)
@@ -344,7 +344,7 @@ public class PetsplusAdminCommands {
         return 1;
     }
 
-    private static int setPetNature(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+    static int setPetNature(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
 
         MobEntity targetPet = findTargetPet(player);
@@ -372,7 +372,7 @@ public class PetsplusAdminCommands {
         }
         PetAttributeManager.applyAttributeModifiers(targetPet, petComp);
 
-        Text display = AstrologyRegistry.getNatureText(petComp).formatted(Formatting.AQUA);
+        Text display = AstrologyRegistry.getNatureText(petComp).copy().formatted(Formatting.AQUA);
         player.sendMessage(Text.literal("Set pet nature to ")
             .formatted(Formatting.GREEN)
             .append(display), false);
@@ -396,7 +396,7 @@ public class PetsplusAdminCommands {
             .formatted(Formatting.DARK_AQUA), false);
     }
 
-    private static int clearPetNature(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+    static int clearPetNature(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
 
         MobEntity targetPet = findTargetPet(player);

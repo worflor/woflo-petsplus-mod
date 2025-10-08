@@ -12,9 +12,11 @@ import woflo.petsplus.state.tracking.PlayerTickListener;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.WeakHashMap;
 
@@ -29,8 +31,14 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
     private static final double PROXIMITY_RANGE = 3.0;
     private static final double PROXIMITY_RANGE_SQ = PROXIMITY_RANGE * PROXIMITY_RANGE;
     private static final int PROXIMITY_DURATION_TICKS = 30;
+    private static final int APPROACH_HISTORY_SIZE = 3;
+    private static final double APPROACH_ANGLE_THRESHOLD = 0.7;
+    private static final double MIN_APPROACH_SPEED = 0.05;
 
     private static final Map<ServerPlayerEntity, SneakState> SNEAK_STATES = new WeakHashMap<>();
+    private static final Map<ServerWorld, Map<MobEntity, UUID>> ACTIVE_CHANNEL_OWNERS = new WeakHashMap<>();
+    private static final Map<ServerWorld, Map<MobEntity, Long>> ACTIVE_CHANNEL_EXPIRIES = new WeakHashMap<>();
+    private static final Map<ServerWorld, Set<MobEntity>> ACTIVE_CHANNEL_APPROACHES = new WeakHashMap<>();
     private static final Map<ServerWorld, Map<MobEntity, ProximityChannel>> ACTIVE_CHANNELS = new WeakHashMap<>();
 
     private static final OwnerAbilitySignalTracker INSTANCE = new OwnerAbilitySignalTracker();

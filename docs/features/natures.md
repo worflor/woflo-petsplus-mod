@@ -30,8 +30,7 @@ Born natures require intentional setup. Want a Lunaris pet? Plan a twilight or m
 **Available Born Natures:**
 
 - **Radiant** — Daytime, open sky, clear weather
-- **Lunaris**: Night, dusk, or dawn under open sky; grants a secret star sign that shapes the pet's stats and moods.
-  * Example epithets: Lunaris Aegis, Lunaris Verdura, Lunaris Stratos (determined by the hidden sign).
+- **Lunaris**: Night, dusk, or dawn; under open sky; grants a secret star sign
 - **Homestead** — Near farms and settlements
 - **Hearth** — Indoors with cozy blocks nearby
 - **Gloom** — Indoors, low light, no valuable blocks
@@ -86,13 +85,13 @@ For example:
 - A **Festival** pet greatly prefers crowds over isolation
 - A **Solace** pet prefers isolation over crowds
 - A **Scrappy** pet feels the need to prove itself 
-- A **Lunaris** pet is different depending on when it became Lunaris, with variations like: *Lunaris Gemina*, *Astra-Lunaris*, *Lunaris Regis*, and *Vesper-Lunaris*, along with eight more.
+- A **Lunaris** pet is different depending on when it became Lunaris, with variations like: *Lunaris Gemina*, *Astra-Lunaris*, *Lunaris Regis*, *Vesper-Lunaris*, along with eight more.
 
 Nature specific variation documentation isn't done yet.
 
 ## Checking Your Pet's Nature
 
-tbd.
+sybau.
 
 ## Final Notes
 
