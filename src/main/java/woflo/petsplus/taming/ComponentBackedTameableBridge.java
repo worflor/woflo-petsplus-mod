@@ -70,6 +70,9 @@ public final class ComponentBackedTameableBridge {
         component.setOwnerUuid(ownerUuid);
         if (ownerUuid != null && this.mob.getEntityWorld() instanceof ServerWorld serverWorld) {
             PlayerEntity player = serverWorld.getPlayerByUuid(ownerUuid);
+            if (player == null && serverWorld.getServer() != null) {
+                player = serverWorld.getServer().getPlayerManager().getPlayer(ownerUuid);
+            }
             if (player != null) {
                 component.setOwner(player);
             }
@@ -84,7 +87,17 @@ public final class ComponentBackedTameableBridge {
             return null;
         }
         if (this.mob.getEntityWorld() instanceof ServerWorld serverWorld) {
-            return serverWorld.getPlayerByUuid(this.ownerUuid);
+            PlayerEntity player = serverWorld.getPlayerByUuid(this.ownerUuid);
+            if (player != null) {
+                return player;
+            }
+            if (serverWorld.getServer() != null) {
+                PlayerEntity serverPlayer = serverWorld.getServer().getPlayerManager().getPlayer(this.ownerUuid);
+                if (serverPlayer != null) {
+                    PetComponent.getOrCreate(this.mob).setOwner(serverPlayer);
+                    return serverPlayer;
+                }
+            }
         }
         return null;
     }
@@ -94,14 +107,19 @@ public final class ComponentBackedTameableBridge {
             return this.setOwnerUuid(null);
         }
 
-        boolean changed = this.ownerUuid == null || !this.ownerUuid.equals(owner.getUuid());
-        this.ownerUuid = owner.getUuid();
+        UUID previousOwnerUuid = this.ownerUuid;
         PetComponent component = PetComponent.getOrCreate(this.mob);
+        boolean changed;
+
         if (owner instanceof PlayerEntity player) {
+            UUID playerUuid = player.getUuid();
+            changed = previousOwnerUuid == null || !previousOwnerUuid.equals(playerUuid);
+            this.ownerUuid = playerUuid;
             component.setOwner(player);
-            component.setOwnerUuid(player.getUuid());
-        }
-        if (!(owner instanceof PlayerEntity)) {
+            component.setOwnerUuid(playerUuid);
+        } else {
+            changed = previousOwnerUuid != null;
+            this.ownerUuid = null;
             component.setOwner(null);
             component.setOwnerUuid(null);
         }
