@@ -6,6 +6,7 @@ import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.modules.OwnerModule;
 
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -35,6 +36,13 @@ public class DefaultOwnerModule implements OwnerModule {
         // Try to resolve owner from UUID if cache is empty
         if (ownerCache == null && ownerUuid != null) {
             PlayerEntity resolved = world.getPlayerByUuid(ownerUuid);
+
+            if (resolved == null && world.getServer() != null) {
+                resolved = world.getServer()
+                    .getPlayerManager()
+                    .getPlayer(ownerUuid);
+            }
+
             if (resolved != null) {
                 ownerCache = resolved;
             }
@@ -60,15 +68,14 @@ public class DefaultOwnerModule implements OwnerModule {
     public void setOwnerUuid(@Nullable UUID ownerUuid) {
         UUID previousOwnerUuid = this.ownerUuid;
         this.ownerUuid = ownerUuid;
-        
-        // Clear cache if owner changed
-        if (previousOwnerUuid != ownerUuid) {
+
+        if (!Objects.equals(previousOwnerUuid, ownerUuid)) {
             this.ownerCache = null;
-        }
-        
-        // Notify parent about owner change (for scheduling invalidation, etc.)
-        if (parent != null && previousOwnerUuid != ownerUuid) {
-            parent.onOwnerChanged(previousOwnerUuid, ownerUuid);
+            clearCrouchCuddle();
+
+            if (parent != null) {
+                parent.onOwnerChanged(previousOwnerUuid, ownerUuid);
+            }
         }
     }
 
