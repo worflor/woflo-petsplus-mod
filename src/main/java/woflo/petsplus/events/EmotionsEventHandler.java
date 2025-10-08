@@ -675,19 +675,21 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         String definitionId = config.findEntityUseDefinition(entity, stack);
         
         // Check if petting a pet
-        if (entity instanceof MobEntity mob && PetComponent.get(mob) != null && stack.isEmpty()) {
+        if (entity instanceof MobEntity mob && stack.isEmpty() && player.isSneaking()) {
             PetComponent pc = PetComponent.get(mob);
-            // Petting emotions
-            pushToSinglePet(sp, pc, (comp, collector) -> {
-                collector.pushEmotion(PetComponent.Emotion.KEFI, 0.20f);  // Initial joy
-                collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.25f);  // Settling into contentment
-                collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.15f);  // Bonding
-                // Add contagion for petting - spread joy to nearby pets
-                collector.pushEmotion(PetComponent.Emotion.KEFI, 0.018f);  // Joy contagion
-                collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.012f);  // Social bonding contagion
-                // Add visual feedback for social contagion
-                FeedbackManager.emitContagionFeedback(pc.getPet(), (ServerWorld) sp.getEntityWorld(), PetComponent.Emotion.SOBREMESA);
-            });
+            if (pc != null) {
+                // Petting emotions
+                pushToSinglePet(sp, pc, (comp, collector) -> {
+                    collector.pushEmotion(PetComponent.Emotion.KEFI, 0.20f);  // Initial joy
+                    collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.25f);  // Settling into contentment
+                    collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.15f);  // Bonding
+                    // Add contagion for petting - spread joy to nearby pets
+                    collector.pushEmotion(PetComponent.Emotion.KEFI, 0.018f);  // Joy contagion
+                    collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.012f);  // Social bonding contagion
+                    // Add visual feedback for social contagion
+                    FeedbackManager.emitContagionFeedback(pc.getPet(), (ServerWorld) sp.getEntityWorld(), PetComponent.Emotion.SOBREMESA);
+                });
+            }
         }
         
         if (definitionId != null) {
