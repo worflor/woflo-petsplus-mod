@@ -4,7 +4,7 @@
        width="128">
 </p>
 
-<h1 align="center">Pets+</h1>
+<h1 align="center">woflo's Pets+</h1>
 <h3 align="center">dev-0.94-Rebranding-to-Realtime</h3>
 <h4 align="center">next: stablerer backends</h4>
 
