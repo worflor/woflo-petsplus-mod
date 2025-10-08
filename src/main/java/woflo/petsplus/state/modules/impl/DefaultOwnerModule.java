@@ -35,6 +35,13 @@ public class DefaultOwnerModule implements OwnerModule {
         // Try to resolve owner from UUID if cache is empty
         if (ownerCache == null && ownerUuid != null) {
             PlayerEntity resolved = world.getPlayerByUuid(ownerUuid);
+
+            if (resolved == null && world.getServer() != null) {
+                resolved = world.getServer()
+                    .getPlayerManager()
+                    .getPlayer(ownerUuid);
+            }
+
             if (resolved != null) {
                 ownerCache = resolved;
             }
