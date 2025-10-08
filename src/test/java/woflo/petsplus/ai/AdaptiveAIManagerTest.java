@@ -46,7 +46,7 @@ class AdaptiveAIManagerTest {
         when(petsplus.petsplus$getOwnerUuid()).thenReturn(null);
         when(petsplus.petsplus$getOwner()).thenReturn(null);
 
-        World world = new World(null, false);
+        World world = mock(World.class);
         when(pet.getEntityWorld()).thenReturn(world);
 
         PetComponent component = mock(PetComponent.class);

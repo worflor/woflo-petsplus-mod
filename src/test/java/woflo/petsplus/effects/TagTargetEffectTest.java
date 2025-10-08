@@ -36,7 +36,7 @@ class TagTargetEffectTest {
         verify(context).getData("target", Entity.class);
         verify(context).getTriggerContext();
         verify(context).getTarget();
-        verify(context, never()).getWorld();
+        verify(context, never()).getEntityWorld();
     }
 
     @Test
@@ -48,7 +48,7 @@ class TagTargetEffectTest {
         when(context.getData("target", Entity.class)).thenReturn(null);
         when(context.getTriggerContext()).thenReturn(null);
         when(context.getTarget()).thenReturn(storedTarget);
-        when(context.getWorld()).thenReturn(world);
+        when(context.getEntityWorld()).thenReturn(world);
         when(storedTarget.getEntityWorld()).thenReturn(world);
         when(world.getTime()).thenReturn(100L);
 
@@ -60,7 +60,7 @@ class TagTargetEffectTest {
         assertTrue(TagTargetEffect.hasTag(storedTarget, "petsplus:test"), "Stored target should be tagged");
 
         TagTargetEffect.removeTag(storedTarget, "petsplus:test");
-        verify(context).getWorld();
+        verify(context).getEntityWorld();
     }
 
     @Test
@@ -70,7 +70,7 @@ class TagTargetEffectTest {
         ServerWorld world = mock(ServerWorld.class);
 
         when(context.getData("target", Entity.class)).thenReturn(target);
-        when(context.getWorld()).thenReturn(null);
+        when(context.getEntityWorld()).thenReturn(null);
         when(target.getEntityWorld()).thenReturn(world);
         when(world.getTime()).thenReturn(150L);
 

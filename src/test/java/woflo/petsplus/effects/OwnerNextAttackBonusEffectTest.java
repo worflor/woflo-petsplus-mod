@@ -30,7 +30,7 @@ class OwnerNextAttackBonusEffectTest {
 
         assertFalse(result, "Effect should not execute when owner is missing");
         verify(context).getOwner();
-        verify(context, never()).getWorld();
+        verify(context, never()).getEntityWorld();
     }
 
     @Test
@@ -41,7 +41,7 @@ class OwnerNextAttackBonusEffectTest {
         OwnerCombatState combatState = mock(OwnerCombatState.class);
 
         when(context.getOwner()).thenReturn(owner);
-        when(context.getWorld()).thenReturn(null);
+        when(context.getEntityWorld()).thenReturn(null);
         when(owner.isAlive()).thenReturn(true);
         when(owner.isRemoved()).thenReturn(false);
         when(owner.getEntityWorld()).thenReturn(ownerWorld);

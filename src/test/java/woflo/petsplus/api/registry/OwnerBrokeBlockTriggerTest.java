@@ -12,6 +12,8 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class OwnerBrokeBlockTriggerTest {
 
@@ -68,9 +70,10 @@ class OwnerBrokeBlockTriggerTest {
     }
 
     private static TriggerContext createContext(String blockId, boolean includeIdentifier, boolean blockValuable, String eventType) {
-        MinecraftServer server = new MinecraftServer();
-        ServerWorld world = new ServerWorld(server);
-        ServerPlayerEntity owner = new ServerPlayerEntity(world);
+        MinecraftServer server = mock(MinecraftServer.class);
+        ServerWorld world = mock(ServerWorld.class);
+        when(world.getServer()).thenReturn(server);
+        ServerPlayerEntity owner = mock(ServerPlayerEntity.class);
         TriggerContext context = new TriggerContext(world, null, owner, eventType);
         if (blockId != null) {
             context.withData("block_id", blockId);

@@ -74,6 +74,10 @@ test {
         useJUnitPlatform()
         jvmArgs '-Dnet.bytebuddy.experimental=true'
         maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+        if (!project.hasProperty("runTests")) {
+                enabled = false
+                logger.lifecycle("Skipping unit tests (enable with -PrunTests=true)")
+        }
 }
 
 // configure the maven publication

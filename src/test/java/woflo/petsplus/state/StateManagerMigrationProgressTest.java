@@ -1,35 +1,35 @@
 package woflo.petsplus.state;
 
+import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.world.World;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import woflo.petsplus.state.processing.AsyncMigrationProgressTracker;
+import woflo.petsplus.state.processing.AsyncWorkCoordinator;
+import woflo.petsplus.state.processing.OwnerEventType;
+import woflo.petsplus.state.processing.OwnerProcessingManager;
+
+import java.lang.reflect.Field;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
+
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
-
-import java.lang.reflect.Field;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.Vec3d;
-
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
-
-import woflo.petsplus.state.processing.AsyncMigrationProgressTracker;
-import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.processing.AsyncWorkCoordinator;
-import woflo.petsplus.state.processing.OwnerProcessingManager;
-import woflo.petsplus.state.processing.OwnerEventType;
 
 class StateManagerMigrationProgressTest {
 
@@ -40,9 +40,24 @@ class StateManagerMigrationProgressTest {
     void setup() {
         AsyncMigrationProgressTracker.reset();
         StateManager.unloadAll();
-        server = new MinecraftServer();
-        world = new ServerWorld(server);
-        world.setTime(200L);
+        server = mock(MinecraftServer.class);
+        when(server.submit(org.mockito.ArgumentMatchers.any(Runnable.class))).thenAnswer(invocation -> {
+            Runnable runnable = invocation.getArgument(0);
+            if (runnable != null) {
+                runnable.run();
+            }
+            return CompletableFuture.completedFuture(null);
+        });
+        when(server.submit(org.mockito.ArgumentMatchers.any(Supplier.class))).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(0);
+            Object result = supplier != null ? supplier.get() : null;
+            return CompletableFuture.completedFuture(result);
+        });
+
+        world = mock(ServerWorld.class);
+        when(world.getServer()).thenReturn(server);
+        when(world.getTime()).thenReturn(200L);
+        when(world.getRegistryKey()).thenReturn(World.OVERWORLD);
     }
 
     @AfterEach
@@ -54,7 +69,7 @@ class StateManagerMigrationProgressTest {
     @Test
     void requestEmotionEventMarksPhaseOne() {
         StateManager manager = StateManager.forWorld(world);
-        ServerPlayerEntity owner = new ServerPlayerEntity(world);
+        ServerPlayerEntity owner = newOwner();
 
         try (MockedStatic<AsyncMigrationProgressTracker> tracker =
                  mockStatic(AsyncMigrationProgressTracker.class, CALLS_REAL_METHODS)) {
@@ -70,10 +85,8 @@ class StateManagerMigrationProgressTest {
     @Test
     void handlePetTickMarksPhaseTwo() {
         StateManager manager = StateManager.forWorld(world);
-        ServerPlayerEntity owner = new ServerPlayerEntity(world);
-        MobEntity pet = new MobEntity(world);
-        pet.setPos(0.0, 64.0, 0.0);
-        pet.setVelocity(Vec3d.ZERO);
+        ServerPlayerEntity owner = newOwner();
+        MobEntity pet = newPet();
 
         AsyncWorkCoordinator asyncCoordinator = mock(AsyncWorkCoordinator.class);
         when(asyncCoordinator.submitStandalone(any(), any(), any(), any())).thenReturn(CompletableFuture.completedFuture(null));
@@ -108,20 +121,18 @@ class StateManagerMigrationProgressTest {
     @Test
     void ownerTickAndScheduledTasksMarkRemainingPhases() {
         StateManager manager = StateManager.forWorld(world);
-        ServerPlayerEntity owner = new ServerPlayerEntity(world);
+        ServerPlayerEntity owner = newOwner();
 
         AsyncWorkCoordinator asyncCoordinator = mock(AsyncWorkCoordinator.class);
         when(asyncCoordinator.drainMainThreadTasks()).thenReturn(0);
         setField(manager, "asyncWorkCoordinator", asyncCoordinator);
 
         OwnerProcessingManager ownerProcessingManager = mock(OwnerProcessingManager.class);
-        when(ownerProcessingManager.snapshotOwnerTick(owner, world.getTime())).thenReturn(null);
-        doNothing().when(ownerProcessingManager).prepareForTick(anyLong());
         when(ownerProcessingManager.preparePendingGroups(anyLong())).thenReturn(0);
+        when(ownerProcessingManager.snapshotOwnerTick(any(), anyLong())).thenReturn(null);
+        doNothing().when(ownerProcessingManager).prepareForTick(anyLong());
         doNothing().when(ownerProcessingManager).flushBatches(any(), anyLong(), anyInt());
         setField(manager, "ownerProcessingManager", ownerProcessingManager);
-
-        setField(manager, "auraTargetResolver", mock(woflo.petsplus.effects.AuraTargetResolver.class));
 
         try (MockedStatic<AsyncMigrationProgressTracker> tracker =
                  mockStatic(AsyncMigrationProgressTracker.class, CALLS_REAL_METHODS)) {
@@ -140,10 +151,8 @@ class StateManagerMigrationProgressTest {
     @Test
     void runningCoreSystemsCompletesAllPhases() {
         StateManager manager = StateManager.forWorld(world);
-        ServerPlayerEntity owner = new ServerPlayerEntity(world);
-        MobEntity pet = new MobEntity(world);
-        pet.setPos(1.0, 65.0, 1.0);
-        pet.setVelocity(Vec3d.ZERO);
+        ServerPlayerEntity owner = newOwner();
+        MobEntity pet = newPet();
 
         AsyncWorkCoordinator asyncCoordinator = mock(AsyncWorkCoordinator.class);
         when(asyncCoordinator.submitStandalone(any(), any(), any(), any())).thenReturn(CompletableFuture.completedFuture(null));
@@ -151,7 +160,7 @@ class StateManagerMigrationProgressTest {
         setField(manager, "asyncWorkCoordinator", asyncCoordinator);
 
         OwnerProcessingManager ownerProcessingManager = mock(OwnerProcessingManager.class);
-        when(ownerProcessingManager.snapshotOwnerTick(owner, world.getTime())).thenReturn(null);
+        when(ownerProcessingManager.snapshotOwnerTick(any(), anyLong())).thenReturn(null);
         doNothing().when(ownerProcessingManager).prepareForTick(anyLong());
         when(ownerProcessingManager.preparePendingGroups(anyLong())).thenReturn(0);
         doNothing().when(ownerProcessingManager).flushBatches(any(), anyLong(), anyInt());
@@ -185,6 +194,27 @@ class StateManagerMigrationProgressTest {
         }
     }
 
+    private ServerPlayerEntity newOwner() {
+        ServerPlayerEntity owner = mock(ServerPlayerEntity.class);
+        UUID ownerId = UUID.randomUUID();
+        when(owner.isRemoved()).thenReturn(false);
+        when(owner.isAlive()).thenReturn(true);
+        when(owner.getEntityWorld()).thenReturn(world);
+        when(owner.getUuid()).thenReturn(ownerId);
+        when(owner.getUuidAsString()).thenReturn(ownerId.toString());
+        return owner;
+    }
+
+    private MobEntity newPet() {
+        MobEntity pet = mock(MobEntity.class);
+        UUID petId = UUID.randomUUID();
+        when(pet.getEntityWorld()).thenReturn(world);
+        when(pet.isRemoved()).thenReturn(false);
+        when(pet.getUuid()).thenReturn(petId);
+        when(pet.getUuidAsString()).thenReturn(petId.toString());
+        return pet;
+    }
+
     @SuppressWarnings("unchecked")
     private static void insertPetComponent(StateManager manager, MobEntity pet, PetComponent component) {
         try {
@@ -206,5 +236,4 @@ class StateManagerMigrationProgressTest {
             throw new RuntimeException(ex);
         }
     }
-
 }

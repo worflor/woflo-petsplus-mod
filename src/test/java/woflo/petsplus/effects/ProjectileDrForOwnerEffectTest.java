@@ -32,7 +32,7 @@ class ProjectileDrForOwnerEffectTest {
 
         assertFalse(result, "Effect should not execute when owner is missing");
         verify(context).getOwner();
-        verify(context, never()).getWorld();
+        verify(context, never()).getEntityWorld();
     }
 
     @Test
@@ -43,7 +43,7 @@ class ProjectileDrForOwnerEffectTest {
         ServerWorld world = mock(ServerWorld.class);
 
         when(context.getOwner()).thenReturn(owner);
-        when(context.getWorld()).thenReturn(world);
+        when(context.getEntityWorld()).thenReturn(world);
         when(owner.isRemoved()).thenReturn(false);
         when(owner.isAlive()).thenReturn(true);
         when(world.getTime()).thenReturn(100L);
@@ -71,7 +71,7 @@ class ProjectileDrForOwnerEffectTest {
         ServerWorld world = mock(ServerWorld.class);
 
         when(context.getOwner()).thenReturn(owner);
-        when(context.getWorld()).thenReturn(null);
+        when(context.getEntityWorld()).thenReturn(null);
         when(owner.isRemoved()).thenReturn(false);
         when(owner.isAlive()).thenReturn(true);
         when(owner.getEntityWorld()).thenReturn(world);

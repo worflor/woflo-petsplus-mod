@@ -1,8 +1,5 @@
 package woflo.petsplus.state;
 
-import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.world.ServerWorld;
 import org.junit.jupiter.api.Test;
 import woflo.petsplus.component.PetsplusComponents;
 import woflo.petsplus.state.modules.RelationshipModule;
@@ -14,14 +11,20 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class PetComponentRelationshipPersistenceTest {
 
     @Test
     void relationshipModuleStateSurvivesSerializationRoundTrip() {
-        MinecraftServer server = new MinecraftServer();
-        ServerWorld world = new ServerWorld(server);
-        MobEntity pet = new MobEntity(world);
+        net.minecraft.server.MinecraftServer server = mock(net.minecraft.server.MinecraftServer.class);
+        net.minecraft.server.world.ServerWorld world = mock(net.minecraft.server.world.ServerWorld.class);
+        net.minecraft.entity.mob.MobEntity pet = mock(net.minecraft.entity.mob.MobEntity.class);
+        when(pet.getEntityWorld()).thenReturn(world);
+        when(pet.getUuid()).thenReturn(UUID.randomUUID());
+        when(pet.getUuidAsString()).thenReturn(pet.getUuid().toString());
+
         PetComponent component = new PetComponent(pet);
 
         UUID entityId = UUID.randomUUID();
@@ -36,7 +39,11 @@ class PetComponentRelationshipPersistenceTest {
         PetsplusComponents.PetData serialized = component.toComponentData();
         assertTrue(serialized.relationships().isPresent(), "Serialized payload should include relationships when data exists");
 
-        PetComponent reloaded = new PetComponent(new MobEntity(world));
+        net.minecraft.entity.mob.MobEntity reloadedPet = mock(net.minecraft.entity.mob.MobEntity.class);
+        when(reloadedPet.getEntityWorld()).thenReturn(world);
+        when(reloadedPet.getUuid()).thenReturn(UUID.randomUUID());
+        when(reloadedPet.getUuidAsString()).thenReturn(reloadedPet.getUuid().toString());
+        PetComponent reloaded = new PetComponent(reloadedPet);
         reloaded.fromComponentData(serialized);
 
         RelationshipProfile after = reloaded.getRelationshipModule().getRelationship(entityId);
@@ -49,9 +56,13 @@ class PetComponentRelationshipPersistenceTest {
 
     @Test
     void emptyRelationshipModuleOmitsSerializationPayload() {
-        MinecraftServer server = new MinecraftServer();
-        ServerWorld world = new ServerWorld(server);
-        PetComponent component = new PetComponent(new MobEntity(world));
+        net.minecraft.server.MinecraftServer server = mock(net.minecraft.server.MinecraftServer.class);
+        net.minecraft.server.world.ServerWorld world = mock(net.minecraft.server.world.ServerWorld.class);
+        net.minecraft.entity.mob.MobEntity pet = mock(net.minecraft.entity.mob.MobEntity.class);
+        when(pet.getEntityWorld()).thenReturn(world);
+        when(pet.getUuid()).thenReturn(UUID.randomUUID());
+        when(pet.getUuidAsString()).thenReturn(pet.getUuid().toString());
+        PetComponent component = new PetComponent(pet);
 
         PetsplusComponents.PetData serialized = component.toComponentData();
 

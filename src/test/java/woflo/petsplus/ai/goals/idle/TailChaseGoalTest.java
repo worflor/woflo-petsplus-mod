@@ -1,22 +1,39 @@
 package woflo.petsplus.ai.goals.idle;
 
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.world.World;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.random.Random;
+import net.minecraft.server.world.ServerWorld;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyFloat;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class TailChaseGoalTest {
 
     @Test
     void tailChaseYawStaysNormalizedAcrossSpins() throws Exception {
-        World world = new World(new MinecraftServer());
-        MobEntity mob = new MobEntity(world);
+        MobEntity mob = mock(MobEntity.class);
+        ServerWorld world = mock(ServerWorld.class);
+        when(world.isClient()).thenReturn(false);
+        when(mob.getEntityWorld()).thenReturn(world);
+        when(mob.getRandom()).thenReturn(net.minecraft.util.math.random.Random.create(42));
+
+        AtomicReference<Float> yawRef = new AtomicReference<>(0f);
+        doAnswer(invocation -> {
+            float yaw = invocation.getArgument(0);
+            yawRef.set(yaw);
+            return null;
+        }).when(mob).setYaw(anyFloat());
+        when(mob.getYaw()).thenAnswer(invocation -> yawRef.get());
+
         mob.setYaw(0f);
         mob.bodyYaw = 0f;
         mob.headYaw = 0f;
