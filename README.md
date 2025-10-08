@@ -24,7 +24,7 @@
 <p align="center">
   "I wish my block game contained a real-time emotion engine😔" - Someone, somewhere, at some point. 
   <br>
-  <strong>Mod is NOT officially released / out of development.</strong>
+  <strong>Mod is NOT officially released.</strong>
 </p>
 
 ---
