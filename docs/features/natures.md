@@ -85,7 +85,11 @@ For example:
 - A **Festival** pet greatly prefers crowds over isolation
 - A **Solace** pet prefers isolation over crowds
 - A **Scrappy** pet feels the need to prove itself 
-- A **Lunaris** pet is different depending on when it became Lunaris, with variations like: *Lunaris Gemina*, *Astra-Lunaris*, *Lunaris Regis*, *Vesper-Lunaris*, along with eight more.
+- A **Lunaris** pet is different depending on when it became Lunaris. Each zodiac sign has a bespoke title:
+  - **Fire Signs** — Aries → *Lunaris Vanguard*, Leo → *Solara Lunaris*, Sagittarius → *Zenith Lunaris*
+- **Earth Signs** — Taurus → *Bulwark Lunaris*, Virgo → *Calibra Lunaris*, Capricorn → *Lunaris Apex*
+- **Air Signs** — Gemini → *Syzygy Lunaris*, Libra → *Lunaris Equinox*, Aquarius → *Cascade Lunaris*
+  - **Water Signs** — Cancer → *Lunaris Haven*, Scorpio → *Vesper Lunaris*, Pisces → *Eidolon Lunaris*
 
 Nature specific variation documentation isn't done yet.
 
