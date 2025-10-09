@@ -60,7 +60,7 @@ public class EclipsedEmotionModifier extends BaseRoleEmotionModifier {
             addEmotion(emotions, PetComponent.Emotion.MELANCHOLY, scaleByDamage(0.2f, amount));
             
             // Remove overly emotional responses
-            removeEmotion(emotions, PetComponent.Emotion.GLEE);
+            removeEmotion(emotions, PetComponent.Emotion.CHEERFUL);
             removeEmotion(emotions, PetComponent.Emotion.KEFI);
             removeEmotion(emotions, PetComponent.Emotion.STARTLE);
         }
@@ -94,7 +94,7 @@ public class EclipsedEmotionModifier extends BaseRoleEmotionModifier {
                 addEmotion(emotions, PetComponent.Emotion.YUGEN, 0.15f);
                 
                 // Remove overly cheerful emotions
-                removeEmotion(emotions, PetComponent.Emotion.GLEE);
+                removeEmotion(emotions, PetComponent.Emotion.CHEERFUL);
                 removeEmotion(emotions, PetComponent.Emotion.CHEERFUL);
             }
             

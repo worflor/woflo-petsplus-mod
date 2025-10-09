@@ -17,7 +17,7 @@ import woflo.petsplus.state.PetComponent;
 /**
  * Threat/Combat provider:
  * - Nearby hostile entities → ANGST
- * - Owner recently damaged → PROTECTIVENESS
+ * - Owner recently damaged → GUARDIAN_VIGIL
  * - Pet recently damaged → STARTLE/FRUSTRATION
  */
 public class CombatThreatProvider implements EmotionProvider, ReactiveEmotionProvider {
@@ -79,8 +79,8 @@ public class CombatThreatProvider implements EmotionProvider, ReactiveEmotionPro
         OwnerCombatState ocs = owner != null ? OwnerCombatState.get(owner) : null;
         boolean ownerDamaged = ocs != null && ocs.recentlyDamaged(time, 60);
         if (ownerDamaged) {
-            float protectiveness = 0.06f * (0.75f + 0.5f * resilience);
-            api.pushEmotion(pet, PetComponent.Emotion.PROTECTIVENESS, protectiveness);
+            float vigilStrength = 0.06f * (0.75f + 0.5f * resilience);
+            api.pushEmotion(pet, PetComponent.Emotion.GUARDIAN_VIGIL, vigilStrength);
         }
 
         boolean petRecentlyHurt = pet.hurtTime > 0;

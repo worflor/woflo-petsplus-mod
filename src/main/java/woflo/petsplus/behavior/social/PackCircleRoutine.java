@@ -73,7 +73,7 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
                 context.hasEldestPet(), context.hasSimilarAge(), context.strongestBondResonance());
             switch (mood) {
                 case HAPPY -> context.pushEmotion(PetComponent.Emotion.CHEERFUL, strength);
-                case PLAYFUL -> context.pushEmotion(PetComponent.Emotion.GLEE, strength);
+                case PLAYFUL -> context.pushEmotion(PetComponent.Emotion.CHEERFUL, strength + 0.01f);
                 case CURIOUS -> context.pushEmotion(PetComponent.Emotion.CURIOUS, strength);
                 case BONDED -> context.pushEmotion(PetComponent.Emotion.UBUNTU, strength);
                 case CALM -> context.pushEmotion(PetComponent.Emotion.LAGOM, strength + 0.01f);
@@ -82,7 +82,7 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
                 case FOCUSED -> context.pushEmotion(PetComponent.Emotion.FOCUSED, strength);
                 case SISU -> context.pushEmotion(PetComponent.Emotion.SISU, strength);
                 case SAUDADE -> context.pushEmotion(PetComponent.Emotion.SAUDADE, strength);
-                case PROTECTIVE -> context.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, strength);
+                case PROTECTIVE -> context.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, strength);
                 case RESTLESS -> context.pushEmotion(PetComponent.Emotion.RESTLESS, strength);
                 case AFRAID -> context.pushEmotion(PetComponent.Emotion.ANGST, strength + 0.01f);
                 case ANGRY -> context.pushEmotion(PetComponent.Emotion.FRUSTRATION, strength);
@@ -157,13 +157,13 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
             default -> {
                 if (nearbyCount <= 3) {
                     context.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.06f);
-                    context.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.04f);
+                    context.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.04f);
                     if (context.hasSimilarAge()) {
-                        context.pushEmotion(PetComponent.Emotion.GLEE, 0.03f);
+                        context.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.03f);
                     }
                 } else {
                     context.pushEmotion(PetComponent.Emotion.KEFI, 0.05f);
-                    context.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.07f);
+                    context.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.07f);
                     context.pushEmotion(PetComponent.Emotion.PRIDE, 0.04f);
                 }
             }

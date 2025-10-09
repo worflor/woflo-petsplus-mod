@@ -30,7 +30,7 @@ import java.util.EnumSet;
  *     <li>Distance (close approach 1.3x, distant 0.7x)</li>
  *   </ul>
  *   <li>If roll succeeds, select and execute personality-driven behavior variant</li>
- *   <li>Emit bonding emotions (GLEE, UBUNTU, LOYALTY) on completion</li>
+ *   <li>Emit bonding emotions (CHEERFUL, UBUNTU, LOYALTY) on completion</li>
  * </ol>
  * 
  * <p><b>Behavior Variants:</b>
@@ -360,12 +360,12 @@ public class CrouchApproachResponseGoal extends AdaptiveGoal {
     protected EmotionFeedback defineEmotionFeedback() {
         PetContext ctx = getContext();
         EmotionFeedback.Builder builder = new EmotionFeedback.Builder()
-            .add(PetComponent.Emotion.GLEE, 0.25f)           // Playful joy
+            .add(PetComponent.Emotion.CHEERFUL, 0.25f)           // Playful joy
             .add(PetComponent.Emotion.UBUNTU, 0.18f)         // Connection
             .add(PetComponent.Emotion.LOYALTY, 0.15f)        // Devotion
             .add(PetComponent.Emotion.PLAYFULNESS, 0.12f)    // Engagement
             .add(PetComponent.Emotion.HANYAUKU, 0.10f)       // Joyful enthusiasm
-            .withContagion(PetComponent.Emotion.GLEE, 0.02f) // Spread joy to nearby pets
+            .withContagion(PetComponent.Emotion.CHEERFUL, 0.02f) // Spread joy to nearby pets
             .withContagion(PetComponent.Emotion.UBUNTU, 0.015f); // Spread connection
         
         // Extra bond emotions for highly bonded pets

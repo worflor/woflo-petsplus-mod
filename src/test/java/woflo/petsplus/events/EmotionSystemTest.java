@@ -98,7 +98,7 @@ public class EmotionSystemTest {
             Map<PetComponent.Emotion, Float> conflictingEmotions = Map.of(
                 PetComponent.Emotion.ANGST, 0.5f,
                 PetComponent.Emotion.CHEERFUL, 0.5f,
-                PetComponent.Emotion.PROTECTIVENESS, 0.7f
+                PetComponent.Emotion.GUARDIAN_VIGIL, 0.7f
             );
             
             // Resolve contradictions
@@ -106,8 +106,8 @@ public class EmotionSystemTest {
                 .resolveContradictions(conflictingEmotions);
             
             // Validate that contradictions were resolved
-            // Should keep PROTECTIVENESS (highest priority) and one of ANGST/CHEERFUL
-            return resolved.size() <= 2 && resolved.containsKey(PetComponent.Emotion.PROTECTIVENESS);
+            // Should keep GUARDIAN_VIGIL (highest priority) and one of ANGST/CHEERFUL
+            return resolved.size() <= 2 && resolved.containsKey(PetComponent.Emotion.GUARDIAN_VIGIL);
             
         } catch (Exception e) {
             throw new EmotionTestException("Contradiction resolution test failed: " + e.getMessage());

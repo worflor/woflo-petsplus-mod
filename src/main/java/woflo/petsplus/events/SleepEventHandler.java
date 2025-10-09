@@ -100,7 +100,8 @@ public class SleepEventHandler {
         ).forEach(pet -> {
             woflo.petsplus.state.PetComponent pc = woflo.petsplus.state.PetComponent.get(pet);
             if (pc != null) {
-                pc.pushEmotion(woflo.petsplus.state.PetComponent.Emotion.BLISSFUL, 0.25f);
+                pc.pushEmotion(woflo.petsplus.state.PetComponent.Emotion.CONTENT, 0.20f);
+                pc.pushEmotion(woflo.petsplus.state.PetComponent.Emotion.QUERECIA, 0.12f);
                 pc.pushEmotion(woflo.petsplus.state.PetComponent.Emotion.SOBREMESA, 0.20f);
                 pc.pushEmotion(woflo.petsplus.state.PetComponent.Emotion.RELIEF, 0.20f);
                 pc.updateMood();

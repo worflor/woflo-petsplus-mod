@@ -21,7 +21,7 @@ public class SkyriderEmotionModifier extends BaseRoleEmotionModifier {
     // Constants for magic numbers
     private static final float HIGH_PRIORITY = 10.0f;
     private static final float AERIAL_ADVANTAGE_THRESHOLD = 10.0f;
-    private static final float AERIAL_ADVANTAGE_GLEE_SCALE = 0.2f;
+    private static final float AERIAL_ADVANTAGE_CHEERFUL_SCALE = 0.2f;
     private static final float AERIAL_ADVANTAGE_CONTENT_SCALE = 0.15f;
     
     public SkyriderEmotionModifier() {
@@ -45,7 +45,7 @@ public class SkyriderEmotionModifier extends BaseRoleEmotionModifier {
         // Skyrider pets are agile and free in combat
         if (!isPetVictim) {
             // Owner or pet is dealing damage - Skyrider feels free and joyful
-            addEmotion(emotions, PetComponent.Emotion.GLEE, scaleByDamage(0.35f, amount));
+            addEmotion(emotions, PetComponent.Emotion.CHEERFUL, scaleByDamage(0.35f, amount));
             addEmotion(emotions, PetComponent.Emotion.FERNWEH, scaleByDamage(0.3f, amount));
             addEmotion(emotions, PetComponent.Emotion.FOCUSED, scaleByDamage(0.2f, amount));
             
@@ -66,7 +66,7 @@ public class SkyriderEmotionModifier extends BaseRoleEmotionModifier {
         
         // Enhanced response to aerial combat or high ground advantage
         if (amount > AERIAL_ADVANTAGE_THRESHOLD) {
-            addEmotion(emotions, PetComponent.Emotion.GLEE, AERIAL_ADVANTAGE_GLEE_SCALE);
+            addEmotion(emotions, PetComponent.Emotion.CHEERFUL, AERIAL_ADVANTAGE_CHEERFUL_SCALE);
             addEmotion(emotions, PetComponent.Emotion.CONTENT, AERIAL_ADVANTAGE_CONTENT_SCALE);
         }
         
@@ -89,7 +89,7 @@ public class SkyriderEmotionModifier extends BaseRoleEmotionModifier {
         switch (type) {
             case PETTING -> {
                 // Skyrider pets enjoy light, free-flowing interactions
-                addEmotion(emotions, PetComponent.Emotion.GLEE, 0.2f);
+                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.2f);
                 addEmotion(emotions, PetComponent.Emotion.CONTENT, 0.15f);
                 
                 // Less restrictive emotions
@@ -101,7 +101,7 @@ public class SkyriderEmotionModifier extends BaseRoleEmotionModifier {
                 // Skyrider pets see feeding as fuel for flight
                 addEmotion(emotions, PetComponent.Emotion.HOPEFUL, 0.25f);
                 addEmotion(emotions, PetComponent.Emotion.FERNWEH, 0.2f);
-                addEmotion(emotions, PetComponent.Emotion.GLEE, 0.15f);
+                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.15f);
             }
             
             case HEALING -> {
@@ -129,7 +129,7 @@ public class SkyriderEmotionModifier extends BaseRoleEmotionModifier {
         
         switch (eventType.toLowerCase()) {
             case "flying", "flight", "air" -> {
-                addEmotion(emotions, PetComponent.Emotion.GLEE, 0.4f);
+                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.4f);
                 addEmotion(emotions, PetComponent.Emotion.FERNWEH, 0.35f);
                 addEmotion(emotions, PetComponent.Emotion.CONTENT, 0.3f);
             }

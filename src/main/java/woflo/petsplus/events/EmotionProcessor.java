@@ -667,12 +667,12 @@ public class EmotionProcessor {
         switch (eventType.toLowerCase()) {
             case "boss_battle" -> {
                 emotions.put(PetComponent.Emotion.ANGST, 0.7f);
-                emotions.put(PetComponent.Emotion.PROTECTIVENESS, 0.8f);
+                emotions.put(PetComponent.Emotion.GUARDIAN_VIGIL, 0.8f);
                 emotions.put(PetComponent.Emotion.STOIC, 0.6f);
                 emotions.put(PetComponent.Emotion.VIGILANT, 0.7f);
             }
             case "rare_discovery" -> {
-                emotions.put(PetComponent.Emotion.GLEE, 0.8f);
+                emotions.put(PetComponent.Emotion.CHEERFUL, 0.8f);
                 emotions.put(PetComponent.Emotion.CURIOUS, 0.7f);
                 emotions.put(PetComponent.Emotion.HOPEFUL, 0.6f);
                 emotions.put(PetComponent.Emotion.CHEERFUL, 0.5f);

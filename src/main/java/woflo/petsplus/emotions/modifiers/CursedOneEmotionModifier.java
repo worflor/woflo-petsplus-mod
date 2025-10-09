@@ -56,7 +56,7 @@ public class CursedOneEmotionModifier extends BaseRoleEmotionModifier {
             removeEmotion(emotions, PetComponent.Emotion.REGRET);
             
             // Add enjoyment of pain with consistent scaling
-            addEmotion(emotions, PetComponent.Emotion.GLEE, scaleByDamage(0.4f, amount));
+            addEmotion(emotions, PetComponent.Emotion.CHEERFUL, scaleByDamage(0.4f, amount));
             addEmotion(emotions, PetComponent.Emotion.KEFI, scaleByDamage(0.3f, amount));
             addEmotion(emotions, PetComponent.Emotion.STOIC, scaleByDamage(0.2f, amount));
             
@@ -66,7 +66,7 @@ public class CursedOneEmotionModifier extends BaseRoleEmotionModifier {
         // Enhanced response to combat and destruction
         if (!isPetVictim) {
             // Cursed One enjoys when owner deals damage
-            addEmotion(emotions, PetComponent.Emotion.GLEE, scaleByDamage(0.2f, amount));
+            addEmotion(emotions, PetComponent.Emotion.CHEERFUL, scaleByDamage(0.2f, amount));
             addEmotion(emotions, PetComponent.Emotion.KEFI, scaleByDamage(0.15f, amount));
             addEmotion(emotions, PetComponent.Emotion.VIGILANT, scaleByDamage(0.1f, amount));
         }
@@ -108,7 +108,7 @@ public class CursedOneEmotionModifier extends BaseRoleEmotionModifier {
         switch (type) {
             case PETTING -> {
                 // Cursed One enjoys rough handling
-                addEmotion(emotions, PetComponent.Emotion.GLEE, 0.2f);
+                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.2f);
                 addEmotion(emotions, PetComponent.Emotion.KEFI, 0.15f);
                 addEmotion(emotions, PetComponent.Emotion.STOIC, 0.1f);
                 
@@ -119,7 +119,7 @@ public class CursedOneEmotionModifier extends BaseRoleEmotionModifier {
             
             case FEEDING -> {
                 // Cursed One enjoys dark/forbidden foods
-                addEmotion(emotions, PetComponent.Emotion.GLEE, 0.15f);
+                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.15f);
                 addEmotion(emotions, PetComponent.Emotion.YUGEN, 0.1f);
             }
             
@@ -170,7 +170,7 @@ public class CursedOneEmotionModifier extends BaseRoleEmotionModifier {
             case "blood", "violence" -> {
                 // Cursed One is excited by violence
                 addEmotion(emotions, PetComponent.Emotion.KEFI, 0.3f);
-                addEmotion(emotions, PetComponent.Emotion.GLEE, 0.25f);
+                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.25f);
                 addEmotion(emotions, PetComponent.Emotion.VIGILANT, 0.2f);
             }
             
@@ -189,7 +189,7 @@ public class CursedOneEmotionModifier extends BaseRoleEmotionModifier {
                 
                 // Remove positive emotions
                 removeEmotion(emotions, PetComponent.Emotion.CHEERFUL);
-                removeEmotion(emotions, PetComponent.Emotion.GLEE);
+                removeEmotion(emotions, PetComponent.Emotion.CHEERFUL);
             }
         }
         

@@ -14,7 +14,7 @@ import woflo.petsplus.state.PetComponent;
 
 /**
  * Lightweight comfort/safety provider:
- * - Near owner and indoors at night → calm (BLISSFUL, QUERECIA)
+ * - Near owner and indoors at night → calm (CONTENT, QUERECIA)
  * - Next to campfire/bed → calm
  * - In rain/thunder without cover → slight discomfort (FOREBODING)
  */
@@ -68,9 +68,9 @@ public class EnvironmentComfortProvider implements EmotionProvider, ReactiveEmot
             boolean covered = !world.isSkyVisible(pos.up());
             if (covered) {
                 float baseAmount = 0.015f;
-                float fatigueMultiplier = calculateEmotionFatigue(comp, "night_covered_blissful", time, baseAmount, 240); // 12s fatigue window
+                float fatigueMultiplier = calculateEmotionFatigue(comp, "night_covered_content", time, baseAmount, 240); // 12s fatigue window
                 if (fatigueMultiplier > 0.2f) { // Only trigger if not heavily fatigued
-                    api.pushEmotion(pet, PetComponent.Emotion.BLISSFUL, baseAmount * fatigueMultiplier);
+                    api.pushEmotion(pet, PetComponent.Emotion.CONTENT, baseAmount * fatigueMultiplier);
                 }
             } else {
                 float baseAmount = 0.02f;

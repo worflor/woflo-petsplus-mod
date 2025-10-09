@@ -31,7 +31,7 @@ Keep the pipeline lightweight by only materialising data when a tick matters.
    - When the server day flips or a pet unloads, fold scratchpad entries into a `WellbeingDay` record that captures the day’s arc:
      - **Mood narrative** – Peak positive/negative blends with percentages, plus hysteresis spans (ticks spent recovering or stuck).
      - **Resilience deltas** – Deltas against nature resilience, role fatigue, hunger/health baselines, and recent discipline timers.
-     - **Care catalysts** – Owner interactions that resolved spikes and social assists (ally empathy pulses, gossip cheers).
+     - **Care catalysts** – Owner interactions that resolved spikes and social assists (ally solidarity pulses, gossip cheers).
      - **Environmental anchors** – Biome tags, structure proximity, and weather glimpsed from the state manager to explain context.
    - Persist the last 30–45 entries (configurable) inside a compact circular buffer on the component. Flag aggregated days created while a pet was offline so downstream systems can soften streak penalties.
    - As entries fall off the buffer, stream their condensed summaries into the active chapter’s digest staging area so the 100-day chapter keeps an authoritative running tally even while the hot buffer stays tiny.

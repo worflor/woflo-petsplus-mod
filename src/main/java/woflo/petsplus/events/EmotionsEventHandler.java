@@ -197,7 +197,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         
         if (isValuableBlock(state)) {
             pushToNearbyOwnedPets(sp, 24, (pc, collector) -> {
-                collector.pushEmotion(PetComponent.Emotion.GLEE, 0.020f);
+                collector.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.020f);
                 collector.pushEmotion(PetComponent.Emotion.CURIOUS, 0.015f);
                 FeedbackManager.emitContagionFeedback(pc.getPet(), (ServerWorld) sp.getEntityWorld(), PetComponent.Emotion.CURIOUS);
             });
@@ -295,7 +295,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                             // More nuanced hostile kill emotions
                             collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.25f);  // Post-threat relief
                             collector.pushEmotion(PetComponent.Emotion.KEFI, 0.20f);  // Victory joy
-                            collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.35f + reliefBonus * 0.3f);
+                            collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.35f + reliefBonus * 0.3f);
                             // If guardian role, extra protective response
                             if (pc.hasRole(PetRoleType.GUARDIAN)) {
                                 collector.pushEmotion(PetComponent.Emotion.PROTECTIVE, 0.50f);
@@ -323,7 +323,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                         if (tryMarkPetBeat(pc, "combat_owner_kill_boss", now, 360L)) {
                             collector.pushEmotion(PetComponent.Emotion.PRIDE, 0.50f);
                             collector.pushEmotion(PetComponent.Emotion.KEFI, 0.35f);  // Intense victory joy
-                            collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.45f + reliefBonus * 0.4f);
+                            collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.45f + reliefBonus * 0.4f);
                             collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.40f);  // Major threat eliminated
                             // Strong contagion for major victory
                             collector.pushEmotion(PetComponent.Emotion.PRIDE, 0.025f);  // Pride contagion
@@ -489,7 +489,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 useDefinition = "block_use.campfire.douse";
                 stateConsumer = (pc, collector) -> {
                     collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.05f);
-                    collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.04f);
+                    collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.04f);
                 };
                 gossipTopicId = GossipTopics.SOCIAL_CAMPFIRE;
                 gossipText = Text.translatable("petsplus.gossip.social.campfire");
@@ -499,7 +499,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 useDefinition = "block_use.campfire.ignite";
                 stateConsumer = (pc, collector) -> {
                     collector.pushEmotion(PetComponent.Emotion.HOPEFUL, 0.05f);
-                    collector.pushEmotion(PetComponent.Emotion.GLEE, 0.04f);
+                    collector.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.04f);
                 };
                 gossipTopicId = GossipTopics.SOCIAL_CAMPFIRE;
                 gossipText = Text.translatable("petsplus.gossip.social.campfire");
@@ -527,7 +527,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         } else if (state.getBlock() instanceof ChestBlock || state.getBlock() instanceof BarrelBlock) {
             useDefinition = "block_use.container.open";
                 stateConsumer = (pc, collector) -> {
-                    collector.pushEmotion(PetComponent.Emotion.GLEE, 0.25f);
+                    collector.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.25f);
                     collector.pushEmotion(PetComponent.Emotion.KEFI, 0.15f);
                     collector.pushEmotion(PetComponent.Emotion.CURIOUS, 0.20f);
                 };
@@ -571,7 +571,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                         float peakIntensity = 0.40f * musicAffinity;
                         collector.pushEmotion(PetComponent.Emotion.KEFI, peakIntensity);
                         collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.25f * musicAffinity);
-                        collector.pushEmotion(PetComponent.Emotion.GLEE, 0.20f * musicAffinity);
+                        collector.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.20f * musicAffinity);
                         pc.setStateData("music_peak_emotion", "KEFI");
                         pc.setStateData("music_peak_intensity", peakIntensity);
                     } else if (isEerie) {
@@ -585,10 +585,10 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                         pc.setStateData("music_peak_intensity", peakIntensity);
                     } else {
                         float peakIntensity = 0.25f * musicAffinity;
-                        collector.pushEmotion(PetComponent.Emotion.GLEE, peakIntensity);
+                        collector.pushEmotion(PetComponent.Emotion.CHEERFUL, peakIntensity);
                         collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.20f * musicAffinity);
                         collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.15f * musicAffinity);
-                        pc.setStateData("music_peak_emotion", "GLEE");
+                        pc.setStateData("music_peak_emotion", "CHEERFUL");
                         pc.setStateData("music_peak_intensity", peakIntensity);
                     }
 
@@ -667,7 +667,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         return ActionResult.PASS;
     }
 
-    // ==== Entity Use → Lead/mount moments → PROTECTIVENESS, FERNWEH ====
+    // ==== Entity Use → Lead/mount moments → GUARDIAN_VIGIL, FERNWEH ====
     private static ActionResult onUseEntity(PlayerEntity player, World world, Hand hand, Entity entity, EntityHitResult hitResult) {
         if (world.isClient() || !(player instanceof ServerPlayerEntity sp)) return ActionResult.PASS;
         ItemStack stack = player.getStackInHand(hand);
@@ -730,10 +730,10 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             float ownerHealthPct = sp.getHealth() / sp.getMaxHealth();
             if (ownerHealthPct < 0.5f) {
                 collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.45f);  // Dread when owner in danger
-                collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.40f);
-                // Add contagion for owner danger - spread fear and protectiveness
+                collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.40f);
+                // Add contagion for owner danger - spread fear and Guardian Vigil resolve
                 collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.025f);  // Fear contagion
-                collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.020f);  // Protective contagion
+                collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.020f);  // Protective contagion
                 // Add visual feedback for danger contagion
                 FeedbackManager.emitContagionFeedback(pc.getPet(), (ServerWorld) sp.getEntityWorld(), PetComponent.Emotion.FOREBODING);
             }
@@ -1449,14 +1449,14 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 // Clear weather after rain
                 CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(sp, 48, (pc, collector) -> {
                     collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.35f);  // Reduced from 0.40f
-                    collector.pushEmotion(PetComponent.Emotion.GLEE, 0.20f);  // Reduced from 0.25f
+                    collector.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.20f);  // Reduced from 0.25f
                     // Add Kefi for sunny energy after rain
                     if (world.isDay()) {
                         collector.pushEmotion(PetComponent.Emotion.KEFI, 0.20f);
                     }
                     // Add contagion for clear weather relief
                     collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.020f);  // Clear weather relief contagion
-                    collector.pushEmotion(PetComponent.Emotion.GLEE, 0.018f);   // Joy contagion
+                    collector.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.018f);   // Joy contagion
                     if (world.isDay()) {
                         collector.pushEmotion(PetComponent.Emotion.KEFI, 0.015f);  // Sunny energy contagion
                     }
@@ -1475,7 +1475,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                     boolean isExposed = !world.getBlockState(pet.getBlockPos().up(2)).isSolidBlock(world, pet.getBlockPos().up(2));
                     if (isExposed) {
                         collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.40f);  // Reduced from 0.50f
-                        collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.35f);  // Reduced from 0.40f
+                        collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.35f);  // Reduced from 0.40f
                         collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.20f);  // Reduced from 0.25f
                         // Add contagion for thunder danger
                         collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.025f);  // Thunder fear contagion
@@ -1694,7 +1694,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             if (!state.lowHungerNotified || previousLevel > 4) {
                 CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(player, 32, (pc, collector) -> {
                     collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.45f);
-                    collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.35f);
+                    collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.35f);
                 });
                 sendCueAfterStimulus(player, stimulusFuture,
                     "owner.low_hunger",
@@ -1749,10 +1749,12 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 if (biomeKey.equals(BiomeKeys.CHERRY_GROVE) || biomeKey.equals(BiomeKeys.FLOWER_FOREST)) {
                     pushToNearbyOwnedPets(player, 32, (pc, collector) -> {
                         collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.35f);  // Reduced from 0.40f
-                        collector.pushEmotion(PetComponent.Emotion.BLISSFUL, 0.30f);  // Reduced from 0.35f
+                        collector.pushEmotion(PetComponent.Emotion.CONTENT, 0.22f);  // Serene calm
+                        collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.18f);  // Affectionate wonder
                         collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.20f);  // Added subtle beauty
                         // Add contagion for beautiful biome discovery
-                        collector.pushEmotion(PetComponent.Emotion.BLISSFUL, 0.022f);  // Beauty contagion
+                        collector.pushEmotion(PetComponent.Emotion.CONTENT, 0.012f);  // Calm contagion
+                        collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.010f);  // Warmth contagion
                         collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.018f);  // Awe contagion
                     }, false);
                 }
@@ -1760,7 +1762,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                     // Mushroom fields - balanced harmony
                     pushToNearbyOwnedPets(player, 48, (pc, collector) -> {
                         collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.25f);  // Perfect balance
-                        collector.pushEmotion(PetComponent.Emotion.GLEE, 0.30f);  // Reduced from 0.50f
+                        collector.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.30f);  // Reduced from 0.50f
                         collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.25f);  // Reduced from 0.35f
                     }, false);
                 }
@@ -1832,7 +1834,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 long now = player.getEntityWorld().getTime();
                 if (tryMarkPetBeat(pc, "owner_small_hop", now, 40L)) {
                     collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.02f + magnitude * 0.4f);
-                    collector.pushEmotion(PetComponent.Emotion.GLEE, 0.01f + magnitude * 0.3f);
+                    collector.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.01f + magnitude * 0.3f);
                 }
             });
             return;
@@ -1844,7 +1846,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 // Personality-dependent response
                 collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.25f);  // Anticipatory dread
                 collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.30f);  // Sudden surprise
-                collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.15f + magnitude * 0.3f);
+                collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.15f + magnitude * 0.3f);
                 // Add contagion for owner fall danger
                 collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.020f);  // Fear contagion
                 collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.018f);   // Startle contagion
@@ -1859,13 +1861,13 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 if (tryMarkPetBeat(pc, "owner_moderate_fall", now, 120L)) {
                     collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.35f);
                     collector.pushEmotion(PetComponent.Emotion.ANGST, 0.25f + magnitude * 0.4f);
-                    collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.20f + magnitude * 0.3f);
+                    collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.20f + magnitude * 0.3f);
                     if (player.getHealth() > 0f) {
                         collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.15f);
                     }
                     // Add contagion for moderate fall
                     collector.pushEmotion(PetComponent.Emotion.ANGST, 0.022f);      // Anxiety contagion
-                    collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.018f); // Protective contagion
+                    collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.018f); // Protective contagion
                 }
             });
             return;
@@ -1878,14 +1880,14 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 collector.pushEmotion(PetComponent.Emotion.ANGST, 0.40f);  // Intense anxiety for big falls
                 collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.35f);
                 collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.30f);  // Dread of impact
-                collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.35f);
+                collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.35f);
                 if (player.getHealth() > 0f) {
                     collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.30f);  // Major relief on survival
                 }
                 // Add strong contagion for big fall
                 collector.pushEmotion(PetComponent.Emotion.ANGST, 0.025f);       // Strong anxiety contagion
                 collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.020f);  // Dread contagion
-                collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.022f); // Strong protective contagion
+                collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.022f); // Strong protective contagion
                 if (player.getHealth() > 0f) {
                     collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.018f);  // Relief contagion
                 }
@@ -3004,6 +3006,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         if (evaluation.totalNeighbors() >= 3) {
             bus.queueSimpleStimulus(pet, collector -> {
                 collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.25f);  // Strong group unity
+                collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.16f);  // Warmth of the circle
             });
             bus.dispatchStimuli(pet, coordinator);
         }
@@ -3024,8 +3027,10 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 float otherHealth = otherPet.getHealth() / otherPet.getMaxHealth();
                 if (otherHealth < 0.5f) {
                     // Other pet is hurt
-                    collector.pushEmotion(PetComponent.Emotion.EMPATHY, 0.25f);  // Empathy for hurt companion
+                    collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.25f);  // Pack solidarity for hurt companion
                     collector.pushEmotion(PetComponent.Emotion.PROTECTIVE, 0.20f);  // Want to protect
+                    collector.pushEmotion(PetComponent.Emotion.LOYALTY, 0.18f);  // Stay beside the injured
+                    collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.14f);  // Offer gentle comfort
                     collector.pushEmotion(PetComponent.Emotion.WORRIED, 0.15f);  // Concern
                     break;  // Only react once
                 }
@@ -3091,9 +3096,12 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         // Owner looking directly at pet - awareness and attention
         if (distanceToOwner < 64 && lookAlignment > 0.8) { // Owner looking at pet
             collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.30f); // Increased cozy attention
+            collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.18f); // Warm eye contact
+            collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.14f); // Shared moment with owner
             if (pet.getHealth() / pet.getMaxHealth() < 0.7f) {
                 collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.25f); // Reduced relief when noticed
-                collector.pushEmotion(PetComponent.Emotion.EMPATHY, 0.20f); // Owner's care
+                collector.pushEmotion(PetComponent.Emotion.LOYALTY, 0.20f); // Owner's care
+                collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.16f); // Comforted by compassion
             }
             EmotionContextCues.sendCue(owner, "social.look." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.social.look", pet.getDisplayName()), 200);
@@ -3103,6 +3111,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         if (distanceToOwner < 4) { // Very close - petting range
             collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.30f); // Cozy bonding
             collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.25f); // Perfect contentment
+            collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.18f); // Closeness solidarity
             // Add relationship guard increase for closeness
             pc.setStateData("relationship_boost", 0.10f);
             EmotionContextCues.sendCue(owner, "social.close." + pet.getUuidAsString(),
@@ -3118,7 +3127,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         // Owner's current activity awareness - combat aid
         if (owner.getAttackCooldownProgress(0.0f) < 1.0f) {
             collector.pushEmotion(PetComponent.Emotion.PROTECTIVE, 0.50f); // Strong protective instinct
-            collector.pushEmotion(PetComponent.Emotion.EMPATHY, 0.25f); // Supportive empathy
+            collector.pushEmotion(PetComponent.Emotion.LOYALTY, 0.25f); // Supportive loyalty to owner
+            collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.22f); // Stand together in the fight
             // Check if pet successfully aided (e.g., pet has recent attack)
             if ((world.getTime() - pc.getLastAttackTick()) < 100) {
                 collector.pushEmotion(PetComponent.Emotion.KEFI, 0.20f); // Victory joy from helping
@@ -3145,8 +3155,10 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         float ownerHealthPercent = owner.getHealth() / owner.getMaxHealth();
         if (ownerHealthPercent < 0.3f && distanceToOwner < 64) {
             collector.pushEmotion(PetComponent.Emotion.ANGST, 0.45f); // Reduced worry
-            collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.50f); // Strong protection
-            collector.pushEmotion(PetComponent.Emotion.EMPATHY, 0.30f); // Deep empathy for hurt owner
+            collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.50f); // Strong protection
+            collector.pushEmotion(PetComponent.Emotion.LOYALTY, 0.30f); // Fierce devotion to hurt owner
+            collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.28f); // Rally to the owner
+            collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.18f); // Gentle reassurance
             EmotionContextCues.sendCue(owner, "social.owner_hurt." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.social.owner_hurt", pet.getDisplayName()), 200);
             if (pc.hasRole(PetRoleType.GUARDIAN)) {
@@ -3283,7 +3295,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
                 // Always protective, especially near owner
                 float protectiveBonus = nearOwner ? 1.5f : 1.0f;
-                collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, baseProtectiveness * fatigueFactor * protectiveBonus);
+                collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, baseProtectiveness * fatigueFactor * protectiveBonus);
             }
             EmotionContextCues.sendCue(owner, "environment.hostiles." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.environment.hostiles", pet.getDisplayName()), 200);
@@ -4139,7 +4151,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 } else if (isMystic) {
                     collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.08f); // Mystical presence
                 } else if (isGuard) {
-                    collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f); // Defense associations
+                    collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.08f); // Defense associations
                 }
             });
             sendCueAfterStimulus(sp, stimulusFuture,
@@ -4258,7 +4270,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             float exposure = (exposedToSky ? 1.0f : 0.5f) + (soaked ? 0.3f : 0f);
             collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.05f + 0.05f * exposure);
             collector.pushEmotion(PetComponent.Emotion.ANGST, 0.04f + 0.04f * exposure);
-            collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, shelteredAndDry ? 0.04f : 0.05f + 0.04f * exposure);
+            collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, shelteredAndDry ? 0.04f : 0.05f + 0.04f * exposure);
 
             if (!shelteredAndDry) {
                 EmotionContextCues.sendCue(owner, "weather.thunder.pet." + pet.getUuidAsString(),
@@ -4402,7 +4414,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         long now = owner.getEntityWorld().getTime();
         if (hasValuableItems) {
             collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.04f); // Security from wealth
-            collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.06f); // Guarding valuable things
+            collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.06f); // Guarding valuable things
             EmotionContextCues.sendCue(owner, "inventory.valuables",
                 Text.translatable("petsplus.emotion_cue.inventory.valuables"), 1200);
             NatureFlavorHandler.triggerForPet(pet, pc, (ServerWorld) owner.getEntityWorld(), owner,
@@ -4429,7 +4441,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         }
 
         if (hasWeapons) {
-            collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.05f); // Ready for danger
+            collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.05f); // Ready for danger
             collector.pushEmotion(PetComponent.Emotion.STOIC, 0.03f); // Determination
             EmotionContextCues.sendCue(owner, "inventory.weapons",
                 Text.translatable("petsplus.emotion_cue.inventory.weapons"), 1200);
@@ -4548,7 +4560,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             pushToNearbyOwnedPets(player, 64, (pc, collector) -> {
                 collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f);
                 collector.pushEmotion(PetComponent.Emotion.STOIC, 0.12f);
-                collector.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.08f);
+                collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.08f);
             }, false);
             shareOwnerRumor(player, 64, GossipTopics.ENTER_NETHER, 0.6f, 0.5f,
                 Text.translatable("petsplus.gossip.exploration.dimension.nether"));

@@ -73,11 +73,12 @@ final class GossipSocialHelper {
     static float loyaltyDelta(RumorEntry rumor, float knowledgeGap, boolean witnessed) {
         float strength = rumorStrength(rumor);
         float gapBoost = MathHelper.clamp(knowledgeGap * 0.014f, 0f, 0.022f);
-        float base = 0.01f + (strength * 0.026f) + gapBoost;
+        float confidenceBoost = MathHelper.clamp(rumor.confidence() * 0.01f, 0f, 0.01f);
+        float base = 0.01f + (strength * 0.026f) + gapBoost + confidenceBoost;
         if (witnessed) {
             base += 0.008f;
         }
-        return clamp(base, 0.007f, 0.044f);
+        return clamp(base, 0.007f, 0.046f);
     }
 
     static float frustrationDelta(RumorEntry rumor) {
@@ -101,10 +102,42 @@ final class GossipSocialHelper {
         return clamp(base, 0.009f, 0.048f);
     }
 
-    static float empathyDelta(RumorEntry rumor, float knowledgeGap) {
-        float base = 0.011f + (rumorStrength(rumor) * 0.026f)
-            + MathHelper.clamp(knowledgeGap * 0.014f, 0f, 0.024f);
-        return clamp(base, 0.009f, 0.048f);
+    static float ubuntuDelta(RumorEntry rumor, float knowledgeGap) {
+        return ubuntuDelta(rumor, knowledgeGap, false);
+    }
+
+    static float ubuntuDelta(RumorEntry rumor, float knowledgeGap, boolean witnessed) {
+        float base = 0.011f + (rumorStrength(rumor) * 0.028f)
+            + MathHelper.clamp(knowledgeGap * 0.013f, 0f, 0.024f);
+        if (witnessed) {
+            base += 0.005f + MathHelper.clamp(rumor.confidence() * 0.006f, 0f, 0.006f);
+        }
+        return clamp(base, 0.009f, 0.05f);
+    }
+
+    static float solidarityWarmthDelta(RumorEntry rumor, float knowledgeGap, boolean isAbstract) {
+        float confidence = MathHelper.clamp(rumor.confidence(), 0f, 1f);
+        float intensity = MathHelper.clamp(rumor.intensity(), 0f, 1f);
+        float comfortArc = Math.max(0f, 0.55f - Math.abs(0.35f - intensity)) * 0.018f;
+        float closenessBoost = MathHelper.clamp((0.35f - knowledgeGap) * 0.012f, -0.01f, 0.012f);
+        float base = 0.005f + (confidence * 0.016f) + comfortArc + closenessBoost;
+        if (isAbstract) {
+            base *= 0.85f;
+        }
+        return clamp(base, 0f, 0.026f);
+    }
+
+    static float solidarityGuardianDelta(RumorEntry rumor, float knowledgeGap, boolean witnessed) {
+        float intensity = MathHelper.clamp(rumor.intensity(), 0f, 1f);
+        float base = Math.max(0f, intensity - 0.55f) * 0.05f
+            + MathHelper.clamp(knowledgeGap * 0.01f, 0f, 0.018f);
+        if (witnessed) {
+            base += 0.006f;
+        }
+        if (rumor.confidence() > 0.6f) {
+            base += 0.004f;
+        }
+        return clamp(base, 0f, 0.032f);
     }
 
     static float rumorStrength(RumorEntry rumor) {

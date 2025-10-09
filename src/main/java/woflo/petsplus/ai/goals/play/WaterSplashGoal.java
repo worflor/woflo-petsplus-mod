@@ -103,7 +103,7 @@ public class WaterSplashGoal extends AdaptiveGoal {
     protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
         return woflo.petsplus.ai.goals.EmotionFeedback.triple(
             woflo.petsplus.state.PetComponent.Emotion.PLAYFULNESS, 0.12f,
-            woflo.petsplus.state.PetComponent.Emotion.GLEE, 0.10f,
+            woflo.petsplus.state.PetComponent.Emotion.CHEERFUL, 0.10f,
             woflo.petsplus.state.PetComponent.Emotion.KEFI, 0.08f
         );
     }

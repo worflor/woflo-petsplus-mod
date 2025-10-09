@@ -525,7 +525,7 @@ public class FeedbackConfig {
             new ParticleConfig(ParticleTypes.ENCHANT, 1, 0.1, 0.05, 0.1, 0.005, "burst", 0.2, false)
         ), null, 0, true);
 
-        // Combat contagion - Orange/red for combat emotions (triumph, protectiveness)
+        // Combat contagion - Orange/red for combat emotions (triumph, Guardian Vigil)
         register("contagion_combat", List.of(
             new ParticleConfig(ParticleTypes.CRIT, 2, 0.2, 0.1, 0.2, 0.015, "circle", 0.8, true),
             new ParticleConfig(ParticleTypes.FLAME, 1, 0.1, 0.05, 0.1, 0.008, "burst", 0.3, false)

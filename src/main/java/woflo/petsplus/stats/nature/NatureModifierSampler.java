@@ -37,19 +37,19 @@ public final class NatureModifierSampler {
         
         register("feral", NatureStat.ATTACK, 0.05f, NatureStat.DEFENSE, 0.03f,
             1.10f, 1.00f, 0.90f, 1.10f,
-            Emotion.FOCUSED, 0.35f, Emotion.VIGILANT, 0.25f, Emotion.PROTECTIVENESS, 0.20f);
+            Emotion.FOCUSED, 0.35f, Emotion.VIGILANT, 0.25f, Emotion.GUARDIAN_VIGIL, 0.20f);
         
         register("fierce", NatureStat.ATTACK, 0.06f, NatureStat.VITALITY, 0.03f,
             1.25f, 1.10f, 0.95f, 1.05f,
-            Emotion.PROTECTIVENESS, 0.35f, Emotion.FRUSTRATION, 0.25f, Emotion.PRIDE, 0.20f);
+            Emotion.GUARDIAN_VIGIL, 0.35f, Emotion.FRUSTRATION, 0.25f, Emotion.PRIDE, 0.20f);
         
         register("radiant", NatureStat.SPEED, 0.06f, NatureStat.VITALITY, 0.03f,
             1.20f, 0.80f, 1.25f, 1.05f,
-            Emotion.CHEERFUL, 0.38f, Emotion.HOPEFUL, 0.28f, Emotion.BLISSFUL, 0.24f);
+            Emotion.CHEERFUL, 0.38f, Emotion.HOPEFUL, 0.28f, Emotion.CONTENT, 0.24f);
         
         register("festival", NatureStat.LOYALTY, 0.05f, NatureStat.SPEED, 0.03f,
             1.30f, 0.75f, 1.50f, 0.90f,
-            Emotion.GLEE, 0.40f, Emotion.PACK_SPIRIT, 0.35f, Emotion.PLAYFULNESS, 0.28f);
+            Emotion.CHEERFUL, 0.40f, Emotion.PACK_SPIRIT, 0.35f, Emotion.PLAYFULNESS, 0.28f);
         
         register("infernal", NatureStat.ATTACK, 0.07f, NatureStat.SPEED, 0.03f,
             1.45f, 0.90f, 1.10f, 1.25f,
@@ -81,7 +81,7 @@ public final class NatureModifierSampler {
         
         register("gilded", NatureStat.FOCUS, 0.05f, NatureStat.AGILITY, 0.03f,
             1.15f, 1.05f, 0.70f, 1.40f,
-            Emotion.PRIDE, 0.42f, Emotion.BLISSFUL, 0.30f, Emotion.ARCANE_OVERFLOW, 0.26f);
+            Emotion.PRIDE, 0.42f, Emotion.QUERECIA, 0.30f, Emotion.ARCANE_OVERFLOW, 0.26f);
         
         register("gloom", NatureStat.AGILITY, 0.05f, NatureStat.DEFENSE, 0.02f,
             1.40f, 0.70f, 0.80f, 1.10f,
@@ -109,7 +109,7 @@ public final class NatureModifierSampler {
         
         register("mire", NatureStat.HEALTH, 0.05f, NatureStat.VITALITY, 0.03f,
             1.05f, 1.00f, 0.95f, 0.95f,
-            Emotion.HIRAETH, 0.36f, Emotion.SAUDADE, 0.28f, Emotion.EMPATHY, 0.22f);
+            Emotion.HIRAETH, 0.36f, Emotion.SAUDADE, 0.28f, Emotion.LOYALTY, 0.22f);
         
         register("relic", NatureStat.FOCUS, 0.05f, NatureStat.DEFENSE, 0.02f,
             0.85f, 0.95f, 0.85f, 1.20f,
@@ -133,7 +133,7 @@ public final class NatureModifierSampler {
         
         register("blossom", NatureStat.SPEED, 0.05f, NatureStat.AGILITY, 0.04f,
             1.50f, 0.65f, 1.50f, 0.85f,
-            Emotion.GLEE, 0.42f, Emotion.PLAYFULNESS, 0.35f, Emotion.CHEERFUL, 0.28f);
+            Emotion.CHEERFUL, 0.42f, Emotion.PLAYFULNESS, 0.35f, Emotion.QUERECIA, 0.28f);
         
         register("sentinel", NatureStat.DEFENSE, 0.06f, NatureStat.FOCUS, 0.04f,
             1.05f, 1.45f, 1.00f, 1.55f,

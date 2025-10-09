@@ -95,7 +95,7 @@ public class OrbitSwimGoal extends AdaptiveGoal {
     @Override
     protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
         return woflo.petsplus.ai.goals.EmotionFeedback.dual(
-            woflo.petsplus.state.PetComponent.Emotion.PROTECTIVENESS, 0.12f,
+            woflo.petsplus.state.PetComponent.Emotion.GUARDIAN_VIGIL, 0.12f,
             woflo.petsplus.state.PetComponent.Emotion.UBUNTU, 0.10f
         );
     }

@@ -148,7 +148,7 @@ class PetMoodEngineTest {
         engine.onNatureEmotionProfileChanged(new PetComponent.NatureEmotionProfile(
                 PetComponent.Emotion.CHEERFUL, 0.4f,
                 PetComponent.Emotion.RELIEF, 0.3f,
-                PetComponent.Emotion.GLEE, 0.2f));
+                PetComponent.Emotion.CHEERFUL, 0.2f));
 
         engine.applyStimulus(new PetComponent.EmotionDelta(PetComponent.Emotion.CHEERFUL, 0.6f), 100L);
         engine.applyStimulus(new PetComponent.EmotionDelta(PetComponent.Emotion.ANGST, 0.6f), 100L);
@@ -185,7 +185,7 @@ class PetMoodEngineTest {
         engine.onNatureEmotionProfileChanged(new PetComponent.NatureEmotionProfile(
                 PetComponent.Emotion.CHEERFUL, 0.35f,
                 PetComponent.Emotion.RELIEF, 0.25f,
-                PetComponent.Emotion.GLEE, 0.2f));
+                PetComponent.Emotion.CHEERFUL, 0.2f));
 
         engine.addContagionShare(PetComponent.Emotion.CHEERFUL, 0.25f, 1200L, 0.9f);
         engine.addContagionShare(PetComponent.Emotion.ANGST, 0.25f, 1200L, 0.9f);

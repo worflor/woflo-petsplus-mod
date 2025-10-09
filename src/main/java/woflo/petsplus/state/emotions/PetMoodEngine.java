@@ -1782,14 +1782,13 @@ public final class PetMoodEngine {
                 if (lastDanger == Long.MIN_VALUE) return false;
                 return (now - lastDanger) < DANGER_HALF_LIFE; // Within danger window
 
-            case PROTECTIVENESS:
+            case GUARDIAN_VIGIL:
             case PROTECTIVE:
                 // Owner in danger or low health - simplified check
                 // Would need to check owner entity if available in parent
                 return false; // TODO: Implement owner health check if API available
 
-            case BLISSFUL:
-            case GLEE:
+            case CONTENT:
             case CHEERFUL:
                 // Positive stimuli: check recent petting or play
                 Long recentPet = parent.getStateData(PetComponent.StateKeys.LAST_PET_TIME, Long.class);
@@ -1879,9 +1878,9 @@ public final class PetMoodEngine {
                 modulation += 0.4f * Math.max(0f, dangerBoost);
                 break;
 
-            case PROTECTIVENESS:
+            case GUARDIAN_VIGIL:
             case PACK_SPIRIT:
-                // Danger increases protectiveness and pack unity
+                // Danger increases Guardian Vigil resolve and pack unity
                 modulation += 0.35f * Math.max(0f, dangerBoost);
                 break;
                 
@@ -1890,9 +1889,9 @@ public final class PetMoodEngine {
                 modulation += 0.5f * Math.max(0f, dangerBoost);
                 break;
 
-            case BLISSFUL:
             case LAGOM:
             case CONTENT:
+            case QUERECIA:
                 // Danger suppresses calm/peaceful emotions
                 modulation -= 0.3f * Math.max(0f, dangerBoost);
                 break;
@@ -1926,7 +1925,7 @@ public final class PetMoodEngine {
                     modulation += 0.3f * healthPenalty * levelScale;
                     break;
 
-                case GLEE:
+                case CHEERFUL:
                 case KEFI:
                 case PLAYFULNESS:
                     // Low health suppresses energetic emotions
@@ -2218,21 +2217,13 @@ public final class PetMoodEngine {
                 new EnumMap<>(PetComponent.Emotion.class);
 
         table.put(PetComponent.Emotion.CHEERFUL, weights(
-                Map.entry(PetComponent.Mood.HAPPY, 0.6f),
-                Map.entry(PetComponent.Mood.PLAYFUL, 0.25f),
+                Map.entry(PetComponent.Mood.HAPPY, 0.62f),
+                Map.entry(PetComponent.Mood.PLAYFUL, 0.23f),
                 Map.entry(PetComponent.Mood.CURIOUS, 0.15f)));
         table.put(PetComponent.Emotion.QUERECIA, weights(
                 Map.entry(PetComponent.Mood.HAPPY, 0.35f),
                 Map.entry(PetComponent.Mood.BONDED, 0.4f),
                 Map.entry(PetComponent.Mood.CALM, 0.25f)));
-        table.put(PetComponent.Emotion.GLEE, weights(
-                Map.entry(PetComponent.Mood.HAPPY, 0.65f),
-                Map.entry(PetComponent.Mood.PLAYFUL, 0.2f),
-                Map.entry(PetComponent.Mood.CURIOUS, 0.15f)));
-        table.put(PetComponent.Emotion.BLISSFUL, weights(
-                Map.entry(PetComponent.Mood.HAPPY, 0.4f),
-                Map.entry(PetComponent.Mood.CALM, 0.35f),
-                Map.entry(PetComponent.Mood.BONDED, 0.25f)));
         table.put(PetComponent.Emotion.UBUNTU, weights(
                 Map.entry(PetComponent.Mood.BONDED, 0.6f),
                 Map.entry(PetComponent.Mood.HAPPY, 0.2f),
@@ -2249,10 +2240,10 @@ public final class PetMoodEngine {
                 Map.entry(PetComponent.Mood.AFRAID, 0.55f),
                 Map.entry(PetComponent.Mood.RESTLESS, 0.25f),
                 Map.entry(PetComponent.Mood.PROTECTIVE, 0.20f)));
-        table.put(PetComponent.Emotion.PROTECTIVENESS, weights(
-                Map.entry(PetComponent.Mood.PROTECTIVE, 0.7f),
-                Map.entry(PetComponent.Mood.ANGRY, 0.15f),
-                Map.entry(PetComponent.Mood.BONDED, 0.15f)));
+        table.put(PetComponent.Emotion.GUARDIAN_VIGIL, weights(
+                Map.entry(PetComponent.Mood.PROTECTIVE, 0.60f),
+                Map.entry(PetComponent.Mood.BONDED, 0.25f),
+                Map.entry(PetComponent.Mood.FOCUSED, 0.15f)));
         table.put(PetComponent.Emotion.FRUSTRATION, weights(
                 Map.entry(PetComponent.Mood.ANGRY, 0.5f),
                 Map.entry(PetComponent.Mood.RESTLESS, 0.3f),
@@ -2367,10 +2358,6 @@ public final class PetMoodEngine {
                 Map.entry(PetComponent.Mood.RESTLESS, 0.6f),
                 Map.entry(PetComponent.Mood.CURIOUS, 0.2f),
                 Map.entry(PetComponent.Mood.AFRAID, 0.2f)));
-        table.put(PetComponent.Emotion.EMPATHY, weights(
-                Map.entry(PetComponent.Mood.BONDED, 0.5f),
-                Map.entry(PetComponent.Mood.PROTECTIVE, 0.25f),
-                Map.entry(PetComponent.Mood.HAPPY, 0.25f)));
         table.put(PetComponent.Emotion.NOSTALGIA, weights(
                 Map.entry(PetComponent.Mood.SAUDADE, 0.6f),
                 Map.entry(PetComponent.Mood.BONDED, 0.2f),
@@ -2649,9 +2636,9 @@ public final class PetMoodEngine {
         registerOpponentPair(PetComponent.Emotion.STARTLE, PetComponent.Emotion.RELIEF);
         registerOpponentPair(PetComponent.Emotion.FRUSTRATION, PetComponent.Emotion.PLAYFULNESS);
         registerOpponentPair(PetComponent.Emotion.REGRET, PetComponent.Emotion.HOPEFUL);
-        registerOpponentPair(PetComponent.Emotion.SAUDADE, PetComponent.Emotion.BLISSFUL);
+        registerOpponentPair(PetComponent.Emotion.SAUDADE, PetComponent.Emotion.CONTENT);
         registerOpponentPair(PetComponent.Emotion.DISGUST, PetComponent.Emotion.UBUNTU);
-        registerOpponentPair(PetComponent.Emotion.STOIC, PetComponent.Emotion.GLEE);
+        registerOpponentPair(PetComponent.Emotion.STOIC, PetComponent.Emotion.CHEERFUL);
     }
 
     private void rebuildOpponentPairs() {

@@ -231,6 +231,7 @@
   "petsplus.emotion_cue.owner.low_hunger": "Your crew senses your hunger pangs and rallies.",
   "petsplus.emotion_cue.social.look": "%s basks in your attentive gaze.",
   "petsplus.emotion_cue.social.close": "%s leans into the closeness.",
+  "petsplus.emotion_cue.social.solidarity": "%s leans on %s for steady comfort.",
   "petsplus.emotion_cue.social.far": "%s strains for a glimpse of you.",
   "petsplus.emotion_cue.social.combat": "%s bristles, ready to follow your swing.",
   "petsplus.emotion_cue.social.sneak": "%s tilts their head at your hush.",
