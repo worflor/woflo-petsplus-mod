@@ -229,7 +229,7 @@ public class DefaultRelationshipModule implements RelationshipModule {
     
     @Override
     public void applySpeciesMemoryDecay(long currentTick, float decayRate) {
-        speciesMemory.applyDecay(currentTick);
+        speciesMemory.applyDecay(currentTick, decayRate);
     }
     
     // Direct access methods for internal use with EntityType

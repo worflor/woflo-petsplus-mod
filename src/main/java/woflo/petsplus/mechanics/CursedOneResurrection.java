@@ -3,11 +3,13 @@ package woflo.petsplus.mechanics;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
+import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.particle.ParticleTypes;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
@@ -22,6 +24,7 @@ import woflo.petsplus.ui.AfterimageManager;
 import woflo.petsplus.ui.UIFeedbackManager;
 import woflo.petsplus.roles.cursedone.CursedOneSoulSacrificeManager;
 import woflo.petsplus.events.PetDetectionHandler;
+import woflo.petsplus.Petsplus;
 
 import java.util.List;
 import java.util.Map;
@@ -591,10 +594,10 @@ public class CursedOneResurrection {
         double x = pet.getX();
         double y = pet.getY() + 0.5;
         double z = pet.getZ();
-        
+
         // Generate variation seed based on pet UUID
         long explosionSeed = pet.getUuid().getMostSignificantBits();
-        world.random.setSeed(explosionSeed);
+        Random rng = Random.create(explosionSeed);
         int explosionPattern = Math.abs((int)(explosionSeed % 3)); // 3 explosion patterns
         
         // Play varied completion sounds
@@ -620,50 +623,50 @@ public class CursedOneResurrection {
         }
         
         // Create dramatic explosion effects based on pattern
-        createVariedExplosionEffects(world, x, y, z, explosionPattern);
+        createVariedExplosionEffects(world, x, y, z, explosionPattern, rng);
     }
     
     /**
      * Create varied explosion effects based on algorithmic patterns
      */
-    private static void createVariedExplosionEffects(ServerWorld world, double x, double y, double z, int pattern) {
+    private static void createVariedExplosionEffects(ServerWorld world, double x, double y, double z, int pattern, Random rng) {
         switch (pattern) {
             case 0: // Radial burst explosion
                 // Central core explosion
                 world.spawnParticles(ParticleTypes.EXPLOSION, x, y, z, 1, 0.0, 0.0, 0.0, 0.0);
-                
+
                 // Radial bursts in 8 directions
                 for (int i = 0; i < 8; i++) {
                     double angle = i * (Math.PI * 2 / 8);
                     double distance = 2.5;
-                    
+
                     // Create particle trail
                     for (int j = 0; j < 10; j++) {
                         double progress = j / 10.0;
                         double trailX = x + Math.cos(angle) * distance * progress;
                         double trailZ = z + Math.sin(angle) * distance * progress;
                         double trailY = y + Math.sin(progress * Math.PI) * 0.8;
-                        
+
                         world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME,
                             trailX, trailY, trailZ, 2, 0.1, 0.1, 0.1, 0.05);
                     }
                 }
-                
+
                 // Outer ring of particles
                 for (int i = 0; i < 24; i++) {
                     double angle = i * (Math.PI * 2 / 24);
                     double ringX = x + Math.cos(angle) * 3.0;
                     double ringZ = z + Math.sin(angle) * 3.0;
-                    
+
                     world.spawnParticles(ParticleTypes.LARGE_SMOKE,
                         ringX, y, ringZ, 3, 0.2, 0.2, 0.2, 0.08);
                 }
                 break;
-                
+
             case 1: // Spiral explosion
                 // Central explosion
                 world.spawnParticles(ParticleTypes.EXPLOSION, x, y, z, 1, 0.0, 0.0, 0.0, 0.0);
-                
+
                 // Double spiral outward
                 for (int spiral = 0; spiral < 2; spiral++) {
                     for (int i = 0; i < 30; i++) {
@@ -673,17 +676,17 @@ public class CursedOneResurrection {
                         double spiralX = x + Math.cos(angle) * radius;
                         double spiralZ = z + Math.sin(angle) * radius;
                         double spiralY = y + progress * 1.5;
-                        
+
                         world.spawnParticles(ParticleTypes.SOUL,
                             spiralX, spiralY, spiralZ, 1, 0.0, 0.1, 0.0, 0.03);
-                        
+
                         if (i % 3 == 0) {
                             world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME,
                                 spiralX, spiralY, spiralZ, 2, 0.1, 0.1, 0.1, 0.04);
                         }
                     }
                 }
-                
+
                 // Vertical pillar
                 for (int i = 0; i < 8; i++) {
                     double pillarY = y + i * 0.4;
@@ -691,56 +694,59 @@ public class CursedOneResurrection {
                         x, pillarY, z, 4, 0.3, 0.1, 0.3, 0.02);
                 }
                 break;
-                
+
             case 2: // Layered wave explosion
                 // Central explosion
                 world.spawnParticles(ParticleTypes.EXPLOSION, x, y, z, 1, 0.0, 0.0, 0.0, 0.0);
-                
+
                 // Three expanding waves at different heights
                 for (int wave = 0; wave < 3; wave++) {
                     double waveY = y + wave * 0.7;
                     double waveRadius = 1.5 + wave * 0.8;
                     int particlesInWave = 20 + wave * 8;
-                    
+
                     for (int i = 0; i < particlesInWave; i++) {
                         double angle = i * (Math.PI * 2 / particlesInWave) + wave * 0.5;
                         double waveX = x + Math.cos(angle) * waveRadius;
                         double waveZ = z + Math.sin(angle) * waveRadius;
-                        
+
                         // Inner particles move outward
                         double velX = Math.cos(angle) * 0.15;
                         double velZ = Math.sin(angle) * 0.15;
-                        
+
                         world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME,
                             waveX, waveY, waveZ, 1, velX, 0.05, velZ, 0.12);
                     }
                 }
-                
+
                 // Central updraft
                 for (int i = 0; i < 20; i++) {
-                    double offsetX = (world.random.nextDouble() - 0.5) * 0.8;
-                    double offsetZ = (world.random.nextDouble() - 0.5) * 0.8;
-                    double height = Math.max(0.0, Math.min(3.0, world.random.nextDouble() * 3.0));
-                    
+                    double offsetX = (rng.nextDouble() - 0.5) * 0.8;
+                    double offsetZ = (rng.nextDouble() - 0.5) * 0.8;
+                    double height = Math.max(0.0, Math.min(3.0, rng.nextDouble() * 3.0));
+
                     world.spawnParticles(ParticleTypes.SOUL,
                         x + offsetX, y + height, z + offsetZ, 1, 0.0, 0.2, 0.0, 0.1);
                 }
                 break;
         }
-        
+
         // All patterns get some additional dramatic flair
         // Delayed secondary explosions
+        long delayedSeed = rng.nextLong();
+        long innerSeed = rng.nextLong();
         world.getServer().execute(() -> {
             world.getServer().execute(() -> { // Double delay for timing
+                Random innerRng = Random.create(innerSeed ^ delayedSeed);
                 // Mini secondary explosions around the area
                 for (int i = 0; i < 4; i++) {
-                    double secX = x + (world.random.nextDouble() - 0.5) * 4.0;
-                    double secZ = z + (world.random.nextDouble() - 0.5) * 4.0;
-                    
+                    double secX = x + (innerRng.nextDouble() - 0.5) * 4.0;
+                    double secZ = z + (innerRng.nextDouble() - 0.5) * 4.0;
+
                     world.spawnParticles(ParticleTypes.LARGE_SMOKE,
                         secX, y, secZ, 5, 0.3, 0.3, 0.3, 0.05);
-                    
-                    if (world.random.nextFloat() < 0.5f) {
+
+                    if (innerRng.nextFloat() < 0.5f) {
                         world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME,
                             secX, y + 0.5, secZ, 3, 0.2, 0.2, 0.2, 0.06);
                     }
@@ -804,14 +810,22 @@ public class CursedOneResurrection {
      * The pet becomes untargetable and inactive for 15 seconds.
      */
     private static boolean enterReanimationState(MobEntity cursedPet, PetComponent petComp, DamageSource damageSource, ServerWorld world) {
+        float originalHealth = cursedPet.getHealth();
+        boolean wasInvulnerable = cursedPet.isInvulnerable();
+        boolean wasAiDisabled = cursedPet.isAiDisabled();
+
+        StatusEffectInstance previousBlindness = copyStatusEffect(cursedPet.getStatusEffect(StatusEffects.BLINDNESS));
+        StatusEffectInstance previousSlowness = copyStatusEffect(cursedPet.getStatusEffect(StatusEffects.SLOWNESS));
+        StatusEffectInstance previousWeakness = copyStatusEffect(cursedPet.getStatusEffect(StatusEffects.WEAKNESS));
+
         try {
             // Set health to 1 to keep the pet "alive" but very weak
             cursedPet.setHealth(1.0f);
-            
+
             // Make the pet untargetable and unable to move/act
             cursedPet.setInvulnerable(true);
             cursedPet.setAiDisabled(true);
-            
+
             // Determine reanimation window (default 15 seconds, extended if soul sacrifice active)
             int baseDuration = 300;
             int reanimationDuration = CursedOneSoulSacrificeManager.resolveReanimationDuration(cursedPet, baseDuration);
@@ -822,15 +836,17 @@ public class CursedOneResurrection {
             cursedPet.addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS, reanimationDuration, 255));
 
             long reanimationEndTime = world.getTime() + reanimationDuration;
-            // Use atomic put operation for thread safety
-            reanimatingPets.put(cursedPet.getUuid(), new ReanimationWindow(reanimationEndTime, reanimationDuration));
+            ReanimationWindow window = new ReanimationWindow(reanimationEndTime, reanimationDuration);
 
             // Visual and audio feedback for entering reanimation
             playReanimationStartFeedback(cursedPet, world);
 
             // Encased afterimage effect during resurrection buildup
             AfterimageManager.startEncasement(cursedPet, "cursed_reanimation", reanimationDuration);
-            
+
+            // Use atomic put operation for thread safety after side-effects succeed
+            reanimatingPets.put(cursedPet.getUuid(), window);
+
             // Notify owner if nearby
             if (petComp.getOwner() != null && petComp.getOwner().getEntityWorld() == world) {
                 double distance = petComp.getOwner().distanceTo(cursedPet);
@@ -858,6 +874,15 @@ public class CursedOneResurrection {
             return true;
 
         } catch (Exception e) {
+            reanimatingPets.remove(cursedPet.getUuid());
+            cursedPet.setHealth(originalHealth);
+            cursedPet.setInvulnerable(wasInvulnerable);
+            cursedPet.setAiDisabled(wasAiDisabled);
+            restoreStatusEffect(cursedPet, StatusEffects.BLINDNESS, previousBlindness);
+            restoreStatusEffect(cursedPet, StatusEffects.SLOWNESS, previousSlowness);
+            restoreStatusEffect(cursedPet, StatusEffects.WEAKNESS, previousWeakness);
+            AfterimageManager.finishEncasement(cursedPet, false);
+            Petsplus.LOGGER.error("Failed to initialize cursed reanimation state for pet {}", cursedPet.getUuid(), e);
             return false;
         }
     }
@@ -872,7 +897,7 @@ public class CursedOneResurrection {
         
         // Generate variation seed based on pet UUID
         long startSeed = cursedPet.getUuid().getLeastSignificantBits();
-        world.random.setSeed(startSeed);
+        Random rng = Random.create(startSeed);
         int startPattern = Math.abs((int)(startSeed % 3)); // 3 different start patterns
         
         // Play varied start sounds based on pattern
@@ -898,13 +923,13 @@ public class CursedOneResurrection {
         }
         
         // Create varied initial collapse effects
-        createVariedCollapseStart(world, x, y, z, startPattern);
+        createVariedCollapseStart(world, x, y, z, startPattern, rng);
     }
-    
+
     /**
      * Create varied initial collapse effects when reanimation begins
      */
-    private static void createVariedCollapseStart(ServerWorld world, double x, double y, double z, int pattern) {
+    private static void createVariedCollapseStart(ServerWorld world, double x, double y, double z, int pattern, Random rng) {
         switch (pattern) {
             case 0: // Implosion effect - particles rush inward
                 // Outer ring of particles moving inward
@@ -913,7 +938,7 @@ public class CursedOneResurrection {
                     double startRadius = 3.0;
                     double startX = x + Math.cos(angle) * startRadius;
                     double startZ = z + Math.sin(angle) * startRadius;
-                    double startY = y + (world.random.nextDouble() - 0.5) * 1.0;
+                    double startY = y + (rng.nextDouble() - 0.5) * 1.0;
                     
                     // Velocity toward center
                     double velX = -Math.cos(angle) * 0.2;
@@ -937,8 +962,8 @@ public class CursedOneResurrection {
                     
                     // Particles shooting upward
                     for (int j = 0; j < 8; j++) {
-                        double offsetX = (world.random.nextDouble() - 0.5) * 0.6;
-                        double offsetZ = (world.random.nextDouble() - 0.5) * 0.6;
+                        double offsetX = (rng.nextDouble() - 0.5) * 0.6;
+                        double offsetZ = (rng.nextDouble() - 0.5) * 0.6;
                         
                         world.spawnParticles(ParticleTypes.SOUL,
                             eruptX + offsetX, y - 0.5, eruptZ + offsetZ,
@@ -963,9 +988,9 @@ public class CursedOneResurrection {
                         double ringZ = z + Math.sin(angle) * ringRadius;
                         
                         // Particles with chaotic motion
-                        double velX = (world.random.nextDouble() - 0.5) * 0.3;
-                        double velY = (world.random.nextDouble() - 0.5) * 0.2;
-                        double velZ = (world.random.nextDouble() - 0.5) * 0.3;
+                        double velX = (rng.nextDouble() - 0.5) * 0.3;
+                        double velY = (rng.nextDouble() - 0.5) * 0.2;
+                        double velZ = (rng.nextDouble() - 0.5) * 0.3;
                         
                         world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME,
                             ringX, ringY, ringZ, 1, velX, velY, velZ, 0.1);
@@ -974,9 +999,9 @@ public class CursedOneResurrection {
                 
                 // Central distortion
                 for (int i = 0; i < 15; i++) {
-                    double offsetX = (world.random.nextDouble() - 0.5) * 2.0;
-                    double offsetY = Math.max(0.0, Math.min(1.5, world.random.nextDouble() * 1.5));
-                    double offsetZ = (world.random.nextDouble() - 0.5) * 2.0;
+                    double offsetX = (rng.nextDouble() - 0.5) * 2.0;
+                    double offsetY = Math.max(0.0, Math.min(1.5, rng.nextDouble() * 1.5));
+                    double offsetZ = (rng.nextDouble() - 0.5) * 2.0;
                     
                     world.spawnParticles(ParticleTypes.SOUL,
                         x + offsetX, y + offsetY, z + offsetZ, 1, 0.0, 0.0, 0.0, 0.02);
@@ -984,7 +1009,22 @@ public class CursedOneResurrection {
                 break;
         }
     }
-    
+
+    private static StatusEffectInstance copyStatusEffect(StatusEffectInstance instance) {
+        return instance != null ? new StatusEffectInstance(instance) : null;
+    }
+
+    private static void restoreStatusEffect(MobEntity entity, RegistryEntry<StatusEffect> effect, StatusEffectInstance previous) {
+        if (entity == null) {
+            return;
+        }
+
+        entity.removeStatusEffect(effect);
+        if (previous != null) {
+            entity.addStatusEffect(new StatusEffectInstance(previous));
+        }
+    }
+
     /**
      * Handle mount buff when pet resurrects itself (level 25+ feature).
      */
