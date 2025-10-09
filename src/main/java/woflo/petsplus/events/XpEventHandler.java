@@ -119,12 +119,11 @@ public class XpEventHandler {
 
         int eligiblePetCount = eligiblePets.size();
 
-        double xpBudget = Math.min(xpGained, xpGained * baseXpModifier);
-        if (xpBudget < 0.0) {
-            xpBudget = 0.0;
-        }
+        double positiveBaseModifier = Math.max(0.0, baseXpModifier);
+        double baseShare = xpGained / (double) eligiblePetCount;
 
         double[] weightValues = new double[eligiblePetCount];
+        double totalDesiredShare = 0.0;
         for (int i = 0; i < eligiblePetCount; i++) {
             EligiblePetData data = eligiblePets.get(i);
             PetComponent petComp = data.component();
@@ -137,8 +136,19 @@ public class XpEventHandler {
 
             float participationModifier = getParticipationModifier(owner, pet);
 
-            double weight = levelScaleModifier * learningModifier * participationModifier;
-            weightValues[i] = weight > 0.0 ? weight : 0.0;
+            double weight = positiveBaseModifier * levelScaleModifier * learningModifier * participationModifier;
+            double desiredShare = baseShare * weight;
+            if (desiredShare > 0.0) {
+                totalDesiredShare += desiredShare;
+                weightValues[i] = desiredShare;
+            } else {
+                weightValues[i] = 0.0;
+            }
+        }
+
+        double xpBudget = Math.min(xpGained, totalDesiredShare);
+        if (xpBudget < 0.0) {
+            xpBudget = 0.0;
         }
 
         List<Integer> distributedXp = allocateXpShares(xpBudget, weightValues);
