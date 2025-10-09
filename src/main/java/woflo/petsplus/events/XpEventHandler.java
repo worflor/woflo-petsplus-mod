@@ -119,20 +119,39 @@ public class XpEventHandler {
 
         int eligiblePetCount = eligiblePets.size();
 
-        // Distribute XP evenly among eligible pets
-        for (EligiblePetData data : eligiblePets) {
-            MobEntity pet = data.pet;
-            PetComponent petComp = data.component;
+        double xpBudget = Math.min(xpGained, xpGained * baseXpModifier);
+        if (xpBudget < 0.0) {
+            xpBudget = 0.0;
+        }
+
+        double[] weightValues = new double[eligiblePetCount];
+        for (int i = 0; i < eligiblePetCount; i++) {
+            EligiblePetData data = eligiblePets.get(i);
+            PetComponent petComp = data.component();
+            MobEntity pet = data.pet();
 
             float levelScaleModifier = getLevelScaleModifier(petComp.getLevel());
 
-            // NEW: Comprehensive learning modifier from Nature + Imprint + Role
+            // Comprehensive learning modifier from Nature + Imprint + Role
             float learningModifier = calculateLearningModifier(petComp);
 
             float participationModifier = getParticipationModifier(owner, pet);
 
-            // Split XP evenly among all eligible pets, then apply individual modifiers
-            int petXpGain = Math.max(1, (int) ((xpGained / (float) eligiblePetCount) * baseXpModifier * levelScaleModifier * learningModifier * participationModifier));
+            double weight = levelScaleModifier * learningModifier * participationModifier;
+            weightValues[i] = weight > 0.0 ? weight : 0.0;
+        }
+
+        List<Integer> distributedXp = allocateXpShares(xpBudget, weightValues);
+
+        for (int i = 0; i < eligiblePetCount; i++) {
+            int petXpGain = distributedXp.get(i);
+            if (petXpGain <= 0) {
+                continue;
+            }
+
+            EligiblePetData data = eligiblePets.get(i);
+            MobEntity pet = data.pet();
+            PetComponent petComp = data.component();
 
             int previousLevel = petComp.getLevel();
 
@@ -195,6 +214,106 @@ public class XpEventHandler {
     private record XpGainPayload(int xpAmount) {}
 
     private record EligiblePetData(MobEntity pet, PetComponent component) {}
+
+    static List<Integer> allocateXpShares(double xpBudget, double[] weights) {
+        int size = weights == null ? 0 : weights.length;
+        List<Integer> allocations = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            allocations.add(0);
+        }
+
+        double normalizedBudget = Math.max(0.0, xpBudget);
+        if (size == 0 || normalizedBudget <= 0.0) {
+            return allocations;
+        }
+
+        double totalWeight = 0.0;
+        double[] normalizedWeights = new double[size];
+        for (int i = 0; i < size; i++) {
+            double weight = weights[i];
+            double clamped = weight > 0.0 ? weight : 0.0;
+            normalizedWeights[i] = clamped;
+            totalWeight += clamped;
+        }
+
+        if (totalWeight <= 0.0) {
+            return allocations;
+        }
+
+        int xpWholeBudget = (int) Math.floor(normalizedBudget);
+        List<ShareRemainder> remainders = new ArrayList<>(size);
+        int assigned = 0;
+        for (int i = 0; i < size; i++) {
+            double weight = normalizedWeights[i];
+            if (weight <= 0.0) {
+                remainders.add(new ShareRemainder(i, 0.0));
+                continue;
+            }
+
+            double rawShare = normalizedBudget * (weight / totalWeight);
+            int wholeShare = (int) Math.floor(rawShare);
+            allocations.set(i, wholeShare);
+            assigned += wholeShare;
+            remainders.add(new ShareRemainder(i, rawShare - wholeShare));
+        }
+
+        int xpRemaining = xpWholeBudget - assigned;
+        if (xpRemaining < 0) {
+            int surplus = -xpRemaining;
+            remainders.sort((a, b) -> {
+                int cmp = Double.compare(a.remainder(), b.remainder());
+                if (cmp != 0) {
+                    return cmp;
+                }
+                return Integer.compare(b.index(), a.index());
+            });
+            for (ShareRemainder remainder : remainders) {
+                if (surplus <= 0) {
+                    break;
+                }
+                int current = allocations.get(remainder.index());
+                if (current <= 0) {
+                    continue;
+                }
+                allocations.set(remainder.index(), current - 1);
+                surplus--;
+            }
+            xpRemaining = 0;
+        }
+
+        if (xpRemaining > 0) {
+            remainders.sort((a, b) -> {
+                int cmp = Double.compare(b.remainder(), a.remainder());
+                if (cmp != 0) {
+                    return cmp;
+                }
+                return Integer.compare(a.index(), b.index());
+            });
+            for (ShareRemainder remainder : remainders) {
+                if (xpRemaining <= 0) {
+                    break;
+                }
+                if (normalizedWeights[remainder.index()] <= 0.0) {
+                    continue;
+                }
+                allocations.set(remainder.index(), allocations.get(remainder.index()) + 1);
+                xpRemaining--;
+            }
+            if (xpRemaining > 0) {
+                for (int i = 0; i < size && xpRemaining > 0; i++) {
+                    if (normalizedWeights[i] <= 0.0) {
+                        continue;
+                    }
+                    allocations.set(i, allocations.get(i) + 1);
+                    xpRemaining--;
+                }
+            }
+        }
+
+        return allocations;
+    }
+
+    private record ShareRemainder(int index, double remainder) {}
     
     /**
      * Get level-scaled XP modifier for more engaging progression.
