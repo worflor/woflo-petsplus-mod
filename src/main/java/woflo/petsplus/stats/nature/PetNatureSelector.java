@@ -23,6 +23,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.random.Random;
 import net.minecraft.world.Heightmap;
 import net.minecraft.world.LightType;
 import net.minecraft.world.biome.Biome;
@@ -32,6 +33,7 @@ import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
+import woflo.petsplus.stats.nature.astrology.AstrologySignDefinition;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -138,11 +140,21 @@ public final class PetNatureSelector {
      * naturally to any number of overlapping rules.
      */
     public static Identifier selectNature(MobEntity child, PetBreedEvent.BirthContext context) {
-        return pickNature(child, context, BIRTH_RULES);
+        if (child == null) {
+            return null;
+        }
+        return selectNature(child.getRandom(), context);
     }
 
     public static Identifier selectTameNature(MobEntity pet, TameContext context) {
-        return pickNature(pet, context, TAME_RULES);
+        if (pet == null) {
+            return null;
+        }
+        return pickNature(pet.getRandom(), context, TAME_RULES);
+    }
+
+    static Identifier selectNature(Random random, PetBreedEvent.BirthContext context) {
+        return pickNature(random, context, BIRTH_RULES);
     }
 
     public static TameContext captureTameContext(ServerWorld world, MobEntity pet) {
@@ -250,8 +262,8 @@ public final class PetNatureSelector {
         );
     }
 
-    private static <T> Identifier pickNature(MobEntity entity, T context, List<NatureRule<T>> rules) {
-        if (entity == null || rules.isEmpty()) {
+    private static <T> Identifier pickNature(Random random, T context, List<NatureRule<T>> rules) {
+        if (random == null || rules.isEmpty()) {
             return null;
         }
 
@@ -269,7 +281,7 @@ public final class PetNatureSelector {
                 continue;
             }
 
-            if (entity.getRandom().nextInt(matchCount) == 0) {
+            if (random.nextInt(matchCount) == 0) {
                 chosen = rule.id;
             }
         }
@@ -313,11 +325,8 @@ public final class PetNatureSelector {
             return false;
         }
         long timeOfDay = context.getTimeOfDay() % 24000L;
-        boolean isDusk = timeOfDay >= 11800L && timeOfDay <= 14100L;
-        boolean isDawn = timeOfDay <= 1200L || timeOfDay >= 23000L;
-        boolean isNight = !context.isDaytime();
-        boolean lunarAligned = context.isFullMoon() || env.getSkyLightLevel() <= 4 || context.isThundering();
-        return (isNight || isDusk || isDawn) && (lunarAligned || isDusk || isDawn);
+        AstrologySignDefinition.NightPeriod nightPeriod = AstrologySignDefinition.classifyNightPeriod(timeOfDay);
+        return nightPeriod != null || context.isThundering();
     }
 
     private static boolean matchesHomestead(NatureContext context) {

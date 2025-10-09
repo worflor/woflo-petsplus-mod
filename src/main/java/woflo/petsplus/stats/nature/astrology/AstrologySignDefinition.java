@@ -8,7 +8,9 @@ import woflo.petsplus.stats.nature.NatureModifierSampler;
 
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -27,6 +29,7 @@ public final class AstrologySignDefinition {
     private final Set<Integer> moonPhases;
     private final Range dayRange;
     private final Set<NightPeriod> nightPeriods;
+    private final Map<Integer, Set<NightPeriod>> phaseNightWindows;
     private final Set<Identifier> allowedDimensions;
     private final Set<EnvironmentTag> requiredEnvironment;
     private final NearbyConstraints nearbyConstraints;
@@ -47,6 +50,7 @@ public final class AstrologySignDefinition {
                             boolean allowIndoors,
                             Set<Integer> moonPhases,
                             Set<NightPeriod> nightPeriods,
+                            Map<Integer, Set<NightPeriod>> phaseNightWindows,
                             Set<Identifier> allowedDimensions,
                             Set<EnvironmentTag> requiredEnvironment,
                             NearbyConstraints nearbyConstraints,
@@ -66,6 +70,15 @@ public final class AstrologySignDefinition {
         this.allowIndoors = allowIndoors;
         this.moonPhases = moonPhases != null ? Set.copyOf(moonPhases) : Set.of();
         this.nightPeriods = nightPeriods != null ? Set.copyOf(nightPeriods) : Set.of();
+        if (phaseNightWindows != null && !phaseNightWindows.isEmpty()) {
+            Map<Integer, Set<NightPeriod>> copy = new HashMap<>();
+            for (Map.Entry<Integer, Set<NightPeriod>> entry : phaseNightWindows.entrySet()) {
+                copy.put(entry.getKey(), entry.getValue() != null ? Set.copyOf(entry.getValue()) : Set.of());
+            }
+            this.phaseNightWindows = Collections.unmodifiableMap(copy);
+        } else {
+            this.phaseNightWindows = Map.of();
+        }
         this.allowedDimensions = allowedDimensions != null ? Set.copyOf(allowedDimensions) : Set.of();
         this.requiredEnvironment = requiredEnvironment != null ? EnumSet.copyOf(requiredEnvironment) : EnumSet.noneOf(EnvironmentTag.class);
         this.nearbyConstraints = Objects.requireNonNull(nearbyConstraints, "nearbyConstraints");
@@ -115,6 +128,10 @@ public final class AstrologySignDefinition {
 
     public Set<NightPeriod> nightPeriods() {
         return nightPeriods;
+    }
+
+    public Map<Integer, Set<NightPeriod>> phaseNightWindows() {
+        return phaseNightWindows;
     }
 
     public Set<Identifier> allowedDimensions() {
@@ -177,12 +194,29 @@ public final class AstrologySignDefinition {
             return false;
         }
 
-        if (!moonPhases.isEmpty() && !moonPhases.contains(context.moonPhase())) {
-            return false;
-        }
+        if (!phaseNightWindows.isEmpty()) {
+            Set<NightPeriod> allowedPeriods = phaseNightWindows.get(context.moonPhase());
+            if (allowedPeriods == null) {
+                return false;
+            }
+            NightPeriod contextPeriod = resolveNightPeriod(context);
+            if (contextPeriod == null) {
+                return false;
+            }
+            if (!allowedPeriods.isEmpty() && !allowedPeriods.contains(contextPeriod)) {
+                return false;
+            }
+        } else {
+            if (!moonPhases.isEmpty() && !moonPhases.contains(context.moonPhase())) {
+                return false;
+            }
 
-        if (!nightPeriods.isEmpty() && !nightPeriods.contains(getNightPeriod(context.timeOfDay()))) {
-            return false;
+            if (!nightPeriods.isEmpty()) {
+                NightPeriod contextPeriod = resolveNightPeriod(context);
+                if (contextPeriod == null || !nightPeriods.contains(contextPeriod)) {
+                    return false;
+                }
+            }
         }
 
         if (requiresOpenSky && !context.hasOpenSky()) {
@@ -225,23 +259,32 @@ public final class AstrologySignDefinition {
         return switch (dayWindow) {
             case ANY -> true;
             case DAY -> context.daytime();
-            case NIGHT -> !context.daytime();
+            case NIGHT -> !context.daytime() || context.thundering();
             case DAWN -> context.isDawn();
             case DUSK -> context.isDusk();
         };
     }
 
-    private static NightPeriod getNightPeriod(long timeOfDay) {
+    private static final NightPeriod THUNDER_FALLBACK_PERIOD = NightPeriod.LATE_NIGHT;
+
+    public static @Nullable NightPeriod classifyNightPeriod(long timeOfDay) {
         long t = timeOfDay % 24000L;
-        if (t >= 13000L && t < 16000L) {
+        if (t >= 11800L && t < 16000L) {
             return NightPeriod.EARLY_NIGHT;
         } else if (t >= 16000L && t < 20000L) {
             return NightPeriod.MIDDLE_NIGHT;
-        } else if (t >= 20000L && t < 23000L) {
+        } else if (t >= 20000L && t < 24000L || t < 1200L) {
             return NightPeriod.LATE_NIGHT;
         }
-        // Default to early night for times outside night periods
-        return NightPeriod.EARLY_NIGHT;
+        return null;
+    }
+
+    public static @Nullable NightPeriod resolveNightPeriod(AstrologyContext context) {
+        NightPeriod period = classifyNightPeriod(context.timeOfDay());
+        if (period == null && context.thundering()) {
+            return THUNDER_FALLBACK_PERIOD;
+        }
+        return period;
     }
 
     /**
@@ -279,9 +322,9 @@ public final class AstrologySignDefinition {
     }
 
     public enum NightPeriod {
-        EARLY_NIGHT,   // 13000-16000 (sunset to mid-evening)
+        EARLY_NIGHT,   // 11800-16000 (dusk through mid-evening)
         MIDDLE_NIGHT,  // 16000-20000 (mid-evening to pre-midnight)
-        LATE_NIGHT     // 20000-23000 (pre-midnight to pre-dawn)
+        LATE_NIGHT     // 20000-24000 & 0-1200 (late night through dawn)
     }
 
     public enum WeatherWindow {
@@ -455,6 +498,7 @@ public final class AstrologySignDefinition {
         private boolean allowIndoors = true;
         private Set<Integer> moonPhases = Collections.emptySet();
         private Set<NightPeriod> nightPeriods = Collections.emptySet();
+        private Map<Integer, Set<NightPeriod>> phaseNightWindows = Collections.emptyMap();
         private Set<Identifier> allowedDimensions = Collections.emptySet();
         private Set<EnvironmentTag> requiredEnvironment = EnumSet.noneOf(EnvironmentTag.class);
         private NearbyConstraints nearbyConstraints = NearbyConstraints.ANY;
@@ -511,6 +555,11 @@ public final class AstrologySignDefinition {
 
         public Builder nightPeriods(Set<NightPeriod> periods) {
             this.nightPeriods = periods;
+            return this;
+        }
+
+        public Builder phaseNightWindows(Map<Integer, Set<NightPeriod>> windows) {
+            this.phaseNightWindows = windows;
             return this;
         }
 
@@ -584,6 +633,7 @@ public final class AstrologySignDefinition {
                 allowIndoors,
                 moonPhases,
                 nightPeriods,
+                phaseNightWindows,
                 allowedDimensions,
                 requiredEnvironment,
                 nearbyConstraints,
