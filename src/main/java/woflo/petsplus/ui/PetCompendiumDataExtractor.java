@@ -2,7 +2,9 @@ package woflo.petsplus.ui;
 
 import woflo.petsplus.api.registry.RoleIdentifierUtil;
 
+import net.minecraft.entity.EntityType;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
@@ -176,7 +178,7 @@ public class PetCompendiumDataExtractor {
         int defeats = 0;
         
         for (HistoryEvent event : history) {
-            if (event.eventType().equals(HistoryEvent.EventType.COMBAT)) {
+            if (HistoryEvent.EventType.COMBAT.equals(event.eventType())) {
                 if (event.eventData().contains("\"result\":\"victory\"")) {
                     victories++;
                 } else if (event.eventData().contains("\"result\":\"defeat\"")) {
@@ -211,7 +213,8 @@ public class PetCompendiumDataExtractor {
         List<List<Text>> pages = new ArrayList<>();
         List<Text> currentPage = new ArrayList<>();
         
-        currentPage.add(Text.literal("§7═══ Recent Journal ═══"));
+        final String journalHeader = "§7═══ Recent Journal ═══";
+        currentPage.add(Text.literal(journalHeader));
         currentPage.add(Text.empty());
         
         // Get history events in reverse order (most recent first)
@@ -226,12 +229,14 @@ public class PetCompendiumDataExtractor {
         
         for (HistoryEvent event : significantEvents) {
             List<Text> eventLines = formatHistoryEvent(event, currentTick);
-            
-            // Check if we need a new page
-            if (linesOnPage + eventLines.size() > MAX_LINES_PER_PAGE && !currentPage.isEmpty()) {
+
+            // Check if we need a new page (include spacer line)
+            if (linesOnPage + eventLines.size() + 1 > MAX_LINES_PER_PAGE && !currentPage.isEmpty()) {
                 pages.add(new ArrayList<>(currentPage));
                 currentPage.clear();
-                linesOnPage = 0;
+                currentPage.add(Text.literal(journalHeader));
+                currentPage.add(Text.empty());
+                linesOnPage = 2;
             }
             
             currentPage.addAll(eventLines);
@@ -239,17 +244,15 @@ public class PetCompendiumDataExtractor {
             linesOnPage += eventLines.size() + 1;
         }
         
+        if (significantEvents.isEmpty()) {
+            currentPage.add(Text.literal("§8No recorded events yet."));
+            currentPage.add(Text.literal("§8Adventures await!"));
+        }
+
         if (!currentPage.isEmpty()) {
             pages.add(currentPage);
         }
-        
-        // If no journal entries, add placeholder
-        if (pages.isEmpty()) {
-            currentPage.add(Text.literal("§8No recorded events yet."));
-            currentPage.add(Text.literal("§8Adventures await!"));
-            pages.add(currentPage);
-        }
-        
+
         return pages;
     }
     
@@ -342,9 +345,10 @@ public class PetCompendiumDataExtractor {
             int protectionCount = 0;
             for (HistoryEvent event : history) {
                 try {
-                    if (event != null && event.eventType() != null && 
-                        event.eventType().equals(HistoryEvent.EventType.ACHIEVEMENT) &&
-                        event.eventData() != null && event.eventData().contains("guardian_protection")) {
+                    if (event != null && event.eventType() != null &&
+                        HistoryEvent.EventType.ACHIEVEMENT.equals(event.eventType()) &&
+                        event.eventData() != null &&
+                        event.eventData().contains("\"achievement_type\":\"" + HistoryEvent.AchievementType.GUARDIAN_PROTECTION + "\"")) {
                         protectionCount++;
                         // Extract damage value from JSON
                         String data = event.eventData();
@@ -379,8 +383,9 @@ public class PetCompendiumDataExtractor {
         if (roleName.contains("support")) {
             int healingEvents = 0;
             for (HistoryEvent event : history) {
-                if (event.eventType().equals(HistoryEvent.EventType.ACHIEVEMENT) &&
-                    event.eventData().contains("support_healing")) {
+                if (HistoryEvent.EventType.ACHIEVEMENT.equals(event.eventType()) &&
+                    event.eventData() != null &&
+                    event.eventData().contains("\"achievement_type\":\"" + HistoryEvent.AchievementType.ALLY_HEALED + "\"")) {
                     healingEvents++;
                 }
             }
@@ -407,37 +412,26 @@ public class PetCompendiumDataExtractor {
     
     private static List<HistoryEvent> selectSignificantEvents(List<HistoryEvent> allEvents, int maxEvents) {
         List<HistoryEvent> significant = new ArrayList<>();
-        
-        // Priority order: achievements > level ups > role changes > trades > combat
+
+        if (maxEvents <= 0) {
+            return significant;
+        }
+
         for (HistoryEvent event : allEvents) {
-            if (event.eventType().equals(HistoryEvent.EventType.ACHIEVEMENT)) {
+            String type = event.eventType();
+            if (HistoryEvent.EventType.ACHIEVEMENT.equals(type) ||
+                HistoryEvent.EventType.LEVEL_UP.equals(type) ||
+                HistoryEvent.EventType.ROLE_CHANGE.equals(type) ||
+                HistoryEvent.EventType.TRADE.equals(type) ||
+                HistoryEvent.EventType.COMBAT.equals(type) ||
+                HistoryEvent.EventType.MOOD_MILESTONE.equals(type)) {
                 significant.add(event);
+                if (significant.size() >= maxEvents) {
+                    break;
+                }
             }
         }
-        
-        for (HistoryEvent event : allEvents) {
-            if (event.eventType().equals(HistoryEvent.EventType.LEVEL_UP)) {
-                significant.add(event);
-            }
-        }
-        
-        for (HistoryEvent event : allEvents) {
-            if (event.eventType().equals(HistoryEvent.EventType.ROLE_CHANGE)) {
-                significant.add(event);
-            }
-        }
-        
-        for (HistoryEvent event : allEvents) {
-            if (event.eventType().equals(HistoryEvent.EventType.TRADE)) {
-                significant.add(event);
-            }
-        }
-        
-        // Limit to maxEvents
-        if (significant.size() > maxEvents) {
-            return significant.subList(0, maxEvents);
-        }
-        
+
         return significant;
     }
     
@@ -454,7 +448,10 @@ public class PetCompendiumDataExtractor {
         String eventDesc = switch (event.eventType()) {
             case HistoryEvent.EventType.LEVEL_UP -> {
                 String data = event.eventData();
-                int level = extractIntValue(data, "new_level");
+                int level = extractIntValue(data, "level");
+                if (level == 0) {
+                    level = extractIntValue(data, "new_level");
+                }
                 yield "§f• Reached Level " + level;
             }
             case HistoryEvent.EventType.ROLE_CHANGE -> {
@@ -473,8 +470,18 @@ public class PetCompendiumDataExtractor {
             case HistoryEvent.EventType.COMBAT -> {
                 boolean victory = event.eventData().contains("\"result\":\"victory\"");
                 String opponent = extractStringValue(event.eventData(), "opponent");
-                String result = victory ? "Defeated" : "Fought";
-                yield "§8• " + result + " " + opponent;
+                String result = victory ? "Defeated" : "Lost to";
+                yield "§8• " + result + " " + formatCombatOpponent(opponent);
+            }
+            case HistoryEvent.EventType.MOOD_MILESTONE -> {
+                String mood = extractStringValue(event.eventData(), "mood");
+                float intensity = extractFloatValue(event.eventData(), "intensity");
+                String moodLabel = formatMoodName(mood);
+                if (intensity > 0f) {
+                    int percent = Math.round(Math.max(0f, Math.min(1f, intensity)) * 100);
+                    yield "§f• Felt " + moodLabel + " (§7" + percent + "%§f)";
+                }
+                yield "§f• Felt " + moodLabel;
             }
             default -> "§8• " + event.eventType();
         };
@@ -501,15 +508,17 @@ public class PetCompendiumDataExtractor {
     
     private static String formatRoleName(String roleId) {
         if (roleId == null || roleId.isEmpty()) return "Unknown";
-        
-        // Remove namespace if present
-        int colonIdx = roleId.lastIndexOf(':');
-        if (colonIdx >= 0 && colonIdx < roleId.length() - 1) {
-            roleId = roleId.substring(colonIdx + 1);
+
+        Identifier parsed = Identifier.tryParse(roleId);
+        if (parsed != null) {
+            PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(parsed);
+            if (roleType != null) {
+                return getRoleDisplayName(parsed, roleType);
+            }
+            return humanizeIdentifier(parsed);
         }
-        
-        // Format: guardian -> Guardian
-        return roleId.substring(0, 1).toUpperCase() + roleId.substring(1).toLowerCase();
+
+        return humanizeWords(roleId);
     }
     
     private static int extractIntValue(String json, String key) {
@@ -575,7 +584,7 @@ public class PetCompendiumDataExtractor {
         if (json == null || json.isEmpty()) {
             return "Achievement unlocked";
         }
-        
+
         try {
             String type = extractStringValue(json, "achievement_type");
             
@@ -593,6 +602,102 @@ public class PetCompendiumDataExtractor {
             System.err.println("Unexpected error extracting achievement name: " + e.getMessage());
             return "Achievement unlocked";
         }
+    }
+
+    private static String formatCombatOpponent(String opponentId) {
+        if (opponentId == null || opponentId.isEmpty()) {
+            return "an unknown foe";
+        }
+
+        Identifier identifier = Identifier.tryParse(opponentId);
+        if (identifier != null) {
+            if (Registries.ENTITY_TYPE.containsId(identifier)) {
+                EntityType<?> type = Registries.ENTITY_TYPE.get(identifier);
+                if (type != null) {
+                    return type.getName().getString();
+                }
+            }
+            return humanizeIdentifier(identifier);
+        }
+
+        return humanizeWords(opponentId);
+    }
+
+    private static float extractFloatValue(String json, String key) {
+        if (json == null || json.isEmpty() || key == null || key.isEmpty()) {
+            return 0f;
+        }
+
+        try {
+            int keyIdx = json.indexOf("\"" + key + "\":");
+            if (keyIdx == -1) return 0f;
+
+            int start = keyIdx + key.length() + 3;
+            int end = json.indexOf(',', start);
+            if (end == -1) end = json.indexOf('}', start);
+
+            if (end <= start || end > json.length()) {
+                System.err.println("Invalid bounds for extracting float value for key: " + key);
+                return 0f;
+            }
+
+            String valueStr = json.substring(start, end).trim();
+            return Float.parseFloat(valueStr);
+        } catch (NumberFormatException e) {
+            System.err.println("Failed to parse float value for key " + key + ": " + e.getMessage());
+            return 0f;
+        } catch (StringIndexOutOfBoundsException e) {
+            System.err.println("String index error extracting float value for key " + key + ": " + e.getMessage());
+            return 0f;
+        } catch (Exception e) {
+            System.err.println("Unexpected error extracting float value for key " + key + ": " + e.getMessage());
+            return 0f;
+        }
+    }
+
+    private static String formatMoodName(String mood) {
+        if (mood == null || mood.isEmpty()) {
+            return "a mood";
+        }
+
+        Identifier parsed = Identifier.tryParse(mood);
+        if (parsed != null) {
+            return humanizeIdentifier(parsed);
+        }
+
+        return humanizeWords(mood);
+    }
+
+    private static String humanizeIdentifier(Identifier identifier) {
+        if (identifier == null) {
+            return "Unknown";
+        }
+        return humanizeWords(identifier.getPath());
+    }
+
+    private static String humanizeWords(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return "Unknown";
+        }
+
+        String cleaned = raw.replace(':', ' ').replace('_', ' ').trim();
+        if (cleaned.isEmpty()) {
+            return "Unknown";
+        }
+
+        String[] parts = cleaned.split("\\s+");
+        StringBuilder builder = new StringBuilder();
+        for (String part : parts) {
+            if (part.isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append(part.substring(0, 1).toUpperCase()).append(part.substring(1).toLowerCase());
+        }
+
+        return builder.length() > 0 ? builder.toString() : "Unknown";
     }
     
     /**
@@ -617,17 +722,19 @@ public class PetCompendiumDataExtractor {
             System.err.println("Error accessing emotion journal: " + e.getMessage());
         }
         
+        String emotionHeaderText = CompendiumColorTheme.formatSectionHeader("Emotion Journal", natureId);
+
         if (journal == null || journal.isEmpty()) {
-            currentPage.add(Text.literal(CompendiumColorTheme.formatSectionHeader("Emotion Journal", natureId)));
+            currentPage.add(Text.literal(emotionHeaderText));
             currentPage.add(Text.empty());
             currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "No suppressed cues yet."));
             currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "Your pets are quiet."));
             pages.add(currentPage);
             return pages;
         }
-        
+
         // Header
-        currentPage.add(Text.literal(CompendiumColorTheme.formatSectionHeader("Emotion Journal", natureId)));
+        currentPage.add(Text.literal(emotionHeaderText));
         currentPage.add(Text.empty());
         
         int linesOnPage = 2;
@@ -645,7 +752,9 @@ public class PetCompendiumDataExtractor {
             if (linesOnPage + 2 > MAX_LINES) {
                 pages.add(new ArrayList<>(currentPage));
                 currentPage.clear();
-                linesOnPage = 0;
+                currentPage.add(Text.literal(emotionHeaderText));
+                currentPage.add(Text.empty());
+                linesOnPage = 2;
             }
             
             // Add entry with nature-themed formatting
@@ -683,17 +792,19 @@ public class PetCompendiumDataExtractor {
             System.err.println("Error accessing gossip ledger: " + e.getMessage());
         }
         
+        String gossipHeaderText = CompendiumColorTheme.formatSectionHeader("Gossip & Rumors", natureId);
+
         if (ledger == null || ledger.isEmpty()) {
-            currentPage.add(Text.literal(CompendiumColorTheme.formatSectionHeader("Gossip & Rumors", natureId)));
+            currentPage.add(Text.literal(gossipHeaderText));
             currentPage.add(Text.empty());
             currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "No rumors to share."));
             currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "They haven't heard much."));
             pages.add(currentPage);
             return pages;
         }
-        
+
         // Header
-        currentPage.add(Text.literal(CompendiumColorTheme.formatSectionHeader("Gossip & Rumors", natureId)));
+        currentPage.add(Text.literal(gossipHeaderText));
         currentPage.add(Text.empty());
         
         int linesOnPage = 2;
@@ -714,7 +825,9 @@ public class PetCompendiumDataExtractor {
             if (linesOnPage + 3 > MAX_LINES) {
                 pages.add(new ArrayList<>(currentPage));
                 currentPage.clear();
-                linesOnPage = 0;
+                currentPage.add(Text.literal(gossipHeaderText));
+                currentPage.add(Text.empty());
+                linesOnPage = 2;
             }
             
             // Format rumor entry with hover details
