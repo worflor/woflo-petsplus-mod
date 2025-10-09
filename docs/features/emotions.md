@@ -1,6 +1,6 @@
 # Emotions
 
-Your pet's emotional life runs deeper than you'd expect. Behind every tail wag and every protective growl sits a system tracking 42 distinct emotions, each influencing how your pet experiences and reacts to the world.
+Your pet's emotional life runs deeper than you'd expect. Behind every tail wag and every protective growl sits a system tracking 41 distinct emotions, each influencing how your pet experiences and reacts to the world.
 
 *See also: [Stimulus System](stimulus.md) for how events trigger emotions, and [Moods](moods.md) for how emotions blend into visible states.*
 
@@ -18,17 +18,15 @@ Each emotion has:
 
 These metrics combine to determine which emotions dominate your pet's current state.
 
-## The 42 Emotions
+## The 41 Emotions
 
 Emotions are grouped into thematic clusters that reflect different aspects of your pet's inner experience.
 
 ### Positive / Bright
 Uplifting feelings that arise from joy, connection, and satisfaction.
 
-- **Cheerful** — simple happiness
+- **Cheerful** — simple happiness and bursts of excitement
 - **Hopeful** — optimistic anticipation
-- **Glee** — explosive joy
-- **Blissful** — serene contentment
 - **Content** — quiet satisfaction
 - **Playfulness** — energetic fun
 - **Kefi** — spirited enthusiasm
@@ -39,9 +37,8 @@ Uplifting feelings that arise from joy, connection, and satisfaction.
 ### Connection / Social
 Emotions tied to bonds, relationships, and belonging.
 
-- **Ubuntu** — interconnectedness and humanity
+- **Ubuntu** — interconnectedness and communal care
 - **Querecia** — deep sense of rest and belonging
-- **Empathy** — shared feeling
 - **Loyalty** — steadfast devotion
 - **Sobremesa** — lingering after a meal together
 - **Pack Spirit** — unity with the group (ultra-rare)

@@ -150,7 +150,7 @@ public class InvestigateBlockGoal extends AdaptiveGoal {
         return new woflo.petsplus.ai.goals.EmotionFeedback.Builder()
             .add(woflo.petsplus.state.PetComponent.Emotion.CURIOUS, 0.28f)
             .add(woflo.petsplus.state.PetComponent.Emotion.FOCUSED, 0.22f)
-            .add(woflo.petsplus.state.PetComponent.Emotion.GLEE, 0.18f)
+            .add(woflo.petsplus.state.PetComponent.Emotion.CHEERFUL, 0.18f)
             .add(woflo.petsplus.state.PetComponent.Emotion.HOPEFUL, 0.15f)
             .build();
     }

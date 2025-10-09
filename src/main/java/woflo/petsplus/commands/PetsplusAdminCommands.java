@@ -676,8 +676,8 @@ public class PetsplusAdminCommands {
         return applyEmotionPreset(context, "Happy", new EmotionWeight[]{
             new EmotionWeight(PetComponent.Emotion.CHEERFUL, 3.0f),
             new EmotionWeight(PetComponent.Emotion.RELIEF, 2.5f),
-            new EmotionWeight(PetComponent.Emotion.GLEE, 1.5f),
-            new EmotionWeight(PetComponent.Emotion.BLISSFUL, 1.0f)
+            new EmotionWeight(PetComponent.Emotion.CHEERFUL, 1.5f),
+            new EmotionWeight(PetComponent.Emotion.CONTENT, 1.0f)
         });
     }
 
@@ -698,7 +698,7 @@ public class PetsplusAdminCommands {
 
     private static int presetCalm(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         return applyEmotionPreset(context, "Calm", new EmotionWeight[]{
-            new EmotionWeight(PetComponent.Emotion.BLISSFUL, 3.0f),
+            new EmotionWeight(PetComponent.Emotion.CONTENT, 3.0f),
             new EmotionWeight(PetComponent.Emotion.LAGOM, 2.5f),
             new EmotionWeight(PetComponent.Emotion.WABI_SABI, 1.8f),
             new EmotionWeight(PetComponent.Emotion.RELIEF, 1.2f)
@@ -707,7 +707,7 @@ public class PetsplusAdminCommands {
     
     private static int presetPlayful(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         return applyEmotionPreset(context, "Playful", new EmotionWeight[]{
-            new EmotionWeight(PetComponent.Emotion.GLEE, 3.0f),
+            new EmotionWeight(PetComponent.Emotion.CHEERFUL, 3.0f),
             new EmotionWeight(PetComponent.Emotion.KEFI, 2.5f),
             new EmotionWeight(PetComponent.Emotion.CHEERFUL, 2.0f),
             new EmotionWeight(PetComponent.Emotion.SOBREMESA, 1.5f)
@@ -716,7 +716,7 @@ public class PetsplusAdminCommands {
     
     private static int presetProtective(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         return applyEmotionPreset(context, "Protective", new EmotionWeight[]{
-            new EmotionWeight(PetComponent.Emotion.PROTECTIVENESS, 3.0f),
+            new EmotionWeight(PetComponent.Emotion.GUARDIAN_VIGIL, 3.0f),
             new EmotionWeight(PetComponent.Emotion.QUERECIA, 2.2f),
             new EmotionWeight(PetComponent.Emotion.UBUNTU, 1.8f),
             new EmotionWeight(PetComponent.Emotion.SOBREMESA, 1.4f)

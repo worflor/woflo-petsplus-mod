@@ -182,12 +182,12 @@ public class EmotionContextMapper {
             addEmotion(emotions, PetComponent.Emotion.GAMAN, 0.3f * damageIntensity, context);
             
         } else {
-            // Combat damage - fear and protectiveness
+            // Combat damage - fear and Guardian Vigil resolve
             addEmotion(emotions, PetComponent.Emotion.ANGST, 0.4f * damageIntensity, context);
             addEmotion(emotions, PetComponent.Emotion.FOREBODING, 0.3f * damageIntensity, context);
             
             if (context.ownerSafety < 0.5f) {
-                addEmotion(emotions, PetComponent.Emotion.PROTECTIVENESS, 0.5f * damageIntensity, context);
+                addEmotion(emotions, PetComponent.Emotion.GUARDIAN_VIGIL, 0.5f * damageIntensity, context);
             }
         }
         
@@ -205,11 +205,11 @@ public class EmotionContextMapper {
         if (context.isHighIntensityMoment) {
             // Boss battle or significant combat
             addEmotion(emotions, PetComponent.Emotion.KEFI, 0.4f * intensity, context);
-            addEmotion(emotions, PetComponent.Emotion.PROTECTIVENESS, 0.5f * intensity, context);
+            addEmotion(emotions, PetComponent.Emotion.GUARDIAN_VIGIL, 0.5f * intensity, context);
             addEmotion(emotions, PetComponent.Emotion.STOIC, 0.3f * intensity, context);
         } else {
             // Regular combat
-            addEmotion(emotions, PetComponent.Emotion.PROTECTIVENESS, 0.3f * intensity, context);
+            addEmotion(emotions, PetComponent.Emotion.GUARDIAN_VIGIL, 0.3f * intensity, context);
             addEmotion(emotions, PetComponent.Emotion.HOPEFUL, 0.2f * intensity, context);
         }
         
@@ -229,7 +229,7 @@ public class EmotionContextMapper {
         // Personality-based variations
         if (context.personality != null) {
             if (isPlayfulPersonality(context.personality)) {
-                addEmotion(emotions, PetComponent.Emotion.GLEE, baseIntensity * 0.5f, context);
+                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, baseIntensity * 0.5f, context);
             }
             if (isAffectionatePersonality(context.personality)) {
                 addEmotion(emotions, PetComponent.Emotion.CONTENT, baseIntensity * 0.4f, context);
@@ -240,7 +240,7 @@ public class EmotionContextMapper {
     private static void mapDiscoveryEmotions(Map<PetComponent.Emotion, Float> emotions, ContextFactors context) {
         if (context.isHighIntensityMoment) {
             // Rare discovery
-            addEmotion(emotions, PetComponent.Emotion.GLEE, 0.6f, context);
+            addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.6f, context);
             addEmotion(emotions, PetComponent.Emotion.CURIOUS, 0.5f, context);
             addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.4f, context);
         } else {
@@ -285,8 +285,8 @@ public class EmotionContextMapper {
         
         // Personality-based emotion amplification/dampening
         return switch (emotion) {
-            case CHEERFUL, GLEE -> isPlayfulPersonality(personality) ? intensity * 1.3f : intensity;
-            case PROTECTIVENESS -> isLoyalPersonality(personality) ? intensity * 1.4f : intensity;
+            case CHEERFUL, PLAYFULNESS -> isPlayfulPersonality(personality) ? intensity * 1.3f : intensity;
+            case GUARDIAN_VIGIL -> isLoyalPersonality(personality) ? intensity * 1.4f : intensity;
             case CURIOUS -> isCuriousPersonality(personality) ? intensity * 1.5f : intensity;
             case ANGST, FOREBODING -> isNervousPersonality(personality) ? intensity * 1.3f : intensity * 0.8f;
             case STOIC, GAMAN -> isBravePersonality(personality) ? intensity * 1.2f : intensity;

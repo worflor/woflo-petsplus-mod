@@ -27,7 +27,7 @@ public class StrikerEmotionModifier extends BaseRoleEmotionModifier {
     // Constants for magic numbers
     private static final float HIGH_PRIORITY = 10.0f;
     private static final float POWERFUL_ATTACK_THRESHOLD = 10.0f;
-    private static final float POWERFUL_ATTACK_GLEE_SCALE = 0.2f;
+    private static final float POWERFUL_ATTACK_CHEERFUL_SCALE = 0.2f;
     private static final float POWERFUL_ATTACK_FOCUS_SCALE = 0.15f;
     
     public StrikerEmotionModifier() {
@@ -52,7 +52,7 @@ public class StrikerEmotionModifier extends BaseRoleEmotionModifier {
         if (!isPetVictim) {
             // Owner or pet is dealing damage - Striker gets excited
             addEmotion(emotions, PetComponent.Emotion.KEFI, scaleByDamage(0.4f, amount));
-            addEmotion(emotions, PetComponent.Emotion.GLEE, scaleByDamage(0.3f, amount));
+            addEmotion(emotions, PetComponent.Emotion.CHEERFUL, scaleByDamage(0.3f, amount));
             addEmotion(emotions, PetComponent.Emotion.FOCUSED, scaleByDamage(0.25f, amount));
             addEmotion(emotions, PetComponent.Emotion.VIGILANT, scaleByDamage(0.2f, amount));
             
@@ -81,7 +81,7 @@ public class StrikerEmotionModifier extends BaseRoleEmotionModifier {
         
         // Special response to powerful attacks
         if (amount > POWERFUL_ATTACK_THRESHOLD) {
-            addEmotion(emotions, PetComponent.Emotion.GLEE, POWERFUL_ATTACK_GLEE_SCALE);
+            addEmotion(emotions, PetComponent.Emotion.CHEERFUL, POWERFUL_ATTACK_CHEERFUL_SCALE);
             addEmotion(emotions, PetComponent.Emotion.FOCUSED, POWERFUL_ATTACK_FOCUS_SCALE);
         }
         
@@ -104,7 +104,7 @@ public class StrikerEmotionModifier extends BaseRoleEmotionModifier {
         switch (type) {
             case PETTING -> {
                 // Striker pets enjoy rougher handling
-                addEmotion(emotions, PetComponent.Emotion.GLEE, 0.15f);
+                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.15f);
                 addEmotion(emotions, PetComponent.Emotion.PLAYFULNESS, 0.2f);
                 
                 // Less traditional affection
@@ -114,7 +114,7 @@ public class StrikerEmotionModifier extends BaseRoleEmotionModifier {
             
             case FEEDING -> {
                 // Striker pets see feeding as fuel for combat
-                addEmotion(emotions, PetComponent.Emotion.GLEE, 0.2f);
+                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.2f);
                 addEmotion(emotions, PetComponent.Emotion.FOCUSED, 0.15f);
                 addEmotion(emotions, PetComponent.Emotion.HOPEFUL, 0.1f);
             }
@@ -149,14 +149,14 @@ public class StrikerEmotionModifier extends BaseRoleEmotionModifier {
             case "combat", "battle", "fight" -> {
                 // Striker pets love combat environments
                 addEmotion(emotions, PetComponent.Emotion.KEFI, 0.4f);
-                addEmotion(emotions, PetComponent.Emotion.GLEE, 0.35f);
+                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.35f);
                 addEmotion(emotions, PetComponent.Emotion.VIGILANT, 0.3f);
                 addEmotion(emotions, PetComponent.Emotion.FOCUSED, 0.25f);
             }
             
             case "hunting", "hunt" -> {
                 // Striker pets enjoy hunting
-                addEmotion(emotions, PetComponent.Emotion.GLEE, 0.35f);
+                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.35f);
                 addEmotion(emotions, PetComponent.Emotion.VIGILANT, 0.3f);
                 addEmotion(emotions, PetComponent.Emotion.FOCUSED, 0.25f);
             }
@@ -164,7 +164,7 @@ public class StrikerEmotionModifier extends BaseRoleEmotionModifier {
             case "blood", "violence" -> {
                 // Striker pets are excited by violence
                 addEmotion(emotions, PetComponent.Emotion.KEFI, 0.3f);
-                addEmotion(emotions, PetComponent.Emotion.GLEE, 0.25f);
+                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.25f);
                 addEmotion(emotions, PetComponent.Emotion.FOCUSED, 0.2f);
             }
             
@@ -189,7 +189,7 @@ public class StrikerEmotionModifier extends BaseRoleEmotionModifier {
             case "competition", "contest" -> {
                 // Striker pets love competition
                 addEmotion(emotions, PetComponent.Emotion.KEFI, 0.35f);
-                addEmotion(emotions, PetComponent.Emotion.GLEE, 0.3f);
+                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.3f);
                 addEmotion(emotions, PetComponent.Emotion.FOCUSED, 0.25f);
             }
         }

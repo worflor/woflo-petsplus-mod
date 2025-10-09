@@ -61,7 +61,7 @@ public class EepyEeperEmotionModifier extends BaseRoleEmotionModifier {
             
             // Remove high-energy emotions
             removeEmotion(emotions, PetComponent.Emotion.KEFI);
-            removeEmotion(emotions, PetComponent.Emotion.GLEE);
+            removeEmotion(emotions, PetComponent.Emotion.CHEERFUL);
             removeEmotion(emotions, PetComponent.Emotion.FOCUSED);
         }
         
@@ -95,7 +95,7 @@ public class EepyEeperEmotionModifier extends BaseRoleEmotionModifier {
                 addEmotion(emotions, PetComponent.Emotion.RELIEF, 0.15f);
                 
                 // Remove stimulating emotions
-                removeEmotion(emotions, PetComponent.Emotion.GLEE);
+                removeEmotion(emotions, PetComponent.Emotion.CHEERFUL);
                 removeEmotion(emotions, PetComponent.Emotion.PLAYFULNESS);
             }
             

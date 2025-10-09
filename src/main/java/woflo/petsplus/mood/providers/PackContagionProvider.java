@@ -117,7 +117,7 @@ public class PackContagionProvider implements EmotionProvider, ReactiveEmotionPr
     void applyOwnerMirror(PetComponent comp, OwnerCombatState state, float selfBond, long time) {
         float base = 0.015f * MathHelper.clamp(selfBond, 0.25f, 1.0f);
         if (state.isInCombat() || state.recentlyDamaged(time, 80)) {
-            comp.addContagionShare(PetComponent.Emotion.PROTECTIVENESS, base * 1.2f);
+            comp.addContagionShare(PetComponent.Emotion.GUARDIAN_VIGIL, base * 1.2f);
             comp.addContagionShare(PetComponent.Emotion.ANGST, base * 0.75f);
         } else {
             comp.addContagionShare(PetComponent.Emotion.UBUNTU, base * 0.8f);

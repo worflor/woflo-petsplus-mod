@@ -73,7 +73,7 @@
       "radius": 32.0,
       "emotions": {
         "KEFI": 0.15,
-        "GLEE": 0.20,
+        "CHEERFUL": 0.20,
         "HOPEFUL": 0.08
       }
     },
@@ -95,7 +95,7 @@
       "radius": 32.0,
       "emotions": {
         "KEFI": 0.18,
-        "PROTECTIVENESS": 0.22,
+        "GUARDIAN_VIGIL": 0.22,
         "RELIEF": 0.15,
         "HOPEFUL": 0.12
       }
@@ -106,7 +106,7 @@
         "KEFI": 0.20,
         "HOPEFUL": 0.25,
         "STOIC": 0.18,
-        "PROTECTIVENESS": 0.15
+        "GUARDIAN_VIGIL": 0.15
       }
     }
   },
@@ -414,7 +414,7 @@
       "text": "petsplus.emotion_cue.item.golden_apple",
       "emotions": {
         "RELIEF": 0.35,
-        "BLISSFUL": 0.20
+        "CONTENT": 0.20
       }
     },
     "item.enchanted_golden_apple": {
@@ -423,7 +423,8 @@
       "text": "petsplus.emotion_cue.item.enchanted_golden_apple",
       "emotions": {
         "RELIEF": 0.35,
-        "BLISSFUL": 0.22,
+        "CONTENT": 0.20,
+        "QUERECIA": 0.12,
         "HOPEFUL": 0.15
       }
     },
@@ -449,7 +450,7 @@
       "text": "petsplus.emotion_cue.item.totem",
       "emotions": {
         "RELIEF": 0.40,
-        "PROTECTIVENESS": 0.18,
+        "GUARDIAN_VIGIL": 0.18,
         "HOPEFUL": 0.12
       }
     },
@@ -526,7 +527,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.item.shield",
       "emotions": {
-        "PROTECTIVENESS": 0.15
+        "GUARDIAN_VIGIL": 0.15
       }
     },
     "item.saddle": {
@@ -566,7 +567,8 @@
       "radius": 48.0,
       "text": "petsplus.emotion_cue.block_use.beacon",
       "emotions": {
-        "BLISSFUL": 0.25,
+        "CONTENT": 0.20,
+        "QUERECIA": 0.08,
         "HOPEFUL": 0.15,
         "YUGEN": 0.10
       }
@@ -600,7 +602,8 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.music",
       "emotions": {
-        "BLISSFUL": 0.22
+        "CONTENT": 0.16,
+        "QUERECIA": 0.06
       }
     },
     "block_use.jukebox.start": {
@@ -608,7 +611,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.jukebox_start",
       "emotions": {
-        "GLEE": 0.16,
+        "CHEERFUL": 0.16,
         "PLAYFULNESS": 0.12
       }
     },
@@ -653,7 +656,7 @@
       "text": "petsplus.emotion_cue.block_use.campfire_douse",
       "emotions": {
         "RELIEF": 0.12,
-        "PROTECTIVENESS": 0.08
+        "GUARDIAN_VIGIL": 0.08
       }
     },
     "block_use.home": {
@@ -724,7 +727,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.entity.lead",
       "emotions": {
-        "PROTECTIVENESS": 0.20
+        "GUARDIAN_VIGIL": 0.20
       }
     },
     "entity.mount": {
@@ -801,7 +804,7 @@
       "cooldown": 320,
       "text": "petsplus.emotion_cue.species.cat.chest",
       "emotions": {
-        "PROTECTIVENESS": 0.20,
+        "GUARDIAN_VIGIL": 0.20,
         "QUERECIA": 0.14
       }
     },
@@ -842,8 +845,8 @@
       "cooldown": 260,
       "text": "petsplus.emotion_cue.species.fox.treasure",
       "emotions": {
-        "GLEE": 0.18,
-        "PROTECTIVENESS": 0.14
+        "CHEERFUL": 0.18,
+        "GUARDIAN_VIGIL": 0.14
       }
     },
     "species.wolf.treat": {
@@ -873,7 +876,7 @@
       "text": "petsplus.emotion_cue.species.wolf.howl",
       "emotions": {
         "FERNWEH": 0.22,
-        "PROTECTIVENESS": 0.18,
+        "GUARDIAN_VIGIL": 0.18,
         "KEFI": 0.14
       }
     },
@@ -894,7 +897,7 @@
       "text": "petsplus.emotion_cue.weather.thunder",
       "emotions": {
         "ANGST": 0.18,
-        "PROTECTIVENESS": 0.12
+        "GUARDIAN_VIGIL": 0.12
       }
     },
     "owner.death": {
@@ -905,7 +908,7 @@
       "emotions": {
         "SAUDADE": 0.45,
         "REGRET": 0.25,
-        "PROTECTIVENESS": 0.20
+        "GUARDIAN_VIGIL": 0.20
       }
     }
   },

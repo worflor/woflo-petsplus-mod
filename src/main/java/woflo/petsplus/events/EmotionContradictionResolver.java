@@ -28,13 +28,6 @@ public class EmotionContradictionResolver {
             PetComponent.Emotion.HIRAETH, PetComponent.Emotion.MONO_NO_AWARE
         ));
         
-        contradictions.put(PetComponent.Emotion.GLEE, Set.of(
-            PetComponent.Emotion.ANGST, PetComponent.Emotion.FOREBODING, PetComponent.Emotion.ENNUI,
-            PetComponent.Emotion.REGRET, PetComponent.Emotion.FRUSTRATION, PetComponent.Emotion.DISGUST,
-            PetComponent.Emotion.WORRIED, PetComponent.Emotion.MELANCHOLY, PetComponent.Emotion.SAUDADE,
-            PetComponent.Emotion.HIRAETH, PetComponent.Emotion.MONO_NO_AWARE
-        ));
-        
         contradictions.put(PetComponent.Emotion.HOPEFUL, Set.of(
             PetComponent.Emotion.ANGST, PetComponent.Emotion.FOREBODING, PetComponent.Emotion.ENNUI,
             PetComponent.Emotion.REGRET, PetComponent.Emotion.FRUSTRATION, PetComponent.Emotion.DISGUST,
@@ -76,9 +69,6 @@ public class EmotionContradictionResolver {
             PetComponent.Emotion.STOIC, PetComponent.Emotion.GAMAN, PetComponent.Emotion.ENNUI
         ));
         
-        contradictions.put(PetComponent.Emotion.EMPATHY, Set.of(
-            PetComponent.Emotion.DISGUST, PetComponent.Emotion.WORRIED
-        ));
         
         contradictions.put(PetComponent.Emotion.PRIDE, Set.of(
             PetComponent.Emotion.REGRET, PetComponent.Emotion.ENNUI, PetComponent.Emotion.MONO_NO_AWARE
@@ -97,7 +87,7 @@ public class EmotionContradictionResolver {
         ));
         
         contradictions.put(PetComponent.Emotion.SAUDADE, Set.of(
-            PetComponent.Emotion.GLEE, PetComponent.Emotion.CHEERFUL, PetComponent.Emotion.HOPEFUL
+            PetComponent.Emotion.CHEERFUL, PetComponent.Emotion.HOPEFUL
         ));
         
         contradictions.put(PetComponent.Emotion.NOSTALGIA, Set.of(
@@ -105,7 +95,7 @@ public class EmotionContradictionResolver {
         ));
         
         contradictions.put(PetComponent.Emotion.WABI_SABI, Set.of(
-            PetComponent.Emotion.PRIDE, PetComponent.Emotion.GLEE
+            PetComponent.Emotion.PRIDE, PetComponent.Emotion.CHEERFUL
         ));
         
         contradictions.put(PetComponent.Emotion.YUGEN, Set.of(
@@ -120,31 +110,25 @@ public class EmotionContradictionResolver {
             PetComponent.Emotion.REGRET, PetComponent.Emotion.MELANCHOLY
         ));
         
-        contradictions.put(PetComponent.Emotion.BLISSFUL, Set.of(
-            PetComponent.Emotion.ANGST, PetComponent.Emotion.FOREBODING, PetComponent.Emotion.WORRIED,
-            PetComponent.Emotion.MELANCHOLY, PetComponent.Emotion.REGRET
-        ));
         
         // Negative emotions contradictions
         contradictions.put(PetComponent.Emotion.ANGST, Set.of(
-            PetComponent.Emotion.CHEERFUL, PetComponent.Emotion.GLEE, PetComponent.Emotion.HOPEFUL,
+            PetComponent.Emotion.CHEERFUL, PetComponent.Emotion.HOPEFUL,
             PetComponent.Emotion.CONTENT, PetComponent.Emotion.RELIEF, PetComponent.Emotion.UBUNTU,
             PetComponent.Emotion.QUERECIA, PetComponent.Emotion.KEFI, PetComponent.Emotion.LOYALTY,
-            PetComponent.Emotion.PLAYFULNESS, PetComponent.Emotion.EMPATHY, PetComponent.Emotion.PRIDE,
-            PetComponent.Emotion.BLISSFUL
+            PetComponent.Emotion.PLAYFULNESS, PetComponent.Emotion.PRIDE
         ));
-        
+
         contradictions.put(PetComponent.Emotion.FOREBODING, Set.of(
-            PetComponent.Emotion.CHEERFUL, PetComponent.Emotion.GLEE, PetComponent.Emotion.HOPEFUL,
+            PetComponent.Emotion.CHEERFUL, PetComponent.Emotion.HOPEFUL,
             PetComponent.Emotion.CONTENT, PetComponent.Emotion.RELIEF, PetComponent.Emotion.UBUNTU,
             PetComponent.Emotion.QUERECIA, PetComponent.Emotion.KEFI, PetComponent.Emotion.LOYALTY,
-            PetComponent.Emotion.PLAYFULNESS, PetComponent.Emotion.EMPATHY, PetComponent.Emotion.PRIDE,
-            PetComponent.Emotion.BLISSFUL
+            PetComponent.Emotion.PLAYFULNESS, PetComponent.Emotion.PRIDE
         ));
-        
+
         contradictions.put(PetComponent.Emotion.REGRET, Set.of(
             PetComponent.Emotion.STOIC, PetComponent.Emotion.GAMAN, PetComponent.Emotion.PRIDE,
-            PetComponent.Emotion.HANYAUKU, PetComponent.Emotion.BLISSFUL
+            PetComponent.Emotion.HANYAUKU, PetComponent.Emotion.CONTENT
         ));
         
         contradictions.put(PetComponent.Emotion.FRUSTRATION, Set.of(
@@ -154,34 +138,35 @@ public class EmotionContradictionResolver {
         
         contradictions.put(PetComponent.Emotion.STARTLE, Set.of(
             PetComponent.Emotion.CONTENT, PetComponent.Emotion.CHEERFUL, PetComponent.Emotion.RELIEF,
-            PetComponent.Emotion.STOIC
+            PetComponent.Emotion.STOIC, PetComponent.Emotion.PROTECTIVE
         ));
         
         contradictions.put(PetComponent.Emotion.DISGUST, Set.of(
-            PetComponent.Emotion.UBUNTU, PetComponent.Emotion.EMPATHY, PetComponent.Emotion.YUGEN
+            PetComponent.Emotion.UBUNTU, PetComponent.Emotion.YUGEN
         ));
         
         contradictions.put(PetComponent.Emotion.ENNUI, Set.of(
-            PetComponent.Emotion.CHEERFUL, PetComponent.Emotion.GLEE, PetComponent.Emotion.KEFI,
+            PetComponent.Emotion.CHEERFUL, PetComponent.Emotion.KEFI,
             PetComponent.Emotion.PLAYFULNESS, PetComponent.Emotion.CURIOUS
         ));
         
         contradictions.put(PetComponent.Emotion.WORRIED, Set.of(
-            PetComponent.Emotion.UBUNTU, PetComponent.Emotion.EMPATHY, PetComponent.Emotion.LOYALTY,
-            PetComponent.Emotion.RELIEF, PetComponent.Emotion.SOBREMESA, PetComponent.Emotion.BLISSFUL
+            PetComponent.Emotion.UBUNTU, PetComponent.Emotion.LOYALTY,
+            PetComponent.Emotion.RELIEF, PetComponent.Emotion.SOBREMESA, PetComponent.Emotion.CONTENT
         ));
         
         contradictions.put(PetComponent.Emotion.RESTLESS, Set.of(
-            PetComponent.Emotion.CONTENT, PetComponent.Emotion.LAGOM, PetComponent.Emotion.SOBREMESA
+            PetComponent.Emotion.CONTENT, PetComponent.Emotion.LAGOM, PetComponent.Emotion.SOBREMESA,
+            PetComponent.Emotion.GUARDIAN_VIGIL
         ));
         
         contradictions.put(PetComponent.Emotion.MELANCHOLY, Set.of(
             PetComponent.Emotion.UBUNTU, PetComponent.Emotion.KEFI, PetComponent.Emotion.LOYALTY,
-            PetComponent.Emotion.HANYAUKU, PetComponent.Emotion.BLISSFUL
+            PetComponent.Emotion.HANYAUKU, PetComponent.Emotion.CONTENT
         ));
-        
+
         contradictions.put(PetComponent.Emotion.SAUDADE, Set.of(
-            PetComponent.Emotion.GLEE, PetComponent.Emotion.CHEERFUL, PetComponent.Emotion.HOPEFUL
+            PetComponent.Emotion.CHEERFUL, PetComponent.Emotion.HOPEFUL
         ));
         
         contradictions.put(PetComponent.Emotion.HIRAETH, Set.of(
@@ -189,7 +174,7 @@ public class EmotionContradictionResolver {
         ));
         
         contradictions.put(PetComponent.Emotion.MONO_NO_AWARE, Set.of(
-            PetComponent.Emotion.CHEERFUL, PetComponent.Emotion.GLEE, PetComponent.Emotion.KEFI,
+            PetComponent.Emotion.CHEERFUL, PetComponent.Emotion.KEFI,
             PetComponent.Emotion.PRIDE
         ));
         
@@ -217,12 +202,12 @@ public class EmotionContradictionResolver {
         ));
         
         // Protective emotions (minimal contradictions as they're context-dependent)
-        contradictions.put(PetComponent.Emotion.PROTECTIVENESS, Set.of(
-            PetComponent.Emotion.DISGUST, PetComponent.Emotion.WORRIED
+        contradictions.put(PetComponent.Emotion.GUARDIAN_VIGIL, Set.of(
+            PetComponent.Emotion.DISGUST, PetComponent.Emotion.RESTLESS
         ));
-        
+
         contradictions.put(PetComponent.Emotion.PROTECTIVE, Set.of(
-            PetComponent.Emotion.DISGUST, PetComponent.Emotion.WORRIED
+            PetComponent.Emotion.WORRIED, PetComponent.Emotion.STARTLE
         ));
         
         return contradictions;
@@ -237,7 +222,7 @@ public class EmotionContradictionResolver {
         Map<PetComponent.Emotion, Integer> priorities = new EnumMap<>(PetComponent.Emotion.class);
         
         // Highest priority emotions
-        priorities.put(PetComponent.Emotion.PROTECTIVENESS, 9);
+        priorities.put(PetComponent.Emotion.GUARDIAN_VIGIL, 10);
         priorities.put(PetComponent.Emotion.PROTECTIVE, 9);
         
         // High priority emotions
@@ -259,13 +244,11 @@ public class EmotionContradictionResolver {
         priorities.put(PetComponent.Emotion.DISGUST, 6);
         
         // Medium priority emotions
-        priorities.put(PetComponent.Emotion.GLEE, 5);
         priorities.put(PetComponent.Emotion.QUERECIA, 5);
         priorities.put(PetComponent.Emotion.FRUSTRATION, 5);
         priorities.put(PetComponent.Emotion.RESTLESS, 5);
-        priorities.put(PetComponent.Emotion.EMPATHY, 4);
         priorities.put(PetComponent.Emotion.RELIEF, 4);
-        priorities.put(PetComponent.Emotion.CHEERFUL, 4);
+        priorities.put(PetComponent.Emotion.CHEERFUL, 5);
         priorities.put(PetComponent.Emotion.SOBREMESA, 4);
         priorities.put(PetComponent.Emotion.ENNUI, 4);
         priorities.put(PetComponent.Emotion.HIRAETH, 4);
@@ -290,9 +273,6 @@ public class EmotionContradictionResolver {
         
         // Low priority emotions
         priorities.put(PetComponent.Emotion.MONO_NO_AWARE, 1);
-        
-        // Add missing emotion priorities
-        priorities.put(PetComponent.Emotion.BLISSFUL, 5);
         
         return priorities;
     }
@@ -493,9 +473,9 @@ public class EmotionContradictionResolver {
         return switch (context.toLowerCase()) {
             case "combat", "danger" -> !isPositiveEmotion(emotion);
             case "social", "affection" -> !isNegativeEmotion(emotion);
-            case "discovery", "exploration" -> emotion == PetComponent.Emotion.CURIOUS || 
+            case "discovery", "exploration" -> emotion == PetComponent.Emotion.CURIOUS ||
                                               emotion == PetComponent.Emotion.HOPEFUL ||
-                                              emotion == PetComponent.Emotion.GLEE;
+                                              emotion == PetComponent.Emotion.CHEERFUL;
             case "rest", "safety" -> emotion == PetComponent.Emotion.CONTENT ||
                                    emotion == PetComponent.Emotion.CHEERFUL ||
                                    emotion == PetComponent.Emotion.RELIEF;
@@ -508,7 +488,6 @@ public class EmotionContradictionResolver {
      */
     private static boolean isPositiveEmotion(PetComponent.Emotion emotion) {
         return emotion == PetComponent.Emotion.CHEERFUL ||
-               emotion == PetComponent.Emotion.GLEE ||
                emotion == PetComponent.Emotion.HOPEFUL ||
                emotion == PetComponent.Emotion.CONTENT ||
                emotion == PetComponent.Emotion.RELIEF ||
@@ -517,9 +496,7 @@ public class EmotionContradictionResolver {
                emotion == PetComponent.Emotion.KEFI ||
                emotion == PetComponent.Emotion.LOYALTY ||
                emotion == PetComponent.Emotion.PLAYFULNESS ||
-               emotion == PetComponent.Emotion.EMPATHY ||
-               emotion == PetComponent.Emotion.PRIDE ||
-               emotion == PetComponent.Emotion.BLISSFUL;
+               emotion == PetComponent.Emotion.PRIDE;
     }
     
     /**

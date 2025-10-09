@@ -50,7 +50,7 @@ public class SupportEmotionModifier extends BaseRoleEmotionModifier {
         if (isPetVictim || isOwnerDamageSource(source, petComp)) {
             // Concern about injury
             addEmotion(emotions, PetComponent.Emotion.WORRIED, scaleByDamage(0.4f, amount));
-            addEmotion(emotions, PetComponent.Emotion.EMPATHY, scaleByDamage(0.3f, amount));
+            addEmotion(emotions, PetComponent.Emotion.LOYALTY, scaleByDamage(0.3f, amount));
             addEmotion(emotions, PetComponent.Emotion.RELIEF, scaleByDamage(0.2f, amount));
             
             Petsplus.LOGGER.debug("Support pet {} concerned about damage", pet.getUuidAsString());
@@ -83,7 +83,7 @@ public class SupportEmotionModifier extends BaseRoleEmotionModifier {
                 // Support pets enjoy gentle contact
                 addEmotion(emotions, PetComponent.Emotion.CONTENT, 0.25f);
                 addEmotion(emotions, PetComponent.Emotion.UBUNTU, 0.2f);
-                addEmotion(emotions, PetComponent.Emotion.EMPATHY, 0.15f);
+                addEmotion(emotions, PetComponent.Emotion.LOYALTY, 0.15f);
             }
             
             case FEEDING -> {
@@ -98,7 +98,7 @@ public class SupportEmotionModifier extends BaseRoleEmotionModifier {
                 addEmotion(emotions, PetComponent.Emotion.RELIEF, 0.4f);
                 addEmotion(emotions, PetComponent.Emotion.UBUNTU, 0.35f);
                 addEmotion(emotions, PetComponent.Emotion.CONTENT, 0.3f);
-                addEmotion(emotions, PetComponent.Emotion.GLEE, 0.25f);
+                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.25f);
             }
         }
         
@@ -135,7 +135,7 @@ public class SupportEmotionModifier extends BaseRoleEmotionModifier {
             case "injury", "pain", "suffering" -> {
                 // Support pets are very concerned about injury
                 addEmotion(emotions, PetComponent.Emotion.WORRIED, 0.4f);
-                addEmotion(emotions, PetComponent.Emotion.EMPATHY, 0.35f);
+                addEmotion(emotions, PetComponent.Emotion.LOYALTY, 0.35f);
                 addEmotion(emotions, PetComponent.Emotion.SAUDADE, 0.2f);
             }
             

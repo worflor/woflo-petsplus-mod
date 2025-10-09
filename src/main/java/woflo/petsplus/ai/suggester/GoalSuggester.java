@@ -410,8 +410,8 @@ public class GoalSuggester {
             }
         }
         
-        // PROTECTIVENESS (Emotion) - Guarding instinct
-        if (ctx.hasEmotionAbove(woflo.petsplus.state.PetComponent.Emotion.PROTECTIVENESS, 0.3f)) {
+        // GUARDIAN_VIGIL (Emotion) - Guarding instinct
+        if (ctx.hasEmotionAbove(woflo.petsplus.state.PetComponent.Emotion.GUARDIAN_VIGIL, 0.3f)) {
             if (goalType == GoalType.OWNER_ORBIT || goalType == GoalType.PURPOSEFUL_PATROL) {
                 modifier *= 1.9f;
             }
@@ -481,8 +481,8 @@ public class GoalSuggester {
             }
         }
         
-        // GLEE - Bursting joy
-        if (ctx.hasEmotionAbove(woflo.petsplus.state.PetComponent.Emotion.GLEE, 0.3f)) {
+        // CHEERFUL - Bursting joy
+        if (ctx.hasEmotionAbove(woflo.petsplus.state.PetComponent.Emotion.CHEERFUL, 0.3f)) {
             if (goalType.getCategory() == GoalType.Category.PLAY) {
                 modifier *= 1.6f;
             }

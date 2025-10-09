@@ -62,7 +62,7 @@ public class BubblePlayGoal extends AdaptiveGoal {
     protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
         return woflo.petsplus.ai.goals.EmotionFeedback.dual(
             woflo.petsplus.state.PetComponent.Emotion.PLAYFULNESS, 0.10f,
-            woflo.petsplus.state.PetComponent.Emotion.GLEE, 0.08f
+            woflo.petsplus.state.PetComponent.Emotion.CHEERFUL, 0.08f
         );
     }
     

@@ -679,7 +679,7 @@ public class CombatEventHandler {
 
                     float closeness = 0.35f + 0.65f * proximityFactor(owner, pet, 32.0);
                     float angstWeight = scaledAmount(0.16f, 0.50f, damageIntensity) * closeness;
-                    float protectivenessWeight = scaledAmount(0.20f + (0.18f * ownerDangerFactor), 0.55f, damageIntensity) * closeness;
+                    float vigilWeight = scaledAmount(0.20f + (0.18f * ownerDangerFactor), 0.55f, damageIntensity) * closeness;
                     float startleWeight = scaledAmount(0.10f, 0.40f, damageIntensity);
                     float frustrationWeight = scaledAmount(0.04f, 0.30f, damageIntensity) * closeness;
                     float forebodingWeight = ownerDangerFactor > 0f
@@ -689,8 +689,8 @@ public class CombatEventHandler {
                     if (angstWeight > 0f) {
                         pc.pushEmotion(PetComponent.Emotion.ANGST, angstWeight);
                     }
-                    if (protectivenessWeight > 0f) {
-                        pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protectivenessWeight);
+                    if (vigilWeight > 0f) {
+                        pc.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, vigilWeight);
                     }
                     if (startleWeight > 0f) {
                         pc.pushEmotion(PetComponent.Emotion.STARTLE, startleWeight);
@@ -829,7 +829,7 @@ public class CombatEventHandler {
                         pc.pushEmotion(PetComponent.Emotion.ENNUI, uneasinessWeight);
                         pc.pushEmotion(PetComponent.Emotion.FOREBODING, forebodingWeight);
                     } else {
-                        float protectivenessWeight = scaledAmount(0.18f, 0.45f, intensity) * closeness;
+                        float vigilWeight = scaledAmount(0.18f, 0.45f, intensity) * closeness;
                         float hopefulWeight = 0f;
                         if (victimIsHostile) {
                             float petHealthRatio = pet.getHealth() / pet.getMaxHealth();
@@ -857,8 +857,8 @@ public class CombatEventHandler {
                             }
                         }
 
-                        if (protectivenessWeight > 0f) {
-                            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protectivenessWeight);
+                        if (vigilWeight > 0f) {
+                            pc.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, vigilWeight);
                         }
                         if (hopefulWeight > 0f) {
                             pc.pushEmotion(PetComponent.Emotion.HOPEFUL, hopefulWeight);
@@ -918,7 +918,7 @@ public class CombatEventHandler {
                         pc.setLastAttackTick(now);
                         float closeness = 0.40f + 0.60f * proximityFactor(shooter, pet, 32.0);
                         float cheerfulWeight = scaledAmount(0.08f, 0.25f, intensity);
-                        float protectivenessWeight = scaledAmount(0.10f, 0.30f, intensity) * closeness;
+                        float vigilWeight = scaledAmount(0.10f, 0.30f, intensity) * closeness;
 
                         float petHealthRatio = pet.getHealth() / pet.getMaxHealth();
                         if (petHealthRatio > 0.8f) {
@@ -926,7 +926,7 @@ public class CombatEventHandler {
                             pc.pushEmotion(PetComponent.Emotion.HOPEFUL, hopefulWeight);
                         }
                         pc.pushEmotion(PetComponent.Emotion.CHEERFUL, cheerfulWeight);
-                        pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protectivenessWeight);
+                        pc.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, vigilWeight);
                     }
                 }
             }
@@ -1256,7 +1256,7 @@ public class CombatEventHandler {
                             pc.pushEmotion(PetComponent.Emotion.PACK_SPIRIT, 0.75f * finalIntensity);
                             pc.pushEmotion(PetComponent.Emotion.UBUNTU, 0.50f * finalIntensity);
                             pc.pushEmotion(PetComponent.Emotion.PRIDE, 0.45f * finalIntensity);
-                            pc.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, 0.35f * finalIntensity);
+                            pc.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.35f * finalIntensity);
                             
                             // Increment pack cohesion counter (long-term bond)
                             int cohesion = pc.getStateData("pack_cohesion_victories", Integer.class, 0);
@@ -1352,7 +1352,7 @@ public class CombatEventHandler {
                 if (owner != null) {
                     float closeness = 0.40f + 0.60f * proximityFactor(owner, pet, 16.0);
                     float protective = scaledAmount(0.12f, 0.30f, damageIntensity + (lowHealthFactor * 0.3f)) * closeness;
-                    petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protective);
+                    petComponent.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, protective);
                 }
                 Petsplus.LOGGER.debug("Pet {} hurt by hostile player, pushed defensive emotions", pet.getName().getString());
             }
@@ -1375,7 +1375,7 @@ public class CombatEventHandler {
                 if (owner != null) {
                     float closeness = 0.35f + 0.65f * proximityFactor(owner, pet, 16.0);
                     float protective = scaledAmount(0.12f, 0.28f, damageIntensity) * closeness;
-                    petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protective);
+                    petComponent.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, protective);
                 }
                 Petsplus.LOGGER.debug("Pet {} hurt by rival pet, pushed defensive emotions", pet.getName().getString());
             } else {
@@ -1400,7 +1400,7 @@ public class CombatEventHandler {
                 if (owner != null) {
                     float closeness = 0.30f + 0.70f * proximityFactor(owner, pet, 16.0);
                     float protective = scaledAmount(0.10f, 0.26f, damageIntensity) * closeness;
-                    petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protective);
+                    petComponent.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, protective);
                 }
                 Petsplus.LOGGER.debug("Pet {} hurt by hostile mob, pushed fear emotions", pet.getName().getString());
             }
@@ -1440,7 +1440,7 @@ public class CombatEventHandler {
 
         if (criticalFactor > 0f) {
             float desperation = scaledAmount(0.10f, 0.30f, criticalFactor);
-            petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, desperation * 0.7f);
+            petComponent.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, desperation * 0.7f);
             petComponent.pushEmotion(PetComponent.Emotion.FRUSTRATION, desperation);
         }
         } // End synchronized block for pet state access
@@ -1508,8 +1508,8 @@ public class CombatEventHandler {
             }
 
             float closeness = owner != null ? 0.40f + 0.60f * proximityFactor(owner, pet, 16.0) : 0.75f;
-            float protectiveness = scaledAmount(0.18f, 0.50f, damageIntensity) * closeness;
-            petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protectiveness);
+            float guardianResolve = scaledAmount(0.18f, 0.50f, damageIntensity) * closeness;
+            petComponent.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, guardianResolve);
             
             // Health-based emotions: hopeful at high health, determined/stoic when hurt
             float healthRatio = pet.getHealth() / pet.getMaxHealth();
@@ -1558,7 +1558,7 @@ public class CombatEventHandler {
                 if (owner != null) {
                     float closeness = 0.4f + 0.6f * proximityFactor(owner, pet, 16.0);
                     float protective = scaledAmount(0.12f, 0.30f, damageIntensity) * closeness;
-                    petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protective);
+                    petComponent.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, protective);
                 }
                 Petsplus.LOGGER.debug("Pet {} fighting rival pet, pushed competitive emotions", pet.getName().getString());
             } else {
@@ -1576,7 +1576,7 @@ public class CombatEventHandler {
                     petComponent.pushEmotion(PetComponent.Emotion.ANGST, grim);
                 }
                 
-                petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protective);
+                petComponent.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, protective);
 
                 if (criticalFactor > 0f) {
                     petComponent.pushEmotion(PetComponent.Emotion.ANGST, scaledAmount(0.16f, 0.40f, criticalFactor));
@@ -1654,7 +1654,7 @@ public class CombatEventHandler {
 
             float closeness = owner != null ? 0.40f + 0.60f * proximityFactor(owner, pet, 16.0) : 0.7f;
             float triumphScale = MathHelper.clamp(closeness, 0f, 1f);
-            petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, scaledAmount(0.26f, 0.45f, triumphScale));
+            petComponent.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, scaledAmount(0.26f, 0.45f, triumphScale));
             petComponent.pushEmotion(PetComponent.Emotion.STOIC, scaledAmount(0.20f, 0.40f, triumphScale));
             petComponent.pushEmotion(PetComponent.Emotion.CHEERFUL, scaledAmount(0.14f, 0.30f, triumphScale));
 
@@ -1690,7 +1690,7 @@ public class CombatEventHandler {
 
             petComponent.pushEmotion(PetComponent.Emotion.CHEERFUL, cheerfulBase);
             petComponent.pushEmotion(PetComponent.Emotion.STOIC, stoicBase);
-            petComponent.pushEmotion(PetComponent.Emotion.PROTECTIVENESS, protectiveBase);
+            petComponent.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, protectiveBase);
 
             if (mobVictim instanceof HostileEntity) {
                 float healthRatio = pet.getHealth() / pet.getMaxHealth();

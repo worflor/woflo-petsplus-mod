@@ -117,7 +117,7 @@ public class TailChaseGoal extends AdaptiveGoal {
         // Avoids overwhelming - these are intrinsic behaviors, not for external reward
         return woflo.petsplus.ai.goals.EmotionFeedback.dual(
             woflo.petsplus.state.PetComponent.Emotion.PLAYFULNESS, 0.10f,  // Light-hearted solo fun
-            woflo.petsplus.state.PetComponent.Emotion.GLEE, 0.08f          // Mild movement joy
+            woflo.petsplus.state.PetComponent.Emotion.CHEERFUL, 0.08f          // Mild movement joy
         );
     }
     

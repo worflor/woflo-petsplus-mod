@@ -57,7 +57,7 @@ Five branches reward different playstyles: Bonding Basics for first steps, Emoti
 
 **Nature shapes emotions.** Each nature sets base emotional weights and volatility. Fierce pets anger faster, Frisky pets play harder.
 
-**Emotions form moods.** High intensity triggers mood states. Stack Glee, Pride, and Kefi for Passionate. Stack Angst, Frustration, and Hiraeth for Restless.
+**Emotions form moods.** High intensity triggers mood states. Stack Cheerful, Pride, and Kefi for Passionate. Stack Angst, Frustration, and Hiraeth for Restless.
 
 **Events trigger emotions.** Killing enemies boosts Pride. Dying near pets spikes Angst. Eating without sharing builds Frustration. Context matters.
 

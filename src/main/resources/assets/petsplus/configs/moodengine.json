@@ -1,7 +1,6 @@
 {
   "_schema": "petsplus:moodengine",
   "_version": 1,
-  
   "moods": {
     "slotCount": 8,
     "decayTickInterval": 100,
@@ -10,21 +9,23 @@
     "momentum": 0.65,
     "switchMargin": 0.08,
     "hysteresisTicks": 200,
-    "levelThresholds": [0.20, 0.45, 0.70],
+    "levelThresholds": [
+      0.2,
+      0.45,
+      0.7
+    ],
     "weight": {
       "defaultMax": 6.0,
       "perEmotionMax": {
         "relief": 5.0,
         "saudade": 8.0,
-        "protectiveness": 7.0,
+        "guardian_vigil": 7.0,
         "disgust": 3.5,
         "angst": 6.0,
         "foreboding": 6.5,
-        "glee": 4.5,
         "kefi": 5.0,
-        "cheerful": 4.0,
+        "cheerful": 5.0,
         "querecia": 5.5,
-        "blissful": 5.0,
         "ubuntu": 7.5,
         "frustration": 4.5,
         "startle": 3.0,
@@ -49,9 +50,8 @@
         "worried": 4.5,
         "protective": 7.5,
         "melancholy": 6.0,
-        "content": 5.0,
+        "content": 5.2,
         "restless": 4.0,
-        "empathy": 6.5,
         "nostalgia": 6.5,
         "playfulness": 4.0,
         "loyalty": 7.0
@@ -64,18 +64,54 @@
       "maxAnimationInterval": 60
     },
     "opponents": {
-      "angst": ["cheerful", "blissful"],
-      "foreboding": ["lagom", "content"],
-      "startle": ["relief", "calm"],
-      "frustration": ["playfulness", "glee"],
-      "regret": ["hopeful", "pride"],
-      "saudade": ["blissful", "cheerful"],
-      "disgust": ["ubuntu", "empathy"],
-      "stoic": ["glee", "playfulness"],
-      "worried": ["content", "relief"],
-      "restless": ["lagom", "calm"],
-      "melancholy": ["kefi", "glee"],
-      "ennui": ["curious", "passionate"]
+      "angst": [
+        "cheerful",
+        "content"
+      ],
+      "foreboding": [
+        "lagom",
+        "content"
+      ],
+      "startle": [
+        "relief",
+        "calm"
+      ],
+      "frustration": [
+        "playfulness",
+        "cheerful"
+      ],
+      "regret": [
+        "hopeful",
+        "pride"
+      ],
+      "saudade": [
+        "content",
+        "cheerful"
+      ],
+      "disgust": [
+        "ubuntu",
+        "loyalty"
+      ],
+      "stoic": [
+        "cheerful",
+        "playfulness"
+      ],
+      "worried": [
+        "content",
+        "relief"
+      ],
+      "restless": [
+        "lagom",
+        "calm"
+      ],
+      "melancholy": [
+        "kefi",
+        "cheerful"
+      ],
+      "ennui": [
+        "curious",
+        "passionate"
+      ]
     },
     "emotionDecayMultipliers": {
       "ennui": 0.5,
@@ -86,31 +122,118 @@
       "echoed_resonance": 3.5,
       "pack_spirit": 2.5,
       "arcane_overflow": 1.2,
-      "glee": 0.85,
-      "blissful": 0.85
+      "cheerful": 0.85,
+      "content": 0.9
     },
     "emotionValence": {
-      "negative": ["angst", "foreboding", "startle", "frustration", "regret", "saudade", "disgust", "hiraeth", "ennui"],
-      "positive": ["cheerful", "blissful", "glee", "relief", "hopeful", "playfulness", "lagom", "ubuntu", "kefi", "content"]
+      "negative": [
+        "angst",
+        "foreboding",
+        "startle",
+        "frustration",
+        "regret",
+        "saudade",
+        "disgust",
+        "hiraeth",
+        "ennui"
+      ],
+      "positive": [
+        "cheerful",
+        "relief",
+        "hopeful",
+        "playfulness",
+        "lagom",
+        "ubuntu",
+        "kefi",
+        "content"
+      ]
     },
     "moodThresholds": {
-      "calm": [0.30, 0.60, 0.85],
-      "happy": [0.35, 0.65, 0.88],
-      "curious": [0.35, 0.68, 0.90],
-      "playful": [0.35, 0.65, 0.88],
-      "bonded": [0.35, 0.65, 0.88],
-      "focused": [0.38, 0.68, 0.88],
-      "passionate": [0.40, 0.70, 0.90],
-      "protective": [0.30, 0.60, 0.85],
-      "saudade": [0.35, 0.62, 0.88],
-      "yugen": [0.40, 0.68, 0.88],
-      "sisu": [0.38, 0.65, 0.88],
-      "restless": [0.35, 0.65, 0.88],
-      "afraid": [0.30, 0.60, 0.85],
-      "angry": [0.38, 0.70, 0.92],
-      "echoed_resonance": [0.45, 0.75, 0.95],
-      "arcane_overflow": [0.40, 0.72, 0.92],
-      "pack_spirit": [0.38, 0.68, 0.90]
+      "calm": [
+        0.3,
+        0.6,
+        0.85
+      ],
+      "happy": [
+        0.35,
+        0.65,
+        0.88
+      ],
+      "curious": [
+        0.35,
+        0.68,
+        0.9
+      ],
+      "playful": [
+        0.35,
+        0.65,
+        0.88
+      ],
+      "bonded": [
+        0.35,
+        0.65,
+        0.88
+      ],
+      "focused": [
+        0.38,
+        0.68,
+        0.88
+      ],
+      "passionate": [
+        0.4,
+        0.7,
+        0.9
+      ],
+      "protective": [
+        0.3,
+        0.6,
+        0.85
+      ],
+      "saudade": [
+        0.35,
+        0.62,
+        0.88
+      ],
+      "yugen": [
+        0.4,
+        0.68,
+        0.88
+      ],
+      "sisu": [
+        0.38,
+        0.65,
+        0.88
+      ],
+      "restless": [
+        0.35,
+        0.65,
+        0.88
+      ],
+      "afraid": [
+        0.3,
+        0.6,
+        0.85
+      ],
+      "angry": [
+        0.38,
+        0.7,
+        0.92
+      ],
+      "echoed_resonance": [
+        0.45,
+        0.75,
+        0.95
+      ],
+      "arcane_overflow": [
+        0.4,
+        0.72,
+        0.92
+      ],
+      "pack_spirit": [
+        0.38,
+        0.68,
+        0.9
+      ]
     }
   },
   "advanced": {
@@ -129,7 +252,7 @@
       "peak_alpha": 0.18
     },
     "opponent": {
-      "transfer_max": 0.30,
+      "transfer_max": 0.3,
       "rebound_gain": 0.18
     },
     "context": {

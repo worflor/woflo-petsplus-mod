@@ -26,7 +26,7 @@ class NatureFlavorHandlerTest {
         PetComponent.NatureEmotionProfile profile = new PetComponent.NatureEmotionProfile(
             PetComponent.Emotion.CHEERFUL, 0.34f,
             PetComponent.Emotion.HOPEFUL, 0.22f,
-            PetComponent.Emotion.GLEE, 0.18f);
+            PetComponent.Emotion.CONTENT, 0.18f);
         Map<String, Object> state = new HashMap<>();
         List<PetComponent.Emotion> emotions = new ArrayList<>();
         List<Float> amounts = new ArrayList<>();
@@ -55,7 +55,7 @@ class NatureFlavorHandlerTest {
         PetComponent.NatureEmotionProfile profile = new PetComponent.NatureEmotionProfile(
             PetComponent.Emotion.NOSTALGIA, 0.4f,
             PetComponent.Emotion.MONO_NO_AWARE, 0.2f,
-            PetComponent.Emotion.GLEE, 0.1f);
+            PetComponent.Emotion.CHEERFUL, 0.1f);
         Map<String, Object> state = new HashMap<>();
         List<PetComponent.Emotion> emotions = new ArrayList<>();
         List<Float> amounts = new ArrayList<>();
@@ -112,9 +112,9 @@ class NatureFlavorHandlerTest {
     @Test
     void cherryPetalHarvestSupportsBlossomNature() {
         PetComponent.NatureEmotionProfile profile = new PetComponent.NatureEmotionProfile(
-            PetComponent.Emotion.BLISSFUL, 0.38f,
+            PetComponent.Emotion.CHEERFUL, 0.38f,
             PetComponent.Emotion.HOPEFUL, 0.27f,
-            PetComponent.Emotion.CONTENT, 0.18f);
+            PetComponent.Emotion.QUERECIA, 0.18f);
         Map<String, Object> state = new HashMap<>();
         List<PetComponent.Emotion> emotions = new ArrayList<>();
         List<Float> amounts = new ArrayList<>();
@@ -150,8 +150,8 @@ class NatureFlavorHandlerTest {
     @Test
     void cherryBlossomBloomPulsesVerdantMinor() {
         PetComponent.NatureEmotionProfile profile = new PetComponent.NatureEmotionProfile(
-            PetComponent.Emotion.GLEE, 0.3f,
-            PetComponent.Emotion.BLISSFUL, 0.4f,
+            PetComponent.Emotion.CHEERFUL, 0.3f,
+            PetComponent.Emotion.CONTENT, 0.4f,
             PetComponent.Emotion.LAGOM, 0.2f);
         Map<String, Object> state = new HashMap<>();
         List<PetComponent.Emotion> emotions = new ArrayList<>();
@@ -162,7 +162,7 @@ class NatureFlavorHandlerTest {
             NatureFlavorHandler.Trigger.CHERRY_BLOSSOM_BLOOM, 5400L);
 
         assertEquals(1, emotions.size());
-        assertEquals(PetComponent.Emotion.BLISSFUL, emotions.get(0));
+        assertEquals(PetComponent.Emotion.CONTENT, emotions.get(0));
         assertEquals(1, amounts.size());
         assertTrue(amounts.get(0) > 0f, "cherry blossom bloom pulse should be positive");
     }

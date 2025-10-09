@@ -383,7 +383,7 @@ public final class AstrologyRegistry {
                 0.85f, 1.25f, 1.15f, 0.90f
             ),
             new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.EMPATHY, 0.44f,
+                PetComponent.Emotion.UBUNTU, 0.44f,
                 PetComponent.Emotion.YUGEN, 0.32f,
                 PetComponent.Emotion.HIRAETH, 0.26f
             )));
@@ -396,7 +396,7 @@ public final class AstrologyRegistry {
             ),
             new AstrologySignDefinition.EmotionProfile(
                 PetComponent.Emotion.LOYALTY, 0.44f,
-                PetComponent.Emotion.PROTECTIVENESS, 0.30f,
+                PetComponent.Emotion.GUARDIAN_VIGIL, 0.30f,
                 PetComponent.Emotion.WORRIED, 0.24f
             )));
         list.add(createMoonPhaseSign("Scorpio", 2, AstrologySignDefinition.NightPeriod.LATE_NIGHT, Set.of(0),
@@ -434,7 +434,7 @@ public final class AstrologyRegistry {
             ),
             new AstrologySignDefinition.EmotionProfile(
                 PetComponent.Emotion.PRIDE, 0.44f,
-                PetComponent.Emotion.BLISSFUL, 0.30f,
+                PetComponent.Emotion.CONTENT, 0.30f,
                 PetComponent.Emotion.UBUNTU, 0.26f
             )));
         list.add(createMoonPhaseSign("Sagittarius", 5, AstrologySignDefinition.NightPeriod.LATE_NIGHT, Set.of(1),
@@ -497,7 +497,7 @@ public final class AstrologyRegistry {
                 1.20f, 0.95f, 1.25f, 0.90f
             ),
             new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.GLEE, 0.42f,
+                PetComponent.Emotion.CHEERFUL, 0.42f,
                 PetComponent.Emotion.CURIOUS, 0.30f,
                 PetComponent.Emotion.QUERECIA, 0.26f
             )));
@@ -536,7 +536,7 @@ public final class AstrologyRegistry {
             ),
             new AstrologySignDefinition.EmotionProfile(
                 PetComponent.Emotion.LOYALTY, 0.44f,
-                PetComponent.Emotion.PROTECTIVENESS, 0.30f,
+                PetComponent.Emotion.GUARDIAN_VIGIL, 0.30f,
                 PetComponent.Emotion.WORRIED, 0.24f
             )));
         list.add(createMoonPhaseSign("ScorpioFull", 13, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT, Set.of(4),
@@ -559,7 +559,7 @@ public final class AstrologyRegistry {
                 0.85f, 1.25f, 1.15f, 0.90f
             ),
             new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.EMPATHY, 0.44f,
+                PetComponent.Emotion.UBUNTU, 0.44f,
                 PetComponent.Emotion.YUGEN, 0.32f,
                 PetComponent.Emotion.HIRAETH, 0.26f
             )));
@@ -574,7 +574,7 @@ public final class AstrologyRegistry {
             ),
             new AstrologySignDefinition.EmotionProfile(
                 PetComponent.Emotion.PRIDE, 0.44f,
-                PetComponent.Emotion.BLISSFUL, 0.30f,
+                PetComponent.Emotion.CONTENT, 0.30f,
                 PetComponent.Emotion.UBUNTU, 0.26f
             )));
         list.add(createMoonPhaseSign("SagittariusWaning", 16, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT, Set.of(5),
@@ -673,7 +673,7 @@ public final class AstrologyRegistry {
                 1.20f, 0.95f, 1.25f, 0.90f
             ),
             new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.GLEE, 0.42f,
+                PetComponent.Emotion.CHEERFUL, 0.42f,
                 PetComponent.Emotion.CURIOUS, 0.30f,
                 PetComponent.Emotion.QUERECIA, 0.26f
             )));

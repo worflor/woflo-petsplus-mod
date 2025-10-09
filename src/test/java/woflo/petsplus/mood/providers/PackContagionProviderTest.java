@@ -56,6 +56,6 @@ class PackContagionProviderTest {
 
         provider.applyOwnerMirror(comp, state, 0.9f, 200L);
 
-        verify(comp).addContagionShare(eq(PetComponent.Emotion.PROTECTIVENESS), anyFloat());
+        verify(comp).addContagionShare(eq(PetComponent.Emotion.GUARDIAN_VIGIL), anyFloat());
     }
 }

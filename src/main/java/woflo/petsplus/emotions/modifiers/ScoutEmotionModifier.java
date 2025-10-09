@@ -61,7 +61,7 @@ public class ScoutEmotionModifier extends BaseRoleEmotionModifier {
             
             // Remove overly aggressive emotions
             removeEmotion(emotions, PetComponent.Emotion.KEFI);
-            removeEmotion(emotions, PetComponent.Emotion.GLEE);
+            removeEmotion(emotions, PetComponent.Emotion.CHEERFUL);
         }
         
         // Enhanced response to discovering enemy weaknesses
@@ -93,7 +93,7 @@ public class ScoutEmotionModifier extends BaseRoleEmotionModifier {
                 addEmotion(emotions, PetComponent.Emotion.CURIOUS, 0.15f);
                 
                 // Less intense emotions
-                removeEmotion(emotions, PetComponent.Emotion.GLEE);
+                removeEmotion(emotions, PetComponent.Emotion.CHEERFUL);
                 removeEmotion(emotions, PetComponent.Emotion.KEFI);
             }
             
@@ -129,7 +129,7 @@ public class ScoutEmotionModifier extends BaseRoleEmotionModifier {
         
         switch (eventType.toLowerCase()) {
             case "exploration", "discovery" -> {
-                addEmotion(emotions, PetComponent.Emotion.GLEE, 0.4f);
+                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.4f);
                 addEmotion(emotions, PetComponent.Emotion.CURIOUS, 0.35f);
                 addEmotion(emotions, PetComponent.Emotion.FERNWEH, 0.3f);
             }

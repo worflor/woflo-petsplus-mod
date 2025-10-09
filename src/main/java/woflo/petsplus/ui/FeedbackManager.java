@@ -510,13 +510,13 @@ public class FeedbackManager {
         
         String eventName = switch (emotion) {
             // Positive emotions
-            case KEFI, RELIEF, GLEE, CONTENT, BLISSFUL, PRIDE -> "contagion_positive";
+            case KEFI, RELIEF, CHEERFUL, CONTENT, PRIDE -> "contagion_positive";
             
             // Negative emotions
             case FOREBODING, ANGST, STARTLE, DISGUST -> "contagion_negative";
             
             // Combat emotions
-            case PROTECTIVENESS, PROTECTIVE, FOCUSED -> "contagion_combat";
+            case GUARDIAN_VIGIL, PROTECTIVE, FOCUSED -> "contagion_combat";
             
             // Discovery emotions
             case CURIOUS, YUGEN, MONO_NO_AWARE, FERNWEH -> "contagion_discovery";

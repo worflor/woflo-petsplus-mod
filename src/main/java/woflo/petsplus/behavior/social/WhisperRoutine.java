@@ -10,7 +10,7 @@ import woflo.petsplus.events.EmotionContextCues;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 
 /**
- * Handles intimate one-on-one social moments such as greetings and empathy
+ * Handles intimate one-on-one social moments such as greetings and solidarity
  * checks. Runs on a slower cadence to match the original throttling logic.
  */
 public class WhisperRoutine implements SocialBehaviorRoutine {
@@ -53,11 +53,13 @@ public class WhisperRoutine implements SocialBehaviorRoutine {
             if (isFirstMeeting) {
                 context.pushEmotion(PetComponent.Emotion.CURIOUS, 0.06f);
                 if (context.petData().age() < 72000) {
-                    context.pushEmotion(PetComponent.Emotion.GLEE, 0.04f);
+                    context.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.04f);
                     context.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.05f);
                 } else {
                     context.pushEmotion(PetComponent.Emotion.VIGILANT, 0.03f);
                 }
+                context.pushEmotion(PetComponent.Emotion.UBUNTU, 0.025f);
+                context.pushEmotion(PetComponent.Emotion.QUERECIA, 0.02f);
                 component.setStateData(socialMemoryKey, context.currentTick());
 
                 if (context.tryMarkBeat("first_meeting_" + otherPetId, 800)) {
@@ -71,23 +73,32 @@ public class WhisperRoutine implements SocialBehaviorRoutine {
                 long separationTime = context.currentTick() - lastInteraction;
                 float reunionStrength = Math.min(0.08f, separationTime / 120000f);
 
-                context.pushEmotion(PetComponent.Emotion.GLEE, reunionStrength);
+                context.pushEmotion(PetComponent.Emotion.CHEERFUL, reunionStrength);
                 context.pushEmotion(PetComponent.Emotion.LOYALTY, reunionStrength * 0.7f);
+                context.pushEmotion(PetComponent.Emotion.UBUNTU, reunionStrength * 0.5f);
+                context.pushEmotion(PetComponent.Emotion.QUERECIA, reunionStrength * 0.4f);
                 component.setStateData(socialMemoryKey, context.currentTick());
             }
 
             PetComponent.Mood mood = otherData.currentMood();
             if (mood == PetComponent.Mood.AFRAID || mood == PetComponent.Mood.ANGRY) {
-                float empathyStrength = context.petData().bondStrength() * 0.04f;
+                float solidarityStrength = context.petData().bondStrength() * 0.04f;
                 long sinceStress = context.currentTick() - otherData.lastThreatRecoveryTick();
                 if (sinceStress >= 0 && sinceStress < 200) {
-                    empathyStrength *= 0.5f;
+                    solidarityStrength *= 0.5f;
                 }
-                context.pushEmotion(PetComponent.Emotion.EMPATHY, empathyStrength);
-                if (context.tryMarkBeat("empathy_" + otherPetId, 600)) {
+                context.pushEmotion(PetComponent.Emotion.UBUNTU, solidarityStrength);
+                context.pushEmotion(PetComponent.Emotion.QUERECIA, solidarityStrength * 0.65f);
+                context.pushEmotion(PetComponent.Emotion.LOYALTY, solidarityStrength * 0.55f);
+                if (mood == PetComponent.Mood.AFRAID) {
+                    context.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, solidarityStrength * 0.5f);
+                } else {
+                    context.pushEmotion(PetComponent.Emotion.PROTECTIVE, solidarityStrength * 0.35f);
+                }
+                if (context.tryMarkBeat("solidarity_" + otherPetId, 600)) {
                     EmotionContextCues.sendCue(context.owner(),
-                        "social.empathy." + context.pet().getUuidAsString(),
-                        Text.translatable("petsplus.emotion_cue.social.empathy",
+                        "social.solidarity." + context.pet().getUuidAsString(),
+                        Text.translatable("petsplus.emotion_cue.social.solidarity",
                             context.pet().getDisplayName(), otherPet.getDisplayName()),
                         300);
                 }

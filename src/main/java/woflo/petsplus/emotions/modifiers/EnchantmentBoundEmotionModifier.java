@@ -58,7 +58,7 @@ public class EnchantmentBoundEmotionModifier extends BaseRoleEmotionModifier {
         
         // Enhanced response when owner uses magical attacks
         if (isOwnerAttacker && isMagicalDamage(source)) {
-            addEmotion(emotions, PetComponent.Emotion.GLEE, scaleByDamage(0.3f, amount));
+            addEmotion(emotions, PetComponent.Emotion.CHEERFUL, scaleByDamage(0.3f, amount));
             addEmotion(emotions, PetComponent.Emotion.KEFI, scaleByDamage(0.25f, amount));
             addEmotion(emotions, PetComponent.Emotion.PRIDE, scaleByDamage(0.2f, amount));
         }
@@ -98,7 +98,7 @@ public class EnchantmentBoundEmotionModifier extends BaseRoleEmotionModifier {
             case FEEDING -> {
                 // Check if food is magical (potions, enchanted items)
                 if (context instanceof ItemStack stack && stack.hasEnchantments()) {
-                    addEmotion(emotions, PetComponent.Emotion.GLEE, 0.3f);
+                    addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.3f);
                     addEmotion(emotions, PetComponent.Emotion.YUGEN, 0.25f);
                     addEmotion(emotions, PetComponent.Emotion.KEFI, 0.2f);
                 }
@@ -130,7 +130,7 @@ public class EnchantmentBoundEmotionModifier extends BaseRoleEmotionModifier {
         switch (eventType.toLowerCase()) {
             case "enchanting", "enchantment_table" -> {
                 // Enchantment Bound pets love enchanting
-                addEmotion(emotions, PetComponent.Emotion.GLEE, 0.4f);
+                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.4f);
                 addEmotion(emotions, PetComponent.Emotion.YUGEN, 0.35f);
                 addEmotion(emotions, PetComponent.Emotion.CURIOUS, 0.3f);
                 addEmotion(emotions, PetComponent.Emotion.HOPEFUL, 0.25f);
@@ -151,7 +151,7 @@ public class EnchantmentBoundEmotionModifier extends BaseRoleEmotionModifier {
             
             case "potion", "brewing" -> {
                 // Alchemical magic
-                addEmotion(emotions, PetComponent.Emotion.GLEE, 0.25f);
+                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.25f);
                 addEmotion(emotions, PetComponent.Emotion.CURIOUS, 0.2f);
                 addEmotion(emotions, PetComponent.Emotion.HOPEFUL, 0.15f);
             }
@@ -183,7 +183,7 @@ public class EnchantmentBoundEmotionModifier extends BaseRoleEmotionModifier {
                 
                 // Remove positive emotions
                 removeEmotion(emotions, PetComponent.Emotion.CHEERFUL);
-                removeEmotion(emotions, PetComponent.Emotion.GLEE);
+                removeEmotion(emotions, PetComponent.Emotion.CHEERFUL);
             }
         }
         

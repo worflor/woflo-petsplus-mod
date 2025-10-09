@@ -48,7 +48,7 @@ public class GuardianEmotionModifier extends BaseRoleEmotionModifier {
         // Guardian pets are extremely protective when owner is in danger
         if (!isPetVictim && isOwnerDamageSource(source, petComp)) {
             // Owner is attacking - Guardian feels supportive and ready
-            addEmotion(emotions, PetComponent.Emotion.PROTECTIVENESS, scaleByDamage(0.5f, amount));
+            addEmotion(emotions, PetComponent.Emotion.GUARDIAN_VIGIL, scaleByDamage(0.5f, amount));
             addEmotion(emotions, PetComponent.Emotion.VIGILANT, scaleByDamage(0.3f, amount));
             addEmotion(emotions, PetComponent.Emotion.STOIC, scaleByDamage(0.2f, amount));
         }
@@ -58,7 +58,7 @@ public class GuardianEmotionModifier extends BaseRoleEmotionModifier {
             PlayerEntity owner = petComp.getOwner();
             if (owner != null && source.getAttacker() == owner) {
                 // Owner is under attack - Guardian becomes highly protective
-                addEmotion(emotions, PetComponent.Emotion.PROTECTIVENESS, 0.8f);
+                addEmotion(emotions, PetComponent.Emotion.GUARDIAN_VIGIL, 0.8f);
                 addEmotion(emotions, PetComponent.Emotion.ANGST, 0.4f);
                 addEmotion(emotions, PetComponent.Emotion.VIGILANT, 0.6f);
                 addEmotion(emotions, PetComponent.Emotion.STOIC, 0.3f);
@@ -72,7 +72,7 @@ public class GuardianEmotionModifier extends BaseRoleEmotionModifier {
             // Guardian shows resilience and determination
             addEmotion(emotions, PetComponent.Emotion.STOIC, scaleByDamage(0.4f, amount));
             addEmotion(emotions, PetComponent.Emotion.SISU, scaleByDamage(0.3f, amount));
-            addEmotion(emotions, PetComponent.Emotion.PROTECTIVENESS, scaleByDamage(0.2f, amount));
+            addEmotion(emotions, PetComponent.Emotion.GUARDIAN_VIGIL, scaleByDamage(0.2f, amount));
             
             // Less fear, more determination
             removeEmotion(emotions, PetComponent.Emotion.ANGST);
@@ -81,7 +81,7 @@ public class GuardianEmotionModifier extends BaseRoleEmotionModifier {
         
         // Enhanced response to threats near owner
         if (!isPetVictim && !isOwnerAttacker) {
-            addEmotion(emotions, PetComponent.Emotion.PROTECTIVENESS, scaleByDamage(0.3f, amount));
+            addEmotion(emotions, PetComponent.Emotion.GUARDIAN_VIGIL, scaleByDamage(0.3f, amount));
             addEmotion(emotions, PetComponent.Emotion.VIGILANT, scaleByDamage(0.25f, amount));
             addEmotion(emotions, PetComponent.Emotion.STOIC, scaleByDamage(0.2f, amount));
         }
@@ -105,7 +105,7 @@ public class GuardianEmotionModifier extends BaseRoleEmotionModifier {
         switch (type) {
             case PETTING -> {
                 // Guardian pets enjoy protective physical contact
-                addEmotion(emotions, PetComponent.Emotion.PROTECTIVENESS, 0.2f);
+                addEmotion(emotions, PetComponent.Emotion.GUARDIAN_VIGIL, 0.2f);
                 addEmotion(emotions, PetComponent.Emotion.CONTENT, 0.15f);
                 addEmotion(emotions, PetComponent.Emotion.QUERECIA, 0.1f);
             }
@@ -114,13 +114,13 @@ public class GuardianEmotionModifier extends BaseRoleEmotionModifier {
                 // Guardian pets see feeding as care for their charge
                 addEmotion(emotions, PetComponent.Emotion.UBUNTU, 0.2f);
                 addEmotion(emotions, PetComponent.Emotion.CONTENT, 0.15f);
-                addEmotion(emotions, PetComponent.Emotion.PROTECTIVENESS, 0.1f);
+                addEmotion(emotions, PetComponent.Emotion.GUARDIAN_VIGIL, 0.1f);
             }
             
             case HEALING -> {
                 // Guardian pets are very concerned about healing
                 addEmotion(emotions, PetComponent.Emotion.RELIEF, 0.3f);
-                addEmotion(emotions, PetComponent.Emotion.PROTECTIVENESS, 0.25f);
+                addEmotion(emotions, PetComponent.Emotion.GUARDIAN_VIGIL, 0.25f);
                 addEmotion(emotions, PetComponent.Emotion.UBUNTU, 0.2f);
             }
         }
@@ -144,7 +144,7 @@ public class GuardianEmotionModifier extends BaseRoleEmotionModifier {
             case "danger", "threat" -> {
                 // Guardian pets are highly alert to danger
                 addEmotion(emotions, PetComponent.Emotion.VIGILANT, 0.5f);
-                addEmotion(emotions, PetComponent.Emotion.PROTECTIVENESS, 0.4f);
+                addEmotion(emotions, PetComponent.Emotion.GUARDIAN_VIGIL, 0.4f);
                 addEmotion(emotions, PetComponent.Emotion.STOIC, 0.3f);
                 addEmotion(emotions, PetComponent.Emotion.ANGST, 0.2f);
             }
@@ -152,7 +152,7 @@ public class GuardianEmotionModifier extends BaseRoleEmotionModifier {
             case "night", "darkness" -> {
                 // Guardian pets are more vigilant at night
                 addEmotion(emotions, PetComponent.Emotion.VIGILANT, 0.3f);
-                addEmotion(emotions, PetComponent.Emotion.PROTECTIVENESS, 0.25f);
+                addEmotion(emotions, PetComponent.Emotion.GUARDIAN_VIGIL, 0.25f);
                 addEmotion(emotions, PetComponent.Emotion.STOIC, 0.2f);
             }
             
@@ -166,7 +166,7 @@ public class GuardianEmotionModifier extends BaseRoleEmotionModifier {
             case "fortress", "walls" -> {
                 // Guardian pets appreciate defensive structures
                 addEmotion(emotions, PetComponent.Emotion.CONTENT, 0.25f);
-                addEmotion(emotions, PetComponent.Emotion.PROTECTIVENESS, 0.2f);
+                addEmotion(emotions, PetComponent.Emotion.GUARDIAN_VIGIL, 0.2f);
                 addEmotion(emotions, PetComponent.Emotion.STOIC, 0.15f);
             }
             
@@ -174,7 +174,7 @@ public class GuardianEmotionModifier extends BaseRoleEmotionModifier {
                 // Guardian pets are wary of strangers
                 addEmotion(emotions, PetComponent.Emotion.VIGILANT, 0.4f);
                 addEmotion(emotions, PetComponent.Emotion.FOREBODING, 0.3f);
-                addEmotion(emotions, PetComponent.Emotion.PROTECTIVENESS, 0.35f);
+                addEmotion(emotions, PetComponent.Emotion.GUARDIAN_VIGIL, 0.35f);
             }
         }
         
