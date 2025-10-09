@@ -3,6 +3,8 @@ package woflo.petsplus.events;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.passive.FoxEntity;
+import net.minecraft.entity.passive.OcelotEntity;
+import woflo.petsplus.mixin.OcelotEntityInvoker;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.MinecraftServer;
@@ -136,9 +138,13 @@ public class PetDetectionHandler {
                 owner = player;
             }
         }
-        if (owner == null && mob.getType().toString().contains("ocelot")) {
-            PlayerEntity nearest = mob.getEntityWorld().getClosestPlayer(mob, 8.0);
-            if (nearest != null && nearest.isAlive()) owner = nearest;
+        if (owner == null && mob instanceof OcelotEntity ocelot) {
+            if (((OcelotEntityInvoker) ocelot).petsplus$invokeIsTrusting()) {
+                PlayerEntity nearest = mob.getEntityWorld().getClosestPlayer(mob, 8.0);
+                if (nearest != null && nearest.isAlive()) {
+                    owner = nearest;
+                }
+            }
         }
         if (owner == null && mob instanceof FoxEntity fox) {
             PlayerEntity nearest = mob.getEntityWorld().getClosestPlayer(mob, 8.0);

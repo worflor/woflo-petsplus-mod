@@ -88,28 +88,40 @@ public class SpeciesMemory {
     }
     
     /**
-     * Apply natural memory decay over time.
+     * Apply natural memory decay over time using the default rate.
      */
     public void applyDecay(long currentTick) {
+        applyDecay(currentTick, 1.0f);
+    }
+
+    /**
+     * Apply natural memory decay over time, scaled by an external rate multiplier.
+     *
+     * @param currentTick current world time
+     * @param decayRate multiplier relative to the base decay rate (1.0f = default)
+     */
+    public void applyDecay(long currentTick, float decayRate) {
         if (currentTick - lastDecayTick < DECAY_INTERVAL_TICKS) {
             return;
         }
-        
+
         long daysPassed = (currentTick - lastDecayTick) / DECAY_INTERVAL_TICKS;
         if (daysPassed <= 0) {
             return;
         }
-        
+
         lastDecayTick = currentTick;
-        
+
+        float scaledDecay = DECAY_RATE * daysPassed * Math.max(decayRate, 0.0f);
+
         // Decay all memories
         Iterator<Map.Entry<EntityType<?>, SpeciesRelationship>> iterator = memories.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<EntityType<?>, SpeciesRelationship> entry = iterator.next();
             SpeciesRelationship rel = entry.getValue();
-            
-            rel.decay(DECAY_RATE * daysPassed);
-            
+
+            rel.decay(scaledDecay);
+
             // Prune insignificant memories
             if (rel.getSignificance() < MIN_SIGNIFICANCE) {
                 iterator.remove();

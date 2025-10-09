@@ -167,7 +167,7 @@ public interface RelationshipModule extends DataBackedModule<RelationshipModule.
      * Apply decay to all species memories.
      * 
      * @param currentTick current world time
-     * @param decayRate decay rate per tick
+     * @param decayRate multiplier applied to the base species-memory decay rate
      */
     void applySpeciesMemoryDecay(long currentTick, float decayRate);
     
