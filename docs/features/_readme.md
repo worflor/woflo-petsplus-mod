@@ -47,7 +47,7 @@ Five branches reward different playstyles: Bonding Basics for first steps, Emoti
 
 ## Additional Features
 
-**Social System** — Pets gossip in circles when grouped, whisper one-on-one when alone. They remember first meetings, notice long separations, and respond when packmates show strong emotions.
+**Social System** — Pets gossip in circles when grouped, whisper one-on-one when alone. They remember first meetings, notice long separations, read leash tension with smoothed slack tolerance before reacting, and respond when packmates show strong emotions.
 
 **More tames** - Frogs with slimeballs, Rabbits with carrots, and turtles with seagrass.
 

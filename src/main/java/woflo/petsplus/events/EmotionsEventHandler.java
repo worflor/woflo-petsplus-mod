@@ -150,6 +150,88 @@ public final class EmotionsEventHandler {
     private static final float ARCANE_STREAK_REDUCTION = 0.3f;
     private static final float ARCANE_EB_BONUS = 0.5f;
 
+    private static final String STATE_LAST_LEASH_SOCIAL_TICK = "social_leash_last_tick";
+    private static final String STATE_LAST_LEASH_MODE = "social_leash_last_mode";
+    private static final String STATE_LAST_LEASH_MODE_TICK = "social_leash_last_mode_tick";
+    private static final String STATE_LEASH_PENDING_MODE = "social_leash_pending_mode";
+    private static final String STATE_LEASH_PENDING_SINCE = "social_leash_pending_since";
+    private static final String STATE_LEASH_SMOOTH_DISTANCE = "social_leash_smooth_distance";
+    private static final String STATE_LEASH_SMOOTH_OWNER_SPEED = "social_leash_smooth_owner_speed";
+    private static final String STATE_LEASH_SMOOTH_PET_SPEED = "social_leash_smooth_pet_speed";
+    private static final String STATE_LEASH_SMOOTH_OWNER_FORWARD = "social_leash_smooth_owner_forward";
+    private static final String STATE_LEASH_SMOOTH_PET_FORWARD = "social_leash_smooth_pet_forward";
+    private static final String STATE_LEASH_LAST_SAMPLE_TICK = "social_leash_last_sample_tick";
+    private static final long LEASH_SOCIAL_COOLDOWN_TICKS = 200L;
+    private static final long LEASH_MODE_SETTLE_TICKS = 40L;
+    private static final long LEASH_SOCIAL_REFRESH_TICKS = 800L;
+    private static final long LEASH_SMOOTHING_WINDOW_TICKS = 12L;
+    private static final double LEASH_SMOOTHING_MIN_ALPHA = 0.15d;
+    private static final double LEASH_SLACK_ENTER_DISTANCE = 3.0d;
+    private static final double LEASH_SLACK_EXIT_DISTANCE = 3.8d;
+    private static final double LEASH_TAUT_ENTER_DISTANCE = 5.2d;
+    private static final double LEASH_TAUT_EXIT_DISTANCE = 4.4d;
+    private static final double LEASH_FORWARD_DELTA_THRESHOLD = 0.045d;
+    private static final double LEASH_STILL_SPEED_SQ = 0.0025d;
+    private static final double LEASH_STILL_FORWARD = 0.02d;
+
+    private enum LeashMood {
+        SLACK,
+        GENTLE_TAUT,
+        OWNER_PULL,
+        PET_LEAD,
+        BRACING;
+
+        boolean isTautFamily() {
+            return this == GENTLE_TAUT || this == OWNER_PULL || this == PET_LEAD || this == BRACING;
+        }
+
+        static @Nullable LeashMood fromStoredName(@Nullable String stored) {
+            if (stored == null || stored.isBlank()) {
+                return null;
+            }
+            try {
+                return LeashMood.valueOf(stored);
+            } catch (IllegalArgumentException ignored) {
+                return null;
+            }
+        }
+    }
+
+    private static LeashMood resolveLeashMood(double leashDistance, double ownerSpeedSq, double petSpeedSq,
+                                              double ownerForwardSpeed, double petForwardSpeed,
+                                              boolean navigationActive, @Nullable LeashMood lastMood) {
+        boolean staySlack = leashDistance <= LEASH_SLACK_ENTER_DISTANCE
+            || (lastMood == LeashMood.SLACK && leashDistance <= LEASH_SLACK_EXIT_DISTANCE);
+        if (staySlack) {
+            return LeashMood.SLACK;
+        }
+
+        boolean preferTaut = leashDistance >= LEASH_TAUT_ENTER_DISTANCE
+            || (lastMood != null && lastMood.isTautFamily() && leashDistance >= LEASH_TAUT_EXIT_DISTANCE);
+        if (preferTaut) {
+            boolean ownerIsPulling = ownerForwardSpeed > petForwardSpeed + LEASH_FORWARD_DELTA_THRESHOLD
+                && ownerSpeedSq > petSpeedSq + LEASH_STILL_SPEED_SQ;
+            boolean petIsRangingAhead = petForwardSpeed > ownerForwardSpeed + LEASH_FORWARD_DELTA_THRESHOLD
+                && petSpeedSq > ownerSpeedSq + LEASH_STILL_SPEED_SQ;
+            boolean petIsBracing = petSpeedSq < LEASH_STILL_SPEED_SQ
+                && Math.abs(petForwardSpeed) < LEASH_STILL_FORWARD
+                && navigationActive;
+
+            if (petIsBracing) {
+                return LeashMood.BRACING;
+            }
+            if (ownerIsPulling) {
+                return LeashMood.OWNER_PULL;
+            }
+            if (petIsRangingAhead) {
+                return LeashMood.PET_LEAD;
+            }
+            return LeashMood.GENTLE_TAUT;
+        }
+
+        return LeashMood.GENTLE_TAUT;
+    }
+
     private EmotionsEventHandler() {}
 
     public static PlayerTickListener ticker() {
@@ -3107,6 +3189,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 Text.translatable("petsplus.emotion_cue.social.look", pet.getDisplayName()), 200);
         }
 
+        boolean leashedToOwner = pet.isLeashed() && pet.getLeashHolder() == owner;
+
         // Owner proximity dynamics with context-aware separation emotions
         if (distanceToOwner < 4) { // Very close - petting range
             collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.30f); // Cozy bonding
@@ -3122,6 +3206,136 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             // Note: Decay for Hiraeth should be slower (0.998/tick) - handled in PetMoodEngine
             EmotionContextCues.sendCue(owner, "social.far." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.social.far", pet.getDisplayName()), 400);
+        }
+
+        if (leashedToOwner) {
+            long now = world.getTime();
+            long lastLeashTick = pc.getStateData(STATE_LAST_LEASH_SOCIAL_TICK, Long.class, Long.MIN_VALUE);
+            long sinceLastLeashCue = lastLeashTick == Long.MIN_VALUE ? Long.MAX_VALUE : now - lastLeashTick;
+            double leashDistance = Math.sqrt(Math.max(distanceToOwner, 0.0d));
+            Vec3d ownerVelocity = owner.getVelocity();
+            Vec3d petVelocity = pet.getVelocity();
+            Vec3d leashVector = pet.getEntityPos().subtract(owner.getEntityPos());
+            Vec3d leashDir = leashVector.lengthSquared() > 1.0E-6 ? leashVector.normalize() : Vec3d.ZERO;
+            Vec3d leashDirHorizontal = new Vec3d(leashDir.x, 0.0d, leashDir.z);
+            if (leashDirHorizontal.lengthSquared() > 1.0E-6) {
+                leashDirHorizontal = leashDirHorizontal.normalize();
+            }
+            Vec3d ownerHorizontalVelocity = new Vec3d(ownerVelocity.x, 0.0d, ownerVelocity.z);
+            Vec3d petHorizontalVelocity = new Vec3d(petVelocity.x, 0.0d, petVelocity.z);
+            double ownerForwardSpeed = leashDirHorizontal.lengthSquared() > 1.0E-6
+                ? ownerHorizontalVelocity.dotProduct(leashDirHorizontal)
+                : 0.0d;
+            double petForwardSpeed = leashDirHorizontal.lengthSquared() > 1.0E-6
+                ? petHorizontalVelocity.dotProduct(leashDirHorizontal)
+                : 0.0d;
+            double ownerSpeedSq = ownerHorizontalVelocity.lengthSquared();
+            double petSpeedSq = petHorizontalVelocity.lengthSquared();
+            LeashMood lastMood = LeashMood.fromStoredName(pc.getStateData(STATE_LAST_LEASH_MODE, String.class, ""));
+            LeashMood pendingMood = LeashMood.fromStoredName(pc.getStateData(STATE_LEASH_PENDING_MODE, String.class, ""));
+            long pendingSince = pc.getStateData(STATE_LEASH_PENDING_SINCE, Long.class, Long.MIN_VALUE);
+
+            long lastSampleTick = pc.getStateData(STATE_LEASH_LAST_SAMPLE_TICK, Long.class, Long.MIN_VALUE);
+            double smoothingAlpha = 1.0d;
+            if (lastSampleTick != Long.MIN_VALUE && now > lastSampleTick) {
+                long delta = Math.min(now - lastSampleTick, LEASH_SMOOTHING_WINDOW_TICKS);
+                smoothingAlpha = MathHelper.clamp((double) delta / (double) LEASH_SMOOTHING_WINDOW_TICKS,
+                    LEASH_SMOOTHING_MIN_ALPHA, 1.0d);
+            }
+            pc.setStateData(STATE_LEASH_LAST_SAMPLE_TICK, now);
+            double smoothedDistance = smoothLeashMetric(pc, STATE_LEASH_SMOOTH_DISTANCE, leashDistance, smoothingAlpha);
+            double smoothedOwnerSpeedSq = smoothLeashMetric(pc, STATE_LEASH_SMOOTH_OWNER_SPEED, ownerSpeedSq, smoothingAlpha);
+            double smoothedPetSpeedSq = smoothLeashMetric(pc, STATE_LEASH_SMOOTH_PET_SPEED, petSpeedSq, smoothingAlpha);
+            double smoothedOwnerForward = smoothLeashMetric(pc, STATE_LEASH_SMOOTH_OWNER_FORWARD, ownerForwardSpeed, smoothingAlpha);
+            double smoothedPetForward = smoothLeashMetric(pc, STATE_LEASH_SMOOTH_PET_FORWARD, petForwardSpeed, smoothingAlpha);
+
+            LeashMood leashMood = resolveLeashMood(smoothedDistance, smoothedOwnerSpeedSq, smoothedPetSpeedSq,
+                smoothedOwnerForward, smoothedPetForward,
+                !pet.getNavigation().isIdle(), lastMood);
+
+            boolean baseCooldownMet = sinceLastLeashCue >= LEASH_SOCIAL_COOLDOWN_TICKS;
+            boolean changeCooldownMet = sinceLastLeashCue >= LEASH_MODE_SETTLE_TICKS;
+            boolean shouldEmit = false;
+
+            if (lastMood == null) {
+                shouldEmit = true;
+            } else if (leashMood != lastMood) {
+                if (pendingMood != leashMood) {
+                    pc.setStateData(STATE_LEASH_PENDING_MODE, leashMood.name());
+                    pc.setStateData(STATE_LEASH_PENDING_SINCE, now);
+                } else if (pendingSince != Long.MIN_VALUE && now - pendingSince >= LEASH_MODE_SETTLE_TICKS && changeCooldownMet) {
+                    shouldEmit = true;
+                }
+            } else {
+                if (pendingMood != null) {
+                    pc.clearStateData(STATE_LEASH_PENDING_MODE);
+                    pc.clearStateData(STATE_LEASH_PENDING_SINCE);
+                }
+                if ((baseCooldownMet && sinceLastLeashCue >= LEASH_SOCIAL_REFRESH_TICKS) || lastLeashTick == Long.MIN_VALUE) {
+                    shouldEmit = baseCooldownMet || lastLeashTick == Long.MIN_VALUE;
+                }
+            }
+
+            if (shouldEmit) {
+                pc.clearStateData(STATE_LEASH_PENDING_MODE);
+                pc.clearStateData(STATE_LEASH_PENDING_SINCE);
+                pc.setStateData(STATE_LAST_LEASH_MODE, leashMood.name());
+                pc.setStateData(STATE_LAST_LEASH_MODE_TICK, now);
+                pc.setStateData(STATE_LAST_LEASH_SOCIAL_TICK, now);
+
+                String leashCueKey;
+                switch (leashMood) {
+                    case SLACK -> {
+                        collector.pushEmotion(PetComponent.Emotion.LOYALTY, 0.16f); // Happy to heel beside the owner
+                        collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.11f); // Comfort in the shared walk
+                        collector.pushEmotion(PetComponent.Emotion.RESTLESS, 0.10f); // Wanderlust still buzzing under the surface
+                        collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.09f); // Longing to roam despite the calm heel
+                        leashCueKey = "petsplus.emotion_cue.social.leash.slack";
+                    }
+                    case OWNER_PULL -> {
+                        collector.pushEmotion(PetComponent.Emotion.LOYALTY, 0.20f); // Staying close because the owner needs it
+                        collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.12f); // Watchful while being guided
+                        collector.pushEmotion(PetComponent.Emotion.RESTLESS, 0.16f); // Tether chafes when the lead tightens
+                        collector.pushEmotion(PetComponent.Emotion.FRUSTRATION, 0.14f); // Resents the pull yet endures
+                        leashCueKey = "petsplus.emotion_cue.social.leash.dragged";
+                    }
+                    case PET_LEAD -> {
+                        collector.pushEmotion(PetComponent.Emotion.CURIOUS, 0.18f); // Snout-first scouting
+                        collector.pushEmotion(PetComponent.Emotion.LOYALTY, 0.14f); // Still anchored to the caretaker
+                        collector.pushEmotion(PetComponent.Emotion.RESTLESS, 0.12f); // Energy spilling forward through the leash
+                        collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.12f); // Adventurous itch to explore farther
+                        leashCueKey = "petsplus.emotion_cue.social.leash.leading";
+                    }
+                    case BRACING -> {
+                        collector.pushEmotion(PetComponent.Emotion.LOYALTY, 0.18f); // Holding ground to guard the owner
+                        collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.14f); // Alert guard stance at the owner's side
+                        collector.pushEmotion(PetComponent.Emotion.RESTLESS, 0.12f); // Ready to surge if danger appears
+                        collector.pushEmotion(PetComponent.Emotion.FRUSTRATION, 0.12f); // Bristling at the constraint
+                        leashCueKey = "petsplus.emotion_cue.social.leash.braced";
+                    }
+                    case GENTLE_TAUT -> {
+                        collector.pushEmotion(PetComponent.Emotion.LOYALTY, 0.18f); // Standard tether reassurance
+                        collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.10f); // Calm companionship while walking
+                        collector.pushEmotion(PetComponent.Emotion.RESTLESS, 0.12f); // Lead limits free-roam instincts
+                        collector.pushEmotion(PetComponent.Emotion.FRUSTRATION, 0.10f); // Mild resistance to restraint
+                        leashCueKey = "petsplus.emotion_cue.social.leash";
+                    }
+                    default -> leashCueKey = "petsplus.emotion_cue.social.leash";
+                }
+
+                EmotionContextCues.sendCue(owner, "social.leash." + pet.getUuidAsString(),
+                    Text.translatable(leashCueKey, pet.getDisplayName()), 200);
+            }
+        } else {
+            if (pc.getStateData(STATE_LEASH_PENDING_MODE, String.class) != null) {
+                pc.clearStateData(STATE_LEASH_PENDING_MODE);
+                pc.clearStateData(STATE_LEASH_PENDING_SINCE);
+            }
+            clearLeashSmoothing(pc);
+            if (pc.getStateData(STATE_LAST_LEASH_MODE, String.class) != null) {
+                pc.clearStateData(STATE_LAST_LEASH_MODE);
+                pc.clearStateData(STATE_LAST_LEASH_MODE_TICK);
+            }
         }
 
         // Owner's current activity awareness - combat aid
@@ -3169,6 +3383,28 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                     200);
             }
         }
+    }
+
+    private static double smoothLeashMetric(PetComponent pc, String key, double sample, double alpha) {
+        Double previous = pc.getStateData(key, Double.class);
+        if (previous == null || Double.isNaN(previous)) {
+            pc.setStateData(key, sample);
+            return sample;
+        }
+
+        double clampedAlpha = MathHelper.clamp(alpha, 0.0d, 1.0d);
+        double smoothed = MathHelper.lerp(clampedAlpha, previous, sample);
+        pc.setStateData(key, smoothed);
+        return smoothed;
+    }
+
+    private static void clearLeashSmoothing(PetComponent pc) {
+        pc.clearStateData(STATE_LEASH_SMOOTH_DISTANCE);
+        pc.clearStateData(STATE_LEASH_SMOOTH_OWNER_SPEED);
+        pc.clearStateData(STATE_LEASH_SMOOTH_PET_SPEED);
+        pc.clearStateData(STATE_LEASH_SMOOTH_OWNER_FORWARD);
+        pc.clearStateData(STATE_LEASH_SMOOTH_PET_FORWARD);
+        pc.clearStateData(STATE_LEASH_LAST_SAMPLE_TICK);
     }
 
     private static void addEnvironmentalMicroTriggers(MobEntity pet, PetComponent pc, ServerPlayerEntity owner,
