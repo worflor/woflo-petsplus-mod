@@ -11,7 +11,7 @@
 ---
 
 <h4 align="center">Recent Changes</h3>
-<ul align="center" style="list-style-type:none; padding-left:0;">
+<ul align="center" style="list-style-type:none; padding-left:1;">
   <li>Added [nature] - Blossom, its not out of this relationship. It's in, it's so in, it's humiliating.</li>
   <li>Added [nature] - Clockwork, technical and curious.</li>
   <li>Added [nature] - Scrappy and Sentinel, birds of a feather.</li>
