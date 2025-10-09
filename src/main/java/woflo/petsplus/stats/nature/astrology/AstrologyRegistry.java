@@ -14,6 +14,8 @@ import woflo.petsplus.util.BehaviorSeedUtil;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.List;
@@ -32,6 +34,7 @@ public final class AstrologyRegistry {
 
     private static final Map<Identifier, AstrologySignDefinition> DEFINITIONS = new LinkedHashMap<>();
     private static final List<AstrologySignDefinition> ORDERED = new ArrayList<>();
+    private static final Map<PhaseNightSlot, AstrologySignDefinition> PHASE_NIGHT_INDEX = new HashMap<>();
     private static int signCycleCursor = 0;
 
     private AstrologyRegistry() {
@@ -69,6 +72,7 @@ public final class AstrologyRegistry {
         DEFINITIONS.putAll(merged);
         ORDERED.addAll(merged.values());
         ORDERED.sort(Comparator.comparingInt(AstrologySignDefinition::order).thenComparing(def -> def.id().toString()));
+        rebuildPhaseNightIndex();
         resetSignCycle();
 
         propagateFlavorHooks();
@@ -246,11 +250,22 @@ public final class AstrologyRegistry {
             return null;
         }
 
+        if (!PHASE_NIGHT_INDEX.isEmpty()) {
+            PhaseNightSlot slot = PhaseNightSlot.from(context);
+            if (slot != null) {
+                AstrologySignDefinition direct = PHASE_NIGHT_INDEX.get(slot);
+                if (direct != null && direct.matches(context)) {
+                    return direct.id();
+                }
+            }
+        }
+
         // First, try to find matches with moon phase and night period criteria
         List<AstrologySignDefinition> moonPhaseMatches = new ArrayList<>();
         for (AstrologySignDefinition definition : ORDERED) {
-            // Check if this definition has moon phase or night period criteria
-            if (!definition.moonPhases().isEmpty() || !definition.nightPeriods().isEmpty()) {
+            if (!definition.phaseNightWindows().isEmpty()
+                || !definition.moonPhases().isEmpty()
+                || !definition.nightPeriods().isEmpty()) {
                 if (definition.matches(context)) {
                     moonPhaseMatches.add(definition);
                 }
@@ -303,19 +318,6 @@ public final class AstrologyRegistry {
         return 0;
     }
 
-    private static AstrologySignDefinition.NightPeriod getNightPeriod(long timeOfDay) {
-        long t = timeOfDay % 24000L;
-        if (t >= 13000L && t < 16000L) {
-            return AstrologySignDefinition.NightPeriod.EARLY_NIGHT;
-        } else if (t >= 16000L && t < 20000L) {
-            return AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT;
-        } else if (t >= 20000L && t < 23000L) {
-            return AstrologySignDefinition.NightPeriod.LATE_NIGHT;
-        }
-        // Default to early night for times outside night periods
-        return AstrologySignDefinition.NightPeriod.EARLY_NIGHT;
-    }
-
     private static float rollStatModifier(java.util.Random random, float base) {
         if (base == 0.0f) {
             return 1.0f;
@@ -340,6 +342,36 @@ public final class AstrologyRegistry {
         float curve = (random.nextFloat() + random.nextFloat()) * 0.5f;
         float scale = 0.85f + curve * 0.3f;
         return MathHelper.clamp(base * scale, 0.05f, 1.0f);
+    }
+
+    private static void rebuildPhaseNightIndex() {
+        PHASE_NIGHT_INDEX.clear();
+        for (AstrologySignDefinition definition : ORDERED) {
+            Map<Integer, Set<AstrologySignDefinition.NightPeriod>> windows = definition.phaseNightWindows();
+            if (windows.isEmpty()) {
+                continue;
+            }
+            for (Map.Entry<Integer, Set<AstrologySignDefinition.NightPeriod>> entry : windows.entrySet()) {
+                int phase = entry.getKey();
+                Set<AstrologySignDefinition.NightPeriod> periods = entry.getValue();
+                if (periods == null || periods.isEmpty()) {
+                    continue;
+                }
+                for (AstrologySignDefinition.NightPeriod period : periods) {
+                    PhaseNightSlot slot = new PhaseNightSlot(phase, period);
+                    AstrologySignDefinition existing = PHASE_NIGHT_INDEX.putIfAbsent(slot, definition);
+                    if (existing != null && existing != definition) {
+                        Petsplus.LOGGER.warn(
+                            "Duplicate Lunaris phase/night slot {} claimed by {} and {}; keeping {}",
+                            slot,
+                            existing.id(),
+                            definition.id(),
+                            existing.id()
+                        );
+                    }
+                }
+            }
+        }
     }
 
     private static void propagateFlavorHooks() {
@@ -373,47 +405,9 @@ public final class AstrologyRegistry {
 
     private static List<AstrologySignDefinition> builtinDefinitions() {
         List<AstrologySignDefinition> list = new ArrayList<>();
-        
-        // New Moon: Early Night=Pisces, Middle Night=Cancer, Late Night=Scorpio
-        list.add(createMoonPhaseSign("Pisces", 0, AstrologySignDefinition.NightPeriod.EARLY_NIGHT, Set.of(0),
-            AstrologySignDefinition.DisplayStyle.PREFIX, "Eidolon", " ",
-            new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.VITALITY, 0.05f,
-                NatureModifierSampler.NatureStat.LOYALTY, 0.03f,
-                0.85f, 1.25f, 1.15f, 0.90f
-            ),
-            new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.UBUNTU, 0.44f,
-                PetComponent.Emotion.YUGEN, 0.32f,
-                PetComponent.Emotion.HIRAETH, 0.26f
-            )));
-        list.add(createMoonPhaseSign("Cancer", 1, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT, Set.of(0),
-            AstrologySignDefinition.DisplayStyle.SUFFIX, "Haven", " ",
-            new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.LOYALTY, 0.06f,
-                NatureModifierSampler.NatureStat.VITALITY, 0.03f,
-                0.95f, 1.30f, 1.20f, 1.30f
-            ),
-            new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.LOYALTY, 0.44f,
-                PetComponent.Emotion.GUARDIAN_VIGIL, 0.30f,
-                PetComponent.Emotion.WORRIED, 0.24f
-            )));
-        list.add(createMoonPhaseSign("Scorpio", 2, AstrologySignDefinition.NightPeriod.LATE_NIGHT, Set.of(0),
-            AstrologySignDefinition.DisplayStyle.PREFIX, "Vesper", " ",
-            new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.ATTACK, 0.06f,
-                NatureModifierSampler.NatureStat.DEFENSE, 0.03f,
-                1.30f, 1.10f, 0.90f, 1.30f
-            ),
-            new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.VIGILANT, 0.44f,
-                PetComponent.Emotion.FOREBODING, 0.30f,
-                PetComponent.Emotion.MELANCHOLY, 0.24f
-            )));
-            
-        // Waxing Crescent: Early Night=Aries, Middle Night=Leo, Late Night=Sagittarius
-        list.add(createMoonPhaseSign("Aries", 3, AstrologySignDefinition.NightPeriod.EARLY_NIGHT, Set.of(1),
+
+        // Aries → Pisces consolidated to 12 zodiac signs, each claiming two unique moon phase/night-period slots
+        list.add(createMoonPhaseSign("Aries", 0,
             AstrologySignDefinition.DisplayStyle.SUFFIX, "Vanguard", " ",
             new AstrologySignDefinition.StatProfile(
                 NatureModifierSampler.NatureStat.ATTACK, 0.07f,
@@ -424,34 +418,10 @@ public final class AstrologyRegistry {
                 PetComponent.Emotion.KEFI, 0.44f,
                 PetComponent.Emotion.RESTLESS, 0.30f,
                 PetComponent.Emotion.SISU, 0.24f
-            )));
-        list.add(createMoonPhaseSign("Leo", 4, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT, Set.of(1),
-            AstrologySignDefinition.DisplayStyle.PREFIX, "Solara", " ",
-            new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.ATTACK, 0.06f,
-                NatureModifierSampler.NatureStat.FOCUS, 0.03f,
-                1.25f, 1.05f, 1.20f, 1.05f
             ),
-            new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.PRIDE, 0.44f,
-                PetComponent.Emotion.CONTENT, 0.30f,
-                PetComponent.Emotion.UBUNTU, 0.26f
-            )));
-        list.add(createMoonPhaseSign("Sagittarius", 5, AstrologySignDefinition.NightPeriod.LATE_NIGHT, Set.of(1),
-            AstrologySignDefinition.DisplayStyle.PREFIX, "Zenith", " ",
-            new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.SPEED, 0.06f,
-                NatureModifierSampler.NatureStat.VITALITY, 0.03f,
-                1.30f, 1.00f, 1.10f, 0.95f
-            ),
-            new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.FERNWEH, 0.44f,
-                PetComponent.Emotion.PLAYFULNESS, 0.30f,
-                PetComponent.Emotion.HANYAUKU, 0.24f
-            )));
-            
-        // First Quarter: Early Night=Taurus, Middle Night=Virgo, Late Night=Capricorn
-        list.add(createMoonPhaseSign("Taurus", 6, AstrologySignDefinition.NightPeriod.EARLY_NIGHT, Set.of(2),
+            slot(5, AstrologySignDefinition.NightPeriod.EARLY_NIGHT),
+            slot(1, AstrologySignDefinition.NightPeriod.EARLY_NIGHT)));
+        list.add(createMoonPhaseSign("Taurus", 1,
             AstrologySignDefinition.DisplayStyle.PREFIX, "Bulwark", " ",
             new AstrologySignDefinition.StatProfile(
                 NatureModifierSampler.NatureStat.VITALITY, 0.06f,
@@ -462,34 +432,10 @@ public final class AstrologyRegistry {
                 PetComponent.Emotion.CONTENT, 0.42f,
                 PetComponent.Emotion.SOBREMESA, 0.30f,
                 PetComponent.Emotion.WABI_SABI, 0.26f
-            )));
-        list.add(createMoonPhaseSign("Virgo", 7, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT, Set.of(2),
-            AstrologySignDefinition.DisplayStyle.PREFIX, "Calibra", " ",
-            new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.FOCUS, 0.06f,
-                NatureModifierSampler.NatureStat.AGILITY, 0.03f,
-                0.95f, 1.20f, 0.95f, 1.20f
             ),
-            new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.FOCUSED, 0.42f,
-                PetComponent.Emotion.REGRET, 0.30f,
-                PetComponent.Emotion.LAGOM, 0.24f
-            )));
-        list.add(createMoonPhaseSign("Capricorn", 8, AstrologySignDefinition.NightPeriod.LATE_NIGHT, Set.of(2),
-            AstrologySignDefinition.DisplayStyle.SUFFIX, "Apex", " ",
-            new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.DEFENSE, 0.06f,
-                NatureModifierSampler.NatureStat.FOCUS, 0.03f,
-                0.80f, 1.35f, 0.85f, 1.30f
-            ),
-            new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.STOIC, 0.44f,
-                PetComponent.Emotion.GAMAN, 0.30f,
-                PetComponent.Emotion.PROTECTIVE, 0.24f
-            )));
-            
-        // Waxing Gibbous: Early Night=Gemini, Middle Night=Libra, Late Night=Aquarius
-        list.add(createMoonPhaseSign("Gemini", 9, AstrologySignDefinition.NightPeriod.EARLY_NIGHT, Set.of(3),
+            slot(6, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT),
+            slot(2, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT)));
+        list.add(createMoonPhaseSign("Gemini", 2,
             AstrologySignDefinition.DisplayStyle.PREFIX, "Syzygy", " ",
             new AstrologySignDefinition.StatProfile(
                 NatureModifierSampler.NatureStat.SPEED, 0.06f,
@@ -500,34 +446,10 @@ public final class AstrologyRegistry {
                 PetComponent.Emotion.CHEERFUL, 0.42f,
                 PetComponent.Emotion.CURIOUS, 0.30f,
                 PetComponent.Emotion.QUERECIA, 0.26f
-            )));
-        list.add(createMoonPhaseSign("Libra", 10, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT, Set.of(3),
-            AstrologySignDefinition.DisplayStyle.SUFFIX, "Equinox", " ",
-            new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.AGILITY, 0.05f,
-                NatureModifierSampler.NatureStat.LOYALTY, 0.03f,
-                1.05f, 1.05f, 1.15f, 1.05f
             ),
-            new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.HOPEFUL, 0.42f,
-                PetComponent.Emotion.RELIEF, 0.30f,
-                PetComponent.Emotion.PACK_SPIRIT, 0.24f
-            )));
-        list.add(createMoonPhaseSign("Aquarius", 11, AstrologySignDefinition.NightPeriod.LATE_NIGHT, Set.of(3),
-            AstrologySignDefinition.DisplayStyle.PREFIX, "Cascade", " ",
-            new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.FOCUS, 0.05f,
-                NatureModifierSampler.NatureStat.SPEED, 0.03f,
-                1.10f, 0.95f, 1.20f, 0.95f
-            ),
-            new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.ARCANE_OVERFLOW, 0.42f,
-                PetComponent.Emotion.ENNUI, 0.30f,
-                PetComponent.Emotion.CURIOUS, 0.26f
-            )));
-            
-        // Full Moon: Early Night=Cancer, Middle Night=Scorpio, Late Night=Pisces
-        list.add(createMoonPhaseSign("CancerFull", 12, AstrologySignDefinition.NightPeriod.EARLY_NIGHT, Set.of(4),
+            slot(7, AstrologySignDefinition.NightPeriod.LATE_NIGHT),
+            slot(3, AstrologySignDefinition.NightPeriod.LATE_NIGHT)));
+        list.add(createMoonPhaseSign("Cancer", 3,
             AstrologySignDefinition.DisplayStyle.SUFFIX, "Haven", " ",
             new AstrologySignDefinition.StatProfile(
                 NatureModifierSampler.NatureStat.LOYALTY, 0.06f,
@@ -538,34 +460,10 @@ public final class AstrologyRegistry {
                 PetComponent.Emotion.LOYALTY, 0.44f,
                 PetComponent.Emotion.GUARDIAN_VIGIL, 0.30f,
                 PetComponent.Emotion.WORRIED, 0.24f
-            )));
-        list.add(createMoonPhaseSign("ScorpioFull", 13, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT, Set.of(4),
-            AstrologySignDefinition.DisplayStyle.PREFIX, "Vesper", " ",
-            new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.ATTACK, 0.06f,
-                NatureModifierSampler.NatureStat.DEFENSE, 0.03f,
-                1.30f, 1.10f, 0.90f, 1.30f
             ),
-            new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.VIGILANT, 0.44f,
-                PetComponent.Emotion.FOREBODING, 0.30f,
-                PetComponent.Emotion.MELANCHOLY, 0.24f
-            )));
-        list.add(createMoonPhaseSign("PiscesFull", 14, AstrologySignDefinition.NightPeriod.LATE_NIGHT, Set.of(4),
-            AstrologySignDefinition.DisplayStyle.PREFIX, "Eidolon", " ",
-            new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.VITALITY, 0.05f,
-                NatureModifierSampler.NatureStat.LOYALTY, 0.03f,
-                0.85f, 1.25f, 1.15f, 0.90f
-            ),
-            new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.UBUNTU, 0.44f,
-                PetComponent.Emotion.YUGEN, 0.32f,
-                PetComponent.Emotion.HIRAETH, 0.26f
-            )));
-            
-        // Waning Gibbous: Early Night=Leo, Middle Night=Sagittarius, Late Night=Aries
-        list.add(createMoonPhaseSign("LeoWaning", 15, AstrologySignDefinition.NightPeriod.EARLY_NIGHT, Set.of(5),
+            slot(0, AstrologySignDefinition.NightPeriod.EARLY_NIGHT),
+            slot(4, AstrologySignDefinition.NightPeriod.EARLY_NIGHT)));
+        list.add(createMoonPhaseSign("Leo", 4,
             AstrologySignDefinition.DisplayStyle.PREFIX, "Solara", " ",
             new AstrologySignDefinition.StatProfile(
                 NatureModifierSampler.NatureStat.ATTACK, 0.06f,
@@ -576,34 +474,10 @@ public final class AstrologyRegistry {
                 PetComponent.Emotion.PRIDE, 0.44f,
                 PetComponent.Emotion.CONTENT, 0.30f,
                 PetComponent.Emotion.UBUNTU, 0.26f
-            )));
-        list.add(createMoonPhaseSign("SagittariusWaning", 16, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT, Set.of(5),
-            AstrologySignDefinition.DisplayStyle.PREFIX, "Zenith", " ",
-            new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.SPEED, 0.06f,
-                NatureModifierSampler.NatureStat.VITALITY, 0.03f,
-                1.30f, 1.00f, 1.10f, 0.95f
             ),
-            new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.FERNWEH, 0.44f,
-                PetComponent.Emotion.PLAYFULNESS, 0.30f,
-                PetComponent.Emotion.HANYAUKU, 0.24f
-            )));
-        list.add(createMoonPhaseSign("AriesWaning", 17, AstrologySignDefinition.NightPeriod.LATE_NIGHT, Set.of(5),
-            AstrologySignDefinition.DisplayStyle.SUFFIX, "Vanguard", " ",
-            new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.ATTACK, 0.07f,
-                NatureModifierSampler.NatureStat.SPEED, 0.03f,
-                1.45f, 0.95f, 1.05f, 0.85f
-            ),
-            new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.KEFI, 0.44f,
-                PetComponent.Emotion.RESTLESS, 0.30f,
-                PetComponent.Emotion.SISU, 0.24f
-            )));
-            
-        // Last Quarter: Early Night=Virgo, Middle Night=Capricorn, Late Night=Taurus
-        list.add(createMoonPhaseSign("VirgoLast", 18, AstrologySignDefinition.NightPeriod.EARLY_NIGHT, Set.of(6),
+            slot(1, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT),
+            slot(5, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT)));
+        list.add(createMoonPhaseSign("Virgo", 5,
             AstrologySignDefinition.DisplayStyle.PREFIX, "Calibra", " ",
             new AstrologySignDefinition.StatProfile(
                 NatureModifierSampler.NatureStat.FOCUS, 0.06f,
@@ -614,34 +488,10 @@ public final class AstrologyRegistry {
                 PetComponent.Emotion.FOCUSED, 0.42f,
                 PetComponent.Emotion.REGRET, 0.30f,
                 PetComponent.Emotion.LAGOM, 0.24f
-            )));
-        list.add(createMoonPhaseSign("CapricornLast", 19, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT, Set.of(6),
-            AstrologySignDefinition.DisplayStyle.SUFFIX, "Apex", " ",
-            new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.DEFENSE, 0.06f,
-                NatureModifierSampler.NatureStat.FOCUS, 0.03f,
-                0.80f, 1.35f, 0.85f, 1.30f
             ),
-            new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.STOIC, 0.44f,
-                PetComponent.Emotion.GAMAN, 0.30f,
-                PetComponent.Emotion.PROTECTIVE, 0.24f
-            )));
-        list.add(createMoonPhaseSign("TaurusLast", 20, AstrologySignDefinition.NightPeriod.LATE_NIGHT, Set.of(6),
-            AstrologySignDefinition.DisplayStyle.PREFIX, "Bulwark", " ",
-            new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.VITALITY, 0.06f,
-                NatureModifierSampler.NatureStat.DEFENSE, 0.03f,
-                0.85f, 1.30f, 0.90f, 1.25f
-            ),
-            new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.CONTENT, 0.42f,
-                PetComponent.Emotion.SOBREMESA, 0.30f,
-                PetComponent.Emotion.WABI_SABI, 0.26f
-            )));
-            
-        // Waning Crescent: Early Night=Libra, Middle Night=Aquarius, Late Night=Gemini
-        list.add(createMoonPhaseSign("LibraWaning", 21, AstrologySignDefinition.NightPeriod.EARLY_NIGHT, Set.of(7),
+            slot(2, AstrologySignDefinition.NightPeriod.LATE_NIGHT),
+            slot(6, AstrologySignDefinition.NightPeriod.LATE_NIGHT)));
+        list.add(createMoonPhaseSign("Libra", 6,
             AstrologySignDefinition.DisplayStyle.SUFFIX, "Equinox", " ",
             new AstrologySignDefinition.StatProfile(
                 NatureModifierSampler.NatureStat.AGILITY, 0.05f,
@@ -652,8 +502,52 @@ public final class AstrologyRegistry {
                 PetComponent.Emotion.HOPEFUL, 0.42f,
                 PetComponent.Emotion.RELIEF, 0.30f,
                 PetComponent.Emotion.PACK_SPIRIT, 0.24f
-            )));
-        list.add(createMoonPhaseSign("AquariusWaning", 22, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT, Set.of(7),
+            ),
+            slot(3, AstrologySignDefinition.NightPeriod.EARLY_NIGHT),
+            slot(7, AstrologySignDefinition.NightPeriod.EARLY_NIGHT)));
+        list.add(createMoonPhaseSign("Scorpio", 7,
+            AstrologySignDefinition.DisplayStyle.PREFIX, "Vesper", " ",
+            new AstrologySignDefinition.StatProfile(
+                NatureModifierSampler.NatureStat.ATTACK, 0.06f,
+                NatureModifierSampler.NatureStat.DEFENSE, 0.03f,
+                1.30f, 1.10f, 0.90f, 1.30f
+            ),
+            new AstrologySignDefinition.EmotionProfile(
+                PetComponent.Emotion.VIGILANT, 0.44f,
+                PetComponent.Emotion.FOREBODING, 0.30f,
+                PetComponent.Emotion.MELANCHOLY, 0.24f
+            ),
+            slot(4, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT),
+            slot(0, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT)));
+        list.add(createMoonPhaseSign("Sagittarius", 8,
+            AstrologySignDefinition.DisplayStyle.PREFIX, "Zenith", " ",
+            new AstrologySignDefinition.StatProfile(
+                NatureModifierSampler.NatureStat.SPEED, 0.06f,
+                NatureModifierSampler.NatureStat.VITALITY, 0.03f,
+                1.30f, 1.00f, 1.10f, 0.95f
+            ),
+            new AstrologySignDefinition.EmotionProfile(
+                PetComponent.Emotion.FERNWEH, 0.44f,
+                PetComponent.Emotion.PLAYFULNESS, 0.30f,
+                PetComponent.Emotion.HANYAUKU, 0.24f
+            ),
+            slot(5, AstrologySignDefinition.NightPeriod.LATE_NIGHT),
+            slot(1, AstrologySignDefinition.NightPeriod.LATE_NIGHT)));
+        list.add(createMoonPhaseSign("Capricorn", 9,
+            AstrologySignDefinition.DisplayStyle.SUFFIX, "Apex", " ",
+            new AstrologySignDefinition.StatProfile(
+                NatureModifierSampler.NatureStat.DEFENSE, 0.06f,
+                NatureModifierSampler.NatureStat.FOCUS, 0.03f,
+                0.80f, 1.35f, 0.85f, 1.30f
+            ),
+            new AstrologySignDefinition.EmotionProfile(
+                PetComponent.Emotion.STOIC, 0.44f,
+                PetComponent.Emotion.GAMAN, 0.30f,
+                PetComponent.Emotion.PROTECTIVE, 0.24f
+            ),
+            slot(6, AstrologySignDefinition.NightPeriod.EARLY_NIGHT),
+            slot(2, AstrologySignDefinition.NightPeriod.EARLY_NIGHT)));
+        list.add(createMoonPhaseSign("Aquarius", 10,
             AstrologySignDefinition.DisplayStyle.PREFIX, "Cascade", " ",
             new AstrologySignDefinition.StatProfile(
                 NatureModifierSampler.NatureStat.FOCUS, 0.05f,
@@ -664,20 +558,24 @@ public final class AstrologyRegistry {
                 PetComponent.Emotion.ARCANE_OVERFLOW, 0.42f,
                 PetComponent.Emotion.ENNUI, 0.30f,
                 PetComponent.Emotion.CURIOUS, 0.26f
-            )));
-        list.add(createMoonPhaseSign("GeminiWaning", 23, AstrologySignDefinition.NightPeriod.LATE_NIGHT, Set.of(7),
-            AstrologySignDefinition.DisplayStyle.PREFIX, "Syzygy", " ",
+            ),
+            slot(7, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT),
+            slot(3, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT)));
+        list.add(createMoonPhaseSign("Pisces", 11,
+            AstrologySignDefinition.DisplayStyle.PREFIX, "Eidolon", " ",
             new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.SPEED, 0.06f,
-                NatureModifierSampler.NatureStat.FOCUS, 0.03f,
-                1.20f, 0.95f, 1.25f, 0.90f
+                NatureModifierSampler.NatureStat.VITALITY, 0.05f,
+                NatureModifierSampler.NatureStat.LOYALTY, 0.03f,
+                0.85f, 1.25f, 1.15f, 0.90f
             ),
             new AstrologySignDefinition.EmotionProfile(
-                PetComponent.Emotion.CHEERFUL, 0.42f,
-                PetComponent.Emotion.CURIOUS, 0.30f,
-                PetComponent.Emotion.QUERECIA, 0.26f
-            )));
-            
+                PetComponent.Emotion.UBUNTU, 0.44f,
+                PetComponent.Emotion.YUGEN, 0.32f,
+                PetComponent.Emotion.HIRAETH, 0.26f
+            ),
+            slot(0, AstrologySignDefinition.NightPeriod.LATE_NIGHT),
+            slot(4, AstrologySignDefinition.NightPeriod.LATE_NIGHT)));
+
         return list;
     }
 
@@ -708,17 +606,38 @@ public final class AstrologyRegistry {
             .build();
     }
 
+    private static PhaseNightSlot slot(int moonPhase, AstrologySignDefinition.NightPeriod nightPeriod) {
+        return new PhaseNightSlot(moonPhase, nightPeriod);
+    }
+
     private static AstrologySignDefinition createMoonPhaseSign(String displayName,
-                                                      int order,
-                                                      AstrologySignDefinition.NightPeriod nightPeriod,
-                                                      Set<Integer> moonPhases,
-                                                      AstrologySignDefinition.DisplayStyle displayStyle,
-                                                      String displayEpithet,
-                                                      String connector,
-                                                      AstrologySignDefinition.StatProfile statProfile,
-                                                      AstrologySignDefinition.EmotionProfile emotionProfile) {
+                                                               int order,
+                                                               AstrologySignDefinition.DisplayStyle displayStyle,
+                                                               String displayEpithet,
+                                                               String connector,
+                                                               AstrologySignDefinition.StatProfile statProfile,
+                                                               AstrologySignDefinition.EmotionProfile emotionProfile,
+                                                               PhaseNightSlot... slots) {
+        if (slots == null || slots.length == 0) {
+            throw new IllegalArgumentException("A Lunaris sign requires at least one phase/night slot");
+        }
         String slug = displayName.toLowerCase(Locale.ROOT);
         Identifier id = Identifier.of(Petsplus.MOD_ID, "lunaris/" + slug);
+        Map<Integer, Set<AstrologySignDefinition.NightPeriod>> phaseNightWindows = new LinkedHashMap<>();
+        EnumSet<AstrologySignDefinition.NightPeriod> nightPeriods = EnumSet.noneOf(AstrologySignDefinition.NightPeriod.class);
+        for (PhaseNightSlot slot : slots) {
+            if (slot == null) {
+                continue;
+            }
+            Set<AstrologySignDefinition.NightPeriod> periods = phaseNightWindows
+                .computeIfAbsent(slot.moonPhase(), key -> EnumSet.noneOf(AstrologySignDefinition.NightPeriod.class));
+            periods.add(slot.nightPeriod());
+            nightPeriods.add(slot.nightPeriod());
+        }
+        if (phaseNightWindows.isEmpty()) {
+            throw new IllegalArgumentException("A Lunaris sign requires at least one valid phase/night slot");
+        }
+        Set<Integer> moonPhases = Set.copyOf(phaseNightWindows.keySet());
         return AstrologySignDefinition.builder(id)
             .displayName(displayName)
             .order(order)
@@ -728,7 +647,8 @@ public final class AstrologyRegistry {
             .requiresOpenSky(true) // Require open sky for moon visibility
             .allowIndoors(false)
             .moonPhases(moonPhases)
-            .nightPeriods(Set.of(nightPeriod))
+            .nightPeriods(nightPeriods)
+            .phaseNightWindows(phaseNightWindows)
             .allowedDimensions(Set.of(OVERWORLD))
             .displayEpithet(displayEpithet)
             .displayStyle(displayStyle)
@@ -769,6 +689,24 @@ public final class AstrologyRegistry {
         }
         String title = getNatureTitle(natureId, component.getAstrologySignId());
         return Text.literal(title);
+    }
+
+    private record PhaseNightSlot(int moonPhase, AstrologySignDefinition.NightPeriod nightPeriod) {
+        private PhaseNightSlot {
+            moonPhase = Math.floorMod(moonPhase, 8);
+            Objects.requireNonNull(nightPeriod, "nightPeriod");
+        }
+
+        private static @Nullable PhaseNightSlot from(AstrologySignDefinition.AstrologyContext context) {
+            AstrologySignDefinition.NightPeriod nightPeriod = AstrologySignDefinition.resolveNightPeriod(context);
+            if (nightPeriod == null) {
+                return null;
+            }
+            return new PhaseNightSlot(
+                context.moonPhase(),
+                nightPeriod
+            );
+        }
     }
 
     public record SignCycleSnapshot(@Nullable Identifier assigned,
