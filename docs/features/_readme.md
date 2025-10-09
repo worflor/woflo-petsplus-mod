@@ -2,7 +2,11 @@
 
 **[Design Philosophy](design_philosophy.md)** — Understand how these systems fit together and why they do what they do.
 
+--- 
+
 Unfortunately, your *real pets* have *real feelings* now.
+
+---
 
 ## Core Systems
 
