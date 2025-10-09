@@ -15,6 +15,7 @@ import net.minecraft.item.Items;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
@@ -23,7 +24,6 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.commands.arguments.PetRoleArgumentType;
 import woflo.petsplus.datagen.PetsplusLootHandler;
-import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.stats.PetAttributeManager;
 import woflo.petsplus.stats.nature.NatureModifierSampler;
@@ -374,12 +374,17 @@ public class PetsplusAdminCommands {
         petComp.setNatureId(natureId);
         petComp.clearStateData(PetComponent.StateKeys.BREEDING_ASSIGNED_NATURE);
         petComp.clearStateData(PetComponent.StateKeys.WILD_ASSIGNED_NATURE);
-        if (natureId.equals(AstrologyRegistry.LUNARIS_NATURE_ID) && targetPet.getEntityWorld() instanceof ServerWorld serverWorld) {
-            PetNatureSelector.TameContext tameContext = PetNatureSelector.captureTameContext(serverWorld, targetPet);
-            AstrologyRegistry.PetNatureSelectorContext astroContext =
-                PetNatureSelector.toAstrologyContext(tameContext, serverWorld.getTime());
-            Identifier signId = AstrologyRegistry.resolveSign(astroContext, serverWorld.getMoonPhase());
-            AstrologyRegistry.applySign(petComp, signId);
+
+        AstrologyRegistry.SignCycleSnapshot cycleSnapshot = AstrologyRegistry.SignCycleSnapshot.EMPTY;
+
+        if (natureId.equals(AstrologyRegistry.LUNARIS_NATURE_ID)) {
+            cycleSnapshot = AstrologyRegistry.advanceSignCycle();
+            Identifier cycleAssignment = cycleSnapshot.assigned();
+            if (cycleAssignment != null) {
+                AstrologyRegistry.applySign(petComp, cycleAssignment);
+            }
+        } else {
+            AstrologyRegistry.applySign(petComp, null);
         }
         PetAttributeManager.applyAttributeModifiers(targetPet, petComp);
 
@@ -387,6 +392,29 @@ public class PetsplusAdminCommands {
         player.sendMessage(Text.literal("Set pet nature to ")
             .formatted(Formatting.GREEN)
             .append(display), false);
+
+        if (natureId.equals(AstrologyRegistry.LUNARIS_NATURE_ID)) {
+            if (cycleSnapshot.hasAssignment()) {
+                Identifier currentSignId = petComp.getAstrologySignId();
+                MutableText cycleMessage = Text.literal("Lunaris cycle → ")
+                    .formatted(Formatting.DARK_AQUA)
+                    .append(Text.literal(AstrologyRegistry.getDisplayTitle(currentSignId)).formatted(Formatting.AQUA));
+                if (cycleSnapshot.total() > 0) {
+                    cycleMessage.append(Text.literal(" (" + cycleSnapshot.displayIndex() + "/" + cycleSnapshot.total() + ")")
+                        .formatted(Formatting.DARK_GRAY));
+                }
+                Identifier nextSignId = cycleSnapshot.next();
+                if (nextSignId != null && cycleSnapshot.total() > 1) {
+                    cycleMessage.append(Text.literal(" • Next: ")
+                        .formatted(Formatting.DARK_GRAY))
+                        .append(Text.literal(AstrologyRegistry.getDisplayTitle(nextSignId)).formatted(Formatting.AQUA));
+                }
+                player.sendMessage(cycleMessage, false);
+            } else {
+                player.sendMessage(Text.literal("No Lunaris signs are configured; cycle cannot advance.")
+                    .formatted(Formatting.YELLOW), false);
+            }
+        }
         return 1;
     }
 

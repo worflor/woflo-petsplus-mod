@@ -32,6 +32,7 @@ public final class AstrologyRegistry {
 
     private static final Map<Identifier, AstrologySignDefinition> DEFINITIONS = new LinkedHashMap<>();
     private static final List<AstrologySignDefinition> ORDERED = new ArrayList<>();
+    private static int signCycleCursor = 0;
 
     private AstrologyRegistry() {
     }
@@ -44,14 +45,23 @@ public final class AstrologyRegistry {
      * Refresh the registry using datapack-defined signs layered over the builtin set.
      */
     public static synchronized void reload(@Nullable List<AstrologySignDefinition> overrides) {
+        reloadInternal(overrides, true);
+    }
+
+    static synchronized void reloadForTesting(@Nullable List<AstrologySignDefinition> definitions) {
+        reloadInternal(definitions, false);
+    }
+
+    private static void reloadInternal(@Nullable List<AstrologySignDefinition> overrides, boolean includeBuiltins) {
         Map<Identifier, AstrologySignDefinition> merged = new LinkedHashMap<>();
-        for (AstrologySignDefinition builtin : builtinDefinitions()) {
-            merged.put(builtin.id(), builtin);
-        }
-        if (overrides != null) {
-            for (AstrologySignDefinition override : overrides) {
-                merged.put(override.id(), override);
+        if (includeBuiltins) {
+            for (AstrologySignDefinition builtin : builtinDefinitions()) {
+                merged.put(builtin.id(), builtin);
             }
+        }
+        List<AstrologySignDefinition> overrideList = overrides != null ? overrides : List.of();
+        for (AstrologySignDefinition override : overrideList) {
+            merged.put(override.id(), override);
         }
 
         DEFINITIONS.clear();
@@ -59,6 +69,7 @@ public final class AstrologyRegistry {
         DEFINITIONS.putAll(merged);
         ORDERED.addAll(merged.values());
         ORDERED.sort(Comparator.comparingInt(AstrologySignDefinition::order).thenComparing(def -> def.id().toString()));
+        resetSignCycle();
 
         propagateFlavorHooks();
     }
@@ -198,6 +209,34 @@ public final class AstrologyRegistry {
         return Collections.unmodifiableSet(DEFINITIONS.keySet());
     }
 
+    public static synchronized int signCount() {
+        return ORDERED.size();
+    }
+
+    public static synchronized @Nullable Identifier signAt(int index) {
+        if (ORDERED.isEmpty()) {
+            return null;
+        }
+        int wrapped = Math.floorMod(index, ORDERED.size());
+        return ORDERED.get(wrapped).id();
+    }
+
+    public static synchronized SignCycleSnapshot advanceSignCycle() {
+        if (ORDERED.isEmpty()) {
+            return SignCycleSnapshot.EMPTY;
+        }
+        int total = ORDERED.size();
+        int index = Math.floorMod(signCycleCursor, total);
+        AstrologySignDefinition assignedDefinition = ORDERED.get(index);
+        signCycleCursor = (index + 1) % total;
+        Identifier nextIdentifier = total > 1 ? ORDERED.get(signCycleCursor).id() : null;
+        return new SignCycleSnapshot(assignedDefinition.id(), nextIdentifier, index, total);
+    }
+
+    public static synchronized void resetSignCycle() {
+        signCycleCursor = 0;
+    }
+
     public static @Nullable AstrologySignDefinition get(Identifier id) {
         return DEFINITIONS.get(id);
     }
@@ -206,7 +245,7 @@ public final class AstrologyRegistry {
         if (ORDERED.isEmpty()) {
             return null;
         }
-        
+
         // First, try to find matches with moon phase and night period criteria
         List<AstrologySignDefinition> moonPhaseMatches = new ArrayList<>();
         for (AstrologySignDefinition definition : ORDERED) {
@@ -217,13 +256,13 @@ public final class AstrologyRegistry {
                 }
             }
         }
-        
+
         // If we found moon phase matches, use the first one
         if (!moonPhaseMatches.isEmpty()) {
             moonPhaseMatches.sort(Comparator.comparingInt(AstrologySignDefinition::order));
             return moonPhaseMatches.get(0).id();
         }
-        
+
         // Fall back to traditional day-based matching
         List<AstrologySignDefinition> dayMatches = new ArrayList<>();
         for (AstrologySignDefinition definition : ORDERED) {
@@ -231,12 +270,12 @@ public final class AstrologyRegistry {
                 dayMatches.add(definition);
             }
         }
-        
+
         if (dayMatches.isEmpty()) {
             int slot = MathHelper.clamp(context.dayOfYear() / Math.max(1, 360 / ORDERED.size()), 0, ORDERED.size() - 1);
             return ORDERED.get(slot).id();
         }
-        
+
         dayMatches.sort(Comparator.comparingInt(def -> distance(def.dayRange(), context.dayOfYear())));
         return dayMatches.get(0).id();
     }
@@ -730,6 +769,22 @@ public final class AstrologyRegistry {
         }
         String title = getNatureTitle(natureId, component.getAstrologySignId());
         return Text.literal(title);
+    }
+
+    public record SignCycleSnapshot(@Nullable Identifier assigned,
+                                    @Nullable Identifier next,
+                                    int assignedIndex,
+                                    int total) {
+        private static final int NO_INDEX = -1;
+        public static final SignCycleSnapshot EMPTY = new SignCycleSnapshot(null, null, NO_INDEX, 0);
+
+        public boolean hasAssignment() {
+            return assigned != null;
+        }
+
+        public int displayIndex() {
+            return assignedIndex >= 0 ? assignedIndex + 1 : 0;
+        }
     }
 }
 
