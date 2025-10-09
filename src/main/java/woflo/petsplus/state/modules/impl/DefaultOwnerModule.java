@@ -6,6 +6,7 @@ import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.modules.OwnerModule;
 
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -59,15 +60,16 @@ public class DefaultOwnerModule implements OwnerModule {
     @Override
     public void setOwnerUuid(@Nullable UUID ownerUuid) {
         UUID previousOwnerUuid = this.ownerUuid;
+        boolean ownerChanged = !Objects.equals(previousOwnerUuid, ownerUuid);
         this.ownerUuid = ownerUuid;
-        
+
         // Clear cache if owner changed
-        if (previousOwnerUuid != ownerUuid) {
+        if (ownerChanged) {
             this.ownerCache = null;
         }
-        
+
         // Notify parent about owner change (for scheduling invalidation, etc.)
-        if (parent != null && previousOwnerUuid != ownerUuid) {
+        if (parent != null && ownerChanged) {
             parent.onOwnerChanged(previousOwnerUuid, ownerUuid);
         }
     }
