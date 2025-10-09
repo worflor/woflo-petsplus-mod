@@ -110,6 +110,7 @@ When something interesting happens (campfires lit, treasures found, combat victo
 - **How big a deal it was** (minor event vs. major discovery)
 - **How sure they are** (did they witness it firsthand or hear it from a friend?)
 - **When it occurred**
+- **How do they feel about it?** (dictates tone)
 
 Pets share these memories when they're hanging out together:
 
@@ -134,7 +135,5 @@ Here's the full loop:
 4. **Behavior changes** — mood drives what they do and how they act
 5. **You notice** — visual feedback and hints show you what's happening
 6. **You respond** — and your actions create new events
-
-This is why your pets feel alive. They're not following scripts or timers. They're reacting to their world, remembering experiences, sharing stories with friends, and building actual personalities over time.
 
 The stimulus system is the input. The Mood Engine is the processor. The result is a companion that feels real enough you forget it's variables and math.
