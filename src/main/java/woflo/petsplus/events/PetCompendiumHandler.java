@@ -49,7 +49,7 @@ public class PetCompendiumHandler {
                 if (!world.isClient() && player instanceof ServerPlayerEntity serverPlayer) {
                     ItemStack stack = player.getStackInHand(hand);
                     if (stack.isOf(PetsplusItems.PET_COMPENDIUM)) {
-                        return reopenLastViewedPet(serverPlayer);
+                        return reopenLastViewedPet(serverPlayer, hand);
                     }
                 }
                 return ActionResult.PASS;
@@ -63,9 +63,9 @@ public class PetCompendiumHandler {
      * Reopens the compendium for the last viewed pet.
      * Handles edge cases: pet death, dimension changes, unloaded chunks.
      */
-    private static ActionResult reopenLastViewedPet(ServerPlayerEntity player) {
+    private static ActionResult reopenLastViewedPet(ServerPlayerEntity player, Hand hand) {
         UUID lastPetUuid = LAST_VIEWED_PET.get(player.getUuid());
-        
+
         if (lastPetUuid == null) {
             player.sendMessage(
                 Text.literal("⚠ ").formatted(Formatting.DARK_GRAY)
@@ -136,7 +136,8 @@ public class PetCompendiumHandler {
         openCompendiumScreen(player, mob, petComponent);
         
         // Visual and audio feedback
-        player.swingHand(player.getActiveHand(), true);
+        Hand swingHand = hand != null ? hand : Hand.MAIN_HAND;
+        player.swingHand(swingHand, true);
         player.getEntityWorld().playSound(null, player.getBlockPos(), 
             SoundEvents.ITEM_BOOK_PAGE_TURN, 
             SoundCategory.PLAYERS, 0.8f, 1.2f); // Slightly higher pitch for "refresh"
