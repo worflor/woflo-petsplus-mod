@@ -9,6 +9,7 @@ import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.particle.ParticleTypes;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
@@ -1013,7 +1014,7 @@ public class CursedOneResurrection {
         return instance != null ? new StatusEffectInstance(instance) : null;
     }
 
-    private static void restoreStatusEffect(MobEntity entity, StatusEffect effect, StatusEffectInstance previous) {
+    private static void restoreStatusEffect(MobEntity entity, RegistryEntry<StatusEffect> effect, StatusEffectInstance previous) {
         if (entity == null) {
             return;
         }
