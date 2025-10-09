@@ -86,7 +86,7 @@ Events trigger [emotions](emotions.md). The Mood Engine blends them into the [mo
 
 It works like real feelings: recent intense stuff matters more than old faded stuff. Each emotion feeds into multiple moods with different strengths, and your pet's [nature](natures.md) shapes how they process everything.
 
-This is why mood changes feel natural. Sudden fear hits instantly. Contentment builds slowly. The system tries to mirror how actual emotions work.
+Sudden fear hits instantly. Contentment builds slowly. The system tries to mirror how actual emotions work.
 
 ## Emotion Context Cues
 
@@ -110,7 +110,7 @@ When something interesting happens (campfires lit, treasures found, combat victo
 - **How big a deal it was** (minor event vs. major discovery)
 - **How sure they are** (did they witness it firsthand or hear it from a friend?)
 - **When it occurred**
-- **How do they feel about it?** (dictates tone)
+- **How do they feel about it** (dictates tone)
 
 Pets share these memories when they're hanging out together:
 
