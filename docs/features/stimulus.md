@@ -29,7 +29,7 @@ Pets+ pets actually respond to their world:
 - They're idle when nothing's happening (no background processing)
 - They react instantly to events
 - The same event feels different depending on context
-- They remember what happens and learn from it
+- They remember what happens and learn from it*
 - They share emotions and stories with packmates
 
 ## Context Is Everything
