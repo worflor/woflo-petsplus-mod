@@ -84,10 +84,15 @@ public class PetTradingHandler {
         
         // Limit to max eligible pets from config
         int maxPets = PetsPlusConfig.getInstance().getLeashTradingMaxEligiblePets();
+        if (maxPets <= 0) {
+            TradingFeedbackManager.sendGenericMessage((ServerPlayerEntity) initiator, "petsplus.trading.no_eligible_pets");
+            return ActionResult.PASS;
+        }
+
         if (eligiblePets.size() > maxPets) {
             eligiblePets = eligiblePets.subList(0, maxPets);
         }
-        
+
         // Attempt transfer with closest eligible pet
         MobEntity selectedPet = eligiblePets.get(0);
         TransferResult result = PetOwnershipTransfers.transfer(
