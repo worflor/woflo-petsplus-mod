@@ -11,7 +11,9 @@ import net.minecraft.text.ClickEvent;
 import net.minecraft.text.HoverEvent;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.RawFilteredPair;
+import net.minecraft.text.Style;
 import net.minecraft.text.Text;
+import net.minecraft.text.TextVisitFactory;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
@@ -22,6 +24,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
 
 /**
@@ -38,6 +43,7 @@ public class CompendiumBookBuilder {
     private static final int MAX_NATURE_NAME_LENGTH = 25;
     private static final int MAX_PAGE_NUMBER = 100; // Safety limit for page numbers
     private static final float MAX_HEALTH_VALUE = 10000.0f; // Maximum reasonable health value
+    private static final int MAX_BOOK_LINE_WIDTH = 50;
     
     /**
      * Opens the Pet Compendium book for a player.
@@ -322,42 +328,235 @@ public class CompendiumBookBuilder {
         
         for (int i = 0; i < lines.size(); i++) {
             Text line = lines.get(i);
-            
-            // Check if we need to wrap the line to prevent overflow
-            String lineString = line.getString();
-            if (lineString.length() > 50) { // Approximate max line length for books
-                // Split long lines into multiple lines
-                String[] words = lineString.split(" ");
-                StringBuilder currentLine = new StringBuilder();
-                
-                for (String word : words) {
-                    if (currentLine.length() + word.length() + 1 > 50) {
-                        if (currentLine.length() > 0) {
-                            page.append(Text.literal(currentLine.toString()));
-                            page.append("\n");
-                            currentLine = new StringBuilder();
-                        }
-                    }
-                    
-                    if (currentLine.length() > 0) {
-                        currentLine.append(" ");
-                    }
-                    currentLine.append(word);
+            List<Text> wrappedSegments = wrapLinePreservingFormatting(line);
+
+            for (int j = 0; j < wrappedSegments.size(); j++) {
+                page.append(wrappedSegments.get(j));
+                if (j < wrappedSegments.size() - 1 || i < lines.size() - 1) {
+                    page.append("\n");
                 }
-                
-                if (currentLine.length() > 0) {
-                    page.append(Text.literal(currentLine.toString()));
-                }
-            } else {
-                page.append(line);
-            }
-            
-            if (i < lines.size() - 1) {
-                page.append("\n");
             }
         }
-        
+
         return page;
+    }
+
+    private static List<Text> wrapLinePreservingFormatting(Text line) {
+        String literalString = extractLiteralWithFormatting(line);
+        if (visibleLength(literalString) <= MAX_BOOK_LINE_WIDTH) {
+            return List.of(line.copy());
+        }
+
+        List<String> wrapped = wrapLiteralWithFormatting(literalString, MAX_BOOK_LINE_WIDTH);
+        List<Text> result = new ArrayList<>(wrapped.size());
+        for (String fragment : wrapped) {
+            MutableText fragmentText = Text.literal(fragment);
+            fragmentText.setStyle(line.getStyle());
+            result.add(fragmentText);
+        }
+        return result;
+    }
+
+    private static String extractLiteralWithFormatting(Text text) {
+        String literalString = text.getLiteralString();
+        if (literalString != null) {
+            return literalString;
+        }
+
+        StringBuilder builder = new StringBuilder();
+        TextVisitFactory.visitFormatted(text, Style.EMPTY, (index, style, codePoint) -> {
+            builder.appendCodePoint(codePoint);
+            return true;
+        });
+
+        return builder.toString();
+    }
+
+    private static List<String> wrapLiteralWithFormatting(String text, int maxWidth) {
+        List<String> wrappedLines = new ArrayList<>();
+        LegacyFormattingState formattingState = new LegacyFormattingState();
+
+        Matcher matcher = TOKEN_PATTERN.matcher(text);
+        List<String> tokens = new ArrayList<>();
+        while (matcher.find()) {
+            tokens.add(matcher.group());
+        }
+
+        StringBuilder current = new StringBuilder();
+        int visibleCount = 0;
+        String indentForContinuation = "";
+        String pendingIndent = "";
+        boolean capturingIndent = true;
+
+        for (int index = 0; index < tokens.size(); ) {
+            String token = tokens.get(index);
+            boolean isWhitespace = token.chars().allMatch(Character::isWhitespace);
+            int tokenVisible = visibleLength(token);
+
+            if (visibleCount == 0 && !pendingIndent.isEmpty()) {
+                current.append(pendingIndent);
+                visibleCount += visibleLength(pendingIndent);
+                formattingState.acceptSegment(pendingIndent);
+                pendingIndent = "";
+            }
+
+            if (!isWhitespace && visibleCount > 0 && visibleCount + tokenVisible > maxWidth) {
+                wrappedLines.add(current.toString());
+                current = new StringBuilder();
+                visibleCount = 0;
+                String prefix = formattingState.getActiveFormatting();
+                if (!prefix.isEmpty()) {
+                    current.append(prefix);
+                }
+                pendingIndent = indentForContinuation;
+                continue;
+            }
+
+            if (isWhitespace && visibleCount > 0 && visibleCount + tokenVisible > maxWidth) {
+                wrappedLines.add(current.toString());
+                current = new StringBuilder();
+                visibleCount = 0;
+                String prefix = formattingState.getActiveFormatting();
+                if (!prefix.isEmpty()) {
+                    current.append(prefix);
+                }
+                pendingIndent = indentForContinuation;
+                index++;
+                continue;
+            }
+
+            if (isWhitespace && visibleCount == 0) {
+                current.append(token);
+                visibleCount += tokenVisible;
+                formattingState.acceptSegment(token);
+                if (capturingIndent && tokenVisible > 0) {
+                    indentForContinuation += token;
+                }
+                index++;
+                continue;
+            }
+
+            if (visibleCount == 0 && !isWhitespace && !startsWithFormattingCode(token)) {
+                String prefix = formattingState.getActiveFormatting();
+                if (!prefix.isEmpty()) {
+                    current.append(prefix);
+                }
+            }
+
+            current.append(token);
+            visibleCount += tokenVisible;
+            formattingState.acceptSegment(token);
+
+            if (!isWhitespace && tokenVisible > 0) {
+                capturingIndent = false;
+            }
+
+            if (!isWhitespace && visibleCount >= maxWidth) {
+                wrappedLines.add(current.toString());
+                current = new StringBuilder();
+                visibleCount = 0;
+                String prefix = formattingState.getActiveFormatting();
+                if (!prefix.isEmpty()) {
+                    current.append(prefix);
+                }
+                pendingIndent = indentForContinuation;
+            }
+
+            index++;
+        }
+
+        if (current.length() > 0) {
+            wrappedLines.add(current.toString());
+        }
+
+        if (wrappedLines.isEmpty()) {
+            wrappedLines.add("");
+        }
+
+        return wrappedLines;
+    }
+
+    private static int visibleLength(String text) {
+        int length = 0;
+        boolean skipNext = false;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (skipNext) {
+                skipNext = false;
+                continue;
+            }
+            if (c == '§' && i + 1 < text.length()) {
+                skipNext = true;
+                continue;
+            }
+            if (c != '\n' && c != '\r') {
+                length++;
+            }
+        }
+        return length;
+    }
+
+    private static boolean startsWithFormattingCode(String token) {
+        if (token.length() < 2) {
+            return false;
+        }
+        if (token.charAt(0) != '§') {
+            return false;
+        }
+        char code = Character.toLowerCase(token.charAt(1));
+        return LEGACY_FORMAT_CODES.indexOf(code) >= 0;
+    }
+
+    private static final Pattern TOKEN_PATTERN = Pattern.compile("\\S+|\\s+");
+    private static final String LEGACY_FORMAT_CODES = "0123456789abcdefklmnor";
+
+    private static final class LegacyFormattingState {
+        private String colorCode = "";
+        private final List<Character> modifiers = new ArrayList<>();
+
+        void acceptSegment(String segment) {
+            for (int i = 0; i < segment.length() - 1; i++) {
+                if (segment.charAt(i) == '§') {
+                    char code = Character.toLowerCase(segment.charAt(i + 1));
+                    ingestCode(code);
+                    i++;
+                }
+            }
+        }
+
+        private void ingestCode(char code) {
+            if (code == 'r') {
+                colorCode = "";
+                modifiers.clear();
+                return;
+            }
+
+            if (isColorCode(code)) {
+                colorCode = "§" + code;
+                modifiers.clear();
+                return;
+            }
+
+            if (isModifierCode(code) && modifiers.stream().noneMatch(existing -> existing == code)) {
+                modifiers.add(code);
+            }
+        }
+
+        String getActiveFormatting() {
+            StringBuilder builder = new StringBuilder(colorCode);
+            for (char modifier : modifiers) {
+                builder.append('§').append(modifier);
+            }
+            return builder.toString();
+        }
+
+        private boolean isColorCode(char code) {
+            return "0123456789abcdef".indexOf(code) >= 0;
+        }
+
+        private boolean isModifierCode(char code) {
+            return "klmno".indexOf(code) >= 0;
+        }
     }
     
     private static String buildHealthBar(float current, float max, @Nullable Identifier natureId) {
