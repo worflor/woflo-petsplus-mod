@@ -4,6 +4,7 @@ import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalType;
@@ -177,7 +178,18 @@ public class FetchItemGoal extends AdaptiveGoal {
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.85f;
-        
+
+        float physicalStamina = MathHelper.clamp(ctx.physicalStamina(), 0.0f, 1.0f);
+        float momentum = MathHelper.clamp(ctx.behavioralMomentum(), 0.0f, 1.0f);
+
+        float staminaBlend = MathHelper.clamp((physicalStamina - 0.5f) / 0.35f, -1.0f, 1.0f);
+        float staminaScale = MathHelper.lerp((staminaBlend + 1.0f) * 0.5f, 0.65f, 1.16f);
+        engagement *= staminaScale;
+
+        float momentumBlend = MathHelper.clamp((momentum - 0.5f) / 0.35f, -1.0f, 1.0f);
+        float momentumScale = MathHelper.lerp((momentumBlend + 1.0f) * 0.5f, 0.72f, 1.12f);
+        engagement *= momentumScale;
+
         // Very engaging for playful pets
         if (ctx.hasPetsPlusComponent() && ctx.hasMoodInBlend(
             woflo.petsplus.state.PetComponent.Mood.PLAYFUL, 0.4f)) {
@@ -192,7 +204,7 @@ public class FetchItemGoal extends AdaptiveGoal {
             engagement = 1.0f;
         }
         
-        return Math.min(1.0f, engagement);
+        return MathHelper.clamp(engagement, 0.0f, 1.0f);
     }
 }
 

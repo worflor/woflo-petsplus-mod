@@ -3,6 +3,7 @@ package woflo.petsplus.ai.goals.wander;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalType;
@@ -109,13 +110,29 @@ public class ScentTrailFollowGoal extends AdaptiveGoal {
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.6f;
-        
+
+        float physicalStamina = MathHelper.clamp(ctx.physicalStamina(), 0.0f, 1.0f);
+        float momentum = MathHelper.clamp(ctx.behavioralMomentum(), 0.0f, 1.0f);
+        float mentalFocus = MathHelper.clamp(ctx.mentalFocus(), 0.0f, 1.0f);
+
+        float staminaBlend = MathHelper.clamp((physicalStamina - 0.45f) / 0.3f, -1.0f, 1.0f);
+        float staminaScale = MathHelper.lerp((staminaBlend + 1.0f) * 0.5f, 0.62f, 1.08f);
+        engagement *= staminaScale;
+
+        float momentumBlend = MathHelper.clamp((momentum - 0.45f) / 0.3f, -1.0f, 1.0f);
+        float momentumScale = MathHelper.lerp((momentumBlend + 1.0f) * 0.5f, 0.68f, 1.1f);
+        engagement *= momentumScale;
+
+        float focusBlend = MathHelper.clamp((mentalFocus - 0.5f) / 0.3f, -1.0f, 1.0f);
+        float focusScale = MathHelper.lerp((focusBlend + 1.0f) * 0.5f, 0.72f, 1.12f);
+        engagement *= focusScale;
+
         // Very engaging if curious
         if (ctx.hasPetsPlusComponent() && ctx.hasMoodInBlend(
             woflo.petsplus.state.PetComponent.Mood.CURIOUS, 0.3f)) {
             engagement = 0.9f;
         }
-        
-        return engagement;
+
+        return MathHelper.clamp(engagement, 0.0f, 1.0f);
     }
 }
