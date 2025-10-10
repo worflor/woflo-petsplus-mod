@@ -221,11 +221,19 @@ public final class PetMoodEngine {
     private float behavioralMomentum = 0.5f;           // 0=still, 1=hyperactive
     private float momentumInertia = 0f;                // Smoothing factor for momentum changes
     private long lastMomentumUpdate = 0L;
-    
+
     // Multi-dimensional activity tracking for realistic behavior
     private float physicalActivity = 0f;               // Running, jumping, playing
     private float mentalActivity = 0f;                 // Puzzles, searching, tracking
     private float socialActivity = 0f;                 // Interactions with owner/pets
+
+    // Derived behavioral batteries layered above the raw activity feeds
+    private float socialCharge = 0.45f;                // 0=drained, 0.45=content introvert baseline, 1=pack euphoric
+    private float physicalStamina = 0.65f;             // Resets toward rested while physical exertion depletes it
+    private float mentalFocus = 0.6f;                  // High when mentally fresh, falls with cognitive strain
+
+    private BehaviouralEnergyProfile cachedEnergyProfile = BehaviouralEnergyProfile.neutral();
+    private boolean energyProfileDirty = true;
 
     // Text animation caching
     private Text cachedMoodText = null;
@@ -644,6 +652,7 @@ public final class PetMoodEngine {
             case MENTAL -> mentalActivity = Math.min(5f, mentalActivity + contribution * 0.8f);
             case SOCIAL -> socialActivity = Math.min(5f, socialActivity + contribution * 0.9f);
         }
+        energyProfileDirty = true;
         dirty = true;
     }
     
@@ -664,7 +673,26 @@ public final class PetMoodEngine {
         update();
         return behavioralMomentum;
     }
-    
+
+    /**
+     * Snapshot of the layered behavioural energy stack.
+     */
+    @Deprecated(forRemoval = false)
+    public BehaviouralEnergyProfile getBehavioralEnergyProfile() {
+        return getBehaviouralEnergyProfile();
+    }
+
+    /**
+     * Snapshot of the layered behavioural energy stack.
+     */
+    public BehaviouralEnergyProfile getBehaviouralEnergyProfile() {
+        update();
+        if (energyProfileDirty) {
+            refreshEnergyProfile();
+        }
+        return cachedEnergyProfile;
+    }
+
     /**
      * Gets momentum-based movement speed multiplier for AI/animation.
      * Returns 0.7-1.3 range for natural speed variation.
@@ -691,8 +719,16 @@ public final class PetMoodEngine {
      * Debug info for momentum state inspection.
      */
     public String getMomentumDebugString() {
-        return String.format("Momentum: %.2f | P:%.2f M:%.2f S:%.2f | Inertia:%.3f",
-            behavioralMomentum, physicalActivity, mentalActivity, socialActivity, momentumInertia);
+        return String.format(
+            "Momentum: %.2f | P:%.2f M:%.2f S:%.2f | Stamina:%.2f Focus:%.2f SocialCharge:%.2f | Inertia:%.3f",
+            behavioralMomentum,
+            physicalActivity,
+            mentalActivity,
+            socialActivity,
+            physicalStamina,
+            mentalFocus,
+            socialCharge,
+            momentumInertia);
     }
 
     public void writeToNbt(NbtCompound nbt) {
@@ -734,8 +770,11 @@ public final class PetMoodEngine {
         }
         nbt.put("dominantHistory", history);
         
-        // Behavioral momentum - only persist momentum value, activities regenerate naturally
+        // Behavioral energy stack persists momentum and derived batteries
         nbt.putFloat("behavioralMomentum", behavioralMomentum);
+        nbt.putFloat("socialCharge", socialCharge);
+        nbt.putFloat("physicalStamina", physicalStamina);
+        nbt.putFloat("mentalFocus", mentalFocus);
     }
 
     public void readFromNbt(NbtCompound nbt) {
@@ -828,13 +867,17 @@ public final class PetMoodEngine {
         lastPaletteCommitTime = 0L;
         paletteGeneration++;
         
-        // Behavioral momentum - only restore momentum, activities start fresh
+        // Behavioral energy stack - restore momentum plus batteries, activities rebuild naturally
         behavioralMomentum = nbt.getFloat("behavioralMomentum").orElse(0.5f);
+        socialCharge = MathHelper.clamp(nbt.getFloat("socialCharge").orElse(0.45f), 0.1f, 1f);
+        physicalStamina = MathHelper.clamp(nbt.getFloat("physicalStamina").orElse(0.65f), 0.05f, 1f);
+        mentalFocus = MathHelper.clamp(nbt.getFloat("mentalFocus").orElse(0.6f), 0.05f, 1f);
         // Activities intentionally not persisted - they should start fresh on load
         physicalActivity = 0f;
         mentalActivity = 0f;
         socialActivity = 0f;
         lastMomentumUpdate = 0L;
+        energyProfileDirty = true;
     }
 
     // --------------------------------------------------------------------------------------------
@@ -1179,29 +1222,33 @@ public final class PetMoodEngine {
         if (delta < 20) return; // Update every second
         
         lastMomentumUpdate = now;
-        
+
         // Calculate personality-influenced baseline from mood and nature
         float baseline = calculateMomentumBaseline();
-        
+
         // Calculate target momentum from activities
         float activityLevel = calculateActivityLevel();
         float targetMomentum = MathHelper.lerp(0.4f, baseline, activityLevel);
-        
+
         // Apply inertia for smooth transitions
         float inertiaFactor = calculateInertiaFactor(delta);
         float momentumDelta = (targetMomentum - behavioralMomentum) * inertiaFactor;
-        
+
         // Update momentum with smoothing
         behavioralMomentum += momentumDelta;
         momentumInertia = MathHelper.lerp(0.1f, momentumInertia, Math.abs(momentumDelta));
-        
+
         // Add organic variation for lifelike behavior
         behavioralMomentum += generateOrganicVariation(now);
-        
+
         behavioralMomentum = MathHelper.clamp(behavioralMomentum, 0f, 1f);
-        
-        // Decay activity accumulators
+
+        updateEnergyBatteries(now, delta);
+
+        // Decay activity accumulators after they've fed the batteries
         decayActivities(delta);
+        energyProfileDirty = true;
+        refreshEnergyProfile();
     }
     
     /**
@@ -1252,10 +1299,94 @@ public final class PetMoodEngine {
         float physical = Math.min(1f, physicalActivity * 0.4f);
         float mental = Math.min(1f, mentalActivity * 0.3f);
         float social = Math.min(1f, socialActivity * 0.3f);
-        
+
         // Combined with diminishing returns to prevent hyperactivity
         float total = physical + mental + social;
         return MathHelper.clamp(total / (1f + total * 0.3f), 0f, 1f);
+    }
+
+    private void updateEnergyBatteries(long now, long deltaTicks) {
+        float dt = MathHelper.clamp(deltaTicks / 20f, 0.05f, 5f);
+
+        float normalizedPhysical = Math.min(1f, physicalActivity * 0.4f);
+        float normalizedMental = Math.min(1f, mentalActivity * 0.3f);
+        float normalizedSocial = Math.min(1f, socialActivity * 0.3f);
+
+        float ambientSocial = sampleAmbientSocialComfort(now);
+        float bondFactor = normalizedBondStrength();
+
+        float physicalDrain = normalizedPhysical * (0.45f + normalizedPhysical * 0.25f) * dt;
+        float physicalRecovery = (0.03f + (1f - normalizedPhysical) * 0.08f + socialCharge * 0.01f) * dt;
+        physicalStamina = MathHelper.clamp(physicalStamina + physicalRecovery - physicalDrain, 0.05f, 1f);
+
+        float calmMood = moodBlend.getOrDefault(PetComponent.Mood.CALM, 0f);
+        float focusMood = moodBlend.getOrDefault(PetComponent.Mood.CURIOUS, 0f);
+        float mentalDrain = normalizedMental * (0.5f + normalizedMental * 0.2f) * dt;
+        float mentalRecovery = (0.025f + (1f - normalizedMental) * 0.05f + calmMood * 0.04f + focusMood * 0.02f) * dt;
+        mentalFocus = MathHelper.clamp(mentalFocus + mentalRecovery - mentalDrain, 0.05f, 1f);
+
+        float familiarityPenalty = MathHelper.clamp(0.25f - ambientSocial * 0.18f, 0.05f, 0.25f);
+        float socialGain = (normalizedSocial * (0.55f + bondFactor * 0.25f)) * dt;
+        float ambientBoost = ambientSocial * 0.05f * dt;
+        float socialDecay = (0.02f + familiarityPenalty * normalizedSocial + (1f - ambientSocial) * 0.02f) * dt;
+        socialCharge = MathHelper.clamp(socialCharge + socialGain + ambientBoost - socialDecay, 0.1f, 1f);
+
+        energyProfileDirty = true;
+    }
+
+    private float sampleAmbientSocialComfort(long now) {
+        float comfort = 0f;
+
+        long lastSocialTick = parent.getStateData(PetComponent.StateKeys.LAST_SOCIAL_BUFFER_TICK, Long.class, 0L);
+        if (hasRecentSocialComfort(lastSocialTick, now)) {
+            comfort = Math.max(comfort, 0.4f);
+        }
+
+        long lastPackTick = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_TICK, Long.class, 0L);
+        float lastPackStrength = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_STRENGTH, Float.class, 0f);
+        float lastPackWeighted = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_WEIGHTED_STRENGTH, Float.class, 0f);
+        int lastPackAllies = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_ALLIES, Integer.class, 0);
+        if (hasRecentPackComfort(now, lastPackTick, lastPackStrength, lastPackWeighted, lastPackAllies)) {
+            float familiarity = Math.max(lastPackStrength, lastPackWeighted);
+            comfort = Math.max(comfort, 0.55f + MathHelper.clamp(familiarity, 0f, 1f) * 0.35f);
+        }
+
+        PlayerEntity owner = parent.getOwner();
+        MobEntity petEntity = parent.getPetEntity();
+        if (owner != null && petEntity != null && owner.isAlive() && owner.getEntityWorld() == petEntity.getEntityWorld()) {
+            double distSq = owner.squaredDistanceTo(petEntity);
+            if (distSq <= 144.0) { // Within 12 blocks
+                float bondFactor = normalizedBondStrength();
+                float proximityScale = (float) (1.0 - Math.min(1.0, distSq / 144.0));
+                comfort = Math.max(comfort, (0.25f + bondFactor * 0.25f) * proximityScale);
+            }
+        }
+
+        return MathHelper.clamp(comfort, 0f, 1f);
+    }
+
+    private void refreshEnergyProfile() {
+        float normalizedPhysical = Math.min(1f, physicalActivity * 0.4f);
+        float normalizedMental = Math.min(1f, mentalActivity * 0.3f);
+        float normalizedSocial = Math.min(1f, socialActivity * 0.3f);
+
+        cachedEnergyProfile = new BehaviouralEnergyProfile(
+            behavioralMomentum,
+            physicalActivity,
+            mentalActivity,
+            socialActivity,
+            normalizedPhysical,
+            normalizedMental,
+            normalizedSocial,
+            physicalStamina,
+            mentalFocus,
+            socialCharge
+        );
+        energyProfileDirty = false;
+    }
+
+    private float normalizedBondStrength() {
+        return MathHelper.clamp(parent.getBondStrength() / 4000f, 0f, 1f);
     }
     
     /**

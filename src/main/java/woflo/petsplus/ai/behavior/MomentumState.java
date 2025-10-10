@@ -2,9 +2,10 @@ package woflo.petsplus.ai.behavior;
 
 import net.minecraft.entity.mob.MobEntity;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
 
 /**
- * Immutable snapshot of a pet's behavioral momentum state.
+ * Immutable snapshot of a pet's behavioural momentum state.
  * Provides convenient categorization and goal selection bias.
  * 
  * Lightweight value object - no tick overhead, just data access.
@@ -14,7 +15,8 @@ public record MomentumState(
     EnergyLevel level,       // Categorized energy level
     float restBias,          // 0.0-1.0 preference for rest/idle
     float activeBias,        // 0.0-1.0 preference for active/play
-    float mentalBias         // 0.0-1.0 preference for mental/work
+    float mentalBias,        // 0.0-1.0 preference for mental/work
+    BehaviouralEnergyProfile energyProfile // Full behavioural energy stack snapshot
 ) {
     
     /**
@@ -35,16 +37,17 @@ public record MomentumState(
         if (pc == null || pc.getMoodEngine() == null) {
             return neutral();
         }
-        
-        float momentum = pc.getMoodEngine().getBehavioralMomentum();
+
+        BehaviouralEnergyProfile profile = pc.getMoodEngine().getBehaviouralEnergyProfile();
+        float momentum = profile.momentum();
         EnergyLevel level = categorize(momentum);
-        
+
         // Calculate biases - smooth curves, not hard thresholds
         float restBias = calculateRestBias(momentum);
         float activeBias = calculateActiveBias(momentum);
         float mentalBias = calculateMentalBias(momentum);
-        
-        return new MomentumState(momentum, level, restBias, activeBias, mentalBias);
+
+        return new MomentumState(momentum, level, restBias, activeBias, mentalBias, profile);
     }
     
     /**
@@ -59,7 +62,7 @@ public record MomentumState(
      * Neutral default state.
      */
     public static MomentumState neutral() {
-        return new MomentumState(0.5f, EnergyLevel.NEUTRAL, 0.5f, 0.5f, 0.5f);
+        return new MomentumState(0.5f, EnergyLevel.NEUTRAL, 0.5f, 0.5f, 0.5f, BehaviouralEnergyProfile.neutral());
     }
     
     /**

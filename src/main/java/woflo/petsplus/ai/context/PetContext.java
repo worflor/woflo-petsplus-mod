@@ -10,6 +10,7 @@ import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.ai.goals.GoalType;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
 
 import java.util.*;
 
@@ -53,8 +54,9 @@ public record PetContext(
     Map<GoalType, Long> lastExecuted,
     Map<String, Integer> quirkCounters,
     
-    // Behavioral state (PetsPlus only, defaults for vanilla)
-    float behavioralMomentum  // 0=still/tired, 0.5=neutral, 1=hyperactive
+    // Behavioural state (PetsPlus only, defaults for vanilla)
+    float behavioralMomentum, // 0=still/tired, 0.5=neutral, 1=hyperactive
+    BehaviouralEnergyProfile behaviouralEnergyProfile
 ) {
     
     /**
@@ -91,9 +93,12 @@ public record PetContext(
         Map<GoalType, Long> lastExecuted = new EnumMap<>(GoalType.class);
         Map<String, Integer> quirkCounters = new HashMap<>();
         
-        // Behavioral momentum
-        float momentum = pc != null ? pc.getMoodEngine().getBehavioralMomentum() : 0.5f;
-        
+        // Behavioral energy stack
+        BehaviouralEnergyProfile energyProfile = pc != null
+            ? pc.getMoodEngine().getBehaviouralEnergyProfile()
+            : BehaviouralEnergyProfile.neutral();
+        float momentum = energyProfile.momentum();
+
         return new PetContext(
             mob, pc,
             mood, moodLevel, moodBlend, activeEmotions,
@@ -102,7 +107,8 @@ public record PetContext(
             owner, ownerNearby, distanceToOwner,
             nearbyEntities, mob.getBlockPos(), worldTime, isDaytime,
             recentGoals, lastExecuted, quirkCounters,
-            momentum
+            momentum,
+            energyProfile
         );
     }
     
@@ -133,7 +139,31 @@ public record PetContext(
     public long ticksSince(GoalType goal) {
         return worldTime - lastExecuted.getOrDefault(goal, 0L);
     }
-    
+
+    public float socialCharge() {
+        return behaviouralEnergyProfile != null ? behaviouralEnergyProfile.socialCharge() : 0.45f;
+    }
+
+    public float physicalStamina() {
+        return behaviouralEnergyProfile != null ? behaviouralEnergyProfile.physicalStamina() : 0.65f;
+    }
+
+    public float mentalFocus() {
+        return behaviouralEnergyProfile != null ? behaviouralEnergyProfile.mentalFocus() : 0.6f;
+    }
+
+    public float normalizedSocialActivity() {
+        return behaviouralEnergyProfile != null ? behaviouralEnergyProfile.normalizedSocialActivity() : 0f;
+    }
+
+    public float normalizedPhysicalActivity() {
+        return behaviouralEnergyProfile != null ? behaviouralEnergyProfile.normalizedPhysicalActivity() : 0f;
+    }
+
+    public float normalizedMentalActivity() {
+        return behaviouralEnergyProfile != null ? behaviouralEnergyProfile.normalizedMentalActivity() : 0f;
+    }
+
     /**
      * Check if this is a PetsPlus pet (has full personality system).
      */

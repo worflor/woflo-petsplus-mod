@@ -213,11 +213,18 @@ public class EyeContactGoal extends AdaptiveGoal {
         float bond = MathHelper.clamp(ctx.bondStrength(), 0.0f, 1.0f);
         float attention = MathHelper.clamp(lastAttentionStrength, 0.0f, 1.0f);
         float momentum = MathHelper.clamp(ctx.behavioralMomentum(), 0.0f, 1.0f);
+        float socialCharge = MathHelper.clamp(ctx.socialCharge(), 0.0f, 1.0f);
 
         orientDuration = MathHelper.clamp(8 + Math.round((1.0f - bond) * 12.0f) - Math.round(attention * 6.0f), 6, 26);
-        softenDuration = MathHelper.clamp(10 + Math.round(attention * 14.0f) + Math.round((0.5f - Math.abs(momentum - 0.5f)) * 10.0f), 8, 32);
+        softenDuration = MathHelper.clamp(
+            10 + Math.round(attention * 14.0f)
+                + Math.round((0.5f - Math.abs(momentum - 0.5f)) * 10.0f)
+                + Math.round((socialCharge - 0.5f) * 6.0f),
+            8,
+            32);
 
         int baseConnection = 32 + Math.round(bond * 48.0f) + Math.round(attention * 16.0f);
+        baseConnection += Math.round((socialCharge - 0.5f) * 24.0f);
         if (ctx.hasPetsPlusComponent()) {
             if (ctx.hasMoodInBlend(woflo.petsplus.state.PetComponent.Mood.BONDED, 0.35f)) {
                 baseConnection += 18;
