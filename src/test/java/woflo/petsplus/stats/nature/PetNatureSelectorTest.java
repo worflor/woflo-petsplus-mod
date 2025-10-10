@@ -245,6 +245,8 @@ class PetNatureSelectorTest {
             true,
             true,
             true,
+            null,
+            null,
             environment
         );
         MobEntity mob = Mockito.mock(MobEntity.class);
@@ -281,6 +283,8 @@ class PetNatureSelectorTest {
             false,
             true,
             true,
+            null,
+            null,
             environment
         );
         Identifier selected = PetNatureSelector.selectNature(Random.create(42), context);
@@ -313,6 +317,8 @@ class PetNatureSelectorTest {
             true,
             true,
             true,
+            null,
+            null,
             environment
         );
         Identifier aries = AstrologyRegistry.resolveSign(ariesContext, 5);
@@ -331,6 +337,8 @@ class PetNatureSelectorTest {
             true,
             true,
             true,
+            null,
+            null,
             environment
         );
         Identifier aquarius = AstrologyRegistry.resolveSign(aquariusContext, 7);
@@ -417,6 +425,8 @@ class PetNatureSelectorTest {
                     true,
                     true,
                     true,
+                    null,
+                    null,
                     environment
                 );
 
@@ -469,6 +479,8 @@ class PetNatureSelectorTest {
             true,
             true,
             true,
+            null,
+            null,
             environment
         );
 
@@ -500,6 +512,8 @@ class PetNatureSelectorTest {
             true,
             true,
             true,
+            null,
+            null,
             environment
         );
 
@@ -544,6 +558,8 @@ class PetNatureSelectorTest {
             false,
             true,
             true,
+            null,
+            null,
             environment
         );
 
@@ -587,6 +603,8 @@ class PetNatureSelectorTest {
             false,
             true,
             true,
+            null,
+            null,
             environment
         );
 
@@ -697,6 +715,8 @@ class PetNatureSelectorTest {
             false,
             true,
             true,
+            null,
+            null,
             environment
         );
     }

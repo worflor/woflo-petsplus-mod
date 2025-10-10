@@ -127,6 +127,8 @@ public final class PetBreedEvent {
         private final boolean fullMoon;
         private final boolean primaryParentOwned;
         private final boolean partnerParentOwned;
+        private final @Nullable Identifier primaryParentNatureId;
+        private final @Nullable Identifier partnerParentNatureId;
         private final Environment environment;
 
         public BirthContext(long worldTime,
@@ -141,6 +143,8 @@ public final class PetBreedEvent {
                             boolean fullMoon,
                             boolean primaryParentOwned,
                             boolean partnerParentOwned,
+                            @Nullable Identifier primaryParentNatureId,
+                            @Nullable Identifier partnerParentNatureId,
                             Environment environment) {
             this.worldTime = worldTime;
             this.timeOfDay = timeOfDay;
@@ -154,6 +158,8 @@ public final class PetBreedEvent {
             this.fullMoon = fullMoon;
             this.primaryParentOwned = primaryParentOwned;
             this.partnerParentOwned = partnerParentOwned;
+            this.primaryParentNatureId = primaryParentNatureId;
+            this.partnerParentNatureId = partnerParentNatureId;
             this.environment = environment;
         }
 
@@ -203,6 +209,14 @@ public final class PetBreedEvent {
 
         public boolean isPartnerParentOwned() {
             return partnerParentOwned;
+        }
+
+        public @Nullable Identifier getPrimaryParentNatureId() {
+            return primaryParentNatureId;
+        }
+
+        public @Nullable Identifier getPartnerParentNatureId() {
+            return partnerParentNatureId;
         }
 
         public Environment getEnvironment() {
