@@ -3,6 +3,9 @@ package woflo.petsplus.ai.suggester;
 import woflo.petsplus.ai.capability.MobCapabilities;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
+
+import net.minecraft.util.math.MathHelper;
 
 import java.util.*;
 
@@ -156,7 +159,7 @@ public class GoalSuggester {
     private float getMoodBlendModifier(GoalType goalType, PetContext ctx) {
         float modifier = 1.0f;
         
-        // === MOOD-LEVEL MODIFIERS (Primary Behavioral States) ===
+        // === MOOD-LEVEL MODIFIERS (Primary Behavioural States) ===
         
         // PLAYFUL - Energizes play behaviors
         if (ctx.hasMoodInBlend(woflo.petsplus.state.PetComponent.Mood.PLAYFUL, 0.4f)) {
@@ -860,11 +863,19 @@ public class GoalSuggester {
      * High-energy pets prefer active behaviors, low-energy pets prefer rest.
      */
     private float getEnergyModifier(GoalType goalType, PetContext ctx) {
-        float momentum = ctx.behavioralMomentum();
-        
+        BehaviouralEnergyProfile profile = ctx.behaviouralEnergyProfile();
+        if (profile == null) {
+            profile = BehaviouralEnergyProfile.neutral();
+        }
+
+        float momentum = profile.momentum();
+        float socialCharge = profile.socialCharge();
+        float physicalStamina = profile.physicalStamina();
+        float mentalFocus = profile.mentalFocus();
+
         // Use goal type's energy bias as base
-        float energyBias = goalType.getEnergyBias(momentum);
-        
+        float energyBias = goalType.getEnergyBias(profile);
+
         // Additional contextual modifiers based on energy level
         float modifier = energyBias;
         
@@ -885,7 +896,7 @@ public class GoalSuggester {
         // LOW ENERGY (momentum < 0.3) - Needs rest
         if (momentum < 0.3f) {
             if (goalType.getCategory() == GoalType.Category.IDLE_QUIRK) {
-                if (goalType == GoalType.SIT_SPHINX_POSE || goalType == GoalType.FLOAT_IDLE || 
+                if (goalType == GoalType.SIT_SPHINX_POSE || goalType == GoalType.FLOAT_IDLE ||
                     goalType == GoalType.STRETCH_AND_YAW) {
                     modifier *= 1.6f; // Perfect for tired pets
                 }
@@ -908,7 +919,37 @@ public class GoalSuggester {
                 modifier *= 1.15f; // Good energy for socializing
             }
         }
-        
+
+        if (goalType.getCategory() == GoalType.Category.SOCIAL) {
+            if (socialCharge > 0.65f) {
+                float enthusiasm = MathHelper.clamp((socialCharge - 0.65f) / 0.35f, 0f, 1f);
+                modifier *= 1.15f + enthusiasm * 0.35f;
+            } else if (socialCharge < 0.35f) {
+                float depletion = MathHelper.clamp((0.35f - socialCharge) / 0.35f, 0f, 1f);
+                modifier *= MathHelper.lerp(depletion, 1.0f, 0.55f);
+            }
+        }
+
+        if (goalType.getCategory() == GoalType.Category.PLAY || goalType.getCategory() == GoalType.Category.WANDER) {
+            if (physicalStamina > 0.75f) {
+                float surplus = MathHelper.clamp((physicalStamina - 0.75f) / 0.25f, 0f, 1f);
+                modifier *= 1.0f + surplus * 0.4f;
+            } else if (physicalStamina < 0.4f) {
+                float fatigue = MathHelper.clamp((0.4f - physicalStamina) / 0.4f, 0f, 1f);
+                modifier *= MathHelper.lerp(fatigue, 1.0f, 0.6f);
+            }
+        }
+
+        if (goalType.getCategory() == GoalType.Category.SPECIAL) {
+            if (mentalFocus > 0.7f) {
+                float clarity = MathHelper.clamp((mentalFocus - 0.7f) / 0.3f, 0f, 1f);
+                modifier *= 1.0f + clarity * 0.35f;
+            } else if (mentalFocus < 0.4f) {
+                float scatter = MathHelper.clamp((0.4f - mentalFocus) / 0.4f, 0f, 1f);
+                modifier *= MathHelper.lerp(scatter, 1.0f, 0.6f);
+            }
+        }
+
         return modifier;
     }
     

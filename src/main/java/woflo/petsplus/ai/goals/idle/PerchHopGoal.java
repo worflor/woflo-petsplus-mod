@@ -2,6 +2,8 @@ package woflo.petsplus.ai.goals.idle;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
+import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalType;
 
@@ -78,7 +80,13 @@ public class PerchHopGoal extends AdaptiveGoal {
     
     @Override
     protected float calculateEngagement() {
-        return 0.5f;
+        PetContext ctx = getContext();
+        float engagement = 0.5f;
+
+        engagement *= IdleEnergyTuning.energeticStaminaMultiplier(ctx.physicalStamina());
+        engagement *= IdleEnergyTuning.socialCenteredMultiplier(ctx.socialCharge());
+
+        return MathHelper.clamp(engagement, 0f, 1f);
     }
 }
 

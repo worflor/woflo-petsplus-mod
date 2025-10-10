@@ -1,7 +1,9 @@
 package woflo.petsplus.ai.goals.idle;
 
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalType;
 
@@ -81,7 +83,12 @@ public class PerkEarsScanGoal extends AdaptiveGoal {
     
     @Override
     protected float calculateEngagement() {
-        return 0.5f; // Moderately alert
+        PetContext ctx = getContext();
+        float engagement = 0.5f; // Moderately alert
+
+        engagement *= IdleEnergyTuning.balancedStaminaMultiplier(ctx.physicalStamina());
+
+        return MathHelper.clamp(engagement, 0f, 1f);
     }
 }
 

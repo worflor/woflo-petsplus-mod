@@ -2,6 +2,7 @@ package woflo.petsplus.ai.goals.special;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalType;
@@ -132,7 +133,18 @@ public class StargazingGoal extends AdaptiveGoal {
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.85f;
-        
+
+        float mentalFocus = MathHelper.clamp(ctx.mentalFocus(), 0.0f, 1.0f);
+        float socialCharge = MathHelper.clamp(ctx.socialCharge(), 0.0f, 1.0f);
+
+        float focusBlend = MathHelper.clamp((mentalFocus - 0.55f) / 0.3f, -1.0f, 1.0f);
+        float focusScale = MathHelper.lerp((focusBlend + 1.0f) * 0.5f, 0.6f, 1.15f);
+        engagement *= focusScale;
+
+        float socialBlend = MathHelper.clamp((socialCharge - 0.4f) / 0.3f, -1.0f, 1.0f);
+        float socialScale = MathHelper.lerp((socialBlend + 1.0f) * 0.5f, 0.72f, 1.08f);
+        engagement *= socialScale;
+
         // Very engaging for yugen (profound, mysterious beauty) mood
         if (ctx.hasPetsPlusComponent() && ctx.hasMoodInBlend(
             woflo.petsplus.state.PetComponent.Mood.YUGEN, 0.3f)) {
@@ -150,7 +162,7 @@ public class StargazingGoal extends AdaptiveGoal {
             engagement += 0.1f;
         }
         
-        return Math.min(1.0f, engagement);
+        return MathHelper.clamp(engagement, 0.0f, 1.0f);
     }
 }
 

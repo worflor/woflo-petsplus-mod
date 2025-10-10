@@ -1,7 +1,9 @@
 package woflo.petsplus.ai.goals;
 
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec2f;
 import woflo.petsplus.ai.capability.MobCapabilities;
+import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
 
 /**
  * Registry of all behavioral goals pets can consider.
@@ -173,7 +175,11 @@ public enum GoalType {
         // Soft gate: allow some flexibility
         return getEnergyBias(momentum) > 0.05f;
     }
-    
+
+    public boolean isEnergyCompatible(BehaviouralEnergyProfile profile) {
+        return getEnergyBias(profile) > 0.12f;
+    }
+
     /**
      * Get energy bias multiplier for this goal based on current momentum.
      * Returns 1.0 at optimal center, lower at range edges, 0.1 if outside range.
@@ -184,19 +190,147 @@ public enum GoalType {
         float max = energyRange.y;
         float center = (min + max) / 2f;
         float halfRange = (max - min) / 2f;
-        
+
         // If outside range, return low bias (0.1) for unpredictability
         if (momentum < min || momentum > max) {
             return 0.1f;
         }
-        
+
         // Inside range: calculate distance from center
         float distanceFromCenter = Math.abs(momentum - center);
         float normalizedDistance = distanceFromCenter / halfRange; // 0 at center, 1 at edges
-        
+
         // Linear falloff from center (1.0) to edges (0.5)
         // At center: 1.0, at edges: 0.5
         return 1.0f - (normalizedDistance * 0.5f);
+    }
+
+    public float getEnergyBias(BehaviouralEnergyProfile profile) {
+        if (profile == null) {
+            return getEnergyBias(0.5f);
+        }
+        if (category == Category.IDLE_QUIRK) {
+            float baseBias = getEnergyBias(profile.momentum());
+            float staminaBias;
+            float centre = (energyRange.x + energyRange.y) / 2f;
+
+            switch (this) {
+                case STRETCH_AND_YAW, SIT_SPHINX_POSE, PREEN_FEATHERS, FLOAT_IDLE, SURFACE_BREATH ->
+                    staminaBias = favourLowBattery(profile.physicalStamina(), centre, 0.22f);
+                case TAIL_CHASE, POUNCE_PRACTICE, PERCH_HOP, BUBBLE_PLAY, WING_FLUTTER ->
+                    staminaBias = favourHighBattery(profile.physicalStamina(), centre, 0.25f);
+                default ->
+                    staminaBias = favourCenteredBattery(profile.physicalStamina(), centre, 0.2f);
+            }
+
+            float combined = MathHelper.clamp((baseBias * 0.55f) + (staminaBias * 0.45f), 0.05f, 1.0f);
+
+            if (usesSocialIdleBias()) {
+                float socialBias = favourCenteredBattery(profile.socialCharge(), 0.45f, 0.28f);
+                combined = MathHelper.clamp((combined * 0.75f) + (socialBias * 0.25f), 0.05f, 1.0f);
+            }
+
+            return combined;
+        }
+
+        float baseBias = getEnergyBias(profile.momentum());
+        float domainBias;
+        float baseWeight;
+        float domainWeight;
+
+        switch (category) {
+            case PLAY, WANDER -> {
+                domainBias = batteryBias(profile.physicalStamina(), 0.65f, 0.22f);
+                baseWeight = 0.5f;
+                domainWeight = 0.5f;
+            }
+            case SOCIAL -> {
+                domainBias = batteryBias(profile.socialCharge(), 0.45f, 0.25f);
+                baseWeight = 0.4f;
+                domainWeight = 0.6f;
+            }
+            case SPECIAL -> {
+                domainBias = batteryBias(profile.mentalFocus(), 0.6f, 0.25f);
+                baseWeight = 0.45f;
+                domainWeight = 0.55f;
+            }
+            default -> {
+                domainBias = baseBias;
+                baseWeight = 0.6f;
+                domainWeight = 0.4f;
+            }
+        }
+
+        float combined = (baseBias * baseWeight) + (domainBias * domainWeight);
+        return MathHelper.clamp(combined, 0.05f, 1.0f);
+    }
+
+    private boolean usesSocialIdleBias() {
+        return this == TAIL_CHASE || this == BUBBLE_PLAY || this == PERCH_HOP;
+    }
+
+    private static float batteryBias(float value, float baseline, float slack) {
+        float min = Math.max(0f, baseline - slack);
+        if (value <= min) {
+            return 0.05f;
+        }
+        if (value >= baseline) {
+            float overshootRange = Math.max(0.0001f, 1f - baseline);
+            float overshoot = MathHelper.clamp((value - baseline) / overshootRange, 0f, 1f);
+            return MathHelper.clamp(0.8f + overshoot * 0.2f, 0.05f, 1.0f);
+        }
+        float baselineRange = Math.max(0.0001f, baseline - min);
+        float normalized = MathHelper.clamp((value - min) / baselineRange, 0f, 1f);
+        return MathHelper.clamp(0.2f + normalized * 0.6f, 0.05f, 1.0f);
+    }
+
+    private static float favourLowBattery(float value, float midpoint, float tolerance) {
+        float lower = Math.max(0f, midpoint - tolerance);
+        float upper = Math.min(1f, midpoint + tolerance);
+
+        if (value <= lower) {
+            return 0.95f;
+        }
+        if (value >= upper) {
+            float overshoot = MathHelper.clamp((value - upper) / Math.max(1f - upper, 0.0001f), 0f, 1f);
+            return MathHelper.clamp(0.55f - overshoot * 0.4f, 0.05f, 1.0f);
+        }
+
+        float span = Math.max(upper - lower, 0.0001f);
+        float t = MathHelper.clamp((value - lower) / span, 0f, 1f);
+        return MathHelper.clamp(0.95f - t * 0.35f, 0.05f, 1.0f);
+    }
+
+    private static float favourHighBattery(float value, float midpoint, float tolerance) {
+        float lower = Math.max(0f, midpoint - tolerance);
+        float upper = Math.min(1f, midpoint + tolerance);
+
+        if (value >= upper) {
+            return 0.95f;
+        }
+        if (value <= lower) {
+            float deficit = MathHelper.clamp((lower - value) / Math.max(lower, 0.0001f), 0f, 1f);
+            return MathHelper.clamp(0.55f - deficit * 0.4f, 0.05f, 1.0f);
+        }
+
+        float span = Math.max(upper - lower, 0.0001f);
+        float t = MathHelper.clamp((value - lower) / span, 0f, 1f);
+        return MathHelper.clamp(0.55f + t * 0.4f, 0.05f, 1.0f);
+    }
+
+    private static float favourCenteredBattery(float value, float midpoint, float tolerance) {
+        float lower = Math.max(0f, midpoint - tolerance);
+        float upper = Math.min(1f, midpoint + tolerance);
+
+        if (value <= lower || value >= upper) {
+            float distance = Math.min(Math.abs(value - lower), Math.abs(value - upper));
+            float normalized = MathHelper.clamp(distance / (tolerance + 0.0001f), 0f, 1f);
+            return MathHelper.clamp(0.55f - normalized * 0.35f, 0.05f, 1.0f);
+        }
+
+        float halfWindow = Math.max((upper - lower) / 2f, 0.0001f);
+        float normalizedDistance = MathHelper.clamp(Math.abs(value - midpoint) / halfWindow, 0f, 1f);
+        return MathHelper.clamp(0.95f - normalizedDistance * 0.35f, 0.05f, 1.0f);
     }
     
     /**

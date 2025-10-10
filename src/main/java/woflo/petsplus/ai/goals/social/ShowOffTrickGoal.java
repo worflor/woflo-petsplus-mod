@@ -2,6 +2,7 @@ package woflo.petsplus.ai.goals.social;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalType;
@@ -107,13 +108,25 @@ public class ShowOffTrickGoal extends AdaptiveGoal {
     @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
-        float engagement = 0.9f;
-        
-        // Very engaging if owner is watching
+        float socialCharge = MathHelper.clamp(ctx.socialCharge(), 0.0f, 1.0f);
+        float physicalStamina = MathHelper.clamp(ctx.physicalStamina(), 0.0f, 1.0f);
+        float mentalFocus = MathHelper.clamp(ctx.mentalFocus(), 0.0f, 1.0f);
+
+        float socialBlend = MathHelper.clamp((socialCharge - 0.35f) / 0.3f, -1.0f, 1.0f);
+        float engagement = MathHelper.lerp((socialBlend + 1.0f) * 0.5f, 0.42f, 0.9f);
+
+        float staminaBlend = MathHelper.clamp((physicalStamina - 0.5f) / 0.35f, -1.0f, 1.0f);
+        float staminaScale = MathHelper.lerp((staminaBlend + 1.0f) * 0.5f, 0.7f, 1.12f);
+        engagement *= staminaScale;
+
+        float focusBlend = MathHelper.clamp((mentalFocus - 0.45f) / 0.35f, -1.0f, 1.0f);
+        float focusScale = MathHelper.lerp((focusBlend + 1.0f) * 0.5f, 0.78f, 1.1f);
+        engagement *= focusScale;
+
         if (ctx.owner() != null && isOwnerLookingAtPet(ctx.owner())) {
-            engagement = 1.0f;
+            engagement = Math.max(engagement, 1.0f);
         }
-        
-        return engagement;
+
+        return MathHelper.clamp(engagement, 0.0f, 1.0f);
     }
 }

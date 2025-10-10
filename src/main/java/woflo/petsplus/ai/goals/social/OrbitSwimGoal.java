@@ -2,6 +2,7 @@ package woflo.petsplus.ai.goals.social;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
@@ -103,21 +104,27 @@ public class OrbitSwimGoal extends AdaptiveGoal {
     @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
-        float engagement = 0.85f;
-        
-        // Very engaging for playful pets
+        float socialCharge = MathHelper.clamp(ctx.socialCharge(), 0.0f, 1.0f);
+        float physicalStamina = MathHelper.clamp(ctx.physicalStamina(), 0.0f, 1.0f);
+
+        float socialBlend = MathHelper.clamp((socialCharge - 0.35f) / 0.3f, -1.0f, 1.0f);
+        float engagement = MathHelper.lerp((socialBlend + 1.0f) * 0.5f, 0.52f, 0.93f);
+
+        float staminaBlend = MathHelper.clamp((physicalStamina - 0.5f) / 0.35f, -1.0f, 1.0f);
+        float staminaScale = MathHelper.lerp((staminaBlend + 1.0f) * 0.5f, 0.75f, 1.12f);
+        engagement *= staminaScale;
+
         if (ctx.hasPetsPlusComponent() && ctx.hasMoodInBlend(
             woflo.petsplus.state.PetComponent.Mood.PLAYFUL, 0.4f)) {
-            engagement = 0.95f;
+            engagement += 0.08f;
         }
-        
-        // Engaging for bonded pets
+
         if (ctx.hasPetsPlusComponent() && ctx.hasMoodInBlend(
             woflo.petsplus.state.PetComponent.Mood.BONDED, 0.3f)) {
-            engagement += 0.1f;
+            engagement += 0.08f;
         }
-        
-        return Math.min(1.0f, engagement);
+
+        return MathHelper.clamp(engagement, 0.0f, 1.0f);
     }
 }
 

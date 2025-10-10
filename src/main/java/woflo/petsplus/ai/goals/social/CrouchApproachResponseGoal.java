@@ -1,7 +1,7 @@
 package woflo.petsplus.ai.goals.social;
 
 import net.minecraft.entity.mob.MobEntity;
-import woflo.petsplus.ai.behavior.MomentumState;
+import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.behavior.variants.*;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
@@ -24,7 +24,7 @@ import java.util.EnumSet;
  *   <ul>
  *     <li>Mood (Playful 70%, Bonded 60%, Calm 40%, Independent -80%)</li>
  *     <li>Bond strength (×1.5 multiplier at max)</li>
- *     <li>Energy level (high = 1.3x, low = 0.7x)</li>
+ *     <li>Behavioural energy stack (momentum/physical stamina/social charge)</li>
  *     <li>Species type (wolves 1.2x, cats 0.8x, horses 0.5x, etc.)</li>
  *     <li>Age (young pets 1.25x more responsive)</li>
  *     <li>Distance (close approach 1.3x, distant 0.7x)</li>
@@ -217,14 +217,26 @@ public class CrouchApproachResponseGoal extends AdaptiveGoal {
             baseChance *= 0.9f; // Mature pets slightly less impulsive
         }
         
-        // Energy level multiplier
-        MomentumState momentum = MomentumState.capture(mob);
-        if (momentum.level() == MomentumState.EnergyLevel.ENERGETIC || 
-            momentum.level() == MomentumState.EnergyLevel.HYPERACTIVE) {
-            baseChance *= 1.3f;
-        } else if (momentum.level() == MomentumState.EnergyLevel.EXHAUSTED ||
-                   momentum.level() == MomentumState.EnergyLevel.TIRED) {
-            baseChance *= 0.7f;
+        float behavioralMomentum = MathHelper.clamp(ctx.behavioralMomentum(), 0f, 1f);
+        float physicalStamina = MathHelper.clamp(ctx.physicalStamina(), 0f, 1f);
+        float socialCharge = MathHelper.clamp(ctx.socialCharge(), 0f, 1f);
+
+        float energyBoost = MathHelper.clamp((Math.max(behavioralMomentum, physicalStamina) - 0.55f) / 0.35f, 0f, 1f);
+        float fatiguePenalty = MathHelper.clamp((0.5f - Math.min(behavioralMomentum, physicalStamina)) / 0.3f, 0f, 1f);
+        if (energyBoost > 0f) {
+            baseChance *= 1.0f + (energyBoost * 0.35f);
+        }
+        if (fatiguePenalty > 0f) {
+            baseChance *= 1.0f - (fatiguePenalty * 0.45f);
+        }
+
+        float socialDelta = socialCharge - 0.45f;
+        if (socialDelta > 0f) {
+            float socialBoost = MathHelper.clamp(socialDelta / 0.35f, 0f, 1f);
+            baseChance *= 1.0f + (socialBoost * 0.4f);
+        } else if (socialDelta < 0f) {
+            float socialDamp = MathHelper.clamp(-socialDelta / 0.3f, 0f, 1f);
+            baseChance *= 1.0f - (socialDamp * 0.35f);
         }
         
         // Distance consideration - closer approach = higher response
@@ -271,10 +283,13 @@ public class CrouchApproachResponseGoal extends AdaptiveGoal {
             if (selected != null) return selected;
         }
         
+        float socialCharge = MathHelper.clamp(ctx.socialCharge(), 0f, 1f);
+        float stamina = MathHelper.clamp(ctx.physicalStamina(), 0f, 1f);
+        float momentum = MathHelper.clamp(ctx.behavioralMomentum(), 0f, 1f);
+
         if (ctx.bondStrength() > 0.7f) {
-            MomentumState momentum = MomentumState.capture(mob);
-            if (momentum.level() == MomentumState.EnergyLevel.ENERGETIC ||
-                momentum.level() == MomentumState.EnergyLevel.HYPERACTIVE) {
+            float excitement = Math.max(momentum, stamina);
+            if (excitement >= 0.65f || socialCharge >= 0.6f) {
                 selected = tryInstantiatePreferredOrDefault(ExcitedCircleVariant.class, 0);
                 if (selected != null) return selected;
             }

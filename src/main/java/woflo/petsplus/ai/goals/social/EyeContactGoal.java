@@ -213,11 +213,18 @@ public class EyeContactGoal extends AdaptiveGoal {
         float bond = MathHelper.clamp(ctx.bondStrength(), 0.0f, 1.0f);
         float attention = MathHelper.clamp(lastAttentionStrength, 0.0f, 1.0f);
         float momentum = MathHelper.clamp(ctx.behavioralMomentum(), 0.0f, 1.0f);
+        float socialCharge = MathHelper.clamp(ctx.socialCharge(), 0.0f, 1.0f);
 
         orientDuration = MathHelper.clamp(8 + Math.round((1.0f - bond) * 12.0f) - Math.round(attention * 6.0f), 6, 26);
-        softenDuration = MathHelper.clamp(10 + Math.round(attention * 14.0f) + Math.round((0.5f - Math.abs(momentum - 0.5f)) * 10.0f), 8, 32);
+        softenDuration = MathHelper.clamp(
+            10 + Math.round(attention * 14.0f)
+                + Math.round((0.5f - Math.abs(momentum - 0.5f)) * 10.0f)
+                + Math.round((socialCharge - 0.5f) * 6.0f),
+            8,
+            32);
 
         int baseConnection = 32 + Math.round(bond * 48.0f) + Math.round(attention * 16.0f);
+        baseConnection += Math.round((socialCharge - 0.5f) * 24.0f);
         if (ctx.hasPetsPlusComponent()) {
             if (ctx.hasMoodInBlend(woflo.petsplus.state.PetComponent.Mood.BONDED, 0.35f)) {
                 baseConnection += 18;
@@ -341,6 +348,17 @@ public class EyeContactGoal extends AdaptiveGoal {
         float baseChance = 0.70f; // 70% base expectation when someone is clearly engaged
 
         baseChance += (attentionStrength - 0.5f) * 0.30f;
+
+        float socialCharge = MathHelper.clamp(ctx.socialCharge(), 0.0f, 1.0f);
+        float mentalFocus = MathHelper.clamp(ctx.mentalFocus(), 0.0f, 1.0f);
+
+        float socialBlend = MathHelper.clamp((socialCharge - 0.35f) / 0.3f, -1.0f, 1.0f);
+        float socialScale = MathHelper.lerp((socialBlend + 1.0f) * 0.5f, 0.68f, 1.16f);
+        baseChance *= socialScale;
+
+        float focusBlend = MathHelper.clamp((mentalFocus - 0.45f) / 0.35f, -1.0f, 1.0f);
+        float focusScale = MathHelper.lerp((focusBlend + 1.0f) * 0.5f, 0.74f, 1.08f);
+        baseChance *= focusScale;
 
         if (observation != null) {
             float alignmentScale = MathHelper.clamp((observation.alignment() - MIN_ALIGNMENT_DOT) / (DIRECT_ALIGNMENT_DOT - MIN_ALIGNMENT_DOT), 0.0f, 1.0f);
@@ -511,23 +529,32 @@ public class EyeContactGoal extends AdaptiveGoal {
     @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
-        float engagement = 0.8f;
+        float socialCharge = MathHelper.clamp(ctx.socialCharge(), 0.0f, 1.0f);
+        float mentalFocus = MathHelper.clamp(ctx.mentalFocus(), 0.0f, 1.0f);
+
+        float socialBlend = MathHelper.clamp((socialCharge - 0.45f) / 0.25f, -1.0f, 1.0f);
+        float engagement = MathHelper.lerp((socialBlend + 1.0f) * 0.5f, 0.58f, 0.96f);
+
+        float focusBlend = MathHelper.clamp((mentalFocus - 0.5f) / 0.3f, -1.0f, 1.0f);
+        float focusScale = MathHelper.lerp((focusBlend + 1.0f) * 0.5f, 0.78f, 1.08f);
+        engagement *= focusScale;
 
         // Very engaging for bonded pets
         if (ctx.bondStrength() > 0.7f) {
-            engagement = 1.0f;
+            float bondBlend = MathHelper.clamp((ctx.bondStrength() - 0.7f) / 0.3f, 0.0f, 1.0f);
+            engagement = Math.max(engagement, MathHelper.lerp(bondBlend, 0.92f, 1.0f));
         }
 
         // Peak engagement in first few seconds (novelty)
         if (contactTicks < 20) {
-            engagement = Math.min(1.0f, engagement + 0.2f);
+            engagement += 0.2f;
         }
 
         if (activeAttention > 0.4f) {
-            engagement = Math.min(1.0f, engagement + activeAttention * 0.15f);
+            engagement += activeAttention * 0.15f;
         }
 
-        return engagement;
+        return MathHelper.clamp(engagement, 0.0f, 1.0f);
     }
 }
 

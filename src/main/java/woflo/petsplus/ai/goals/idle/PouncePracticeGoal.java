@@ -1,6 +1,7 @@
 package woflo.petsplus.ai.goals.idle;
 
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
@@ -89,7 +90,7 @@ public class PouncePracticeGoal extends AdaptiveGoal {
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.6f;
-        
+
         // Very engaging for young pets
         if (ctx.getAgeCategory() == PetContext.AgeCategory.YOUNG) {
             engagement += 0.3f;
@@ -100,8 +101,11 @@ public class PouncePracticeGoal extends AdaptiveGoal {
             woflo.petsplus.state.PetComponent.Mood.PLAYFUL, 0.3f)) {
             engagement += 0.2f;
         }
-        
-        return engagement;
+
+        engagement *= IdleEnergyTuning.energeticStaminaMultiplier(ctx.physicalStamina());
+        engagement *= IdleEnergyTuning.socialCenteredMultiplier(ctx.socialCharge());
+
+        return MathHelper.clamp(engagement, 0f, 1f);
     }
 }
 

@@ -1,6 +1,7 @@
 package woflo.petsplus.ai.goals.idle;
 
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalType;
@@ -63,6 +64,11 @@ public class CircleSpotGoal extends AdaptiveGoal {
     
     @Override
     protected float calculateEngagement() {
-        return 0.4f; // Moderately engaging
+        PetContext ctx = getContext();
+        float engagement = 0.4f; // Moderately engaging
+
+        engagement *= IdleEnergyTuning.balancedStaminaMultiplier(ctx.physicalStamina());
+
+        return MathHelper.clamp(engagement, 0f, 1f);
     }
 }

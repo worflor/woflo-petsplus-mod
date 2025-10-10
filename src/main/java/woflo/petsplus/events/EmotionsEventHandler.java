@@ -77,6 +77,7 @@ import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
 import woflo.petsplus.config.MoodEngineConfig;
 import woflo.petsplus.mood.EmotionBaselineTracker;
 import woflo.petsplus.mood.EmotionStimulusBus;
@@ -1519,13 +1520,45 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 // Day idle - energy-based response
                 pendingWork.add(applyStimulusToComponents(nearbyComponents.values(),
                     (pc, collector) -> {
-                        // High-energy pets get restless and playful
-                        // TODO: Check pet's energy characteristic when available
-                        collector.pushEmotion(PetComponent.Emotion.KEFI, 0.15f);  // Bored energy
-                        collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.20f);  // Want to play
-                        // Cap Ennui for repetitive idle
+                        BehaviouralEnergyProfile profile = Optional.ofNullable(pc.getMoodEngine())
+                            .map(engine -> engine.getBehaviouralEnergyProfile())
+                            .orElseGet(BehaviouralEnergyProfile::neutral);
+
+                        float momentum = MathHelper.clamp(profile.momentum(), 0f, 1f);
+                        float physicalStamina = MathHelper.clamp(profile.physicalStamina(), 0f, 1f);
+                        float socialCharge = MathHelper.clamp(profile.socialCharge(), 0f, 1f);
+
+                        float highEnergy = MathHelper.clamp((Math.max(momentum, physicalStamina) - 0.55f) / 0.35f, 0f, 1f);
+                        float lowEnergy = MathHelper.clamp((0.5f - Math.min(momentum, physicalStamina)) / 0.3f, 0f, 1f);
+
+                        float kefiIntensity = (0.08f + 0.18f * highEnergy) * (1f - 0.7f * lowEnergy);
+                        float playfulnessIntensity = (0.10f + 0.20f * highEnergy) * (1f - 0.65f * lowEnergy);
+
+                        if (playfulnessIntensity > 0.025f) {
+                            collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, playfulnessIntensity);
+                        }
+                        if (kefiIntensity > 0.02f) {
+                            collector.pushEmotion(PetComponent.Emotion.KEFI, kefiIntensity);
+                        }
+
+                        if (lowEnergy > 0.45f) {
+                            float comfort = 0.08f + 0.07f * lowEnergy;
+                            collector.pushEmotion(PetComponent.Emotion.LAGOM, comfort);
+                        }
+
                         if (plan.idleTicks() >= 6000L) {  // >10 minutes
-                            collector.pushEmotion(PetComponent.Emotion.ENNUI, Math.min(0.10f, plan.idleTicks() / 36000f));
+                            float ennuiBase = Math.min(0.10f, plan.idleTicks() / 36000f);
+                            float socialDeficit = MathHelper.clamp((0.4f - socialCharge) / 0.25f, 0f, 1f);
+                            if (lowEnergy > 0.4f && socialDeficit > 0.25f) {
+                                float fatigueBias = Math.max(lowEnergy, socialDeficit);
+                                ennuiBase = Math.max(ennuiBase, 0.05f + fatigueBias * 0.08f);
+                            }
+                            collector.pushEmotion(PetComponent.Emotion.ENNUI, ennuiBase);
+                        } else {
+                            float socialDeficit = MathHelper.clamp((0.35f - socialCharge) / 0.25f, 0f, 1f);
+                            if (lowEnergy > 0.5f && socialDeficit > 0.5f) {
+                                collector.pushEmotion(PetComponent.Emotion.ENNUI, 0.04f + 0.04f * socialDeficit);
+                            }
                         }
                     }, builder, world));
                 pendingCues.add(() -> EmotionContextCues.sendCue(player, "idle.restless",

@@ -311,7 +311,7 @@ public abstract class AdaptiveGoal extends Goal {
      */
     protected boolean isEnergyCompatible() {
         MomentumState momentum = MomentumState.capture(mob);
-        return goalType.isEnergyCompatible(momentum.momentum());
+        return goalType.isEnergyCompatible(momentum.energyProfile());
     }
     
     /**

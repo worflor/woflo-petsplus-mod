@@ -1,6 +1,7 @@
 package woflo.petsplus.ai.goals.play;
 
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
@@ -132,7 +133,18 @@ public class AerialAcrobaticsGoal extends AdaptiveGoal {
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.9f;
-        
+
+        float physicalStamina = MathHelper.clamp(ctx.physicalStamina(), 0.0f, 1.0f);
+        float momentum = MathHelper.clamp(ctx.behavioralMomentum(), 0.0f, 1.0f);
+
+        float staminaBlend = MathHelper.clamp((physicalStamina - 0.55f) / 0.35f, -1.0f, 1.0f);
+        float staminaScale = MathHelper.lerp((staminaBlend + 1.0f) * 0.5f, 0.6f, 1.2f);
+        engagement *= staminaScale;
+
+        float momentumBlend = MathHelper.clamp((momentum - 0.55f) / 0.3f, -1.0f, 1.0f);
+        float momentumScale = MathHelper.lerp((momentumBlend + 1.0f) * 0.5f, 0.7f, 1.16f);
+        engagement *= momentumScale;
+
         // Very engaging for playful pets
         if (ctx.hasPetsPlusComponent() && ctx.hasMoodInBlend(
             woflo.petsplus.state.PetComponent.Mood.PLAYFUL, 0.5f)) {
@@ -144,7 +156,7 @@ public class AerialAcrobaticsGoal extends AdaptiveGoal {
             engagement = 1.0f;
         }
         
-        return engagement;
+        return MathHelper.clamp(engagement, 0.0f, 1.0f);
     }
 }
 
