@@ -8,6 +8,8 @@ import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
@@ -33,6 +35,7 @@ import net.minecraft.block.BedBlock;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.ChestBlock;
 import net.minecraft.block.JukeboxBlock;
 import net.minecraft.block.CampfireBlock;
@@ -72,7 +75,9 @@ import net.minecraft.world.Heightmap;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.config.MoodEngineConfig;
 import woflo.petsplus.mood.EmotionBaselineTracker;
 import woflo.petsplus.mood.EmotionStimulusBus;
 import woflo.petsplus.mood.MoodService;
@@ -87,10 +92,12 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
@@ -149,6 +156,18 @@ public final class EmotionsEventHandler {
     private static final float ARCANE_POWER_REDUCTION = 0.4f;
     private static final float ARCANE_STREAK_REDUCTION = 0.3f;
     private static final float ARCANE_EB_BONUS = 0.5f;
+    private static final Set<Block> ARCANE_STRUCTURE_DEFAULT_BLOCKS = Set.of(
+        Blocks.ENCHANTING_TABLE,
+        Blocks.AMETHYST_BLOCK,
+        Blocks.RESPAWN_ANCHOR,
+        Blocks.BEACON,
+        Blocks.BREWING_STAND,
+        Blocks.END_PORTAL_FRAME,
+        Blocks.SCULK_CATALYST
+    );
+    private static final Object ARCANE_STRUCTURE_CACHE_LOCK = new Object();
+    private static volatile Set<Identifier> cachedArcaneStructureIds = Set.of();
+    private static volatile int cachedArcaneStructureGeneration = -1;
 
     private static final String STATE_LAST_LEASH_SOCIAL_TICK = "social_leash_last_tick";
     private static final String STATE_LAST_LEASH_MODE = "social_leash_last_mode";
@@ -284,6 +303,10 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 FeedbackManager.emitContagionFeedback(pc.getPet(), (ServerWorld) sp.getEntityWorld(), PetComponent.Emotion.CURIOUS);
             });
         }
+
+        if (world instanceof ServerWorld serverWorld) {
+            invalidateArcaneAmbient(serverWorld, pos, state);
+        }
     }
 
     static void emitOwnerBrokeBlockTrigger(ServerPlayerEntity player, BlockPos pos, BlockState state) {
@@ -325,6 +348,107 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             Petsplus.LOGGER.debug("Failed to resolve block identifier for payload", e);
             return Optional.empty();
         }
+    }
+
+    public static boolean isArcaneAmbientContributor(@Nullable BlockState state) {
+        if (state == null) {
+            return false;
+        }
+        Block block = state.getBlock();
+        if (ARCANE_STRUCTURE_DEFAULT_BLOCKS.contains(block)) {
+            return true;
+        }
+
+        Identifier id = Registries.BLOCK.getId(block);
+        if (id == null) {
+            return false;
+        }
+
+        ensureArcaneStructureCache();
+        return cachedArcaneStructureIds.contains(id);
+    }
+
+    public static void invalidateArcaneAmbientForBlockEntity(@Nullable BlockEntity blockEntity) {
+        if (blockEntity == null) {
+            return;
+        }
+        World world = blockEntity.getWorld();
+        if (!(world instanceof ServerWorld serverWorld)) {
+            return;
+        }
+
+        BlockPos pos = blockEntity.getPos();
+        BlockState state = blockEntity.getCachedState();
+        if (state == null) {
+            state = serverWorld.getBlockState(pos);
+        }
+
+        if (!isArcaneAmbientContributor(state)) {
+            return;
+        }
+
+        StateManager.invalidateArcaneAmbientAt(serverWorld, pos);
+    }
+
+    private static void ensureArcaneStructureCache() {
+        MoodEngineConfig config = MoodEngineConfig.get();
+        int generation = config.getGeneration();
+        if (cachedArcaneStructureGeneration == generation) {
+            return;
+        }
+
+        synchronized (ARCANE_STRUCTURE_CACHE_LOCK) {
+            if (cachedArcaneStructureGeneration == generation) {
+                return;
+            }
+
+            JsonObject moods = config.getMoodsSection();
+            JsonObject arcaneSection = RegistryJsonHelper.getObject(moods, "arcaneOverflow");
+            JsonObject weights = RegistryJsonHelper.getObject(arcaneSection, "structureWeights");
+
+            Set<Identifier> resolved = new HashSet<>();
+            if (weights != null) {
+                for (Map.Entry<String, JsonElement> entry : weights.entrySet()) {
+                    JsonElement value = entry.getValue();
+                    if (value == null || !value.isJsonPrimitive()) {
+                        continue;
+                    }
+                    if (!value.getAsJsonPrimitive().isNumber()) {
+                        continue;
+                    }
+                    if (value.getAsFloat() <= 0f) {
+                        continue;
+                    }
+                    Identifier id = Identifier.tryParse(entry.getKey());
+                    if (id != null) {
+                        resolved.add(id);
+                    }
+                }
+            }
+
+            cachedArcaneStructureIds = resolved.isEmpty() ? Set.of() : Set.copyOf(resolved);
+            cachedArcaneStructureGeneration = generation;
+        }
+    }
+
+    private static void invalidateArcaneAmbient(ServerWorld world, BlockPos pos, @Nullable BlockState state) {
+        if (world == null || pos == null || state == null) {
+            return;
+        }
+        if (!isArcaneAmbientContributor(state)) {
+            return;
+        }
+        StateManager.invalidateArcaneAmbientAt(world, pos);
+    }
+
+    private static void invalidateArcaneAmbientForPlacement(ServerWorld world, BlockPos pos, @Nullable BlockState preview) {
+        if (world == null || pos == null || preview == null) {
+            return;
+        }
+        if (!isArcaneAmbientContributor(preview)) {
+            return;
+        }
+        StateManager.invalidateArcaneAmbientAt(world, pos);
     }
 
     interface BlockIdentifierProvider {
@@ -515,6 +639,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
     // ==== Block Use → Homey stations, beds, jukebox ====
     private static ActionResult onUseBlock(PlayerEntity player, World world, Hand hand, net.minecraft.util.hit.BlockHitResult hitResult) {
         if (world.isClient() || !(player instanceof ServerPlayerEntity sp)) return ActionResult.PASS;
+        if (!(world instanceof ServerWorld serverWorld)) return ActionResult.PASS;
         BlockPos pos = hitResult.getBlockPos();
         var state = world.getBlockState(pos);
         EmotionCueConfig config = EmotionCueConfig.get();
@@ -547,7 +672,11 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.JUKEBOX_PLAY);
         }
 
-        if (state.isOf(Blocks.ENCHANTING_TABLE) || state.isOf(Blocks.ANVIL) || 
+        if (isArcaneAmbientContributor(state)) {
+            invalidateArcaneAmbient(serverWorld, pos, state);
+        }
+
+        if (state.isOf(Blocks.ENCHANTING_TABLE) || state.isOf(Blocks.ANVIL) ||
             state.isOf(Blocks.CHIPPED_ANVIL) || state.isOf(Blocks.DAMAGED_ANVIL)) {
             triggerArcaneOverflow(sp, world);
         }
@@ -724,13 +853,16 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
         if (held.getItem() instanceof BlockItem blockItem) {
             BlockState defaultState = blockItem.getBlock().getDefaultState();
-            
+
             // Building/placing blocks - appreciation of creation
             pushToNearbyOwnedPets(sp, 16, (pc, collector) -> {
                 collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.15f);  // Appreciation of creation
                 collector.pushEmotion(PetComponent.Emotion.FOCUSED, 0.10f);  // Watching owner work
             });
-            
+
+            BlockPos placementPos = pos.offset(hitResult.getSide());
+            invalidateArcaneAmbientForPlacement(serverWorld, placementPos, defaultState);
+
             if (defaultState.isIn(BlockTags.SAPLINGS)) {
                 NatureFlavorHandler.triggerForOwner(sp, 32, Trigger.PLACE_SAPLING);
             }
@@ -910,6 +1042,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
     private static final Map<ServerWorld, TimePhase> TIME_PHASES = new WeakHashMap<>();
 
     private static final long OWNER_KILL_STREAK_WINDOW = 200L;
+    private static final double OWNER_NEARBY_RADIUS = 8.0d;
+    private static final float OWNER_ABSENT_DISTANCE = Float.MAX_VALUE;
 
     private static final class OwnerKillStreak {
         private int streakCount;
@@ -1202,8 +1336,12 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         ServerPlayerEntity owner = frame.owner();
         ServerWorld world = frame.world();
         if (owner == null || world == null) {
+            stampOwnerProximity(frame, frame.currentTick(), null);
             return false;
         }
+
+        long now = frame.currentTick();
+        stampOwnerProximity(frame, now, owner);
 
         Map<UUID, PetComponent> nearbyComponents = collectNearbyPetComponents(frame, 32.0d);
         if (nearbyComponents.isEmpty()) {
@@ -1218,7 +1356,6 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             activitySamples.add(new IdlePetSample(component.getLastAttackTick()));
         }
 
-        long now = frame.currentTick();
         IdleMaintenancePayload payload = new IdleMaintenancePayload(
             now,
             Math.max(0L, now - state.lastMovementTick),
@@ -1249,6 +1386,55 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             return null;
         });
         return true;
+    }
+
+    private static void stampOwnerProximity(OwnerEventFrame frame,
+                                            long now,
+                                            @Nullable ServerPlayerEntity owner) {
+        ServerWorld world = frame.world();
+        String dimensionId = world != null ? world.getRegistryKey().getValue().toString() : null;
+        Set<PetComponent> seen = new HashSet<>();
+
+        if (owner != null && world != null) {
+            double ownerX = owner.getX();
+            double ownerY = owner.getY();
+            double ownerZ = owner.getZ();
+            double nearbyRadiusSq = OWNER_NEARBY_RADIUS * OWNER_NEARBY_RADIUS;
+
+            for (PetSwarmIndex.SwarmEntry entry : frame.swarmSnapshot()) {
+                PetComponent component = entry.component();
+                if (component == null) {
+                    continue;
+                }
+                seen.add(component);
+
+                double dx = entry.x() - ownerX;
+                double dy = entry.y() - ownerY;
+                double dz = entry.z() - ownerZ;
+                double distSq = dx * dx + dy * dy + dz * dz;
+                float distance = (float) Math.sqrt(distSq);
+
+                component.setStateData(PetComponent.StateKeys.OWNER_LAST_SEEN_TICK, now);
+                component.setStateData(PetComponent.StateKeys.OWNER_LAST_SEEN_DISTANCE, distance);
+                component.setStateData(PetComponent.StateKeys.OWNER_LAST_SEEN_DIMENSION, dimensionId);
+
+                if (distSq <= nearbyRadiusSq) {
+                    component.setStateData(PetComponent.StateKeys.OWNER_LAST_NEARBY_TICK, now);
+                    component.setStateData(PetComponent.StateKeys.OWNER_LAST_NEARBY_DISTANCE, distance);
+                }
+            }
+        }
+
+        if (!frame.pets().isEmpty()) {
+            for (PetComponent component : frame.pets()) {
+                if (component == null || seen.contains(component)) {
+                    continue;
+                }
+                component.setStateData(PetComponent.StateKeys.OWNER_LAST_SEEN_TICK, now);
+                component.setStateData(PetComponent.StateKeys.OWNER_LAST_SEEN_DISTANCE, OWNER_ABSENT_DISTANCE);
+                component.setStateData(PetComponent.StateKeys.OWNER_LAST_SEEN_DIMENSION, dimensionId);
+            }
+        }
     }
 
     private static IdleMaintenancePlan computeIdleMaintenancePlan(IdleMaintenancePayload payload) {
@@ -2366,8 +2552,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             PetComponent pc = PetComponent.get(pet);
             if (pc == null) continue;
             
-            long lastEnchantTime = pc.getStateData("arcane_last_enchant_time", Long.class, 0L);
-            int enchantStreak = pc.getStateData("arcane_enchant_streak", Integer.class, 0);
+            long lastEnchantTime = pc.getStateData(PetComponent.StateKeys.ARCANE_LAST_ENCHANT_TICK, Long.class, 0L);
+            int enchantStreak = pc.getStateData(PetComponent.StateKeys.ARCANE_ENCHANT_STREAK, Integer.class, 0);
             
             // Reset streak if timeout elapsed
             if (currentTime - lastEnchantTime > ARCANE_STREAK_TIMEOUT) {
@@ -2376,8 +2562,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             
             // Increment streak
             enchantStreak++;
-            pc.setStateData("arcane_enchant_streak", enchantStreak);
-            pc.setStateData("arcane_last_enchant_time", currentTime);
+            pc.setStateData(PetComponent.StateKeys.ARCANE_ENCHANT_STREAK, enchantStreak);
+            pc.setStateData(PetComponent.StateKeys.ARCANE_LAST_ENCHANT_TICK, currentTime);
             
             // Power-based trigger (no RNG)
             float powerFactor = Math.min(1.0f, bookshelfPower / (float) ARCANE_MAX_ENCHANTING_POWER);
@@ -2391,18 +2577,23 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             if (triggerThreshold <= 0f) {
                 float intensityScale = 1.0f + powerFactor + (enchantmentBoundCount * 0.15f);
                 
-                pc.pushEmotion(PetComponent.Emotion.ARCANE_OVERFLOW, Math.min(1.0f, 0.70f * intensityScale));
+                float overflowIntensity = Math.min(1.0f, 0.70f * intensityScale);
+                pc.pushEmotion(PetComponent.Emotion.ARCANE_OVERFLOW, overflowIntensity);
                 pc.pushEmotion(PetComponent.Emotion.CURIOUS, 0.40f * intensityScale);
                 pc.pushEmotion(PetComponent.Emotion.KEFI, 0.35f * intensityScale);
-                
+
                 // Enchantment-Bound pets feel it more strongly
                 if (pc.hasRole(PetRoleType.ENCHANTMENT_BOUND)) {
-                    pc.pushEmotion(PetComponent.Emotion.ARCANE_OVERFLOW, 0.40f * intensityScale); // Stack bonus
+                    float bonusIntensity = Math.min(1.0f, 0.40f * intensityScale);
+                    pc.pushEmotion(PetComponent.Emotion.ARCANE_OVERFLOW, bonusIntensity); // Stack bonus
                     pc.pushEmotion(PetComponent.Emotion.FOCUSED, 0.30f * intensityScale);
+                    overflowIntensity = Math.min(1.0f, overflowIntensity + bonusIntensity);
                 }
-                
+
                 // Reset streak after successful trigger
-                pc.setStateData("arcane_enchant_streak", 0);
+                pc.setStateData(PetComponent.StateKeys.ARCANE_ENCHANT_STREAK, 0);
+                pc.setStateData(PetComponent.StateKeys.ARCANE_LAST_SURGE_TICK, currentTime);
+                pc.setStateData(PetComponent.StateKeys.ARCANE_SURGE_STRENGTH, overflowIntensity);
             }
         }
         
@@ -4333,6 +4524,10 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
         BlockPos pos = hitResult.getBlockPos();
         net.minecraft.block.BlockState state = world.getBlockState(pos);
+
+        if (world instanceof ServerWorld serverWorld) {
+            invalidateArcaneAmbient(serverWorld, pos, state);
+        }
 
         // Check if it's an enchanting table using block tags (flexible)
         if (state.isIn(BlockTags.ENCHANTMENT_POWER_PROVIDER) || state.isOf(Blocks.ENCHANTING_TABLE)) {

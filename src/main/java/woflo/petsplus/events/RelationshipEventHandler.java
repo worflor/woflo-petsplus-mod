@@ -5,6 +5,7 @@ import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.relationships.InteractionType;
 
@@ -21,6 +22,24 @@ import java.util.UUID;
  * - Proximity (passive)
  */
 public class RelationshipEventHandler {
+
+    private RelationshipEventHandler() {
+    }
+
+    private static void stampOwnerPositiveCue(PetComponent pc, MobEntity pet, String key) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+        pc.setStateData(key, serverWorld.getTime());
+    }
+
+    private static boolean isOwner(PetComponent pc, LivingEntity actor) {
+        if (!(actor instanceof PlayerEntity player)) {
+            return false;
+        }
+        UUID ownerUuid = pc.getOwnerUuid();
+        return ownerUuid != null && ownerUuid.equals(player.getUuid());
+    }
     
     /**
      * Record feeding interaction.
@@ -55,6 +74,10 @@ public class RelationshipEventHandler {
             affectionMult,
             respectMult
         );
+
+        if (isOwner(pc, feeder)) {
+            stampOwnerPositiveCue(pc, pet, PetComponent.StateKeys.LAST_FEED_TICK);
+        }
     }
     
     /**
@@ -395,6 +418,10 @@ public class RelationshipEventHandler {
             affectionMult,
             0.9f  // Play reduces authority perception
         );
+
+        if (isOwner(pc, player)) {
+            stampOwnerPositiveCue(pc, pet, PetComponent.StateKeys.LAST_PLAY_INTERACTION_TICK);
+        }
     }
     
     /**
@@ -427,6 +454,10 @@ public class RelationshipEventHandler {
             1.0f,
             1.0f
         );
+
+        if (isOwner(pc, approacher)) {
+            stampOwnerPositiveCue(pc, pet, PetComponent.StateKeys.LAST_CROUCH_CUDDLE_TICK);
+        }
     }
     
     /**
@@ -454,6 +485,10 @@ public class RelationshipEventHandler {
             valueMult * 1.2f,  // Affection scales more
             valueMult * 0.8f
         );
+
+        if (isOwner(pc, giver)) {
+            stampOwnerPositiveCue(pc, pet, PetComponent.StateKeys.LAST_GIFT_TICK);
+        }
     }
     
     /**

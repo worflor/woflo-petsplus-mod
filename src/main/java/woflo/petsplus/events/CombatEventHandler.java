@@ -42,6 +42,7 @@ import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.emotions.PetMoodEngine;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
 import woflo.petsplus.roles.guardian.GuardianBulwark;
 import woflo.petsplus.roles.striker.StrikerExecution;
@@ -98,6 +99,7 @@ public class CombatEventHandler {
     private static final double OWNER_ASSIST_CHAIN_RADIUS = 5.0;
     private static final int OWNER_INTERCEPT_COOLDOWN_TICKS = 40;
     private static final TagKey<EntityType<?>> VANILLA_CREEPER_SOOTHER_TAG = TagKey.of(RegistryKeys.ENTITY_TYPE, Identifier.of("minecraft", "scares_creepers"));
+    private static final float OWNER_LOW_HEALTH_THRESHOLD = 0.45f;
 
     public static void register() {
         // Register damage events
@@ -676,6 +678,21 @@ public class CombatEventHandler {
                     }
 
                     pc.setLastAttackTick(now);
+
+                    float severity = MathHelper.clamp((damageIntensity * 0.6f) + (ownerDangerFactor * 0.4f), 0f, 1f);
+                    pc.setStateData(PetComponent.StateKeys.OWNER_LAST_HURT_TICK, now);
+                    pc.setStateData(PetComponent.StateKeys.OWNER_LAST_HURT_SEVERITY, severity);
+                    pc.setStateData(PetComponent.StateKeys.OWNER_LAST_HEALTH_RATIO,
+                        MathHelper.clamp((float) healthPct, 0f, 1f));
+                    if (healthPct <= OWNER_LOW_HEALTH_THRESHOLD) {
+                        pc.setStateData(PetComponent.StateKeys.OWNER_LAST_LOW_HEALTH_TICK, now);
+                    }
+
+                    float hazardSeverity = PetMoodEngine.computeStatusHazardSeverity(owner);
+                    if (hazardSeverity > 0f) {
+                        pc.setStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_TICK, now);
+                        pc.setStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_SEVERITY, hazardSeverity);
+                    }
 
                     float closeness = 0.35f + 0.65f * proximityFactor(owner, pet, 32.0);
                     float angstWeight = scaledAmount(0.16f, 0.50f, damageIntensity) * closeness;

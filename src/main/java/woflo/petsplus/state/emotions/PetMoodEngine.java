@@ -2,18 +2,49 @@ package woflo.petsplus.state.emotions;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.RespawnAnchorBlock;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.ItemEnchantmentsComponent;
+import net.minecraft.enchantment.Enchantment;
+import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.effect.StatusEffect;
+import net.minecraft.entity.effect.StatusEffectCategory;
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffects;
+import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.registry.Registries;
+import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.registry.tag.BiomeTags;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.block.entity.BlockEntityType;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.text.TextColor;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.Identifier;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.ChunkSectionPos;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.World;
+import net.minecraft.world.biome.Biome;
+import net.minecraft.world.biome.BiomeKeys;
 import org.jetbrains.annotations.Nullable;
+import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.config.MoodEngineConfig;
 import woflo.petsplus.config.PetsPlusConfig;
+import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.ui.UIStyle;
 
 import java.util.ArrayDeque;
@@ -23,9 +54,16 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.ReflectiveOperationException;
 
 /**
  * Sophisticated emotional intelligence system for Minecraft pets that creates realistic,
@@ -107,6 +145,12 @@ public final class PetMoodEngine {
     private static final int[] BASE_BREATHING_SPEEDS = {300, 200, 120};
     private static final int[] BASE_GRADIENT_SPEEDS = {280, 180, 100};
     private static final int[] BASE_SHIMMER_SPEEDS = {240, 150, 80};
+    private static final EquipmentSlot[] ARMOR_SLOTS = {
+        EquipmentSlot.HEAD,
+        EquipmentSlot.CHEST,
+        EquipmentSlot.LEGS,
+        EquipmentSlot.FEET
+    };
 
     /**
      * Authored default emotion-to-mood mapping derived from the narrative clusters described in the
@@ -117,6 +161,10 @@ public final class PetMoodEngine {
      */
     private static final EnumMap<PetComponent.Emotion, EnumMap<PetComponent.Mood, Float>>
             DEFAULT_EMOTION_TO_MOOD = buildDefaultEmotionToMoodTable();
+
+    private static volatile int cachedArcaneAmbientConfigGeneration = -1;
+    private static final ConcurrentMap<String, Optional<Field>> ARCANE_REFLECTION_FIELD_CACHE = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<String, Optional<Method>> ARCANE_REFLECTION_METHOD_CACHE = new ConcurrentHashMap<>();
 
     private final PetComponent parent;
 
@@ -208,6 +256,8 @@ public final class PetMoodEngine {
     private final Map<String, Float> cachedEmotionDecayMultipliers = new java.util.HashMap<>();
     private final java.util.Set<String> cachedNegativeEmotions = new java.util.HashSet<>();
     private final java.util.Set<String> cachedPositiveEmotions = new java.util.HashSet<>();
+    private final EnumMap<PetComponent.Emotion, Map<PetComponent.Mood, Float>> resolvedWeightCache =
+            new EnumMap<>(PetComponent.Emotion.class);
     
     private float cachedHabituationBase = HABITUATION_BASE;
     private float cachedHalfLifeMultiplier = HALF_LIFE_MULTIPLIER;
@@ -224,6 +274,81 @@ public final class PetMoodEngine {
     private float cachedRelationshipVariance = RELATIONSHIP_VARIANCE;
     private float cachedCarePulseHalfLife = CARE_PULSE_HALF_LIFE;
     private float cachedDangerHalfLife = DANGER_HALF_LIFE;
+    private double cachedPackSpiritRadius = 12.0d;
+    private int cachedPackSpiritMinPackmates = 1;
+    private long cachedPackSpiritGraceTicks = 140L;
+    private float cachedPackSpiritBondBonus = 0.3f;
+    private float cachedPackSpiritBaseContribution = 0.25f;
+    private float cachedPackSpiritClosenessWeight = 0.55f;
+    private float cachedPackSpiritCombatBonus = 0.25f;
+    private float cachedPackSpiritProtectiveWeight = 0.35f;
+    private float cachedPackSpiritFocusedWeight = 0.2f;
+    private float cachedPackSpiritPlayfulWeight = 0.1f;
+    private float cachedPackSpiritDiversityBonus = 0.15f;
+    private float cachedPackSpiritEngagementMax = 1.35f;
+    private final EnumMap<PetRoleType.RoleArchetype, Float> cachedPackSpiritRoleWeights =
+            new EnumMap<>(PetRoleType.RoleArchetype.class);
+    private int cachedOwnerDamageWindow = 160;
+    private long cachedOwnerDangerGraceTicks = 200L;
+    private long cachedOwnerLowHealthGraceTicks = 260L;
+    private float cachedOwnerLowHealthThreshold = 0.45f;
+    private float cachedOwnerCriticalHealthThreshold = 0.25f;
+    private long cachedOwnerStatusHazardGraceTicks = 180L;
+    private float cachedOwnerStatusHazardThreshold = 0.25f;
+    private long cachedArcaneOverflowLingerTicks = 220L;
+    private long cachedArcaneOverflowStreakGraceTicks = 200L;
+    private long cachedArcaneOverflowStatusGraceTicks = 160L;
+    private int cachedArcaneOverflowAmbientScanRadius = 4;
+    private float cachedArcaneOverflowMinimumEnergy = 0.25f;
+    private float cachedArcaneAmbientStructureBaseWeight = 0.35f;
+    private float cachedArcaneAmbientStructureMaxEnergy = 0.85f;
+    private float cachedArcaneAmbientDistanceExponent = 1.0f;
+    private float cachedArcaneAmbientMysticBonus = 0.2f;
+    private Map<Identifier, Float> cachedArcaneAmbientStructureWeights = new HashMap<>();
+    private float cachedArcaneRespawnAnchorEmptyMultiplier = 0.0f;
+    private float cachedArcaneRespawnAnchorChargeStep = 0.25f;
+    private float cachedArcaneRespawnAnchorMaxMultiplier = 1.0f;
+    private float cachedArcaneBeaconBaseMultiplier = 0.6f;
+    private float cachedArcaneBeaconPerLevelMultiplier = 0.25f;
+    private float cachedArcaneBeaconMaxMultiplier = 2.0f;
+    private long cachedArcaneCatalystRecentBloomTicks = 400L;
+    private float cachedArcaneCatalystActiveMultiplier = 1.0f;
+    private float cachedArcaneCatalystInactiveMultiplier = 0.25f;
+    private float cachedArcaneGearBaseWeight = 0.08f;
+    private float cachedArcaneGearLevelWeight = 0.06f;
+    private float cachedArcaneGearMaxContribution = 0.8f;
+    private float cachedArcaneGearOwnerMultiplier = 0.75f;
+    private float cachedArcaneGearPetMultiplier = 1.0f;
+    private float cachedArcaneStatusBaseWeight = 0.12f;
+    private float cachedArcaneStatusAmplifierWeight = 0.08f;
+    private float cachedArcaneStatusDurationWeight = 0.05f;
+    private float cachedArcaneStatusDurationCap = 3.0f;
+    private int cachedArcaneStatusDurationReference = 200;
+    private float cachedArcaneStatusMaxContribution = 0.6f;
+    private float cachedArcaneStatusOwnerMultiplier = 1.0f;
+    private float cachedArcaneStatusPetMultiplier = 1.15f;
+    private double cachedLonelyComfortRadius = 8.0d;
+    private double cachedLonelyComfortRadiusSquared = 64.0d;
+    private double cachedLonelyDistanceThreshold = 24.0d;
+    private double cachedLonelyDistanceThresholdSquared = 576.0d;
+    private long cachedLonelySaudadeGraceTicks = 400L;
+    private long cachedLonelyHiraethGraceTicks = 900L;
+    private long cachedLonelyOfflineGraceTicks = 200L;
+    private long cachedLonelyOfflineHiraethGraceTicks = 600L;
+    private long cachedLonelySocialGraceTicks = 260L;
+    private long cachedLonelyPackGraceTicks = 320L;
+    private float cachedLonelyPackStrengthThreshold = 0.2f;
+    private double cachedLonelyPackRadius = 16.0d;
+    private double cachedLonelyPackRadiusSquared = 256.0d;
+    private long cachedPositivePetGraceTicks = 200L;
+    private long cachedPositiveCrouchGraceTicks = 160L;
+    private long cachedPositiveSocialGraceTicks = 200L;
+    private long cachedPositivePlayGraceTicks = 240L;
+    private long cachedPositiveFeedGraceTicks = 260L;
+    private long cachedPositiveGiftGraceTicks = 360L;
+    private long cachedArcaneScanCooldownTicks = 80L;
+    private double cachedArcaneScanMovementThreshold = 3.0d;
+    private double cachedArcaneScanMovementThresholdSquared = 9.0d;
 
     private final EnumMap<PetComponent.Emotion, EnumSet<PetComponent.Emotion>> opponentPairs =
             new EnumMap<>(PetComponent.Emotion.class);
@@ -1766,13 +1891,11 @@ public final class PetMoodEngine {
      * Used for condition-aware decay and persistence bonuses.
      */
     private boolean hasOngoingCondition(PetComponent.Emotion emotion, long now) {
+        ensureConfigCache();
         switch (emotion) {
             case SAUDADE:
             case HIRAETH:
-                // Owner absence: check if owner is far or hasn't interacted recently
-                Long lastPetTime = parent.getStateData(PetComponent.StateKeys.LAST_PET_TIME, Long.class);
-                if (lastPetTime == null) return false;
-                return (now - lastPetTime) > 600; // >30 seconds without petting
+                return checkLoneliness(emotion, now);
 
             case FOREBODING:
             case STARTLE:
@@ -1784,16 +1907,11 @@ public final class PetMoodEngine {
 
             case GUARDIAN_VIGIL:
             case PROTECTIVE:
-                // Owner in danger or low health - simplified check
-                // Would need to check owner entity if available in parent
-                return false; // TODO: Implement owner health check if API available
+                return checkOwnerDanger(now);
 
             case CONTENT:
             case CHEERFUL:
-                // Positive stimuli: check recent petting or play
-                Long recentPet = parent.getStateData(PetComponent.StateKeys.LAST_PET_TIME, Long.class);
-                if (recentPet == null) return false;
-                return (now - recentPet) < 200; // <10 seconds since petting
+                return hasPositiveComfort(emotion, now);
 
             case ECHOED_RESONANCE:
                 // Echoed Resonance persists when both bond AND danger are present
@@ -1802,19 +1920,997 @@ public final class PetMoodEngine {
                 return bondStrength > 3000 && (lastDangerEchoed != Long.MIN_VALUE && (now - lastDangerEchoed) < DANGER_HALF_LIFE * 1.5f);
 
             case PACK_SPIRIT:
-                // Pack Spirit persists when pet is near other pets or owner
-                // TODO: Implement proximity check when multi-pet API is available
-                return false;
+                return checkPackSpiritProximity(now);
 
             case ARCANE_OVERFLOW:
-                // Arcane Overflow: check if enchanted or in magical biome
-                // TODO: Implement enchantment/biome check when API is available
-                return false;
+                return hasArcaneMomentum(now);
 
             default:
                 // Most emotions don't have persistent conditions
                 return false;
         }
+    }
+
+    private boolean checkOwnerDanger(long now) {
+        long lastHurtTick = parent.getStateData(PetComponent.StateKeys.OWNER_LAST_HURT_TICK, Long.class, 0L);
+        float storedSeverity = parent.getStateData(PetComponent.StateKeys.OWNER_LAST_HURT_SEVERITY, Float.class, 0f);
+        long lastLowHealthTick = parent.getStateData(PetComponent.StateKeys.OWNER_LAST_LOW_HEALTH_TICK, Long.class, 0L);
+        long lastHazardTick = parent.getStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_TICK, Long.class, 0L);
+        float lastHazardSeverity = parent.getStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_SEVERITY,
+            Float.class, 0f);
+
+        if (lastHurtTick > 0L) {
+            long elapsed = now - lastHurtTick;
+            if (elapsed <= cachedOwnerDangerGraceTicks) {
+                if (elapsed <= cachedOwnerDamageWindow) {
+                    return true;
+                }
+                if (MathHelper.clamp(storedSeverity, 0f, 1f) >= 0.35f) {
+                    return true;
+                }
+            }
+        }
+
+        if (lastLowHealthTick > 0L && (now - lastLowHealthTick) <= cachedOwnerLowHealthGraceTicks) {
+            return true;
+        }
+
+        PlayerEntity owner = parent.getOwner();
+        if (owner != null) {
+            float hazardSeverity = computeStatusHazardSeverity(owner);
+            if (hazardSeverity > 0f) {
+                parent.setStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_TICK, now);
+                parent.setStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_SEVERITY, hazardSeverity);
+                lastHazardTick = now;
+                lastHazardSeverity = hazardSeverity;
+            } else if (lastHazardTick > 0L && (now - lastHazardTick) > cachedOwnerStatusHazardGraceTicks) {
+                parent.clearStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_TICK);
+                parent.clearStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_SEVERITY);
+                lastHazardTick = 0L;
+                lastHazardSeverity = 0f;
+            }
+        }
+
+        if (lastHazardTick > 0L && (now - lastHazardTick) <= cachedOwnerStatusHazardGraceTicks) {
+            if (MathHelper.clamp(lastHazardSeverity, 0f, 1f) >= cachedOwnerStatusHazardThreshold) {
+                return true;
+            }
+        }
+
+        if (owner == null) {
+            if (lastHazardTick > 0L && (now - lastHazardTick) > cachedOwnerStatusHazardGraceTicks) {
+                parent.clearStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_TICK);
+                parent.clearStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_SEVERITY);
+            }
+            return false;
+        }
+        if (!owner.isAlive()) {
+            return true;
+        }
+
+        float ownerHealthRatio = getHealthRatio(owner);
+        OwnerCombatState combatState = OwnerCombatState.get(owner);
+        boolean recentlyDamaged = combatState != null && combatState.recentlyDamaged(now, cachedOwnerDamageWindow);
+        boolean inCombat = combatState != null && combatState.isInCombat();
+
+        if (ownerHealthRatio <= cachedOwnerCriticalHealthThreshold) {
+            parent.setStateData(PetComponent.StateKeys.OWNER_LAST_LOW_HEALTH_TICK, now);
+            parent.setStateData(PetComponent.StateKeys.OWNER_LAST_HEALTH_RATIO, ownerHealthRatio);
+            if (recentlyDamaged) {
+                float severity = MathHelper.clamp(1f - ownerHealthRatio, 0f, 1f);
+                parent.setStateData(PetComponent.StateKeys.OWNER_LAST_HURT_TICK, now);
+                parent.setStateData(PetComponent.StateKeys.OWNER_LAST_HURT_SEVERITY,
+                    Math.max(storedSeverity, severity));
+            }
+            return true;
+        }
+
+        if (ownerHealthRatio <= cachedOwnerLowHealthThreshold && (recentlyDamaged || inCombat)) {
+            parent.setStateData(PetComponent.StateKeys.OWNER_LAST_LOW_HEALTH_TICK, now);
+            parent.setStateData(PetComponent.StateKeys.OWNER_LAST_HEALTH_RATIO, ownerHealthRatio);
+            if (recentlyDamaged) {
+                float severity = MathHelper.clamp(1f - ownerHealthRatio, 0f, 1f);
+                parent.setStateData(PetComponent.StateKeys.OWNER_LAST_HURT_TICK, now);
+                parent.setStateData(PetComponent.StateKeys.OWNER_LAST_HURT_SEVERITY,
+                    Math.max(storedSeverity, severity));
+            }
+            return true;
+        }
+
+        if (recentlyDamaged) {
+            float severity = MathHelper.clamp(1f - ownerHealthRatio, 0f, 1f);
+            parent.setStateData(PetComponent.StateKeys.OWNER_LAST_HURT_TICK, now);
+            parent.setStateData(PetComponent.StateKeys.OWNER_LAST_HURT_SEVERITY,
+                Math.max(storedSeverity, severity));
+            parent.setStateData(PetComponent.StateKeys.OWNER_LAST_HEALTH_RATIO, ownerHealthRatio);
+            return true;
+        }
+
+        if (!inCombat && ownerHealthRatio >= (cachedOwnerLowHealthThreshold + 0.15f)) {
+            parent.clearStateData(PetComponent.StateKeys.OWNER_LAST_LOW_HEALTH_TICK);
+        }
+
+        return false;
+    }
+
+    private boolean checkLoneliness(PetComponent.Emotion emotion, long now) {
+        long lastNearTick = parent.getStateData(PetComponent.StateKeys.OWNER_LAST_NEARBY_TICK, Long.class, 0L);
+        long lastSeenTick = parent.getStateData(PetComponent.StateKeys.OWNER_LAST_SEEN_TICK, Long.class, 0L);
+        float lastSeenDistance = parent.getStateData(PetComponent.StateKeys.OWNER_LAST_SEEN_DISTANCE, Float.class,
+            Float.MAX_VALUE);
+        String lastSeenDimension = parent.getStateData(PetComponent.StateKeys.OWNER_LAST_SEEN_DIMENSION, String.class, null);
+        long lastSocialTick = parent.getStateData(PetComponent.StateKeys.LAST_SOCIAL_BUFFER_TICK, Long.class, 0L);
+        long lastPackTick = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_TICK, Long.class, 0L);
+        float lastPackStrength = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_STRENGTH, Float.class, 0f);
+        float lastPackWeighted = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_WEIGHTED_STRENGTH, Float.class, 0f);
+        int lastPackAllies = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_ALLIES, Integer.class, 0);
+
+        if (hasRecentSocialComfort(lastSocialTick, now)) {
+            return false;
+        }
+
+        PlayerEntity owner = parent.getOwner();
+        MobEntity petEntity = parent.getPetEntity();
+        ServerWorld petWorld = petEntity != null && petEntity.getEntityWorld() instanceof ServerWorld sw ? sw : null;
+
+        boolean packComfort = hasRecentPackComfort(now, lastPackTick, lastPackStrength, lastPackWeighted, lastPackAllies);
+        if (!packComfort && petWorld != null && owner != null && owner.isAlive()) {
+            packComfort = refreshPackCompanionship(petWorld, petEntity, owner, now);
+            if (packComfort) {
+                lastPackTick = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_TICK, Long.class, lastPackTick);
+            }
+        }
+
+        if (packComfort) {
+            return false;
+        }
+
+        long grace = emotion == PetComponent.Emotion.HIRAETH
+            ? cachedLonelyHiraethGraceTicks
+            : cachedLonelySaudadeGraceTicks;
+        long offlineGrace = emotion == PetComponent.Emotion.HIRAETH
+            ? cachedLonelyOfflineHiraethGraceTicks
+            : cachedLonelyOfflineGraceTicks;
+
+        if (owner != null && petEntity != null && owner.isAlive()
+            && owner.getEntityWorld() == petEntity.getEntityWorld()) {
+            double distanceSq = owner.squaredDistanceTo(petEntity);
+            double distance = Math.sqrt(distanceSq);
+
+            parent.setStateData(PetComponent.StateKeys.OWNER_LAST_SEEN_TICK, now);
+            parent.setStateData(PetComponent.StateKeys.OWNER_LAST_SEEN_DISTANCE, (float) distance);
+            parent.setStateData(PetComponent.StateKeys.OWNER_LAST_SEEN_DIMENSION,
+                petWorld != null ? petWorld.getRegistryKey().getValue().toString() : null);
+
+            if (distanceSq <= cachedLonelyComfortRadiusSquared) {
+                parent.setStateData(PetComponent.StateKeys.OWNER_LAST_NEARBY_TICK, now);
+                parent.setStateData(PetComponent.StateKeys.OWNER_LAST_NEARBY_DISTANCE, (float) distance);
+                return false;
+            }
+
+            if (distanceSq <= cachedLonelyDistanceThresholdSquared) {
+                long sinceProximity = now - Math.max(lastNearTick, lastSeenTick);
+                if (sinceProximity <= grace) {
+                    return false;
+                }
+            }
+
+            lastSeenTick = now;
+            lastSeenDistance = (float) distance;
+        }
+
+        long sinceNear = lastNearTick > 0L ? now - lastNearTick : Long.MAX_VALUE;
+        if (sinceNear <= grace) {
+            return false;
+        }
+
+        boolean ownerMissing = owner == null || owner.isRemoved()
+            || petEntity == null
+            || owner.getEntityWorld() != petEntity.getEntityWorld();
+
+        if (ownerMissing) {
+            long reference = Math.max(lastSeenTick, lastNearTick);
+            if (reference <= 0L) {
+                return now >= offlineGrace;
+            }
+            return now - reference >= offlineGrace;
+        }
+
+        float distance = Float.isFinite(lastSeenDistance) ? lastSeenDistance : Float.MAX_VALUE;
+        boolean farEnough = distance >= cachedLonelyDistanceThreshold;
+
+        if (!farEnough && lastSeenTick > 0L && (now - lastSeenTick) <= grace) {
+            return false;
+        }
+
+        if (emotion == PetComponent.Emotion.HIRAETH) {
+            if (petWorld != null && lastSeenDimension != null) {
+                String currentDimension = petWorld.getRegistryKey().getValue().toString();
+                if (!currentDimension.equals(lastSeenDimension)) {
+                    long sinceSeen = now - Math.max(lastSeenTick, lastNearTick);
+                    return sinceSeen >= offlineGrace;
+                }
+            }
+            return farEnough && sinceNear >= grace;
+        }
+
+        return farEnough;
+    }
+
+    private boolean hasPositiveComfort(PetComponent.Emotion emotion, long now) {
+        long lastPet = parent.getStateData(PetComponent.StateKeys.LAST_PET_TIME, Long.class, 0L);
+        long lastCrouch = parent.getStateData(PetComponent.StateKeys.LAST_CROUCH_CUDDLE_TICK, Long.class, 0L);
+        long lastSocial = parent.getStateData(PetComponent.StateKeys.LAST_SOCIAL_BUFFER_TICK, Long.class, 0L);
+        long lastPlay = parent.getStateData(PetComponent.StateKeys.LAST_PLAY_INTERACTION_TICK, Long.class, 0L);
+        long lastFeed = parent.getStateData(PetComponent.StateKeys.LAST_FEED_TICK, Long.class, 0L);
+        long lastGift = parent.getStateData(PetComponent.StateKeys.LAST_GIFT_TICK, Long.class, 0L);
+
+        boolean petting = hasRecentCue(lastPet, cachedPositivePetGraceTicks, now);
+        boolean cuddle = hasRecentCue(lastCrouch, cachedPositiveCrouchGraceTicks, now);
+        boolean social = hasRecentCue(lastSocial, cachedPositiveSocialGraceTicks, now);
+        boolean play = hasRecentCue(lastPlay, cachedPositivePlayGraceTicks, now);
+        boolean feed = hasRecentCue(lastFeed, cachedPositiveFeedGraceTicks, now);
+        boolean gift = hasRecentCue(lastGift, cachedPositiveGiftGraceTicks, now);
+
+        if (!(petting || cuddle || social || play || feed || gift)) {
+            return false;
+        }
+
+        if (emotion == PetComponent.Emotion.CHEERFUL) {
+            int strongCues = 0;
+            if (petting) strongCues++;
+            if (cuddle) strongCues++;
+            if (play) strongCues++;
+            if (feed) strongCues++;
+            if (gift) strongCues++;
+            return strongCues >= 2 || social;
+        }
+
+        return true;
+    }
+
+    private boolean hasRecentCue(long tick, long grace, long now) {
+        return tick > 0L && (now - tick) <= grace;
+    }
+
+    private boolean hasRecentSocialComfort(long lastSocialTick, long now) {
+        return lastSocialTick > 0L && (now - lastSocialTick) <= cachedLonelySocialGraceTicks;
+    }
+
+    private boolean hasRecentPackComfort(long now, long lastPackTick, float lastPackStrength,
+                                         float lastPackWeighted, int lastPackAllies) {
+        if (lastPackTick <= 0L) {
+            return false;
+        }
+        if ((now - lastPackTick) > cachedLonelyPackGraceTicks) {
+            return false;
+        }
+        if (lastPackAllies > 0
+            && (lastPackStrength >= cachedLonelyPackStrengthThreshold
+            || lastPackWeighted >= cachedLonelyPackStrengthThreshold)) {
+            return true;
+        }
+        return lastPackStrength >= cachedLonelyPackStrengthThreshold
+            || lastPackWeighted >= cachedLonelyPackStrengthThreshold;
+    }
+
+    private boolean refreshPackCompanionship(ServerWorld world,
+                                             @Nullable MobEntity petEntity,
+                                             PlayerEntity owner,
+                                             long now) {
+        if (petEntity == null || petEntity.isRemoved()) {
+            return false;
+        }
+
+        StateManager manager = StateManager.forWorld(world);
+        PetSwarmIndex swarmIndex = manager.getSwarmIndex();
+        List<PetSwarmIndex.SwarmEntry> entries = swarmIndex.snapshotOwner(owner.getUuid());
+        if (entries.isEmpty()) {
+            return false;
+        }
+
+        Vec3d petPos = new Vec3d(petEntity.getX(), petEntity.getY(), petEntity.getZ());
+        double radiusSq = cachedLonelyPackRadiusSquared;
+        int allies = 0;
+        float closenessSum = 0f;
+        float closest = 0f;
+        EnumSet<PetRoleType.RoleArchetype> diversity = EnumSet.noneOf(PetRoleType.RoleArchetype.class);
+
+        for (PetSwarmIndex.SwarmEntry entry : entries) {
+            MobEntity other = entry.pet();
+            if (other == null || other == petEntity || !other.isAlive() || other.isRemoved()) {
+                continue;
+            }
+            PetComponent component = entry.component();
+            if (component == null || !component.isOwnedBy(owner)) {
+                continue;
+            }
+
+            double dx = entry.x() - petPos.x;
+            double dy = entry.y() - petPos.y;
+            double dz = entry.z() - petPos.z;
+            double distSq = dx * dx + dy * dy + dz * dz;
+            if (distSq > radiusSq) {
+                continue;
+            }
+
+            PetRoleType roleType = component.getRoleType(false);
+            if (roleType != null) {
+                diversity.add(roleType.archetype());
+            }
+
+            double distance = Math.sqrt(distSq);
+            double normalized = cachedLonelyPackRadius <= 0d
+                ? 0d
+                : MathHelper.clamp(distance / cachedLonelyPackRadius, 0d, 1d);
+            float closeness = MathHelper.clamp(1f - (float) normalized, 0f, 1f);
+            closenessSum += closeness;
+            closest = Math.max(closest, closeness);
+            allies++;
+        }
+
+        if (allies <= 0) {
+            return false;
+        }
+
+        float average = MathHelper.clamp(closenessSum / Math.max(1, allies), 0f, 1f);
+        float weighted = MathHelper.clamp(closenessSum, 0f, allies);
+        float strength = MathHelper.clamp(Math.max(average, closest), 0f, 1f);
+        float diversityScore = MathHelper.clamp(diversity.size()
+            / (float) PetRoleType.RoleArchetype.values().length, 0f, 1f);
+
+        parent.setStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_TICK, now);
+        parent.setStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_STRENGTH, strength);
+        parent.setStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_WEIGHTED_STRENGTH, weighted);
+        parent.setStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_ALLIES, allies);
+        parent.setStateData(PetComponent.StateKeys.PACK_LAST_ROLE_DIVERSITY, diversityScore);
+
+        return strength >= cachedLonelyPackStrengthThreshold
+            || weighted >= cachedLonelyPackStrengthThreshold;
+    }
+
+    private boolean checkPackSpiritProximity(long now) {
+        long lastPackTick = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_TICK, Long.class, 0L);
+        float lastStrength = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_STRENGTH, Float.class, 0f);
+        float lastWeighted = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_WEIGHTED_STRENGTH, Float.class, 0f);
+        int lastAllies = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_ALLIES, Integer.class, 0);
+
+        MobEntity petEntity = parent.getPetEntity();
+        if (petEntity == null || petEntity.getEntityWorld() == null) {
+            return wasRecentPackPresence(now, lastPackTick, lastStrength, lastWeighted, lastAllies);
+        }
+
+        if (!(petEntity.getEntityWorld() instanceof ServerWorld serverWorld)) {
+            return wasRecentPackPresence(now, lastPackTick, lastStrength, lastWeighted, lastAllies);
+        }
+
+        PlayerEntity owner = parent.getOwner();
+        if (owner == null) {
+            return wasRecentPackPresence(now, lastPackTick, lastStrength, lastWeighted, lastAllies);
+        }
+
+        StateManager manager = StateManager.forWorld(serverWorld);
+        PetSwarmIndex swarmIndex = manager.getSwarmIndex();
+        List<PetSwarmIndex.SwarmEntry> entries = swarmIndex.snapshotOwner(owner.getUuid());
+        if (entries.isEmpty()) {
+            return wasRecentPackPresence(now, lastPackTick, lastStrength, lastWeighted, lastAllies);
+        }
+
+        Vec3d petPos = new Vec3d(petEntity.getX(), petEntity.getY(), petEntity.getZ());
+        double radiusSq = cachedPackSpiritRadius * cachedPackSpiritRadius;
+        int allies = 0;
+        float engagementSum = 0f;
+        EnumSet<PetRoleType.RoleArchetype> roleMix = EnumSet.noneOf(PetRoleType.RoleArchetype.class);
+
+        for (PetSwarmIndex.SwarmEntry entry : entries) {
+            MobEntity other = entry.pet();
+            if (other == null || other == petEntity || !other.isAlive() || other.isRemoved()) {
+                continue;
+            }
+            PetComponent component = entry.component();
+            if (component == null || !component.isOwnedBy(owner)) {
+                continue;
+            }
+            double dx = entry.x() - petPos.x;
+            double dy = entry.y() - petPos.y;
+            double dz = entry.z() - petPos.z;
+            double distSq = dx * dx + dy * dy + dz * dz;
+            if (distSq > radiusSq) {
+                continue;
+            }
+
+            PetRoleType roleType = component.getRoleType(false);
+            PetRoleType.RoleArchetype archetype = roleType != null ? roleType.archetype() : PetRoleType.RoleArchetype.UTILITY;
+            roleMix.add(archetype);
+
+            float closeness = MathHelper.clamp(1f - (float) (distSq / radiusSq), 0f, 1f);
+            float engagement = computePackmateEngagement(component, closeness, archetype);
+            engagementSum += engagement;
+            allies++;
+        }
+
+        if (allies >= cachedPackSpiritMinPackmates) {
+            float bondBonus = computePackSpiritBondBonus(parent.getBondStrength());
+            float diversity = roleMix.isEmpty() ? 0f : (float) roleMix.size() / PetRoleType.RoleArchetype.values().length;
+            float averageEngagement = allies > 0 ? engagementSum / allies : 0f;
+            averageEngagement = MathHelper.clamp(averageEngagement, 0f, cachedPackSpiritEngagementMax);
+            float finalStrength = MathHelper.clamp(averageEngagement + (cachedPackSpiritDiversityBonus * diversity) + bondBonus,
+                0f, 1f);
+
+            parent.setStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_TICK, now);
+            parent.setStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_STRENGTH, finalStrength);
+            parent.setStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_WEIGHTED_STRENGTH,
+                MathHelper.clamp(engagementSum, 0f, cachedPackSpiritEngagementMax));
+            parent.setStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_ALLIES, allies);
+            parent.setStateData(PetComponent.StateKeys.PACK_LAST_ROLE_DIVERSITY,
+                MathHelper.clamp(diversity, 0f, 1f));
+            return true;
+        }
+
+        return wasRecentPackPresence(now, lastPackTick, lastStrength, lastWeighted, lastAllies);
+    }
+
+    private boolean wasRecentPackPresence(long now, long lastTick, float lastStrength, float lastWeighted, int lastAllies) {
+        if (lastTick <= 0L) {
+            return false;
+        }
+        if ((now - lastTick) > cachedPackSpiritGraceTicks) {
+            return false;
+        }
+        if (lastAllies <= 0) {
+            return lastStrength > 0.05f;
+        }
+        return lastStrength > 0.05f || lastWeighted > 0.05f;
+    }
+
+    private float computePackmateEngagement(PetComponent component, float closeness, PetRoleType.RoleArchetype archetype) {
+        float roleWeight = cachedPackSpiritRoleWeights.getOrDefault(archetype, 1.0f);
+        float protective = MathHelper.clamp(component.getMoodStrength(PetComponent.Mood.PROTECTIVE), 0f, 1f);
+        float focused = MathHelper.clamp(component.getMoodStrength(PetComponent.Mood.FOCUSED), 0f, 1f);
+        float playful = MathHelper.clamp(component.getMoodStrength(PetComponent.Mood.PLAYFUL), 0f, 1f);
+        float moodContribution = protective * cachedPackSpiritProtectiveWeight
+            + focused * cachedPackSpiritFocusedWeight
+            + playful * cachedPackSpiritPlayfulWeight;
+        float combatBonus = component.isInCombat() ? cachedPackSpiritCombatBonus : 0f;
+        float engagement = cachedPackSpiritBaseContribution
+            + (closeness * cachedPackSpiritClosenessWeight)
+            + moodContribution
+            + combatBonus;
+        engagement *= roleWeight;
+        return MathHelper.clamp(engagement, 0f, cachedPackSpiritEngagementMax);
+    }
+
+    private boolean hasArcaneMomentum(long now) {
+        long lastEnchantTick = parent.getStateData(PetComponent.StateKeys.ARCANE_LAST_ENCHANT_TICK, Long.class, 0L);
+        int enchantStreak = parent.getStateData(PetComponent.StateKeys.ARCANE_ENCHANT_STREAK, Integer.class, 0);
+        long lastSurgeTick = parent.getStateData(PetComponent.StateKeys.ARCANE_LAST_SURGE_TICK, Long.class, 0L);
+        float surgeStrength = parent.getStateData(PetComponent.StateKeys.ARCANE_SURGE_STRENGTH, Float.class, 0f);
+
+        if (lastSurgeTick > 0L && (now - lastSurgeTick) <= cachedArcaneOverflowLingerTicks) {
+            if (surgeStrength >= cachedArcaneOverflowMinimumEnergy) {
+                return true;
+            }
+        }
+
+        if (lastEnchantTick > 0L && (now - lastEnchantTick) <= cachedArcaneOverflowStreakGraceTicks) {
+            if (enchantStreak >= 2 || surgeStrength >= cachedArcaneOverflowMinimumEnergy * 0.5f) {
+                return true;
+            }
+        }
+
+        MobEntity petEntity = parent.getPetEntity();
+        if (!(petEntity instanceof LivingEntity livingPet)) {
+            return false;
+        }
+
+        ServerWorld serverWorld = livingPet.getEntityWorld() instanceof ServerWorld sw ? sw : null;
+        PlayerEntity owner = parent.getOwner();
+
+        float energy = 0f;
+
+        if (enchantStreak > 0) {
+            energy += MathHelper.clamp(enchantStreak / 4.0f, 0f, 1f) * 0.4f;
+        }
+
+        float petGear = computeEnchantedGearIntensity(livingPet);
+        if (petGear > 0f) {
+            energy += petGear * cachedArcaneGearPetMultiplier;
+        }
+
+        float petStatus = computeBeneficialStatusIntensity(livingPet);
+        if (petStatus > 0f) {
+            energy += petStatus * cachedArcaneStatusPetMultiplier;
+        }
+
+        if (owner != null) {
+            float ownerGear = computeEnchantedGearIntensity(owner);
+            if (ownerGear > 0f) {
+                energy += ownerGear * cachedArcaneGearOwnerMultiplier;
+            }
+            float ownerStatus = computeBeneficialStatusIntensity(owner);
+            if (ownerStatus > 0f) {
+                energy += ownerStatus * cachedArcaneStatusOwnerMultiplier;
+            }
+        }
+
+        float ambientEnergy = 0f;
+        if (serverWorld != null) {
+            BlockPos currentPos = livingPet.getBlockPos();
+            long lastScanTick = parent.getStateData(PetComponent.StateKeys.ARCANE_LAST_SCAN_TICK, Long.class, 0L);
+            float cachedAmbient = parent.getStateData(PetComponent.StateKeys.ARCANE_CACHED_AMBIENT_ENERGY, Float.class, 0f);
+            BlockPos lastScanPos = parent.getStateData(PetComponent.StateKeys.ARCANE_LAST_SCAN_POS, BlockPos.class);
+
+            boolean usedCache = false;
+            if (lastScanTick > 0L && (now - lastScanTick) < cachedArcaneScanCooldownTicks) {
+                if (lastScanPos != null) {
+                    double movementSq = lastScanPos.toCenterPos().squaredDistanceTo(Vec3d.ofCenter(currentPos));
+                    if (movementSq <= cachedArcaneScanMovementThresholdSquared) {
+                        ambientEnergy = MathHelper.clamp(cachedAmbient, 0f, 1f);
+                        usedCache = true;
+                    }
+                } else {
+                    ambientEnergy = MathHelper.clamp(cachedAmbient, 0f, 1f);
+                    usedCache = true;
+                }
+            }
+
+            StateManager manager = StateManager.forWorld(serverWorld);
+            if (!usedCache) {
+                StateManager.ArcaneAmbientCache ambientCache = manager.getArcaneAmbientCache();
+                StateManager.ArcaneAmbientCache.Sample sharedSample = ambientCache.tryGet(
+                    ChunkSectionPos.from(currentPos), currentPos, cachedArcaneOverflowAmbientScanRadius,
+                    now, cachedArcaneScanCooldownTicks, cachedArcaneScanMovementThresholdSquared);
+                if (sharedSample != null) {
+                    ambientEnergy = MathHelper.clamp(sharedSample.energy(), 0f, 1f);
+                    parent.setStateData(PetComponent.StateKeys.ARCANE_LAST_SCAN_TICK, sharedSample.tick());
+                    parent.setStateData(PetComponent.StateKeys.ARCANE_LAST_SCAN_POS, sharedSample.origin());
+                    parent.setStateData(PetComponent.StateKeys.ARCANE_CACHED_AMBIENT_ENERGY, ambientEnergy);
+                    usedCache = true;
+                }
+            }
+
+            if (!usedCache) {
+                ambientEnergy = sampleArcaneAmbient(serverWorld, currentPos);
+                StateManager.ArcaneAmbientCache.Sample storedSample = manager.getArcaneAmbientCache().store(
+                    ChunkSectionPos.from(currentPos), currentPos, cachedArcaneOverflowAmbientScanRadius,
+                    now, cachedArcaneScanCooldownTicks, ambientEnergy);
+                parent.setStateData(PetComponent.StateKeys.ARCANE_LAST_SCAN_TICK, storedSample.tick());
+                parent.setStateData(PetComponent.StateKeys.ARCANE_LAST_SCAN_POS, storedSample.origin());
+                parent.setStateData(PetComponent.StateKeys.ARCANE_CACHED_AMBIENT_ENERGY, storedSample.energy());
+            }
+        }
+
+        energy = MathHelper.clamp(energy + MathHelper.clamp(ambientEnergy, 0f, 1f), 0f, 1f);
+
+        if (energy > surgeStrength) {
+            parent.setStateData(PetComponent.StateKeys.ARCANE_SURGE_STRENGTH, energy);
+        }
+
+        if (energy >= cachedArcaneOverflowMinimumEnergy) {
+            parent.setStateData(PetComponent.StateKeys.ARCANE_LAST_SURGE_TICK, now);
+            return true;
+        }
+
+        if (lastSurgeTick > 0L && (now - lastSurgeTick) <= cachedArcaneOverflowStatusGraceTicks) {
+            return surgeStrength >= cachedArcaneOverflowMinimumEnergy * 0.5f;
+        }
+
+        return false;
+    }
+
+    private float sampleArcaneAmbient(ServerWorld world, BlockPos origin) {
+        float energy = collectArcaneStructureEnergy(world, origin, cachedArcaneOverflowAmbientScanRadius);
+        if (isMysticEnvironment(world, origin)) {
+            energy += cachedArcaneAmbientMysticBonus;
+        }
+        return MathHelper.clamp(energy, 0f, 1f);
+    }
+
+    private float getHealthRatio(LivingEntity entity) {
+        float max = Math.max(1f, entity.getMaxHealth());
+        return MathHelper.clamp(entity.getHealth() / max, 0f, 1f);
+    }
+
+    private float computePackSpiritBondBonus(long bondStrength) {
+        if (bondStrength <= 0L) {
+            return 0f;
+        }
+        float normalized = MathHelper.clamp(bondStrength / 6000f, 0f, 1f);
+        return MathHelper.clamp(normalized * cachedPackSpiritBondBonus, 0f, 0.6f);
+    }
+
+    private float computeEnchantedGearIntensity(@Nullable LivingEntity entity) {
+        if (entity == null) {
+            return 0f;
+        }
+
+        float total = 0f;
+        total += computeStackEnchantments(entity.getMainHandStack());
+        total += computeStackEnchantments(entity.getOffHandStack());
+        for (EquipmentSlot slot : ARMOR_SLOTS) {
+            total += computeStackEnchantments(entity.getEquippedStack(slot));
+        }
+        return MathHelper.clamp(total, 0f, cachedArcaneGearMaxContribution);
+    }
+
+    private float computeStackEnchantments(@Nullable ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return 0f;
+        }
+        ItemEnchantmentsComponent enchantments = stack.get(DataComponentTypes.ENCHANTMENTS);
+        if (enchantments == null || enchantments.isEmpty()) {
+            return 0f;
+        }
+
+        float total = 0f;
+        for (RegistryEntry<Enchantment> enchantment : enchantments.getEnchantments()) {
+            int level = Math.max(0, enchantments.getLevel(enchantment));
+            float contribution = cachedArcaneGearBaseWeight
+                + cachedArcaneGearLevelWeight * Math.max(0, level);
+            total += contribution;
+        }
+        return Math.max(0f, total);
+    }
+
+    private float computeBeneficialStatusIntensity(@Nullable LivingEntity entity) {
+        if (entity == null) {
+            return 0f;
+        }
+
+        float total = 0f;
+        int reference = Math.max(1, cachedArcaneStatusDurationReference);
+        for (StatusEffectInstance effect : entity.getStatusEffects()) {
+            if (effect == null) {
+                continue;
+            }
+            RegistryEntry<StatusEffect> type = effect.getEffectType();
+            if (type == null) {
+                continue;
+            }
+            StatusEffect status = type.value();
+            if (status.getCategory() != StatusEffectCategory.BENEFICIAL) {
+                continue;
+            }
+            int amplifier = Math.max(0, effect.getAmplifier());
+            float durationRatio = MathHelper.clamp(effect.getDuration() / (float) reference, 0f, cachedArcaneStatusDurationCap);
+            float contribution = cachedArcaneStatusBaseWeight
+                + cachedArcaneStatusAmplifierWeight * (amplifier + 1)
+                + cachedArcaneStatusDurationWeight * durationRatio;
+            total += contribution;
+        }
+
+        return MathHelper.clamp(total, 0f, cachedArcaneStatusMaxContribution);
+    }
+
+    public static float computeStatusHazardSeverity(@Nullable LivingEntity entity) {
+        if (entity == null) {
+            return 0f;
+        }
+
+        float severity = 0f;
+
+        if (entity.isOnFire() || entity.getFireTicks() > 0) {
+            float fireSeverity = 0.45f + Math.min(0.35f, entity.getFireTicks() / 200f);
+            severity = Math.max(severity, fireSeverity);
+        }
+
+        if (entity.getFrozenTicks() > 0) {
+            float freezeSeverity = 0.35f + Math.min(0.3f, entity.getFrozenTicks() / 140f);
+            severity = Math.max(severity, freezeSeverity);
+        }
+
+        for (StatusEffectInstance effect : entity.getStatusEffects()) {
+            if (effect == null) {
+                continue;
+            }
+            RegistryEntry<StatusEffect> entry = effect.getEffectType();
+            if (entry == null) {
+                continue;
+            }
+            StatusEffect status = entry.value();
+            if (status.getCategory() != StatusEffectCategory.HARMFUL) {
+                continue;
+            }
+
+            int amplifier = Math.max(0, effect.getAmplifier());
+            float base = 0.2f + 0.08f * (amplifier + 1);
+
+            if (status == StatusEffects.WITHER) {
+                base = 0.75f + 0.12f * (amplifier + 1);
+            } else if (status == StatusEffects.POISON) {
+                base = 0.55f + 0.08f * (amplifier + 1);
+            } else if (status == StatusEffects.SLOWNESS || status == StatusEffects.MINING_FATIGUE) {
+                base = 0.35f + 0.05f * amplifier;
+            } else if (status == StatusEffects.WEAKNESS || status == StatusEffects.NAUSEA) {
+                base = 0.3f + 0.05f * amplifier;
+            } else if (status == StatusEffects.BLINDNESS || status == StatusEffects.DARKNESS) {
+                base = 0.32f + 0.05f * amplifier;
+            } else if (status == StatusEffects.BAD_OMEN) {
+                base = 0.4f;
+            } else if (status == StatusEffects.UNLUCK) {
+                base = 0.28f;
+            } else if (status == StatusEffects.HUNGER) {
+                base = 0.25f + 0.04f * amplifier;
+            } else if (status == StatusEffects.LEVITATION) {
+                base = 0.45f + 0.05f * amplifier;
+            }
+
+            severity = Math.max(severity, MathHelper.clamp(base, 0f, 1f));
+        }
+
+        return MathHelper.clamp(severity, 0f, 1f);
+    }
+
+    private float collectArcaneStructureEnergy(ServerWorld world, BlockPos origin, int radius) {
+        int clamped = MathHelper.clamp(radius, 1, 6);
+        if (clamped <= 0) {
+            return 0f;
+        }
+        BlockPos.Mutable mutable = new BlockPos.Mutable();
+        float accumulated = 0f;
+        double normalization = Math.max(1.0d, clamped + 0.5d);
+        double exponent = Math.max(0.25d, cachedArcaneAmbientDistanceExponent);
+
+        double originCenterX = origin.getX() + 0.5d;
+        double originCenterY = origin.getY() + 0.5d;
+        double originCenterZ = origin.getZ() + 0.5d;
+
+        for (int dx = -clamped; dx <= clamped; dx++) {
+            for (int dy = -clamped; dy <= clamped; dy++) {
+                for (int dz = -clamped; dz <= clamped; dz++) {
+                    mutable.set(origin.getX() + dx, origin.getY() + dy, origin.getZ() + dz);
+                    BlockPos samplePos = mutable.toImmutable();
+                    BlockState state = world.getBlockState(samplePos);
+                    float weight = resolveArcaneStructureWeight(world, samplePos, state);
+                    if (weight <= 0f) {
+                        continue;
+                    }
+                    double distance = Math.sqrt(samplePos.getSquaredDistance(originCenterX, originCenterY, originCenterZ));
+                    double normalized = MathHelper.clamp(distance / normalization, 0.0d, 1.0d);
+                    double falloff = Math.pow(1.0d - normalized, exponent);
+                    accumulated += weight * (float) Math.max(0d, falloff);
+                }
+            }
+        }
+
+        return MathHelper.clamp(accumulated, 0f, cachedArcaneAmbientStructureMaxEnergy);
+    }
+
+    private float resolveArcaneStructureWeight(ServerWorld world, BlockPos pos, BlockState state) {
+        if (state == null) {
+            return 0f;
+        }
+        Identifier id = Registries.BLOCK.getId(state.getBlock());
+        float baseWeight = 0f;
+        if (id != null) {
+            Float configured = cachedArcaneAmbientStructureWeights.get(id);
+            if (configured != null) {
+                baseWeight = Math.max(0f, configured);
+            }
+        }
+        if (baseWeight <= 0f && isArcaneBlock(state)) {
+            baseWeight = Math.max(0f, cachedArcaneAmbientStructureBaseWeight);
+        }
+        if (baseWeight <= 0f) {
+            return 0f;
+        }
+
+        if (state.isOf(Blocks.RESPAWN_ANCHOR)) {
+            return baseWeight * Math.max(0f, resolveRespawnAnchorMultiplier(state));
+        }
+        if (state.isOf(Blocks.BEACON)) {
+            return baseWeight * Math.max(0f, resolveBeaconMultiplier(world, pos));
+        }
+        if (state.isOf(Blocks.SCULK_CATALYST)) {
+            return baseWeight * Math.max(0f, resolveSculkCatalystMultiplier(world, pos));
+        }
+        return baseWeight;
+    }
+
+    private static Optional<Field> lookupArcaneField(Class<?> type, String name) {
+        String key = type.getName() + "#" + name;
+        return ARCANE_REFLECTION_FIELD_CACHE.computeIfAbsent(key, ignored -> {
+            Class<?> current = type;
+            while (current != null) {
+                try {
+                    Field field = current.getDeclaredField(name);
+                    field.setAccessible(true);
+                    return Optional.of(field);
+                } catch (NoSuchFieldException | SecurityException exception) {
+                    current = current.getSuperclass();
+                }
+            }
+            return Optional.empty();
+        });
+    }
+
+    private static Optional<Method> lookupArcaneZeroArgMethod(Class<?> type, String name) {
+        String key = type.getName() + "#" + name;
+        return ARCANE_REFLECTION_METHOD_CACHE.computeIfAbsent(key, ignored -> {
+            Class<?> current = type;
+            while (current != null) {
+                try {
+                    Method method = current.getDeclaredMethod(name);
+                    method.setAccessible(true);
+                    return Optional.of(method);
+                } catch (NoSuchMethodException | SecurityException exception) {
+                    current = current.getSuperclass();
+                }
+            }
+            try {
+                Method method = type.getMethod(name);
+                method.setAccessible(true);
+                return Optional.of(method);
+            } catch (ReflectiveOperationException | SecurityException exception) {
+                return Optional.empty();
+            }
+        });
+    }
+
+    private float resolveRespawnAnchorMultiplier(BlockState state) {
+        if (!state.contains(RespawnAnchorBlock.CHARGES)) {
+            return cachedArcaneRespawnAnchorEmptyMultiplier;
+        }
+        int charges = Math.max(0, state.get(RespawnAnchorBlock.CHARGES));
+        if (charges <= 0) {
+            return cachedArcaneRespawnAnchorEmptyMultiplier;
+        }
+        float scaled = cachedArcaneRespawnAnchorEmptyMultiplier + charges * cachedArcaneRespawnAnchorChargeStep;
+        return MathHelper.clamp(scaled, 0f, cachedArcaneRespawnAnchorMaxMultiplier);
+    }
+
+    private float resolveBeaconMultiplier(ServerWorld world, BlockPos pos) {
+        if (world == null || pos == null) {
+            return cachedArcaneBeaconBaseMultiplier;
+        }
+        BlockEntity blockEntity = world.getBlockEntity(pos);
+        int level = 0;
+        if (blockEntity != null && blockEntity.getType() == BlockEntityType.BEACON) {
+            level = Math.max(0, tryExtractBeaconLevel(blockEntity));
+        }
+        float multiplier = cachedArcaneBeaconBaseMultiplier + cachedArcaneBeaconPerLevelMultiplier * level;
+        return MathHelper.clamp(multiplier, 0f, cachedArcaneBeaconMaxMultiplier);
+    }
+
+    private int tryExtractBeaconLevel(BlockEntity blockEntity) {
+        int fromField = extractBeaconLevelFromField(blockEntity);
+        if (fromField >= 0) {
+            return fromField;
+        }
+        int fromBeaconGetter = extractBeaconLevelFromMethod(blockEntity, "getBeaconLevel");
+        if (fromBeaconGetter >= 0) {
+            return fromBeaconGetter;
+        }
+        return Math.max(0, extractBeaconLevelFromMethod(blockEntity, "getLevel"));
+    }
+
+    private int extractBeaconLevelFromField(BlockEntity blockEntity) {
+        Optional<Field> field = lookupArcaneField(blockEntity.getClass(), "level");
+        if (field.isEmpty()) {
+            return -1;
+        }
+        try {
+            Object value = field.get().get(blockEntity);
+            if (value instanceof Number number) {
+                return Math.max(0, number.intValue());
+            }
+        } catch (IllegalAccessException ignored) {
+        }
+        return -1;
+    }
+
+    private int extractBeaconLevelFromMethod(BlockEntity blockEntity, String methodName) {
+        Optional<Method> method = lookupArcaneZeroArgMethod(blockEntity.getClass(), methodName);
+        if (method.isEmpty()) {
+            return -1;
+        }
+        try {
+            Object result = method.get().invoke(blockEntity);
+            if (result instanceof Number number) {
+                return Math.max(0, number.intValue());
+            }
+        } catch (ReflectiveOperationException ignored) {
+        }
+        return -1;
+    }
+
+    private float resolveSculkCatalystMultiplier(ServerWorld world, BlockPos pos) {
+        if (world == null || pos == null) {
+            return cachedArcaneCatalystInactiveMultiplier;
+        }
+        BlockEntity blockEntity = world.getBlockEntity(pos);
+        if (blockEntity == null || blockEntity.getType() != BlockEntityType.SCULK_CATALYST) {
+            return cachedArcaneCatalystInactiveMultiplier;
+        }
+        long lastBloomTick = extractSculkCatalystBloomTick(blockEntity);
+        if (lastBloomTick == Long.MIN_VALUE) {
+            return cachedArcaneCatalystInactiveMultiplier;
+        }
+        long now = world.getTime();
+        long window = Math.max(1L, cachedArcaneCatalystRecentBloomTicks);
+        long delta = Math.max(0L, now - lastBloomTick);
+        if (delta == 0L) {
+            return MathHelper.clamp(cachedArcaneCatalystActiveMultiplier, 0f, Math.max(cachedArcaneCatalystActiveMultiplier, cachedArcaneCatalystInactiveMultiplier));
+        }
+        if (delta >= window) {
+            return cachedArcaneCatalystInactiveMultiplier;
+        }
+        double progress = 1.0d - ((double) delta / (double) window);
+        float blended = cachedArcaneCatalystInactiveMultiplier
+            + (float) progress * (cachedArcaneCatalystActiveMultiplier - cachedArcaneCatalystInactiveMultiplier);
+        float max = Math.max(cachedArcaneCatalystActiveMultiplier, cachedArcaneCatalystInactiveMultiplier);
+        return MathHelper.clamp(blended, 0f, max);
+    }
+
+    private long extractSculkCatalystBloomTick(BlockEntity blockEntity) {
+        if (blockEntity == null) {
+            return Long.MIN_VALUE;
+        }
+        Optional<Method> lastBloomTickMethod = lookupArcaneZeroArgMethod(blockEntity.getClass(), "getLastBloomTick");
+        if (lastBloomTickMethod.isPresent()) {
+            try {
+                Object result = lastBloomTickMethod.get().invoke(blockEntity);
+                if (result instanceof Number number) {
+                    return number.longValue();
+                }
+            } catch (ReflectiveOperationException ignored) {
+            }
+        }
+
+        Optional<Method> lastBloomTimeMethod = lookupArcaneZeroArgMethod(blockEntity.getClass(), "getLastBloomTime");
+        if (lastBloomTimeMethod.isPresent()) {
+            try {
+                Object result = lastBloomTimeMethod.get().invoke(blockEntity);
+                if (result instanceof Number number) {
+                    return number.longValue();
+                }
+            } catch (ReflectiveOperationException ignored) {
+            }
+        }
+
+        Optional<Field> lastBloomTickField = lookupArcaneField(blockEntity.getClass(), "lastBloomTick");
+        if (lastBloomTickField.isPresent()) {
+            try {
+                Object value = lastBloomTickField.get().get(blockEntity);
+                if (value instanceof Number number) {
+                    return number.longValue();
+                }
+            } catch (IllegalAccessException ignored) {
+            }
+        }
+
+        Optional<Field> lastBloomTimeField = lookupArcaneField(blockEntity.getClass(), "lastBloomTime");
+        if (lastBloomTimeField.isPresent()) {
+            try {
+                Object value = lastBloomTimeField.get().get(blockEntity);
+                if (value instanceof Number number) {
+                    return number.longValue();
+                }
+            } catch (IllegalAccessException ignored) {
+            }
+        }
+        return Long.MIN_VALUE;
+    }
+
+    private boolean isArcaneBlock(BlockState state) {
+        return state.isOf(Blocks.ENCHANTING_TABLE)
+            || state.isOf(Blocks.AMETHYST_BLOCK)
+            || state.isOf(Blocks.RESPAWN_ANCHOR)
+            || state.isOf(Blocks.BEACON)
+            || state.isOf(Blocks.BREWING_STAND)
+            || state.isOf(Blocks.END_PORTAL_FRAME)
+            || state.isOf(Blocks.SCULK_CATALYST);
+    }
+
+    private boolean isMysticEnvironment(ServerWorld world, BlockPos pos) {
+        if (world.getRegistryKey() == World.END || world.getRegistryKey() == World.NETHER) {
+            return true;
+        }
+        RegistryEntry<Biome> biome = world.getBiome(pos);
+        if (biome.isIn(BiomeTags.IS_END) || biome.isIn(BiomeTags.IS_NETHER)) {
+            return true;
+        }
+        return biome.matchesKey(BiomeKeys.LUSH_CAVES) || biome.matchesKey(BiomeKeys.DEEP_DARK);
     }
 
     /**
@@ -1995,17 +3091,26 @@ public final class PetMoodEngine {
 
     private Map<PetComponent.Mood, Float> getEmotionToMoodWeights(PetComponent.Emotion emotion) {
         ensureConfigCache();
-        return resolveEmotionToMoodWeights(cachedMoodsSection, emotion);
+        Map<PetComponent.Mood, Float> cached = resolvedWeightCache.get(emotion);
+        if (cached != null) {
+            return cached;
+        }
+        EnumMap<PetComponent.Mood, Float> resolved = resolveEmotionToMoodWeights(cachedMoodsSection, emotion);
+        Map<PetComponent.Mood, Float> immutable = Collections.unmodifiableMap(resolved);
+        resolvedWeightCache.put(emotion, immutable);
+        return immutable;
     }
 
     private void ensureConfigCache() {
         MoodEngineConfig moodConfig = MoodEngineConfig.get();
-        int generation = moodConfig.getVersion();
+        int generation = moodConfig.getGeneration();
         if (generation == cachedConfigGeneration && cachedMoodsSection != null) {
             return;
         }
         cachedConfigGeneration = generation;
         cachedMoodsSection = moodConfig.getMoodsSection();
+        resolvedWeightCache.clear();
+        invalidateArcaneAmbientCachesIfNeeded(generation);
         cachedWeightSection = getObject(cachedMoodsSection, "weight");
         cachedOpponentSection = getObject(cachedMoodsSection, "opponents");
         cachedAnimationSection = getObject(cachedMoodsSection, "animation");
@@ -2018,12 +3123,213 @@ public final class PetMoodEngine {
         cachedAnimationSpeedMultiplier = RegistryJsonHelper.getDouble(cachedAnimationSection, "animationSpeedMultiplier", 0.15d);
         cachedMinAnimationInterval = RegistryJsonHelper.getInt(cachedAnimationSection, "minAnimationInterval", 4);
         cachedMaxAnimationInterval = RegistryJsonHelper.getInt(cachedAnimationSection, "maxAnimationInterval", 40);
-        
+
+        JsonObject guardianSection = getObject(cachedMoodsSection, "guardianVigil");
+        cachedOwnerDamageWindow = Math.max(20, RegistryJsonHelper.getInt(guardianSection, "recentDamageWindow", 160));
+        cachedOwnerDangerGraceTicks = Math.max(cachedOwnerDamageWindow,
+            RegistryJsonHelper.getLong(guardianSection, "dangerGraceTicks", 200L));
+        cachedOwnerLowHealthGraceTicks = Math.max(40L,
+            RegistryJsonHelper.getLong(guardianSection, "lowHealthGraceTicks", 260L));
+        cachedOwnerLowHealthThreshold = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(guardianSection, "lowHealthThreshold", 0.45f), 0.05f, 0.95f);
+        cachedOwnerCriticalHealthThreshold = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(guardianSection, "criticalHealthThreshold", 0.25f), 0.0f,
+            cachedOwnerLowHealthThreshold);
+        cachedOwnerStatusHazardGraceTicks = Math.max(40L,
+            RegistryJsonHelper.getLong(guardianSection, "statusHazardGraceTicks", 180L));
+        cachedOwnerStatusHazardThreshold = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(guardianSection, "statusHazardSeverityThreshold", 0.25f), 0.05f, 1.0f);
+
+        JsonObject packSpiritSection = getObject(cachedMoodsSection, "packSpirit");
+        cachedPackSpiritRadius = Math.max(2.0d, RegistryJsonHelper.getDouble(packSpiritSection, "radius", 12.0d));
+        cachedPackSpiritMinPackmates = Math.max(1,
+            RegistryJsonHelper.getInt(packSpiritSection, "minPackmates", 1));
+        cachedPackSpiritGraceTicks = Math.max(20L,
+            RegistryJsonHelper.getLong(packSpiritSection, "lingerTicks", 140L));
+        cachedPackSpiritBondBonus = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(packSpiritSection, "bondBonus", 0.3f), 0f, 1f);
+        cachedPackSpiritBaseContribution = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(packSpiritSection, "baseContribution", cachedPackSpiritBaseContribution), 0f, 2f);
+        JsonObject engagementSection = getObject(packSpiritSection, "engagement");
+        cachedPackSpiritRoleWeights.clear();
+        for (PetRoleType.RoleArchetype archetype : PetRoleType.RoleArchetype.values()) {
+            cachedPackSpiritRoleWeights.put(archetype, 1.0f);
+        }
+        if (engagementSection != null) {
+            cachedPackSpiritBaseContribution = MathHelper.clamp(
+                RegistryJsonHelper.getFloat(engagementSection, "baseContribution", cachedPackSpiritBaseContribution), 0f, 2f);
+            cachedPackSpiritClosenessWeight = MathHelper.clamp(
+                RegistryJsonHelper.getFloat(engagementSection, "closenessWeight", cachedPackSpiritClosenessWeight), 0f, 3f);
+            cachedPackSpiritCombatBonus = MathHelper.clamp(
+                RegistryJsonHelper.getFloat(engagementSection, "combatBonus", cachedPackSpiritCombatBonus), 0f, 1f);
+            cachedPackSpiritProtectiveWeight = MathHelper.clamp(
+                RegistryJsonHelper.getFloat(engagementSection, "protectiveMoodWeight", cachedPackSpiritProtectiveWeight), 0f, 1.5f);
+            cachedPackSpiritFocusedWeight = MathHelper.clamp(
+                RegistryJsonHelper.getFloat(engagementSection, "focusedMoodWeight", cachedPackSpiritFocusedWeight), 0f, 1.0f);
+            cachedPackSpiritPlayfulWeight = MathHelper.clamp(
+                RegistryJsonHelper.getFloat(engagementSection, "playfulMoodWeight", cachedPackSpiritPlayfulWeight), 0f, 1.0f);
+            cachedPackSpiritDiversityBonus = MathHelper.clamp(
+                RegistryJsonHelper.getFloat(engagementSection, "diversityBonus", cachedPackSpiritDiversityBonus), 0f, 1.0f);
+            cachedPackSpiritEngagementMax = MathHelper.clamp(
+                RegistryJsonHelper.getFloat(engagementSection, "maxContribution", cachedPackSpiritEngagementMax), 0.1f, 3.0f);
+            JsonObject roleWeights = getObject(engagementSection, "roleWeights");
+            if (roleWeights != null) {
+                for (PetRoleType.RoleArchetype archetype : PetRoleType.RoleArchetype.values()) {
+                    JsonElement element = roleWeights.get(archetype.name());
+                    if (element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()) {
+                        cachedPackSpiritRoleWeights.put(archetype,
+                            MathHelper.clamp(element.getAsFloat(), 0f, 3.0f));
+                    }
+                }
+            }
+        }
+
+        JsonObject arcaneSection = getObject(cachedMoodsSection, "arcaneOverflow");
+        cachedArcaneOverflowLingerTicks = Math.max(40L,
+            RegistryJsonHelper.getLong(arcaneSection, "lingerTicks", 220L));
+        cachedArcaneOverflowStreakGraceTicks = Math.max(40L,
+            RegistryJsonHelper.getLong(arcaneSection, "streakGraceTicks", 200L));
+        cachedArcaneOverflowStatusGraceTicks = Math.max(40L,
+            RegistryJsonHelper.getLong(arcaneSection, "statusGraceTicks", 160L));
+        cachedArcaneOverflowAmbientScanRadius = Math.max(1,
+            RegistryJsonHelper.getInt(arcaneSection, "ambientScanRadius", 4));
+        cachedArcaneOverflowMinimumEnergy = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(arcaneSection, "minimumEnergy", 0.25f), 0.05f, 1.0f);
+        cachedArcaneAmbientStructureBaseWeight = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(arcaneSection, "structureBaseWeight", 0.35f), 0f, 1.5f);
+        cachedArcaneAmbientStructureMaxEnergy = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(arcaneSection, "structureMaxEnergy", 0.85f), 0f, 2.0f);
+        cachedArcaneAmbientDistanceExponent = Math.max(0.25f,
+            RegistryJsonHelper.getFloat(arcaneSection, "structureDistanceExponent", 1.0f));
+        cachedArcaneAmbientMysticBonus = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(arcaneSection, "mysticEnvironmentBonus", 0.2f), 0f, 1.0f);
+        cachedArcaneAmbientStructureWeights = new HashMap<>();
+        JsonObject arcaneWeights = getObject(arcaneSection, "structureWeights");
+        if (arcaneWeights != null) {
+            for (Map.Entry<String, JsonElement> entry : arcaneWeights.entrySet()) {
+                JsonElement value = entry.getValue();
+                if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) {
+                    continue;
+                }
+                Identifier id = Identifier.tryParse(entry.getKey());
+                if (id == null) {
+                    continue;
+                }
+                if (Registries.BLOCK.containsId(id)) {
+                    cachedArcaneAmbientStructureWeights.put(id,
+                        MathHelper.clamp(value.getAsFloat(), 0f, 2.0f));
+                }
+            }
+        }
+        JsonObject stateModifiers = getObject(arcaneSection, "structureState");
+        JsonObject respawnConfig = getObject(stateModifiers, "respawnAnchor");
+        cachedArcaneRespawnAnchorEmptyMultiplier = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(respawnConfig, "emptyMultiplier", cachedArcaneRespawnAnchorEmptyMultiplier), 0f, 2.0f);
+        cachedArcaneRespawnAnchorChargeStep = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(respawnConfig, "chargeStep", cachedArcaneRespawnAnchorChargeStep), 0f, 2.0f);
+        cachedArcaneRespawnAnchorMaxMultiplier = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(respawnConfig, "maxMultiplier", cachedArcaneRespawnAnchorMaxMultiplier), 0.1f, 4.0f);
+        JsonObject beaconConfig = getObject(stateModifiers, "beacon");
+        cachedArcaneBeaconBaseMultiplier = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(beaconConfig, "baseMultiplier", cachedArcaneBeaconBaseMultiplier), 0f, 3.0f);
+        cachedArcaneBeaconPerLevelMultiplier = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(beaconConfig, "perLevel", cachedArcaneBeaconPerLevelMultiplier), 0f, 2.0f);
+        cachedArcaneBeaconMaxMultiplier = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(beaconConfig, "maxMultiplier", cachedArcaneBeaconMaxMultiplier), 0.1f, 6.0f);
+        JsonObject sculkConfig = getObject(stateModifiers, "sculkCatalyst");
+        cachedArcaneCatalystRecentBloomTicks = Math.max(20L,
+            RegistryJsonHelper.getLong(sculkConfig, "recentBloomTicks", cachedArcaneCatalystRecentBloomTicks));
+        cachedArcaneCatalystActiveMultiplier = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(sculkConfig, "activeMultiplier", cachedArcaneCatalystActiveMultiplier), 0f, 4.0f);
+        cachedArcaneCatalystInactiveMultiplier = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(sculkConfig, "inactiveMultiplier", cachedArcaneCatalystInactiveMultiplier), 0f, 4.0f);
+        JsonObject gearSection = getObject(arcaneSection, "gearWeights");
+        cachedArcaneGearBaseWeight = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(gearSection, "base", cachedArcaneGearBaseWeight), 0f, 1f);
+        cachedArcaneGearLevelWeight = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(gearSection, "perLevel", cachedArcaneGearLevelWeight), 0f, 1f);
+        cachedArcaneGearMaxContribution = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(gearSection, "maxContribution", cachedArcaneGearMaxContribution), 0.1f, 4f);
+        cachedArcaneGearOwnerMultiplier = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(gearSection, "ownerMultiplier", cachedArcaneGearOwnerMultiplier), 0f, 3.0f);
+        cachedArcaneGearPetMultiplier = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(gearSection, "petMultiplier", cachedArcaneGearPetMultiplier), 0f, 3.0f);
+        cachedArcaneScanCooldownTicks = Math.max(20L,
+            RegistryJsonHelper.getLong(arcaneSection, "scanCooldownTicks", 80L));
+        cachedArcaneScanMovementThreshold = Math.max(0.0d,
+            RegistryJsonHelper.getDouble(arcaneSection, "scanMovementThreshold", 3.0d));
+        cachedArcaneScanMovementThresholdSquared = cachedArcaneScanMovementThreshold
+            * cachedArcaneScanMovementThreshold;
+        JsonObject statusSection = getObject(arcaneSection, "statusWeights");
+        cachedArcaneStatusBaseWeight = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(statusSection, "base", cachedArcaneStatusBaseWeight), 0f, 1f);
+        cachedArcaneStatusAmplifierWeight = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(statusSection, "amplifier", cachedArcaneStatusAmplifierWeight), 0f, 1f);
+        cachedArcaneStatusDurationReference = Math.max(20,
+            RegistryJsonHelper.getInt(statusSection, "durationReferenceTicks", cachedArcaneStatusDurationReference));
+        cachedArcaneStatusDurationWeight = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(statusSection, "durationWeight", cachedArcaneStatusDurationWeight), 0f, 1f);
+        cachedArcaneStatusDurationCap = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(statusSection, "durationCap", cachedArcaneStatusDurationCap), 0.25f, 10f);
+        cachedArcaneStatusMaxContribution = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(statusSection, "maxContribution", cachedArcaneStatusMaxContribution), 0.1f, 2.0f);
+        cachedArcaneStatusOwnerMultiplier = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(statusSection, "ownerMultiplier", cachedArcaneStatusOwnerMultiplier), 0f, 3.0f);
+        cachedArcaneStatusPetMultiplier = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(statusSection, "petMultiplier", cachedArcaneStatusPetMultiplier), 0f, 3.0f);
+
+        JsonObject lonelinessSection = getObject(cachedMoodsSection, "loneliness");
+        cachedLonelyComfortRadius = Math.max(1.0d,
+            RegistryJsonHelper.getDouble(lonelinessSection, "comfortRadius", 8.0d));
+        cachedLonelyDistanceThreshold = Math.max(cachedLonelyComfortRadius,
+            RegistryJsonHelper.getDouble(lonelinessSection, "distanceThreshold", 24.0d));
+        cachedLonelySaudadeGraceTicks = Math.max(40L,
+            RegistryJsonHelper.getLong(lonelinessSection, "saudadeGraceTicks", 400L));
+        cachedLonelyHiraethGraceTicks = Math.max(cachedLonelySaudadeGraceTicks,
+            RegistryJsonHelper.getLong(lonelinessSection, "hiraethGraceTicks", 900L));
+        cachedLonelyOfflineGraceTicks = Math.max(40L,
+            RegistryJsonHelper.getLong(lonelinessSection, "offlineGraceTicks", 200L));
+        cachedLonelyOfflineHiraethGraceTicks = Math.max(cachedLonelyOfflineGraceTicks,
+            RegistryJsonHelper.getLong(lonelinessSection, "offlineHiraethGraceTicks", 600L));
+        cachedLonelyComfortRadiusSquared = cachedLonelyComfortRadius * cachedLonelyComfortRadius;
+        cachedLonelyDistanceThresholdSquared = cachedLonelyDistanceThreshold * cachedLonelyDistanceThreshold;
+        cachedLonelySocialGraceTicks = Math.max(20L,
+            RegistryJsonHelper.getLong(lonelinessSection, "socialGraceTicks", cachedLonelySocialGraceTicks));
+        cachedLonelyPackGraceTicks = Math.max(20L,
+            RegistryJsonHelper.getLong(lonelinessSection, "packGraceTicks", cachedLonelyPackGraceTicks));
+        cachedLonelyPackStrengthThreshold = MathHelper.clamp(
+            RegistryJsonHelper.getFloat(lonelinessSection, "packStrengthThreshold", cachedLonelyPackStrengthThreshold), 0f, 1f);
+        cachedLonelyPackRadius = Math.max(1.0d,
+            RegistryJsonHelper.getDouble(lonelinessSection, "packRadius",
+                Math.max(cachedLonelyPackRadius, cachedLonelyDistanceThreshold)));
+        cachedLonelyPackRadiusSquared = cachedLonelyPackRadius * cachedLonelyPackRadius;
+
+        JsonObject positiveSection = getObject(cachedMoodsSection, "positiveCues");
+        cachedPositivePetGraceTicks = Math.max(20L,
+            RegistryJsonHelper.getLong(positiveSection, "pettingGraceTicks", 200L));
+        cachedPositiveCrouchGraceTicks = Math.max(20L,
+            RegistryJsonHelper.getLong(positiveSection, "crouchGraceTicks", 160L));
+        cachedPositiveSocialGraceTicks = Math.max(20L,
+            RegistryJsonHelper.getLong(positiveSection, "socialBufferGraceTicks", 200L));
+        cachedPositivePlayGraceTicks = Math.max(20L,
+            RegistryJsonHelper.getLong(positiveSection, "playGraceTicks", 240L));
+        cachedPositiveFeedGraceTicks = Math.max(20L,
+            RegistryJsonHelper.getLong(positiveSection, "feedingGraceTicks", 260L));
+        cachedPositiveGiftGraceTicks = Math.max(20L,
+            RegistryJsonHelper.getLong(positiveSection, "giftGraceTicks", 360L));
+
         loadEmotionDecayMultipliers();
         loadEmotionValence();
         loadMoodThresholds();
         loadAdvancedSettings();
         rebuildOpponentPairs();
+    }
+
+    private void invalidateArcaneAmbientCachesIfNeeded(int generation) {
+        if (generation != cachedArcaneAmbientConfigGeneration) {
+            cachedArcaneAmbientConfigGeneration = generation;
+            StateManager.invalidateArcaneAmbientCaches();
+        }
     }
 
     private float[] parseLevelThresholds(JsonObject section) {

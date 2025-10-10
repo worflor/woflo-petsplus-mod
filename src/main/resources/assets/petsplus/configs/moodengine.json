@@ -234,6 +234,114 @@
         0.68,
         0.9
       ]
+    },
+    "guardianVigil": {
+      "recentDamageWindow": 160,
+      "dangerGraceTicks": 220,
+      "lowHealthThreshold": 0.45,
+      "criticalHealthThreshold": 0.25,
+      "lowHealthGraceTicks": 260,
+      "statusHazardGraceTicks": 220,
+      "statusHazardSeverityThreshold": 0.3
+    },
+    "packSpirit": {
+      "radius": 12.0,
+      "minPackmates": 1,
+      "lingerTicks": 140,
+      "bondBonus": 0.35,
+      "engagement": {
+        "baseContribution": 0.25,
+        "closenessWeight": 0.55,
+        "combatBonus": 0.25,
+        "protectiveMoodWeight": 0.35,
+        "focusedMoodWeight": 0.2,
+        "playfulMoodWeight": 0.1,
+        "diversityBonus": 0.15,
+        "maxContribution": 1.35,
+        "roleWeights": {
+          "TANK": 1.0,
+          "DPS": 0.85,
+          "SUPPORT": 0.8,
+          "MOBILITY": 0.65,
+          "UTILITY": 0.7
+        }
+      }
+    },
+    "arcaneOverflow": {
+      "lingerTicks": 220,
+      "streakGraceTicks": 200,
+      "statusGraceTicks": 160,
+      "ambientScanRadius": 4,
+      "minimumEnergy": 0.25,
+      "structureBaseWeight": 0.35,
+      "structureMaxEnergy": 0.9,
+      "structureDistanceExponent": 1.0,
+      "mysticEnvironmentBonus": 0.2,
+      "structureWeights": {
+        "minecraft:enchanting_table": 0.5,
+        "minecraft:amethyst_block": 0.3,
+        "minecraft:respawn_anchor": 0.6,
+        "minecraft:beacon": 0.45,
+        "minecraft:brewing_stand": 0.25,
+        "minecraft:end_portal_frame": 0.5,
+        "minecraft:sculk_catalyst": 0.4
+      },
+      "structureState": {
+        "respawnAnchor": {
+          "emptyMultiplier": 0.05,
+          "chargeStep": 0.28,
+          "maxMultiplier": 1.75
+        },
+        "beacon": {
+          "baseMultiplier": 0.5,
+          "perLevel": 0.32,
+          "maxMultiplier": 2.4
+        },
+        "sculkCatalyst": {
+          "recentBloomTicks": 480,
+          "activeMultiplier": 1.1,
+          "inactiveMultiplier": 0.2
+        }
+      },
+      "scanCooldownTicks": 80,
+      "scanMovementThreshold": 3.0,
+      "gearWeights": {
+        "base": 0.08,
+        "perLevel": 0.06,
+        "maxContribution": 0.8,
+        "ownerMultiplier": 0.75,
+        "petMultiplier": 1.0
+      },
+      "statusWeights": {
+        "base": 0.12,
+        "amplifier": 0.08,
+        "durationReferenceTicks": 200,
+        "durationWeight": 0.05,
+        "durationCap": 3.0,
+        "maxContribution": 0.6,
+        "ownerMultiplier": 1.0,
+        "petMultiplier": 1.15
+      }
+    },
+    "loneliness": {
+      "comfortRadius": 8.0,
+      "distanceThreshold": 24.0,
+      "saudadeGraceTicks": 400,
+      "hiraethGraceTicks": 900,
+      "offlineGraceTicks": 200,
+      "offlineHiraethGraceTicks": 600,
+      "socialGraceTicks": 260,
+      "packGraceTicks": 320,
+      "packStrengthThreshold": 0.2,
+      "packRadius": 18.0
+    },
+    "positiveCues": {
+      "pettingGraceTicks": 200,
+      "crouchGraceTicks": 160,
+      "socialBufferGraceTicks": 200,
+      "playGraceTicks": 240,
+      "feedingGraceTicks": 260,
+      "giftGraceTicks": 360
     }
   },
   "advanced": {
