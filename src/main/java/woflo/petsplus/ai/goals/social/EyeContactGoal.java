@@ -349,6 +349,17 @@ public class EyeContactGoal extends AdaptiveGoal {
 
         baseChance += (attentionStrength - 0.5f) * 0.30f;
 
+        float socialCharge = MathHelper.clamp(ctx.socialCharge(), 0.0f, 1.0f);
+        float mentalFocus = MathHelper.clamp(ctx.mentalFocus(), 0.0f, 1.0f);
+
+        float socialBlend = MathHelper.clamp((socialCharge - 0.35f) / 0.3f, -1.0f, 1.0f);
+        float socialScale = MathHelper.lerp((socialBlend + 1.0f) * 0.5f, 0.68f, 1.16f);
+        baseChance *= socialScale;
+
+        float focusBlend = MathHelper.clamp((mentalFocus - 0.45f) / 0.35f, -1.0f, 1.0f);
+        float focusScale = MathHelper.lerp((focusBlend + 1.0f) * 0.5f, 0.74f, 1.08f);
+        baseChance *= focusScale;
+
         if (observation != null) {
             float alignmentScale = MathHelper.clamp((observation.alignment() - MIN_ALIGNMENT_DOT) / (DIRECT_ALIGNMENT_DOT - MIN_ALIGNMENT_DOT), 0.0f, 1.0f);
             baseChance += alignmentScale * 0.08f;

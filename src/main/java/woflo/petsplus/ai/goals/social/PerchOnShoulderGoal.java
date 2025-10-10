@@ -2,6 +2,7 @@ package woflo.petsplus.ai.goals.social;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
@@ -113,23 +114,28 @@ public class PerchOnShoulderGoal extends AdaptiveGoal {
     @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
-        float engagement = 0.95f;
-        
-        // Peak engagement when bonded
+        float socialCharge = MathHelper.clamp(ctx.socialCharge(), 0.0f, 1.0f);
+        float physicalStamina = MathHelper.clamp(ctx.physicalStamina(), 0.0f, 1.0f);
+
+        float socialBlend = MathHelper.clamp((socialCharge - 0.35f) / 0.3f, -1.0f, 1.0f);
+        float engagement = MathHelper.lerp((socialBlend + 1.0f) * 0.5f, 0.62f, 0.96f);
+
+        float staminaBlend = MathHelper.clamp((physicalStamina - 0.4f) / 0.35f, -1.0f, 1.0f);
+        float staminaScale = MathHelper.lerp((staminaBlend + 1.0f) * 0.5f, 0.86f, 1.05f);
+        engagement *= staminaScale;
+
         if (ctx.hasPetsPlusComponent() && ctx.hasMoodInBlend(
             woflo.petsplus.state.PetComponent.Mood.BONDED, 0.3f)) {
-            engagement = 1.0f;
+            engagement = Math.max(engagement, 1.0f);
         }
-        
-        // Very engaging when actually perched
+
         if (onShoulder) {
-            engagement = 1.0f;
+            engagement = Math.max(engagement, 1.0f);
         }
-        
-        // Scales with bond
+
         engagement += ctx.bondStrength() * 0.05f;
-        
-        return Math.min(1.0f, engagement);
+
+        return MathHelper.clamp(engagement, 0.0f, 1.0f);
     }
 }
 

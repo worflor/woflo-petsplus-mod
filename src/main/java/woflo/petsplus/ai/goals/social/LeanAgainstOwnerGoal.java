@@ -2,6 +2,7 @@ package woflo.petsplus.ai.goals.social;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalType;
@@ -85,19 +86,25 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
     @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
-        float engagement = 0.8f;
-        
-        // Very engaging with high bond
+        float socialCharge = MathHelper.clamp(ctx.socialCharge(), 0.0f, 1.0f);
+        float physicalStamina = MathHelper.clamp(ctx.physicalStamina(), 0.0f, 1.0f);
+
+        float socialBlend = MathHelper.clamp((socialCharge - 0.35f) / 0.3f, -1.0f, 1.0f);
+        float engagement = MathHelper.lerp((socialBlend + 1.0f) * 0.5f, 0.55f, 0.92f);
+
+        float staminaBlend = MathHelper.clamp((physicalStamina - 0.45f) / 0.35f, -1.0f, 1.0f);
+        float staminaScale = MathHelper.lerp((staminaBlend + 1.0f) * 0.5f, 0.88f, 1.06f);
+        engagement *= staminaScale;
+
         if (ctx.bondStrength() > 0.7f) {
-            engagement = 1.0f;
+            engagement = Math.max(engagement, 0.96f);
         }
-        
-        // Engaging if bonded mood
+
         if (ctx.hasPetsPlusComponent() && ctx.hasMoodInBlend(
             woflo.petsplus.state.PetComponent.Mood.BONDED, 0.4f)) {
-            engagement = 1.0f;
+            engagement = Math.max(engagement, 1.0f);
         }
-        
-        return engagement;
+
+        return MathHelper.clamp(engagement, 0.0f, 1.0f);
     }
 }

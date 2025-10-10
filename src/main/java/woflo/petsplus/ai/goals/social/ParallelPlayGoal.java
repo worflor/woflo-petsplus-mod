@@ -2,6 +2,7 @@ package woflo.petsplus.ai.goals.social;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalType;
@@ -114,17 +115,23 @@ public class ParallelPlayGoal extends AdaptiveGoal {
     @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
-        float engagement = 0.75f;
-        
-        // Engaging for calm pets
+        float socialCharge = MathHelper.clamp(ctx.socialCharge(), 0.0f, 1.0f);
+        float physicalStamina = MathHelper.clamp(ctx.physicalStamina(), 0.0f, 1.0f);
+
+        float socialBlend = MathHelper.clamp((socialCharge - 0.35f) / 0.3f, -1.0f, 1.0f);
+        float engagement = MathHelper.lerp((socialBlend + 1.0f) * 0.5f, 0.5f, 0.88f);
+
+        float staminaBlend = MathHelper.clamp((physicalStamina - 0.4f) / 0.35f, -1.0f, 1.0f);
+        float staminaScale = MathHelper.lerp((staminaBlend + 1.0f) * 0.5f, 0.82f, 1.08f);
+        engagement *= staminaScale;
+
         if (ctx.hasPetsPlusComponent() && ctx.hasMoodInBlend(
             woflo.petsplus.state.PetComponent.Mood.CALM, 0.5f)) {
-            engagement = 0.9f;
+            engagement += 0.12f;
         }
-        
-        // More engaging with higher bond
+
         engagement += ctx.bondStrength() * 0.15f;
-        
-        return Math.min(1.0f, engagement);
+
+        return MathHelper.clamp(engagement, 0.0f, 1.0f);
     }
 }
