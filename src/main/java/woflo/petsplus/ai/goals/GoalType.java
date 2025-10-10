@@ -1,7 +1,9 @@
 package woflo.petsplus.ai.goals;
 
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec2f;
 import woflo.petsplus.ai.capability.MobCapabilities;
+import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
 
 /**
  * Registry of all behavioral goals pets can consider.
@@ -173,7 +175,11 @@ public enum GoalType {
         // Soft gate: allow some flexibility
         return getEnergyBias(momentum) > 0.05f;
     }
-    
+
+    public boolean isEnergyCompatible(BehaviouralEnergyProfile profile) {
+        return getEnergyBias(profile) > 0.12f;
+    }
+
     /**
      * Get energy bias multiplier for this goal based on current momentum.
      * Returns 1.0 at optimal center, lower at range edges, 0.1 if outside range.
@@ -184,19 +190,74 @@ public enum GoalType {
         float max = energyRange.y;
         float center = (min + max) / 2f;
         float halfRange = (max - min) / 2f;
-        
+
         // If outside range, return low bias (0.1) for unpredictability
         if (momentum < min || momentum > max) {
             return 0.1f;
         }
-        
+
         // Inside range: calculate distance from center
         float distanceFromCenter = Math.abs(momentum - center);
         float normalizedDistance = distanceFromCenter / halfRange; // 0 at center, 1 at edges
-        
+
         // Linear falloff from center (1.0) to edges (0.5)
         // At center: 1.0, at edges: 0.5
         return 1.0f - (normalizedDistance * 0.5f);
+    }
+
+    public float getEnergyBias(BehaviouralEnergyProfile profile) {
+        if (profile == null) {
+            return getEnergyBias(0.5f);
+        }
+        if (category == Category.IDLE_QUIRK) {
+            return getEnergyBias(profile.momentum());
+        }
+
+        float baseBias = getEnergyBias(profile.momentum());
+        float domainBias;
+        float baseWeight;
+        float domainWeight;
+
+        switch (category) {
+            case PLAY, WANDER -> {
+                domainBias = batteryBias(profile.physicalStamina(), 0.65f, 0.22f);
+                baseWeight = 0.5f;
+                domainWeight = 0.5f;
+            }
+            case SOCIAL -> {
+                domainBias = batteryBias(profile.socialCharge(), 0.45f, 0.25f);
+                baseWeight = 0.4f;
+                domainWeight = 0.6f;
+            }
+            case SPECIAL -> {
+                domainBias = batteryBias(profile.mentalFocus(), 0.6f, 0.25f);
+                baseWeight = 0.45f;
+                domainWeight = 0.55f;
+            }
+            default -> {
+                domainBias = baseBias;
+                baseWeight = 0.6f;
+                domainWeight = 0.4f;
+            }
+        }
+
+        float combined = (baseBias * baseWeight) + (domainBias * domainWeight);
+        return MathHelper.clamp(combined, 0.05f, 1.0f);
+    }
+
+    private static float batteryBias(float value, float baseline, float slack) {
+        float min = Math.max(0f, baseline - slack);
+        if (value <= min) {
+            return 0.05f;
+        }
+        if (value >= baseline) {
+            float overshootRange = Math.max(0.0001f, 1f - baseline);
+            float overshoot = MathHelper.clamp((value - baseline) / overshootRange, 0f, 1f);
+            return MathHelper.clamp(0.8f + overshoot * 0.2f, 0.05f, 1.0f);
+        }
+        float baselineRange = Math.max(0.0001f, baseline - min);
+        float normalized = MathHelper.clamp((value - min) / baselineRange, 0f, 1f);
+        return MathHelper.clamp(0.2f + normalized * 0.6f, 0.05f, 1.0f);
     }
     
     /**
