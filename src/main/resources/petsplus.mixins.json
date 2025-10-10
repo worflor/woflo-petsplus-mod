@@ -29,7 +29,9 @@
 	               "ServerPlayerEntityXpMixin",
 	               "VillagerEntityTradeMixin",
 	               "PetNamingMixin",
-	               "LivingEntityHealMixin"
+                       "LivingEntityHealMixin",
+                       "ServerWorldSetBlockStateMixin",
+                       "BlockEntityMarkDirtyMixin"
 	       ],
 	"client": [
 	],

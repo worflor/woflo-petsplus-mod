@@ -69,7 +69,10 @@ public class OwnerCombatState {
     public static OwnerCombatState get(PlayerEntity owner) {
         if (owner.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
             StateManager manager = StateManager.forWorld(serverWorld);
-            return manager.getAllOwnerStates().get(owner);
+            OwnerCombatState state = manager.getOwnerStateIfPresent(owner);
+            if (state != null) {
+                return state;
+            }
         }
         return STATES.get(owner);
     }

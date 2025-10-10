@@ -50,6 +50,16 @@ Three special moods require extreme conditions to manifest. These aren't calcula
 
 Ultra-rare moods have unique visual effects and behavioral modifiers. They're not meant to be farmed. They're meant to be *moments*.
 
+### Tuning Defensive & Arcane Persistence
+
+Server owners can adjust how long these heightened states linger by editing `moodengine.json`:
+
+- **`guardianVigil` block** – sets the recent damage window, grace period, health thresholds, and status-effect hazard tuning that keep Protective/Guardian moods active after the owner is hurt or afflicted.
+- **`packSpirit` block** – defines the ally radius, minimum packmates, linger time, and bond bonus that stabilize Pack Spirit when bonded pets cluster together. The nested `engagement` tuning lets you weight combat-ready archetypes, mood strength, and role diversity so active guardians contribute more cohesion than idle companions.
+- **`arcaneOverflow` block** – controls the linger/streak timers, ambient scan radius, minimum energy, structure weighting (per-block energy, distance exponent, mystic bonus), and the cooldown/movement thresholds that govern when ambient arcane scans are recomputed. Status-effect weights allow powerful buffs with long durations to feed more momentum than fleeting trickles while shared ambient caches keep clustered pets from re-scanning the same volume every tick, and gear weighting scales contributions based on enchantment power so high-tier kits deliver a stronger surge. Reloading the config immediately invalidates cached ambient samples so new tuning takes effect right away. The optional `structureState` section exposes multipliers for block-state potency—respawn anchors scale by stored charges, beacons ramp with pyramid levels, and sculk catalysts taper without recent blooms—so designers can author granular ambient responses.
+- **`loneliness` block** – tunes how close the owner must stay, how long absences linger, the different grace windows for Saudade versus Hiraeth, and now how long recent social buffers or pack companionship suppress longing before isolation returns (including pack-radius and strength thresholds).
+- **`positiveCues` block** – defines how long recent petting, crouch cuddles, social buffers, play sessions, feeding, and gifts keep Content/Cheerful moods buoyant.
+
 ## Mood Intensity
 
 Moods aren't binary. Each has an intensity level (0.0 to 1.0) representing how strongly it's being felt.

@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Loads mood engine configuration from moodengine.json.
@@ -22,18 +23,22 @@ public final class MoodEngineConfig {
     private static final Gson GSON = new GsonBuilder().create();
     private static final String RESOURCE_PATH = "/assets/petsplus/configs/moodengine.json";
     
+    private static final AtomicInteger RELOAD_GENERATION = new AtomicInteger();
+
     private static MoodEngineConfig instance;
     
     private final JsonObject root;
     private final JsonObject moodsSection;
     private final int version;
     private final String schema;
-    
-    private MoodEngineConfig(JsonObject root, JsonObject moodsSection, int version, String schema) {
+    private final int generation;
+
+    private MoodEngineConfig(JsonObject root, JsonObject moodsSection, int version, String schema, int generation) {
         this.root = root;
         this.moodsSection = moodsSection;
         this.version = version;
         this.schema = schema;
+        this.generation = generation;
     }
     
     /** Returns singleton instance. */
@@ -47,8 +52,8 @@ public final class MoodEngineConfig {
     /** Reloads configuration from resources. */
     public static void reload() {
         instance = load();
-        Petsplus.LOGGER.info("Reloaded mood engine configuration (version: {}, schema: {})",
-            instance.version, instance.schema);
+        Petsplus.LOGGER.info("Reloaded mood engine configuration (version: {}, schema: {}, generation: {})",
+            instance.version, instance.schema, instance.generation);
     }
     
     /** Returns root config object. */
@@ -70,7 +75,12 @@ public final class MoodEngineConfig {
     public String getSchema() {
         return schema;
     }
-    
+
+    /** Returns the monotonic reload generation. */
+    public int getGeneration() {
+        return generation;
+    }
+
     private static MoodEngineConfig load() {
         JsonObject root = loadRoot();
         
@@ -96,7 +106,8 @@ public final class MoodEngineConfig {
         }
         
         Petsplus.LOGGER.info("Loaded mood engine configuration v{} ({})", version, schema);
-        return new MoodEngineConfig(root, moodsSection, version, schema);
+        int generation = RELOAD_GENERATION.incrementAndGet();
+        return new MoodEngineConfig(root, moodsSection, version, schema, generation);
     }
     
     @Nullable
@@ -154,6 +165,7 @@ public final class MoodEngineConfig {
         root.add("moods", moods);
         
         Petsplus.LOGGER.info("Created fallback mood engine config with hardcoded defaults");
-        return new MoodEngineConfig(root, moods, 1, "petsplus:moodengine:fallback");
+        int generation = RELOAD_GENERATION.incrementAndGet();
+        return new MoodEngineConfig(root, moods, 1, "petsplus:moodengine:fallback", generation);
     }
 }

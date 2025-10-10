@@ -1,5 +1,6 @@
 package woflo.petsplus.state;
 
+import com.google.gson.JsonObject;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -8,9 +9,10 @@ import net.minecraft.server.PlayerManager;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkSectionPos;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.TriggerContext;
@@ -25,6 +27,7 @@ import woflo.petsplus.effects.ProjectileDrForOwnerEffect;
 import woflo.petsplus.effects.TagTargetEffect;
 import woflo.petsplus.events.EmotionContextCues;
 import woflo.petsplus.events.EmotionsEventHandler;
+import woflo.petsplus.config.MoodEngineConfig;
 import woflo.petsplus.roles.support.SupportPotionUtils;
 import woflo.petsplus.roles.support.SupportPotionVacuumManager;
 import woflo.petsplus.mood.MoodService;
@@ -58,18 +61,18 @@ import woflo.petsplus.state.gossip.PetGossipLedger;
 import woflo.petsplus.state.gossip.RumorEntry;
 import woflo.petsplus.state.processing.AsyncWorkerBudget;
 
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.WeakHashMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -98,6 +101,11 @@ public class StateManager {
     private long nextMaintenanceTick;
     private long lastTelemetryLogTick;
     private final PetSwarmIndex swarmIndex = new PetSwarmIndex();
+    private final ArcaneAmbientCache arcaneAmbientCache = new ArcaneAmbientCache();
+
+    private static final Object ARCANE_INVALIDATION_LOCK = new Object();
+    private static volatile int cachedArcaneInvalidationRadius = 4;
+    private static volatile int cachedArcaneInvalidationGeneration = -1;
     private final AuraTargetResolver auraTargetResolver = new AuraTargetResolver(swarmIndex);
     private final PetWorkScheduler workScheduler = new PetWorkScheduler();
     private final OwnerProcessingManager ownerProcessingManager = new OwnerProcessingManager();
@@ -262,12 +270,17 @@ public class StateManager {
             if (existing != null) {
                 return existing;
             }
-            
+
             // Create new component and attach to entity
             OwnerCombatState state = new OwnerCombatState(entity);
             OwnerCombatState.set(entity, state);
             return state;
         });
+    }
+
+    @Nullable
+    public OwnerCombatState getOwnerStateIfPresent(PlayerEntity owner) {
+        return ownerStates.get(owner);
     }
     
     /**
@@ -2384,6 +2397,171 @@ public class StateManager {
 
     public PetSwarmIndex getSwarmIndex() {
         return swarmIndex;
+    }
+
+    public ArcaneAmbientCache getArcaneAmbientCache() {
+        return arcaneAmbientCache;
+    }
+
+    public void invalidateArcaneAmbient(BlockPos pos) {
+        if (pos == null) {
+            return;
+        }
+        int radius = resolveArcaneAmbientScanRadius();
+        arcaneAmbientCache.invalidateRadius(pos, radius);
+    }
+
+    public static void invalidateArcaneAmbientAt(ServerWorld world, BlockPos pos) {
+        if (world == null || pos == null) {
+            return;
+        }
+        StateManager manager;
+        synchronized (WORLD_MANAGERS) {
+            manager = WORLD_MANAGERS.get(world);
+        }
+        if (manager == null) {
+            manager = forWorld(world);
+        }
+        manager.invalidateArcaneAmbient(pos);
+    }
+
+    public static void invalidateArcaneAmbientCaches() {
+        synchronized (WORLD_MANAGERS) {
+            if (WORLD_MANAGERS.isEmpty()) {
+                return;
+            }
+            for (StateManager manager : WORLD_MANAGERS.values()) {
+                if (manager != null) {
+                    manager.arcaneAmbientCache.invalidateAll();
+                }
+            }
+        }
+    }
+
+    public static final class ArcaneAmbientCache {
+        private static final long EXPIRY_MULTIPLIER = 2L;
+
+        private final Map<ChunkSectionPos, Sample> samples = new HashMap<>();
+
+        public synchronized Sample tryGet(ChunkSectionPos section, BlockPos requestPos, int radius,
+                                          long now, long ttl, double movementThresholdSq) {
+            cleanup(now, ttl);
+            Sample sample = samples.get(section);
+            if (sample == null) {
+                return null;
+            }
+            if (sample.radius != radius) {
+                return null;
+            }
+            if ((now - sample.tick) > ttl) {
+                samples.remove(section);
+                return null;
+            }
+            double distSq = sample.origin.getSquaredDistance(requestPos);
+            if (distSq > movementThresholdSq) {
+                return null;
+            }
+            return sample;
+        }
+
+        public synchronized Sample store(ChunkSectionPos section, BlockPos pos, int radius,
+                                         long now, long ttl, float energy) {
+            cleanup(now, ttl);
+            Sample sample = new Sample(pos.toImmutable(), radius, now, MathHelper.clamp(energy, 0f, 1f));
+            samples.put(section, sample);
+            enforceCapacity();
+            return sample;
+        }
+
+        public synchronized void invalidate(ChunkSectionPos section) {
+            if (section == null || samples.isEmpty()) {
+                return;
+            }
+            samples.remove(section);
+        }
+
+        public synchronized void invalidateRadius(BlockPos pos, int radius) {
+            if (pos == null || samples.isEmpty()) {
+                return;
+            }
+            if (radius <= 0) {
+                samples.remove(ChunkSectionPos.from(pos));
+                return;
+            }
+
+            int minSectionX = Math.floorDiv(pos.getX() - radius, 16);
+            int maxSectionX = Math.floorDiv(pos.getX() + radius, 16);
+            int minSectionY = Math.floorDiv(pos.getY() - radius, 16);
+            int maxSectionY = Math.floorDiv(pos.getY() + radius, 16);
+            int minSectionZ = Math.floorDiv(pos.getZ() - radius, 16);
+            int maxSectionZ = Math.floorDiv(pos.getZ() + radius, 16);
+
+            for (int sectionX = minSectionX; sectionX <= maxSectionX; sectionX++) {
+                for (int sectionY = minSectionY; sectionY <= maxSectionY; sectionY++) {
+                    for (int sectionZ = minSectionZ; sectionZ <= maxSectionZ; sectionZ++) {
+                        samples.remove(ChunkSectionPos.from(sectionX, sectionY, sectionZ));
+                    }
+                }
+            }
+        }
+
+        public synchronized void invalidateAll() {
+            samples.clear();
+        }
+
+        private void cleanup(long now, long ttl) {
+            if (samples.isEmpty()) {
+                return;
+            }
+            long expiryWindow = Math.max(ttl, 1L) * EXPIRY_MULTIPLIER;
+            samples.values().removeIf(sample -> (now - sample.tick) > expiryWindow);
+        }
+
+        private void enforceCapacity() {
+            final int maxEntries = 512;
+            if (samples.size() <= maxEntries) {
+                return;
+            }
+            ChunkSectionPos oldestKey = null;
+            long oldestTick = Long.MAX_VALUE;
+            for (Map.Entry<ChunkSectionPos, Sample> entry : samples.entrySet()) {
+                if (entry.getValue().tick() < oldestTick) {
+                    oldestTick = entry.getValue().tick();
+                    oldestKey = entry.getKey();
+                }
+            }
+            if (oldestKey != null) {
+                samples.remove(oldestKey);
+            }
+        }
+
+        public record Sample(BlockPos origin, int radius, long tick, float energy) { }
+    }
+
+    private static int resolveArcaneAmbientScanRadius() {
+        MoodEngineConfig config = MoodEngineConfig.get();
+        int generation = config.getGeneration();
+        if (cachedArcaneInvalidationGeneration == generation && cachedArcaneInvalidationRadius > 0) {
+            return cachedArcaneInvalidationRadius;
+        }
+
+        synchronized (ARCANE_INVALIDATION_LOCK) {
+            if (cachedArcaneInvalidationGeneration != generation || cachedArcaneInvalidationRadius <= 0) {
+                int radius = 4;
+                JsonObject moods = config.getMoodsSection();
+                if (moods != null && moods.has("arcaneOverflow") && moods.get("arcaneOverflow").isJsonObject()) {
+                    JsonObject arcane = moods.getAsJsonObject("arcaneOverflow");
+                    if (arcane != null && arcane.has("ambientScanRadius") && arcane.get("ambientScanRadius").isJsonPrimitive()
+                        && arcane.get("ambientScanRadius").getAsJsonPrimitive().isNumber()) {
+                        radius = Math.max(1, arcane.get("ambientScanRadius").getAsInt());
+                    }
+                }
+                cachedArcaneInvalidationRadius = Math.max(1, radius);
+                cachedArcaneInvalidationGeneration = generation;
+            }
+        }
+
+        return cachedArcaneInvalidationRadius;
     }
 
     public AuraTargetResolver getAuraTargetResolver() {
