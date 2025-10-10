@@ -6,7 +6,7 @@
 
 <h1 align="center">woflo's Pets+</h1>
 <h3 align="center">dev-0.94-Rebranding-to-Realtime</h3>
-<h4 align="center">next: tribute system overhaul + leveling changes + nature tweaks</h4>
+<h4 align="center">next: use pet context telemetry for advanced data driven ai</h4>
 
 ---
 
