@@ -182,6 +182,8 @@ public final class PetBreedingHandler {
         int nearbyPets = countNearbyPets(world, child, witnessRadius);
 
         PetBreedEvent.BirthContext.Environment environment = PetNatureSelector.captureEnvironment(world, child, primaryComponent, partnerComponent);
+        Identifier primaryNatureId = primaryComponent != null ? primaryComponent.getNatureId() : null;
+        Identifier partnerNatureId = partnerComponent != null ? partnerComponent.getNatureId() : null;
 
         return new PetBreedEvent.BirthContext(
             worldTime,
@@ -196,6 +198,8 @@ public final class PetBreedingHandler {
             fullMoon,
             primaryOwned,
             partnerOwned,
+            primaryNatureId,
+            partnerNatureId,
             environment
         );
     }

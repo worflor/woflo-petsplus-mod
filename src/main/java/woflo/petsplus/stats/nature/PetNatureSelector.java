@@ -28,6 +28,7 @@ import net.minecraft.world.Heightmap;
 import net.minecraft.world.LightType;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeKeys;
+import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.event.PetBreedEvent;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
@@ -786,6 +787,10 @@ public final class PetNatureSelector {
         boolean primaryOwned();
 
         boolean partnerOwned();
+
+        @Nullable Identifier primaryParentNatureId();
+
+        @Nullable Identifier partnerParentNatureId();
     }
 
     private static final class BirthNatureContext implements NatureContext {
@@ -853,6 +858,16 @@ public final class PetNatureSelector {
         @Override
         public boolean partnerOwned() {
             return context.isPartnerParentOwned();
+        }
+
+        @Override
+        public @Nullable Identifier primaryParentNatureId() {
+            return context.getPrimaryParentNatureId();
+        }
+
+        @Override
+        public @Nullable Identifier partnerParentNatureId() {
+            return context.getPartnerParentNatureId();
         }
     }
 
@@ -941,6 +956,16 @@ public final class PetNatureSelector {
         @Override
         public boolean partnerOwned() {
             return false;
+        }
+
+        @Override
+        public @Nullable Identifier primaryParentNatureId() {
+            return null;
+        }
+
+        @Override
+        public @Nullable Identifier partnerParentNatureId() {
+            return null;
         }
     }
 
