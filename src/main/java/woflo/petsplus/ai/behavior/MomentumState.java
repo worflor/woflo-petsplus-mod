@@ -119,13 +119,62 @@ public record MomentumState(
      * Multiply goal priority/weight by this value for momentum-aware selection.
      */
     public float getBiasFor(GoalCategory category) {
+        BehaviouralEnergyProfile profile = energyProfile != null
+            ? energyProfile
+            : BehaviouralEnergyProfile.neutral();
+
         return switch (category) {
-            case REST, IDLE -> restBias;
-            case PLAY, EXPLORE -> activeBias;
-            case WORK, TRAINING -> mentalBias;
-            case SOCIAL -> (activeBias + mentalBias) * 0.5f; // Balanced
+            case REST, IDLE -> clamp(
+                (restBias * 0.55f) + (favourLowCharge(profile.physicalStamina(), 0.55f, 0.25f) * 0.45f),
+                0.0f,
+                1.0f
+            );
+            case PLAY, EXPLORE -> clamp(
+                (activeBias * 0.5f) + (favourHighCharge(profile.physicalStamina(), 0.6f, 0.25f) * 0.5f),
+                0.0f,
+                1.0f
+            );
+            case WORK, TRAINING -> clamp(
+                (mentalBias * 0.45f) + (favourHighCharge(profile.mentalFocus(), 0.6f, 0.25f) * 0.55f),
+                0.0f,
+                1.0f
+            );
+            case SOCIAL -> clamp(
+                (favourHighCharge(profile.socialCharge(), 0.45f, 0.2f) * 0.7f)
+                    + ((activeBias + mentalBias) * 0.15f),
+                0.0f,
+                1.0f
+            );
             default -> 1.0f; // No bias
         };
+    }
+
+    private static float favourHighCharge(float value, float midpoint, float tolerance) {
+        float lower = Math.max(0.0f, midpoint - tolerance);
+        float upper = Math.min(1.0f, midpoint + tolerance);
+        if (value <= lower) {
+            return 0.2f;
+        }
+        if (value >= upper) {
+            float overshootRange = Math.max(0.0001f, 1.0f - upper);
+            float overshoot = clamp((value - upper) / overshootRange, 0.0f, 1.0f);
+            return clamp(0.8f + overshoot * 0.2f, 0.0f, 1.0f);
+        }
+        float normalized = clamp((value - lower) / Math.max(0.0001f, upper - lower), 0.0f, 1.0f);
+        return clamp(0.2f + normalized * 0.6f, 0.0f, 1.0f);
+    }
+
+    private static float favourLowCharge(float value, float midpoint, float tolerance) {
+        float lower = Math.max(0.0f, midpoint - tolerance);
+        float upper = Math.min(1.0f, midpoint + tolerance);
+        if (value <= lower) {
+            return 1.0f;
+        }
+        if (value >= upper) {
+            return 0.2f;
+        }
+        float normalized = clamp((upper - value) / Math.max(0.0001f, upper - lower), 0.0f, 1.0f);
+        return clamp(0.2f + normalized * 0.8f, 0.0f, 1.0f);
     }
     
     /**

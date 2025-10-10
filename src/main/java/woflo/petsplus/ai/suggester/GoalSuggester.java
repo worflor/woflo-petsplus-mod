@@ -3,6 +3,7 @@ package woflo.petsplus.ai.suggester;
 import woflo.petsplus.ai.capability.MobCapabilities;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
 
 import net.minecraft.util.math.MathHelper;
 
@@ -862,13 +863,18 @@ public class GoalSuggester {
      * High-energy pets prefer active behaviors, low-energy pets prefer rest.
      */
     private float getEnergyModifier(GoalType goalType, PetContext ctx) {
-        float momentum = ctx.behavioralMomentum();
-        float socialCharge = ctx.socialCharge();
-        float physicalStamina = ctx.physicalStamina();
-        float mentalFocus = ctx.mentalFocus();
+        BehaviouralEnergyProfile profile = ctx.behaviouralEnergyProfile();
+        if (profile == null) {
+            profile = BehaviouralEnergyProfile.neutral();
+        }
+
+        float momentum = profile.momentum();
+        float socialCharge = profile.socialCharge();
+        float physicalStamina = profile.physicalStamina();
+        float mentalFocus = profile.mentalFocus();
 
         // Use goal type's energy bias as base
-        float energyBias = goalType.getEnergyBias(momentum);
+        float energyBias = goalType.getEnergyBias(profile);
 
         // Additional contextual modifiers based on energy level
         float modifier = energyBias;
