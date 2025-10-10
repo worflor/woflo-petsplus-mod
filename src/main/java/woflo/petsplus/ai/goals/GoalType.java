@@ -210,7 +210,27 @@ public enum GoalType {
             return getEnergyBias(0.5f);
         }
         if (category == Category.IDLE_QUIRK) {
-            return getEnergyBias(profile.momentum());
+            float baseBias = getEnergyBias(profile.momentum());
+            float staminaBias;
+            float centre = (energyRange.x + energyRange.y) / 2f;
+
+            switch (this) {
+                case STRETCH_AND_YAW, SIT_SPHINX_POSE, PREEN_FEATHERS, FLOAT_IDLE, SURFACE_BREATH ->
+                    staminaBias = favourLowBattery(profile.physicalStamina(), centre, 0.22f);
+                case TAIL_CHASE, POUNCE_PRACTICE, PERCH_HOP, BUBBLE_PLAY, WING_FLUTTER ->
+                    staminaBias = favourHighBattery(profile.physicalStamina(), centre, 0.25f);
+                default ->
+                    staminaBias = favourCenteredBattery(profile.physicalStamina(), centre, 0.2f);
+            }
+
+            float combined = MathHelper.clamp((baseBias * 0.55f) + (staminaBias * 0.45f), 0.05f, 1.0f);
+
+            if (usesSocialIdleBias()) {
+                float socialBias = favourCenteredBattery(profile.socialCharge(), 0.45f, 0.28f);
+                combined = MathHelper.clamp((combined * 0.75f) + (socialBias * 0.25f), 0.05f, 1.0f);
+            }
+
+            return combined;
         }
 
         float baseBias = getEnergyBias(profile.momentum());
@@ -245,6 +265,10 @@ public enum GoalType {
         return MathHelper.clamp(combined, 0.05f, 1.0f);
     }
 
+    private boolean usesSocialIdleBias() {
+        return this == TAIL_CHASE || this == BUBBLE_PLAY || this == PERCH_HOP;
+    }
+
     private static float batteryBias(float value, float baseline, float slack) {
         float min = Math.max(0f, baseline - slack);
         if (value <= min) {
@@ -258,6 +282,55 @@ public enum GoalType {
         float baselineRange = Math.max(0.0001f, baseline - min);
         float normalized = MathHelper.clamp((value - min) / baselineRange, 0f, 1f);
         return MathHelper.clamp(0.2f + normalized * 0.6f, 0.05f, 1.0f);
+    }
+
+    private static float favourLowBattery(float value, float midpoint, float tolerance) {
+        float lower = Math.max(0f, midpoint - tolerance);
+        float upper = Math.min(1f, midpoint + tolerance);
+
+        if (value <= lower) {
+            return 0.95f;
+        }
+        if (value >= upper) {
+            float overshoot = MathHelper.clamp((value - upper) / Math.max(1f - upper, 0.0001f), 0f, 1f);
+            return MathHelper.clamp(0.55f - overshoot * 0.4f, 0.05f, 1.0f);
+        }
+
+        float span = Math.max(upper - lower, 0.0001f);
+        float t = MathHelper.clamp((value - lower) / span, 0f, 1f);
+        return MathHelper.clamp(0.95f - t * 0.35f, 0.05f, 1.0f);
+    }
+
+    private static float favourHighBattery(float value, float midpoint, float tolerance) {
+        float lower = Math.max(0f, midpoint - tolerance);
+        float upper = Math.min(1f, midpoint + tolerance);
+
+        if (value >= upper) {
+            return 0.95f;
+        }
+        if (value <= lower) {
+            float deficit = MathHelper.clamp((lower - value) / Math.max(lower, 0.0001f), 0f, 1f);
+            return MathHelper.clamp(0.55f - deficit * 0.4f, 0.05f, 1.0f);
+        }
+
+        float span = Math.max(upper - lower, 0.0001f);
+        float t = MathHelper.clamp((value - lower) / span, 0f, 1f);
+        return MathHelper.clamp(0.55f + t * 0.4f, 0.05f, 1.0f);
+    }
+
+    private static float favourCenteredBattery(float value, float midpoint, float tolerance) {
+        float lower = Math.max(0f, midpoint - tolerance);
+        float upper = Math.min(1f, midpoint + tolerance);
+
+        if (value <= lower || value >= upper) {
+            float distance = Math.min(Math.abs(value - lower), Math.abs(value - upper));
+            float normalized = MathHelper.clamp(distance / (tolerance + 0.0001f), 0f, 1f);
+            return MathHelper.clamp(0.55f - normalized * 0.35f, 0.05f, 1.0f);
+        }
+
+        float halfWindow = Math.max((upper - lower) / 2f, 0.0001f);
+        float normalizedDistance = MathHelper.clamp(Math.abs(value - midpoint) / halfWindow, 0f, 1f);
+        return MathHelper.clamp(0.95f - normalizedDistance * 0.35f, 0.05f, 1.0f);
     }
     
     /**

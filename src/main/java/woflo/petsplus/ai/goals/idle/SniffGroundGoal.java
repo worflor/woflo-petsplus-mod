@@ -2,6 +2,7 @@ package woflo.petsplus.ai.goals.idle;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
@@ -84,7 +85,9 @@ public class SniffGroundGoal extends AdaptiveGoal {
             woflo.petsplus.state.PetComponent.Mood.CURIOUS, 0.3f)) {
             engagement += 0.3f;
         }
-        
-        return engagement;
+
+        engagement *= IdleEnergyTuning.balancedStaminaMultiplier(ctx.physicalStamina());
+
+        return MathHelper.clamp(engagement, 0f, 1f);
     }
 }

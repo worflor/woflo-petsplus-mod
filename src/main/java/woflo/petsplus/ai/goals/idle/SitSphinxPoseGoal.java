@@ -2,6 +2,7 @@ package woflo.petsplus.ai.goals.idle;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.passive.TameableEntity;
+import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalType;
@@ -79,7 +80,9 @@ public class SitSphinxPoseGoal extends AdaptiveGoal {
             woflo.petsplus.state.PetComponent.Mood.CALM, 0.4f)) {
             engagement += 0.1f;
         }
-        
-        return engagement;
+
+        engagement *= IdleEnergyTuning.restorativeStaminaMultiplier(ctx.physicalStamina());
+
+        return MathHelper.clamp(engagement, 0f, 1f);
     }
 }

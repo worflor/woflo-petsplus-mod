@@ -1,6 +1,8 @@
 package woflo.petsplus.ai.goals.idle;
 
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.util.math.MathHelper;
+import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalType;
 
@@ -79,6 +81,11 @@ public class PreenFeathersGoal extends AdaptiveGoal {
     
     @Override
     protected float calculateEngagement() {
-        return 0.6f; // Satisfying grooming behavior
+        PetContext ctx = getContext();
+        float engagement = 0.6f; // Satisfying grooming behavior
+
+        engagement *= IdleEnergyTuning.restorativeStaminaMultiplier(ctx.physicalStamina());
+
+        return MathHelper.clamp(engagement, 0f, 1f);
     }
 }

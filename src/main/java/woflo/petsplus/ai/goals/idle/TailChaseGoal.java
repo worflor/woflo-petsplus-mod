@@ -92,7 +92,7 @@ public class TailChaseGoal extends AdaptiveGoal {
     protected float calculateEngagement() {
         PetContext ctx = getContext();
         float engagement = 0.5f;
-        
+
         // More engaging for young pets
         if (ctx.getAgeCategory() == PetContext.AgeCategory.YOUNG) {
             engagement += 0.3f;
@@ -106,8 +106,11 @@ public class TailChaseGoal extends AdaptiveGoal {
         
         // More engaging with more spins (building momentum)
         engagement += (spinCount * 0.05f);
-        
-        return Math.min(1.0f, engagement);
+
+        engagement *= IdleEnergyTuning.energeticStaminaMultiplier(ctx.physicalStamina());
+        engagement *= IdleEnergyTuning.socialCenteredMultiplier(ctx.socialCharge());
+
+        return MathHelper.clamp(engagement, 0f, 1f);
     }
     
     @Override
