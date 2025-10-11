@@ -6,6 +6,7 @@ import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 
 import java.util.EnumSet;
 
@@ -18,7 +19,7 @@ public class ShowOffTrickGoal extends AdaptiveGoal {
     private static final int TRICK_DURATION = 40;
     
     public ShowOffTrickGoal(MobEntity mob) {
-        super(mob, GoalRegistry.SHOW_OFF_TRICK, EnumSet.of(Control.MOVE, Control.JUMP, Control.LOOK));
+        super(mob, GoalRegistry.require(GoalIds.SHOW_OFF_TRICK), EnumSet.of(Control.MOVE, Control.JUMP, Control.LOOK));
     }
     
     @Override

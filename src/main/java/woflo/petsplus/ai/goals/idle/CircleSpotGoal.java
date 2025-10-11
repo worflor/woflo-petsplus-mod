@@ -5,6 +5,7 @@ import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 
 import java.util.EnumSet;
 
@@ -20,7 +21,7 @@ public class CircleSpotGoal extends AdaptiveGoal {
     private static final int CIRCLE_DURATION = 60; // 3 seconds
     
     public CircleSpotGoal(MobEntity mob) {
-        super(mob, GoalRegistry.CIRCLE_SPOT, EnumSet.of(Control.MOVE));
+        super(mob, GoalRegistry.require(GoalIds.CIRCLE_SPOT), EnumSet.of(Control.MOVE));
     }
     
     @Override

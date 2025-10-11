@@ -7,6 +7,7 @@ import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 
 import java.util.EnumSet;
 
@@ -21,7 +22,7 @@ public class HideAndSeekGoal extends AdaptiveGoal {
     private static final int MAX_HIDE_TICKS = 200; // 10 seconds
     
     public HideAndSeekGoal(MobEntity mob) {
-        super(mob, GoalRegistry.HIDE_AND_SEEK, EnumSet.of(Control.MOVE, Control.LOOK));
+        super(mob, GoalRegistry.require(GoalIds.HIDE_AND_SEEK), EnumSet.of(Control.MOVE, Control.LOOK));
     }
     
     @Override

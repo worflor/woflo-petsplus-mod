@@ -1,0 +1,15 @@
+{
+  "category": "social",
+  "priority": 15,
+  "cooldown": {
+    "min": 0,
+    "max": 0
+  },
+  "requirement": "has_owner",
+  "energy_range": {
+    "min": 0.3,
+    "max": 0.8
+  },
+  "idle_stamina_bias": "none",
+  "goal_factory": "woflo.petsplus.ai.goals.social.ParallelPlayGoal"
+}

@@ -1,0 +1,20 @@
+{
+  "category": "idle_quirk",
+  "priority": 28,
+  "cooldown": {
+    "min": 8,
+    "max": 90
+  },
+  "requirement": {
+    "all_of": [
+      "can_make_sound",
+      "prefers_land"
+    ]
+  },
+  "energy_range": {
+    "min": 0.3,
+    "max": 0.7
+  },
+  "idle_stamina_bias": "centered",
+  "goal_factory": "woflo.petsplus.ai.goals.idle.PerkEarsScanGoal"
+}

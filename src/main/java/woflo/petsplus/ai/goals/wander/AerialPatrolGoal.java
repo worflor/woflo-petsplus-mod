@@ -6,6 +6,7 @@ import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 
 import java.util.EnumSet;
 
@@ -19,7 +20,7 @@ public class AerialPatrolGoal extends AdaptiveGoal {
     private double patrolHeight;
     
     public AerialPatrolGoal(MobEntity mob) {
-        super(mob, GoalRegistry.AERIAL_PATROL, EnumSet.of(Control.MOVE));
+        super(mob, GoalRegistry.require(GoalIds.AERIAL_PATROL), EnumSet.of(Control.MOVE));
     }
     
     @Override

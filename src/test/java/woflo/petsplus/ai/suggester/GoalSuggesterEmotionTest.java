@@ -7,8 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import woflo.petsplus.ai.capability.MobCapabilities;
 import woflo.petsplus.ai.context.PetContext;
-import woflo.petsplus.ai.goals.GoalDefinition;
-import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
 
@@ -47,8 +46,8 @@ class GoalSuggesterEmotionTest {
         PetContext baseline = emptyContext(false);
         PetContext withEmotion = emptyContext(true);
 
-        GoalSuggester.Suggestion baselineSuggestion = findSuggestion(suggester.suggest(baseline), GoalRegistry.LEAN_AGAINST_OWNER);
-        GoalSuggester.Suggestion emotionSuggestion = findSuggestion(suggester.suggest(withEmotion), GoalRegistry.LEAN_AGAINST_OWNER);
+        GoalSuggester.Suggestion baselineSuggestion = findSuggestion(suggester.suggest(baseline), GoalIds.LEAN_AGAINST_OWNER);
+        GoalSuggester.Suggestion emotionSuggestion = findSuggestion(suggester.suggest(withEmotion), GoalIds.LEAN_AGAINST_OWNER);
 
         assertNotNull(emotionSuggestion, "Emotion suggestion should exist");
         assertNotNull(baselineSuggestion, "Baseline suggestion should exist");
@@ -92,8 +91,8 @@ class GoalSuggesterEmotionTest {
             PetComponent.Emotion.CURIOUS, 0.3f
         ));
 
-        GoalSuggester.Suggestion baselineSuggestion = findSuggestion(suggester.suggest(baseline), GoalRegistry.PURPOSEFUL_PATROL);
-        GoalSuggester.Suggestion natureSuggestion = findSuggestion(suggester.suggest(vigilantNature), GoalRegistry.PURPOSEFUL_PATROL);
+        GoalSuggester.Suggestion baselineSuggestion = findSuggestion(suggester.suggest(baseline), GoalIds.PURPOSEFUL_PATROL);
+        GoalSuggester.Suggestion natureSuggestion = findSuggestion(suggester.suggest(vigilantNature), GoalIds.PURPOSEFUL_PATROL);
 
         assertNotNull(baselineSuggestion, "Baseline should include purposeful patrol");
         assertNotNull(natureSuggestion, "Nature-influenced suggestion should exist");
@@ -108,9 +107,9 @@ class GoalSuggesterEmotionTest {
             "Trace should include the nature signal");
     }
 
-    private static GoalSuggester.Suggestion findSuggestion(List<GoalSuggester.Suggestion> suggestions, GoalDefinition target) {
+    private static GoalSuggester.Suggestion findSuggestion(List<GoalSuggester.Suggestion> suggestions, Identifier goalId) {
         return suggestions.stream()
-            .filter(s -> s.definition() == target)
+            .filter(s -> goalId.equals(s.definition().id()))
             .findFirst()
             .orElse(null);
     }

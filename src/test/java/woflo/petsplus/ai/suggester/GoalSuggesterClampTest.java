@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import woflo.petsplus.ai.capability.MobCapabilities;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.GoalDefinition;
+import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.ai.suggester.signal.DesirabilitySignal;
 import woflo.petsplus.ai.suggester.signal.DesirabilitySignalRegistry;
@@ -79,7 +80,7 @@ class GoalSuggesterClampTest {
 
         GoalSuggester.Suggestion suggestion = findSuggestion(
             suggester.suggest(emptyContext()),
-            GoalRegistry.CASUAL_WANDER
+            GoalIds.CASUAL_WANDER
         );
 
         assertNotNull(suggestion);
@@ -97,8 +98,11 @@ class GoalSuggesterClampTest {
         assertTrue(trace.stream().anyMatch(entry -> "test:extreme".equals(entry.get("id"))));
     }
 
-    private static GoalSuggester.Suggestion findSuggestion(List<GoalSuggester.Suggestion> suggestions, GoalDefinition target) {
-        return suggestions.stream().filter(s -> s.definition() == target).findFirst().orElse(null);
+    private static GoalSuggester.Suggestion findSuggestion(List<GoalSuggester.Suggestion> suggestions, Identifier goalId) {
+        return suggestions.stream()
+            .filter(s -> goalId.equals(s.definition().id()))
+            .findFirst()
+            .orElse(null);
     }
 
     private static PetContext emptyContext() {

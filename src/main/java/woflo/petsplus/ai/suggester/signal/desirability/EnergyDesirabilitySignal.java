@@ -4,7 +4,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.GoalDefinition;
-import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.suggester.signal.DesirabilitySignal;
 import woflo.petsplus.ai.suggester.signal.SignalResult;
 import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
@@ -37,7 +37,7 @@ public class EnergyDesirabilitySignal implements DesirabilitySignal {
             if (goal.category() == GoalDefinition.Category.PLAY) {
                 modifier *= 1.3f;
             }
-            if (goal == GoalRegistry.AERIAL_ACROBATICS || goal == GoalRegistry.PARKOUR_CHALLENGE) {
+            if (isGoal(goal, GoalIds.AERIAL_ACROBATICS) || isGoal(goal, GoalIds.PARKOUR_CHALLENGE)) {
                 modifier *= 1.5f;
             }
             if (goal.category() == GoalDefinition.Category.IDLE_QUIRK) {
@@ -50,7 +50,7 @@ public class EnergyDesirabilitySignal implements DesirabilitySignal {
             if (goal.category() == GoalDefinition.Category.PLAY) {
                 modifier *= 0.6f;
             }
-            if (goal == GoalRegistry.PARKOUR_CHALLENGE || goal == GoalRegistry.AERIAL_ACROBATICS) {
+            if (isGoal(goal, GoalIds.PARKOUR_CHALLENGE) || isGoal(goal, GoalIds.AERIAL_ACROBATICS)) {
                 modifier *= 0.5f;
             }
         }
@@ -59,14 +59,14 @@ public class EnergyDesirabilitySignal implements DesirabilitySignal {
             if (goal.category() == GoalDefinition.Category.SOCIAL) {
                 modifier *= 1.4f;
             }
-            if (goal == GoalRegistry.PARALLEL_PLAY || goal == GoalRegistry.EYE_CONTACT) {
+            if (isGoal(goal, GoalIds.PARALLEL_PLAY) || isGoal(goal, GoalIds.EYE_CONTACT)) {
                 modifier *= 1.5f;
             }
         } else if (socialCharge < 0.3f) {
             if (goal.category() == GoalDefinition.Category.SOCIAL) {
                 modifier *= 0.6f;
             }
-            if (goal == GoalRegistry.EYE_CONTACT) {
+            if (isGoal(goal, GoalIds.EYE_CONTACT)) {
                 modifier *= 0.4f;
             }
         }
@@ -101,5 +101,9 @@ public class EnergyDesirabilitySignal implements DesirabilitySignal {
         trace.put("mentalFocus", mentalFocus);
         trace.put("finalMultiplier", modifier);
         return new SignalResult(modifier, modifier, trace);
+    }
+
+    private static boolean isGoal(GoalDefinition goal, Identifier id) {
+        return goal != null && goal.id().equals(id);
     }
 }

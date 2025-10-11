@@ -1,0 +1,21 @@
+{
+  "category": "social",
+  "priority": 15,
+  "cooldown": {
+    "min": 0,
+    "max": 0
+  },
+  "requirement": {
+    "all_of": [
+      "has_owner",
+      "can_fly",
+      "is_small_size"
+    ]
+  },
+  "energy_range": {
+    "min": 0.0,
+    "max": 0.7
+  },
+  "idle_stamina_bias": "none",
+  "goal_factory": "woflo.petsplus.ai.goals.social.PerchOnShoulderGoal"
+}

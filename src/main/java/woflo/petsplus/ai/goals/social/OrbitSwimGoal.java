@@ -7,6 +7,7 @@ import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 
 import java.util.EnumSet;
 
@@ -21,7 +22,7 @@ public class OrbitSwimGoal extends AdaptiveGoal {
     private double orbitAngle = 0.0;
     
     public OrbitSwimGoal(MobEntity mob) {
-        super(mob, GoalRegistry.ORBIT_SWIM, EnumSet.of(Control.MOVE));
+        super(mob, GoalRegistry.require(GoalIds.ORBIT_SWIM), EnumSet.of(Control.MOVE));
     }
     
     @Override

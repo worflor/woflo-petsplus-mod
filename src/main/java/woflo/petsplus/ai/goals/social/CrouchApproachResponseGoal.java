@@ -7,6 +7,7 @@ import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.EmotionFeedback;
 import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.traits.SpeciesTraits;
 import woflo.petsplus.state.PetComponent;
 
@@ -59,7 +60,7 @@ public class CrouchApproachResponseGoal extends AdaptiveGoal {
     private static final long SIGNAL_TIMEOUT = 10; // Signal expires after 10 ticks
     
     public CrouchApproachResponseGoal(MobEntity mob) {
-        super(mob, GoalRegistry.CROUCH_APPROACH_RESPONSE, EnumSet.of(Control.MOVE, Control.LOOK));
+        super(mob, GoalRegistry.require(GoalIds.CROUCH_APPROACH_RESPONSE), EnumSet.of(Control.MOVE, Control.LOOK));
     }
     
     @Override

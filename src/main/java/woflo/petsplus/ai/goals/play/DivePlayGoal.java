@@ -7,6 +7,7 @@ import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 
 import java.util.EnumSet;
 
@@ -20,7 +21,7 @@ public class DivePlayGoal extends AdaptiveGoal {
     private static final int MAX_DIVE_TICKS = 100; // 5 seconds
     
     public DivePlayGoal(MobEntity mob) {
-        super(mob, GoalRegistry.DIVE_PLAY, EnumSet.of(Control.MOVE));
+        super(mob, GoalRegistry.require(GoalIds.DIVE_PLAY), EnumSet.of(Control.MOVE));
     }
     
     @Override

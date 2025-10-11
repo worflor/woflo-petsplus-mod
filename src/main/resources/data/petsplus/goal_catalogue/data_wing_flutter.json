@@ -1,0 +1,15 @@
+{
+  "category": "idle_quirk",
+  "priority": 28,
+  "cooldown": {
+    "min": 12,
+    "max": 120
+  },
+  "requirement": "can_fly",
+  "energy_range": {
+    "min": 0.3,
+    "max": 0.7
+  },
+  "idle_stamina_bias": "high",
+  "goal_factory": "woflo.petsplus.ai.goals.idle.WingFlutterGoal"
+}

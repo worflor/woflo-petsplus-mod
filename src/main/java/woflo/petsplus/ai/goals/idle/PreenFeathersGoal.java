@@ -5,6 +5,7 @@ import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 
 import java.util.EnumSet;
 
@@ -17,7 +18,7 @@ public class PreenFeathersGoal extends AdaptiveGoal {
     private static final int PREEN_DURATION = 60;
     
     public PreenFeathersGoal(MobEntity mob) {
-        super(mob, GoalRegistry.PREEN_FEATHERS, EnumSet.noneOf(Control.class));
+        super(mob, GoalRegistry.require(GoalIds.PREEN_FEATHERS), EnumSet.noneOf(Control.class));
     }
     
     @Override

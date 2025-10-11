@@ -1,0 +1,15 @@
+{
+  "category": "play",
+  "priority": 18,
+  "cooldown": {
+    "min": 0,
+    "max": 0
+  },
+  "requirement": "can_swim",
+  "energy_range": {
+    "min": 0.6,
+    "max": 1.0
+  },
+  "idle_stamina_bias": "none",
+  "goal_factory": "woflo.petsplus.ai.goals.play.DivePlayGoal"
+}

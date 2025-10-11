@@ -9,6 +9,7 @@ import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 
 import java.util.EnumSet;
 
@@ -22,7 +23,7 @@ public class InvestigateBlockGoal extends AdaptiveGoal {
     private static final int MAX_INVESTIGATE_TICKS = 100; // 5 seconds
     
     public InvestigateBlockGoal(MobEntity mob) {
-        super(mob, GoalRegistry.INVESTIGATE_BLOCK, EnumSet.of(Control.MOVE, Control.LOOK));
+        super(mob, GoalRegistry.require(GoalIds.INVESTIGATE_BLOCK), EnumSet.of(Control.MOVE, Control.LOOK));
     }
     
     @Override

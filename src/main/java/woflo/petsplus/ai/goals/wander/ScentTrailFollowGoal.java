@@ -7,6 +7,7 @@ import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -21,7 +22,7 @@ public class ScentTrailFollowGoal extends AdaptiveGoal {
     private static final int MAX_INVESTIGATION = 100;
     
     public ScentTrailFollowGoal(MobEntity mob) {
-        super(mob, GoalRegistry.SCENT_TRAIL_FOLLOW, EnumSet.of(Control.MOVE, Control.LOOK));
+        super(mob, GoalRegistry.require(GoalIds.SCENT_TRAIL_FOLLOW), EnumSet.of(Control.MOVE, Control.LOOK));
     }
     
     @Override

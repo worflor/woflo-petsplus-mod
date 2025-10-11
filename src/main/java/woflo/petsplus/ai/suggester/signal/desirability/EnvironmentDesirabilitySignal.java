@@ -4,7 +4,7 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.GoalDefinition;
-import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.suggester.signal.DesirabilitySignal;
 import woflo.petsplus.ai.suggester.signal.SignalResult;
 
@@ -27,7 +27,7 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
 
         boolean isNight = !ctx.isDaytime();
 
-        if (goal == GoalRegistry.STARGAZING) {
+        if (isGoal(goal, GoalIds.STARGAZING)) {
             if (isNight) {
                 modifier *= 3.0f;
             } else {
@@ -36,16 +36,16 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
         }
 
         if (isNight) {
-            if (goal == GoalRegistry.SIT_SPHINX_POSE || goal == GoalRegistry.FLOAT_IDLE) {
+            if (isGoal(goal, GoalIds.SIT_SPHINX_POSE) || isGoal(goal, GoalIds.FLOAT_IDLE)) {
                 modifier *= 1.3f;
             }
-            if (goal == GoalRegistry.PERCH_HOP) {
+            if (isGoal(goal, GoalIds.PERCH_HOP)) {
                 modifier *= 1.4f;
             }
             if (goal.category() == GoalDefinition.Category.PLAY) {
                 modifier *= 0.7f;
             }
-            if (goal == GoalRegistry.OWNER_ORBIT || goal == GoalRegistry.LEAN_AGAINST_OWNER) {
+            if (isGoal(goal, GoalIds.OWNER_ORBIT) || isGoal(goal, GoalIds.LEAN_AGAINST_OWNER)) {
                 modifier *= 1.2f;
             }
         }
@@ -66,25 +66,25 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
             if (goal.category() == GoalDefinition.Category.WANDER) {
                 modifier *= 0.6f;
             }
-            if (goal == GoalRegistry.LEAN_AGAINST_OWNER) {
+            if (isGoal(goal, GoalIds.LEAN_AGAINST_OWNER)) {
                 modifier *= 1.5f;
             }
             if (goal.category() == GoalDefinition.Category.PLAY) {
                 modifier *= 0.7f;
             }
-            if (goal == GoalRegistry.WATER_SPLASH || goal == GoalRegistry.BUBBLE_PLAY) {
+            if (isGoal(goal, GoalIds.WATER_SPLASH) || isGoal(goal, GoalIds.BUBBLE_PLAY)) {
                 modifier *= 1.3f;
             }
-            if (goal == GoalRegistry.SIT_SPHINX_POSE || goal == GoalRegistry.CIRCLE_SPOT) {
+            if (isGoal(goal, GoalIds.SIT_SPHINX_POSE) || isGoal(goal, GoalIds.CIRCLE_SPOT)) {
                 modifier *= 1.4f;
             }
         }
 
         if (isThundering) {
-            if (goal == GoalRegistry.LEAN_AGAINST_OWNER || goal == GoalRegistry.OWNER_ORBIT) {
+            if (isGoal(goal, GoalIds.LEAN_AGAINST_OWNER) || isGoal(goal, GoalIds.OWNER_ORBIT)) {
                 modifier *= 2.0f;
             }
-            if (goal == GoalRegistry.PERCH_ON_SHOULDER) {
+            if (isGoal(goal, GoalIds.PERCH_ON_SHOULDER)) {
                 modifier *= 2.2f;
             }
             if (goal.category() == GoalDefinition.Category.WANDER) {
@@ -108,19 +108,19 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
                             if (goal.category() == GoalDefinition.Category.WANDER) {
                                 modifier *= 1.3f;
                             }
-                            if (goal == GoalRegistry.CASUAL_WANDER || goal == GoalRegistry.PURPOSEFUL_PATROL) {
+                            if (isGoal(goal, GoalIds.CASUAL_WANDER) || isGoal(goal, GoalIds.PURPOSEFUL_PATROL)) {
                                 modifier *= 1.4f;
                             }
                         } else {
-                            if (goal == GoalRegistry.LEAN_AGAINST_OWNER || goal == GoalRegistry.CIRCLE_SPOT) {
+                            if (isGoal(goal, GoalIds.LEAN_AGAINST_OWNER) || isGoal(goal, GoalIds.CIRCLE_SPOT)) {
                                 modifier *= 1.5f;
                             }
                         }
                     }
 
                     if (value.contains("ocean") || value.contains("river") || value.contains("beach")) {
-                        if (goal == GoalRegistry.WATER_CRUISE || goal == GoalRegistry.DIVE_PLAY ||
-                            goal == GoalRegistry.WATER_SPLASH || goal == GoalRegistry.ORBIT_SWIM) {
+                        if (isGoal(goal, GoalIds.WATER_CRUISE) || isGoal(goal, GoalIds.DIVE_PLAY) ||
+                            isGoal(goal, GoalIds.WATER_SPLASH) || isGoal(goal, GoalIds.ORBIT_SWIM)) {
                             modifier *= 1.5f;
                         }
                     }
@@ -130,27 +130,27 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
                             if (goal.category() == GoalDefinition.Category.PLAY) {
                                 modifier *= 0.6f;
                             }
-                            if (goal == GoalRegistry.SIT_SPHINX_POSE || goal == GoalRegistry.FLOAT_IDLE) {
+                            if (isGoal(goal, GoalIds.SIT_SPHINX_POSE) || isGoal(goal, GoalIds.FLOAT_IDLE)) {
                                 modifier *= 1.6f;
                             }
                         }
                     }
 
                     if (value.contains("forest") || value.contains("jungle") || value.contains("grove")) {
-                        if (goal == GoalRegistry.INVESTIGATE_BLOCK || goal == GoalRegistry.SNIFF_GROUND ||
-                            goal == GoalRegistry.SCENT_TRAIL_FOLLOW) {
+                        if (isGoal(goal, GoalIds.INVESTIGATE_BLOCK) || isGoal(goal, GoalIds.SNIFF_GROUND) ||
+                            isGoal(goal, GoalIds.SCENT_TRAIL_FOLLOW)) {
                             modifier *= 1.4f;
                         }
-                        if (goal == GoalRegistry.PERCH_HOP) {
+                        if (isGoal(goal, GoalIds.PERCH_HOP)) {
                             modifier *= 1.3f;
                         }
                     }
 
                     if (value.contains("mountain") || value.contains("peak") || value.contains("hill")) {
-                        if (goal == GoalRegistry.PERCH_HOP || goal == GoalRegistry.AERIAL_PATROL) {
+                        if (isGoal(goal, GoalIds.PERCH_HOP) || isGoal(goal, GoalIds.AERIAL_PATROL)) {
                             modifier *= 1.5f;
                         }
-                        if (goal == GoalRegistry.PURPOSEFUL_PATROL) {
+                        if (isGoal(goal, GoalIds.PURPOSEFUL_PATROL)) {
                             modifier *= 1.3f;
                         }
                     }
@@ -161,5 +161,9 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
 
         trace.put("finalMultiplier", modifier);
         return new SignalResult(modifier, modifier, trace);
+    }
+
+    private static boolean isGoal(GoalDefinition goal, Identifier id) {
+        return goal != null && goal.id().equals(id);
     }
 }

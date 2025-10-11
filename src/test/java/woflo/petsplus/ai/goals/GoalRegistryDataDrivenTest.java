@@ -6,8 +6,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import woflo.petsplus.ai.capability.MobCapabilities;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 class GoalRegistryDataDrivenTest {
 
@@ -19,7 +18,35 @@ class GoalRegistryDataDrivenTest {
     }
 
     @Test
-    void registerDataDrivenGoalAddsAndClearsSuccessfully() {
+    void dataDrivenOverrideSupersedesBuiltInAndRestoresOnClear() {
+        GoalDefinition builtIn = GoalRegistry.require(GoalIds.STARGAZING);
+
+        GoalDefinition override = new GoalDefinition(
+            GoalIds.STARGAZING,
+            GoalDefinition.Category.SPECIAL,
+            99,
+            5,
+            10,
+            MobCapabilities.CapabilityRequirement.any(),
+            new Vec2f(0.0f, 1.0f),
+            GoalDefinition.IdleStaminaBias.NONE,
+            false,
+            mob -> null
+        );
+
+        GoalRegistry.registerDataDriven(override);
+
+        GoalDefinition active = GoalRegistry.require(GoalIds.STARGAZING);
+        assertSame(override, active, "data-driven override should be the active definition");
+
+        GoalRegistry.clearDataDriven();
+
+        GoalDefinition restored = GoalRegistry.require(GoalIds.STARGAZING);
+        assertSame(builtIn, restored, "clearing data-driven entries should restore the built-in definition");
+    }
+
+    @Test
+    void dataDrivenGoalWithNewIdIsRemovedOnClear() {
         GoalDefinition definition = new GoalDefinition(
             DATA_ID,
             GoalDefinition.Category.PLAY,
@@ -37,7 +64,6 @@ class GoalRegistryDataDrivenTest {
         assertTrue(GoalRegistry.get(DATA_ID).isPresent(), "data-driven goal should be registered");
 
         GoalRegistry.clearDataDriven();
-        assertFalse(GoalRegistry.get(DATA_ID).isPresent(), "clearDataDriven should remove registered goal");
+        assertFalse(GoalRegistry.get(DATA_ID).isPresent(), "clearDataDriven should remove custom goal definitions");
     }
 }
-

@@ -6,6 +6,7 @@ import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 
 import java.util.EnumSet;
 
@@ -23,7 +24,7 @@ public class TailChaseGoal extends AdaptiveGoal {
     private static final int MAX_SPINS = 8;
     
     public TailChaseGoal(MobEntity mob) {
-        super(mob, GoalRegistry.TAIL_CHASE, EnumSet.of(Control.MOVE, Control.LOOK));
+        super(mob, GoalRegistry.require(GoalIds.TAIL_CHASE), EnumSet.of(Control.MOVE, Control.LOOK));
     }
     
     @Override
