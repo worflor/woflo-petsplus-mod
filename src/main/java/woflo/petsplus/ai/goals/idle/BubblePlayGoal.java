@@ -5,7 +5,7 @@ import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.ai.context.PetContext;
 
 import java.util.EnumSet;
@@ -18,7 +18,7 @@ public class BubblePlayGoal extends AdaptiveGoal {
     private static final int PLAY_DURATION = 50;
     
     public BubblePlayGoal(MobEntity mob) {
-        super(mob, GoalType.BUBBLE_PLAY, EnumSet.noneOf(Control.class));
+        super(mob, GoalRegistry.BUBBLE_PLAY, EnumSet.noneOf(Control.class));
     }
     
     @Override

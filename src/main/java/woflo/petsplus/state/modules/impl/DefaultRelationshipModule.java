@@ -1,14 +1,25 @@
 package woflo.petsplus.state.modules.impl;
 
+import net.minecraft.entity.EntityType;
+import net.minecraft.registry.Registries;
+import net.minecraft.util.Identifier;
+import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
+import woflo.petsplus.ai.context.perception.ContextSlice;
+import woflo.petsplus.ai.context.perception.PerceptionBus;
+import woflo.petsplus.ai.context.perception.PerceptionStimulus;
+import woflo.petsplus.ai.context.perception.PerceptionStimulusType;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.modules.RelationshipModule;
 import woflo.petsplus.state.relationships.InteractionType;
 import woflo.petsplus.state.relationships.RelationshipProfile;
 import woflo.petsplus.state.relationships.RelationshipType;
+import woflo.petsplus.state.relationships.SpeciesMemory;
 
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static net.minecraft.util.math.MathHelper.clamp;
 
 /**
  * Default implementation of RelationshipModule.
@@ -18,7 +29,7 @@ public class DefaultRelationshipModule implements RelationshipModule {
     
     private PetComponent parent;
     private final Map<UUID, RelationshipProfile> relationships = new HashMap<>();
-    private final woflo.petsplus.state.relationships.SpeciesMemory speciesMemory = new woflo.petsplus.state.relationships.SpeciesMemory();
+    private final SpeciesMemory speciesMemory = new SpeciesMemory();
     private long lastDecayTick = 0;
     
     @Override
@@ -61,6 +72,22 @@ public class DefaultRelationshipModule implements RelationshipModule {
         if (!result.isEmpty()) {
             RelationshipProfile updated = profile.recordInteraction(interactionType, result, currentTick);
             relationships.put(entityId, updated);
+            if (parent != null) {
+                parent.markContextDirty(ContextSlice.SOCIAL, ContextSlice.AGGREGATES);
+                PerceptionBus bus = parent.getPerceptionBus();
+                if (bus != null) {
+                    long tick = 0L;
+                    if (parent.getPetEntity() != null && parent.getPetEntity().getEntityWorld() != null) {
+                        tick = parent.getPetEntity().getEntityWorld().getTime();
+                    }
+                    bus.publish(new PerceptionStimulus(
+                        PerceptionStimulusType.SOCIAL_GRAPH,
+                        tick,
+                        EnumSet.of(ContextSlice.SOCIAL),
+                        updated
+                    ));
+                }
+            }
         }
     }
     
@@ -201,32 +228,48 @@ public class DefaultRelationshipModule implements RelationshipModule {
     
     @Override
     public void recordSpeciesInteraction(String speciesId, String context, float intensity, long currentTick) {
-        // Convert String speciesId to EntityType if needed
-        // For now, using a simplified approach
-        // TODO: Implement proper conversion if needed
+        EntityType<?> species = resolveSpecies(speciesId);
+        if (species == null) {
+            return;
+        }
+
+        SpeciesMemory.InteractionContext interaction = resolveInteractionContext(context, intensity);
+        if (interaction == null) {
+            return;
+        }
+
+        if (currentTick > 0L) {
+            speciesMemory.applyDecay(currentTick, 1.0f);
+        }
+
+        speciesMemory.recordInteraction(species, interaction);
+        notifySpeciesMemoryUpdated();
     }
-    
+
     @Override
     public float getSpeciesFear(String speciesId) {
-        // Convert String speciesId to EntityType if needed
-        return 0.0f; // TODO: Implement proper conversion
+        EntityType<?> species = resolveSpecies(speciesId);
+        return species != null ? speciesMemory.getFear(species) : 0.0f;
     }
-    
+
     @Override
     public float getSpeciesHuntingPreference(String speciesId) {
-        return 0.0f; // TODO: Implement proper conversion
+        EntityType<?> species = resolveSpecies(speciesId);
+        return species != null ? speciesMemory.getHuntingPreference(species) : 0.0f;
     }
-    
+
     @Override
     public float getSpeciesCaution(String speciesId) {
-        return 0.0f; // TODO: Implement proper conversion
+        EntityType<?> species = resolveSpecies(speciesId);
+        return species != null ? speciesMemory.getCaution(species) : 0.0f;
     }
-    
+
     @Override
     public boolean hasSignificantSpeciesMemory(String speciesId) {
-        return false; // TODO: Implement proper conversion
+        EntityType<?> species = resolveSpecies(speciesId);
+        return species != null && speciesMemory.hasMemoryOf(species);
     }
-    
+
     @Override
     public void applySpeciesMemoryDecay(long currentTick, float decayRate) {
         speciesMemory.applyDecay(currentTick, decayRate);
@@ -238,6 +281,7 @@ public class DefaultRelationshipModule implements RelationshipModule {
         woflo.petsplus.state.relationships.SpeciesMemory.InteractionContext context
     ) {
         speciesMemory.recordInteraction(species, context);
+        notifySpeciesMemoryUpdated();
     }
     
     public float getSpeciesFearDirect(net.minecraft.entity.EntityType<?> species) {
@@ -255,8 +299,69 @@ public class DefaultRelationshipModule implements RelationshipModule {
     public boolean hasMemoryOfSpeciesDirect(net.minecraft.entity.EntityType<?> species) {
         return speciesMemory.hasMemoryOf(species);
     }
-    
+
     public woflo.petsplus.state.relationships.SpeciesMemory getSpeciesMemory() {
         return speciesMemory;
+    }
+
+    @Nullable
+    private EntityType<?> resolveSpecies(String speciesId) {
+        if (speciesId == null || speciesId.isEmpty()) {
+            return null;
+        }
+        Identifier identifier = Identifier.tryParse(speciesId);
+        if (identifier == null) {
+            return null;
+        }
+        return Registries.ENTITY_TYPE.get(identifier);
+    }
+
+    @Nullable
+    private SpeciesMemory.InteractionContext resolveInteractionContext(String context, float intensity) {
+        if (context == null || context.isEmpty()) {
+            return SpeciesMemory.InteractionContext.observedOwnerFeed();
+        }
+
+        String normalized = context.toLowerCase(Locale.ROOT);
+        float normalizedStrength = clampPositive(intensity, 1.0f);
+
+        return switch (normalized) {
+            case "pet_killed_wild", "pet_killed", "hunt_success", "successful_hunt" ->
+                SpeciesMemory.InteractionContext.petKilledWild(normalizedStrength);
+            case "pet_attacked_by_wild", "pet_attacked", "attacked" -> {
+                float damage = clampPositive(Math.abs(intensity), 1.0f);
+                yield SpeciesMemory.InteractionContext.petAttackedByWild(damage, normalizedStrength);
+            }
+            case "pet_killed_by_wild", "pet_killed_by", "death" ->
+                SpeciesMemory.InteractionContext.petKilledByWild(normalizedStrength);
+            case "owner_hunt", "observed_owner_hunt", "owner_killed" ->
+                SpeciesMemory.InteractionContext.observedOwnerHunt(normalizedStrength);
+            case "owner_feed", "observed_owner_feed", "owner_pamper" ->
+                SpeciesMemory.InteractionContext.observedOwnerFeed();
+            default -> buildCustomInteraction(intensity);
+        };
+    }
+
+    private SpeciesMemory.InteractionContext buildCustomInteraction(float intensity) {
+        float clamped = MathHelper.clamp(intensity, -1.0f, 1.0f);
+        float fearDelta = clamped >= 0.0f ? clamped * 0.3f : clamped * 0.15f;
+        float huntingDelta = clamped >= 0.0f ? -clamped * 0.1f : Math.abs(clamped) * 0.25f;
+        float cautionDelta = clamped >= 0.0f ? clamped * 0.2f : 0.0f;
+        return new SpeciesMemory.InteractionContext(fearDelta, huntingDelta, cautionDelta);
+    }
+
+    private float clampPositive(float value, float fallback) {
+        float magnitude = Math.abs(value);
+        if (magnitude < 1.0E-3f) {
+            magnitude = fallback;
+        }
+        return clamp(magnitude, 0.1f, 3.0f);
+    }
+
+    private void notifySpeciesMemoryUpdated() {
+        if (parent == null) {
+            return;
+        }
+        parent.markContextDirty(ContextSlice.SOCIAL, ContextSlice.AGGREGATES);
     }
 }

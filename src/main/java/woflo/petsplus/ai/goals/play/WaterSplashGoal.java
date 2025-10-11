@@ -9,7 +9,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
 
 import java.util.EnumSet;
 
@@ -22,7 +22,7 @@ public class WaterSplashGoal extends AdaptiveGoal {
     private static final int MAX_SPLASH_TICKS = 100; // 5 seconds
     
     public WaterSplashGoal(MobEntity mob) {
-        super(mob, GoalType.WATER_SPLASH, EnumSet.of(Control.MOVE, Control.JUMP));
+        super(mob, GoalRegistry.WATER_SPLASH, EnumSet.of(Control.MOVE, Control.JUMP));
     }
     
     @Override

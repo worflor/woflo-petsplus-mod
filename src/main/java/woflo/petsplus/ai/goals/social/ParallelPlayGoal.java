@@ -5,7 +5,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
 
 import java.util.EnumSet;
 
@@ -21,7 +21,7 @@ public class ParallelPlayGoal extends AdaptiveGoal {
     private static final int PLAY_TRACKING_INTERVAL = 100; // Track every 5 seconds
     
     public ParallelPlayGoal(MobEntity mob) {
-        super(mob, GoalType.PARALLEL_PLAY, EnumSet.of(Control.MOVE));
+        super(mob, GoalRegistry.PARALLEL_PLAY, EnumSet.of(Control.MOVE));
     }
     
     @Override

@@ -5,7 +5,7 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
 
 import java.util.EnumSet;
 
@@ -17,7 +17,7 @@ public class WaterCruiseGoal extends AdaptiveGoal {
     private int cruiseTicks = 0;
     
     public WaterCruiseGoal(MobEntity mob) {
-        super(mob, GoalType.WATER_CRUISE, EnumSet.of(Control.MOVE));
+        super(mob, GoalRegistry.WATER_CRUISE, EnumSet.of(Control.MOVE));
     }
     
     @Override

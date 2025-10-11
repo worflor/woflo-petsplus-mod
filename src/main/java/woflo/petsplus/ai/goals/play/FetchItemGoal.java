@@ -7,7 +7,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
 
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -26,7 +26,7 @@ public class FetchItemGoal extends AdaptiveGoal {
     private ItemStack carriedStack = ItemStack.EMPTY;
     
     public FetchItemGoal(MobEntity mob) {
-        super(mob, GoalType.FETCH_ITEM, EnumSet.of(Control.MOVE));
+        super(mob, GoalRegistry.FETCH_ITEM, EnumSet.of(Control.MOVE));
     }
     
     @Override

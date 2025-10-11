@@ -5,7 +5,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
 
 import java.util.EnumSet;
 
@@ -18,7 +18,7 @@ public class PerchHopGoal extends AdaptiveGoal {
     private static final int MAX_HOPS = 3;
     
     public PerchHopGoal(MobEntity mob) {
-        super(mob, GoalType.PERCH_HOP, EnumSet.of(Control.MOVE));
+        super(mob, GoalRegistry.PERCH_HOP, EnumSet.of(Control.MOVE));
     }
     
     @Override

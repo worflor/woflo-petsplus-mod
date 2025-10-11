@@ -5,7 +5,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
 
 import java.util.EnumSet;
 
@@ -19,7 +19,7 @@ public class StargazingGoal extends AdaptiveGoal {
     private BlockPos gazeSpot;
     
     public StargazingGoal(MobEntity mob) {
-        super(mob, GoalType.STARGAZING, EnumSet.of(Control.MOVE, Control.LOOK));
+        super(mob, GoalRegistry.STARGAZING, EnumSet.of(Control.MOVE, Control.LOOK));
     }
     
     @Override

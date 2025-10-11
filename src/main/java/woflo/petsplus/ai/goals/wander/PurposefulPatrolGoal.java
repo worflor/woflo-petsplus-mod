@@ -6,7 +6,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -23,7 +23,7 @@ public class PurposefulPatrolGoal extends AdaptiveGoal {
     private static final int MAX_PATROL_TICKS = 400; // 20 seconds
     
     public PurposefulPatrolGoal(MobEntity mob) {
-        super(mob, GoalType.PURPOSEFUL_PATROL, EnumSet.of(Control.MOVE));
+        super(mob, GoalRegistry.PURPOSEFUL_PATROL, EnumSet.of(Control.MOVE));
     }
     
     @Override

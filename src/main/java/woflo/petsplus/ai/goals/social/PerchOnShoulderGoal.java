@@ -6,7 +6,7 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
 
 import java.util.EnumSet;
 
@@ -21,7 +21,7 @@ public class PerchOnShoulderGoal extends AdaptiveGoal {
     private Vec3d shoulderOffset;
     
     public PerchOnShoulderGoal(MobEntity mob) {
-        super(mob, GoalType.PERCH_ON_SHOULDER, EnumSet.of(Control.MOVE));
+        super(mob, GoalRegistry.PERCH_ON_SHOULDER, EnumSet.of(Control.MOVE));
     }
     
     @Override

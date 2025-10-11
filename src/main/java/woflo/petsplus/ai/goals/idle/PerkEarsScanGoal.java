@@ -5,7 +5,7 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
 
 import java.util.EnumSet;
 
@@ -20,7 +20,7 @@ public class PerkEarsScanGoal extends AdaptiveGoal {
     private static final int TICKS_PER_SCAN = 20;
     
     public PerkEarsScanGoal(MobEntity mob) {
-        super(mob, GoalType.PERK_EARS_SCAN, EnumSet.of(Control.LOOK));
+        super(mob, GoalRegistry.PERK_EARS_SCAN, EnumSet.of(Control.LOOK));
     }
     
     @Override

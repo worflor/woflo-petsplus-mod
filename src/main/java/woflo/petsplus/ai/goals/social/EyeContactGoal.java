@@ -7,7 +7,7 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
 
 import java.util.EnumSet;
 
@@ -57,7 +57,7 @@ public class EyeContactGoal extends AdaptiveGoal {
     private record GazeObservation(PlayerEntity player, float alignment, double distanceSq) {}
     
     public EyeContactGoal(MobEntity mob) {
-        super(mob, GoalType.EYE_CONTACT, EnumSet.of(Control.LOOK));
+        super(mob, GoalRegistry.EYE_CONTACT, EnumSet.of(Control.LOOK));
     }
     
     @Override

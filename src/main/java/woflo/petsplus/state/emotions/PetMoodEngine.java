@@ -584,6 +584,17 @@ public final class PetMoodEngine {
         return Collections.unmodifiableMap(new EnumMap<>(moodBlend));
     }
 
+    public Map<PetComponent.Emotion, Float> getActiveEmotions() {
+        update();
+        EnumMap<PetComponent.Emotion, Float> active = new EnumMap<>(PetComponent.Emotion.class);
+        for (EmotionRecord record : emotionRecords.values()) {
+            if (record.weight > EPSILON) {
+                active.put(record.emotion, MathHelper.clamp(record.weight, 0f, 1f));
+            }
+        }
+        return Collections.unmodifiableMap(active);
+    }
+
     public boolean hasMoodAbove(PetComponent.Mood mood, float threshold) {
         return getMoodStrength(mood) >= threshold;
     }
@@ -1140,6 +1151,8 @@ public final class PetMoodEngine {
         float currentStrength = moodBlend.getOrDefault(currentMood, 0f);
         updateDominantHistory(currentStrength);
         updateMoodLevel(currentStrength);
+        parent.notifyMoodBlendUpdated();
+        parent.notifyEmotionSampleUpdated();
     }
 
     private List<EmotionRecord> collectActiveRecords(long now, float epsilon) {
@@ -1383,6 +1396,7 @@ public final class PetMoodEngine {
             socialCharge
         );
         energyProfileDirty = false;
+        parent.notifyEnergyProfileUpdated();
     }
 
     private float normalizedBondStrength() {

@@ -5,7 +5,7 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
 
 import java.util.EnumSet;
 
@@ -19,7 +19,7 @@ public class AerialAcrobaticsGoal extends AdaptiveGoal {
     private static final int MAX_ACROBATIC_TICKS = 80; // 4 seconds
     
     public AerialAcrobaticsGoal(MobEntity mob) {
-        super(mob, GoalType.AERIAL_ACROBATICS, EnumSet.of(Control.MOVE));
+        super(mob, GoalRegistry.AERIAL_ACROBATICS, EnumSet.of(Control.MOVE));
     }
     
     @Override

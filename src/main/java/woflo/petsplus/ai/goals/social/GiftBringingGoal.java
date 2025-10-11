@@ -8,7 +8,7 @@ import net.minecraft.item.Items;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
 
 import java.util.EnumSet;
 
@@ -25,7 +25,7 @@ public class GiftBringingGoal extends AdaptiveGoal {
     private boolean giftTracked = false;
     
     public GiftBringingGoal(MobEntity mob) {
-        super(mob, GoalType.GIFT_BRINGING, EnumSet.of(Control.MOVE));
+        super(mob, GoalRegistry.GIFT_BRINGING, EnumSet.of(Control.MOVE));
     }
     
     @Override

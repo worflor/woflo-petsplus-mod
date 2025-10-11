@@ -27,6 +27,7 @@ public final class PetSwarmIndex {
 
     private final Map<UUID, OwnerSwarm> swarmsByOwner = new HashMap<>();
     private final Map<MobEntity, OwnerSwarm> swarmByPet = new IdentityHashMap<>();
+    private final List<SwarmListener> listeners = new ArrayList<>();
 
     public void trackPet(MobEntity pet, PetComponent component) {
         updatePet(pet, component);
@@ -50,10 +51,12 @@ public final class PetSwarmIndex {
             if (current.isEmpty()) {
                 swarmsByOwner.remove(current.ownerId(), current);
             }
+            notifyOwnerCleared(current.ownerId());
         }
 
         swarmByPet.put(pet, swarm);
         swarm.updateEntry(pet, component);
+        notifyOwnerUpdated(ownerId, swarm.snapshot());
     }
 
     public void untrackPet(MobEntity pet) {
@@ -63,6 +66,7 @@ public final class PetSwarmIndex {
             if (swarm.isEmpty()) {
                 swarmsByOwner.remove(swarm.ownerId(), swarm);
             }
+            notifyOwnerUpdated(swarm.ownerId(), swarm.snapshot());
         }
     }
 
@@ -71,6 +75,7 @@ public final class PetSwarmIndex {
         if (swarm != null) {
             swarm.clear();
         }
+        notifyOwnerCleared(ownerId);
     }
 
     public void clear() {
@@ -79,6 +84,31 @@ public final class PetSwarmIndex {
         }
         swarmsByOwner.clear();
         swarmByPet.clear();
+        synchronized (listeners) {
+            if (!listeners.isEmpty()) {
+                for (SwarmListener listener : listeners) {
+                    listener.onSwarmUpdated(null, List.of());
+                }
+            }
+        }
+    }
+
+    public void addListener(SwarmListener listener) {
+        if (listener == null) {
+            return;
+        }
+        synchronized (listeners) {
+            listeners.add(listener);
+        }
+    }
+
+    public void removeListener(SwarmListener listener) {
+        if (listener == null) {
+            return;
+        }
+        synchronized (listeners) {
+            listeners.remove(listener);
+        }
     }
 
     public void forEachPetInRange(ServerPlayerEntity owner, Vec3d center, double radius,
@@ -153,6 +183,27 @@ public final class PetSwarmIndex {
 
     public interface NeighborVisitor {
         void accept(SwarmEntry entry, double squaredDistance);
+    }
+
+    public interface SwarmListener {
+        void onSwarmUpdated(@Nullable UUID ownerId, List<SwarmEntry> entries);
+    }
+
+    private void notifyOwnerUpdated(@Nullable UUID ownerId, List<SwarmEntry> snapshot) {
+        List<SwarmListener> copy;
+        synchronized (listeners) {
+            if (listeners.isEmpty()) {
+                return;
+            }
+            copy = new ArrayList<>(listeners);
+        }
+        for (SwarmListener listener : copy) {
+            listener.onSwarmUpdated(ownerId, snapshot);
+        }
+    }
+
+    private void notifyOwnerCleared(@Nullable UUID ownerId) {
+        notifyOwnerUpdated(ownerId, List.of());
     }
 
     public static class SwarmEntry {

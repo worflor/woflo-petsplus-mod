@@ -1,4 +1,5 @@
 package woflo.petsplus.state;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.mob.MobEntity;
@@ -23,6 +24,18 @@ import net.minecraft.server.world.ServerWorld;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.advancement.BestFriendTracker;
+import woflo.petsplus.ai.context.PetContextCrowdSummary;
+import woflo.petsplus.ai.context.perception.ContextSlice;
+import woflo.petsplus.ai.context.perception.EnvironmentPerceptionBridge;
+import woflo.petsplus.ai.context.perception.PerceptionBus;
+import woflo.petsplus.ai.context.perception.PerceptionListener;
+import woflo.petsplus.ai.context.perception.PerceptionStimulus;
+import woflo.petsplus.ai.context.perception.PerceptionStimulusType;
+import woflo.petsplus.ai.context.perception.PetContextCache;
+import woflo.petsplus.ai.context.perception.StimulusSnapshot;
+import woflo.petsplus.ai.context.perception.StimulusTimeline;
+import woflo.petsplus.ai.context.social.SocialSnapshot;
+import woflo.petsplus.ai.feedback.ExperienceLog;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.component.PetsplusComponents;
@@ -47,17 +60,21 @@ import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
 
 import net.minecraft.util.math.ChunkSectionPos;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Deque;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.stream.Stream;
 import java.util.stream.Collectors;
+import java.util.EnumSet;
 
 /**
  * Coordinates pet state through specialized modules for characteristics, progression,
@@ -92,8 +109,19 @@ public class PetComponent {
     private final OwnerModule ownerModule;
     private final SpeciesMetadataModule speciesMetadataModule;
     private final RelationshipModule relationshipModule;
+    private final StimulusTimeline stimulusTimeline;
+    private final ExperienceLog experienceLog;
 
     private StateManager stateManager;
+
+    private static final int MAX_RECENT_GOALS = 8;
+    private final ArrayDeque<Identifier> recentGoals = new ArrayDeque<>(MAX_RECENT_GOALS);
+    private final Map<Identifier, Long> goalExecutionTimestamps = new HashMap<>();
+    private final Map<String, Integer> quirkCounters = new HashMap<>();
+
+    private final PerceptionBus perceptionBus;
+    private final PetContextCache contextCache;
+    private final ContextSliceState contextSliceState;
 
     // Swarm spatial tracking
     private boolean swarmTrackingInitialized;
@@ -374,6 +402,19 @@ public class PetComponent {
         this.lastAttackTick = 0;
         this.isPerched = false;
 
+        this.perceptionBus = new PerceptionBus();
+        this.contextCache = new PetContextCache();
+        this.contextSliceState = new ContextSliceState();
+        this.stimulusTimeline = new StimulusTimeline();
+        this.contextCache.attachTo(perceptionBus);
+        this.perceptionBus.subscribeAll(stimulusTimeline);
+        this.perceptionBus.subscribe(PerceptionStimulusType.OWNER_NEARBY, contextSliceState);
+        this.perceptionBus.subscribe(PerceptionStimulusType.CROWD_SUMMARY, contextSliceState);
+        this.perceptionBus.subscribe(PerceptionStimulusType.ENVIRONMENTAL_SNAPSHOT, contextSliceState);
+        this.perceptionBus.subscribe(PerceptionStimulusType.WORLD_TICK, contextSliceState);
+        this.contextCache.markAllDirty();
+        this.experienceLog = new ExperienceLog();
+
         // Initialize modules
         this.moodEngine = new PetMoodEngine(this);
         this.gossipLedger = new PetGossipLedger();
@@ -447,6 +488,333 @@ public class PetComponent {
     
     public PetMoodEngine getMoodEngine() {
         return moodEngine;
+    }
+
+    public PerceptionBus getPerceptionBus() {
+        return perceptionBus;
+    }
+
+    public PetContextCache getContextCache() {
+        return contextCache;
+    }
+
+    @Nullable
+    public PlayerEntity getCachedOwnerEntity() {
+        return contextSliceState.owner;
+    }
+
+    public float getCachedOwnerDistance() {
+        return contextSliceState.ownerDistance;
+    }
+
+    public boolean isCachedOwnerNearby() {
+        return contextSliceState.ownerNearby;
+    }
+
+    public List<Entity> getCachedCrowdEntities() {
+        return contextSliceState.crowdEntities;
+    }
+
+    public PetContextCrowdSummary getCachedCrowdSummary() {
+        return contextSliceState.crowdSummary;
+    }
+
+    @Nullable
+    public EnvironmentPerceptionBridge.EnvironmentSnapshot getCachedEnvironmentSnapshot() {
+        return contextSliceState.environmentSnapshot;
+    }
+
+    @Nullable
+    public EnvironmentPerceptionBridge.WorldSnapshot getCachedWorldSnapshot() {
+        return contextSliceState.worldSnapshot;
+    }
+
+    public long getLastOwnerStimulusTick() {
+        return contextSliceState.lastOwnerStimulusTick;
+    }
+
+    public long getLastCrowdStimulusTick() {
+        return contextSliceState.lastCrowdStimulusTick;
+    }
+
+    public void resetContextSliceCache() {
+        contextSliceState.reset();
+    }
+
+    public StimulusSnapshot snapshotStimuli(long worldTime) {
+        return stimulusTimeline != null ? stimulusTimeline.snapshot(worldTime) : StimulusSnapshot.empty();
+    }
+
+    private final class ContextSliceState implements PerceptionListener {
+        private static final float OWNER_RADIUS = 16.0f;
+
+        private PlayerEntity owner;
+        private float ownerDistance = Float.MAX_VALUE;
+        private boolean ownerNearby;
+        private List<Entity> crowdEntities = List.of();
+        private PetContextCrowdSummary crowdSummary = PetContextCrowdSummary.empty();
+        private long lastOwnerStimulusTick = Long.MIN_VALUE;
+        private long lastCrowdStimulusTick = Long.MIN_VALUE;
+        private EnvironmentPerceptionBridge.EnvironmentSnapshot environmentSnapshot;
+        private EnvironmentPerceptionBridge.WorldSnapshot worldSnapshot;
+
+        @Override
+        public void onStimulus(PerceptionStimulus stimulus) {
+            if (stimulus == null) {
+                return;
+            }
+            Identifier type = stimulus.type();
+            if (PerceptionStimulusType.OWNER_NEARBY.equals(type)) {
+                handleOwnerStimulus(stimulus);
+            } else if (PerceptionStimulusType.CROWD_SUMMARY.equals(type)) {
+                handleCrowdStimulus(stimulus);
+            } else if (PerceptionStimulusType.ENVIRONMENTAL_SNAPSHOT.equals(type)) {
+                handleEnvironmentStimulus(stimulus);
+            } else if (PerceptionStimulusType.WORLD_TICK.equals(type)) {
+                handleWorldStimulus(stimulus);
+            }
+        }
+
+        private void handleOwnerStimulus(PerceptionStimulus stimulus) {
+            Object payload = stimulus.payload();
+            PlayerEntity player = payload instanceof PlayerEntity ? (PlayerEntity) payload : null;
+            if (player != null && player.isRemoved()) {
+                player = null;
+            }
+            owner = player;
+            ownerDistance = computeOwnerDistance(player);
+            ownerNearby = ownerDistance < OWNER_RADIUS;
+            lastOwnerStimulusTick = stimulus.tick();
+        }
+
+        private float computeOwnerDistance(@Nullable PlayerEntity player) {
+            if (player == null) {
+                return Float.MAX_VALUE;
+            }
+            if (pet == null || pet.getEntityWorld() == null) {
+                return Float.MAX_VALUE;
+            }
+            double squared = pet.squaredDistanceTo(player);
+            if (Double.isNaN(squared) || squared < 0.0D) {
+                squared = 0.0D;
+            }
+            return (float) Math.sqrt(squared);
+        }
+
+        private void handleCrowdStimulus(PerceptionStimulus stimulus) {
+            crowdEntities = convertCrowdPayload(stimulus.payload());
+            crowdSummary = crowdEntities.isEmpty()
+                ? PetContextCrowdSummary.empty()
+                : PetContextCrowdSummary.fromEntities(pet, crowdEntities);
+            lastCrowdStimulusTick = stimulus.tick();
+        }
+
+        private List<Entity> convertCrowdPayload(@Nullable Object payload) {
+            if (!(payload instanceof List<?> list) || list.isEmpty()) {
+                return List.of();
+            }
+            List<Entity> converted = new ArrayList<>(list.size());
+            for (Object value : list) {
+                if (value instanceof PetSwarmIndex.SwarmEntry entry) {
+                    MobEntity other = entry.pet();
+                    if (other != null && other != pet && !other.isRemoved()) {
+                        converted.add(other);
+                    }
+                    continue;
+                }
+                if (value instanceof Entity entity && entity != pet && !entity.isRemoved()) {
+                    converted.add(entity);
+                }
+            }
+            return converted.isEmpty() ? List.of() : List.copyOf(converted);
+        }
+
+        private void handleEnvironmentStimulus(PerceptionStimulus stimulus) {
+            Object payload = stimulus.payload();
+            environmentSnapshot = payload instanceof EnvironmentPerceptionBridge.EnvironmentSnapshot snapshot
+                ? snapshot
+                : null;
+        }
+
+        private void handleWorldStimulus(PerceptionStimulus stimulus) {
+            Object payload = stimulus.payload();
+            worldSnapshot = payload instanceof EnvironmentPerceptionBridge.WorldSnapshot snapshot
+                ? snapshot
+                : null;
+        }
+
+        void reset() {
+            owner = null;
+            ownerDistance = Float.MAX_VALUE;
+            ownerNearby = false;
+            crowdEntities = List.of();
+            crowdSummary = PetContextCrowdSummary.empty();
+            lastOwnerStimulusTick = Long.MIN_VALUE;
+            lastCrowdStimulusTick = Long.MIN_VALUE;
+            environmentSnapshot = null;
+            worldSnapshot = null;
+        }
+    }
+
+    public ExperienceLog getExperienceLog() {
+        return experienceLog;
+    }
+
+    public void recordExperience(Identifier goalId, float satisfaction, long tick) {
+        experienceLog.record(goalId, satisfaction, tick);
+    }
+
+    public void markContextDirty(ContextSlice... slices) {
+        if (contextCache == null || slices == null) {
+            return;
+        }
+        for (ContextSlice slice : slices) {
+            if (slice != null) {
+                contextCache.markDirty(slice);
+            }
+        }
+    }
+
+    public void notifyMoodBlendUpdated() {
+        markContextDirty(ContextSlice.MOOD);
+        publishStimulus(PerceptionStimulusType.MOOD_BLEND, ContextSlice.MOOD, null);
+    }
+
+    public void notifyEmotionSampleUpdated() {
+        markContextDirty(ContextSlice.EMOTIONS);
+        publishStimulus(PerceptionStimulusType.EMOTION_SAMPLE, ContextSlice.EMOTIONS, null);
+    }
+
+    public void notifyEnergyProfileUpdated() {
+        markContextDirty(ContextSlice.ENERGY);
+        publishStimulus(PerceptionStimulusType.ENERGY_PROFILE, ContextSlice.ENERGY, null);
+    }
+
+    public void notifyEnvironmentUpdated(@Nullable EnvironmentPerceptionBridge.EnvironmentSnapshot snapshot) {
+        if (snapshot == null) {
+            return;
+        }
+        markContextDirty(ContextSlice.ENVIRONMENT);
+        publishStimulus(PerceptionStimulusType.ENVIRONMENTAL_SNAPSHOT, ContextSlice.ENVIRONMENT, snapshot);
+    }
+
+    public void notifyWorldTimeUpdated(@Nullable EnvironmentPerceptionBridge.WorldSnapshot snapshot) {
+        if (snapshot == null) {
+            return;
+        }
+        markContextDirty(ContextSlice.WORLD);
+        publishStimulus(PerceptionStimulusType.WORLD_TICK, ContextSlice.WORLD, snapshot);
+    }
+
+    private long currentWorldTime() {
+        return pet.getEntityWorld() != null ? pet.getEntityWorld().getTime() : 0L;
+    }
+
+    private void publishStimulus(Identifier type, ContextSlice slice, @Nullable Object payload) {
+        if (slice == null) {
+            publishStimulus(type, EnumSet.of(ContextSlice.ALL), payload);
+            return;
+        }
+        publishStimulus(type, EnumSet.of(slice), payload);
+    }
+
+    private void publishStimulus(Identifier type, EnumSet<ContextSlice> slices, @Nullable Object payload) {
+        if (perceptionBus == null || type == null) {
+            return;
+        }
+        if (contextCache != null) {
+            contextCache.markDirty(ContextSlice.STIMULI);
+        }
+        perceptionBus.publish(new PerceptionStimulus(type, currentWorldTime(), slices, payload));
+    }
+
+    public void recordGoalStart(Identifier goalId) {
+        if (goalId == null) {
+            return;
+        }
+        recentGoals.remove(goalId);
+        recentGoals.addFirst(goalId);
+        while (recentGoals.size() > MAX_RECENT_GOALS) {
+            recentGoals.removeLast();
+        }
+        markContextDirty(ContextSlice.HISTORY);
+        publishStimulus(PerceptionStimulusType.GOAL_HISTORY, ContextSlice.HISTORY, goalId);
+    }
+
+    public void recordGoalCompletion(Identifier goalId, long worldTime) {
+        if (goalId == null) {
+            return;
+        }
+        goalExecutionTimestamps.put(goalId, Math.max(0L, worldTime));
+        markContextDirty(ContextSlice.HISTORY);
+        publishStimulus(PerceptionStimulusType.GOAL_HISTORY, ContextSlice.HISTORY, goalId);
+    }
+
+    public Deque<Identifier> getRecentGoalsSnapshot() {
+        return new ArrayDeque<>(recentGoals);
+    }
+
+    public Map<Identifier, Long> getGoalExecutionTimestamps() {
+        return Map.copyOf(goalExecutionTimestamps);
+    }
+
+    public Map<String, Integer> getQuirkCountersSnapshot() {
+        return Map.copyOf(quirkCounters);
+    }
+
+    public SocialSnapshot snapshotSocialGraph() {
+        if (relationshipModule == null) {
+            return SocialSnapshot.empty();
+        }
+        return SocialSnapshot.fromRelationships(relationshipModule.getAllRelationships());
+    }
+
+    public boolean isDormant() {
+        if (pet == null) {
+            return false;
+        }
+        if (pet.isAiDisabled()) {
+            return true;
+        }
+        var world = pet.getEntityWorld();
+        if (world == null) {
+            return false;
+        }
+        if (world.getPlayers().isEmpty()) {
+            return true;
+        }
+        double activationRadiusSq = 128.0 * 128.0;
+        for (var player : world.getPlayers()) {
+            if (player == null) {
+                continue;
+            }
+            if (player.squaredDistanceTo(pet) <= activationRadiusSq) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public void setQuirkCounter(String key, int value) {
+        if (key == null) {
+            return;
+        }
+        if (value <= 0) {
+            quirkCounters.remove(key);
+        } else {
+            quirkCounters.put(key, value);
+        }
+        markContextDirty(ContextSlice.HISTORY);
+        publishStimulus(PerceptionStimulusType.GOAL_HISTORY, ContextSlice.HISTORY, key);
+    }
+
+    public void incrementQuirkCounter(String key) {
+        if (key == null) {
+            return;
+        }
+        quirkCounters.merge(key, 1, Integer::sum);
+        markContextDirty(ContextSlice.HISTORY);
+        publishStimulus(PerceptionStimulusType.GOAL_HISTORY, ContextSlice.HISTORY, key);
     }
 
     public void recordRumor(long topicId, float intensity, float confidence, long currentTick) {
@@ -1324,6 +1692,8 @@ public class PetComponent {
         if (shouldInvalidateFlightCapability(key)) {
             speciesMetadataModule.markFlightDirty();
         }
+        markContextDirty(ContextSlice.STATE_DATA);
+        publishStimulus(PerceptionStimulusType.STATE_DATA, ContextSlice.STATE_DATA, key);
     }
 
     private void setStateDataSilently(String key, Object value) {
@@ -1564,6 +1934,8 @@ public class PetComponent {
         if (shouldInvalidateFlightCapability(key)) {
             speciesMetadataModule.markFlightDirty();
         }
+        markContextDirty(ContextSlice.STATE_DATA);
+        publishStimulus(PerceptionStimulusType.STATE_DATA, ContextSlice.STATE_DATA, key);
     }
 
     private boolean shouldInvalidateSpeciesDescriptor(@Nullable String key) {
@@ -2123,6 +2495,13 @@ public class PetComponent {
     public float getMoodStrength(Mood mood) { return moodEngine.getMoodStrength(mood); }
 
     public Map<Mood, Float> getMoodBlend() { return moodEngine.getMoodBlend(); }
+
+    public Map<Emotion, Float> getActiveEmotions() {
+        if (moodEngine == null) {
+            return Collections.emptyMap();
+        }
+        return moodEngine.getActiveEmotions();
+    }
 
     public boolean hasMoodAbove(Mood mood, float threshold) { return moodEngine.hasMoodAbove(mood, threshold); }
 

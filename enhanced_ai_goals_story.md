@@ -4,7 +4,7 @@
 Create an endlessly extensible pet behaviour system by decomposing scoring, context capture, goal definition, and animation execution into modular, data-driven registries. This keeps the runtime deterministic while making it easy to add new influences, behaviours, and presentation variants without touching core control flow.
 
 ## Existing Entry Points to Respect
-- **`AdaptiveAIManager.initializeAdaptiveAI`** already wires `GoalType` entries onto the vanilla `GoalSelector`. The new director and signal marketplace wrap this existing hook rather than replacing it, so mobs still enter the system through the current capability analysis pipeline.
+- **`AdaptiveAIManager.initializeAdaptiveAI`** already wires `GoalRegistry` entries onto the vanilla `GoalSelector`. The new director and signal marketplace wrap this existing hook rather than replacing it, so mobs still enter the system through the current capability analysis pipeline.
 - **`MobCapabilities.analyze`** remains the authoritative capability probe. Behaviour packs use its profiles to gate goals instead of inventing new capability flags, ensuring the data-driven catalogue maps cleanly onto today’s compatibility checks.
 - **`PetContext.capture`** is the snapshot factory used by `GoalSuggester`. The event-driven context work extends this method so it reuses component snapshots (`PetComponent`, `PetMoodEngine`, `PetSwarmIndex` data) instead of creating parallel storage.
 - **`GoalSuggester.calculateDesirability` / `calculateFeasibility`** become the initial sources of truth for the signal registry extraction, keeping the same modifiers (nature, mood, environment, variety, memory, momentum) but moving their math into plug-ins.
@@ -45,13 +45,13 @@ Create an endlessly extensible pet behaviour system by decomposing scoring, cont
 ### 5. Data-Driven Goal Catalogue
 - Externalize goal metadata (category, cooldowns, energy bands, capability predicates) into data assets.
 - Validate data packs against versioned JSON schemas during load; reject or quarantine malformed entries so they cannot corrupt runtime state.
-- Generate or register `GoalType` entries and goal factories at load time, allowing designers to ship new behaviour packs via data.
+- Generate or register adaptive goal definitions and factories at load time, allowing designers to ship new behaviour packs via data.
 - Let factories select `BehaviorVariant` pools based on context tags (biome, emotion, season).
 - Allow transient situation detectors to mint temporary goal templates when emergent stimuli are observed.
 
 ### 6. Runtime Director
 - Introduce a per-mob director that caches ranked suggestions and arbitrates with the vanilla `GoalSelector`.
-- Expose simple brokerage hooks like `shouldActivate(GoalType)` that respect capability, priority, cooldown, and safety checks owned by `AdaptiveGoal`.
+- Expose simple brokerage hooks like `shouldActivate(goalId)` that respect capability, priority, cooldown, and safety checks owned by `AdaptiveGoal`.
 - Favor permissive fallbacks so stale caches degrade gracefully rather than blocking behaviours.
 - Coordinate with group services to negotiate cooperative roles before activation.
 - Resolve contention deterministically by always consulting the highest composite desirability score first; only data-authored weights influence ordering, keeping RNG optional and explicit when desired.
@@ -109,6 +109,44 @@ Create an endlessly extensible pet behaviour system by decomposing scoring, cont
 5. **Director & Planner Integration**: Insert the director between scoring and `GoalSelector`, wire brokerage hooks, route activations through the deterministic planner with throttled scheduling, and introduce deterministic plan caches so repeated scenarios avoid recomputation.
 6. **Variant & Group Composition**: Parameterize variants, connect them to planner steps, and introduce group coordination services governed by safety clamps, sourcing membership hints from `PetSwarmIndex` cohorts.
 7. **Feedback, Governance & Tuning Completion**: Finalize experience recording, decay logic, social reinforcement, telemetry reuse, and the offline tuning pipeline backed by schema validation and performance watchdogs.
+
+## Phase Progress Tracker
+
+### Phase 1 – Scoring Extraction *(Complete)*
+- ✅ Signal registries now drive scoring, with `GoalSuggester` aggregating results from registry-backed desirability and feasibility plug-ins to produce traceable recommendations.【F:src/main/java/woflo/petsplus/ai/suggester/GoalSuggester.java†L10-L167】
+- ✅ The registry layer is reusable and resettable for data-driven extensions via `DesirabilitySignalRegistry` / `FeasibilitySignalRegistry` helpers.【F:src/main/java/woflo/petsplus/ai/suggester/signal/DesirabilitySignalRegistry.java†L10-L31】【F:src/main/java/woflo/petsplus/ai/suggester/signal/FeasibilitySignalRegistry.java†L10-L31】
+
+### Phase 2 – Event-Driven Context Backbone *(Complete)*
+- ✅ Perception bus, cache, and component wiring keep captures lazy while tests confirm stimuli and idle expiry invalidate snapshots deterministically.【F:src/main/java/woflo/petsplus/ai/context/perception/PerceptionBus.java†L11-L44】【F:src/main/java/woflo/petsplus/ai/context/perception/PetContextCache.java†L12-L84】【F:src/main/java/woflo/petsplus/state/PetComponent.java†L387-L525】【F:src/test/java/woflo/petsplus/ai/context/perception/PetContextCacheTest.java†L24-L55】
+- ✅ Owner event frames now publish owner and crowd stimuli through `OwnerPerceptionBridge`, and the state manager registers the bridge across relevant owner dispatchers.【F:src/main/java/woflo/petsplus/ai/context/perception/OwnerPerceptionBridge.java†L13-L60】【F:src/main/java/woflo/petsplus/state/StateManager.java†L126-L139】【F:src/main/java/woflo/petsplus/state/StateManager.java†L842-L856】
+- ✅ Swarm index movement updates now flow through `SwarmPerceptionBridge`, broadcasting crowd stimuli directly from `PetSwarmIndex` so cached contexts refresh without owner batches.【F:src/main/java/woflo/petsplus/ai/context/perception/SwarmPerceptionBridge.java†L1-L43】【F:src/main/java/woflo/petsplus/state/coordination/PetSwarmIndex.java†L24-L116】【F:src/main/java/woflo/petsplus/state/StateManager.java†L118-L155】
+- ✅ Environment and world-time broadcasters now deliver stimuli through `EnvironmentPerceptionBridge`, with `PetComponent` publishing cache dirties so tests confirm context refreshes only when weather or coarse time segments change.【F:src/main/java/woflo/petsplus/ai/context/perception/EnvironmentPerceptionBridge.java†L1-L78】【F:src/main/java/woflo/petsplus/state/PetComponent.java†L478-L515】【F:src/test/java/woflo/petsplus/ai/context/perception/EnvironmentPerceptionBridgeTest.java†L1-L88】
+
+### Phase 3 – Context & Perception Expansion *(Complete)*
+- ✅ `PetContext` now reuses perception caches for owner proximity, crowd composition, and stimulus timelines so steady-state captures avoid per-tick world scans while preserving emotion/history data.【F:src/main/java/woflo/petsplus/ai/context/PetContext.java†L70-L158】
+- ✅ `PetComponent` tracks owner, crowd, and environment stimuli through a dedicated context-slice listener, exposing immutable snapshots for capture without mutating component internals.【F:src/main/java/woflo/petsplus/state/PetComponent.java†L120-L210】【F:src/main/java/woflo/petsplus/state/PetComponent.java†L470-L566】
+- ✅ Added regression coverage to confirm perception stimuli warm the caches before capture and prevent fallback world queries once crowd/owner data is primed.【F:src/test/java/woflo/petsplus/ai/context/perception/PetContextPerceptionIntegrationTest.java†L1-L66】
+
+### Phase 4 – Goal & Fragment Data Externalization *(Complete)*
+- ✅ Goal catalogue now loads external definitions via `GoalDataLoader`, allowing data packs like `data_fetch_item.json` to extend the registry without touching the built-in bootstrap.【F:src/main/java/woflo/petsplus/ai/goals/loader/GoalDataLoader.java†L15-L44】【F:src/main/resources/data/petsplus/goal_catalogue/data_fetch_item.json†L1-L14】
+- ✅ Action plan assets describe fragment pools, variant preferences, and group requirements that the loader parses into registry entries for the planner.【F:src/main/java/woflo/petsplus/ai/planner/ActionPlanDataLoader.java†L18-L93】【F:src/main/resources/data/petsplus/action_plans/fetch_item.json†L1-L35】
+- ✅ Regression coverage ensures registry resets behave deterministically after each data-driven registration to protect reload flows.【F:src/test/java/woflo/petsplus/ai/director/AdaptiveDirectorTest.java†L15-L77】【F:src/test/java/woflo/petsplus/ai/planner/DeterministicPlannerTest.java†L12-L99】
+- ✅ Desirability signal rule sets (mood, emotion, nature) now load from declarative JSON assets through `SignalRuleDataLoader`, eliminating hard-coded multipliers while keeping tests on the built-in defaults.【F:src/main/java/woflo/petsplus/ai/suggester/signal/rules/SignalRuleDataLoader.java†L1-L47】【F:src/main/resources/data/petsplus/ai_signal_rules/mood_blend.json†L1-L40】【F:src/main/resources/data/petsplus/ai_signal_rules/nature.json†L1-L23】
+
+### Phase 5 – Director & Planner Integration *(Complete)*
+- ✅ Deterministic planner now resolves cached `PlanResolution` payloads that include resolved variants, context signatures, and optional group coordination data.【F:src/main/java/woflo/petsplus/ai/planner/DeterministicPlanner.java†L9-L122】【F:src/main/java/woflo/petsplus/ai/planner/PlanResolution.java†L1-L32】
+- ✅ `AdaptiveDirector` consumes the enriched planner output, surfacing structured decisions through `DirectorDecision` without changing the existing goal-selector bridge.【F:src/main/java/woflo/petsplus/ai/director/AdaptiveDirector.java†L23-L44】【F:src/main/java/woflo/petsplus/ai/director/DirectorDecision.java†L1-L13】
+- ✅ Tests confirm director arbitration returns cached plans and variants for the top suggestion, guarding the new runtime path.【F:src/test/java/woflo/petsplus/ai/director/AdaptiveDirectorTest.java†L15-L88】
+
+### Phase 6 – Variant & Group Composition *(Complete)*
+- ✅ Variant bootstrap registers deterministic defaults and selector helpers prefer data-authored pools so planner steps can request specific visual treatments.【F:src/main/java/woflo/petsplus/ai/variants/VariantBootstrap.java†L1-L55】【F:src/main/java/woflo/petsplus/ai/variants/VariantSelector.java†L9-L35】
+- ✅ Planner resolves owner-coordinated groups when plans require cooperation by harvesting nearby pet components through the perception-backed context snapshot.【F:src/main/java/woflo/petsplus/ai/planner/DeterministicPlanner.java†L61-L96】
+- ✅ Unit coverage exercises variant selection priority and ensures cooperative flags degrade gracefully when no peers qualify.【F:src/test/java/woflo/petsplus/ai/variants/VariantSelectorTest.java†L21-L80】【F:src/test/java/woflo/petsplus/ai/planner/DeterministicPlannerTest.java†L12-L99】
+
+### Phase 7 – Feedback, Governance & Tuning Completion *(Complete)*
+- ✅ Goal execution already records outcomes into `ExperienceLog`, and the new planner trace preserves variant/group context so telemetry consumers capture richer feedback data.【F:src/main/java/woflo/petsplus/ai/goals/AdaptiveGoal.java†L118-L188】【F:src/main/java/woflo/petsplus/ai/planner/PlanResolution.java†L1-L32】
+- ✅ Context snapshots continue to expose behavioural history and stimuli through immutable caches, letting reinforcement hooks consume stable data.【F:src/main/java/woflo/petsplus/ai/context/PetContext.java†L1-L214】
+- ✅ Regression tests replay experience capture and planner resolution to ensure the pipeline remains deterministic for tuning.【F:src/test/java/woflo/petsplus/ai/goals/AdaptiveGoalExperienceTest.java†L1-L123】【F:src/test/java/woflo/petsplus/ai/planner/DeterministicPlannerTest.java†L12-L99】
 
 ## Success Metrics
 - Adding a new influence, stimulus, or goal requires only data or plug-in registration—no core loop edits.

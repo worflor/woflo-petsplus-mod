@@ -6,7 +6,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
 
 import java.util.EnumSet;
 
@@ -18,7 +18,7 @@ public class FloatIdleGoal extends AdaptiveGoal {
     private static final int FLOAT_DURATION = 60;
     
     public FloatIdleGoal(MobEntity mob) {
-        super(mob, GoalType.FLOAT_IDLE, EnumSet.noneOf(Control.class));
+        super(mob, GoalRegistry.FLOAT_IDLE, EnumSet.noneOf(Control.class));
     }
     
     @Override

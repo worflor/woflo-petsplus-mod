@@ -31,6 +31,9 @@ import woflo.petsplus.config.MoodEngineConfig;
 import woflo.petsplus.roles.support.SupportPotionUtils;
 import woflo.petsplus.roles.support.SupportPotionVacuumManager;
 import woflo.petsplus.mood.MoodService;
+import woflo.petsplus.ai.context.perception.EnvironmentPerceptionBridge;
+import woflo.petsplus.ai.context.perception.OwnerPerceptionBridge;
+import woflo.petsplus.ai.context.perception.SwarmPerceptionBridge;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.coordination.PetWorkScheduler;
 import woflo.petsplus.mood.EmotionStimulusBus;
@@ -111,6 +114,9 @@ public class StateManager {
     private final OwnerProcessingManager ownerProcessingManager = new OwnerProcessingManager();
     private final OwnerBatchProcessor ownerBatchProcessor = new OwnerBatchProcessor();
     private final OwnerEventDispatcher ownerEventDispatcher = new OwnerEventDispatcher();
+    private final OwnerPerceptionBridge ownerPerceptionBridge = new OwnerPerceptionBridge();
+    private final SwarmPerceptionBridge swarmPerceptionBridge = new SwarmPerceptionBridge();
+    private final EnvironmentPerceptionBridge environmentPerceptionBridge = new EnvironmentPerceptionBridge();
     private final AdaptiveTickScaler adaptiveTickScaler = new AdaptiveTickScaler();
     private final AsyncWorkCoordinator asyncWorkCoordinator;
     private final AsyncWorkerBudget.Registration asyncWorkerRegistration;
@@ -135,6 +141,7 @@ public class StateManager {
         this.stimulusIdleListener = this::handleStimulusIdleScheduled;
         registerOwnerEventListeners();
         registerEmotionStimulusBridge();
+        swarmIndex.addListener(swarmPerceptionBridge);
     }
     
     public static StateManager forWorld(ServerWorld world) {
@@ -252,6 +259,13 @@ public class StateManager {
 
     public AsyncWorkCoordinator getAsyncWorkCoordinator() {
         return asyncWorkCoordinator;
+    }
+
+    public void handleWorldPerceptionTick() {
+        if (!(world instanceof ServerWorld serverWorld)) {
+            return;
+        }
+        environmentPerceptionBridge.onWorldTick(serverWorld, petComponents.values());
     }
 
     public OwnerProcessingManager getOwnerProcessingManager() {
@@ -845,6 +859,12 @@ public class StateManager {
         ownerEventDispatcher.register(OwnerEventType.SUPPORT, this::processSupportPotionEvent);
         ownerEventDispatcher.register(OwnerEventType.EMOTION, EmotionsEventHandler::onOwnerEmotionEvent);
         ownerEventDispatcher.register(OwnerEventType.ABILITY_TRIGGER, OwnerAbilityEventBridge.INSTANCE);
+        ownerEventDispatcher.register(OwnerEventType.MOVEMENT, ownerPerceptionBridge);
+        ownerEventDispatcher.register(OwnerEventType.AURA, ownerPerceptionBridge);
+        ownerEventDispatcher.register(OwnerEventType.SUPPORT, ownerPerceptionBridge);
+        ownerEventDispatcher.register(OwnerEventType.GOSSIP, ownerPerceptionBridge);
+        ownerEventDispatcher.register(OwnerEventType.XP_GAIN, ownerPerceptionBridge);
+        ownerEventDispatcher.register(OwnerEventType.EMOTION, ownerPerceptionBridge);
     }
 
     private boolean hasOwnerEventListeners(OwnerEventType type) {
@@ -2326,6 +2346,15 @@ public class StateManager {
         } catch (Exception e) {
             if (suppressedException == null) suppressedException = e;
             Petsplus.LOGGER.error("Failed to clear owner event dispatcher during shutdown", e);
+        }
+
+        try {
+            swarmIndex.removeListener(swarmPerceptionBridge);
+        } catch (Exception e) {
+            if (suppressedException == null) {
+                suppressedException = e;
+            }
+            Petsplus.LOGGER.error("Failed to unregister swarm perception bridge", e);
         }
         
         // Phase 2: Clear state (only if we have state to clear)

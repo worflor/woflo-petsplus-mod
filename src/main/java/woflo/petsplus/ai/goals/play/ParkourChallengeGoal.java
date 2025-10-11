@@ -8,7 +8,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
 
 import java.util.EnumSet;
 
@@ -22,7 +22,7 @@ public class ParkourChallengeGoal extends AdaptiveGoal {
     private static final int MAX_JUMPS = 6;
     
     public ParkourChallengeGoal(MobEntity mob) {
-        super(mob, GoalType.PARKOUR_CHALLENGE, EnumSet.of(Control.MOVE, Control.JUMP));
+        super(mob, GoalRegistry.PARKOUR_CHALLENGE, EnumSet.of(Control.MOVE, Control.JUMP));
     }
     
     @Override

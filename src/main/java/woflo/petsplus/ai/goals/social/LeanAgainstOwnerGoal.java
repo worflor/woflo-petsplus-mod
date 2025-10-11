@@ -5,7 +5,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
 
 import java.util.EnumSet;
 
@@ -17,7 +17,7 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
     private static final int LEAN_DURATION = 60;
     
     public LeanAgainstOwnerGoal(MobEntity mob) {
-        super(mob, GoalType.LEAN_AGAINST_OWNER, EnumSet.of(Control.MOVE));
+        super(mob, GoalRegistry.LEAN_AGAINST_OWNER, EnumSet.of(Control.MOVE));
     }
     
     @Override
