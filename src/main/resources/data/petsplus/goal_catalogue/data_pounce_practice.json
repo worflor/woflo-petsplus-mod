@@ -1,0 +1,20 @@
+{
+  "category": "idle_quirk",
+  "priority": 28,
+  "cooldown": {
+    "min": 10,
+    "max": 150
+  },
+  "requirement": {
+    "all_of": [
+      "can_jump",
+      "prefers_land"
+    ]
+  },
+  "energy_range": {
+    "min": 0.6,
+    "max": 1.0
+  },
+  "idle_stamina_bias": "high",
+  "goal_factory": "woflo.petsplus.ai.goals.idle.PouncePracticeGoal"
+}

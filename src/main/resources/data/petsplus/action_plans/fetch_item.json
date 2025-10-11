@@ -1,0 +1,41 @@
+{
+  "fragments": [
+    {
+      "id": "petsplus:approach_owner",
+      "description": "Move toward the owner before starting the fetch sequence",
+      "tags": ["approach", "owner"]
+    },
+    {
+      "id": "petsplus:seek_item",
+      "description": "Search for the thrown item",
+      "tags": ["search", "item"]
+    },
+    {
+      "id": "petsplus:return_item",
+      "description": "Bring the item back to the owner",
+      "tags": ["return", "owner"]
+    }
+  ],
+  "plan": {
+    "id": "petsplus:fetch_item_plan",
+    "goal": "petsplus:fetch_item",
+    "requires_owner_group": true,
+    "steps": [
+      {
+        "fragment": "petsplus:approach_owner",
+        "variants": ["petsplus:trotting"],
+        "tags": ["owner", "approach"]
+      },
+      {
+        "fragment": "petsplus:seek_item",
+        "variants": ["petsplus:searching"],
+        "tags": ["search"]
+      },
+      {
+        "fragment": "petsplus:return_item",
+        "variants": ["petsplus:return_proud"],
+        "tags": ["return", "owner"]
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "category": "idle_quirk",
+  "priority": 28,
+  "cooldown": {
+    "min": 8,
+    "max": 100
+  },
+  "requirement": "aquatic",
+  "energy_range": {
+    "min": 0.0,
+    "max": 0.4
+  },
+  "idle_stamina_bias": "low",
+  "goal_factory": "woflo.petsplus.ai.goals.idle.FloatIdleGoal"
+}

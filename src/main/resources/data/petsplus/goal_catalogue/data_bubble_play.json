@@ -1,0 +1,16 @@
+{
+  "category": "idle_quirk",
+  "priority": 28,
+  "cooldown": {
+    "min": 10,
+    "max": 120
+  },
+  "requirement": "aquatic",
+  "energy_range": {
+    "min": 0.6,
+    "max": 1.0
+  },
+  "idle_stamina_bias": "high",
+  "social_idle_bias": true,
+  "goal_factory": "woflo.petsplus.ai.goals.idle.BubblePlayGoal"
+}

@@ -7,7 +7,12 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.biome.BiomeKeys;
 import org.jetbrains.annotations.Nullable;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.AdaptiveGoal;
+import woflo.petsplus.ai.goals.GoalDefinition;
+import woflo.petsplus.ai.context.perception.EnvironmentPerceptionBridge;
+import woflo.petsplus.ai.context.perception.PetContextCache;
+import woflo.petsplus.ai.context.perception.StimulusSnapshot;
+import woflo.petsplus.ai.context.social.SocialSnapshot;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
@@ -45,13 +50,17 @@ public record PetContext(
     boolean ownerNearby,
     float distanceToOwner,
     List<Entity> nearbyEntities,
+    PetContextCrowdSummary crowdSummary,
     BlockPos currentPos,
     long worldTime,
     boolean isDaytime,
-    
+    StimulusSnapshot stimuli,
+    SocialSnapshot socialSnapshot,
+    boolean dormant,
+
     // Recent history (for variety)
-    Deque<GoalType> recentGoals,
-    Map<GoalType, Long> lastExecuted,
+    Deque<Identifier> recentGoals,
+    Map<Identifier, Long> lastExecuted,
     Map<String, Integer> quirkCounters,
     
     // Behavioural state (PetsPlus only, defaults for vanilla)
@@ -63,22 +72,105 @@ public record PetContext(
      * Capture a context snapshot for a PetsPlus pet.
      */
     public static PetContext capture(MobEntity mob, PetComponent pc) {
-        PlayerEntity owner = pc != null ? pc.getOwner() : (mob instanceof net.minecraft.entity.passive.TameableEntity t ? (PlayerEntity) t.getOwner() : null);
-        float distanceToOwner = owner != null ? (float) mob.distanceTo(owner) : Float.MAX_VALUE;
-        boolean ownerNearby = distanceToOwner < 16.0f;
-        
-        List<Entity> nearbyEntities = mob.getEntityWorld().getOtherEntities(mob, 
-            mob.getBoundingBox().expand(8.0), 
-            e -> true);
-        
-        long worldTime = mob.getEntityWorld().getTime();
-        boolean isDaytime = mob.getEntityWorld().isDay();
+        if (pc != null) {
+            PetContextCache cache = pc.getContextCache();
+            if (cache != null) {
+                return cache.snapshot(mob, () -> captureFresh(mob, pc));
+            }
+        }
+        return captureFresh(mob, pc);
+    }
+
+    /**
+     * Build a fresh snapshot without consulting caches. Public for testing and
+     * for callers that need an immediate capture irrespective of cache state.
+     */
+    public static PetContext captureFresh(MobEntity mob, @Nullable PetComponent pc) {
+        PlayerEntity owner = null;
+        float distanceToOwner = Float.MAX_VALUE;
+        boolean ownerNearby = false;
+
+        if (pc != null) {
+            owner = pc.getCachedOwnerEntity();
+            if (owner == null) {
+                owner = pc.getOwner();
+            }
+            distanceToOwner = pc.getCachedOwnerDistance();
+            if (owner != null) {
+                if (distanceToOwner == Float.MAX_VALUE || Float.isNaN(distanceToOwner)) {
+                    distanceToOwner = (float) mob.distanceTo(owner);
+                }
+                ownerNearby = pc.isCachedOwnerNearby();
+                if (!ownerNearby) {
+                    ownerNearby = distanceToOwner < 16.0f;
+                }
+            } else {
+                distanceToOwner = Float.MAX_VALUE;
+                ownerNearby = false;
+            }
+        } else {
+            owner = mob instanceof net.minecraft.entity.passive.TameableEntity tameable
+                ? (PlayerEntity) tameable.getOwner()
+                : null;
+            if (owner != null) {
+                distanceToOwner = (float) mob.distanceTo(owner);
+                ownerNearby = distanceToOwner < 16.0f;
+            }
+        }
+
+        if (Float.isNaN(distanceToOwner) || distanceToOwner < 0f) {
+            distanceToOwner = Float.MAX_VALUE;
+            ownerNearby = false;
+        }
+
+        List<Entity> entitySnapshot;
+        PetContextCrowdSummary crowdSummary;
+        if (pc != null) {
+            List<Entity> cachedEntities = pc.getCachedCrowdEntities();
+            if (cachedEntities != null && !cachedEntities.isEmpty()) {
+                entitySnapshot = cachedEntities;
+                PetContextCrowdSummary cachedSummary = pc.getCachedCrowdSummary();
+                crowdSummary = cachedSummary != null ? cachedSummary : PetContextCrowdSummary.fromEntities(mob, entitySnapshot);
+            } else {
+                entitySnapshot = captureNearbyEntities(mob);
+                crowdSummary = PetContextCrowdSummary.fromEntities(mob, entitySnapshot);
+            }
+        } else {
+            entitySnapshot = captureNearbyEntities(mob);
+            crowdSummary = PetContextCrowdSummary.fromEntities(mob, entitySnapshot);
+        }
+
+        var world = mob.getEntityWorld();
+        long actualWorldTime = world != null ? world.getTime() : 0L;
+        boolean worldDaytime = world != null && world.isDay();
+        long worldTime = actualWorldTime;
+        boolean isDaytime = worldDaytime;
+
+        if (pc != null) {
+            EnvironmentPerceptionBridge.WorldSnapshot worldSnapshot = pc.getCachedWorldSnapshot();
+            if (worldSnapshot != null) {
+                worldTime = worldSnapshot.worldTime();
+                isDaytime = worldSnapshot.daytime();
+            }
+        }
+
+        StimulusSnapshot stimulusSnapshot = pc != null
+            ? pc.snapshotStimuli(actualWorldTime)
+            : StimulusSnapshot.empty();
+        SocialSnapshot socialSnapshot = pc != null
+            ? pc.snapshotSocialGraph()
+            : SocialSnapshot.empty();
+        boolean dormant = pc != null ? pc.isDormant() : computeVanillaDormant(mob);
         
         // PetsPlus-specific data
         PetComponent.Mood mood = pc != null ? pc.getCurrentMood() : null;
         int moodLevel = pc != null ? pc.getMoodLevel() : 0;
-        Map<PetComponent.Mood, Float> moodBlend = pc != null ? pc.getMoodBlend() : Collections.emptyMap();
-        Map<PetComponent.Emotion, Float> activeEmotions = Collections.emptyMap(); // TODO: Add getActiveEmotions() to PetComponent
+        Map<PetComponent.Mood, Float> moodBlend = pc != null && pc.getMoodBlend() != null
+            ? Map.copyOf(pc.getMoodBlend())
+            : Collections.emptyMap();
+        Map<PetComponent.Emotion, Float> activeEmotions = pc != null && pc.getActiveEmotions() != null
+            ? Map.copyOf(pc.getActiveEmotions())
+            : Collections.emptyMap();
         
         PetRoleType role = pc != null ? pc.getRoleType() : null;
         Identifier natureId = pc != null ? pc.getNatureId() : null;
@@ -89,9 +181,15 @@ public record PetContext(
         long ticksAlive = pc != null ? (long) mob.age : mob.age; // Use mob age as fallback
         
         // History tracking
-        Deque<GoalType> recentGoals = new ArrayDeque<>();
-        Map<GoalType, Long> lastExecuted = new EnumMap<>(GoalType.class);
-        Map<String, Integer> quirkCounters = new HashMap<>();
+        Deque<Identifier> recentGoals = pc != null
+            ? new ArrayDeque<>(pc.getRecentGoalsSnapshot())
+            : AdaptiveGoal.getFallbackRecentGoals(mob);
+        Map<Identifier, Long> lastExecuted = pc != null
+            ? Map.copyOf(pc.getGoalExecutionTimestamps())
+            : AdaptiveGoal.getFallbackLastExecuted(mob);
+        Map<String, Integer> quirkCounters = pc != null
+            ? Map.copyOf(pc.getQuirkCountersSnapshot())
+            : Collections.emptyMap();
         
         // Behavioral energy stack
         BehaviouralEnergyProfile energyProfile = pc != null
@@ -105,18 +203,60 @@ public record PetContext(
             role, natureId, natureProfile,
             level, bondStrength, ticksAlive,
             owner, ownerNearby, distanceToOwner,
-            nearbyEntities, mob.getBlockPos(), worldTime, isDaytime,
+            entitySnapshot, crowdSummary, mob.getBlockPos(), worldTime, isDaytime,
+            stimulusSnapshot, socialSnapshot, dormant,
             recentGoals, lastExecuted, quirkCounters,
             momentum,
             energyProfile
         );
+    }
+
+    private static boolean computeVanillaDormant(MobEntity mob) {
+        if (mob == null) {
+            return false;
+        }
+        if (mob.isAiDisabled()) {
+            return true;
+        }
+        var world = mob.getEntityWorld();
+        if (world == null) {
+            return false;
+        }
+        if (world.getPlayers().isEmpty()) {
+            return true;
+        }
+        double activationRadiusSq = 128.0 * 128.0;
+        for (var player : world.getPlayers()) {
+            if (player == null) {
+                continue;
+            }
+            if (player.squaredDistanceTo(mob) <= activationRadiusSq) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static List<Entity> captureNearbyEntities(MobEntity mob) {
+        if (mob == null) {
+            return List.of();
+        }
+        var world = mob.getEntityWorld();
+        if (world == null) {
+            return List.of();
+        }
+        List<Entity> nearby = world.getOtherEntities(mob, mob.getBoundingBox().expand(8.0), e -> true);
+        if (nearby == null || nearby.isEmpty()) {
+            return List.of();
+        }
+        return List.copyOf(nearby);
     }
     
     /**
      * Capture a context snapshot for a vanilla mob (no PetsPlus component).
      */
     public static PetContext captureVanilla(MobEntity mob) {
-        return capture(mob, null);
+        return captureFresh(mob, null);
     }
     
     /**
@@ -136,8 +276,8 @@ public record PetContext(
     /**
      * Get ticks since a goal was last executed.
      */
-    public long ticksSince(GoalType goal) {
-        return worldTime - lastExecuted.getOrDefault(goal, 0L);
+    public long ticksSince(GoalDefinition goal) {
+        return worldTime - lastExecuted.getOrDefault(goal.id(), 0L);
     }
 
     public float socialCharge() {

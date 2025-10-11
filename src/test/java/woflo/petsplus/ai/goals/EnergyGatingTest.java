@@ -1,7 +1,9 @@
 package woflo.petsplus.ai.goals;
 
-import net.minecraft.util.math.Vec2f;
 import org.junit.jupiter.api.Test;
+import woflo.petsplus.ai.goals.GoalDefinition;
+import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -13,7 +15,7 @@ class EnergyGatingTest {
     @Test
     void testEnergyBiasCalculation() {
         // Create a test goal with mid-range energy (0.3-0.7)
-        GoalType testGoal = GoalType.CIRCLE_SPOT; // 0.3-0.7 range
+        GoalDefinition testGoal = GoalRegistry.require(GoalIds.CIRCLE_SPOT); // 0.3-0.7 range
         
         // Test center of range (0.5) - should be 1.0
         assertEquals(1.0f, testGoal.getEnergyBias(0.5f), 0.01f, 
@@ -39,7 +41,7 @@ class EnergyGatingTest {
     @Test
     void testEnergyCompatibility() {
         // Test rest goal (0.0-0.4) - with SOFT gating, still compatible outside range (just rare)
-        GoalType restGoal = GoalType.SIT_SPHINX_POSE;
+        GoalDefinition restGoal = GoalRegistry.require(GoalIds.SIT_SPHINX_POSE);
         assertTrue(restGoal.isEnergyCompatible(0.2f), "Rest goal should be compatible at low energy");
         // With soft gating (0.1 bias), this is still technically compatible
         assertTrue(restGoal.isEnergyCompatible(0.9f), "Rest goal is technically compatible (soft gate allows 10%)");
@@ -47,7 +49,7 @@ class EnergyGatingTest {
         assertTrue(restGoal.getEnergyBias(0.9f) < 0.15f, "Rest goal should have very low bias at high energy");
         
         // Test active goal (0.6-1.0)
-        GoalType activeGoal = GoalType.TAIL_CHASE;
+        GoalDefinition activeGoal = GoalRegistry.require(GoalIds.TAIL_CHASE);
         // With soft gating, still compatible outside range
         assertTrue(activeGoal.isEnergyCompatible(0.1f), "Active goal is technically compatible (soft gate allows 10%)");
         assertTrue(activeGoal.isEnergyCompatible(0.8f), "Active goal should be compatible at high energy");
@@ -55,7 +57,7 @@ class EnergyGatingTest {
         assertTrue(activeGoal.getEnergyBias(0.1f) < 0.15f, "Active goal should have very low bias at low energy");
         
         // Test flexible goal (0.0-1.0)
-        GoalType flexibleGoal = GoalType.OWNER_ORBIT;
+        GoalDefinition flexibleGoal = GoalRegistry.require(GoalIds.OWNER_ORBIT);
         assertTrue(flexibleGoal.isEnergyCompatible(0.1f), "Flexible goal should be compatible at low energy");
         assertTrue(flexibleGoal.isEnergyCompatible(0.9f), "Flexible goal should be compatible at high energy");
     }
@@ -63,44 +65,44 @@ class EnergyGatingTest {
     @Test
     void testRestGoalsHaveLowEnergyRanges() {
         // Verify rest behaviors require low energy
-        assertTrue(GoalType.SIT_SPHINX_POSE.getEnergyBias(0.2f) > 0.5f, 
+        assertTrue(GoalRegistry.require(GoalIds.SIT_SPHINX_POSE).getEnergyBias(0.2f) > 0.5f, 
             "Sit should prefer low energy");
-        assertTrue(GoalType.PREEN_FEATHERS.getEnergyBias(0.2f) > 0.5f, 
+        assertTrue(GoalRegistry.require(GoalIds.PREEN_FEATHERS).getEnergyBias(0.2f) > 0.5f, 
             "Preen should prefer low energy");
-        assertTrue(GoalType.FLOAT_IDLE.getEnergyBias(0.2f) > 0.5f, 
+        assertTrue(GoalRegistry.require(GoalIds.FLOAT_IDLE).getEnergyBias(0.2f) > 0.5f, 
             "Float idle should prefer low energy");
-        assertTrue(GoalType.STARGAZING.getEnergyBias(0.2f) > 0.5f, 
+        assertTrue(GoalRegistry.require(GoalIds.STARGAZING).getEnergyBias(0.2f) > 0.5f, 
             "Stargazing should prefer low energy");
     }
     
     @Test
     void testActiveGoalsHaveHighEnergyRanges() {
         // Verify active behaviors require high energy
-        assertTrue(GoalType.TAIL_CHASE.getEnergyBias(0.8f) > 0.5f, 
+        assertTrue(GoalRegistry.require(GoalIds.TAIL_CHASE).getEnergyBias(0.8f) > 0.5f, 
             "Tail chase should prefer high energy");
-        assertTrue(GoalType.POUNCE_PRACTICE.getEnergyBias(0.8f) > 0.5f, 
+        assertTrue(GoalRegistry.require(GoalIds.POUNCE_PRACTICE).getEnergyBias(0.8f) > 0.5f, 
             "Pounce should prefer high energy");
-        assertTrue(GoalType.PARKOUR_CHALLENGE.getEnergyBias(0.8f) > 0.5f, 
+        assertTrue(GoalRegistry.require(GoalIds.PARKOUR_CHALLENGE).getEnergyBias(0.8f) > 0.5f, 
             "Parkour should prefer high energy");
-        assertTrue(GoalType.BUBBLE_PLAY.getEnergyBias(0.8f) > 0.5f, 
+        assertTrue(GoalRegistry.require(GoalIds.BUBBLE_PLAY).getEnergyBias(0.8f) > 0.5f, 
             "Bubble play should prefer high energy");
     }
     
     @Test
     void testNeutralGoalsWorkAtMidEnergy() {
         // Verify neutral behaviors work well at mid energy
-        assertTrue(GoalType.STRETCH_AND_YAW.getEnergyBias(0.5f) > 0.8f, 
+        assertTrue(GoalRegistry.require(GoalIds.STRETCH_AND_YAW).getEnergyBias(0.5f) > 0.8f, 
             "Stretch should work at mid energy");
-        assertTrue(GoalType.CASUAL_WANDER.getEnergyBias(0.5f) > 0.8f, 
+        assertTrue(GoalRegistry.require(GoalIds.CASUAL_WANDER).getEnergyBias(0.5f) > 0.8f, 
             "Casual wander should work at mid energy");
-        assertTrue(GoalType.SNIFF_GROUND.getEnergyBias(0.5f) > 0.8f, 
+        assertTrue(GoalRegistry.require(GoalIds.SNIFF_GROUND).getEnergyBias(0.5f) > 0.8f, 
             "Sniff ground should work at mid energy");
     }
     
     @Test
     void testSoftGatingPreventsTotalExclusion() {
         // Verify soft gating allows rare behaviors outside range
-        GoalType restGoal = GoalType.SIT_SPHINX_POSE; // 0.0-0.4
+        GoalDefinition restGoal = GoalRegistry.require(GoalIds.SIT_SPHINX_POSE); // 0.0-0.4
         float highEnergyBias = restGoal.getEnergyBias(0.9f);
         
         assertTrue(highEnergyBias > 0.05f, 
@@ -111,7 +113,7 @@ class EnergyGatingTest {
     
     @Test
     void testLinearFalloffFromCenter() {
-        GoalType testGoal = GoalType.CIRCLE_SPOT; // 0.3-0.7 range, center=0.5
+        GoalDefinition testGoal = GoalRegistry.require(GoalIds.CIRCLE_SPOT); // 0.3-0.7 range, center=0.5
         
         float centerBias = testGoal.getEnergyBias(0.5f);  // Center
         float midBias = testGoal.getEnergyBias(0.6f);     // Halfway to edge
@@ -130,7 +132,7 @@ class EnergyGatingTest {
     @Test
     void testAllGoalsHaveEnergyRanges() {
         // Verify every goal has a valid energy range
-        for (GoalType goal : GoalType.values()) {
+        for (GoalDefinition goal : GoalRegistry.all()) {
             assertNotNull(goal, "Goal should not be null");
             
             // Test that getEnergyBias doesn't throw exceptions
@@ -151,7 +153,7 @@ class EnergyGatingTest {
         int activeGoals = 0;    // 0.6-1.0
         int flexibleGoals = 0;  // 0.0-1.0 or wide
         
-        for (GoalType goal : GoalType.values()) {
+        for (GoalDefinition goal : GoalRegistry.all()) {
             // Test at different energy levels
             float lowBias = goal.getEnergyBias(0.2f);
             float midBias = goal.getEnergyBias(0.5f);
@@ -178,22 +180,22 @@ class EnergyGatingTest {
         System.out.println("  Neutral goals (0.3-0.7): " + neutralGoals);
         System.out.println("  Active goals (0.6-1.0): " + activeGoals);
         System.out.println("  Flexible goals: " + flexibleGoals);
-        System.out.println("  Total: " + GoalType.values().length);
+        System.out.println("  Total: " + GoalRegistry.all().size());
     }
     
     @Test
     void testSocialGoalsHaveReasonableRanges() {
         // Social goals should be accessible across different energy levels
         // LEAN_AGAINST_OWNER should be low-energy (0.0-0.6)
-        assertTrue(GoalType.LEAN_AGAINST_OWNER.getEnergyBias(0.3f) > 0.5f,
+        assertTrue(GoalRegistry.require(GoalIds.LEAN_AGAINST_OWNER).getEnergyBias(0.3f) > 0.5f,
             "Lean against owner should work at low energy");
         
         // SHOW_OFF_TRICK should be high-energy (0.6-1.0)
-        assertTrue(GoalType.SHOW_OFF_TRICK.getEnergyBias(0.8f) > 0.5f,
+        assertTrue(GoalRegistry.require(GoalIds.SHOW_OFF_TRICK).getEnergyBias(0.8f) > 0.5f,
             "Show off trick should work at high energy");
         
         // PARALLEL_PLAY should be flexible (0.3-0.8)
-        assertTrue(GoalType.PARALLEL_PLAY.getEnergyBias(0.5f) > 0.5f,
+        assertTrue(GoalRegistry.require(GoalIds.PARALLEL_PLAY).getEnergyBias(0.5f) > 0.5f,
             "Parallel play should work at mid energy");
     }
 }

@@ -8,6 +8,8 @@ import net.minecraft.inventory.InventoryChangedListener;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.state.PetComponent;
 
+import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import woflo.petsplus.mixin.MobEntityAccessor;
 
@@ -213,7 +215,7 @@ public class MobCapabilities {
     @FunctionalInterface
     public interface CapabilityRequirement {
         boolean test(CapabilityProfile profile);
-        
+
         // Common requirements
         static CapabilityRequirement any() {
             return profile -> true;
@@ -237,6 +239,60 @@ public class MobCapabilities {
         
         static CapabilityRequirement itemHandler() {
             return profile -> profile.canPickUpItems;
+        }
+
+        static CapabilityRequirement fromToken(String token) {
+            String normalized = token.toLowerCase(Locale.ROOT);
+            return switch (normalized) {
+                case "any" -> any();
+                case "land" -> land();
+                case "flying" -> flying();
+                case "aquatic" -> aquatic();
+                case "tamed" -> tamed();
+                case "item_handler" -> itemHandler();
+                case "can_wander" -> profile -> profile.canWander();
+                case "can_fly" -> profile -> profile.canFly();
+                case "can_swim" -> profile -> profile.canSwim();
+                case "can_jump" -> profile -> profile.canJump();
+                case "has_owner" -> profile -> profile.hasOwner();
+                case "can_pick_up_items" -> profile -> profile.canPickUpItems();
+                case "has_inventory" -> profile -> profile.hasInventory();
+                case "can_sit" -> profile -> profile.canSit();
+                case "can_make_sound" -> profile -> profile.canMakeSound();
+                case "prefers_land" -> profile -> profile.prefersLand();
+                case "prefers_water" -> profile -> profile.prefersWater();
+                case "prefers_air" -> profile -> profile.prefersAir();
+                case "is_small_size" -> profile -> profile.isSmallSize();
+                default -> throw new IllegalArgumentException("Unknown capability requirement '" + token + "'");
+            };
+        }
+
+        static CapabilityRequirement allOf(List<CapabilityRequirement> requirements) {
+            List<CapabilityRequirement> copy = List.copyOf(requirements);
+            return profile -> {
+                for (CapabilityRequirement requirement : copy) {
+                    if (!requirement.test(profile)) {
+                        return false;
+                    }
+                }
+                return true;
+            };
+        }
+
+        static CapabilityRequirement anyOf(List<CapabilityRequirement> requirements) {
+            List<CapabilityRequirement> copy = List.copyOf(requirements);
+            return profile -> {
+                for (CapabilityRequirement requirement : copy) {
+                    if (requirement.test(profile)) {
+                        return true;
+                    }
+                }
+                return false;
+            };
+        }
+
+        static CapabilityRequirement not(CapabilityRequirement requirement) {
+            return profile -> !requirement.test(profile);
         }
     }
 }

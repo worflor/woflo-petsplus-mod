@@ -1,0 +1,15 @@
+{
+  "category": "idle_quirk",
+  "priority": 27,
+  "cooldown": {
+    "min": 5,
+    "max": 80
+  },
+  "requirement": "aquatic",
+  "energy_range": {
+    "min": 0.0,
+    "max": 1.0
+  },
+  "idle_stamina_bias": "low",
+  "goal_factory": "woflo.petsplus.ai.goals.idle.SurfaceBreathGoal"
+}

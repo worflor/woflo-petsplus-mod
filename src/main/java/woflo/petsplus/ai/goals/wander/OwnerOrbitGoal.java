@@ -6,7 +6,8 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 
 import java.util.EnumSet;
 
@@ -19,7 +20,7 @@ public class OwnerOrbitGoal extends AdaptiveGoal {
     private Vec3d orbitTarget;
     
     public OwnerOrbitGoal(MobEntity mob) {
-        super(mob, GoalType.OWNER_ORBIT, EnumSet.of(Control.MOVE, Control.LOOK));
+        super(mob, GoalRegistry.require(GoalIds.OWNER_ORBIT), EnumSet.of(Control.MOVE, Control.LOOK));
     }
     
     @Override

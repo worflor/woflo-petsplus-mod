@@ -6,7 +6,8 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 
 import java.util.EnumSet;
 
@@ -19,7 +20,7 @@ public class SurfaceBreathGoal extends AdaptiveGoal {
     private boolean reachedSurface = false;
     
     public SurfaceBreathGoal(MobEntity mob) {
-        super(mob, GoalType.SURFACE_BREATH, EnumSet.of(Control.MOVE));
+        super(mob, GoalRegistry.require(GoalIds.SURFACE_BREATH), EnumSet.of(Control.MOVE));
     }
     
     @Override

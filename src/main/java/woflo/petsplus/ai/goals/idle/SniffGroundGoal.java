@@ -6,7 +6,8 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 
 import java.util.EnumSet;
 
@@ -19,7 +20,7 @@ public class SniffGroundGoal extends AdaptiveGoal {
     private static final int SNIFF_DURATION = 40;
     
     public SniffGroundGoal(MobEntity mob) {
-        super(mob, GoalType.SNIFF_GROUND, EnumSet.of(Control.LOOK));
+        super(mob, GoalRegistry.require(GoalIds.SNIFF_GROUND), EnumSet.of(Control.LOOK));
     }
     
     @Override

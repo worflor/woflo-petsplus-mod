@@ -4,7 +4,8 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 
 import java.util.EnumSet;
 
@@ -16,7 +17,7 @@ public class WingFlutterGoal extends AdaptiveGoal {
     private static final int FLUTTER_DURATION = 40;
     
     public WingFlutterGoal(MobEntity mob) {
-        super(mob, GoalType.WING_FLUTTER, EnumSet.noneOf(Control.class));
+        super(mob, GoalRegistry.require(GoalIds.WING_FLUTTER), EnumSet.noneOf(Control.class));
     }
     
     @Override

@@ -16,6 +16,7 @@ public abstract class ServerWorldTickMixin {
     private void petsplus$runPetScheduler(BooleanSupplier shouldKeepTicking, CallbackInfo ci) {
         ServerWorld world = (ServerWorld) (Object) this;
         StateManager manager = StateManager.forWorld(world);
+        manager.handleWorldPerceptionTick();
         manager.processScheduledPetTasks(world.getTime());
     }
 }

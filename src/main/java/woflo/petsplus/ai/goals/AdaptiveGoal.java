@@ -2,11 +2,14 @@ package woflo.petsplus.ai.goals;
 
 import net.minecraft.entity.ai.goal.Goal;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.util.Identifier;
 import woflo.petsplus.ai.behavior.MomentumState;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.mixin.MobEntityAccessor;
 import woflo.petsplus.state.PetComponent;
 
+import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
@@ -20,11 +23,15 @@ import java.util.WeakHashMap;
  * Priority system ensures we never interfere with higher-priority goals.
  */
 public abstract class AdaptiveGoal extends Goal {
-    private static final Map<MobEntity, Map<GoalType, Long>> FALLBACK_COOLDOWNS = new WeakHashMap<>();
+    private static final Map<MobEntity, Map<Identifier, Long>> FALLBACK_COOLDOWNS = new WeakHashMap<>();
+    private static final Map<MobEntity, ArrayDeque<Identifier>> FALLBACK_RECENT_GOALS = new WeakHashMap<>();
+    private static final Map<MobEntity, Map<Identifier, Long>> FALLBACK_LAST_EXECUTED = new WeakHashMap<>();
+    private static final int HISTORY_LIMIT = 8;
     private static final String COOLDOWN_PREFIX = "adaptive_goal:";
-    
+
     protected final MobEntity mob;
-    protected final GoalType goalType;
+    protected final GoalDefinition goalDefinition;
+    protected final Identifier goalId;
     
     private int activeTicks = 0;
     private int committedDuration = 0;
@@ -37,9 +44,10 @@ public abstract class AdaptiveGoal extends Goal {
     private static final int BASE_MIN_DURATION = 40;  // 2 seconds
     private static final int BASE_MAX_DURATION = 200; // 10 seconds
     
-    public AdaptiveGoal(MobEntity mob, GoalType goalType, EnumSet<Control> controls) {
+    public AdaptiveGoal(MobEntity mob, GoalDefinition goalDefinition, EnumSet<Control> controls) {
         this.mob = mob;
-        this.goalType = goalType;
+        this.goalDefinition = goalDefinition;
+        this.goalId = goalDefinition.id();
         this.setControls(controls);
     }
     
@@ -117,9 +125,10 @@ public abstract class AdaptiveGoal extends Goal {
         currentEngagement = 0.5f; // Start with neutral engagement
         committedDuration = calculateInitialDuration();
         onStartGoal();
-        
+
         // Record activity start for behavioral momentum
         recordActivityStart();
+        trackGoalStart();
     }
     
     @Override
@@ -132,6 +141,8 @@ public abstract class AdaptiveGoal extends Goal {
         
         // Record activity completion for behavioral momentum
         recordActivityCompletion();
+
+        trackGoalCompletion();
         
         // Trigger emotion feedback (Phase 2)
         triggerEmotionFeedback();
@@ -204,7 +215,7 @@ public abstract class AdaptiveGoal extends Goal {
      */
     protected woflo.petsplus.state.emotions.PetMoodEngine.ActivityType getActivityType() {
         // Default mapping based on goal type
-        return switch (goalType.getCategory()) {
+        return switch (goalDefinition.category()) {
             case PLAY -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.PHYSICAL;
             case WANDER -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.PHYSICAL;
             case IDLE_QUIRK -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.PHYSICAL;
@@ -219,7 +230,7 @@ public abstract class AdaptiveGoal extends Goal {
      */
     protected float getActivityIntensity() {
         // Base intensity on engagement and goal type
-        float baseIntensity = switch (goalType.getCategory()) {
+        float baseIntensity = switch (goalDefinition.category()) {
             case PLAY -> 0.7f;
             case WANDER -> 0.5f;
             case SPECIAL -> 0.6f;
@@ -238,7 +249,7 @@ public abstract class AdaptiveGoal extends Goal {
      */
     protected boolean meetsCapabilityRequirements() {
         var capabilities = woflo.petsplus.ai.capability.MobCapabilities.analyze(mob);
-        return goalType.isCompatible(capabilities);
+        return goalDefinition.isCompatible(capabilities);
     }
     
     /**
@@ -247,8 +258,8 @@ public abstract class AdaptiveGoal extends Goal {
     protected boolean hasActiveHigherPriorityGoals() {
         try {
             MobEntityAccessor accessor = (MobEntityAccessor) mob;
-            int ourPriority = goalType.getPriority();
-            
+            int ourPriority = goalDefinition.priority();
+
             return accessor.getGoalSelector().getGoals().stream()
                 .filter(goal -> goal.getGoal() != this)
                 .anyMatch(goal -> goal.getPriority() < ourPriority && goal.isRunning());
@@ -283,8 +294,8 @@ public abstract class AdaptiveGoal extends Goal {
      * Check if cooldown has expired.
      */
     protected boolean isCooldownExpired() {
-        int min = goalType.getMinCooldownTicks();
-        int max = goalType.getMaxCooldownTicks();
+        int min = goalDefinition.minCooldownTicks();
+        int max = goalDefinition.maxCooldownTicks();
         if (min <= 0 && max <= 0) {
             return true;
         }
@@ -296,11 +307,11 @@ public abstract class AdaptiveGoal extends Goal {
         }
 
         synchronized (FALLBACK_COOLDOWNS) {
-            Map<GoalType, Long> cooldowns = FALLBACK_COOLDOWNS.get(mob);
+            Map<Identifier, Long> cooldowns = FALLBACK_COOLDOWNS.get(mob);
             if (cooldowns == null) {
                 return true;
             }
-            Long until = cooldowns.get(goalType);
+            Long until = cooldowns.get(goalId);
             return until == null || until <= currentTime;
         }
     }
@@ -311,7 +322,7 @@ public abstract class AdaptiveGoal extends Goal {
      */
     protected boolean isEnergyCompatible() {
         MomentumState momentum = MomentumState.capture(mob);
-        return goalType.isEnergyCompatible(momentum.energyProfile());
+        return goalDefinition.isEnergyCompatible(momentum.energyProfile());
     }
     
     /**
@@ -346,8 +357,8 @@ public abstract class AdaptiveGoal extends Goal {
     }
 
     private void applyGoalCooldown() {
-        int min = goalType.getMinCooldownTicks();
-        int max = goalType.getMaxCooldownTicks();
+        int min = goalDefinition.minCooldownTicks();
+        int max = goalDefinition.maxCooldownTicks();
         if (min <= 0 && max <= 0) {
             return;
         }
@@ -373,22 +384,76 @@ public abstract class AdaptiveGoal extends Goal {
         synchronized (FALLBACK_COOLDOWNS) {
             FALLBACK_COOLDOWNS
                 .computeIfAbsent(mob, ignored -> new HashMap<>())
-                .put(goalType, endTick);
+                .put(goalId, endTick);
         }
     }
 
     private String getCooldownKey() {
-        return COOLDOWN_PREFIX + goalType.name();
+        return COOLDOWN_PREFIX + goalId.toString();
+    }
+
+    private void trackGoalStart() {
+        PetComponent pc = PetComponent.get(mob);
+        if (pc != null) {
+            pc.recordGoalStart(goalId);
+            return;
+        }
+
+        synchronized (FALLBACK_RECENT_GOALS) {
+            ArrayDeque<Identifier> history = FALLBACK_RECENT_GOALS.computeIfAbsent(mob, ignored -> new ArrayDeque<>());
+            history.remove(goalId);
+            history.addFirst(goalId);
+            while (history.size() > HISTORY_LIMIT) {
+                history.removeLast();
+            }
+        }
+    }
+
+    private void trackGoalCompletion() {
+        long worldTime = mob.getEntityWorld() != null ? mob.getEntityWorld().getTime() : 0L;
+        PetComponent pc = PetComponent.get(mob);
+        if (pc != null) {
+            pc.recordGoalCompletion(goalId, worldTime);
+            return;
+        }
+
+        synchronized (FALLBACK_LAST_EXECUTED) {
+            Map<Identifier, Long> executions = FALLBACK_LAST_EXECUTED.computeIfAbsent(mob, ignored -> new HashMap<>());
+            executions.put(goalId, Math.max(0L, worldTime));
+        }
+    }
+
+    public static ArrayDeque<Identifier> getFallbackRecentGoals(MobEntity mob) {
+        synchronized (FALLBACK_RECENT_GOALS) {
+            ArrayDeque<Identifier> history = FALLBACK_RECENT_GOALS.get(mob);
+            return history == null ? new ArrayDeque<>() : new ArrayDeque<>(history);
+        }
+    }
+
+    public static Map<Identifier, Long> getFallbackLastExecuted(MobEntity mob) {
+        synchronized (FALLBACK_LAST_EXECUTED) {
+            Map<Identifier, Long> executions = FALLBACK_LAST_EXECUTED.get(mob);
+            return executions == null ? Collections.emptyMap() : Map.copyOf(executions);
+        }
+    }
+
+    public static void clearFallbackHistory() {
+        synchronized (FALLBACK_RECENT_GOALS) {
+            FALLBACK_RECENT_GOALS.clear();
+        }
+        synchronized (FALLBACK_LAST_EXECUTED) {
+            FALLBACK_LAST_EXECUTED.clear();
+        }
     }
     
     /**
      * Record experience for memory/learning system.
      */
     protected void recordGoalExperience(float satisfaction) {
-        // TODO: Implement in GoalMemory system
         PetComponent pc = PetComponent.get(mob);
         if (pc != null) {
-            // Will integrate with memory system in Phase 5
+            long tick = mob.getEntityWorld() != null ? mob.getEntityWorld().getTime() : 0L;
+            pc.recordExperience(goalId, satisfaction, tick);
         }
     }
     

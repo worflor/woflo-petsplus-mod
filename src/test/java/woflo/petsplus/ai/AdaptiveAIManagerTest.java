@@ -8,7 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import woflo.petsplus.ai.capability.MobCapabilities;
-import woflo.petsplus.ai.goals.GoalType;
+import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.goals.social.EyeContactGoal;
 import woflo.petsplus.ai.goals.social.ParallelPlayGoal;
 import woflo.petsplus.api.entity.PetsplusTameable;
@@ -78,7 +79,7 @@ class AdaptiveAIManagerTest {
             verify(goalSelector, atLeastOnce()).add(anyInt(), any());
 
             verify(goalSelector, atLeastOnce()).add(anyInt(), argThat(goal -> goal instanceof ParallelPlayGoal));
-            verify(goalSelector).add(eq(GoalType.EYE_CONTACT.getPriority()), argThat(goal ->
+            verify(goalSelector).add(eq(GoalRegistry.require(GoalIds.EYE_CONTACT).priority()), argThat(goal ->
                 goal instanceof EyeContactGoal eyeContact &&
                     eyeContact.getControls().equals(EnumSet.of(Goal.Control.LOOK))
             ));

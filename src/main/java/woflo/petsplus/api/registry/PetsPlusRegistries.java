@@ -18,6 +18,9 @@ import woflo.petsplus.abilities.AbilityManager;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.Trigger;
 import woflo.petsplus.api.TriggerContext;
+import woflo.petsplus.ai.goals.loader.GoalDataLoader;
+import woflo.petsplus.ai.planner.ActionPlanDataLoader;
+import woflo.petsplus.ai.suggester.signal.rules.SignalRuleDataLoader;
 import woflo.petsplus.data.AbilityDataLoader;
 import woflo.petsplus.data.AstrologySignDataLoader;
 import woflo.petsplus.data.NatureFlavorDataLoader;
@@ -147,6 +150,12 @@ public final class PetsPlusRegistries {
             .registerReloadListener(new AstrologySignDataLoader());
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
             .registerReloadListener(new NatureFlavorDataLoader());
+        ResourceManagerHelper.get(ResourceType.SERVER_DATA)
+            .registerReloadListener(new GoalDataLoader());
+        ResourceManagerHelper.get(ResourceType.SERVER_DATA)
+            .registerReloadListener(new ActionPlanDataLoader());
+        ResourceManagerHelper.get(ResourceType.SERVER_DATA)
+            .registerReloadListener(new SignalRuleDataLoader());
         AbilityManager.reloadFromRegistry();
     }
 

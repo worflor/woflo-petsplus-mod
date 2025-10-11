@@ -1,0 +1,15 @@
+{
+  "category": "idle_quirk",
+  "priority": 28,
+  "cooldown": {
+    "min": 15,
+    "max": 180
+  },
+  "requirement": "can_sit",
+  "energy_range": {
+    "min": 0.0,
+    "max": 0.4
+  },
+  "idle_stamina_bias": "low",
+  "goal_factory": "woflo.petsplus.ai.goals.idle.SitSphinxPoseGoal"
+}

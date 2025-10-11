@@ -1,0 +1,16 @@
+{
+  "category": "play",
+  "priority": 18,
+  "cooldown": {
+    "min": 0,
+    "max": 0
+  },
+  "requirement": "item_handler",
+  "energy_range": {
+    "min": 0.45,
+    "max": 1.0
+  },
+  "idle_stamina_bias": "centered",
+  "social_idle_bias": false,
+  "goal_factory": "woflo.petsplus.ai.goals.play.FetchItemGoal"
+}

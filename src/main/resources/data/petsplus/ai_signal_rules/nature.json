@@ -1,0 +1,287 @@
+{
+  "minIntensity": 0.05,
+  "rules": {
+    "CHEERFUL": {
+      "categories": {
+        "PLAY": [
+          1.35
+        ]
+      },
+      "goals": {
+        "petsplus:bubble_play": [
+          1.5
+        ],
+        "petsplus:tail_chase": [
+          1.55
+        ],
+        "petsplus:toy_pounce": [
+          1.55
+        ],
+        "petsplus:water_splash": [
+          1.5
+        ]
+      }
+    },
+    "CURIOUS": {
+      "categories": {
+        "SPECIAL": [
+          1.25
+        ],
+        "WANDER": [
+          1.2
+        ]
+      },
+      "goals": {
+        "petsplus:investigate_block": [
+          1.55
+        ],
+        "petsplus:scent_trail_follow": [
+          1.45
+        ],
+        "petsplus:sniff_ground": [
+          1.35
+        ]
+      }
+    },
+    "FOREBODING": {
+      "categories": {
+        "WANDER": [
+          0.75
+        ]
+      },
+      "goals": {
+        "petsplus:lean_against_owner": [
+          1.6
+        ],
+        "petsplus:owner_orbit": [
+          1.6
+        ]
+      }
+    },
+    "GAMAN": {
+      "categories": {
+        "IDLE_QUIRK": [
+          1.2
+        ]
+      },
+      "goals": {
+        "petsplus:sit_sphinx_pose": [
+          1.45
+        ]
+      }
+    },
+    "GUARDIAN_VIGIL": {
+      "categories": {
+        "SOCIAL": [
+          1.25
+        ],
+        "WANDER": [
+          1.35
+        ]
+      },
+      "goals": {
+        "petsplus:owner_orbit": [
+          1.55
+        ],
+        "petsplus:perk_ears_scan": [
+          1.45
+        ],
+        "petsplus:purposeful_patrol": [
+          1.6
+        ]
+      }
+    },
+    "HIRAETH": {
+      "categories": {
+        "WANDER": [
+          1.25
+        ]
+      },
+      "goals": {
+        "petsplus:circle_spot": [
+          1.4
+        ],
+        "petsplus:owner_orbit": [
+          1.55
+        ]
+      }
+    },
+    "KEFI": {
+      "categories": {
+        "PLAY": [
+          1.4
+        ]
+      },
+      "goals": {
+        "petsplus:aerial_acrobatics": [
+          1.55
+        ],
+        "petsplus:parkour_challenge": [
+          1.5
+        ],
+        "petsplus:water_splash": [
+          1.55
+        ]
+      }
+    },
+    "LAGOM": {
+      "categories": {
+        "IDLE_QUIRK": [
+          1.25
+        ]
+      },
+      "goals": {
+        "petsplus:float_idle": [
+          1.5
+        ],
+        "petsplus:stargazing": [
+          1.45
+        ]
+      }
+    },
+    "LOYALTY": {
+      "categories": {
+        "SOCIAL": [
+          1.35
+        ]
+      },
+      "goals": {
+        "petsplus:lean_against_owner": [
+          1.5
+        ],
+        "petsplus:perch_on_shoulder": [
+          1.45
+        ]
+      }
+    },
+    "PACK_SPIRIT": {
+      "categories": {
+        "SOCIAL": [
+          1.35
+        ]
+      },
+      "goals": {
+        "petsplus:owner_orbit": [
+          1.45
+        ],
+        "petsplus:parallel_play": [
+          1.5
+        ]
+      }
+    },
+    "PLAYFULNESS": {
+      "categories": {
+        "PLAY": [
+          1.45
+        ]
+      },
+      "goals": {
+        "petsplus:bubble_play": [
+          1.55
+        ],
+        "petsplus:tail_chase": [
+          1.6
+        ],
+        "petsplus:toy_pounce": [
+          1.6
+        ]
+      }
+    },
+    "PROTECTIVE": {
+      "categories": {
+        "SOCIAL": [
+          1.3
+        ]
+      },
+      "goals": {
+        "petsplus:lean_against_owner": [
+          1.55
+        ],
+        "petsplus:owner_orbit": [
+          1.5
+        ]
+      }
+    },
+    "RELIEF": {
+      "categories": {
+        "IDLE_QUIRK": [
+          1.2
+        ]
+      },
+      "goals": {
+        "petsplus:circle_spot": [
+          1.45
+        ],
+        "petsplus:sit_sphinx_pose": [
+          1.4
+        ]
+      }
+    },
+    "SAUDADE": {
+      "categories": {
+        "SOCIAL": [
+          1.2
+        ]
+      },
+      "goals": {
+        "petsplus:sit_sphinx_pose": [
+          1.4
+        ]
+      }
+    },
+    "SISU": {
+      "categories": {
+        "PLAY": [
+          1.25
+        ]
+      },
+      "goals": {
+        "petsplus:parkour_challenge": [
+          1.5
+        ],
+        "petsplus:purposeful_patrol": [
+          1.45
+        ]
+      }
+    },
+    "SOBREMESA": {
+      "categories": {
+        "SOCIAL": [
+          1.4
+        ]
+      },
+      "goals": {
+        "petsplus:lean_against_owner": [
+          1.55
+        ],
+        "petsplus:parallel_play": [
+          1.55
+        ],
+        "petsplus:perch_on_shoulder": [
+          1.5
+        ]
+      }
+    },
+    "YUGEN": {
+      "categories": {
+        "IDLE_QUIRK": [
+          1.3
+        ]
+      },
+      "goals": {
+        "petsplus:float_idle": [
+          1.45
+        ],
+        "petsplus:stargazing": [
+          1.65
+        ]
+      }
+    }
+  },
+  "slotWeights": {
+    "major": 1.0,
+    "minor": 0.65,
+    "quirk": 0.35
+  },
+  "type": "nature"
+}
