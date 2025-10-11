@@ -44,6 +44,9 @@ public final class SignalRuleDataLoader extends BaseJsonDataLoader<Void> {
 
             JsonObject object = element.getAsJsonObject();
             String type = object.has("type") ? object.get("type").getAsString() : "";
+            if (type.isBlank()) {
+                type = inferTypeFromId(id);
+            }
             switch (type) {
                 case "mood_blend" -> moodRules = SignalRuleParser.parseMoodRules(id, object);
                 case "nature" -> natureRules = SignalRuleParser.parseNatureRules(id, object, natureRules);
@@ -53,5 +56,24 @@ public final class SignalRuleDataLoader extends BaseJsonDataLoader<Void> {
 
         SignalRuleRegistry.setMoodRules(moodRules);
         SignalRuleRegistry.setNatureRules(natureRules);
+    }
+
+    private static String inferTypeFromId(Identifier id) {
+        String path = id.getPath();
+        if (path == null || path.isEmpty()) {
+            return "";
+        }
+
+        if (matchesSegment(path, "mood_blend")) {
+            return "mood_blend";
+        }
+        if (matchesSegment(path, "nature")) {
+            return "nature";
+        }
+        return "";
+    }
+
+    private static boolean matchesSegment(String path, String segment) {
+        return segment.equals(path) || path.endsWith("/" + segment);
     }
 }
