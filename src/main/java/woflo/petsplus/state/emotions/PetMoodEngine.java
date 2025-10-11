@@ -2381,7 +2381,10 @@ public final class PetMoodEngine {
 
             PetRoleType roleType = component.getRoleType(false);
             if (roleType != null) {
-                diversity.add(roleType.archetype());
+                PetRoleType.RoleArchetype archetype = roleType.archetype();
+                if (archetype != null) {
+                    diversity.add(archetype);
+                }
             }
 
             double distance = Math.sqrt(distSq);

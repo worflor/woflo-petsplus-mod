@@ -1,6 +1,7 @@
 {
   "id": "petsplus:support",
   "translation_key": "petsplus.role.support",
+  "archetype": "SUPPORT",
   "base_stat_scalars": {
     "aura": 0.02
   },

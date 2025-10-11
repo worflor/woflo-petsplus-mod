@@ -1,6 +1,7 @@
 {
   "id": "petsplus:enchantment_bound",
   "translation_key": "petsplus.role.enchantment_bound",
+  "archetype": "UTILITY",
   "base_stat_scalars": {
     "echo": 0.02
   },

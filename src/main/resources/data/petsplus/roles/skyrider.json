@@ -1,6 +1,7 @@
 {
   "id": "petsplus:skyrider",
   "translation_key": "petsplus.role.skyrider",
+  "archetype": "MOBILITY",
   "base_stat_scalars": {
     "mobility": 0.02
   },

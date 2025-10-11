@@ -2,6 +2,7 @@ package woflo.petsplus.mixin;
 
 import net.minecraft.block.BlockState;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.world.World;
 import net.minecraft.util.math.BlockPos;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -16,21 +17,31 @@ import woflo.petsplus.state.StateManager;
  * blocks change outside the standard player interaction paths (e.g. pistons,
  * explosions, block updates).
  */
-@Mixin(ServerWorld.class)
+@Mixin(World.class)
 public abstract class ServerWorldSetBlockStateMixin {
 
     @Unique
     private static final ThreadLocal<BlockState> PETSPLUS$PREVIOUS_ARCANE_STATE = ThreadLocal.withInitial(() -> null);
 
-    @Inject(method = "setBlockState(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/BlockState;I)Z", at = @At("HEAD"))
-    private void petsplus$capturePreviousState(BlockPos pos, BlockState state, int flags,
+    @Inject(
+        method = "setBlockState(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/BlockState;II)Z",
+        at = @At("HEAD")
+    )
+    private void petsplus$capturePreviousState(BlockPos pos, BlockState state, int flags, int maxUpdateDepth,
                                                CallbackInfoReturnable<Boolean> cir) {
-        ServerWorld world = (ServerWorld) (Object) this;
-        PETSPLUS$PREVIOUS_ARCANE_STATE.set(world.getBlockState(pos));
+        if (!((Object) this instanceof ServerWorld serverWorld)) {
+            PETSPLUS$PREVIOUS_ARCANE_STATE.remove();
+            return;
+        }
+
+        PETSPLUS$PREVIOUS_ARCANE_STATE.set(serverWorld.getBlockState(pos));
     }
 
-    @Inject(method = "setBlockState(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/BlockState;I)Z", at = @At("RETURN"))
-    private void petsplus$invalidateArcaneAmbientOnChange(BlockPos pos, BlockState newState, int flags,
+    @Inject(
+        method = "setBlockState(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/BlockState;II)Z",
+        at = @At("RETURN")
+    )
+    private void petsplus$invalidateArcaneAmbientOnChange(BlockPos pos, BlockState newState, int flags, int maxUpdateDepth,
                                                           CallbackInfoReturnable<Boolean> cir) {
         try {
             if (!cir.getReturnValue()) {
@@ -43,8 +54,11 @@ public abstract class ServerWorldSetBlockStateMixin {
                 return;
             }
 
-            ServerWorld world = (ServerWorld) (Object) this;
-            StateManager.invalidateArcaneAmbientAt(world, pos);
+            if (!((Object) this instanceof ServerWorld serverWorld)) {
+                return;
+            }
+
+            StateManager.invalidateArcaneAmbientAt(serverWorld, pos);
         } finally {
             PETSPLUS$PREVIOUS_ARCANE_STATE.remove();
         }

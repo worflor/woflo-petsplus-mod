@@ -1,6 +1,7 @@
 {
   "id": "petsplus:striker",
   "translation_key": "petsplus.role.striker",
+  "archetype": "DPS",
   "base_stat_scalars": {
     "offense": 0.02
   },

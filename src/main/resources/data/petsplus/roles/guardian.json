@@ -1,6 +1,7 @@
 {
   "id": "petsplus:guardian",
   "translation_key": "petsplus.role.guardian",
+  "archetype": "TANK",
   "base_stat_scalars": {
     "defense": 0.02
   },

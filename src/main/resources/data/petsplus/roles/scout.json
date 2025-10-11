@@ -1,6 +1,7 @@
 {
   "id": "petsplus:scout",
   "translation_key": "petsplus.role.scout",
+  "archetype": "MOBILITY",
   "base_stat_scalars": {
     "mobility": 0.02
   },

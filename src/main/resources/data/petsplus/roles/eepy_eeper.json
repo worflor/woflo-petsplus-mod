@@ -1,6 +1,7 @@
 {
   "id": "petsplus:eepy_eeper",
   "translation_key": "petsplus.role.eepy_eeper",
+  "archetype": "SUPPORT",
   "base_stat_scalars": {
     "slumber": 0.02
   },

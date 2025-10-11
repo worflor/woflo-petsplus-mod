@@ -1,6 +1,7 @@
 {
   "id": "petsplus:eclipsed",
   "translation_key": "petsplus.role.eclipsed",
+  "archetype": "DPS",
   "base_stat_scalars": {
     "disruption": 0.02
   },

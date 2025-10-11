@@ -1,6 +1,7 @@
 {
   "id": "petsplus:cursed_one",
   "translation_key": "petsplus.role.cursed_one",
+  "archetype": "UTILITY",
   "base_stat_scalars": {
     "curse": 0.02
   },
