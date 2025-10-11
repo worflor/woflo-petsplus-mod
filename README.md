@@ -19,8 +19,8 @@
   <li>Added 0.93 [nature] - Lunaris, astrology girlies rejoice. All 12 signs uniquely manifest through the Lunaris nature: Aries → Lunaris Vanguard, Leo → Solara Lunaris, Sagittarius → Zenith Lunaris, Taurus → Bulwark Lunaris, Virgo → Calibra Lunaris, Capricorn → Lunaris Apex, Gemini → Syzygy Lunaris, Libra → Lunaris Equinox, Aquarius → Cascade Lunaris, Cancer → Lunaris Haven, Scorpio → Vesper Lunaris, Pisces → Eidolon Lunaris.</li>
   <li>Changed 0.93 [nature] - Rebalanced all the natures in terms of base impact; refining core identities to be more unique.</li>
   <li>Backend 0.94 [nature] - Parent natures are now exposed as predicates for natures.</li>
-  <li>Rework 0.95 [AI] - Following the same path as the stimulus pipeline, AI uses pet context, mood engine snapshots, and more to allow dynamic emergent behaviour</li>
   <li>Updated 0.94 [version] - 1.21.8 -> 1.21.10. ;-;</li>
+  <li>Rework 0.95 [AI] - Following the same path as the stimulus pipeline, AI uses pet context, mood engine snapshots, and more to allow dynamic emergent behaviour</li>
 </ul>
 
 ---
