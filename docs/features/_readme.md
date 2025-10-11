@@ -23,12 +23,17 @@ Your pet tracks Pride, Curiosity, Frustration, Hiraeth, Kefi, and 24 more emotio
 ### [Moods](moods.md)
 **When emotions peak, moods take over.**
 
-14 core moods like Happy, Playful, Angry, and Saudade shape how your pet acts. Three ultra-rare moods exist too: Pack Spirit when pets bond through combat, Arcane Overflow near heavy enchanting, and Echoed Resonance after surviving Warden encounters. Moods stack, conflict, and change behavior. But what causes these emotional spikes in the first place?
+14 core moods like Happy, Playful, Angry, and Saudade shape how your pet acts.
 
 ### [Stimulus](stimulus.md)
 **Every action ripples outward.**
 
-Combat, exploration, eating, achievements—everything pushes emotional responses to nearby pets. Bond strength, nature, and proximity all shape how they react. Visual feedback shows up in chat and actionbar so you know exactly when you messed up. Pets also gossip, sharing rumors and memories with each other. Of course, emotional baggage alone doesn't help in a fight.
+Everything pushes emotional responses to nearby pets. Bond strength, nature, and proximity all shape how they react.
+
+### [Behaviour](behaviour.md)
+**Every ripple's behavioural counterpart.**
+
+The same systems that runs the stimulus bus, mood engine, emotional context, and natures flow into the **perception pipeline** and **behavioural momentum** mechanics.
 
 ### [Roles](roles.md)
 **Nine specializations, each with unique abilities.**
