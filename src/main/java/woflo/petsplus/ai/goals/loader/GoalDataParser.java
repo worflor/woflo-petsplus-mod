@@ -1,5 +1,6 @@
 package woflo.petsplus.ai.goals.loader;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
@@ -10,6 +11,8 @@ import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalDefinition;
 
 import java.lang.reflect.Constructor;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 final class GoalDataParser {
@@ -31,7 +34,7 @@ final class GoalDataParser {
         int minCooldown = getInt(cooldown, "min");
         int maxCooldown = getInt(cooldown, "max");
 
-        MobCapabilities.CapabilityRequirement requirement = resolveRequirement(getString(json, "requirement"));
+        MobCapabilities.CapabilityRequirement requirement = resolveRequirement(json.get("requirement"));
 
         Vec2f energyRange = parseVec2(json.get("energy_range"));
         GoalDefinition.IdleStaminaBias idleBias = json.has("idle_stamina_bias")
@@ -90,16 +93,72 @@ final class GoalDataParser {
         return new Vec2f(min, max);
     }
 
-    private static MobCapabilities.CapabilityRequirement resolveRequirement(String value) {
-        return switch (value.toLowerCase(Locale.ROOT)) {
-            case "any" -> MobCapabilities.CapabilityRequirement.any();
-            case "land" -> MobCapabilities.CapabilityRequirement.land();
-            case "flying" -> MobCapabilities.CapabilityRequirement.flying();
-            case "aquatic" -> MobCapabilities.CapabilityRequirement.aquatic();
-            case "tamed" -> MobCapabilities.CapabilityRequirement.tamed();
-            case "item_handler" -> MobCapabilities.CapabilityRequirement.itemHandler();
-            default -> throw new JsonSyntaxException("Unknown requirement '" + value + "'");
-        };
+    private static MobCapabilities.CapabilityRequirement resolveRequirement(JsonElement element) {
+        if (element == null) {
+            throw new JsonSyntaxException("Missing field 'requirement'");
+        }
+
+        if (element.isJsonPrimitive()) {
+            if (!element.getAsJsonPrimitive().isString()) {
+                throw new JsonSyntaxException("Requirement must be a string or object");
+            }
+            try {
+                return MobCapabilities.CapabilityRequirement.fromToken(element.getAsString());
+            } catch (IllegalArgumentException ex) {
+                throw new JsonSyntaxException(ex.getMessage(), ex);
+            }
+        }
+
+        if (element.isJsonObject()) {
+            JsonObject obj = element.getAsJsonObject();
+            if (obj.entrySet().size() != 1) {
+                throw new JsonSyntaxException("Requirement object must contain exactly one operator");
+            }
+
+            if (obj.has("all_of")) {
+                JsonArray array = getArray(obj, "all_of");
+                if (array.size() == 0) {
+                    throw new JsonSyntaxException("'all_of' must contain at least one requirement");
+                }
+                return MobCapabilities.CapabilityRequirement.allOf(resolveChildren(array));
+            }
+
+            if (obj.has("any_of")) {
+                JsonArray array = getArray(obj, "any_of");
+                if (array.size() == 0) {
+                    throw new JsonSyntaxException("'any_of' must contain at least one requirement");
+                }
+                return MobCapabilities.CapabilityRequirement.anyOf(resolveChildren(array));
+            }
+
+            if (obj.has("not")) {
+                JsonElement child = obj.get("not");
+                if (child == null) {
+                    throw new JsonSyntaxException("'not' operator requires a requirement expression");
+                }
+                return MobCapabilities.CapabilityRequirement.not(resolveRequirement(child));
+            }
+
+            throw new JsonSyntaxException("Unknown requirement operator in object");
+        }
+
+        throw new JsonSyntaxException("Requirement must be a string or object");
+    }
+
+    private static JsonArray getArray(JsonObject obj, String key) {
+        JsonElement element = obj.get(key);
+        if (element == null || !element.isJsonArray()) {
+            throw new JsonSyntaxException("'" + key + "' must be an array");
+        }
+        return element.getAsJsonArray();
+    }
+
+    private static List<MobCapabilities.CapabilityRequirement> resolveChildren(JsonArray array) {
+        List<MobCapabilities.CapabilityRequirement> children = new ArrayList<>(array.size());
+        for (JsonElement child : array) {
+            children.add(resolveRequirement(child));
+        }
+        return children;
     }
 
     @SuppressWarnings("unchecked")
