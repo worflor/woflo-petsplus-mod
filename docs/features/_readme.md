@@ -31,7 +31,7 @@ Your pet tracks Pride, Curiosity, Frustration, Hiraeth, Kefi, and 24 more emotio
 Everything pushes emotional responses to nearby pets. Bond strength, nature, and proximity all shape how they react.
 
 ### [Behaviour](behaviour.md)
-**Every ripple's behavioural counterpart.**
+**The ripple's behavioural counterpart.**
 
 The same systems that runs the stimulus bus, mood engine, emotional context, and natures flow into the **perception pipeline** and **behavioural momentum** mechanics.
 
