@@ -193,25 +193,25 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
      */
     private Vec3d findNearbySunlight(int range) {
         net.minecraft.util.math.BlockPos currentPos = mob.getBlockPos();
-        
+        var world = mob.getEntityWorld();
+
         for (int x = -range; x <= range; x++) {
             for (int z = -range; z <= range; z++) {
                 if (MathHelper.sqrt((float)(x * x + z * z)) > range) continue;
-                net.minecraft.util.math.BlockPos checkPos = currentPos.add(x, 0, z);
+                net.minecraft.util.math.BlockPos groundPos = currentPos.add(x, 0, z);
+                net.minecraft.util.math.BlockPos airPos = groundPos.up();
 
-                if (!mob.getEntityWorld().isAir(checkPos)) {
+                if (!world.isAir(airPos)) {
                     continue;
                 }
 
-                net.minecraft.util.math.BlockPos groundPos = checkPos.down();
-
-                if (!mob.getEntityWorld().getBlockState(groundPos).isSolidBlock(mob.getEntityWorld(), groundPos)) {
+                if (!world.getBlockState(groundPos).isSolidBlock(world, groundPos)) {
                     continue;
                 }
 
                 // Require the air space itself to have direct sunlight
-                if (isInSunlight(checkPos)) {
-                    return Vec3d.ofCenter(checkPos);
+                if (isInSunlight(airPos)) {
+                    return Vec3d.ofCenter(airPos);
                 }
             }
         }
