@@ -339,7 +339,7 @@ public class PuddlePawGoal extends AdaptiveGoal {
             }
 
             BlockState spaceState = world.getBlockState(base);
-            if (!spaceState.isAir() && !spaceState.getFluidState().isEmpty()) {
+            if (!spaceState.isAir()) {
                 continue;
             }
 
