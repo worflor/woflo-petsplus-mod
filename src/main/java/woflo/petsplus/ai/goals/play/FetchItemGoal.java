@@ -5,6 +5,7 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.MathHelper;
+import woflo.petsplus.Petsplus;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
@@ -23,9 +24,11 @@ public class FetchItemGoal extends AdaptiveGoal {
     private PlayerEntity targetPlayer;
     private int fetchPhase = 0; // 0 = find, 1 = pickup, 2 = return
     private static final int MAX_FETCH_TICKS = 300; // 15 seconds
+    private static final double MAX_FETCH_DISTANCE = 16.0;
+    private static final double MAX_FETCH_DISTANCE_SQ = MAX_FETCH_DISTANCE * MAX_FETCH_DISTANCE;
     private int fetchTicks = 0;
     private ItemStack carriedStack = ItemStack.EMPTY;
-    
+
     public FetchItemGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.FETCH_ITEM), EnumSet.of(Control.MOVE));
     }
@@ -33,17 +36,39 @@ public class FetchItemGoal extends AdaptiveGoal {
     @Override
     protected boolean canStartGoal() {
         PetContext ctx = getContext();
-        if (ctx.owner() == null) return false;
-        
-        targetItem = findNearbyItem();
-        targetPlayer = ctx.owner();
-        
-        return targetItem != null && targetPlayer != null;
+        PlayerEntity owner = ctx.owner();
+        if (owner == null) {
+            traceSkip("no_owner");
+            return false;
+        }
+
+        if (!ctx.ownerNearby()) {
+            traceSkip("owner_not_nearby");
+            return false;
+        }
+
+        if (!isWithinFetchRange(owner)) {
+            traceSkip("owner_out_of_range");
+            return false;
+        }
+
+        targetItem = findNearbyItem(owner);
+        targetPlayer = owner;
+
+        if (targetItem == null) {
+            traceSkip("no_item_in_range");
+        }
+
+        return targetItem != null;
     }
-    
+
     @Override
     protected boolean shouldContinueGoal() {
         if (fetchTicks >= MAX_FETCH_TICKS || targetPlayer == null) {
+            return false;
+        }
+
+        if (!isWithinFetchRange(targetPlayer)) {
             return false;
         }
 
@@ -86,10 +111,16 @@ public class FetchItemGoal extends AdaptiveGoal {
     @Override
     protected void onTickGoal() {
         fetchTicks++;
-        
+
+        if (!shouldContinueGoal()) {
+            stop();
+            return;
+        }
+
         if (fetchPhase == 0) {
             // Phase 0: Move to item
             if (targetItem == null || !targetItem.isAlive()) {
+                stop();
                 return;
             }
 
@@ -100,7 +131,9 @@ public class FetchItemGoal extends AdaptiveGoal {
                 ItemStack stack = targetItem.getStack();
                 if (!stack.isEmpty()) {
                     carriedStack = stack.copy();
-                    targetItem.discard();
+                    if (!mob.getEntityWorld().isClient()) {
+                        targetItem.discard();
+                    }
                     targetItem = null;
                     fetchPhase = 1;
                 } else {
@@ -125,9 +158,11 @@ public class FetchItemGoal extends AdaptiveGoal {
                 ItemStack stackToDeliver = carriedStack.copy();
                 carriedStack = ItemStack.EMPTY;
 
-                boolean delivered = targetPlayer.giveItemStack(stackToDeliver);
-                if (!delivered || !stackToDeliver.isEmpty()) {
-                    targetPlayer.dropItem(stackToDeliver, false);
+                if (!mob.getEntityWorld().isClient()) {
+                    boolean delivered = targetPlayer.giveItemStack(stackToDeliver);
+                    if (!delivered || !stackToDeliver.isEmpty()) {
+                        targetPlayer.dropItem(stackToDeliver, false);
+                    }
                 }
             }
 
@@ -135,6 +170,9 @@ public class FetchItemGoal extends AdaptiveGoal {
             if (fetchTicks % 10 == 0) {
                 mob.setPitch(30); // Look down
             }
+
+            stop();
+            return;
         }
         
         // Tail wag during return
@@ -146,19 +184,37 @@ public class FetchItemGoal extends AdaptiveGoal {
     /**
      * Finds a nearby item to fetch.
      */
-    private ItemEntity findNearbyItem() {
+    private ItemEntity findNearbyItem(PlayerEntity owner) {
         List<ItemEntity> items = mob.getEntityWorld().getEntitiesByClass(
             ItemEntity.class,
-            mob.getBoundingBox().expand(12.0),
-            item -> item.isAlive() && !item.getStack().isEmpty()
+            mob.getBoundingBox().expand(MAX_FETCH_DISTANCE),
+            item -> item.isAlive()
+                && !item.getStack().isEmpty()
+                && item.squaredDistanceTo(mob) <= MAX_FETCH_DISTANCE_SQ
+                && item.squaredDistanceTo(owner) <= MAX_FETCH_DISTANCE_SQ
         );
-        
+
         if (items.isEmpty()) return null;
-        
+
         // Prefer closest item
         return items.stream()
             .min(Comparator.comparingDouble(item -> item.squaredDistanceTo(mob)))
             .orElse(null);
+    }
+
+    private boolean isWithinFetchRange(PlayerEntity owner) {
+        if (owner == null || owner.isRemoved()) {
+            return false;
+        }
+        double distanceSq = mob.squaredDistanceTo(owner);
+        if (distanceSq > MAX_FETCH_DISTANCE_SQ) {
+            return false;
+        }
+        return true;
+    }
+
+    private void traceSkip(String reason) {
+        Petsplus.LOGGER.debug("[FetchItemGoal] Skipping fetch for {} because {}", mob.getDisplayName().getString(), reason);
     }
     
     @Override

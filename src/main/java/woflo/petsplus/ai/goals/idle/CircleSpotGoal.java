@@ -17,6 +17,7 @@ public class CircleSpotGoal extends AdaptiveGoal {
     private double centerX;
     private double centerZ;
     private float currentAngle;
+    private int circleTicks;
     private static final float CIRCLE_RADIUS = 1.0f;
     private static final int CIRCLE_DURATION = 60; // 3 seconds
     
@@ -31,28 +32,41 @@ public class CircleSpotGoal extends AdaptiveGoal {
     
     @Override
     protected boolean shouldContinueGoal() {
-        return true; // Let duration handle it
+        return circleTicks < CIRCLE_DURATION && mob.isOnGround();
     }
-    
+
     @Override
     protected void onStartGoal() {
         centerX = mob.getX();
         centerZ = mob.getZ();
         currentAngle = 0;
+        circleTicks = 0;
     }
-    
+
     @Override
     protected void onStopGoal() {
         mob.getNavigation().stop();
+        circleTicks = 0;
     }
-    
+
     @Override
     protected void onTickGoal() {
-        currentAngle += 6; // 6 degrees per tick = full circle in 60 ticks
-        
+        if (!mob.isOnGround()) {
+            stop();
+            return;
+        }
+
+        currentAngle = MathHelper.wrapDegrees(currentAngle + 6); // 6 degrees per tick = full circle in 60 ticks
+        circleTicks++;
+
+        if (circleTicks >= CIRCLE_DURATION) {
+            stop();
+            return;
+        }
+
         double targetX = centerX + Math.cos(Math.toRadians(currentAngle)) * CIRCLE_RADIUS;
         double targetZ = centerZ + Math.sin(Math.toRadians(currentAngle)) * CIRCLE_RADIUS;
-        
+
         mob.getNavigation().startMovingTo(targetX, mob.getY(), targetZ, 0.8);
     }
     

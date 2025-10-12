@@ -1,8 +1,12 @@
 package woflo.petsplus.ai.goals.wander;
 
+import net.minecraft.entity.ai.pathing.BirdNavigation;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import woflo.petsplus.ai.capability.MobCapabilities;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
@@ -18,6 +22,7 @@ public class AerialPatrolGoal extends AdaptiveGoal {
     private int patrolTicks = 0;
     private double patrolRadius = 5.0;
     private double patrolHeight;
+    private static final int TARGET_SEARCH_ATTEMPTS = 8;
     
     public AerialPatrolGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.AERIAL_PATROL), EnumSet.of(Control.MOVE));
@@ -25,18 +30,46 @@ public class AerialPatrolGoal extends AdaptiveGoal {
     
     @Override
     protected boolean canStartGoal() {
-        return !mob.isOnGround();
+        if (!(mob.getNavigation() instanceof BirdNavigation)) {
+            return false;
+        }
+
+        if (mob.isLeashed()) {
+            return false;
+        }
+
+        if (mob.isTouchingWater() && !MobCapabilities.prefersWater(mob)) {
+            return false;
+        }
+
+        return hasLaunchClearance();
     }
-    
+
     @Override
     protected boolean shouldContinueGoal() {
+        if (!(mob.getNavigation() instanceof BirdNavigation)) {
+            return false;
+        }
+
+        if (mob.isLeashed()) {
+            return false;
+        }
+
+        if (mob.isOnGround()) {
+            return false;
+        }
+
+        if (mob.isTouchingWater() && !MobCapabilities.prefersWater(mob)) {
+            return false;
+        }
+
         return true;
     }
-    
+
     @Override
     protected void onStartGoal() {
         patrolTicks = 0;
-        patrolHeight = mob.getY() + mob.getRandom().nextDouble() * 3 - 1.5;
+        patrolHeight = computeInitialPatrolHeight();
         pickNewPatrolTarget();
     }
     
@@ -52,19 +85,94 @@ public class AerialPatrolGoal extends AdaptiveGoal {
         if (patrolTarget == null || mob.getEntityPos().distanceTo(patrolTarget) < 2.0 || patrolTicks % 60 == 0) {
             pickNewPatrolTarget();
         }
-        
-        if (patrolTarget != null) {
-            mob.getNavigation().startMovingTo(patrolTarget.x, patrolTarget.y, patrolTarget.z, 1.0);
+
+        if (patrolTarget == null) {
+            mob.getNavigation().stop();
+            return;
         }
+
+        if (!hasLaunchClearance()) {
+            stop();
+            return;
+        }
+
+        mob.getNavigation().startMovingTo(patrolTarget.x, patrolTarget.y, patrolTarget.z, 1.0);
     }
-    
+
     private void pickNewPatrolTarget() {
-        double angle = mob.getRandom().nextDouble() * Math.PI * 2;
-        patrolTarget = new Vec3d(
-            mob.getX() + Math.cos(angle) * patrolRadius,
-            patrolHeight,
-            mob.getZ() + Math.sin(angle) * patrolRadius
+        Vec3d origin = mob.getEntityPos();
+        Vec3d bestCandidate = null;
+
+        for (int attempt = 0; attempt < TARGET_SEARCH_ATTEMPTS; attempt++) {
+            double angle = mob.getRandom().nextDouble() * Math.PI * 2;
+            patrolHeight = ensureClearPatrolHeight(patrolHeight);
+            Vec3d candidate = new Vec3d(
+                origin.x + Math.cos(angle) * patrolRadius,
+                patrolHeight,
+                origin.z + Math.sin(angle) * patrolRadius
+            );
+
+            if (isValidPatrolTarget(candidate)) {
+                bestCandidate = candidate;
+                break;
+            }
+        }
+
+        if (bestCandidate == null) {
+            patrolTarget = null;
+            return;
+        }
+
+        patrolTarget = bestCandidate;
+    }
+
+    private boolean hasLaunchClearance() {
+        Box baseBox = mob.getBoundingBox().expand(0.1);
+        for (double offset = 0.6; offset <= 3.0; offset += 0.4) {
+            Box checkBox = baseBox.offset(0.0, offset, 0.0);
+            if (mob.getEntityWorld().isSpaceEmpty(mob, checkBox)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private double computeInitialPatrolHeight() {
+        double desired = mob.getY() + 0.75 + mob.getRandom().nextDouble() * 2.5;
+        return ensureClearPatrolHeight(desired);
+    }
+
+    private double ensureClearPatrolHeight(double desiredY) {
+        double minOffset = Math.max(0.6, desiredY - mob.getY());
+        double maxOffset = minOffset + 3.0;
+        Box baseBox = mob.getBoundingBox().expand(0.1);
+
+        for (double offset = minOffset; offset <= maxOffset; offset += 0.4) {
+            Box checkBox = baseBox.offset(0.0, offset, 0.0);
+            if (mob.getEntityWorld().isSpaceEmpty(mob, checkBox)) {
+                return mob.getY() + offset;
+            }
+        }
+
+        return mob.getY() + minOffset;
+    }
+
+    private boolean isValidPatrolTarget(Vec3d candidate) {
+        if (!mob.getEntityWorld().isChunkLoaded(BlockPos.ofFloored(candidate))) {
+            return false;
+        }
+
+        Box movement = mob.getBoundingBox().offset(
+            candidate.x - mob.getX(),
+            candidate.y - mob.getY(),
+            candidate.z - mob.getZ()
         );
+
+        if (!mob.getEntityWorld().isSpaceEmpty(mob, movement)) {
+            return false;
+        }
+
+        return candidate.y > mob.getY() - 0.5;
     }
     
     @Override
