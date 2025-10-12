@@ -124,6 +124,7 @@ public abstract class AdaptiveGoal extends Goal {
         activeTicks = 0;
         currentEngagement = 0.5f; // Start with neutral engagement
         committedDuration = calculateInitialDuration();
+        cachedFeedback = null; // Reset emotion feedback for fresh context
         onStartGoal();
 
         // Record activity start for behavioral momentum
@@ -138,7 +139,7 @@ public abstract class AdaptiveGoal extends Goal {
         recordGoalExperience(finalSatisfaction);
 
         applyGoalCooldown();
-        
+
         // Record activity completion for behavioral momentum
         recordActivityCompletion();
 
@@ -146,7 +147,8 @@ public abstract class AdaptiveGoal extends Goal {
         
         // Trigger emotion feedback (Phase 2)
         triggerEmotionFeedback();
-        
+        cachedFeedback = null; // Ensure next run re-evaluates feedback
+
         onStopGoal();
         activeTicks = 0;
     }
@@ -500,35 +502,47 @@ public abstract class AdaptiveGoal extends Goal {
     protected void triggerEmotionFeedback() {
         PetComponent pc = PetComponent.get(mob);
         if (pc == null) {
+            cachedFeedback = null;
             return; // Vanilla mob, no emotion system
         }
         
-        // Lazy-load and cache feedback definition
-        if (cachedFeedback == null) {
-            cachedFeedback = defineEmotionFeedback();
+        // Lazy-load and cache feedback definition for this completion
+        EmotionFeedback feedback = cachedFeedback;
+        if (feedback == null) {
+            feedback = defineEmotionFeedback();
         }
-        
-        // Skip if no emotions defined
-        if (cachedFeedback.isEmpty()) {
+
+        if (feedback == null) {
+            feedback = EmotionFeedback.NONE;
+        }
+
+        if (feedback.isEmpty()) {
+            cachedFeedback = null;
             return;
         }
-        
+
+        // Hold the freshly computed feedback during dispatch
+        cachedFeedback = feedback;
+
         // Queue emotions via stimulus bus (async-safe)
         var stimulusBus = woflo.petsplus.mood.MoodService.getInstance().getStimulusBus();
         stimulusBus.queueSimpleStimulus(mob, collector -> {
             // Push all defined emotions
-            for (var entry : cachedFeedback.emotions().entrySet()) {
+            for (var entry : feedback.emotions().entrySet()) {
                 collector.pushEmotion(entry.getKey(), entry.getValue());
             }
         });
-        
+
         // Dispatch immediately for responsive feedback
         stimulusBus.dispatchStimuli(mob);
-        
+
         // Handle contagion if enabled
-        if (cachedFeedback.triggersContagion() && mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
-            triggerEmotionContagion(serverWorld, cachedFeedback);
+        if (feedback.triggersContagion() && mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+            triggerEmotionContagion(serverWorld, feedback);
         }
+
+        // Clear cache after dispatch so next completion recomputes context-sensitive feedback
+        cachedFeedback = null;
     }
     
     /**
