@@ -22,15 +22,23 @@ public class SurfaceBreathGoal extends AdaptiveGoal {
     public SurfaceBreathGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.SURFACE_BREATH), EnumSet.of(Control.MOVE));
     }
-    
+
     @Override
     protected boolean canStartGoal() {
-        return mob.isTouchingWater() && !mob.isSubmergedInWater();
+        return mob.isTouchingWater() && mob.isSubmergedInWater();
     }
-    
+
     @Override
     protected boolean shouldContinueGoal() {
-        return surfaceTicks < SURFACE_DURATION;
+        if (surfaceTicks >= SURFACE_DURATION) {
+            return false;
+        }
+
+        if (!mob.isTouchingWater() && !reachedSurface) {
+            return false;
+        }
+
+        return true;
     }
     
     @Override
@@ -47,7 +55,11 @@ public class SurfaceBreathGoal extends AdaptiveGoal {
     @Override
     protected void onTickGoal() {
         surfaceTicks++;
-        
+
+        if (!mob.isTouchingWater()) {
+            reachedSurface = true;
+        }
+
         if (!reachedSurface && mob.isSubmergedInWater()) {
             // Swim upward
             mob.setVelocity(mob.getVelocity().add(0, 0.05, 0));
