@@ -18,6 +18,7 @@ public class StargazingGoal extends AdaptiveGoal {
     private int gazeTicks = 0;
     private static final int MAX_GAZE_TICKS = 200; // 10 seconds
     private BlockPos gazeSpot;
+    private float startingPitch = 0.0f;
     
     public StargazingGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.STARGAZING), EnumSet.of(Control.MOVE, Control.LOOK));
@@ -43,28 +44,36 @@ public class StargazingGoal extends AdaptiveGoal {
     @Override
     protected boolean shouldContinueGoal() {
         PetContext ctx = getContext();
-        return gazeTicks < MAX_GAZE_TICKS && 
-               !ctx.isDaytime() && 
-               !mob.getEntityWorld().isRaining();
+        return gazeSpot != null &&
+               gazeTicks < MAX_GAZE_TICKS &&
+               !ctx.isDaytime() &&
+               !mob.getEntityWorld().isRaining() &&
+               isGazeSpotValid(gazeSpot);
     }
     
     @Override
     protected void onStartGoal() {
         gazeTicks = 0;
+        startingPitch = mob.getPitch();
     }
-    
+
     @Override
     protected void onStopGoal() {
         mob.getNavigation().stop();
+        mob.setPitch(startingPitch);
+        mob.bodyYaw = MathHelper.wrapDegrees(mob.bodyYaw);
         gazeSpot = null;
     }
-    
+
     @Override
     protected void onTickGoal() {
         gazeTicks++;
-        
-        if (gazeSpot == null) return;
-        
+
+        if (gazeSpot == null || !isGazeSpotValid(gazeSpot)) {
+            stop();
+            return;
+        }
+
         double distance = mob.getBlockPos().getSquaredDistance(gazeSpot);
         
         if (distance > 2.0) {
@@ -84,9 +93,9 @@ public class StargazingGoal extends AdaptiveGoal {
             
             // Slow head movements - tracking stars/moon
             if (gazeTicks % 60 == 0) {
-                mob.bodyYaw += mob.getRandom().nextFloat() * 20 - 10;
+                mob.bodyYaw = MathHelper.wrapDegrees(mob.bodyYaw + mob.getRandom().nextFloat() * 20 - 10);
             }
-            
+
             // Occasional contemplative movements
             if (gazeTicks % 80 == 0) {
                 // Small head tilt
@@ -104,21 +113,31 @@ public class StargazingGoal extends AdaptiveGoal {
         for (int attempts = 0; attempts < 8; attempts++) {
             int dx = mob.getRandom().nextInt(9) - 4;
             int dz = mob.getRandom().nextInt(9) - 4;
-            
+
             BlockPos candidate = start.add(dx, 0, dz);
-            
+
+            if (!mob.getEntityWorld().isChunkLoaded(candidate)) {
+                continue;
+            }
+
             // Must have clear sky view
-            if (mob.getEntityWorld().isSkyVisible(candidate.up(5))) {
+            if (isGazeSpotValid(candidate)) {
                 return candidate;
             }
         }
-        
+
         // Fallback to current position if sky visible
-        if (mob.getEntityWorld().isSkyVisible(start.up(5))) {
+        if (isGazeSpotValid(start)) {
             return start;
         }
-        
+
         return null;
+    }
+
+    private boolean isGazeSpotValid(BlockPos spot) {
+        return spot != null
+            && mob.getEntityWorld().isChunkLoaded(spot)
+            && mob.getEntityWorld().isSkyVisible(spot.up(5));
     }
     
     @Override

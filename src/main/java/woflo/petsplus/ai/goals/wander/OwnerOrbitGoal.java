@@ -2,8 +2,10 @@ package woflo.petsplus.ai.goals.wander;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import woflo.petsplus.ai.capability.MobCapabilities;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
@@ -26,13 +28,28 @@ public class OwnerOrbitGoal extends AdaptiveGoal {
     @Override
     protected boolean canStartGoal() {
         PetContext ctx = getContext();
-        return ctx.owner() != null && ctx.ownerNearby();
+        if (ctx.owner() == null || !ctx.ownerNearby()) {
+            return false;
+        }
+
+        MobCapabilities.CapabilityProfile capabilities = MobCapabilities.analyze(mob);
+
+        if (!canOrbitInCurrentMedium(capabilities)) {
+            return false;
+        }
+
+        return true;
     }
-    
+
     @Override
     protected boolean shouldContinueGoal() {
         PetContext ctx = getContext();
-        return ctx.owner() != null && ctx.ownerNearby();
+        if (ctx.owner() == null || !ctx.ownerNearby()) {
+            return false;
+        }
+
+        MobCapabilities.CapabilityProfile capabilities = MobCapabilities.analyze(mob);
+        return canOrbitInCurrentMedium(capabilities);
     }
     
     @Override
@@ -47,10 +64,17 @@ public class OwnerOrbitGoal extends AdaptiveGoal {
     
     @Override
     protected void onTickGoal() {
+        MobCapabilities.CapabilityProfile capabilities = MobCapabilities.analyze(mob);
+
+        if (!canOrbitInCurrentMedium(capabilities)) {
+            stop();
+            return;
+        }
+
         PetContext ctx = getContext();
         PlayerEntity owner = ctx.owner();
-        
-        if (owner == null) {
+
+        if (owner == null || owner.isRemoved()) {
             return;
         }
         
@@ -63,7 +87,11 @@ public class OwnerOrbitGoal extends AdaptiveGoal {
             0,
             Math.sin(orbitAngle) * orbitRadius
         );
-        
+
+        if (!mob.getEntityWorld().isChunkLoaded(BlockPos.ofFloored(orbitTarget))) {
+            orbitTarget = owner.getEntityPos();
+        }
+
         // Move to orbit position
         mob.getNavigation().startMovingTo(orbitTarget.x, orbitTarget.y, orbitTarget.z, 0.9);
         
@@ -109,6 +137,26 @@ public class OwnerOrbitGoal extends AdaptiveGoal {
         }
 
         return MathHelper.clamp(engagement, 0.0f, 1.0f);
+    }
+
+    private boolean canOrbitInCurrentMedium(MobCapabilities.CapabilityProfile capabilities) {
+        boolean hasLandOrbitMovement = capabilities.canWander() || capabilities.canFly();
+        boolean strictlyAquatic = capabilities.prefersWater() && !capabilities.prefersLand();
+        boolean submerged = mob.isTouchingWater();
+
+        if (!hasLandOrbitMovement) {
+            return false;
+        }
+
+        if (submerged && strictlyAquatic) {
+            return false;
+        }
+
+        if (submerged && !capabilities.prefersLand() && !capabilities.canFly()) {
+            return false;
+        }
+
+        return true;
     }
 }
 

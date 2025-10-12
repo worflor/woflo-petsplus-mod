@@ -20,6 +20,7 @@ import java.util.EnumSet;
  */
 public class WaterSplashGoal extends AdaptiveGoal {
     private int splashTicks = 0;
+    private float neutralPitch = 0.0f;
     private static final int MAX_SPLASH_TICKS = 100; // 5 seconds
     
     public WaterSplashGoal(MobEntity mob) {
@@ -29,35 +30,43 @@ public class WaterSplashGoal extends AdaptiveGoal {
     @Override
     protected boolean canStartGoal() {
         if (!mob.isOnGround()) return false;
-        
+
         // Must be in shallow water (water block above solid ground)
-        BlockPos below = mob.getBlockPos().down();
-        BlockState belowState = mob.getEntityWorld().getBlockState(below);
-        BlockState currentState = mob.getEntityWorld().getBlockState(mob.getBlockPos());
-        
-        return currentState.isOf(Blocks.WATER) && belowState.isSolidBlock(mob.getEntityWorld(), below);
+        return isInShallowWater();
     }
-    
+
     @Override
     protected boolean shouldContinueGoal() {
-        return splashTicks < MAX_SPLASH_TICKS;
+        return splashTicks < MAX_SPLASH_TICKS && mob.isOnGround() && isInShallowWater();
     }
     
     @Override
     protected void onStartGoal() {
         splashTicks = 0;
+        neutralPitch = mob.getPitch();
     }
     
     @Override
     protected void onStopGoal() {
         mob.getNavigation().stop();
-        mob.setPitch(0.0f);
+        mob.setPitch(neutralPitch);
+        mob.bodyYaw = MathHelper.wrapDegrees(mob.bodyYaw);
         splashTicks = 0;
     }
     
     @Override
     protected void onTickGoal() {
+        if (!mob.isOnGround() || !isInShallowWater()) {
+            stop();
+            return;
+        }
+
         splashTicks++;
+
+        if (splashTicks >= MAX_SPLASH_TICKS) {
+            stop();
+            return;
+        }
         
         // Random jumping and spinning
         if (splashTicks % 15 == 0) {
@@ -75,7 +84,7 @@ public class WaterSplashGoal extends AdaptiveGoal {
         }
         
         // Spin around
-        mob.bodyYaw += 5;
+        mob.bodyYaw = MathHelper.wrapDegrees(mob.bodyYaw + 5);
         
         // Create splash particles
         if (splashTicks % 10 == 0 && mob.getEntityWorld() instanceof ServerWorld world) {
@@ -100,7 +109,7 @@ public class WaterSplashGoal extends AdaptiveGoal {
         }
         
         // Playful head movements
-        mob.setPitch((float) Math.sin(splashTicks * 0.3) * 20);
+        mob.setPitch(MathHelper.clamp((float) Math.sin(splashTicks * 0.3) * 20, -45.0f, 45.0f));
     }
     
     @Override
@@ -140,6 +149,22 @@ public class WaterSplashGoal extends AdaptiveGoal {
         }
         
         return MathHelper.clamp(engagement, 0.0f, 1.0f);
+    }
+
+    private boolean isInShallowWater() {
+        if (!mob.isTouchingWater()) {
+            return false;
+        }
+
+        BlockPos currentPos = mob.getBlockPos();
+        BlockState currentState = mob.getEntityWorld().getBlockState(currentPos);
+        if (!currentState.isOf(Blocks.WATER)) {
+            return false;
+        }
+
+        BlockPos belowPos = currentPos.down();
+        BlockState belowState = mob.getEntityWorld().getBlockState(belowPos);
+        return belowState.isSolidBlock(mob.getEntityWorld(), belowPos);
     }
 }
 

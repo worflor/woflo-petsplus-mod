@@ -279,7 +279,11 @@ public final class GoalRegistry {
             20,
             0,
             0,
-            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+            MobCapabilities.CapabilityRequirement.allOf(List.of(
+                MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+                // Land-orbiters hand off to OrbitSwimGoal when a species is fully aquatic.
+                MobCapabilities.CapabilityRequirement.not(MobCapabilities.CapabilityRequirement.aquatic())
+            )),
             new Vec2f(0.0f, 1.0f),
             IdleStaminaBias.NONE,
             false,
