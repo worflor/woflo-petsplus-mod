@@ -11,11 +11,12 @@ import woflo.petsplus.state.PetComponent;
 public class PlayfulBounceVariant implements BehaviorVariant {
     
     private PlayerEntity targetOwner;
-    private int jumpCooldown = 0;
-    
+    private int jumpCooldown;
+
     @Override
     public void initialize(MobEntity mob, PetContext context) {
         this.targetOwner = context.owner();
+        this.jumpCooldown = 0;
     }
     
     @Override
@@ -88,6 +89,7 @@ public class PlayfulBounceVariant implements BehaviorVariant {
     @Override
     public void stop(MobEntity mob) {
         mob.getNavigation().stop();
+        this.jumpCooldown = 0;
     }
     
     @Override

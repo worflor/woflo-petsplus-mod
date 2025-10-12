@@ -8,10 +8,12 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.GoalDefinition;
+import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.suggester.signal.DesirabilitySignal;
 import woflo.petsplus.ai.suggester.signal.SignalResult;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Minimal proximity probe around the pet for Trial Chamber feature blocks.
@@ -20,6 +22,7 @@ import java.util.Map;
 public final class TrialSpawnerAwarenessSignal implements DesirabilitySignal {
     private static final Identifier ID = Identifier.of("petsplus", "desirability/trial_proximity");
     private static final TagKey<Block> TRIAL_FEATURES = TagKey.of(RegistryKeys.BLOCK, Identifier.of("petsplus", "natures/trial_chamber_features"));
+    private static final Set<Identifier> NON_EXPLORATION_WANDER_GOALS = Set.of(GoalIds.OWNER_ORBIT);
 
     // micro debounce window in ticks to avoid per-tick oscillation when hovering near threshold
     private static final long COOLDOWN_TICKS = 40L;
@@ -32,6 +35,9 @@ public final class TrialSpawnerAwarenessSignal implements DesirabilitySignal {
 
     @Override
     public SignalResult evaluate(GoalDefinition goal, PetContext ctx) {
+        if (!isExplorationGoal(goal)) {
+            return SignalResult.identity();
+        }
         if (ctx == null || ctx.mob() == null) {
             return SignalResult.identity();
         }
@@ -87,5 +93,16 @@ public final class TrialSpawnerAwarenessSignal implements DesirabilitySignal {
         }
 
         return SignalResult.identity();
+    }
+
+    private static boolean isExplorationGoal(GoalDefinition goal) {
+        if (goal == null) {
+            return false;
+        }
+        if (goal.category() != GoalDefinition.Category.WANDER) {
+            return false;
+        }
+        Identifier id = goal.id();
+        return id == null || !NON_EXPLORATION_WANDER_GOALS.contains(id);
     }
 }

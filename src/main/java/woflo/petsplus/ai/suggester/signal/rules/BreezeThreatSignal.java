@@ -9,10 +9,12 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.GoalDefinition;
+import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.suggester.signal.DesirabilitySignal;
 import woflo.petsplus.ai.suggester.signal.SignalResult;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Breeze threat proximity probe.
@@ -22,6 +24,16 @@ import java.util.Map;
  */
 public final class BreezeThreatSignal implements DesirabilitySignal {
     private static final Identifier ID = Identifier.of("petsplus", "desirability/breeze_threat");
+    private static final Set<Identifier> DEFENSIVE_GOALS = Set.of(
+        GoalIds.OWNER_ORBIT,
+        GoalIds.ORBIT_SWIM,
+        GoalIds.LEAN_AGAINST_OWNER,
+        GoalIds.PERCH_ON_SHOULDER,
+        GoalIds.CROUCH_APPROACH_RESPONSE,
+        GoalIds.LEAD_FOLLOW_NUDGE,
+        GoalIds.PURPOSEFUL_PATROL,
+        GoalIds.SCENT_TRAIL_FOLLOW
+    );
 
     // Micro debounce window in ticks to reduce per-tick scans
     private static final long COOLDOWN_TICKS = 40L;
@@ -35,6 +47,9 @@ public final class BreezeThreatSignal implements DesirabilitySignal {
 
     @Override
     public SignalResult evaluate(GoalDefinition goal, PetContext ctx) {
+        if (!isDefensiveGoal(goal)) {
+            return SignalResult.identity();
+        }
         if (ctx == null || ctx.mob() == null) {
             return SignalResult.identity();
         }
@@ -99,6 +114,19 @@ public final class BreezeThreatSignal implements DesirabilitySignal {
         }
 
         return SignalResult.identity();
+    }
+
+    private static boolean isDefensiveGoal(GoalDefinition goal) {
+        if (goal == null) {
+            return false;
+        }
+        Identifier goalId = goal.id();
+        if (goalId != null && DEFENSIVE_GOALS.contains(goalId)) {
+            return true;
+        }
+        return goal.category() == GoalDefinition.Category.SOCIAL
+            && goalId != null
+            && goalId.getPath().contains("owner");
     }
 
     private static boolean areBoundsChunksLoaded(World world, Box box) {
