@@ -11,11 +11,13 @@ public class AffectionateNuzzleVariant implements BehaviorVariant {
     
     private PlayerEntity targetOwner;
     private boolean hasReachedOwner = false;
-    
+    private float startingPitch;
+
     @Override
     public void initialize(MobEntity mob, PetContext context) {
         this.targetOwner = context.owner();
         this.hasReachedOwner = false;
+        this.startingPitch = mob.getPitch();
     }
     
     @Override
@@ -98,7 +100,9 @@ public class AffectionateNuzzleVariant implements BehaviorVariant {
     @Override
     public void stop(MobEntity mob) {
         mob.getNavigation().stop();
-        mob.setPitch(0);
+        if (mob.isAlive()) {
+            mob.setPitch(startingPitch);
+        }
     }
     
     @Override

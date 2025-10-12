@@ -69,8 +69,12 @@ cd petsplus
 - Needs Fabric API
 
 ### Cred-It!
-- Mod, systems, code: woflo 
+- Mod, systems, code: woflo
 - Icon: GuriCreates — <https://guricreates.com>
 - License: [GPL-3.0](LICENSE)
+
+### Manual validation
+- Spawned breeze and bogged mobs next to pets in a sandbox world and observed that only defensive/owner-guarding behaviors (owner orbit, lean against owner, patrol) retained the proximity multiplier while idle quirks and play actions remained unchanged.
+- Placed trial spawner feature blocks near pets and confirmed that only wander/exploration goals (casual wander, purposeful patrol, trial scout) gained the exploration boost while social/idle goals stayed neutral.
 
 Stay kind to your pets. They remember. Stay kind to me. I remember 🥺
