@@ -198,15 +198,24 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
             for (int z = -range; z <= range; z++) {
                 if (MathHelper.sqrt((float)(x * x + z * z)) > range) continue;
                 net.minecraft.util.math.BlockPos checkPos = currentPos.add(x, 0, z);
-                
-                // Require solid ground beneath and sunlight at head position
-                if (mob.getEntityWorld().getBlockState(checkPos).isSolidBlock(mob.getEntityWorld(), checkPos)
-                    && isInSunlight(checkPos.up())) {
-                    return Vec3d.ofCenter(checkPos.up());
+
+                if (!mob.getEntityWorld().isAir(checkPos)) {
+                    continue;
+                }
+
+                net.minecraft.util.math.BlockPos groundPos = checkPos.down();
+
+                if (!mob.getEntityWorld().getBlockState(groundPos).isSolidBlock(mob.getEntityWorld(), groundPos)) {
+                    continue;
+                }
+
+                // Require the air space itself to have direct sunlight
+                if (isInSunlight(checkPos)) {
+                    return Vec3d.ofCenter(checkPos);
                 }
             }
         }
-        
+
         return null;
     }
     

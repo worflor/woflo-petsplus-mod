@@ -19,7 +19,7 @@ public class PerchOnShoulderGoal extends AdaptiveGoal {
     private int perchTicks = 0;
     private static final int MAX_PERCH_TICKS = 200; // 10 seconds
     private boolean onShoulder = false;
-    private Vec3d shoulderOffset;
+    private Vec3d baseShoulderOffset;
     
     public PerchOnShoulderGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.PERCH_ON_SHOULDER), EnumSet.of(Control.MOVE));
@@ -53,13 +53,14 @@ public class PerchOnShoulderGoal extends AdaptiveGoal {
         
         // Choose random shoulder
         double side = mob.getRandom().nextBoolean() ? 0.4 : -0.4;
-        shoulderOffset = new Vec3d(side, 1.4, 0.0);
+        baseShoulderOffset = new Vec3d(side, 1.4, 0.0);
     }
     
     @Override
     protected void onStopGoal() {
         mob.getNavigation().stop();
         onShoulder = false;
+        baseShoulderOffset = null;
     }
     
     @Override
@@ -70,10 +71,12 @@ public class PerchOnShoulderGoal extends AdaptiveGoal {
         
         if (owner == null) return;
         
+        Vec3d rotatedOffset = computeShoulderOffset(owner);
+
         if (!onShoulder) {
             // Approach shoulder position
-            Vec3d targetPos = owner.getEntityPos().add(shoulderOffset);
-            
+            Vec3d targetPos = owner.getEntityPos().add(rotatedOffset);
+
             mob.getNavigation().startMovingTo(
                 targetPos.x, targetPos.y, targetPos.z,
                 1.0
@@ -85,22 +88,37 @@ public class PerchOnShoulderGoal extends AdaptiveGoal {
             }
         } else {
             // Stay on shoulder
-            Vec3d shoulderPos = owner.getEntityPos().add(shoulderOffset);
-            mob.setPosition(shoulderPos);
+            mob.getNavigation().stop();
+            Vec3d shoulderPos = owner.getEntityPos().add(rotatedOffset);
             mob.setVelocity(Vec3d.ZERO);
-            
+
             // Face same direction as owner
             mob.setYaw(owner.getYaw());
-            
+
             // Occasionally look around
             if (perchTicks % 30 == 0) {
                 mob.setPitch(mob.getRandom().nextFloat() * 20 - 10);
             }
-            
+
             // Gentle bob/sway
             double bob = Math.sin(perchTicks * 0.1) * 0.02;
             mob.setPosition(shoulderPos.x, shoulderPos.y + bob, shoulderPos.z);
         }
+    }
+
+    private Vec3d computeShoulderOffset(PlayerEntity owner) {
+        if (baseShoulderOffset == null) {
+            return Vec3d.ZERO;
+        }
+
+        float yawRadians = owner.getYaw() * ((float) Math.PI / 180F);
+        double sin = MathHelper.sin(yawRadians);
+        double cos = MathHelper.cos(yawRadians);
+
+        double rotatedX = baseShoulderOffset.x * cos - baseShoulderOffset.z * sin;
+        double rotatedZ = baseShoulderOffset.x * sin + baseShoulderOffset.z * cos;
+
+        return new Vec3d(rotatedX, baseShoulderOffset.y, rotatedZ);
     }
     
     @Override

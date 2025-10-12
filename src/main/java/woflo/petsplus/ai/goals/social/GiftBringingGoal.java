@@ -24,6 +24,7 @@ public class GiftBringingGoal extends AdaptiveGoal {
     private static final int MAX_GIFT_TICKS = 400; // 20 seconds
     private int giftTicks = 0;
     private boolean giftTracked = false;
+    private ItemStack carriedStack = ItemStack.EMPTY;
     
     public GiftBringingGoal(MobEntity mob) {
         // GoalIds.GIFT_BRINGING removed; map to a nearby social goal id to retain runtime wiring
@@ -46,10 +47,15 @@ public class GiftBringingGoal extends AdaptiveGoal {
     
     @Override
     protected boolean shouldContinueGoal() {
-        return giftTicks < MAX_GIFT_TICKS && 
-               targetItem != null && 
-               targetItem.isAlive() &&
-               targetPlayer != null;
+        if (giftTicks >= MAX_GIFT_TICKS || targetPlayer == null) {
+            return false;
+        }
+
+        if (giftPhase == 0) {
+            return targetItem != null && targetItem.isAlive();
+        }
+
+        return !carriedStack.isEmpty();
     }
     
     @Override
@@ -57,20 +63,22 @@ public class GiftBringingGoal extends AdaptiveGoal {
         giftPhase = 0;
         giftTicks = 0;
         giftTracked = false;
+        carriedStack = ItemStack.EMPTY;
     }
-    
+
     @Override
     protected void onStopGoal() {
         mob.getNavigation().stop();
         targetItem = null;
         targetPlayer = null;
         giftPhase = 0;
+        carriedStack = ItemStack.EMPTY;
     }
-    
+
     @Override
     protected void onTickGoal() {
         giftTicks++;
-        
+
         if (giftPhase == 0) {
             // Phase 0: Move to item
             if (targetItem == null || !targetItem.isAlive()) {
@@ -80,11 +88,13 @@ public class GiftBringingGoal extends AdaptiveGoal {
                 mob.getNavigation().startMovingTo(targetItem, 1.0);
             }
             mob.getLookControl().lookAt(targetItem);
-            
+
             if (mob.squaredDistanceTo(targetItem) < 2.0) {
+                carriedStack = targetItem.getStack().copy();
                 if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
                     targetItem.discard(); // "Pickup"
                 }
+                targetItem = null;
                 giftPhase = 1;
             }
         } else if (giftPhase == 1) {
@@ -112,10 +122,23 @@ public class GiftBringingGoal extends AdaptiveGoal {
                 mob.getNavigation().stop();
             }
             mob.getLookControl().lookAt(targetPlayer);
-            
+
             // Sit/stop and look at owner expectantly
             mob.setPitch(15); // Look up at owner
-            
+
+            if (!carriedStack.isEmpty() && targetPlayer != null) {
+                ItemStack stackToGive = carriedStack.copy();
+                carriedStack = ItemStack.EMPTY;
+
+                if (!targetPlayer.giveItemStack(stackToGive)) {
+                    ItemEntity dropped = targetPlayer.dropItem(stackToGive, false);
+                    if (dropped != null) {
+                        dropped.setPickupDelay(0);
+                        dropped.setOwner(targetPlayer.getUuid());
+                    }
+                }
+            }
+
             // Gentle tail wag
             if (giftTicks % 10 == 0) {
                 mob.bodyYaw += 3;

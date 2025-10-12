@@ -1,9 +1,12 @@
 package woflo.petsplus.ai.goals.special;
 
+import net.minecraft.block.BlockState;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.world.World;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
@@ -105,23 +108,33 @@ public class HideAndSeekGoal extends AdaptiveGoal {
         if (owner == null) return null;
         
         BlockPos ownerPos = owner.getBlockPos();
-        
+        World world = mob.getEntityWorld();
+
         for (int attempts = 0; attempts < 10; attempts++) {
             int dx = mob.getRandom().nextInt(10) - 5;
             int dz = mob.getRandom().nextInt(10) - 5;
             int dy = mob.getRandom().nextInt(3) - 1;
-            
+
             BlockPos candidate = ownerPos.add(dx, dy, dz);
-            
+            BlockPos below = candidate.down();
+
+            if (!world.isAir(candidate)) {
+                continue;
+            }
+
+            BlockState belowState = world.getBlockState(below);
+            if (!belowState.isSideSolidFullSquare(world, below, Direction.UP)) {
+                continue;
+            }
+
             // Must be partially hidden but not too far
             double distance = Math.sqrt(dx * dx + dz * dz);
             if (distance > 3.0 && distance < 8.0) {
                 // Check if there's a block nearby for cover
-                if (!mob.getEntityWorld().getBlockState(candidate).isAir() ||
-                    !mob.getEntityWorld().getBlockState(candidate.north()).isAir() ||
-                    !mob.getEntityWorld().getBlockState(candidate.south()).isAir() ||
-                    !mob.getEntityWorld().getBlockState(candidate.east()).isAir() ||
-                    !mob.getEntityWorld().getBlockState(candidate.west()).isAir()) {
+                if (!world.getBlockState(candidate.north()).isAir() ||
+                    !world.getBlockState(candidate.south()).isAir() ||
+                    !world.getBlockState(candidate.east()).isAir() ||
+                    !world.getBlockState(candidate.west()).isAir()) {
                     return candidate;
                 }
             }
