@@ -284,15 +284,16 @@ public class LeafChaseWindGoal extends AdaptiveGoal {
     private Vec3d pickNearbyGroundTarget(int range) {
         BlockPos origin = mob.getBlockPos();
         var rnd = mob.getRandom();
+        var world = mob.getEntityWorld();
         for (int tries = 0; tries < 10; tries++) {
             int dx = rnd.nextBetween(-range, range);
             int dz = rnd.nextBetween(-range, range);
             if (MathHelper.sqrt((float)(dx * dx + dz * dz)) > range) continue;
             BlockPos pos = origin.add(dx, 0, dz);
-            // Require solid ground just below and air at head height
-            var world = mob.getEntityWorld();
-            if (world.getBlockState(pos).isSolidBlock(world, pos) && world.isAir(pos.up())) {
-                return Vec3d.ofCenter(pos.up());
+            BlockPos groundPos = pos.down();
+            // Require solid ground beneath with clear air column for the pet at head height
+            if (world.getBlockState(groundPos).isSolidBlock(world, groundPos) && world.isAir(pos)) {
+                return Vec3d.ofCenter(pos);
             }
         }
         return null;

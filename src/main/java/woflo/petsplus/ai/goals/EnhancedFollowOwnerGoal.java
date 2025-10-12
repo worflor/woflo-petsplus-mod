@@ -82,6 +82,13 @@ public class EnhancedFollowOwnerGoal extends Goal {
             return false;
         }
 
+        if (owner.isSpectator()) {
+            if (this.scoutMode) {
+                this.lastOwnerPos = owner.getBlockPos();
+            }
+            return false;
+        }
+
         long now = owner.getEntityWorld().getTime();
         boolean hesitating = OwnerAssistAttackGoal.isPetHesitating(petComponent, now);
         boolean moodHoldActive = petComponent.isMoodFollowHoldActive(now);
@@ -122,6 +129,10 @@ public class EnhancedFollowOwnerGoal extends Goal {
             return false;
         }
 
+        if (owner.isSpectator()) {
+            return false;
+        }
+
         double distance = this.mob.squaredDistanceTo(owner);
         if (distance > (this.teleportDistance * this.teleportDistance)) {
             return true;
@@ -154,6 +165,12 @@ public class EnhancedFollowOwnerGoal extends Goal {
     public void tick() {
         LivingEntity livingOwner = this.tameable.petsplus$getOwner();
         if (!(livingOwner instanceof PlayerEntity owner)) {
+            return;
+        }
+
+        if (owner.isSpectator()) {
+            this.mob.getNavigation().stop();
+            this.lastMoveTarget = null;
             return;
         }
 
@@ -203,6 +220,12 @@ public class EnhancedFollowOwnerGoal extends Goal {
 
         Vec3d moveTarget = owner.getEntityPos().add(offsetX, 0.0, offsetZ);
         double distanceToOwnerSq = this.mob.squaredDistanceTo(owner);
+        boolean worldsMatch = owner.getEntityWorld().getRegistryKey().equals(this.mob.getEntityWorld().getRegistryKey());
+        if (!worldsMatch || Double.isInfinite(distanceToOwnerSq)) {
+            this.mob.getNavigation().stop();
+            this.lastMoveTarget = null;
+            return;
+        }
 
         if (moodHoldActive && !hesitating && distanceToOwnerSq <= (baseDistance * baseDistance)) {
             if (!this.mob.getNavigation().isIdle()) {
@@ -213,9 +236,10 @@ public class EnhancedFollowOwnerGoal extends Goal {
         }
 
         if (distanceToOwnerSq > (teleportDistance * teleportDistance)) {
-            this.mob.teleport(owner.getX(), owner.getY(), owner.getZ(), false);
-            this.lastMoveTarget = null;
-            return;
+            if (this.tryEmergencyTeleport(owner)) {
+                this.lastMoveTarget = null;
+                return;
+            }
         }
 
         if (hesitating && distanceToOwnerSq <= (HESITATION_CLEAR_DISTANCE * HESITATION_CLEAR_DISTANCE)) {
@@ -394,7 +418,9 @@ public class EnhancedFollowOwnerGoal extends Goal {
         if (!success) {
             double distance = this.mob.squaredDistanceTo(moveTarget.x, moveTarget.y, moveTarget.z);
             if (distance > (activeFollowDistance * activeFollowDistance) && distance < (teleportDistance * teleportDistance)) {
-                tryEmergencyTeleport(owner);
+                if (tryEmergencyTeleport(owner)) {
+                    this.lastMoveTarget = null;
+                }
             }
         }
     }
@@ -420,9 +446,18 @@ public class EnhancedFollowOwnerGoal extends Goal {
     /**
      * Emergency teleport when normal pathfinding fails.
      */
-    private void tryEmergencyTeleport(PlayerEntity owner) {
+    private boolean tryEmergencyTeleport(PlayerEntity owner) {
+        if (!owner.getEntityWorld().getRegistryKey().equals(this.mob.getEntityWorld().getRegistryKey())) {
+            return false;
+        }
+
         WorldView world = this.mob.getEntityWorld();
         BlockPos ownerPos = owner.getBlockPos();
+
+        double distanceToOwnerSq = this.mob.squaredDistanceTo(owner);
+        if (Double.isInfinite(distanceToOwnerSq)) {
+            return false;
+        }
 
         for (int i = 0; i < 10; i++) {
             int x = ownerPos.getX() + this.mob.getRandom().nextInt(7) - 3;
@@ -433,9 +468,11 @@ public class EnhancedFollowOwnerGoal extends Goal {
             if (isSafeTeleportLocation(world, teleportPos)) {
                 this.mob.teleport(x + 0.5, y, z + 0.5, false);
                 this.mob.getNavigation().stop();
-                break;
+                return true;
             }
         }
+
+        return false;
     }
 
     /**

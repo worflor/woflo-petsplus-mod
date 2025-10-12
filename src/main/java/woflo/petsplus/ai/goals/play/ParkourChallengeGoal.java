@@ -47,7 +47,9 @@ public class ParkourChallengeGoal extends AdaptiveGoal {
     @Override
     protected void onStopGoal() {
         mob.getNavigation().stop();
+        mob.setPitch(0.0f);
         targetBlock = null;
+        jumpAttempts = 0;
     }
     
     @Override
