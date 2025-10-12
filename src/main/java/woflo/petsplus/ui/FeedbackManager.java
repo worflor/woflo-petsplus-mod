@@ -218,9 +218,11 @@ public class FeedbackManager {
         // Emit particles with per-call total budget clamp (budget)
         final int MAX_BUDGET = 48;
         int totalPlanned = 0;
-        for (var pc : effect.particles) {
-            if (pc != null) {
-                totalPlanned += Math.max(0, pc.count);
+        if (effect.particles != null) {
+            for (var pc : effect.particles) {
+                if (pc != null) {
+                    totalPlanned += Math.max(0, pc.count);
+                }
             }
         }
         float scale = 1.0f;
@@ -228,20 +230,22 @@ public class FeedbackManager {
             scale = (float) MAX_BUDGET / (float) totalPlanned;
         }
         int spent = 0;
-        for (var particleConfig : effect.particles) {
-            if (particleConfig == null) continue;
-            // Scale count proportionally, ensure at least 1 if originally >0 and budget remains
-            int scaled = particleConfig.count;
-            if (scale < 1.0f) {
-                scaled = Math.max(1, Math.round(particleConfig.count * scale));
+        if (effect.particles != null) {
+            for (var particleConfig : effect.particles) {
+                if (particleConfig == null) continue;
+                // Scale count proportionally, ensure at least 1 if originally >0 and budget remains
+                int scaled = particleConfig.count;
+                if (scale < 1.0f) {
+                    scaled = Math.max(1, Math.round(particleConfig.count * scale));
+                }
+                int remaining = MAX_BUDGET - spent;
+                if (remaining <= 0) break;
+                int capped = Math.min(scaled, remaining);
+                if (capped <= 0) continue;
+                // Emit using override count without constructing new ParticleConfig
+                emitParticlePatternWithCount(particleConfig, capped, position, world, sourceEntity);
+                spent += capped;
             }
-            int remaining = MAX_BUDGET - spent;
-            if (remaining <= 0) break;
-            int capped = Math.min(scaled, remaining);
-            if (capped <= 0) continue;
-            // Emit using override count without constructing new ParticleConfig
-            emitParticlePatternWithCount(particleConfig, capped, position, world, sourceEntity);
-            spent += capped;
         }
 
         // Play audio
