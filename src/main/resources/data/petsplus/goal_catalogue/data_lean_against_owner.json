@@ -2,8 +2,8 @@
   "category": "social",
   "priority": 15,
   "cooldown": {
-    "min": 0,
-    "max": 0
+    "min": 80,
+    "max": 180
   },
   "requirement": {
     "all_of": [

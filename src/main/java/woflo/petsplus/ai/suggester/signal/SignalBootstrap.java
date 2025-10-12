@@ -11,6 +11,9 @@ import woflo.petsplus.ai.suggester.signal.desirability.VarietyDesirabilitySignal
 import woflo.petsplus.ai.suggester.signal.feasibility.CombatLockoutFeasibilitySignal;
 import woflo.petsplus.ai.suggester.signal.feasibility.MobStateFeasibilitySignal;
 import woflo.petsplus.ai.suggester.signal.feasibility.SocialProximityFeasibilitySignal;
+import woflo.petsplus.ai.suggester.signal.rules.TrialSpawnerAwarenessSignal;
+import woflo.petsplus.ai.suggester.signal.rules.BreezeThreatSignal;
+import woflo.petsplus.ai.suggester.signal.rules.BoggedThreatSignal;
 
 public final class SignalBootstrap {
     private static volatile boolean initialized;
@@ -41,6 +44,9 @@ public final class SignalBootstrap {
             DesirabilitySignalRegistry.register(new BondDesirabilitySignal());
             DesirabilitySignalRegistry.register(new VarietyDesirabilitySignal());
             DesirabilitySignalRegistry.register(new MemoryDesirabilitySignal());
+            DesirabilitySignalRegistry.register(new TrialSpawnerAwarenessSignal());
+            DesirabilitySignalRegistry.register(new BreezeThreatSignal());
+            DesirabilitySignalRegistry.register(new BoggedThreatSignal());
         }
 
         if (FeasibilitySignalRegistry.isEmpty()) {

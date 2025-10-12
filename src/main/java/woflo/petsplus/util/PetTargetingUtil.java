@@ -1,6 +1,7 @@
 package woflo.petsplus.util;
 
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.Vec3d;
@@ -164,6 +165,14 @@ public final class PetTargetingUtil {
      */
     public static double getProximityDistance() {
         return PROXIMITY_FALLBACK_DISTANCE;
+    }
+
+    /**
+     * Delegate helper to centralize melee reach checks for pets.
+     * Uses CombatReachUtil to avoid protected Minecraft methods.
+     */
+    public static boolean isMeleeReachable(MobEntity attacker, LivingEntity target) {
+        return CombatReachUtil.isInAttackRange(attacker, target);
     }
 }
 

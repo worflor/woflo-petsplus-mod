@@ -7,6 +7,8 @@ import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.ai.goals.GoalIds;
+// Species tags: multi-tag gating
+import woflo.petsplus.ai.traits.SpeciesTraits;
 
 import java.util.EnumSet;
 
@@ -29,6 +31,11 @@ public class TailChaseGoal extends AdaptiveGoal {
     
     @Override
     protected boolean canStartGoal() {
+        // Species tags: multi-tag gating - require felineLike AND playfulSpecies
+        var profile = SpeciesTraits.getProfile(mob);
+        if (!(profile.felineLike() && profile.playfulSpecies())) {
+            return false;
+        }
         // Only start when truly idle (not moving, not in combat)
         return mob.getNavigation().isIdle() && mob.getVelocity().horizontalLength() < 0.1;
     }

@@ -22,54 +22,70 @@ public final class StimulusTimeline implements PerceptionListener {
 
     public void setCapacity(int capacity) {
         this.capacity = Math.max(1, capacity);
-        trimOld(Long.MAX_VALUE);
+        // Only enforce capacity here; TTL is evaluated relative to snapshot() currentTick.
+        trimOldForCapacityOnly();
     }
 
     public void setTtlTicks(long ttlTicks) {
         this.ttlTicks = Math.max(1L, ttlTicks);
-        trimOld(Long.MAX_VALUE);
+        // Do not prune by TTL here; TTL pruning is snapshot-relative (avoids off-by-one).
     }
 
     @Override
     public synchronized void onStimulus(PerceptionStimulus stimulus) {
         stimuli.addLast(stimulus);
-        trimOld(stimulus.tick());
-    }
-
-    public synchronized StimulusSnapshot snapshot(long currentTick) {
-        trimOld(currentTick);
-        if (stimuli.isEmpty()) {
-            return StimulusSnapshot.empty();
-        }
-        List<StimulusSnapshot.Event> events = new ArrayList<>(stimuli.size());
-        for (PerceptionStimulus stimulus : stimuli) {
-            long age = Math.max(0L, currentTick - stimulus.tick());
-            events.add(new StimulusSnapshot.Event(
-                stimulus.type(),
-                stimulus.tick(),
-                age,
-                stimulus.slices(),
-                stimulus.payload()
-            ));
-        }
-        // Reverse newest-first ordering by inserting from oldest to newest into
-        // the list and then reversing.
-        java.util.Collections.reverse(events);
-        return new StimulusSnapshot(events);
-    }
-
-    private void trimOld(long currentTick) {
+        // Capacity-only pruning on append to avoid premature TTL removal.
+        // TTL is evaluated relative to snapshot's currentTick to ensure deterministic boundary behavior.
         while (!stimuli.isEmpty() && stimuli.size() > capacity) {
             stimuli.removeFirst();
         }
+    }
+
+    public synchronized StimulusSnapshot snapshot(long currentTick) {
+        // Compute TTL cutoff in ticks using long-only arithmetic.
+        // Inclusive boundary: retain events where eventTick >= cutoff; boundary entries (== cutoff) are kept.
+        final long cutoff = currentTick - ttlTicks;
+
+        // Build newest-first (descending by eventTick) while preserving insertion order for equal timestamps.
+        // We iterate the deque from tail (newest) to head (oldest) to naturally produce newest-first.
+        // Since ArrayDeque iteration from tail to head via descendingIterator() is stable for equals,
+        // equal timestamps preserve insertion order.
+        List<StimulusSnapshot.Event> events = new ArrayList<>(stimuli.size());
+        for (java.util.Iterator<PerceptionStimulus> it = stimuli.descendingIterator(); it.hasNext(); ) {
+            PerceptionStimulus s = it.next();
+            if (s.tick() >= cutoff) { // inclusive cutoff check
+                long age = Math.max(0L, currentTick - s.tick()); // long-only math
+                events.add(new StimulusSnapshot.Event(
+                    s.type(),
+                    s.tick(),
+                    age,
+                    s.slices(),
+                    s.payload()
+                ));
+            }
+        }
+
+        // Optional post-snapshot pruning: remove strictly older entries from the head
+        // using the same cutoff, but do NOT remove boundary entries (== cutoff).
+        // This keeps the backing store tidy without affecting snapshot semantics.
         while (!stimuli.isEmpty()) {
             PerceptionStimulus head = stimuli.peekFirst();
-            if (head == null) {
-                break;
+            if (head == null || head.tick() >= cutoff) {
+                break; // stop at boundary or newer
             }
-            if ((currentTick - head.tick()) <= ttlTicks) {
-                break;
-            }
+            stimuli.removeFirst();
+        }
+
+        if (events.isEmpty()) {
+            return StimulusSnapshot.empty();
+        }
+        return new StimulusSnapshot(events);
+    }
+
+    private void trimOldForCapacityOnly() {
+        // Capacity pruning (remove oldest first until within capacity).
+        // No TTL logic here; TTL is applied in snapshot() with inclusive boundary semantics.
+        while (!stimuli.isEmpty() && stimuli.size() > capacity) {
             stimuli.removeFirst();
         }
     }

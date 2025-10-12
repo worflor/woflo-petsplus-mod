@@ -17,8 +17,8 @@ import woflo.petsplus.state.PetComponent;
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityHealMixin {
     
-    private static final ThreadLocal<PlayerEntity> LAST_HEALER = ThreadLocal.withInitial(() -> null);
-    
+    // Removed unused LAST_HEALER ThreadLocal to eliminate dead code.
+
     @Inject(method = "heal(F)V", at = @At("HEAD"))
     private void petsplus$trackHealing(float amount, CallbackInfo ci) {
         LivingEntity entity = (LivingEntity) (Object) this;

@@ -47,12 +47,25 @@ public final class GoalIds {
     public static final Identifier LEAN_AGAINST_OWNER = id("lean_against_owner");
     public static final Identifier PARALLEL_PLAY = id("parallel_play");
     public static final Identifier SHOW_OFF_TRICK = id("show_off_trick");
-    public static final Identifier GIFT_BRINGING = id("gift_bringing");
     public static final Identifier PERCH_ON_SHOULDER = id("perch_on_shoulder");
     public static final Identifier ORBIT_SWIM = id("orbit_swim");
-    public static final Identifier EYE_CONTACT = id("eye_contact");
     public static final Identifier CROUCH_APPROACH_RESPONSE = id("crouch_approach_response");
     public static final Identifier HIDE_AND_SEEK = id("hide_and_seek");
     public static final Identifier INVESTIGATE_BLOCK = id("investigate_block");
     public static final Identifier STARGAZING = id("stargazing");
+    // Subtle behavior: P0
+    public static final Identifier SUNBEAM_SPRAWL = id("sunbeam_sprawl");
+    public static final Identifier SCENT_TRAIL_SNIFF = id("scent_trail_sniff");
+    public static final Identifier PACK_GROOM = id("pack_groom");
+    public static final Identifier LEAF_CHASE_WIND = id("leaf_chase_wind");
+    // Subtle behavior: P1
+    // Species tags: multi-tag gating
+    public static final Identifier PUDDLE_PAW = id("puddle_paw");
+    public static final Identifier BURROW_PEEK = id("burrow_peek");
+    public static final Identifier HEARTH_SETTLE = id("hearth_settle");
+    public static final Identifier LEAD_FOLLOW_NUDGE = id("lead_follow_nudge");
+    public static final Identifier MIRRORED_YAWN = id("mirrored_yawn");
+    public static final Identifier SHOW_AND_DROP = id("show_and_drop");
+    public static final Identifier FISH_WATCHING = id("fish_watching");
+    public static final Identifier NIGHT_SKY_LISTEN = id("night_sky_listen");
 }

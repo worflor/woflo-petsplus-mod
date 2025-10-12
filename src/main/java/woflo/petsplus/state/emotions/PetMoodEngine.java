@@ -130,8 +130,8 @@ public final class PetMoodEngine {
     // private static final float NOVELTY_MAX = 0.35f;
     // private static final float NOVELTY_HALF_LIFE_FRACTION = 0.65f;
     private static final int MOMENTUM_HISTORY_SIZE = 10;
-    private static final float OPPONENT_TRANSFER_MAX = 0.30f;
-    private static final float REBOUND_GAIN = 0.18f;
+    private static final float OPPONENT_TRANSFER_MAX = 0.20f; // Phase 2 tuning
+    private static final float REBOUND_GAIN = 0.12f; // Phase 2 tuning
     private static final float RELATIONSHIP_VARIANCE = 2200f;
     private static final float CARE_PULSE_HALF_LIFE = 3600f;
     private static final float DANGER_HALF_LIFE = 1200f;
@@ -272,7 +272,7 @@ public final class PetMoodEngine {
     private float cachedMinHalfLife = MIN_HALF_LIFE;
     private float cachedMaxHalfLife = MAX_HALF_LIFE;
     private float cachedNegativePersistence = 2.0f;
-    private float cachedConditionPresentMultiplier = 3.5f;
+    private float cachedConditionPresentMultiplier = 1.6f;
     private float cachedHomeostasisRecoveryHalf = HOMEOSTASIS_RECOVERY_HALF;
     private float cachedCadenceAlpha = CADENCE_ALPHA;
     private float cachedVolatilityAlpha = VOLATILITY_ALPHA;
@@ -494,7 +494,7 @@ public final class PetMoodEngine {
         record.peakEMA = MathHelper.lerp(cachedPeakAlpha, record.peakEMA, Math.max(record.peakEMA, sample));
 
         // Rekindle boost: bring intensity toward new sample with spike bias
-        float spikeBias = MathHelper.clamp(0.55f + 0.45f * (float) Math.exp(-delta / Math.max(1f, record.cadenceEMA)), 0.55f, 0.95f);
+        float spikeBias = MathHelper.clamp(0.25f + 0.35f * (float) Math.exp(-delta / Math.max(1f, record.cadenceEMA)), 0.25f, 0.60f);
         // Validate spikeBias is in reasonable range
         spikeBias = MathHelper.clamp(spikeBias, 0.0f, 1.0f);
         record.intensity = MathHelper.clamp(MathHelper.lerp(spikeBias, record.intensity, sample), 0f, 1f);
@@ -515,11 +515,11 @@ public final class PetMoodEngine {
         if (cadenceRatio < 0.8f) {
             // Stimuli arriving FASTER than expected (short gaps) → habituation
             // Reduce gain: pet becomes desensitized to repeated stimuli
-            sensitisationDelta = -0.12f * (0.8f - cadenceRatio);
+            sensitisationDelta = -0.35f * (0.8f - cadenceRatio); // Phase 2 tuning
         } else if (cadenceRatio > 1.5f) {
             // Stimuli arriving SLOWER than expected (long gaps) → sensitization
             // Increase gain: pet becomes re-sensitized after break
-            sensitisationDelta = 0.08f * Math.min(1f, cadenceRatio - 1.5f);
+            sensitisationDelta = 0.15f * Math.min(1f, cadenceRatio - 1.5f); // Phase 2 tuning
         } else {
             // Normal cadence → gentle drift toward baseline (1.0)
             sensitisationDelta = (1.0f - record.sensitisationGain) * 0.05f;
@@ -1023,9 +1023,9 @@ public final class PetMoodEngine {
 
             // Habituation penalty: Reduce weight if stimuli are too frequent
             float habituationPenalty = 0f;
-            if (record.cadenceEMA > 0f && record.cadenceEMA < 100f) {
-                // Very frequent stimuli (< 5 seconds) cause habituation
-                habituationPenalty = -0.2f * (1.0f - record.cadenceEMA / 100f);
+            if (record.cadenceEMA > 0f && record.cadenceEMA < 80f) { // Phase 2 tuning
+                // Very frequent stimuli (< 4 seconds) cause habituation
+                habituationPenalty = -0.35f * (1.0f - record.cadenceEMA / 80f); // Phase 2 tuning
             }
             // Validate habituationPenalty is in reasonable range
             habituationPenalty = MathHelper.clamp(habituationPenalty, -1.0f, 0.0f);
@@ -1105,7 +1105,7 @@ public final class PetMoodEngine {
         // - Fresh strong spikes: low momentum (fast switch, responsive)
         // - Persistent weak emotions: high momentum (slow drift, stable)
         // - Smooth interpolation between states prevents oscillation
-        float baseMomentum = (float) MathHelper.clamp(cachedMomentum, 0.0, 1.0);
+        float baseMomentum = (float) MathHelper.clamp(cachedMomentum, 0.0, 1.0) * 0.85f; // Phase 2 tuning
         
         // Calculate freshness and weight factors (0-1 normalized)
         float freshnessFactor = MathHelper.clamp(maxEmotionFreshness, 0f, 1f);
@@ -1113,7 +1113,7 @@ public final class PetMoodEngine {
         
         // Combine factors: high fresh+weight = low momentum (fast), low = high momentum (slow)
         float combined = (freshnessFactor + weightFactor) / 2f;
-        float adaptiveMomentum = baseMomentum * (1.5f - combined * 0.8f); // Range: 0.7x to 1.5x base
+        float adaptiveMomentum = baseMomentum * (1.35f - combined * 0.9f); // Phase 2 tuning
         
         // Clamp to safe range: fast enough to feel responsive, slow enough to avoid jitter
         adaptiveMomentum = MathHelper.clamp(adaptiveMomentum, 0.15f, 0.85f);
@@ -1498,7 +1498,7 @@ public final class PetMoodEngine {
         float stddev = (float) Math.sqrt(variance);
         // Clamp stddev to reasonable range for mood switching
         stddev = MathHelper.clamp(stddev, 0.01f, 0.5f);
-        return Math.max(0.08f, stddev);
+        return Math.max(0.05f, stddev); // Phase 2 tuning
     }
 
     private void normalizeBlend(EnumMap<PetComponent.Mood, Float> blend) {
@@ -1793,7 +1793,7 @@ public final class PetMoodEngine {
 
             float baseTransfer = Math.min(cachedOpponentTransferMax, 0.15f + 0.1f * difference);
             float natureScale = (volatilityMod / resilienceMod);
-            float transferFactor = baseTransfer * MathHelper.clamp(natureScale, 0.6f, 1.4f);
+            float transferFactor = baseTransfer * MathHelper.clamp(natureScale, 0.70f, 1.30f); // Phase 2 tuning
             transferFactor = MathHelper.clamp(transferFactor, 0.05f, 0.45f);
             
             float transfer = donor.signal * transferFactor;
@@ -1989,12 +1989,12 @@ public final class PetMoodEngine {
     }
 
     private float getNatureStimulusBias(PetComponent.Emotion emotion) {
-        float bias = getProfileScale(emotion, 0.55f, 0.35f, 0f, 0.65f, 1.75f);
+        float bias = getProfileScale(emotion, 0.55f, 0.35f, 0f, 0.20f, 1.60f); // Phase 2 tuning
         return MathHelper.clamp(bias, 0.0f, 2.0f);
     }
 
     private float getNatureWeightBias(PetComponent.Emotion emotion) {
-        float bias = getProfileScale(emotion, 0.5f, 0.3f, 0.15f, 0.6f, 1.65f);
+        float bias = getProfileScale(emotion, 0.5f, 0.3f, 0.15f, 0.30f, 1.50f); // Phase 2 tuning
         return MathHelper.clamp(bias, 0.0f, 2.0f);
     }
 
@@ -3234,7 +3234,7 @@ public final class PetMoodEngine {
         // Ensure final factor stays within specified bounds
         factor = MathHelper.clamp(factor, min, max);
         // Final safety clamp to prevent any extreme values
-        return MathHelper.clamp(factor, 0.0f, 3.0f);
+        return MathHelper.clamp(factor, 0.0f, 1.40f); // Phase 2 tuning
     }
 
     private Map<PetComponent.Mood, Float> getEmotionToMoodWeights(PetComponent.Emotion emotion) {

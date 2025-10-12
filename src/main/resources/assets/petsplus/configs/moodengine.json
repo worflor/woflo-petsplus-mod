@@ -1,21 +1,30 @@
 {
   "_schema": "petsplus:moodengine",
   "_version": 1,
+  "contagion": {
+    "base_influence": 0.009,
+    "cross_owner_multiplier": 0.25,
+    "gossip_min": 0.002,
+    "gossip_max": 0.006,
+    "max_neighbors": 6,
+    "cadence_ticks": 80,
+    "default_cross_species_weight": 0.8
+  },
   "moods": {
     "slotCount": 8,
-    "decayTickInterval": 100,
-    "defaultDecayRate": 0.9985,
+    "decayTickInterval": 60,
+    "defaultDecayRate": 0.9931,
     "epsilon": 0.002,
     "momentum": 0.65,
     "switchMargin": 0.08,
     "hysteresisTicks": 200,
     "levelThresholds": [
-      0.2,
+      0.25,
       0.45,
-      0.7
+      0.75
     ],
     "weight": {
-      "defaultMax": 6.0,
+      "defaultMax": 3.5,
       "perEmotionMax": {
         "relief": 5.0,
         "saudade": 8.0,
@@ -23,8 +32,8 @@
         "disgust": 3.5,
         "angst": 6.0,
         "foreboding": 6.5,
-        "kefi": 5.0,
-        "cheerful": 5.0,
+        "kefi": 2.8,
+        "cheerful": 2.8,
         "querecia": 5.5,
         "ubuntu": 7.5,
         "frustration": 4.5,
@@ -50,7 +59,7 @@
         "worried": 4.5,
         "protective": 7.5,
         "melancholy": 6.0,
-        "content": 5.2,
+        "content": 2.2,
         "restless": 4.0,
         "nostalgia": 6.5,
         "playfulness": 4.0,
@@ -351,7 +360,7 @@
       "min_half_life": 400.0,
       "max_half_life": 3600.0,
       "negative_persistence": 2.0,
-      "condition_present_multiplier": 3.5,
+      "condition_present_multiplier": 2.2,
       "homeostasis_recovery_half": 2400.0
     },
     "habituation": {

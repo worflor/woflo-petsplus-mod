@@ -3,8 +3,8 @@
     "radius": 24.0,
     "cooldown": 40,
     "category_cooldown": 20,
-    "digest_window": 80,
-    "min_delta": 0.03
+    "digest_window": 100,
+    "min_delta": 0.04
   },
   "categories": {
     "block_break": {
@@ -22,20 +22,20 @@
     "item": {
       "cooldown": 50,
       "category_cooldown": 25,
-      "digest_window": 120,
-      "min_delta": 0.04
+      "digest_window": 140,
+      "min_delta": 0.05
     },
     "block_use": {
       "cooldown": 60,
       "category_cooldown": 40,
       "digest_window": 120,
-      "min_delta": 0.03
+      "min_delta": 0.05
     },
     "block_place": {
       "cooldown": 60,
       "category_cooldown": 40,
       "digest_window": 120,
-      "min_delta": 0.03
+      "min_delta": 0.06
     },
     "entity": {
       "cooldown": 70,
@@ -66,28 +66,28 @@
     "block_break_generic": {
       "radius": 32.0,
       "emotions": {
-        "KEFI": 0.12
+        "KEFI": 0.07
       }
     },
     "block_break_ore": {
       "radius": 32.0,
       "emotions": {
-        "KEFI": 0.15,
-        "CHEERFUL": 0.20,
+        "KEFI": 0.13,
+        "CHEERFUL": 0.17,
         "HOPEFUL": 0.08
       }
     },
     "block_break_crafting": {
       "radius": 32.0,
       "emotions": {
-        "KEFI": 0.12,
+        "KEFI": 0.07,
         "WABI_SABI": 0.18
       }
     },
     "block_break_resource": {
       "radius": 32.0,
       "emotions": {
-        "KEFI": 0.12,
+        "KEFI": 0.07,
         "STOIC": 0.10
       }
     },
@@ -95,17 +95,17 @@
       "radius": 32.0,
       "emotions": {
         "KEFI": 0.18,
-        "GUARDIAN_VIGIL": 0.22,
-        "RELIEF": 0.15,
+        "GUARDIAN_VIGIL": 0.19,
+        "RELIEF": 0.08,
         "HOPEFUL": 0.12
       }
     },
     "combat_pet_kill": {
       "radius": 32.0,
       "emotions": {
-        "KEFI": 0.20,
-        "HOPEFUL": 0.25,
-        "STOIC": 0.18,
+        "KEFI": 0.12,
+        "HOPEFUL": 0.15,
+        "STOIC": 0.11,
         "GUARDIAN_VIGIL": 0.15
       }
     }
@@ -404,8 +404,8 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.item.food",
       "emotions": {
-        "SOBREMESA": 0.22,
-        "QUERECIA": 0.18
+        "SOBREMESA": 0.18,
+        "QUERECIA": 0.14
       }
     },
     "item.golden_apple": {
@@ -413,8 +413,8 @@
       "radius": 32.0,
       "text": "petsplus.emotion_cue.item.golden_apple",
       "emotions": {
-        "RELIEF": 0.35,
-        "CONTENT": 0.20
+        "RELIEF": 0.17,
+        "CONTENT": 0.10
       }
     },
     "item.enchanted_golden_apple": {
@@ -422,8 +422,8 @@
       "radius": 32.0,
       "text": "petsplus.emotion_cue.item.enchanted_golden_apple",
       "emotions": {
-        "RELIEF": 0.35,
-        "CONTENT": 0.20,
+        "RELIEF": 0.17,
+        "CONTENT": 0.10,
         "QUERECIA": 0.12,
         "HOPEFUL": 0.15
       }
@@ -433,7 +433,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.item.honey_bottle",
       "emotions": {
-        "SOBREMESA": 0.25
+        "SOBREMESA": 0.12
       }
     },
     "item.milk_bucket": {
@@ -441,7 +441,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.item.milk_bucket",
       "emotions": {
-        "RELIEF": 0.22
+        "RELIEF": 0.18
       }
     },
     "item.totem": {
@@ -449,8 +449,8 @@
       "radius": 32.0,
       "text": "petsplus.emotion_cue.item.totem",
       "emotions": {
-        "RELIEF": 0.40,
-        "GUARDIAN_VIGIL": 0.18,
+        "RELIEF": 0.26,
+        "GUARDIAN_VIGIL": 0.11,
         "HOPEFUL": 0.12
       }
     },
@@ -467,7 +467,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.item.firework",
       "emotions": {
-        "KEFI": 0.20
+        "KEFI": 0.16
       }
     },
     "item.sus_food": {
@@ -475,8 +475,8 @@
       "radius": 16.0,
       "text": "petsplus.emotion_cue.item.sus_food",
       "emotions": {
-        "DISGUST": 0.20,
-        "REGRET": 0.08
+        "DISGUST": 0.16,
+        "REGRET": 0.06
       }
     },
     "item.spyglass": {
@@ -484,7 +484,7 @@
       "radius": 32.0,
       "text": "petsplus.emotion_cue.item.spyglass",
       "emotions": {
-        "YUGEN": 0.20
+        "YUGEN": 0.16
       }
     },
     "item.map": {
@@ -492,7 +492,7 @@
       "radius": 32.0,
       "text": "petsplus.emotion_cue.item.map",
       "emotions": {
-        "FERNWEH": 0.15
+        "FERNWEH": 0.12
       }
     },
     "item.compass": {
@@ -500,7 +500,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.item.compass",
       "emotions": {
-        "QUERECIA": 0.12
+        "QUERECIA": 0.10
       }
     },
     "item.recovery_compass": {
@@ -508,9 +508,9 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.item.recovery_compass",
       "emotions": {
-        "SAUDADE": 0.18,
-        "REGRET": 0.10,
-        "HOPEFUL": 0.08
+        "SAUDADE": 0.14,
+        "REGRET": 0.08,
+        "HOPEFUL": 0.06
       }
     },
     "item.book": {
@@ -518,8 +518,8 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.item.book",
       "emotions": {
-        "LAGOM": 0.12,
-        "MONO_NO_AWARE": 0.08
+        "LAGOM": 0.10,
+        "MONO_NO_AWARE": 0.06
       }
     },
     "item.shield": {
@@ -527,7 +527,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.item.shield",
       "emotions": {
-        "GUARDIAN_VIGIL": 0.15
+        "GUARDIAN_VIGIL": 0.12
       }
     },
     "item.saddle": {
@@ -535,7 +535,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.item.saddle",
       "emotions": {
-        "FERNWEH": 0.12
+        "FERNWEH": 0.10
       }
     },
     "item.brush": {
@@ -543,7 +543,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.item.brush",
       "emotions": {
-        "MONO_NO_AWARE": 0.12
+        "MONO_NO_AWARE": 0.10
       }
     },
     "block_use.smithing": {
@@ -551,7 +551,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.smithing",
       "emotions": {
-        "LAGOM": 0.12
+        "LAGOM": 0.10
       }
     },
     "block_use.grindstone": {
@@ -559,7 +559,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.grindstone",
       "emotions": {
-        "REGRET": 0.10
+        "REGRET": 0.08
       }
     },
     "block_use.beacon": {
@@ -567,10 +567,10 @@
       "radius": 48.0,
       "text": "petsplus.emotion_cue.block_use.beacon",
       "emotions": {
-        "CONTENT": 0.20,
-        "QUERECIA": 0.08,
-        "HOPEFUL": 0.15,
-        "YUGEN": 0.10
+        "CONTENT": 0.10,
+        "QUERECIA": 0.06,
+        "HOPEFUL": 0.12,
+        "YUGEN": 0.08
       }
     },
     "block_use.bell": {
@@ -578,7 +578,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.bell",
       "emotions": {
-        "SOBREMESA": 0.18
+        "SOBREMESA": 0.14
       }
     },
     "block_use.bee": {
@@ -586,7 +586,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.bee",
       "emotions": {
-        "SOBREMESA": 0.18
+        "SOBREMESA": 0.14
       }
     },
     "block_use.decor": {
@@ -594,7 +594,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.decor",
       "emotions": {
-        "MONO_NO_AWARE": 0.10
+        "MONO_NO_AWARE": 0.08
       }
     },
     "block_use.music": {
@@ -602,8 +602,8 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.music",
       "emotions": {
-        "CONTENT": 0.16,
-        "QUERECIA": 0.06
+        "CONTENT": 0.13,
+        "QUERECIA": 0.05
       }
     },
     "block_use.jukebox.start": {
@@ -611,8 +611,8 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.jukebox_start",
       "emotions": {
-        "CHEERFUL": 0.16,
-        "PLAYFULNESS": 0.12
+        "CHEERFUL": 0.13,
+        "PLAYFULNESS": 0.06
       }
     },
     "block_use.jukebox.stop": {
@@ -620,8 +620,8 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.jukebox_stop",
       "emotions": {
-        "MONO_NO_AWARE": 0.12,
-        "NOSTALGIA": 0.10
+        "MONO_NO_AWARE": 0.10,
+        "NOSTALGIA": 0.08
       }
     },
     "block_use.cooking": {
@@ -629,7 +629,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.cooking",
       "emotions": {
-        "SOBREMESA": 0.22
+        "SOBREMESA": 0.18
       }
     },
     "block_use.campfire.stoke": {
@@ -637,8 +637,8 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.campfire_stoke",
       "emotions": {
-        "SOBREMESA": 0.16,
-        "CONTENT": 0.10
+        "SOBREMESA": 0.13,
+        "CONTENT": 0.08
       }
     },
     "block_use.campfire.ignite": {
@@ -646,8 +646,8 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.campfire_ignite",
       "emotions": {
-        "HOPEFUL": 0.14,
-        "KEFI": 0.10
+        "HOPEFUL": 0.11,
+        "KEFI": 0.08
       }
     },
     "block_use.campfire.douse": {
@@ -655,8 +655,8 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.campfire_douse",
       "emotions": {
-        "RELIEF": 0.12,
-        "GUARDIAN_VIGIL": 0.08
+        "RELIEF": 0.10,
+        "GUARDIAN_VIGIL": 0.06
       }
     },
     "block_use.home": {
@@ -664,9 +664,9 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.home",
       "emotions": {
-        "QUERECIA": 0.22,
-        "SOBREMESA": 0.15,
-        "LAGOM": 0.08
+        "QUERECIA": 0.18,
+        "SOBREMESA": 0.12,
+        "LAGOM": 0.06
       }
     },
     "block_use.bed.rest": {
@@ -674,9 +674,9 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.bed_rest",
       "emotions": {
-        "RELIEF": 0.16,
-        "CONTENT": 0.14,
-        "LAGOM": 0.08
+        "RELIEF": 0.13,
+        "CONTENT": 0.11,
+        "LAGOM": 0.06
       }
     },
     "block_use.bed.occupied": {
@@ -684,8 +684,8 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.bed_occupied",
       "emotions": {
-        "FRUSTRATION": 0.10,
-        "REGRET": 0.08
+        "FRUSTRATION": 0.08,
+        "REGRET": 0.06
       }
     },
     "block_use.crafting": {
@@ -693,7 +693,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.block_use.crafting",
       "emotions": {
-        "WABI_SABI": 0.20
+        "WABI_SABI": 0.16
       }
     },
     "block_place.decor": {
@@ -701,8 +701,8 @@
       "radius": 32.0,
       "text": "petsplus.emotion_cue.block_place.decor",
       "emotions": {
-        "KEFI": 0.10,
-        "QUERECIA": 0.22
+        "KEFI": 0.08,
+        "QUERECIA": 0.18
       }
     },
     "block_place.crafting": {
@@ -710,8 +710,8 @@
       "radius": 32.0,
       "text": "petsplus.emotion_cue.block_place.crafting",
       "emotions": {
-        "KEFI": 0.10,
-        "WABI_SABI": 0.16
+        "KEFI": 0.08,
+        "WABI_SABI": 0.13
       }
     },
     "block_place.generic": {
@@ -719,7 +719,7 @@
       "radius": 32.0,
       "text": "petsplus.emotion_cue.block_place.generic",
       "emotions": {
-        "KEFI": 0.10
+        "KEFI": 0.08
       }
     },
     "entity.lead": {
@@ -727,7 +727,7 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.entity.lead",
       "emotions": {
-        "GUARDIAN_VIGIL": 0.20
+        "GUARDIAN_VIGIL": 0.16
       }
     },
     "entity.mount": {
@@ -735,7 +735,7 @@
       "radius": 32.0,
       "text": "petsplus.emotion_cue.entity.mount",
       "emotions": {
-        "FERNWEH": 0.22
+        "FERNWEH": 0.18
       }
     },
     "entity.villager_greet": {
@@ -743,8 +743,8 @@
       "radius": 24.0,
       "text": "petsplus.emotion_cue.entity.villager_greet",
       "emotions": {
-        "LAGOM": 0.12,
-        "SOBREMESA": 0.10
+        "LAGOM": 0.10,
+        "SOBREMESA": 0.08
       }
     },
     "species.horse.ride": {
@@ -774,8 +774,8 @@
       "cooldown": 240,
       "text": "petsplus.emotion_cue.species.parrot.dance",
       "emotions": {
-        "KEFI": 0.20,
-        "YUGEN": 0.14
+        "KEFI": 0.16,
+        "YUGEN": 0.11
       }
     },
     "species.parrot.flight": {
@@ -784,8 +784,8 @@
       "cooldown": 200,
       "text": "petsplus.emotion_cue.species.parrot.flight",
       "emotions": {
-        "FERNWEH": 0.20,
-        "YUGEN": 0.16
+        "FERNWEH": 0.16,
+        "YUGEN": 0.13
       }
     },
     "species.cat.bed": {
@@ -794,8 +794,8 @@
       "cooldown": 360,
       "text": "petsplus.emotion_cue.species.cat.bed",
       "emotions": {
-        "SOBREMESA": 0.22,
-        "QUERECIA": 0.16
+        "SOBREMESA": 0.18,
+        "QUERECIA": 0.13
       }
     },
     "species.cat.chest": {
@@ -804,8 +804,8 @@
       "cooldown": 320,
       "text": "petsplus.emotion_cue.species.cat.chest",
       "emotions": {
-        "GUARDIAN_VIGIL": 0.20,
-        "QUERECIA": 0.14
+        "GUARDIAN_VIGIL": 0.16,
+        "QUERECIA": 0.11
       }
     },
     "species.ocelot.stalk": {
@@ -814,8 +814,8 @@
       "cooldown": 220,
       "text": "petsplus.emotion_cue.species.ocelot.stalk",
       "emotions": {
-        "STOIC": 0.16,
-        "YUGEN": 0.12
+        "STOIC": 0.13,
+        "YUGEN": 0.10
       }
     },
     "species.ocelot.jungle": {
@@ -824,9 +824,9 @@
       "cooldown": 360,
       "text": "petsplus.emotion_cue.species.ocelot.jungle",
       "emotions": {
-        "FERNWEH": 0.18,
-        "YUGEN": 0.14,
-        "MONO_NO_AWARE": 0.10
+        "FERNWEH": 0.14,
+        "YUGEN": 0.11,
+        "MONO_NO_AWARE": 0.08
       }
     },
     "species.fox.sleep": {
@@ -835,8 +835,8 @@
       "cooldown": 320,
       "text": "petsplus.emotion_cue.species.fox.sleep",
       "emotions": {
-        "SOBREMESA": 0.18,
-        "LAGOM": 0.16
+        "SOBREMESA": 0.14,
+        "LAGOM": 0.13
       }
     },
     "species.fox.treasure": {
@@ -845,8 +845,8 @@
       "cooldown": 260,
       "text": "petsplus.emotion_cue.species.fox.treasure",
       "emotions": {
-        "CHEERFUL": 0.18,
-        "GUARDIAN_VIGIL": 0.14
+        "CHEERFUL": 0.14,
+        "GUARDIAN_VIGIL": 0.11
       }
     },
     "species.wolf.treat": {
@@ -855,8 +855,8 @@
       "cooldown": 200,
       "text": "petsplus.emotion_cue.species.wolf.treat",
       "emotions": {
-        "KEFI": 0.18,
-        "UBUNTU": 0.16
+        "KEFI": 0.14,
+        "UBUNTU": 0.13
       }
     },
     "species.wolf.campfire": {
@@ -865,8 +865,8 @@
       "cooldown": 360,
       "text": "petsplus.emotion_cue.species.wolf.campfire",
       "emotions": {
-        "LAGOM": 0.20,
-        "SOBREMESA": 0.16
+        "LAGOM": 0.16,
+        "SOBREMESA": 0.13
       }
     },
     "species.wolf.howl": {
@@ -875,9 +875,9 @@
       "cooldown": 600,
       "text": "petsplus.emotion_cue.species.wolf.howl",
       "emotions": {
-        "FERNWEH": 0.22,
-        "GUARDIAN_VIGIL": 0.18,
-        "KEFI": 0.14
+        "FERNWEH": 0.18,
+        "GUARDIAN_VIGIL": 0.14,
+        "KEFI": 0.11
       }
     },
     "weather.rain": {
@@ -886,8 +886,8 @@
       "cooldown": 400,
       "text": "petsplus.emotion_cue.weather.rain",
       "emotions": {
-        "SOBREMESA": 0.12,
-        "MONO_NO_AWARE": 0.08
+        "SOBREMESA": 0.10,
+        "MONO_NO_AWARE": 0.06
       }
     },
     "weather.thunder": {
@@ -896,8 +896,8 @@
       "cooldown": 300,
       "text": "petsplus.emotion_cue.weather.thunder",
       "emotions": {
-        "ANGST": 0.18,
-        "GUARDIAN_VIGIL": 0.12
+        "ANGST": 0.14,
+        "GUARDIAN_VIGIL": 0.10
       }
     },
     "owner.death": {
@@ -906,9 +906,9 @@
       "cooldown": 1200,
       "text": "petsplus.emotion_cue.owner.death",
       "emotions": {
-        "SAUDADE": 0.45,
-        "REGRET": 0.25,
-        "GUARDIAN_VIGIL": 0.20
+        "SAUDADE": 0.22,
+        "REGRET": 0.12,
+        "GUARDIAN_VIGIL": 0.16
       }
     }
   },

@@ -5,8 +5,8 @@
 </p>
 
 <h1 align="center">woflo's Pets+</h1>
-<h3 align="center">dev-0.94-Rebranding-to-Realtime</h3>
-<h4 align="center">next: use pet context telemetry for advanced data driven ai</h4>
+<h3 align="center">dev-0.95-Bee-havioural-momentum</h3>
+<h4 align="center">next: idk</h4>
 
 ---
 
@@ -20,7 +20,10 @@
   <li>Changed 0.93 [nature] - Rebalanced all the natures in terms of base impact; refining core identities to be more unique.</li>
   <li>Backend 0.94 [nature] - Parent natures are now exposed as predicates for natures.</li>
   <li>Updated 0.94 [version] - 1.21.8 -> 1.21.10. ;-;</li>
-  <li>Rework 0.95 [AI] - Following the same path as the stimulus pipeline, AI uses pet context, mood engine snapshots, and more to allow dynamic emergent behaviour</li>
+  <li>Rework 0.95 [ai] - Following the same path as the stimulus pipeline, AI uses pet context, mood engine snapshots, and more to allow dynamic emergent behaviour</li>
+  <li>New 0.95 [ai] - Trial Scout goal and Trial Chambers awareness via [`data_trial_scout.json`](src/main/resources/data/petsplus/goal_catalogue/data_trial_scout.json) and [`TrialSpawnerAwarenessSignal.compute()`](src/main/java/woflo/petsplus/ai/suggester/signal/rules/TrialSpawnerAwarenessSignal.java:1); feasibility gated by [`trial_chamber_features.json`](src/main/resources/data/petsplus/tags/blocks/natures/trial_chamber_features.json).</li>
+  <li>New 0.95 [ai] - Breeze and Bogged proximity support via [`BreezeThreatSignal.java`](src/main/java/woflo/petsplus/ai/suggester/signal/rules/BreezeThreatSignal.java:1) and [`BoggedThreatSignal.java`](src/main/java/woflo/petsplus/ai/suggester/signal/rules/BoggedThreatSignal.java:1); conservative blends in [`mood_blend.json`](src/main/resources/data/petsplus/ai_signal_rules/mood_blend.json).</li>
+  <li>Tuning 0.95 [stability] - Reduced thrash and visual spam with scheduler jitter, feedback debouncing/particle budgets, contagion cadence/caps, and refined goal cooldowns/priorities.</li>
 </ul>
 
 ---

@@ -200,174 +200,244 @@ public class FeedbackConfig {
     private static void registerRoleParticles() {
         // Guardian: Protective blue shimmer
         register("guardian_ambient", List.of(
-            new ParticleConfig(ParticleTypes.END_ROD, 4, 0.05, 0.05, 0.05, 0.01, "circle", 1.0, true)
+            new ParticleConfig(ParticleTypes.END_ROD, 2, 0.04, 0.04, 0.04, 0.01, "circle", 1.0, true)
         ), null, 0, true);
 
         // Striker: Sharp red sparks
         register("striker_ambient", List.of(
-            new ParticleConfig(ParticleTypes.CRIT, 6, 0.1, 0.1, 0.1, 0.05, "burst", 0.5, true)
+            new ParticleConfig(ParticleTypes.CRIT, 3, 0.08, 0.08, 0.08, 0.04, "burst", 0.5, true)
         ), null, 0, true);
 
         // Support: Green plus with hearts
         register("support_ambient", List.of(
-            new ParticleConfig(ParticleTypes.HAPPY_VILLAGER, 4, 0.02, 0.02, 0.02, 0.01, "plus", 0.8, true),
-            new ParticleConfig(ParticleTypes.HEART, 1, 0.1, 0.1, 0.1, 0.01, "burst", 0.1, false)
+            new ParticleConfig(ParticleTypes.HAPPY_VILLAGER, 2, 0.02, 0.02, 0.02, 0.01, "plus", 0.6, true),
+            new ParticleConfig(ParticleTypes.HEART, 1, 0.06, 0.06, 0.06, 0.01, "burst", 0.1, false)
         ), null, 0, true);
 
         // Scout: Swirling golden trail
         register("scout_ambient", List.of(
-            new ParticleConfig(ParticleTypes.WAX_ON, 3, 0.02, 0.02, 0.02, 0.01, "spiral", 0.4, true)
+            new ParticleConfig(ParticleTypes.WAX_ON, 2, 0.02, 0.02, 0.02, 0.01, "spiral", 0.4, true)
         ), null, 0, true);
 
         // Skyrider: Upward wisps
         register("skyrider_ambient", List.of(
-            new ParticleConfig(ParticleTypes.CLOUD, 3, 0.05, 0.0, 0.05, 0.02, "upward", 0.3, true),
-            new ParticleConfig(ParticleTypes.FIREWORK, 1, 0.1, 0.1, 0.1, 0.01, "burst", 0.1, false)
+            new ParticleConfig(ParticleTypes.CLOUD, 2, 0.05, 0.0, 0.05, 0.02, "upward", 0.3, true),
+            new ParticleConfig(ParticleTypes.FIREWORK, 1, 0.08, 0.08, 0.08, 0.01, "burst", 0.1, false)
         ), null, 0, true);
 
         // Enchantment Bound: Purple mystical
         register("enchantment_bound_ambient", List.of(
-            new ParticleConfig(ParticleTypes.ENCHANT, 4, 0.02, 0.02, 0.02, 0.02, "random", 0.6, true)
+            new ParticleConfig(ParticleTypes.ENCHANT, 3, 0.02, 0.02, 0.02, 0.02, "random", 0.5, true)
         ), null, 0, true);
 
         // Cursed One: Dark smoke with embers
         register("cursed_one_ambient", List.of(
             new ParticleConfig(ParticleTypes.LARGE_SMOKE, 2, 0.03, 0.02, 0.03, 0.01, "upward", 0.4, true),
-            new ParticleConfig(ParticleTypes.LAVA, 1, 0.1, 0.1, 0.1, 0.01, "burst", 0.1, false)
+            new ParticleConfig(ParticleTypes.LAVA, 1, 0.08, 0.08, 0.08, 0.01, "burst", 0.1, false)
         ), null, 0, true);
 
         // Eepy Eeper: Sleepy Z pattern
         register("eepy_eeper_ambient", List.of(
-            new ParticleConfig(ParticleTypes.NOTE, 3, 0.01, 0.01, 0.01, 0.01, "z_pattern", 0.6, true),
-            new ParticleConfig(ParticleTypes.POOF, 2, 0.1, 0.05, 0.1, 0.01, "burst", 0.1, false)
+            new ParticleConfig(ParticleTypes.NOTE, 2, 0.01, 0.01, 0.01, 0.01, "z_pattern", 0.6, true),
+            new ParticleConfig(ParticleTypes.POOF, 1, 0.08, 0.04, 0.08, 0.01, "burst", 0.1, false)
         ), null, 0, true);
 
         // Eclipsed: Void with reality tears
         register("eclipsed_ambient", List.of(
-            new ParticleConfig(ParticleTypes.PORTAL, 3, 0.02, 0.02, 0.02, 0.01, "random", 0.6, true),
-            new ParticleConfig(ParticleTypes.REVERSE_PORTAL, 2, 0.15, 0.1, 0.15, 0.02, "burst", 0.1, false)
+            new ParticleConfig(ParticleTypes.PORTAL, 2, 0.02, 0.02, 0.02, 0.01, "random", 0.6, true),
+            new ParticleConfig(ParticleTypes.REVERSE_PORTAL, 1, 0.1, 0.08, 0.1, 0.02, "burst", 0.1, false)
         ), null, 0, true);
     }
 
     private static void registerAbilityFeedback() {
         // Guardian: Damage absorbed
         register("guardian_damage_absorbed", List.of(
-            new ParticleConfig(ParticleTypes.ENCHANTED_HIT, 3, 0.2, 0.1, 0.2, 0.02, "burst", 0.5, false)
+            new ParticleConfig(ParticleTypes.ENCHANTED_HIT, 2, 0.15, 0.08, 0.15, 0.02, "burst", 0.5, false)
         ), new AudioConfig(SoundEvents.ITEM_SHIELD_BLOCK.value(), 0.3f, 1.2f, 8.0), 0, true);
 
         // Guardian: Shield bash rider triggered
         register("guardian_shield_bash", List.of(
             new ParticleConfig(ParticleTypes.SWEEP_ATTACK, 1, 0.0, 0.0, 0.0, 0.0, "burst", 0.0, false),
-            new ParticleConfig(ParticleTypes.CRIT, 5, 0.3, 0.2, 0.3, 0.05, "burst", 0.8, false)
+            new ParticleConfig(ParticleTypes.CRIT, 4, 0.25, 0.15, 0.25, 0.05, "burst", 0.7, false)
         ), new AudioConfig(SoundEvents.ENTITY_IRON_GOLEM_ATTACK, 0.4f, 0.9f, 10.0), 0, true);
 
         // Striker: Execution bonus triggered
         register("striker_execution", List.of(
-            new ParticleConfig(ParticleTypes.DAMAGE_INDICATOR, 3, 0.2, 0.3, 0.2, 0.1, "burst", 0.5, false)
+            new ParticleConfig(ParticleTypes.DAMAGE_INDICATOR, 3, 0.18, 0.25, 0.18, 0.1, "burst", 0.5, false)
         ), new AudioConfig(SoundEvents.ENTITY_CAT_HISS, 0.4f, 1.1f, 8.0), 0, true);
 
         // Striker: Finisher mark applied
         register("striker_finisher_mark", List.of(
-            new ParticleConfig(ParticleTypes.ANGRY_VILLAGER, 1, 0.0, 0.5, 0.0, 0.0, "burst", 0.0, false),
-            new ParticleConfig(ParticleTypes.CRIT, 2, 0.1, 0.2, 0.1, 0.03, "circle", 0.3, false)
+            new ParticleConfig(ParticleTypes.ANGRY_VILLAGER, 1, 0.0, 0.4, 0.0, 0.0, "burst", 0.0, false),
+            new ParticleConfig(ParticleTypes.CRIT, 1, 0.08, 0.15, 0.08, 0.03, "circle", 0.25, false)
         ), new AudioConfig(SoundEvents.ENTITY_ARROW_HIT, 0.3f, 0.7f, 6.0), 0, true);
 
         // Support: Sitting regen area active - visualize the actual 6-block radius
         register("support_sitting_regen", List.of(
-            new ParticleConfig(ParticleTypes.HEART, 8, 0.1, 0.05, 0.1, 0.01, "aura_radius_ground", 6.0, false),
-            new ParticleConfig(ParticleTypes.HAPPY_VILLAGER, 4, 0.2, 0.02, 0.2, 0.01, "aura_radius_edge", 6.0, false)
+            new ParticleConfig(ParticleTypes.HEART, 4, 0.08, 0.04, 0.08, 0.01, "aura_radius_ground", 6.0, false),
+            new ParticleConfig(ParticleTypes.HAPPY_VILLAGER, 2, 0.15, 0.02, 0.15, 0.01, "aura_radius_edge", 6.0, false)
         ), new AudioConfig(SoundEvents.ENTITY_BEE_LOOP, 0.1f, 1.2f, 8.0), 0, true);
 
         // Support: Potion aura pulse - visualize the actual potion radius
         register("support_potion_pulse", List.of(
-            new ParticleConfig(EffectParticleEffect.of(ParticleTypes.EFFECT, 1.0F, 1.0F, 1.0F, 1.0F), 6, 0.2, 0.1, 0.2, 0.02, "aura_radius_edge", 6.0, false),
-            new ParticleConfig(ParticleTypes.ENCHANT, 2, 0.1, 0.05, 0.1, 0.01, "area", 2.0, false)
+            new ParticleConfig(EffectParticleEffect.of(ParticleTypes.EFFECT, 1.0F, 1.0F, 1.0F, 1.0F), 4, 0.15, 0.08, 0.15, 0.02, "aura_radius_edge", 6.0, false),
+            new ParticleConfig(ParticleTypes.ENCHANT, 1, 0.08, 0.04, 0.08, 0.01, "area", 2.0, false)
         ), null, 0, true);
 
         // Scout: Loot magnetism activated - show the 12-block collection radius
         register("scout_loot_wisp", List.of(
-            new ParticleConfig(ParticleTypes.WAX_ON, 12, 0.3, 0.1, 0.3, 0.02, "aura_radius_edge", 12.0, false),
-            new ParticleConfig(ParticleTypes.ENCHANT, 6, 0.2, 0.05, 0.2, 0.01, "aura_radius_ground", 8.0, false),
-            new ParticleConfig(ParticleTypes.END_ROD, 2, 0.1, 0.3, 0.1, 0.02, "spiral", 1.0, true)
+            new ParticleConfig(ParticleTypes.WAX_ON, 4, 0.25, 0.08, 0.25, 0.02, "aura_radius_edge", 12.0, false),
+            new ParticleConfig(ParticleTypes.ENCHANT, 2, 0.15, 0.04, 0.15, 0.01, "aura_radius_ground", 8.0, false),
+            new ParticleConfig(ParticleTypes.END_ROD, 1, 0.08, 0.2, 0.08, 0.02, "spiral", 1.0, true)
         ), new AudioConfig(SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 0.3f, 0.8f, 12.0), 0, true);
 
         // Eepy Eeper: Drowsy mist control burst
         register("eepy_eeper_drowsy_mist", List.of(
-            new ParticleConfig(ParticleTypes.CLOUD, 10, 0.45, 0.08, 0.45, 0.01, "aura_radius_ground", 6.0, false),
-            new ParticleConfig(ParticleTypes.ENCHANT, 6, 0.3, 0.35, 0.3, 0.0, "aura_radius_edge", 6.0, false),
-            new ParticleConfig(ParticleTypes.FALLING_SPORE_BLOSSOM, 2, 0.25, 0.25, 0.25, 0.0, "area", 4.5, false)
+            new ParticleConfig(ParticleTypes.CLOUD, 6, 0.35, 0.06, 0.35, 0.01, "aura_radius_ground", 6.0, false),
+            new ParticleConfig(ParticleTypes.ENCHANT, 2, 0.22, 0.25, 0.22, 0.0, "aura_radius_edge", 6.0, false),
+            new ParticleConfig(ParticleTypes.FALLING_SPORE_BLOSSOM, 1, 0.2, 0.2, 0.2, 0.0, "area", 4.0, false)
         ), new AudioConfig(SoundEvents.BLOCK_AMETHYST_BLOCK_RESONATE, 0.35f, 0.85f, 10.0), 0, true);
 
         // Skyrider: Wind assistance
         register("skyrider_windlash", List.of(
-            new ParticleConfig(ParticleTypes.CLOUD, 8, 0.5, 0.2, 0.5, 0.05, "burst", 1.0, false),
-            new ParticleConfig(ParticleTypes.FIREWORK, 2, 0.3, 0.4, 0.3, 0.02, "upward", 0.5, false)
+            new ParticleConfig(ParticleTypes.CLOUD, 6, 0.4, 0.15, 0.4, 0.05, "burst", 1.0, false),
+            new ParticleConfig(ParticleTypes.FIREWORK, 1, 0.2, 0.3, 0.2, 0.02, "upward", 0.5, false)
         ), new AudioConfig(SoundEvents.ITEM_ELYTRA_FLYING, 0.2f, 1.4f, 8.0), 0, true);
 
         // Skyrider: Gust upwards escape
         register("skyrider_gust", List.of(
-            new ParticleConfig(ParticleTypes.CLOUD, 12, 0.35, 0.25, 0.35, 0.03, "spiral", 1.2, true),
-            new ParticleConfig(ParticleTypes.END_ROD, 8, 0.2, 0.35, 0.2, 0.015, "upward", 0.7, false)
+            new ParticleConfig(ParticleTypes.CLOUD, 6, 0.3, 0.2, 0.3, 0.03, "spiral", 1.0, true),
+            new ParticleConfig(ParticleTypes.END_ROD, 2, 0.15, 0.25, 0.15, 0.015, "upward", 0.6, false)
         ), new AudioConfig(SoundEvents.ITEM_TRIDENT_RIPTIDE_1.value(), 0.35f, 1.3f, 10.0), 0, true);
 
         // Enchantment Bound: Echo triggered
         register("enchantment_bound_echo", List.of(
-            new ParticleConfig(ParticleTypes.ENCHANT, 8, 0.4, 0.3, 0.4, 0.03, "spiral", 1.5, true),
-            new ParticleConfig(ParticleTypes.FIREWORK, 1, 0.0, 0.2, 0.0, 0.0, "burst", 0.0, false)
+            new ParticleConfig(ParticleTypes.ENCHANT, 4, 0.3, 0.2, 0.3, 0.03, "spiral", 1.2, true),
+            new ParticleConfig(ParticleTypes.FIREWORK, 1, 0.0, 0.15, 0.0, 0.0, "burst", 0.0, false)
         ), new AudioConfig(SoundEvents.BLOCK_ENCHANTMENT_TABLE_USE, 0.3f, 1.1f, 8.0), 0, true);
 
         // Cursed One: Doom echo - show the 5-block weakness area
         register("cursed_one_doom_echo", List.of(
-            new ParticleConfig(ParticleTypes.LARGE_SMOKE, 8, 0.3, 0.1, 0.3, 0.02, "aura_radius_ground", 5.0, false),
-            new ParticleConfig(ParticleTypes.LAVA, 6, 0.2, 0.2, 0.2, 0.03, "aura_radius_edge", 5.0, false),
-            new ParticleConfig(ParticleTypes.SOUL, 4, 0.1, 0.3, 0.1, 0.01, "spiral", 2.0, false)
+            new ParticleConfig(ParticleTypes.LARGE_SMOKE, 4, 0.25, 0.08, 0.25, 0.02, "aura_radius_ground", 5.0, false),
+            new ParticleConfig(ParticleTypes.LAVA, 2, 0.15, 0.15, 0.15, 0.03, "aura_radius_edge", 5.0, false),
+            new ParticleConfig(ParticleTypes.SOUL, 1, 0.08, 0.2, 0.08, 0.01, "spiral", 1.5, false)
         ), new AudioConfig(SoundEvents.ENTITY_PHANTOM_AMBIENT, 0.2f, 0.6f, 10.0), 0, true);
 
         // Cursed One: Auto-resurrect
         register("cursed_one_resurrect", List.of(
-            new ParticleConfig(ParticleTypes.TOTEM_OF_UNDYING, 15, 0.8, 0.5, 0.8, 0.1, "burst", 2.0, false),
-            new ParticleConfig(ParticleTypes.LAVA, 5, 0.4, 0.3, 0.4, 0.05, "circle", 1.5, false)
+            new ParticleConfig(ParticleTypes.TOTEM_OF_UNDYING, 6, 0.6, 0.4, 0.6, 0.08, "burst", 1.2, false),
+            new ParticleConfig(ParticleTypes.LAVA, 2, 0.25, 0.2, 0.25, 0.05, "circle", 1.0, false)
         ), new AudioConfig(SoundEvents.ITEM_TOTEM_USE, 0.5f, 0.8f, 16.0), 0, true);
 
         // Cursed One: Death bond - pet dies when owner dies
         register("cursed_one_death_bond", List.of(
-            new ParticleConfig(ParticleTypes.SOUL, 12, 0.5, 0.8, 0.5, 0.03, "spiral", 2.0, true),
-            new ParticleConfig(ParticleTypes.LARGE_SMOKE, 8, 0.3, 0.2, 0.3, 0.02, "burst", 1.0, false),
-            new ParticleConfig(ParticleTypes.CRIMSON_SPORE, 6, 0.4, 0.4, 0.4, 0.02, "upward", 0.8, false)
+            new ParticleConfig(ParticleTypes.SOUL, 6, 0.4, 0.6, 0.4, 0.03, "spiral", 1.2, true),
+            new ParticleConfig(ParticleTypes.LARGE_SMOKE, 2, 0.25, 0.15, 0.25, 0.02, "burst", 0.8, false),
+            new ParticleConfig(ParticleTypes.CRIMSON_SPORE, 1, 0.3, 0.3, 0.3, 0.02, "upward", 0.6, false)
         ), null, 0, true);
 
         // Cursed One: Self-resurrect - pet refuses to die (immortality)
         register("cursed_one_self_resurrect", List.of(
-            new ParticleConfig(ParticleTypes.SOUL_FIRE_FLAME, 20, 0.6, 0.4, 0.6, 0.08, "upward", 1.5, true),
-            new ParticleConfig(ParticleTypes.LARGE_SMOKE, 10, 0.4, 0.3, 0.4, 0.04, "circle", 2.0, false),
-            new ParticleConfig(ParticleTypes.CRIMSON_SPORE, 15, 0.5, 0.5, 0.5, 0.03, "burst", 1.2, false)
+            new ParticleConfig(ParticleTypes.SOUL_FIRE_FLAME, 6, 0.5, 0.35, 0.5, 0.06, "upward", 1.0, true),
+            new ParticleConfig(ParticleTypes.LARGE_SMOKE, 2, 0.25, 0.2, 0.25, 0.04, "circle", 1.2, false),
+            new ParticleConfig(ParticleTypes.CRIMSON_SPORE, 0, 0.0, 0.0, 0.0, 0.0, "burst", 0.0, false)
         ), new AudioConfig(SoundEvents.ENTITY_WITHER_SPAWN, 0.7f, 1.5f, 14.0), 0, true);
 
         // Eclipsed: Void brand applied
         register("eclipsed_voidbrand", List.of(
-            new ParticleConfig(ParticleTypes.PORTAL, 4, 0.2, 0.3, 0.2, 0.02, "circle", 0.5, false),
-            new ParticleConfig(ParticleTypes.REVERSE_PORTAL, 1, 0.0, 0.2, 0.0, 0.0, "burst", 0.0, false)
+            new ParticleConfig(ParticleTypes.PORTAL, 2, 0.15, 0.2, 0.15, 0.02, "circle", 0.4, false),
+            new ParticleConfig(ParticleTypes.REVERSE_PORTAL, 1, 0.0, 0.15, 0.0, 0.0, "burst", 0.0, false)
         ), new AudioConfig(SoundEvents.BLOCK_SCULK_SENSOR_CLICKING, 0.2f, 1.8f, 8.0), 0, true);
 
         // Eclipsed: Phase partner triggered
         register("eclipsed_phase_partner", List.of(
-            new ParticleConfig(ParticleTypes.REVERSE_PORTAL, 8, 0.6, 0.4, 0.6, 0.04, "spiral", 1.2, true),
-            new ParticleConfig(ParticleTypes.END_ROD, 3, 0.3, 0.2, 0.3, 0.02, "burst", 0.6, false)
+            new ParticleConfig(ParticleTypes.REVERSE_PORTAL, 4, 0.45, 0.3, 0.45, 0.04, "spiral", 1.0, true),
+            new ParticleConfig(ParticleTypes.END_ROD, 1, 0.2, 0.15, 0.2, 0.02, "burst", 0.5, false)
         ), new AudioConfig(SoundEvents.ENTITY_SHULKER_TELEPORT, 0.3f, 1.3f, 10.0), 0, true);
 
         // Eclipsed: Event horizon zone - visualize the 6-block void zone
         register("eclipsed_event_horizon", List.of(
-            new ParticleConfig(ParticleTypes.PORTAL, 15, 0.3, 0.1, 0.3, 0.02, "aura_radius_ground", 6.0, false),
-            new ParticleConfig(ParticleTypes.REVERSE_PORTAL, 8, 0.2, 0.2, 0.2, 0.03, "aura_radius_edge", 6.0, false),
-            new ParticleConfig(ParticleTypes.END_ROD, 4, 0.1, 0.3, 0.1, 0.01, "circle", 6.0, false)
+            new ParticleConfig(ParticleTypes.PORTAL, 6, 0.25, 0.08, 0.25, 0.02, "aura_radius_ground", 6.0, false),
+            new ParticleConfig(ParticleTypes.REVERSE_PORTAL, 2, 0.15, 0.15, 0.15, 0.03, "aura_radius_edge", 6.0, false),
+            new ParticleConfig(ParticleTypes.END_ROD, 1, 0.08, 0.2, 0.08, 0.01, "circle", 6.0, false)
         ), new AudioConfig(SoundEvents.BLOCK_PORTAL_TRIGGER, 0.3f, 0.7f, 12.0), 0, true);
 
-        // Eepy Eeper: Nap regen - show the enhanced 4+1 block regen radius
+        // Eppy Eeper: Nap regen - show the enhanced 4+1 block regen radius
         register("eepy_eeper_nap_regen", List.of(
-            new ParticleConfig(ParticleTypes.HEART, 6, 0.2, 0.05, 0.2, 0.01, "aura_radius_ground", 5.0, false),
-            new ParticleConfig(ParticleTypes.NOTE, 3, 0.1, 0.1, 0.1, 0.01, "aura_radius_edge", 4.0, false),
-            new ParticleConfig(ParticleTypes.POOF, 1, 0.1, 0.05, 0.1, 0.01, "burst", 0.5, true)
+            new ParticleConfig(ParticleTypes.HEART, 4, 0.15, 0.04, 0.15, 0.01, "aura_radius_ground", 5.0, false),
+            new ParticleConfig(ParticleTypes.NOTE, 1, 0.08, 0.08, 0.08, 0.01, "aura_radius_edge", 4.0, false),
+            new ParticleConfig(ParticleTypes.POOF, 0, 0.0, 0.0, 0.0, 0.0, "burst", 0.0, true)
         ), new AudioConfig(SoundEvents.ENTITY_CAT_PURR, 0.15f, 1.2f, 6.0), 0, true);
+
+        // Striker: Hunt focus marker (called from StrikerHuntManager)
+        if (!hasFeedback("striker_mark_focus")) {
+            register("striker_mark_focus", List.of(
+                new ParticleConfig(ParticleTypes.CRIT, 2, 0.1, 0.15, 0.1, 0.02, "circle", 0.3, false)
+            ), new AudioConfig(SoundEvents.UI_BUTTON_CLICK.value(), 0.15f, 1.3f, 6.0), 0, true);
+        }
+
+        // Centralized keys added for remaining direct spawns (budget-compliant)
+        // Eepy: sleep link at pet
+        if (!hasFeedback("eepy_sleep_link")) {
+            register("eepy_sleep_link", List.of(
+                new ParticleConfig(ParticleTypes.SPORE_BLOSSOM_AIR, 2, 0.12, 0.0, 0.12, 0.008, "burst", 0.25, true)
+            ), null, 0, true);
+        }
+
+        // Eepy: empowered player hint
+        if (!hasFeedback("eepy_player_empowered")) {
+            register("eppy_player_empowered", List.of(
+                new ParticleConfig(ParticleTypes.HAPPY_VILLAGER, 2, 0.15, 0.3, 0.15, 0.01, "burst", 0.25, true)
+            ), null, 0, true);
+        }
+
+        // Eepy: pet recovery cue (includes sound)
+        if (!hasFeedback("eepy_pet_recovery")) {
+            register("eepy_pet_recovery", List.of(
+                new ParticleConfig(ParticleTypes.HAPPY_VILLAGER, 2, 0.18, 0.15, 0.18, 0.02, "burst", 0.25, true)
+            ), new AudioConfig(SoundEvents.ENTITY_CAT_PURR, 0.6f, 1.2f, 6.0), 0, true);
+        }
+
+        // Cursed One: soul sacrifice activation
+        if (!hasFeedback("cursed_one_soul_sacrifice")) {
+            register("cursed_one_soul_sacrifice", List.of(
+                new ParticleConfig(ParticleTypes.SOUL_FIRE_FLAME, 5, 0.3, 0.25, 0.3, 0.02, "burst", 0.45, true),
+                new ParticleConfig(ParticleTypes.SMOKE, 3, 0.22, 0.18, 0.22, 0.03, "burst", 0.35, false)
+            ), new AudioConfig(SoundEvents.ITEM_TOTEM_USE, 0.6f, 0.6f, 12.0), 0, true);
+        }
+        // Layer an additional charge tone at similar location (balanced pitch)
+        if (!hasFeedback("cursed_one_soul_sacrifice_aux")) {
+            registerCustomFeedback("cursed_one_soul_sacrifice_aux",
+                new FeedbackEffect(List.of(), new AudioConfig(SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.5f, 1.25f, 12.0), 0, true));
+        }
+
+        // Cooldown refresh subtle spiral + center pop, optional sparkles
+        if (!hasFeedback("cooldown_refresh")) {
+            register("cooldown_refresh", List.of(
+                new ParticleConfig(ParticleTypes.SOUL, 2, 0.0, 0.0, 0.0, 0.01, "spiral", 0.22, true),
+                new ParticleConfig(ParticleTypes.END_ROD, 1, 0.0, 0.0, 0.0, 0.01, "burst", 0.0, false),
+                new ParticleConfig(ParticleTypes.ENCHANT, 1, 0.0, 0.0, 0.0, 0.005, "burst", 0.0, false)
+            ), null, 0, true);
+        }
+
+        // Dev crown ambient emission key (sustained; emitted at ambient cadence externally)
+        if (!hasFeedback("dev_crown_ambient")) {
+            register("dev_crown_ambient", List.of(
+                new ParticleConfig(ParticleTypes.END_ROD, 4, 0.01, 0.0, 0.01, 0.002, "circle", 0.4, true),
+                new ParticleConfig(ParticleTypes.ENCHANT, 1, 0.01, 0.05, 0.01, 0.008, "burst", 0.0, false),
+                new ParticleConfig(ParticleTypes.WAX_ON, 1, 0.04, 0.15, 0.04, 0.01, "burst", 0.0, false)
+            ), null, 0, true);
+        }
+
+        // Afterimage finish burst: primary shards <=8, optional dust <=4, one-shot
+        if (!hasFeedback("afterimage_finish")) {
+            register("afterimage_finish", List.of(
+                // Use ENCHANTED_HIT to visually read as shards without requiring BlockStateParticleEffect here
+                new ParticleConfig(ParticleTypes.ENCHANTED_HIT, 8, 0.35, 0.25, 0.35, 0.08, "burst", 0.6, false),
+                // Subtle ash as secondary dust shimmer within cap
+                new ParticleConfig(ParticleTypes.WHITE_ASH, 4, 0.25, 0.2, 0.25, 0.04, "burst", 0.45, false)
+            ), null, 0, true);
+        }
     }
 
     private static void registerCombatFeedback() {
@@ -390,63 +460,63 @@ public class FeedbackConfig {
     private static void registerUtilityFeedback() {
         // Pet level up
         register("pet_level_up", List.of(
-            new ParticleConfig(ParticleTypes.TOTEM_OF_UNDYING, 8, 0.5, 0.8, 0.5, 0.05, "burst", 1.0, true),
-            new ParticleConfig(ParticleTypes.FIREWORK, 3, 0.3, 0.5, 0.3, 0.03, "upward", 0.8, true)
+            new ParticleConfig(ParticleTypes.TOTEM_OF_UNDYING, 6, 0.4, 0.6, 0.4, 0.05, "burst", 0.8, true),
+            new ParticleConfig(ParticleTypes.FIREWORK, 1, 0.2, 0.35, 0.2, 0.03, "upward", 0.6, true)
         ), new AudioConfig(SoundEvents.ENTITY_VILLAGER_YES, 0.4f, 1.1f, 12.0), 0, true);
 
         // Pet bond strengthened
         register("bond_strengthened", List.of(
-            new ParticleConfig(ParticleTypes.HEART, 3, 0.3, 0.4, 0.3, 0.02, "burst", 0.6, false)
+            new ParticleConfig(ParticleTypes.HEART, 2, 0.2, 0.3, 0.2, 0.02, "burst", 0.5, false)
         ), new AudioConfig(SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 0.3f, 1.4f, 8.0), 0, true);
 
         // Configuration changed
         register("config_changed", List.of(
-            new ParticleConfig(ParticleTypes.ENCHANT, 2, 0.1, 0.2, 0.1, 0.01, "circle", 0.3, false)
+            new ParticleConfig(ParticleTypes.ENCHANT, 1, 0.08, 0.15, 0.08, 0.01, "circle", 0.25, false)
         ), new AudioConfig(SoundEvents.UI_BUTTON_CLICK.value(), 0.2f, 1.0f, 4.0), 0, true);
     }
 
     private static void registerTributeOrbitalFeedback() {
         // Level 10 - Single orbital (Gold theme)
         register("tribute_orbital_10", List.of(
-            new ParticleConfig(ParticleTypes.END_ROD, 6, 0.02, 0.02, 0.02, 0.01, "orbital_single", 1.5, true)
+            new ParticleConfig(ParticleTypes.END_ROD, 2, 0.02, 0.02, 0.02, 0.01, "orbital_single", 1.5, true)
         ), null, 0, true);
 
         // Level 20 - Dual orbital (Diamond theme)
         register("tribute_orbital_20", List.of(
-            new ParticleConfig(ParticleTypes.END_ROD, 8, 0.02, 0.02, 0.02, 0.01, "orbital_dual", 1.5, true),
-            new ParticleConfig(ParticleTypes.ENCHANT, 6, 0.01, 0.01, 0.01, 0.005, "orbital_dual", 2.0, true)
+            new ParticleConfig(ParticleTypes.END_ROD, 2, 0.02, 0.02, 0.02, 0.01, "orbital_dual", 1.5, true),
+            new ParticleConfig(ParticleTypes.ENCHANT, 1, 0.01, 0.01, 0.01, 0.005, "orbital_dual", 2.0, true)
         ), null, 0, true);
 
         // Level 30 - Triple orbital (Netherite theme)
         register("tribute_orbital_30", List.of(
-            new ParticleConfig(ParticleTypes.SOUL_FIRE_FLAME, 12, 0.02, 0.02, 0.02, 0.01, "orbital_triple", 1.5, true),
-            new ParticleConfig(ParticleTypes.FLAME, 10, 0.01, 0.01, 0.01, 0.005, "orbital_triple", 2.0, true),
-            new ParticleConfig(ParticleTypes.LAVA, 8, 0.01, 0.01, 0.01, 0.005, "orbital_triple", 2.5, true)
+            new ParticleConfig(ParticleTypes.SOUL_FIRE_FLAME, 2, 0.02, 0.02, 0.02, 0.01, "orbital_triple", 1.5, true)
         ), null, 0, true);
 
         // Tribute completion effects
         register("tribute_complete_10", List.of(
-            new ParticleConfig(ParticleTypes.END_ROD, 15, 0.4, 0.4, 0.4, 0.08, "burst", 1.0, true),
-            new ParticleConfig(ParticleTypes.CRIT, 8, 0.3, 0.3, 0.3, 0.05, "circle", 1.2, true)
+            new ParticleConfig(ParticleTypes.END_ROD, 4, 0.25, 0.25, 0.25, 0.06, "burst", 0.8, true),
+            new ParticleConfig(ParticleTypes.CRIT, 2, 0.2, 0.2, 0.2, 0.04, "circle", 0.8, true)
         ), new AudioConfig(SoundEvents.ENTITY_VILLAGER_YES, 0.8f, 1.4f, 12.0), 0, true);
 
         register("tribute_complete_20", List.of(
-            new ParticleConfig(ParticleTypes.END_ROD, 20, 0.5, 0.5, 0.5, 0.1, "burst", 1.2, true),
-            new ParticleConfig(ParticleTypes.ENCHANT, 12, 0.4, 0.4, 0.4, 0.06, "spiral", 1.5, true)
+            new ParticleConfig(ParticleTypes.END_ROD, 5, 0.3, 0.3, 0.3, 0.08, "burst", 1.0, true),
+            new ParticleConfig(ParticleTypes.ENCHANT, 3, 0.25, 0.25, 0.25, 0.05, "spiral", 1.2, true)
         ), new AudioConfig(SoundEvents.ENTITY_VILLAGER_YES, 0.9f, 1.5f, 14.0), 0, true);
 
         register("tribute_complete_30", List.of(
-            new ParticleConfig(ParticleTypes.END_ROD, 25, 0.6, 0.6, 0.6, 0.12, "burst", 1.5, true),
-            new ParticleConfig(ParticleTypes.SOUL_FIRE_FLAME, 15, 0.5, 0.5, 0.5, 0.08, "spiral", 2.0, true),
-            new ParticleConfig(ParticleTypes.EXPLOSION, 1, 0.0, 0.0, 0.0, 0.0, "burst", 0.0, false)
+            new ParticleConfig(ParticleTypes.END_ROD, 6, 0.35, 0.35, 0.35, 0.1, "burst", 1.2, true),
+            new ParticleConfig(ParticleTypes.SOUL_FIRE_FLAME, 2, 0.3, 0.3, 0.3, 0.06, "spiral", 1.2, true),
+            new ParticleConfig(ParticleTypes.EXPLOSION, 0, 0.0, 0.0, 0.0, 0.0, "burst", 0.0, false)
         ), new AudioConfig(SoundEvents.ENTITY_VILLAGER_YES, 1.0f, 1.6f, 16.0), 0, true);
     }
 
     private static void registerPettingFeedback() {
         // Base petting effects
-        register("pet_hearts", List.of(
-            new ParticleConfig(ParticleTypes.HEART, 5, 0.4, 0.3, 0.4, 0.02, "burst", 0.8, true)
-        ), null, 0, true);
+        if (!hasFeedback("pet_hearts")) {
+            register("pet_hearts", List.of(
+                new ParticleConfig(ParticleTypes.HEART, 4, 0.25, 0.3, 0.25, 0.02, "burst", 0.5, true)
+            ), null, 0, true);
+        }
 
         // Pet sounds (these will be overridden by specific pet types)
         register("pet_wolf_happy", List.of(), 

@@ -57,7 +57,10 @@ public final class PetsplusEffectManager {
                                             PlayerEntity owner, AuraTargetResolver resolver, long worldTime,
                                             @Nullable List<PetSwarmIndex.SwarmEntry> swarmSnapshot,
                                             @Nullable OwnerSpatialResult spatialResult) {
-        if (!(owner instanceof ServerPlayerEntity serverOwner) || !owner.isAlive()) {
+        if (world == null || world.isClient()) {
+            return Long.MAX_VALUE;
+        }
+        if (!(owner instanceof ServerPlayerEntity serverOwner) || owner.isRemoved() || !owner.isAlive()) {
             return Long.MAX_VALUE;
         }
 
@@ -94,14 +97,14 @@ public final class PetsplusEffectManager {
                 continue;
             }
 
-            int interval = config.getPassiveAuraInterval(roleType, aura);
+            int interval = Math.max(1, config.getPassiveAuraInterval(roleType, aura));
             String timerKey = petKey + "|passive|" + aura.id();
             if (!shouldTriggerAura(timerKey, worldTime, interval)) {
                 nextCheckTick = Math.min(nextCheckTick, getNextAuraTick(timerKey, worldTime, interval));
                 continue;
             }
 
-            double radius = config.getPassiveAuraRadius(roleType, aura);
+            double radius = Math.max(0.0, config.getPassiveAuraRadius(roleType, aura));
             Set<LivingEntity> affectedEntities = new LinkedHashSet<>();
             for (PetRoleType.AuraEffect effect : aura.effects()) {
                 if (level < effect.minLevel()) {
@@ -161,7 +164,8 @@ public final class PetsplusEffectManager {
 
     private static List<LivingEntity> resolveTargetsFallback(ServerWorld world, MobEntity pet, ServerPlayerEntity owner,
                                                              double radius, PetRoleType.AuraTarget target) {
-        double squaredRadius = radius <= 0 ? 0 : radius * radius;
+        double r = Math.max(0.0, radius);
+        double squaredRadius = r <= 0 ? 0 : r * r;
         Set<LivingEntity> resolved = new LinkedHashSet<>();
         switch (target) {
             case PET -> resolved.add(pet);
@@ -188,7 +192,7 @@ public final class PetsplusEffectManager {
         if (owner == null) {
             return;
         }
-        if (squaredRadius == 0 || owner.squaredDistanceTo(pet) <= squaredRadius) {
+        if (squaredRadius == 0 || (pet != null && owner.squaredDistanceTo(pet) <= squaredRadius)) {
             resolved.add(owner);
         }
     }
@@ -315,12 +319,17 @@ public final class PetsplusEffectManager {
             Petsplus.LOGGER.warn("Unknown sound '{}' configured for aura on pet {}", sound.soundId(), pet.getUuid());
             return;
         }
-        world.playSound(null, pet.getBlockPos(), entry.value(), SoundCategory.NEUTRAL, sound.volume(), sound.pitch());
+        try {
+            world.playSound(null, pet.getBlockPos(), entry.value(), SoundCategory.NEUTRAL, sound.volume(), sound.pitch());
+        } catch (Throwable ignored) {}
     }
 
     private static void emitParticles(ServerWorld world, MobEntity pet, ServerPlayerEntity owner,
                                       Set<LivingEntity> recipients, double radius, String particleEvent) {
         if (particleEvent == null || particleEvent.isBlank()) {
+            return;
+        }
+        if (world.isClient()) {
             return;
         }
         switch (particleEvent) {
@@ -372,10 +381,15 @@ public final class PetsplusEffectManager {
     }
 
     private static void notifyOwner(ServerPlayerEntity owner, String notificationKey, Text message) {
+        if (owner == null || owner.isRemoved() || message == null) {
+            return;
+        }
         long now = System.currentTimeMillis();
         Long lastSent = LAST_EFFECT_NOTIFICATION.get(notificationKey);
         if (lastSent == null || now - lastSent >= 10_000) {
-            owner.sendMessage(message, true);
+            try {
+                owner.sendMessage(message, true);
+            } catch (Throwable ignored) {}
             LAST_EFFECT_NOTIFICATION.put(notificationKey, now);
         }
     }
@@ -398,7 +412,8 @@ public final class PetsplusEffectManager {
         }
 
         cleanup();
-        nextCleanupTick = currentTick + AURA_CLEANUP_INTERVAL_TICKS;
+        long next = currentTick + AURA_CLEANUP_INTERVAL_TICKS;
+        nextCleanupTick = next < currentTick ? currentTick + AURA_CLEANUP_INTERVAL_TICKS : next;
     }
 
     /**

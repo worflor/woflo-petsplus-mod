@@ -2,8 +2,8 @@
   "category": "wander",
   "priority": 20,
   "cooldown": {
-    "min": 0,
-    "max": 0
+    "min": 60,
+    "max": 120
   },
   "requirement": "has_owner",
   "energy_range": {

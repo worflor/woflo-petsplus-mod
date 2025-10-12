@@ -26,7 +26,7 @@ public class VarietyDesirabilitySignal implements DesirabilitySignal {
         if (ticksSince < 100) {
             modifier = 0.3f;
         } else if (ticksSince < 300) {
-            modifier = 0.7f;
+            modifier = 0.85f;
         } else if (ticksSince < 600) {
             modifier = 0.9f;
         }

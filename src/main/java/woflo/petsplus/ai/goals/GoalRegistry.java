@@ -10,6 +10,10 @@ import woflo.petsplus.ai.goals.play.*;
 import woflo.petsplus.ai.goals.social.*;
 import woflo.petsplus.ai.goals.special.*;
 import woflo.petsplus.ai.goals.wander.*;
+// Species tags: multi-tag gating (new environmental goals)
+import woflo.petsplus.ai.goals.environmental.*;
+// Subtle behavior: P1 (world interactions)
+import woflo.petsplus.ai.goals.world.*;
 
 import java.util.*;
 
@@ -27,8 +31,8 @@ public final class GoalRegistry {
             GoalIds.STRETCH_AND_YAW,
             Category.IDLE_QUIRK,
             28,
-            5,
-            80,
+            25,
+            160,
             MobCapabilities.CapabilityRequirement.any(),
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.LOW,
@@ -40,8 +44,8 @@ public final class GoalRegistry {
             GoalIds.CIRCLE_SPOT,
             Category.IDLE_QUIRK,
             28,
-            8,
-            120,
+            45,
+            200,
             MobCapabilities.CapabilityRequirement.any(),
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.CENTERED,
@@ -53,8 +57,8 @@ public final class GoalRegistry {
             GoalIds.TAIL_CHASE,
             Category.IDLE_QUIRK,
             28,
-            15,
-            200,
+            60,
+            240,
             MobCapabilities.CapabilityRequirement.any(),
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.HIGH,
@@ -66,8 +70,8 @@ public final class GoalRegistry {
             GoalIds.SNIFF_GROUND,
             Category.IDLE_QUIRK,
             28,
-            12,
-            100,
+            40,
+            180,
             MobCapabilities.CapabilityRequirement.allOf(List.of(
                 MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
                 MobCapabilities.CapabilityRequirement.fromToken("prefers_land")
@@ -82,8 +86,8 @@ public final class GoalRegistry {
             GoalIds.POUNCE_PRACTICE,
             Category.IDLE_QUIRK,
             28,
-            10,
-            150,
+            50,
+            220,
             MobCapabilities.CapabilityRequirement.allOf(List.of(
                 MobCapabilities.CapabilityRequirement.fromToken("can_jump"),
                 MobCapabilities.CapabilityRequirement.fromToken("prefers_land")
@@ -98,8 +102,8 @@ public final class GoalRegistry {
             GoalIds.PERK_EARS_SCAN,
             Category.IDLE_QUIRK,
             28,
-            8,
-            90,
+            35,
+            170,
             MobCapabilities.CapabilityRequirement.allOf(List.of(
                 MobCapabilities.CapabilityRequirement.fromToken("can_make_sound"),
                 MobCapabilities.CapabilityRequirement.fromToken("prefers_land")
@@ -114,8 +118,8 @@ public final class GoalRegistry {
             GoalIds.SIT_SPHINX_POSE,
             Category.IDLE_QUIRK,
             28,
-            15,
-            180,
+            40,
+            240,
             MobCapabilities.CapabilityRequirement.fromToken("can_sit"),
             new Vec2f(0.0f, 0.4f),
             IdleStaminaBias.LOW,
@@ -127,8 +131,8 @@ public final class GoalRegistry {
             GoalIds.PREEN_FEATHERS,
             Category.IDLE_QUIRK,
             28,
-            10,
-            150,
+            35,
+            220,
             MobCapabilities.CapabilityRequirement.fromToken("can_fly"),
             new Vec2f(0.0f, 0.4f),
             IdleStaminaBias.LOW,
@@ -140,8 +144,8 @@ public final class GoalRegistry {
             GoalIds.WING_FLUTTER,
             Category.IDLE_QUIRK,
             28,
-            12,
-            120,
+            40,
+            200,
             MobCapabilities.CapabilityRequirement.fromToken("can_fly"),
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.HIGH,
@@ -153,8 +157,8 @@ public final class GoalRegistry {
             GoalIds.PERCH_HOP,
             Category.IDLE_QUIRK,
             27,
-            8,
-            100,
+            35,
+            180,
             MobCapabilities.CapabilityRequirement.fromToken("can_fly"),
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.HIGH,
@@ -166,8 +170,8 @@ public final class GoalRegistry {
             GoalIds.FLOAT_IDLE,
             Category.IDLE_QUIRK,
             28,
-            8,
-            100,
+            35,
+            180,
             MobCapabilities.CapabilityRequirement.aquatic(),
             new Vec2f(0.0f, 0.4f),
             IdleStaminaBias.LOW,
@@ -179,8 +183,8 @@ public final class GoalRegistry {
             GoalIds.BUBBLE_PLAY,
             Category.IDLE_QUIRK,
             28,
-            10,
-            120,
+            40,
+            200,
             MobCapabilities.CapabilityRequirement.aquatic(),
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.HIGH,
@@ -192,8 +196,8 @@ public final class GoalRegistry {
             GoalIds.SURFACE_BREATH,
             Category.IDLE_QUIRK,
             27,
-            5,
-            80,
+            25,
+            160,
             MobCapabilities.CapabilityRequirement.aquatic(),
             new Vec2f(0.0f, 1.0f),
             IdleStaminaBias.LOW,
@@ -411,21 +415,7 @@ public final class GoalRegistry {
             ShowOffTrickGoal::new
         ));
 
-        registerBuiltIn(new GoalDefinition(
-            GoalIds.GIFT_BRINGING,
-            Category.SOCIAL,
-            15,
-            0,
-            0,
-            MobCapabilities.CapabilityRequirement.allOf(List.of(
-                MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
-                MobCapabilities.CapabilityRequirement.fromToken("can_pick_up_items")
-            )),
-            new Vec2f(0.3f, 0.7f),
-            IdleStaminaBias.NONE,
-            false,
-            GiftBringingGoal::new
-        ));
+        // Removed unused registration: GiftBringing
 
         registerBuiltIn(new GoalDefinition(
             GoalIds.PERCH_ON_SHOULDER,
@@ -444,6 +434,8 @@ public final class GoalRegistry {
             PerchOnShoulderGoal::new
         ));
 
+        // Removed unused registration: EyeContact
+
         registerBuiltIn(new GoalDefinition(
             GoalIds.ORBIT_SWIM,
             Category.SOCIAL,
@@ -458,19 +450,6 @@ public final class GoalRegistry {
             IdleStaminaBias.NONE,
             false,
             OrbitSwimGoal::new
-        ));
-
-        registerBuiltIn(new GoalDefinition(
-            GoalIds.EYE_CONTACT,
-            Category.SOCIAL,
-            25,
-            0,
-            0,
-            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
-            new Vec2f(0.0f, 1.0f),
-            IdleStaminaBias.NONE,
-            false,
-            EyeContactGoal::new
         ));
 
         registerBuiltIn(new GoalDefinition(
@@ -526,6 +505,165 @@ public final class GoalRegistry {
             IdleStaminaBias.NONE,
             false,
             StargazingGoal::new
+        ));
+        // Subtle behavior: P0 - Sunbeam sprawl (world interaction)
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.SUNBEAM_SPRAWL,
+            Category.SPECIAL,
+            16,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
+            new Vec2f(0.0f, 0.6f),
+            IdleStaminaBias.LOW,
+            false,
+            SunbeamSprawlGoal::new
+        ));
+        // Subtle behavior: P0 - Scent trail sniff (world interaction)
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.SCENT_TRAIL_SNIFF,
+            Category.SPECIAL,
+            16,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
+            new Vec2f(0.3f, 0.7f),
+            IdleStaminaBias.CENTERED,
+            false,
+            ScentTrailSniffGoal::new
+        ));
+        // Subtle behavior: P0 - Pack groom (social micro)
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.PACK_GROOM,
+            Category.SOCIAL,
+            15,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+            new Vec2f(0.0f, 0.8f),
+            IdleStaminaBias.NONE,
+            false,
+            PackGroomGoal::new
+        ));
+        // Subtle behavior: P0 - Leaf chase wind (environmental playful dart)
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.LEAF_CHASE_WIND,
+            Category.PLAY,
+            18,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
+            new Vec2f(0.6f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            LeafChaseWindGoal::new
+        ));
+        // Subtle behavior: P1 - Puddle paw (world interaction)
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.PUDDLE_PAW,
+            Category.SPECIAL,
+            16,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
+            new Vec2f(0.0f, 0.6f),
+            IdleStaminaBias.LOW,
+            false,
+            PuddlePawGoal::new
+        ));
+        // Subtle behavior: P1 - Burrow peek (world interaction)
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.BURROW_PEEK,
+            Category.SPECIAL,
+            16,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.allOf(java.util.List.of(
+                MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
+                MobCapabilities.CapabilityRequirement.fromToken("prefers_land")
+            )),
+            new Vec2f(0.3f, 0.7f),
+            IdleStaminaBias.CENTERED,
+            false,
+            BurrowPeekGoal::new
+        ));
+        // Subtle behavior: P1 - Hearth settle (world interaction)
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.HEARTH_SETTLE,
+            Category.SPECIAL,
+            16,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
+            new Vec2f(0.0f, 0.6f),
+            IdleStaminaBias.LOW,
+            false,
+            HearthSettleGoal::new
+        ));
+        // Subtle behavior: P1 - Lead follow nudge (social)
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.LEAD_FOLLOW_NUDGE,
+            Category.SOCIAL,
+            15,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+            new Vec2f(0.0f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            LeadFollowNudgeGoal::new
+        ));
+        // Subtle behavior: P1 - Mirrored yawn (social)
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.MIRRORED_YAWN,
+            Category.SOCIAL,
+            15,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+            new Vec2f(0.0f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            MirroredYawnGoal::new
+        ));
+        // Subtle behavior: P1 - Show and drop (social)
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.SHOW_AND_DROP,
+            Category.SOCIAL,
+            15,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+            new Vec2f(0.3f, 0.7f),
+            IdleStaminaBias.NONE,
+            false,
+            ShowAndDropGoal::new
+        ));
+        // Subtle behavior: P1 - Fish watching (environmental)
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.FISH_WATCHING,
+            Category.SPECIAL,
+            16,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.any(),
+            new Vec2f(0.3f, 0.7f),
+            IdleStaminaBias.CENTERED,
+            false,
+            FishWatchingGoal::new
+        ));
+        // Subtle behavior: P1 - Night sky listen (environmental)
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.NIGHT_SKY_LISTEN,
+            Category.SPECIAL,
+            16,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.any(),
+            new Vec2f(0.0f, 0.5f),
+            IdleStaminaBias.LOW,
+            false,
+            NightSkyListenGoal::new
         ));
     }
 

@@ -1,0 +1,26 @@
+{
+  "category": "wander",
+  "priority": 20,
+  "cooldown": {
+    "min": 80,
+    "max": 180
+  },
+  "requirement": "can_wander",
+  "energy_range": {
+    "min": 0.3,
+    "max": 0.8
+  },
+  "idle_stamina_bias": "none",
+  "feasibility": {
+    "near_block_tag": {
+      "tag": "petsplus:natures/trial_chamber_features",
+      "radius": 12
+    }
+  },
+  "duration": {
+    "min": 100,
+    "max": 260
+  },
+  "goal_factory": "woflo.petsplus.ai.goals.wander.CasualWanderGoal",
+  "id": "petsplus:trial_scout"
+}

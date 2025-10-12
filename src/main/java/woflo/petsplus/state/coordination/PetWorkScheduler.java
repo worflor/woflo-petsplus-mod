@@ -23,7 +23,8 @@ public final class PetWorkScheduler {
         AURA,
         SUPPORT_POTION,
         PARTICLE,
-        GOSSIP_DECAY
+        GOSSIP_DECAY,
+        CONTAGION
     }
 
     public static final class ScheduledTask {
@@ -61,7 +62,17 @@ public final class PetWorkScheduler {
     private final Map<PetComponent, EnumMap<TaskType, ScheduledTask>> tasksByComponent = new IdentityHashMap<>();
 
     public synchronized void schedule(PetComponent component, TaskType type, long tick) {
-        if (component == null) {
+        if (component == null || type == null) {
+            return;
+        }
+
+        // Guard against null pet entity (despawn race) and invalid ticks
+        MobEntity pet = component.getPetEntity();
+        if (pet == null || pet.isRemoved()) {
+            return;
+        }
+        if (tick == Long.MIN_VALUE) {
+            // Treat extreme negative as "never"
             return;
         }
 
@@ -80,11 +91,18 @@ public final class PetWorkScheduler {
         }
 
         long sanitized = Math.max(0L, tick);
-        ScheduledTask task = new ScheduledTask(component.getPetEntity(), component, type, sanitized);
+        // Add tiny deterministic jitter per (component,type) to reduce burst alignment (jitter)
+        int jitter = (System.identityHashCode(component) ^ type.ordinal()) & 7; // 0..7
+        long jittered = sanitized + jitter;
+        if (jittered < 0L) jittered = 0L; // ensure bounds remain valid
+
+        // Clamp to prevent overflow buckets and keep ordering stable
+        if (jittered < 0L) jittered = 0L;
+        ScheduledTask task = new ScheduledTask(pet, component, type, jittered);
         existing = tasksByComponent.computeIfAbsent(component, c -> new EnumMap<>(TaskType.class));
         existing.put(type, task);
-        buckets.computeIfAbsent(sanitized, ignored -> new ArrayList<>()).add(task);
-        component.onTaskScheduled(type, sanitized);
+        buckets.computeIfAbsent(jittered, ignored -> new ArrayList<>()).add(task);
+        component.onTaskScheduled(type, jittered);
     }
 
     public synchronized void unscheduleAll(PetComponent component) {
@@ -99,6 +117,9 @@ public final class PetWorkScheduler {
     }
 
     public synchronized void processDue(long currentTick, Consumer<ScheduledTask> consumer) {
+        if (consumer == null) {
+            return;
+        }
         var iterator = buckets.entrySet().iterator();
         List<ScheduledTask> tasksToProcess = new ArrayList<>();
 
@@ -111,7 +132,7 @@ public final class PetWorkScheduler {
             iterator.remove();
             List<ScheduledTask> tasks = entry.getValue();
             for (ScheduledTask task : tasks) {
-                if (!task.cancelled) {
+                if (!task.cancelled && task != null && task.component != null && task.pet != null && !task.pet.isRemoved()) {
                     tasksToProcess.add(task);
                 }
             }
@@ -131,7 +152,11 @@ public final class PetWorkScheduler {
 
         // Third pass: execute consumers outside of synchronized modification
         for (ScheduledTask task : tasksToProcess) {
-            consumer.accept(task);
+            try {
+                consumer.accept(task);
+            } catch (Throwable ignored) {
+                // Defensive: avoid breaking the whole scheduler on a single task failure
+            }
         }
     }
 

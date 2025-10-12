@@ -1,9 +1,9 @@
 {
   "category": "idle_quirk",
-  "priority": 28,
+  "priority": 17,
   "cooldown": {
-    "min": 8,
-    "max": 100
+    "min": 40,
+    "max": 160
   },
   "requirement": "aquatic",
   "energy_range": {

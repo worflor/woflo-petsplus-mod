@@ -105,20 +105,10 @@ public final class CursedOneSoulSacrificeManager {
             return;
         }
 
-        Vec3d pos = pet.getEntityPos();
-        serverWorld.spawnParticles(net.minecraft.particle.ParticleTypes.SOUL_FIRE_FLAME,
-            pos.x, pos.y + 0.6, pos.z, 40,
-            0.6, 0.4, 0.6, 0.02);
-        serverWorld.spawnParticles(net.minecraft.particle.ParticleTypes.SMOKE,
-            pos.x, pos.y + 0.4, pos.z, 24,
-            0.4, 0.3, 0.4, 0.05);
-
-        if (!Objects.equals(owner.getEntityWorld(), serverWorld)) {
-            return;
-        }
-
-        owner.playSound(net.minecraft.sound.SoundEvents.ITEM_TOTEM_USE, 0.65f, 0.6f);
-        owner.playSound(net.minecraft.sound.SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.5f, 1.25f);
+        // Centralized emission: particles + primary sound handled by config
+        woflo.petsplus.ui.FeedbackManager.emitFeedback("cursed_one_soul_sacrifice", pet, serverWorld);
+        // Optional auxiliary tone to match previous dual-sound design (registered as aux)
+        woflo.petsplus.ui.FeedbackManager.emitFeedback("cursed_one_soul_sacrifice_aux", pet, serverWorld);
     }
 }
 

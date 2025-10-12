@@ -2,13 +2,14 @@
 	"required": true,
 	"package": "woflo.petsplus.mixin",
 	"compatibilityLevel": "JAVA_21",
+	"refmap": "petsplus.refmap.json",
 	"mixins": [
-                       "TameableEntityMixin",
+	               "TameableEntityMixin",
 	               "AnimalEntityMixin",
 	               "MobEntityDataMixin",
-                       "MobEntityAccessor",
-                       "OcelotEntityInvoker",
-                       "EntityComponentAccessor",
+	               "MobEntityAccessor",
+	               "OcelotEntityInvoker",
+	               "EntityComponentAccessor",
 	               "EntitySneakMixin",
 	               "RabbitEntityMixin",
 	               "FrogEntityMixin",
@@ -29,9 +30,9 @@
 	               "ServerPlayerEntityXpMixin",
 	               "VillagerEntityTradeMixin",
 	               "PetNamingMixin",
-                       "LivingEntityHealMixin",
-                       "ServerWorldSetBlockStateMixin",
-                       "BlockEntityMarkDirtyMixin"
+	               "LivingEntityHealMixin",
+	               "ServerWorldSetBlockStateMixin",
+	               "BlockEntityMarkDirtyMixin"
 	       ],
 	"client": [
 	],

@@ -1,6 +1,6 @@
 {
   "category": "idle_quirk",
-  "priority": 28,
+  "priority": 19,
   "cooldown": {
     "min": 15,
     "max": 200

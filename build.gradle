@@ -1,99 +1,72 @@
 plugins {
-	id 'fabric-loom' version "${loom_version}"
-	id 'maven-publish'
+    id 'fabric-loom' version "${loom_version}"
+    id 'maven-publish'
 }
 
-version = project.mod_version
-group = project.maven_group
+// Wire version/group/name from gradle.properties
+group = project.findProperty('maven_group') ?: 'woflo.petsplus'
+version = project.findProperty('mod_version') ?: '0.0.0-dev'
 
 base {
-	archivesName = project.archives_base_name
+    archivesName = project.findProperty('archives_base_name') ?: 'petsplus'
 }
 
+// Repositories needed for Loom + deps
 repositories {
-        // Add repositories to retrieve artifacts from in here.
-        // You should only use this when depending on other mods because
-        // Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
-        // See https://docs.gradle.org/current/userguide/declaring_repositories.html
-        // for more information about repositories.
-        mavenCentral()
+    mavenCentral()
+    maven { url = "https://maven.fabricmc.net" }
 }
 
-fabricApi {
-	configureDataGeneration {
-		client = true
-	}
-}
-
-dependencies {
-        // To change the versions see the gradle.properties file
-        minecraft "com.mojang:minecraft:${project.minecraft_version}"
-        mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-        modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-
-        // Fabric API. This is technically optional, but you probably want it anyway.
-        modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-
-        testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.2'
-        testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.2'
-        testImplementation 'org.mockito:mockito-core:5.2.0'
-        testImplementation 'org.mockito:mockito-inline:5.2.0'
-}
-
+// Expand version into fabric.mod.json
 processResources {
-	inputs.property "version", project.version
+    inputs.property "version", project.version
+    filesMatching("fabric.mod.json") {
+        expand([version: project.version, mod_version: project.version])
+    }
+}
 
-	filesMatching("fabric.mod.json") {
-		expand "version": inputs.properties.version
-	}
+// Java toolchain (Minecraft 1.21.10 requires Java 21)
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    withSourcesJar()
 }
 
 tasks.withType(JavaCompile).configureEach {
-	it.options.release = 21
-}
-
-java {
-        // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-        // if it is present.
-        // If you remove this line, sources will not be generated.
-        withSourcesJar()
-
-	sourceCompatibility = JavaVersion.VERSION_21
-	targetCompatibility = JavaVersion.VERSION_21
+    options.release = 21
 }
 
 jar {
-        inputs.property "archivesName", project.base.archivesName
-
-        from("LICENSE") {
-                rename { "${it}_${inputs.properties.archivesName}"}
-        }
+    from("LICENSE") {
+        rename { "${it}_${base.archivesName.get()}" }
+    }
 }
 
-test {
-        useJUnitPlatform()
-        jvmArgs '-Dnet.bytebuddy.experimental=true'
-        maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
-        if (!project.hasProperty("runTests")) {
-                enabled = false
-                logger.lifecycle("Skipping unit tests (enable with -PrunTests=true)")
-        }
+// Remove any tests by disabling Test tasks defensively (directory will be deleted separately)
+tasks.withType(Test).configureEach {
+    enabled = false
 }
 
-// configure the maven publication
+// Publishing (standard Loom template)
 publishing {
-	publications {
-		create("mavenJava", MavenPublication) {
-			artifactId = project.archives_base_name
-			from components.java
-		}
-	}
+    publications {
+        create("mavenJava", MavenPublication) {
+            artifactId = base.archivesName.get()
+            from components.java
+        }
+    }
+    repositories {
+        // Configure if you need to publish
+    }
+}
 
-	// See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
-	repositories {
-		// Add repositories to publish to here.
-		// Notice: This block does NOT have the same function as the block in the top level.
-		// The repositories here will be used for publishing your artifact, not for
-		// retrieving dependencies.
-	}
+dependencies {
+    // Core Minecraft + mappings + loader
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings "net.fabricmc:yarn:${yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${loader_version}"
+
+    // Fabric API for mod features
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
 }

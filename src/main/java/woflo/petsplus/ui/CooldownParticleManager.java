@@ -24,7 +24,7 @@ public class CooldownParticleManager {
      * Trigger a subtle cooldown refresh particle effect around a pet
      */
     public static void triggerCooldownRefresh(ServerWorld world, MobEntity pet) {
-        if (pet == null || world == null) return;
+        if (pet == null || world == null || world.isClient()) return;
         
         UUID petId = pet.getUuid();
         long currentTime = world.getTime();
@@ -39,58 +39,22 @@ public class CooldownParticleManager {
         
         lastRefreshTime.put(petId, currentTime);
         
-        // Create the effect
-        spawnCooldownParticles(world, pet);
+        // Create the effect via centralized feedback routing
+        woflo.petsplus.ui.FeedbackManager.emitFeedback("cooldown_refresh", pet, world);
     }
     
     /**
      * Creates a unique, subtle particle pattern for cooldown refresh
      */
-    private static void spawnCooldownParticles(ServerWorld world, MobEntity pet) {
-        Vec3d petPos = pet.getEntityPos();
-        Random random = world.getRandom();
-        
-        // Create a subtle "refresh" effect - small spiral of cyan particles
-        double height = pet.getHeight() * 0.7; // Position at pet's chest level
-        Vec3d centerPos = petPos.add(0, height, 0);
-        
-        // Spawn a small spiral of 6 particles with gentle cyan glow
-        for (int i = 0; i < 6; i++) {
-            double angle = (i / 6.0) * Math.PI * 2;
-            double radius = 0.25 + (i * 0.03); // Expanding spiral
-            double xOffset = Math.cos(angle) * radius;
-            double zOffset = Math.sin(angle) * radius;
-            double yOffset = (i * 0.015) - 0.06; // Slight upward movement
-            
-            Vec3d particlePos = centerPos.add(xOffset, yOffset, zOffset);
-            
-            // Use soul particles for mystical cyan-like glow
-            world.spawnParticles(ParticleTypes.SOUL,
-                particlePos.x, particlePos.y, particlePos.z,
-                1, 0, 0, 0, 0.01);
-        }
-        
-        // Add a subtle "pop" at center for emphasis
-        world.spawnParticles(ParticleTypes.END_ROD,
-            centerPos.x, centerPos.y, centerPos.z,
-            1, 0, 0, 0, 0.01);
-        
-        // Optional: Very subtle enchantment sparkle
-        if (random.nextFloat() < 0.6f) {
-            world.spawnParticles(ParticleTypes.ENCHANT,
-                centerPos.x + (random.nextGaussian() * 0.15), 
-                centerPos.y + (random.nextGaussian() * 0.08),
-                centerPos.z + (random.nextGaussian() * 0.15),
-                1, 0, 0, 0, 0.005);
-        }
-    }
+    private static void spawnCooldownParticles(ServerWorld world, MobEntity pet) { /* centralized via FeedbackManager */ }
     
     /**
      * Cleanup old entries to prevent memory leaks
      */
     public static void cleanup(long currentTime) {
+        long cutoff = currentTime - 6000L;
         lastRefreshTime.entrySet().removeIf(entry ->
-            currentTime - entry.getValue() > 6000); // Remove entries older than 5 minutes
+            entry == null || entry.getValue() == null || entry.getValue() < 0L || entry.getValue() < cutoff);
     }
 
     public static void maybeCleanup(long currentTime) {
@@ -98,7 +62,8 @@ public class CooldownParticleManager {
             return;
         }
         cleanup(currentTime);
-        nextCleanupTick = currentTime + 6000;
+        long next = currentTime + 6000L;
+        nextCleanupTick = next < currentTime ? currentTime + 6000L : next;
     }
 
     /**

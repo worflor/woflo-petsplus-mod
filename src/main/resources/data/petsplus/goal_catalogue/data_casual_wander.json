@@ -2,8 +2,8 @@
   "category": "wander",
   "priority": 20,
   "cooldown": {
-    "min": 0,
-    "max": 0
+    "min": 20,
+    "max": 60
   },
   "requirement": "can_wander",
   "energy_range": {

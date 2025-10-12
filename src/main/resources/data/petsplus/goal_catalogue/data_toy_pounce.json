@@ -1,9 +1,9 @@
 {
   "category": "play",
-  "priority": 18,
+  "priority": 19,
   "cooldown": {
-    "min": 0,
-    "max": 0
+    "min": 30,
+    "max": 90
   },
   "requirement": "can_jump",
   "energy_range": {

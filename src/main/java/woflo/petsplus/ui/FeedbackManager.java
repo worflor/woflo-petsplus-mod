@@ -31,6 +31,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class FeedbackManager {
 
     private static final int AMBIENT_PARTICLE_INTERVAL = 80; // 4 seconds
+    // Debounce map: last emit tick per source key (debounce)
+    private static final ConcurrentHashMap<Object, Long> LAST_EMIT_TICK = new ConcurrentHashMap<>();
     private static final ScheduledExecutorService FEEDBACK_EXECUTOR = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread thread = new Thread(r, "PetsPlus-Feedback");
         thread.setDaemon(true);
@@ -54,7 +56,7 @@ public class FeedbackManager {
      * Emit feedback for a specific event at an entity's location.
      */
     public static void emitFeedback(String eventName, Entity entity, ServerWorld world) {
-        if (entity == null || world == null) return;
+        if (entity == null || world == null || world.isClient()) return;
         emitFeedback(eventName, entity.getEntityPos(), world, entity);
     }
 
@@ -62,8 +64,23 @@ public class FeedbackManager {
      * Emit feedback for a specific event at a specific location.
      */
     public static void emitFeedback(String eventName, Vec3d position, ServerWorld world, Entity sourceEntity) {
+        if (world == null || world.isClient()) return;
         var effect = FeedbackConfig.getFeedback(eventName);
         if (effect == null) return;
+
+        // Per-source debounce using entity UUID if available; else use position+dimension key (debounce)
+        Object key;
+        if (sourceEntity != null) {
+            key = sourceEntity.getUuid();
+        } else {
+            key = world.getRegistryKey().getValue().toString() + "@" + MathHelper.floor(position.x) + "," + MathHelper.floor(position.y) + "," + MathHelper.floor(position.z);
+        }
+        long now = world.getTime();
+        long last = LAST_EMIT_TICK.getOrDefault(key, Long.MIN_VALUE);
+        if (now - last < 4L) {
+            return;
+        }
+        LAST_EMIT_TICK.put(key, now);
 
         if (effect.delayTicks > 0) {
             scheduleDelayedFeedback(effect, position, world, sourceEntity);
@@ -74,6 +91,7 @@ public class FeedbackManager {
 
     private static void runImmediateFeedback(FeedbackConfig.FeedbackEffect effect, Vec3d position,
                                              ServerWorld world, Entity sourceEntity) {
+        if (effect == null || world == null || world.isClient() || position == null) return;
         var server = world.getServer();
         if (server != null && !server.isOnThread()) {
             UUID sourceUuid = sourceEntity != null ? sourceEntity.getUuid() : null;
@@ -86,6 +104,7 @@ public class FeedbackManager {
 
     private static void scheduleDelayedFeedback(FeedbackConfig.FeedbackEffect effect, Vec3d position,
                                                 ServerWorld world, Entity sourceEntity) {
+        if (effect == null || position == null || world == null || world.isClient()) return;
         var server = world.getServer();
         if (server == null || IS_SHUTTING_DOWN.get()) {
             return;
@@ -121,7 +140,7 @@ public class FeedbackManager {
             PENDING_TASKS.put(taskId, future);
         } catch (RejectedExecutionException e) {
             // Handle executor shutdown case gracefully
-            System.err.println("Failed to schedule feedback task: " + e.getMessage());
+            // Avoid noisy stderr; rely on server log if needed
         }
     }
 
@@ -133,6 +152,7 @@ public class FeedbackManager {
      * Emit role-specific ambient particles for a pet.
      */
     public static void emitRoleAmbientParticles(MobEntity pet, ServerWorld world, long currentTick) {
+        if (world == null || world.isClient()) return;
         if (currentTick % AMBIENT_PARTICLE_INTERVAL != 0) return;
 
         var component = PetComponent.get(pet);
@@ -173,50 +193,15 @@ public class FeedbackManager {
         var config = woflo.petsplus.config.PetsPlusConfig.getInstance();
         if (!config.isDevCrownEnabled()) return;
 
-        // Get proper head position accounting for entity type and animations
-        Vec3d petPos = pet.getLerpedPos(1.0f);
-        double headHeight = pet.getEyeY() - petPos.y; // Distance from feet to eyes
-        double crownHeight = headHeight + 0.3; // Slightly above head
-
-        // Scale crown radius with entity size
-        double entityRadius = Math.max(pet.getWidth(), 0.5);
-        double crownRadius = entityRadius * 0.4; // Crown is 40% of entity width
-
-        // Slow rotation for majestic effect (10 second period)
-        double time = world.getTime() * 0.1;
-        int particleCount = 10;
-
-        for (int i = 0; i < particleCount; i++) {
-            double angle = (i / (double) particleCount) * 2 * Math.PI + time;
-            double x = petPos.x + Math.cos(angle) * crownRadius;
-            double z = petPos.z + Math.sin(angle) * crownRadius;
-            double y = petPos.y + crownHeight;
-
-            // Main crown particles - END_ROD for that holographic feel
-            world.spawnParticles(ParticleTypes.END_ROD,
-                x, y, z,
-                1, 0.01, 0.01, 0.01, 0.002);
-
-            // Add occasional sparkles at cardinal points for extra flair
-            if (i % 3 == 0 && world.getRandom().nextFloat() < 0.3) {
-                world.spawnParticles(ParticleTypes.ENCHANT,
-                    x, y + 0.1, z,
-                    1, 0.02, 0.02, 0.02, 0.01);
-            }
-        }
-
-        // Apex sparkle effect (top of crown) every other update
-        if (currentTick % (AMBIENT_PARTICLE_INTERVAL * 2) == 0) {
-            world.spawnParticles(ParticleTypes.WAX_ON,
-                petPos.x, petPos.y + crownHeight + 0.15, petPos.z,
-                3, 0.05, 0.05, 0.05, 0.01);
-        }
+        // Route through registry; pattern handles ring + optional sparkles budgeted per ambient cadence
+        emitFeedback("dev_crown_ambient", pet, world);
     }
 
     /**
      * Check if an entity should have ambient particles (used by existing ParticleEffectManager).
      */
     public static boolean shouldEmitAmbientParticles(MobEntity pet, ServerWorld world) {
+        if (world == null || world.isClient()) return false;
         var component = PetComponent.get(pet);
         if (component == null) return false;
 
@@ -229,9 +214,34 @@ public class FeedbackManager {
 
     private static void executeImmediateFeedback(FeedbackConfig.FeedbackEffect effect, Vec3d position,
                                                ServerWorld world, Entity sourceEntity) {
-        // Emit particles
+        if (effect == null || world == null || world.isClient() || position == null) return;
+        // Emit particles with per-call total budget clamp (budget)
+        final int MAX_BUDGET = 48;
+        int totalPlanned = 0;
+        for (var pc : effect.particles) {
+            if (pc != null) {
+                totalPlanned += Math.max(0, pc.count);
+            }
+        }
+        float scale = 1.0f;
+        if (totalPlanned > MAX_BUDGET && totalPlanned > 0) {
+            scale = (float) MAX_BUDGET / (float) totalPlanned;
+        }
+        int spent = 0;
         for (var particleConfig : effect.particles) {
-            emitParticlePattern(particleConfig, position, world, sourceEntity);
+            if (particleConfig == null) continue;
+            // Scale count proportionally, ensure at least 1 if originally >0 and budget remains
+            int scaled = particleConfig.count;
+            if (scale < 1.0f) {
+                scaled = Math.max(1, Math.round(particleConfig.count * scale));
+            }
+            int remaining = MAX_BUDGET - spent;
+            if (remaining <= 0) break;
+            int capped = Math.min(scaled, remaining);
+            if (capped <= 0) continue;
+            // Emit using override count without constructing new ParticleConfig
+            emitParticlePatternWithCount(particleConfig, capped, position, world, sourceEntity);
+            spent += capped;
         }
 
         // Play audio
@@ -242,8 +252,138 @@ public class FeedbackManager {
         }
     }
 
+    // Internal helper to emit a pattern using an override count without modifying config (budget)
+    private static void emitParticlePatternWithCount(FeedbackConfig.ParticleConfig config, int overrideCount,
+                                                    Vec3d position, ServerWorld world, Entity sourceEntity) {
+        if (config == null || world == null || world.isClient() || position == null) return;
+        double entitySizeMultiplier = 1.0;
+        if (config.adaptToEntitySize && sourceEntity != null) {
+            entitySizeMultiplier = Math.max(0.5, Math.min(2.0, sourceEntity.getWidth()));
+        }
+        double effectiveRadius = config.radius * entitySizeMultiplier;
+        // Dispatch based on pattern, mirroring emitParticlePattern but using overrideCount
+        switch (config.pattern.toLowerCase()) {
+            case "circle" -> {
+                for (int i = 0; i < overrideCount; i++) {
+                    double angle = (i / (double) Math.max(1, overrideCount)) * 2 * Math.PI;
+                    double x = position.x + Math.cos(angle) * effectiveRadius;
+                    double z = position.z + Math.sin(angle) * effectiveRadius;
+                    world.spawnParticles(config.type, x, position.y + config.offsetY, z,
+                            1, config.offsetX, 0, config.offsetZ, config.speed);
+                }
+            }
+            case "burst" -> {
+                world.spawnParticles(config.type, position.x, position.y + config.offsetY, position.z,
+                        overrideCount, config.offsetX, config.offsetY, config.offsetZ, config.speed);
+            }
+            case "line" -> {
+                for (int i = 0; i < overrideCount; i++) {
+                    double progress = overrideCount == 1 ? 0.5 : i / (double) (overrideCount - 1);
+                    double x = position.x + (progress - 0.5) * effectiveRadius;
+                    world.spawnParticles(config.type, x, position.y + config.offsetY, position.z,
+                            1, config.offsetX, 0, config.offsetZ, config.speed);
+                }
+            }
+            case "area" -> {
+                for (int i = 0; i < overrideCount; i++) {
+                    double angle = world.getRandom().nextDouble() * 2 * Math.PI;
+                    double r = world.getRandom().nextDouble() * effectiveRadius;
+                    double x = position.x + Math.cos(angle) * r;
+                    double z = position.z + Math.sin(angle) * r;
+                    world.spawnParticles(config.type, x, position.y + config.offsetY, z,
+                            1, config.offsetX, config.offsetY / 2, config.offsetZ, config.speed);
+                }
+            }
+            case "spiral" -> {
+                double time = world.getTime() * 0.1;
+                for (int i = 0; i < overrideCount; i++) {
+                    double angle = time + (i * Math.PI * 2 / Math.max(1, overrideCount));
+                    double x = position.x + Math.cos(angle) * effectiveRadius;
+                    double z = position.z + Math.sin(angle) * effectiveRadius;
+                    double y = position.y + config.offsetY + Math.sin(angle) * 0.1;
+                    world.spawnParticles(config.type, x, y, z,
+                            1, config.offsetX, 0, config.offsetZ, config.speed);
+                }
+            }
+            case "upward" -> {
+                for (int i = 0; i < overrideCount; i++) {
+                    double offsetX = (world.getRandom().nextDouble() - 0.5) * config.offsetX * 2;
+                    double offsetZ = (world.getRandom().nextDouble() - 0.5) * config.offsetZ * 2;
+                    world.spawnParticles(config.type,
+                            position.x + offsetX, position.y - 0.2, position.z + offsetZ,
+                            1, config.offsetX, 0.0, config.offsetZ, config.speed);
+                }
+            }
+            case "plus" -> {
+                double size = effectiveRadius;
+                world.spawnParticles(config.type, position.x - size/2, position.y + config.offsetY, position.z,
+                        1, config.offsetX, 0, config.offsetZ, config.speed);
+                world.spawnParticles(config.type, position.x + size/2, position.y + config.offsetY, position.z,
+                        1, config.offsetX, 0, config.offsetZ, config.speed);
+                world.spawnParticles(config.type, position.x, position.y + config.offsetY, position.z - size/2,
+                        1, config.offsetX, 0, config.offsetZ, config.speed);
+                world.spawnParticles(config.type, position.x, position.y + config.offsetY, position.z + size/2,
+                        1, config.offsetX, 0, config.offsetZ, config.speed);
+            }
+            case "z_pattern" -> {
+                double time = world.getTime() * 0.05;
+                for (int i = 0; i < overrideCount; i++) {
+                    double progress = (i / (double) Math.max(1, overrideCount) + time) % 1.0;
+                    double x = position.x + (progress - 0.5) * effectiveRadius;
+                    double y = position.y + config.offsetY + Math.sin(progress * Math.PI) * 0.2;
+                    double z = position.z + Math.cos(progress * Math.PI * 2) * 0.1;
+                    world.spawnParticles(config.type, x, y, z,
+                            1, config.offsetX, 0, config.offsetZ, config.speed);
+                }
+            }
+            case "random" -> {
+                for (int i = 0; i < overrideCount; i++) {
+                    double angle = world.getRandom().nextDouble() * Math.PI * 2;
+                    double r = world.getRandom().nextDouble() * effectiveRadius;
+                    double x = position.x + Math.cos(angle) * r;
+                    double z = position.z + Math.sin(angle) * r;
+                    double y = position.y + config.offsetY + world.getRandom().nextDouble() * 0.3;
+                    world.spawnParticles(config.type, x, y, z,
+                            1, config.offsetX, config.offsetY, config.offsetZ, config.speed);
+                }
+            }
+            case "aura_radius_ground" -> {
+                for (int i = 0; i < overrideCount; i++) {
+                    double angle = world.getRandom().nextDouble() * Math.PI * 2;
+                    double r = Math.sqrt(world.getRandom().nextDouble()) * effectiveRadius;
+                    double x = position.x + Math.cos(angle) * r;
+                    double z = position.z + Math.sin(angle) * r;
+                    double y = position.y + config.offsetY + world.getRandom().nextDouble() * 0.1;
+                    world.spawnParticles(config.type, x, y, z,
+                            1, config.offsetX, 0.02, config.offsetZ, config.speed);
+                }
+            }
+            case "aura_radius_edge" -> {
+                for (int i = 0; i < overrideCount; i++) {
+                    double baseAngle = (i / (double) Math.max(1, overrideCount)) * Math.PI * 2;
+                    double angle = baseAngle + (world.getRandom().nextDouble() - 0.5) * 0.3;
+                    double r = effectiveRadius + (world.getRandom().nextDouble() - 0.5) * 0.5;
+                    double x = position.x + Math.cos(angle) * r;
+                    double z = position.z + Math.sin(angle) * r;
+                    double y = position.y + config.offsetY + world.getRandom().nextDouble() * 0.2;
+                    world.spawnParticles(config.type, x, y, z,
+                            1, config.offsetX, config.offsetY, config.offsetZ, config.speed);
+                }
+            }
+            case "orbital_single" -> emitOrbitalSingle(config, position, world, sourceEntity);
+            case "orbital_dual" -> emitOrbitalDual(config, position, world, sourceEntity);
+            case "orbital_triple" -> emitOrbitalTriple(config, position, world, sourceEntity);
+            default -> {
+                // fallback to burst
+                world.spawnParticles(config.type, position.x, position.y + config.offsetY, position.z,
+                        overrideCount, config.offsetX, config.offsetY, config.offsetZ, config.speed);
+            }
+        }
+    }
+
     private static void emitParticlePattern(FeedbackConfig.ParticleConfig config, Vec3d position,
                                           ServerWorld world, Entity sourceEntity) {
+        if (config == null || world == null || world.isClient() || position == null) return;
         double entitySizeMultiplier = 1.0;
         if (config.adaptToEntitySize && sourceEntity != null) {
             entitySizeMultiplier = Math.max(0.5, Math.min(2.0, sourceEntity.getWidth()));
@@ -418,18 +558,19 @@ public class FeedbackManager {
         }
 
         Vec3d targetPos = target.getEntityPos();
-        double centerY = targetPos.y + target.getHeight() * 0.5;
+        double centerY = woflo.petsplus.ui.PetUIHelper.getChestAnchorY(target);
         double spread = 0.12 + 0.04 * Math.min(stacks, 5);
         double verticalSpread = Math.max(0.1, target.getHeight() * 0.35);
 
-        int critCount = 4 + Math.max(0, stacks) * 2;
+        // Budget clamp
+        int critCount = Math.min(8, 4 + Math.max(0, stacks) * 2);
         world.spawnParticles(ParticleTypes.CRIT, targetPos.x, centerY, targetPos.z,
                 critCount, spread, verticalSpread * 0.6, spread, 0.18);
         world.spawnParticles(ParticleTypes.SWEEP_ATTACK, target.getX(), target.getBodyY(0.25), target.getZ(),
                 1, 0.0, 0.0, 0.0, 0.0);
 
         if (stacks > 0) {
-            int emberCount = MathHelper.clamp(2 + stacks * 2, 3, 12);
+            int emberCount = MathHelper.clamp(2 + stacks * 2, 3, 8);
             world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, targetPos.x, centerY, targetPos.z,
                     emberCount, spread * 0.6, verticalSpread * 0.5, spread * 0.6, 0.01);
         }
@@ -546,7 +687,7 @@ public class FeedbackManager {
         for (Map.Entry<String, ScheduledFuture<?>> entry : PENDING_TASKS.entrySet()) {
             ScheduledFuture<?> future = entry.getValue();
             if (future != null && !future.isDone()) {
-                future.cancel(false);
+                try { future.cancel(false); } catch (Throwable ignored) {}
             }
         }
         
@@ -564,22 +705,22 @@ public class FeedbackManager {
             cancelFeedbackTasks();
             
             // Shutdown executor gracefully
-            FEEDBACK_EXECUTOR.shutdown();
+            try { FEEDBACK_EXECUTOR.shutdown(); } catch (Throwable ignored) {}
             try {
                 // Wait for tasks to complete with timeout
                 if (!FEEDBACK_EXECUTOR.awaitTermination(5, TimeUnit.SECONDS)) {
                     // Force shutdown if tasks don't complete in time
-                    FEEDBACK_EXECUTOR.shutdownNow();
+                    try { FEEDBACK_EXECUTOR.shutdownNow(); } catch (Throwable ignored) {}
                     // Wait a bit more for forceful shutdown
                     if (!FEEDBACK_EXECUTOR.awaitTermination(2, TimeUnit.SECONDS)) {
-                        System.err.println("Feedback executor did not terminate gracefully");
+                        // silently ignore; best-effort
                     }
                 }
             } catch (InterruptedException e) {
                 // Restore interrupted status
                 Thread.currentThread().interrupt();
                 // Force shutdown on interruption
-                FEEDBACK_EXECUTOR.shutdownNow();
+                try { FEEDBACK_EXECUTOR.shutdownNow(); } catch (Throwable ignored) {}
             }
         }
     }

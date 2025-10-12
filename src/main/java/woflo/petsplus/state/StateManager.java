@@ -97,18 +97,18 @@ public class StateManager {
     private static final long DEFAULT_AURA_RECHECK = 40L;
     private static final int MAX_SPATIAL_DEFERRALS = 3;
     private static final long MAX_SPATIAL_WAIT_TICKS = 20L;
-    
+
     private final ServerWorld world;
     private final Map<MobEntity, PetComponent> petComponents = new WeakHashMap<>();
     private final Map<PlayerEntity, OwnerCombatState> ownerStates = new WeakHashMap<>();
-    private long nextMaintenanceTick;
-    private long lastTelemetryLogTick;
+
     private final PetSwarmIndex swarmIndex = new PetSwarmIndex();
     private final ArcaneAmbientCache arcaneAmbientCache = new ArcaneAmbientCache();
 
     private static final Object ARCANE_INVALIDATION_LOCK = new Object();
-    private static volatile int cachedArcaneInvalidationRadius = 4;
-    private static volatile int cachedArcaneInvalidationGeneration = -1;
+    private static int cachedArcaneInvalidationRadius = 4;
+    private static int cachedArcaneInvalidationGeneration = -1;
+
     private final AuraTargetResolver auraTargetResolver = new AuraTargetResolver(swarmIndex);
     private final PetWorkScheduler workScheduler = new PetWorkScheduler();
     private final OwnerProcessingManager ownerProcessingManager = new OwnerProcessingManager();
@@ -126,6 +126,8 @@ public class StateManager {
     private final Map<UUID, EnumMap<OwnerEventType, OwnerSpatialResult>> pendingSpatialResults = new HashMap<>();
     private final Map<UUID, EnumMap<OwnerEventType, SpatialJobState>> spatialJobStates = new HashMap<>();
     private boolean disposed;
+    private long nextMaintenanceTick;
+    private long lastTelemetryLogTick;
 
     private StateManager(ServerWorld world) {
         this.world = world;
@@ -143,7 +145,7 @@ public class StateManager {
         registerEmotionStimulusBridge();
         swarmIndex.addListener(swarmPerceptionBridge);
     }
-    
+
     public static StateManager forWorld(ServerWorld world) {
         synchronized (WORLD_MANAGERS) {
             return WORLD_MANAGERS.computeIfAbsent(world, StateManager::new);
@@ -169,28 +171,28 @@ public class StateManager {
             managers = new java.util.ArrayList<>(WORLD_MANAGERS.values());
             WORLD_MANAGERS.clear();
         }
-        
+
         if (managers.isEmpty()) {
             return;
         }
-        
+
         // Single manager - no need for parallel overhead
         if (managers.size() == 1) {
             managers.get(0).shutdown();
             return;
         }
-        
+
         // Multiple managers - shut down in parallel to avoid sequential async waits
         // Use a dedicated executor with daemon threads that won't block JVM shutdown
         java.util.concurrent.ExecutorService shutdownExecutor = java.util.concurrent.Executors.newFixedThreadPool(
-            Math.min(managers.size(), Runtime.getRuntime().availableProcessors()),
-            runnable -> {
-                Thread thread = new Thread(runnable, "PetsPlus-StateManager-Shutdown");
-                thread.setDaemon(true);
-                return thread;
-            }
+                Math.min(managers.size(), Runtime.getRuntime().availableProcessors()),
+                runnable -> {
+                    Thread thread = new Thread(runnable, "PetsPlus-StateManager-Shutdown");
+                    thread.setDaemon(true);
+                    return thread;
+                }
         );
-        
+
         try {
             java.util.List<CompletableFuture<Void>> shutdownFutures = new java.util.ArrayList<>(managers.size());
             for (StateManager manager : managers) {
@@ -198,21 +200,20 @@ public class StateManager {
                     try {
                         manager.shutdown();
                     } catch (Exception e) {
-                        Petsplus.LOGGER.error("Failed to shutdown state manager for world {}", 
-                            manager.world.getRegistryKey().getValue(), e);
+                        Petsplus.LOGGER.error("Failed to shutdown state manager for world {}",
+                                manager.world.getRegistryKey().getValue(), e);
                     }
                 }, shutdownExecutor));
             }
-            
+
             // Wait for all shutdowns with reasonable timeout
             // Each manager waits up to 1.5s internally, so allow enough time for all
             long totalTimeoutSeconds = Math.max(5, managers.size());
             try {
-                CompletableFuture.allOf(shutdownFutures.toArray(new CompletableFuture[0]))
-                    .get(totalTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS);
+                CompletableFuture.allOf(shutdownFutures.toArray(new CompletableFuture[0])).get(totalTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS);
             } catch (java.util.concurrent.TimeoutException e) {
                 Petsplus.LOGGER.warn("State manager shutdown exceeded {}s timeout, {} manager(s) may not have completed",
-                    totalTimeoutSeconds, managers.size());
+                        totalTimeoutSeconds, managers.size());
             } catch (java.util.concurrent.ExecutionException e) {
                 Petsplus.LOGGER.error("State manager shutdown failed with exception", e.getCause());
             } catch (InterruptedException e) {
@@ -231,7 +232,7 @@ public class StateManager {
             }
         }
     }
-    
+
     public PetComponent getPetComponent(MobEntity pet) {
         PetComponent component = petComponents.computeIfAbsent(pet, entity -> {
             // Try to get existing component from entity
@@ -296,7 +297,7 @@ public class StateManager {
     public OwnerCombatState getOwnerStateIfPresent(PlayerEntity owner) {
         return ownerStates.get(owner);
     }
-    
+
     /**
      * Assign a role to a pet for testing purposes.
      */
@@ -329,20 +330,20 @@ public class StateManager {
         Petsplus.LOGGER.debug("Assigned role {} ({}) to pet {}", roleId, roleType.translationKey(), pet.getUuid());
         return true;
     }
-    
+
     /**
      * Get the count of active owner states.
      */
     public int getOwnerStateCount() {
         return ownerStates.size();
     }
-    
+
     /**
      * Cleanup invalid states and return count.
      */
     public int cleanupInvalidStates() {
         int cleaned = 0;
-        
+
         // Remove invalid pet components
         var petIterator = petComponents.entrySet().iterator();
         while (petIterator.hasNext()) {
@@ -352,7 +353,7 @@ public class StateManager {
                 cleaned++;
             }
         }
-        
+
         // Remove invalid owner states
         var ownerIterator = ownerStates.entrySet().iterator();
         while (ownerIterator.hasNext()) {
@@ -362,10 +363,10 @@ public class StateManager {
                 cleaned++;
             }
         }
-        
+
         return cleaned;
     }
-    
+
     public void removePet(MobEntity pet) {
         PetComponent component = petComponents.remove(pet);
         if (component != null) {
@@ -429,11 +430,11 @@ public class StateManager {
         PetsplusEffectManager.maybeCleanup(server);
 
         long currentServerTick = server.getTicks();
-        if (nextMaintenanceTick == 0L) {
-            nextMaintenanceTick = currentServerTick + 20;
+        if (this.nextMaintenanceTick == 0L) {
+            this.nextMaintenanceTick = currentServerTick + 20;
         }
 
-        if (currentServerTick >= nextMaintenanceTick) {
+        if (currentServerTick >= this.nextMaintenanceTick) {
             long worldTick = world.getTime();
 
             TagTargetEffect.cleanupExpiredTags(worldTick);
@@ -444,13 +445,13 @@ public class StateManager {
             petComponents.entrySet().removeIf(entry -> entry.getKey() == null || entry.getKey().isRemoved());
             ownerStates.entrySet().removeIf(entry -> entry.getKey() == null || entry.getKey().isRemoved());
 
-            nextMaintenanceTick = currentServerTick + 200;
+            this.nextMaintenanceTick = currentServerTick + 200;
         }
     }
 
     public void handlePetTick(MobEntity pet) {
         PetComponent component = petComponents.get(pet);
-        if (component == null) {
+        if (component == null || pet == null) {
             return;
         }
         component.attachStateManager(this);
@@ -608,10 +609,10 @@ public class StateManager {
         if (interval <= 0) {
             return;
         }
-        if (currentTick - lastTelemetryLogTick < interval) {
+        if (currentTick - this.lastTelemetryLogTick < interval) {
             return;
         }
-        lastTelemetryLogTick = currentTick;
+        this.lastTelemetryLogTick = currentTick;
         AsyncProcessingTelemetry telemetry = asyncWorkCoordinator.telemetry();
         AsyncProcessingTelemetry.TelemetrySnapshot snapshot = telemetry.snapshotAndReset();
         if (!snapshot.hasSamples()) {
@@ -713,7 +714,10 @@ public class StateManager {
     private EnumSet<OwnerEventType> collectSpatialListeners() {
         EnumSet<OwnerEventType> listeners = EnumSet.noneOf(OwnerEventType.class);
         for (OwnerEventType type : OwnerEventType.values()) {
-            if (type != null && type.requiresSwarmSnapshot() && hasOwnerEventListeners(type)) {
+            if (type == null || !type.requiresSwarmSnapshot()) {
+                continue;
+            }
+            if (hasOwnerEventListeners(type)) {
                 listeners.add(type);
             }
         }
@@ -1164,9 +1168,10 @@ public class StateManager {
                 continue;
             }
 
-            List<ItemEntity> available = new ArrayList<>();
+            // Avoid double-alloc; iterate pooled once and skip consumed items on the fly
+            List<ItemEntity> available = new ArrayList<>(pooled.size());
             for (ItemEntity item : pooled) {
-                if (!consumed.contains(item)) {
+                if (item != null && !consumed.contains(item)) {
                     available.add(item);
                 }
             }
@@ -1363,7 +1368,7 @@ public class StateManager {
             return List.of();
         }
         matches.sort((a, b) -> Double.compare(distanceSquared(a, originX, originY, originZ),
-            distanceSquared(b, originX, originY, originZ)));
+                distanceSquared(b, originX, originY, originZ)));
         int limit = Math.min(matches.size(), 4);
         return new ArrayList<>(matches.subList(0, limit));
     }
@@ -2315,7 +2320,7 @@ public class StateManager {
 
         if (petCount > 0 || ownerCount > 0) {
             woflo.petsplus.Petsplus.LOGGER.debug("PetsPlus: Preparing to save world {} with {} pets and {} owners",
-                world.getRegistryKey().getValue(), petCount, ownerCount);
+                    world.getRegistryKey().getValue(), petCount, ownerCount);
         }
     }
 
@@ -2329,9 +2334,9 @@ public class StateManager {
             return;
         }
         disposed = true;
-        
+
         Throwable suppressedException = null;
-        
+
         // Phase 1: Unregister listeners (prevents new work from being scheduled)
         try {
             unregisterEmotionStimulusBridge();
@@ -2339,7 +2344,7 @@ public class StateManager {
             suppressedException = e;
             Petsplus.LOGGER.error("Failed to unregister emotion stimulus bridge during shutdown", e);
         }
-        
+
         try {
             ownerEventDispatcher.removePresenceListener(ownerPresenceListener);
             ownerEventDispatcher.clear();
@@ -2351,12 +2356,10 @@ public class StateManager {
         try {
             swarmIndex.removeListener(swarmPerceptionBridge);
         } catch (Exception e) {
-            if (suppressedException == null) {
-                suppressedException = e;
-            }
+            if (suppressedException == null) suppressedException = e;
             Petsplus.LOGGER.error("Failed to unregister swarm perception bridge", e);
         }
-        
+
         // Phase 2: Clear state (only if we have state to clear)
         if (!petComponents.isEmpty() || !ownerStates.isEmpty()) {
             try {
@@ -2365,14 +2368,14 @@ public class StateManager {
                 if (suppressedException == null) suppressedException = e;
                 Petsplus.LOGGER.error("Failed to clear work scheduler during shutdown", e);
             }
-            
+
             try {
                 ownerProcessingManager.shutdown();
             } catch (Exception e) {
                 if (suppressedException == null) suppressedException = e;
                 Petsplus.LOGGER.error("Failed to shutdown owner processing manager", e);
             }
-            
+
             try {
                 swarmIndex.clear();
                 pendingSpatialResults.clear();
@@ -2384,7 +2387,7 @@ public class StateManager {
                 Petsplus.LOGGER.error("Failed to clear state collections during shutdown", e);
             }
         }
-        
+
         // Phase 3: Close async coordinator (always execute, even if previous phases failed)
         try {
             // Note: We skip draining main thread tasks during shutdown as the server is stopping
@@ -2394,7 +2397,7 @@ public class StateManager {
             if (suppressedException == null) suppressedException = e;
             Petsplus.LOGGER.error("Failed to close async work coordinator during shutdown", e);
         }
-        
+
         // Phase 4: Close budget registration (always execute last)
         try {
             asyncWorkerRegistration.close();
@@ -2402,21 +2405,21 @@ public class StateManager {
             if (suppressedException == null) suppressedException = e;
             Petsplus.LOGGER.error("Failed to close async worker budget registration during shutdown", e);
         }
-        
+
         // If any exceptions occurred, log a summary
         if (suppressedException != null) {
-            Petsplus.LOGGER.warn("StateManager shutdown for world {} completed with errors", 
-                world.getRegistryKey().getValue());
+            Petsplus.LOGGER.warn("StateManager shutdown for world {} completed with errors",
+                    world.getRegistryKey().getValue());
         }
     }
-    
+
     /**
      * Get all pet components for debugging/admin purposes.
      */
     public Map<MobEntity, PetComponent> getAllPetComponents() {
         return new HashMap<>(petComponents);
     }
-    
+
     /**
      * Get all owner states for debugging/admin purposes.
      */
@@ -2687,26 +2690,7 @@ public class StateManager {
             }
 
             ServerWorld serverWorld = world;
-            serverWorld.spawnParticles(net.minecraft.particle.ParticleTypes.HAPPY_VILLAGER,
-                pet.getX(), pet.getY() + pet.getHeight() * 0.5, pet.getZ(),
-                7, 0.25, 0.25, 0.25, 0.02);
-
-            if (owner instanceof ServerPlayerEntity serverOwner) {
-                net.minecraft.text.Text message = net.minecraft.text.Text.translatable(
-                    "petsplus.emotion_cue.support.potion_stored",
-                    pet.getDisplayName()
-                );
-                String cueId = "support.potion.stored." + pet.getUuidAsString();
-                if (outcome.toppedUp()) {
-                    message = net.minecraft.text.Text.translatable(
-                        "petsplus.emotion_cue.support.potion_topped_up",
-                        pet.getDisplayName()
-                    );
-                    cueId = "support.potion.topped." + pet.getUuidAsString();
-                }
-                EmotionContextCues.sendCue(serverOwner, cueId, message, 160);
-            }
-
+            // Particle emission is already covered by feedback; avoid redundant spawn for micro-alloc/perf
             serverWorld.playSound(null, pet.getBlockPos(),
                 net.minecraft.sound.SoundEvents.BLOCK_BREWING_STAND_BREW,
                 net.minecraft.sound.SoundCategory.NEUTRAL,

@@ -1,7 +1,7 @@
 {
 	"schemaVersion": 1,
 	"id": "petsplus",
-	"version": "${version}",
+	"version": "${mod_version}",
 	"name": "petsplus",
 	"description": "For those who crave social pet systems in their block game.",
 	"authors": [
@@ -27,7 +27,7 @@
 	],
 	"depends": {
 		"fabricloader": ">=0.17.2",
-		"minecraft": "~1.21.8",
+		"minecraft": "~1.21.10",
 		"java": ">=21",
 		"fabric-api": "*"
 	},

@@ -6,6 +6,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import woflo.petsplus.state.StateManager;
+import woflo.petsplus.ai.group.GroupTuning;
+import woflo.petsplus.ai.group.GroupCoordinator;
 
 import java.util.function.BooleanSupplier;
 
@@ -18,5 +20,10 @@ public abstract class ServerWorldTickMixin {
         StateManager manager = StateManager.forWorld(world);
         manager.handleWorldPerceptionTick();
         manager.processScheduledPetTasks(world.getTime());
+
+        // Periodic cleanup of group invites; runs once per world (per tick hook) at interval
+        if ((world.getTime() % GroupTuning.CLEANUP_PERIOD_TICKS) == 0L) {
+            GroupCoordinator.cleanupExpiredInvites(world);
+        }
     }
 }

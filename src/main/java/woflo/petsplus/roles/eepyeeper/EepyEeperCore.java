@@ -24,9 +24,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.Nullable;
 /**
-
  * Core Eepy Eeper mechanics implementation following the story requirements.
-
  */
 
 public class EepyEeperCore {
@@ -95,27 +93,16 @@ public class EepyEeperCore {
     }
 
     public static void emitSleepLinkParticles(ServerPlayerEntity player, MobEntity pet, boolean empowered) {
-
-        ServerWorld world = player.getEntityWorld();
-
-        if (!pet.isAlive()) return;
-
-        world.spawnParticles(ParticleTypes.SPORE_BLOSSOM_AIR,
-
-            pet.getX(), pet.getY() + 0.6, pet.getZ(),
-
-            5, 0.35, 0.2, 0.35, 0.008);
-
-        if (empowered) {
-
-            world.spawnParticles(ParticleTypes.HAPPY_VILLAGER,
-
-                player.getX(), player.getY() + 0.8, player.getZ(),
-
-                6, 0.4, 0.3, 0.4, 0.01);
-
+        if (!(player.getEntityWorld() instanceof ServerWorld world)) {
+            return;
         }
+        if (!pet.isAlive() || pet.isRemoved()) return;
 
+        // Centralized emissions; anchoring handled by Feedback patterns (use entity chest anchor consumers)
+        woflo.petsplus.ui.FeedbackManager.emitFeedback("eepy_sleep_link", pet, world);
+        if (empowered) {
+            woflo.petsplus.ui.FeedbackManager.emitFeedback("eepy_player_empowered", player, world);
+        }
     }
 
     public static void playSleepShareSound(ServerWorld world, ServerPlayerEntity player, boolean restfulDreamsActive) {
@@ -131,21 +118,13 @@ public class EepyEeperCore {
     }
 
     public static void playPetRecoveryCue(ServerWorld world, MobEntity pet) {
-
-        world.playSound(null, pet.getX(), pet.getY(), pet.getZ(), SoundEvents.ENTITY_CAT_PURR, SoundCategory.NEUTRAL, 0.6f, 1.2f);
-
-        world.spawnParticles(ParticleTypes.HAPPY_VILLAGER,
-
-            pet.getX(), pet.getY() + 0.8, pet.getZ(),
-
-            6, 0.3, 0.25, 0.3, 0.02);
-
+        if (world == null || pet == null || pet.isRemoved()) return;
+        // Centralized; sound included in config entry, preserves semantics
+        woflo.petsplus.ui.FeedbackManager.emitFeedback("eepy_pet_recovery", pet, world);
     }
 
     /**
-
      * Apply baseline Eepy Eeper effects (10% slower movement)
-
      */
 
     public static void applyBaselineEffects(MobEntity pet, PetComponent petComp) {
@@ -153,17 +132,13 @@ public class EepyEeperCore {
         if (!petComp.hasRole(PetRoleType.EEPY_EEPER)) return;
 
         // Apply 10% speed reduction
-
         // Note: Speed reduction would be applied through the attribute system
-
         // Implementation depends on your existing attribute framework
 
     }
 
     /**
-
      * Find nearby Eepy Eeper pets owned by player
-
      */
 
     public static List<MobEntity> findNearbyEepyEepers(PlayerEntity owner, double radius) {
@@ -199,9 +174,7 @@ public class EepyEeperCore {
     }
 
     /**
-
      * Check if player can use Dream's Escape (not on cooldown)
-
      */
 
     public static boolean canUseDreamEscape(ServerPlayerEntity player) {
@@ -225,9 +198,7 @@ public class EepyEeperCore {
     }
 
     /**
-
      * Check if a pet is knocked out
-
      */
 
     public static boolean isPetKnockedOut(UUID petUuid) {
@@ -243,9 +214,7 @@ public class EepyEeperCore {
     }
 
     /**
-
      * Get the number of sleep cycles remaining for a knocked out pet
-
      */
 
     public static int getSleepCyclesRemaining(UUID petUuid) {

@@ -6,6 +6,7 @@ import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.ai.goals.GoalIds;
+import woflo.petsplus.ai.traits.SpeciesTraits;
 
 import java.util.EnumSet;
 
@@ -23,6 +24,11 @@ public class PreenFeathersGoal extends AdaptiveGoal {
     
     @Override
     protected boolean canStartGoal() {
+        // Species tags: multi-tag gating - require flierPercher OR groomingSpecies
+        var profile = SpeciesTraits.getProfile(mob);
+        if (!(profile.flierPercher() || profile.groomingSpecies())) {
+            return false;
+        }
         return mob.getNavigation().isIdle() && (mob.isOnGround() || mob.hasVehicle());
     }
     

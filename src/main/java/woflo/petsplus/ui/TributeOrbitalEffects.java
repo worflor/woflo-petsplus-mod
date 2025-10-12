@@ -12,6 +12,7 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.events.TributeHandler;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.ui.PetUIHelper;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -146,8 +147,8 @@ public class TributeOrbitalEffects {
         double inclinationRad = Math.toRadians(ring.inclination);
         double y = effectiveRadius * ring.verticalOscillation * Math.sin(angle * 1.5) * Math.sin(inclinationRad);
 
-        // Add pet's position offset and center the orbital around pet's center
-        double centerY = petPos.y + pet.getHeight() * 0.5;
+        // Anchor at chest level for consistent visuals across entities
+        double centerY = PetUIHelper.getChestAnchorY(pet);
 
         return new Vec3d(
             petPos.x + x,
@@ -184,76 +185,64 @@ public class TributeOrbitalEffects {
         double configIntensity = configInstance.getTributeOrbitalIntensityMultiplier();
         double intensityMultiplier = config.intensityMultiplier * configIntensity;
 
-        // Emit particles for each orbital ring
+        // Sustained budget: cap total particles emitted this 4s cycle to <= 6
+        final int cycleCap = 6;
+        int emittedThisCycle = 0;
+
+        // Emit particles for each orbital ring by sampling evenly distributed points
         for (OrbitalRing ring : config.rings) {
-            emitOrbitalRing(pet, world, ring, config, time, intensityMultiplier);
+            if (emittedThisCycle >= cycleCap) break;
+
+            // Determine how many points to emit from this ring, distributing budget across rings
+            // Even split across rings, but ensure at least 1 from each until cap is used.
+            int ringsCount = Math.max(1, config.rings.size());
+            int perRingBase = Math.max(1, cycleCap / ringsCount);
+            int remaining = Math.max(0, cycleCap - emittedThisCycle);
+            int perRing = Math.min(remaining, Math.max(1, (int) Math.round(perRingBase * intensityMultiplier)));
+
+            // Evenly sample indices across ring.particleCount
+            int samples = Math.min(perRing, Math.max(1, ring.particleCount));
+            for (int s = 0; s < samples && emittedThisCycle < cycleCap; s++) {
+                int idx = Math.round((float) s / Math.max(1, samples) * Math.max(1, ring.particleCount - 1));
+                double particleTime = time + (idx * ring.period / Math.max(1, ring.particleCount));
+                Vec3d pos = getInterpolatedOrbitalPosition(pet, ring, particleTime);
+
+                // Primary particle
+                world.spawnParticles(config.primaryParticle,
+                    pos.x, pos.y, pos.z,
+                    1, 0.01, 0.01, 0.01, 0.005);
+                emittedThisCycle++;
+
+                // Trails only if budget allows, emit very sparsely
+                if (config.hasTrails && emittedThisCycle < cycleCap && s % Math.max(2, samples) == 0) {
+                    Vec3d trailPos = getInterpolatedOrbitalPosition(pet, ring, particleTime - 0.2);
+                    world.spawnParticles(config.secondaryParticle,
+                        trailPos.x, trailPos.y, trailPos.z,
+                        1, 0.003, 0.003, 0.003, 0.002);
+                    emittedThisCycle++;
+                }
+            }
         }
 
-        // Add occasional burst effects for level 30
-        if (tributeLevel == 30 && world.getRandom().nextFloat() < 0.1) {
-            emitNetheriteBurstEffect(pet, world, config);
+        // Level 30 occasional extra effect: reduce to a minimal, budget-respecting hint
+        if (tributeLevel == 30 && emittedThisCycle < cycleCap && world.getRandom().nextFloat() < 0.05f) {
+            // Single subtle flame at center instead of a ring burst
+            Vec3d petPos = pet.getLerpedPos(1.0f);
+            double centerY = PetUIHelper.getChestAnchorY(pet);
+            world.spawnParticles(ParticleTypes.FLAME,
+                petPos.x, centerY, petPos.z,
+                1, 0.02, 0.02, 0.02, 0.01);
         }
     }
 
     private static void emitOrbitalRing(MobEntity pet, ServerWorld world, OrbitalRing ring,
                                       OrbitalConfiguration config, double time, double intensityMultiplier) {
-        int effectiveCount = (int) Math.max(1, ring.particleCount * intensityMultiplier);
-
-        // Batch particle spawning for better performance
-        for (int i = 0; i < effectiveCount; i++) {
-            double particleTime = time + (i * ring.period / effectiveCount);
-            Vec3d pos = getInterpolatedOrbitalPosition(pet, ring, particleTime);
-
-            // Primary particle with slight randomization for organic feel
-            double offsetX = (world.getRandom().nextDouble() - 0.5) * 0.02;
-            double offsetY = (world.getRandom().nextDouble() - 0.5) * 0.02;
-            double offsetZ = (world.getRandom().nextDouble() - 0.5) * 0.02;
-
-            world.spawnParticles(config.primaryParticle,
-                pos.x + offsetX, pos.y + offsetY, pos.z + offsetZ,
-                1, 0.01, 0.01, 0.01, 0.005);
-
-            // Trail particles with fade effect (for higher levels)
-            if (config.hasTrails && i % 2 == 0) {
-                Vec3d trailPos = getInterpolatedOrbitalPosition(pet, ring, particleTime - 0.15);
-                world.spawnParticles(config.secondaryParticle,
-                    trailPos.x, trailPos.y, trailPos.z,
-                    1, 0.005, 0.005, 0.005, 0.002);
-            }
-        }
-
-        // Add pulse effect for long waiting times
-        if (world.getTime() % 200 == 0) { // Pulse every 10 seconds
-            Vec3d petPos = pet.getLerpedPos(1.0f);
-            double centerY = petPos.y + pet.getHeight() * 0.5;
-
-            // Subtle pulse effect to indicate waiting state
-            world.spawnParticles(config.primaryParticle,
-                petPos.x, centerY, petPos.z,
-                2, 0.08, 0.08, 0.08, 0.005);
-        }
+        // Replaced by per-cycle sampling in emitTributeOrbital; keep as no-op to maintain API
+        // Intentionally left minimal to avoid heavy bursts.
     }
 
     private static void emitNetheriteBurstEffect(MobEntity pet, ServerWorld world, OrbitalConfiguration config) {
-        Vec3d petPos = pet.getLerpedPos(1.0f);
-        double centerY = petPos.y + pet.getHeight() * 0.5;
-
-        // Explosive particle burst
-        world.spawnParticles(ParticleTypes.EXPLOSION,
-            petPos.x, centerY, petPos.z,
-            1, 0.0, 0.0, 0.0, 0.0);
-
-        // Ring of fire particles
-        for (int i = 0; i < 8; i++) {
-            double angle = (i / 8.0) * 2 * Math.PI;
-            double radius = 1.0;
-            double x = petPos.x + Math.cos(angle) * radius;
-            double z = petPos.z + Math.sin(angle) * radius;
-
-            world.spawnParticles(ParticleTypes.FLAME,
-                x, centerY, z,
-                2, 0.1, 0.1, 0.1, 0.02);
-        }
+        // Heavy burst replaced by minimal hint in emitTributeOrbital for budget compliance.
     }
 
 
@@ -361,7 +350,7 @@ public class TributeOrbitalEffects {
 
         // Scale and transform to pet position
         double scale = 1.0 + entityRadius * 0.2;
-        double centerY = petPos.y + pet.getHeight() * 0.5;
+        double centerY = PetUIHelper.getChestAnchorY(pet);
 
         return new Vec3d(
             petPos.x + pathPos.x * scale,
@@ -378,43 +367,37 @@ public class TributeOrbitalEffects {
         if (config == null) return;
 
         Vec3d petPos = pet.getLerpedPos(1.0f);
-        double centerY = petPos.y + pet.getHeight() * 0.5;
+        // Central accent within budget
+        double centerY = PetUIHelper.getChestAnchorY(pet);
 
-        // Smooth fade-in effect with alpha blending simulation
+        // Budget-compliant completion: clamp to <= 8 total particles and keep sound
+        int totalEmitted = 0;
         for (OrbitalRing ring : config.rings) {
-            int fadeSteps = 20;
-            for (int step = 0; step < fadeSteps; step++) {
-                double alpha = 1.0 - (step / (double) fadeSteps);
-                int particleCount = (int) Math.max(1, ring.particleCount * alpha);
+            if (totalEmitted >= 8) break;
+            // Emit at most 2 samples per ring
+            int samples = Math.min(2, Math.max(1, ring.particleCount));
+            for (int i = 0; i < samples && totalEmitted < 8; i++) {
+                double angle = (i / (double) samples) * 2 * Math.PI;
+                double radius = Math.max(0.4, ring.radius * 0.6);
+                double x = petPos.x + Math.cos(angle) * radius;
+                double z = petPos.z + Math.sin(angle) * radius;
+                double y = centerY;
 
-                for (int i = 0; i < particleCount; i++) {
-                    double angle = (i / (double) particleCount) * 2 * Math.PI;
-                    double radius = ring.radius * alpha * 0.8; // Converge to center
-
-                    double x = petPos.x + Math.cos(angle) * radius;
-                    double z = petPos.z + Math.sin(angle) * radius;
-                    double y = centerY + (world.getRandom().nextDouble() - 0.5) * 0.2;
-
-                    // Use different particles based on alpha for fade effect
-                    ParticleEffect particle = alpha > 0.5 ? config.primaryParticle : config.secondaryParticle;
-                    world.spawnParticles(particle,
-                        x, y, z,
-                        1, 0.02, 0.02, 0.02, 0.01);
-                }
+                ParticleEffect particle = (i % 2 == 0) ? config.primaryParticle : config.secondaryParticle;
+                world.spawnParticles(particle, x, y, z, 1, 0.04, 0.04, 0.04, 0.01);
+                totalEmitted++;
             }
         }
 
-        // Enhanced central burst effect with audio
-        world.spawnParticles(ParticleTypes.END_ROD,
-            petPos.x, centerY, petPos.z,
-            25, 0.6, 0.6, 0.6, 0.12);
+        // Central accent within budget
+        if (totalEmitted < 8) {
+            world.spawnParticles(ParticleTypes.END_ROD,
+                petPos.x, centerY, petPos.z,
+                2, 0.1, 0.1, 0.1, 0.02);
+            totalEmitted += 2;
+        }
 
-        // Additional celebratory effects
-        world.spawnParticles(ParticleTypes.FIREWORK,
-            petPos.x, centerY + 1.0, petPos.z,
-            8, 0.3, 0.3, 0.3, 0.05);
-
-        // Sound effect
+        // Sound cue preserved
         world.playSound(null, petPos.x, centerY, petPos.z,
             SoundEvents.ENTITY_FIREWORK_ROCKET_BLAST,
             SoundCategory.NEUTRAL, 0.5f, 1.2f);

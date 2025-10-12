@@ -176,4 +176,20 @@ public final class PetUIHelper {
         if (m > 0) return m + "m " + s + "s";
         return s + "s";
     }
+
+    /**
+     * Particle alignment utility:
+     * Computes a consistent "chest-level" Y anchor for any LivingEntity-like mob/player.
+     * Baseline uses eye height, then drops by 25% of entity height, clamped to avoid extremes.
+     * This helps align particles across varied entity sizes and poses.
+     */
+    public static double getChestAnchorY(net.minecraft.entity.LivingEntity entity) {
+        if (entity == null) return 0.0;
+        double eyeY = entity.getEyeY();
+        double h = entity.getHeight();
+        double base = eyeY - 0.25 * h;
+        double minY = entity.getY() + 0.2;
+        double maxY = entity.getY() + h - 0.2;
+        return Math.max(minY, Math.min(maxY, base));
+    }
 }

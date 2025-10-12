@@ -33,7 +33,7 @@
           1.8
         ]
       },
-      "threshold": 0.3
+      "threshold": 0.4
     },
     "CONTENT": {
       "categories": {
@@ -187,7 +187,7 @@
           1.8
         ]
       },
-      "threshold": 0.3
+      "threshold": 0.4
     },
     "LAGOM": {
       "categories": {
@@ -200,7 +200,7 @@
           1.9
         ],
         "petsplus:sit_sphinx_pose": [
-          1.9
+          1.4
         ],
         "petsplus:stargazing": [
           1.6
@@ -234,7 +234,7 @@
           1.9
         ]
       },
-      "threshold": 0.3
+      "threshold": 0.4
     },
     "RELIEF": {
       "categories": {
@@ -345,7 +345,7 @@
           1.4
         ],
         "petsplus:stargazing": [
-          2.8
+          2.1
         ]
       },
       "threshold": 0.3
@@ -411,10 +411,10 @@
           1.8
         ],
         "petsplus:sit_sphinx_pose": [
-          1.8
+          1.4
         ],
         "petsplus:stargazing": [
-          2.0
+          1.6
         ]
       },
       "threshold": 0.5
@@ -515,13 +515,13 @@
           1.6
         ],
         "petsplus:float_idle": [
-          0.2
+          0.4
         ],
         "petsplus:purposeful_patrol": [
           1.6
         ],
         "petsplus:sit_sphinx_pose": [
-          0.2
+          0.5
         ]
       },
       "threshold": 0.4
@@ -574,5 +574,48 @@
       "threshold": 0.4
     }
   },
-  "type": "mood_blend"
+  "type": "mood_blend",
+  "signals": {
+    "petsplus:desirability/trial_proximity": {
+      "threshold": 0.2,
+      "categories": {
+        "WANDER": [
+          1.3
+        ]
+      },
+      "goals": {
+        "petsplus:purposeful_patrol": [
+          1.4
+        ],
+        "petsplus:investigate_block": [
+          1.25
+        ],
+        "petsplus:trial_scout": [
+          1.6
+        ]
+      }
+    },
+    "petsplus:desirability/breeze_threat": {
+      "threshold": 0.2,
+      "goals": {
+        "petsplus:owner_orbit": [
+          1.45
+        ],
+        "petsplus:purposeful_patrol": [
+          1.2
+        ]
+      }
+    },
+    "petsplus:desirability/bogged_threat": {
+      "threshold": 0.2,
+      "goals": {
+        "petsplus:owner_orbit": [
+          1.35
+        ],
+        "petsplus:purposeful_patrol": [
+          1.2
+        ]
+      }
+    }
+  }
 }

@@ -41,7 +41,7 @@ public class EnergyDesirabilitySignal implements DesirabilitySignal {
                 modifier *= 1.5f;
             }
             if (goal.category() == GoalDefinition.Category.IDLE_QUIRK) {
-                modifier *= 0.7f;
+                modifier *= 0.5f;
             }
         } else if (momentum < 0.3f) {
             if (goal.category() == GoalDefinition.Category.IDLE_QUIRK) {
@@ -59,14 +59,14 @@ public class EnergyDesirabilitySignal implements DesirabilitySignal {
             if (goal.category() == GoalDefinition.Category.SOCIAL) {
                 modifier *= 1.4f;
             }
-            if (isGoal(goal, GoalIds.PARALLEL_PLAY) || isGoal(goal, GoalIds.EYE_CONTACT)) {
+            if (isGoal(goal, GoalIds.PARALLEL_PLAY) || isGoal(goal, GoalIds.SHOW_AND_DROP)) {
                 modifier *= 1.5f;
             }
         } else if (socialCharge < 0.3f) {
             if (goal.category() == GoalDefinition.Category.SOCIAL) {
                 modifier *= 0.6f;
             }
-            if (isGoal(goal, GoalIds.EYE_CONTACT)) {
+            if (isGoal(goal, GoalIds.SHOW_AND_DROP)) {
                 modifier *= 0.4f;
             }
         }
