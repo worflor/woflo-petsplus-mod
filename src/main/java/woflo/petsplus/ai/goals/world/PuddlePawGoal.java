@@ -330,10 +330,24 @@ public class PuddlePawGoal extends AdaptiveGoal {
             if (MathHelper.sqrt((float) (dx * dx + dz * dz)) > range) continue;
 
             BlockPos base = origin.add(dx, 0, dz);
-            // Adjust to nearest solid ground with headroom
-            if (world.getBlockState(base).isSolidBlock(world, base) && world.isAir(base.up())) {
-                return Vec3d.ofCenter(base.up());
+            BlockPos ground = base.down();
+
+            // Require solid footing below with a clear air column for the pet to stand in
+            BlockState groundState = world.getBlockState(ground);
+            if (!groundState.isSolidBlock(world, ground)) {
+                continue;
             }
+
+            BlockState spaceState = world.getBlockState(base);
+            if (!spaceState.isAir()) {
+                continue;
+            }
+
+            if (!world.isAir(base.up())) {
+                continue;
+            }
+
+            return Vec3d.ofCenter(base);
         }
         return null;
     }

@@ -44,6 +44,9 @@ public class DivePlayGoal extends AdaptiveGoal {
     @Override
     protected void onStopGoal() {
         mob.getNavigation().stop();
+        mob.setPitch(0.0f);
+        diveTicks = 0;
+        diving = false;
     }
     
     @Override

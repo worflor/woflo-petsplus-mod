@@ -64,6 +64,8 @@ public class FetchItemGoal extends AdaptiveGoal {
     @Override
     protected void onStopGoal() {
         mob.getNavigation().stop();
+        mob.setPitch(0.0f);
+        fetchTicks = 0;
         if (!carriedStack.isEmpty()) {
             if (!mob.getEntityWorld().isClient()) {
                 mob.getEntityWorld().spawnEntity(new ItemEntity(

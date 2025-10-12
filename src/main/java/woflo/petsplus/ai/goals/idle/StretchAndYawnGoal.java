@@ -34,10 +34,11 @@ public class StretchAndYawnGoal extends AdaptiveGoal {
     protected void onStartGoal() {
         stretchTicks = 0;
     }
-    
+
     @Override
     protected void onStopGoal() {
         stretchTicks = 0;
+        mob.setPitch(0.0f);
     }
     
     @Override
