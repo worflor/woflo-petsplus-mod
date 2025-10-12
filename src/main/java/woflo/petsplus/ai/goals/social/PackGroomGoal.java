@@ -135,7 +135,9 @@ public class PackGroomGoal extends AdaptiveGoal {
 
         // Begin approach toward meeting point
         if (meetPos != null) {
-            mob.getNavigation().startMovingTo(meetPos.x, meetPos.y, meetPos.z, 1.05);
+            if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
+                mob.getNavigation().startMovingTo(meetPos.x, meetPos.y, meetPos.z, 1.05);
+            }
         }
     }
 
@@ -155,7 +157,9 @@ public class PackGroomGoal extends AdaptiveGoal {
 
         // Stop movement and reset gentle pose
         if (mob.getNavigation() != null) {
-            mob.getNavigation().stop();
+            if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
+                mob.getNavigation().stop();
+            }
         }
         mob.setPitch(0);
         if (partner != null) {
@@ -176,10 +180,14 @@ public class PackGroomGoal extends AdaptiveGoal {
             double speed = distSq > MEET_DISTANCE_SQ ? 1.05 : 0.0;
             if (speed > 0.0) {
                 if (mob.getNavigation().isIdle()) {
-                    mob.getNavigation().startMovingTo(meetPos.x, meetPos.y, meetPos.z, speed);
+                    if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
+                        mob.getNavigation().startMovingTo(meetPos.x, meetPos.y, meetPos.z, speed);
+                    }
                 }
             } else {
-                mob.getNavigation().stop();
+                if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
+                    mob.getNavigation().stop();
+                }
             }
         }
 

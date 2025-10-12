@@ -33,6 +33,9 @@ public final class StimulusTimeline implements PerceptionListener {
 
     @Override
     public synchronized void onStimulus(PerceptionStimulus stimulus) {
+        if (stimulus == null) {
+            return;
+        }
         stimuli.addLast(stimulus);
         // Capacity-only pruning on append to avoid premature TTL removal.
         // TTL is evaluated relative to snapshot's currentTick to ensure deterministic boundary behavior.
@@ -53,6 +56,9 @@ public final class StimulusTimeline implements PerceptionListener {
         List<StimulusSnapshot.Event> events = new ArrayList<>(stimuli.size());
         for (java.util.Iterator<PerceptionStimulus> it = stimuli.descendingIterator(); it.hasNext(); ) {
             PerceptionStimulus s = it.next();
+            if (s == null) {
+                continue;
+            }
             if (s.tick() >= cutoff) { // inclusive cutoff check
                 long age = Math.max(0L, currentTick - s.tick()); // long-only math
                 events.add(new StimulusSnapshot.Event(

@@ -22,8 +22,8 @@ public final class PetUIHelper {
 
         // Line 1: Name • Role • Level
         String name = pet.getDisplayName().getString();
-        Identifier roleId = comp.getRoleId();
-        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+        Identifier roleId = comp != null ? comp.getRoleId() : null;
+        PetRoleType roleType = roleId != null ? PetsPlusRegistries.petRoleTypeRegistry().get(roleId) : null;
         int level = comp.getLevel();
         String roleName;
         if (roleType != null) {
@@ -33,7 +33,7 @@ public final class PetUIHelper {
                 roleName = translated;
             } else {
                 // Fallback: format ID path as "Title Case"
-                String path = roleId.getPath();
+                String path = roleId != null ? roleId.getPath() : "unknown";
                 String[] parts = path.split("_");
                 StringBuilder sb = new StringBuilder();
                 for (String part : parts) {
@@ -47,7 +47,7 @@ public final class PetUIHelper {
             }
         } else {
             // Format ID path as "Title Case"
-            String path = roleId.getPath();
+            String path = roleId != null ? roleId.getPath() : "unknown";
             String[] parts = path.split("_");
             StringBuilder sb = new StringBuilder();
             for (String part : parts) {
@@ -70,7 +70,8 @@ public final class PetUIHelper {
         // Line 2: Health and XP progress
         float health = pet.getHealth();
         float maxHealth = pet.getMaxHealth();
-        int healthPct = Math.round((health / maxHealth) * 100);
+        float safeMax = Math.max(1.0f, maxHealth);
+        int healthPct = Math.round((health / safeMax) * 100);
         String hp = String.format("%.0f/%.0f (%d%%)", health, maxHealth, healthPct);
         int xpPct = Math.round(comp.getXpProgress() * 100);
 
@@ -160,9 +161,9 @@ public final class PetUIHelper {
     private static String shortenId(String id) {
         int idx = id.lastIndexOf(':');
         if (idx > 0 && idx < id.length()-1) {
-            return id.substring(idx+1).replace('_',' ');
+            return id.substring(idx+1).replace('_', ' ');
         }
-        return id.replace('_',' ');
+        return id.replace('_', ' ');
     }
 
     private static String humanizeKey(String key) {

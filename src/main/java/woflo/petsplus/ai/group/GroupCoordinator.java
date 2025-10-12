@@ -126,7 +126,7 @@ public final class GroupCoordinator {
         for (OpenInvite existing : bucket) {
             if (existing != null
                 && initiator.getUuid().equals(existing.initiatorUuid)
-                && existing.worldKey == sw.getRegistryKey()
+                && java.util.Objects.equals(existing.worldKey, sw.getRegistryKey())
                 && !existing.isExpired(now)) {
                 return; // prevent duplicate within window
             }
@@ -185,7 +185,7 @@ public final class GroupCoordinator {
             if (selfId.equals(invite.initiatorUuid)) continue;
 
             // Ensure same dimension/world
-            if (invite.worldKey != candidateWorldKey) continue; // Owner dimension guard for sneak boost
+            if (!java.util.Objects.equals(invite.worldKey, candidateWorldKey)) continue; // Owner dimension guard for sneak boost
 
             var initiator = sw.getEntity(invite.initiatorUuid);
             if (!(initiator instanceof MobEntity initMob)) continue;
@@ -223,7 +223,7 @@ public final class GroupCoordinator {
             return false;
         }
         // Enforce same dimension/world
-        if (invite.worldKey != sw.getRegistryKey()) {
+        if (!java.util.Objects.equals(invite.worldKey, sw.getRegistryKey())) {
             return false;
         }
 
@@ -264,7 +264,7 @@ public final class GroupCoordinator {
             list.removeIf(invite -> {
                 if (invite == null) return true;
                 if (invite.isExpired(now)) return true;
-                if (dimKey != null && invite.worldKey != dimKey) return false; // keep; we'll validate against its own world during join
+                if (dimKey != null && !java.util.Objects.equals(invite.worldKey, dimKey)) return false; // keep; we'll validate against its own world during join
                 if (world instanceof ServerWorld sw) {
                     var entity = sw.getEntity(invite.initiatorUuid);
                     if (!(entity instanceof MobEntity mob) || !mob.isAlive() || mob.isRemoved()) {

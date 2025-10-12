@@ -149,7 +149,9 @@ public class LeadFollowNudgeGoal extends AdaptiveGoal {
         //Vec3d target = mob.getPos().add(dir.multiply(1.2)); // small lead
         Vec3d origin = new Vec3d(mob.getX(), mob.getY(), mob.getZ());
         Vec3d target = origin.add(dir.multiply(1.2)); // small lead
-        mob.getNavigation().startMovingTo(target.x, target.y, target.z, 0.65);
+        if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
+            mob.getNavigation().startMovingTo(target.x, target.y, target.z, 0.65);
+        }
     }
 
     @Override
@@ -186,7 +188,9 @@ public class LeadFollowNudgeGoal extends AdaptiveGoal {
             Vec3d origin2 = new Vec3d(mob.getX(), mob.getY(), mob.getZ());
             Vec3d target = origin2.add(dir.multiply(1.2));
             if (mob.getNavigation().isIdle()) {
-                mob.getNavigation().startMovingTo(target.x, target.y, target.z, 0.65);
+                if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
+                    mob.getNavigation().startMovingTo(target.x, target.y, target.z, 0.65);
+                }
             }
         }
 
@@ -203,7 +207,9 @@ public class LeadFollowNudgeGoal extends AdaptiveGoal {
                 Vec3d origin3 = new Vec3d(mob.getX(), mob.getY(), mob.getZ());
                 Vec3d fTarget = origin3.add(fOffset);
                 if (follower.getNavigation().isIdle() || follower.squaredDistanceTo(fTarget) > 1.2) {
-                    follower.getNavigation().startMovingTo(fTarget.x, fTarget.y, fTarget.z, 0.65);
+                    if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
+                        follower.getNavigation().startMovingTo(fTarget.x, fTarget.y, fTarget.z, 0.65);
+                    }
                 }
             }
         }

@@ -39,6 +39,11 @@ public final class TrialSpawnerAwarenessSignal implements DesirabilitySignal {
         if (world == null || world.isClient()) {
             return SignalResult.identity();
         }
+        // Cache world key once for stable comparisons if needed by callers
+        final var worldKey = (world.getRegistryKey());
+        if (worldKey == null) {
+            return SignalResult.identity();
+        }
 
         // light, per-goal debounce using goal lastExecuted timestamps if available
         long since = ctx.ticksSince(goal);
@@ -68,9 +73,7 @@ public final class TrialSpawnerAwarenessSignal implements DesirabilitySignal {
                         continue;
                     }
                     var state = world.getBlockState(mutable);
-                    if (state == null) {
-                        continue;
-                    }
+                    // state is non-null in vanilla; no extra allocation; proceed
                     if (state.isIn(TRIAL_FEATURES)) {
                         // modest positive exploration desirability; respect stabilizers elsewhere
                         float v = 1.25f; // 0.20–0.35 additive ~ 1.2–1.35 multiplicative; use 1.25

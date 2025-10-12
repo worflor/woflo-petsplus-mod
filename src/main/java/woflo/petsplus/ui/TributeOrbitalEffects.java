@@ -132,12 +132,16 @@ public class TributeOrbitalEffects {
      * Calculate orbital position for a particle at given time
      */
     public static Vec3d calculateOrbitalPosition(MobEntity pet, OrbitalRing ring, double time) {
+        if (pet == null || ring == null) {
+            return Vec3d.ZERO;
+        }
         Vec3d petPos = pet.getLerpedPos(1.0f);
         double entityRadius = Math.max(pet.getWidth(), pet.getHeight()) * 0.5;
-        double effectiveRadius = ring.radius * (1.0 + entityRadius * 0.2); // Scale with pet size
+        double effectiveRadius = Math.max(0.0, ring.radius) * (1.0 + Math.max(0.0, entityRadius) * 0.2); // Scale with pet size
 
         // Calculate the angle based on time and period
-        double angle = (time * 2 * Math.PI) / ring.period + ring.phaseOffset;
+        double period = Math.max(0.0001, ring.period);
+        double angle = (time * 2 * Math.PI) / period + ring.phaseOffset;
 
         // Base circular motion in XZ plane
         double x = effectiveRadius * Math.cos(angle);
@@ -145,7 +149,7 @@ public class TributeOrbitalEffects {
 
         // Apply inclination tilt for 3D orbital path
         double inclinationRad = Math.toRadians(ring.inclination);
-        double y = effectiveRadius * ring.verticalOscillation * Math.sin(angle * 1.5) * Math.sin(inclinationRad);
+        double y = effectiveRadius * Math.max(0.0, ring.verticalOscillation) * Math.sin(angle * 1.5) * Math.sin(inclinationRad);
 
         // Anchor at chest level for consistent visuals across entities
         double centerY = PetUIHelper.getChestAnchorY(pet);
@@ -161,6 +165,8 @@ public class TributeOrbitalEffects {
      * Emit orbital effects for a pet waiting for tribute
      */
     public static void emitTributeOrbital(MobEntity pet, ServerWorld world, long currentTick) {
+        if (pet == null || world == null) return;
+        if (world.isClient()) return;
         if (currentTick % ORBITAL_UPDATE_INTERVAL != 0) return;
 
         PetComponent petComp = PetComponent.get(pet);
@@ -179,11 +185,11 @@ public class TributeOrbitalEffects {
 
         PetsPlusConfig configInstance = PetsPlusConfig.getInstance();
         double timeScale = configInstance.getTributeOrbitalTimeScale();
-        double time = world.getTime() * timeScale;
+        double time = world.getTime() * Math.max(0.0, timeScale);
 
         // Calculate intensity based on config
         double configIntensity = configInstance.getTributeOrbitalIntensityMultiplier();
-        double intensityMultiplier = config.intensityMultiplier * configIntensity;
+        double intensityMultiplier = Math.max(0.0, config.intensityMultiplier) * Math.max(0.0, configIntensity);
 
         // Sustained budget: cap total particles emitted this 4s cycle to <= 6
         final int cycleCap = 6;
@@ -203,8 +209,10 @@ public class TributeOrbitalEffects {
             // Evenly sample indices across ring.particleCount
             int samples = Math.min(perRing, Math.max(1, ring.particleCount));
             for (int s = 0; s < samples && emittedThisCycle < cycleCap; s++) {
-                int idx = Math.round((float) s / Math.max(1, samples) * Math.max(1, ring.particleCount - 1));
-                double particleTime = time + (idx * ring.period / Math.max(1, ring.particleCount));
+                int denom = Math.max(1, samples);
+                int ringCount = Math.max(1, ring.particleCount);
+                int idx = Math.round((float) s / denom * Math.max(1, ringCount - 1));
+                double particleTime = time + (idx * Math.max(0.0001, ring.period) / ringCount);
                 Vec3d pos = getInterpolatedOrbitalPosition(pet, ring, particleTime);
 
                 // Primary particle
@@ -314,14 +322,15 @@ public class TributeOrbitalEffects {
             
             List<Vec3d> path = new ArrayList<>(CACHE_SIZE);
             for (int i = 0; i < CACHE_SIZE; i++) {
-                double time = (i / (double) CACHE_SIZE) * ring.period;
-                double angle = (time * 2 * Math.PI) / ring.period + ring.phaseOffset;
+                double time = (i / (double) Math.max(1, CACHE_SIZE)) * Math.max(0.0001, ring.period);
+                double angle = (time * 2 * Math.PI) / Math.max(0.0001, ring.period) + ring.phaseOffset;
 
-                double x = ring.radius * Math.cos(angle);
-                double z = ring.radius * Math.sin(angle);
+                double safeRadius = Math.max(0.0, ring.radius);
+                double x = safeRadius * Math.cos(angle);
+                double z = safeRadius * Math.sin(angle);
 
                 double inclinationRad = Math.toRadians(ring.inclination);
-                double y = ring.radius * ring.verticalOscillation * Math.sin(angle * 1.5) * Math.sin(inclinationRad);
+                double y = safeRadius * Math.max(0.0, ring.verticalOscillation) * Math.sin(angle * 1.5) * Math.sin(inclinationRad);
 
                 path.add(new Vec3d(x, y, z));
             }
@@ -344,7 +353,8 @@ public class TributeOrbitalEffects {
         double entityRadius = Math.max(pet.getWidth(), pet.getHeight()) * 0.5;
 
         // Get position from cached path
-        double normalizedTime = (time % ring.period) / ring.period;
+        double period = Math.max(0.0001, ring.period);
+        double normalizedTime = ((time % period) + period) % period; // wrap safely positive
         int index = (int) (normalizedTime * (path.size() - 1));
         Vec3d pathPos = path.get(Math.max(0, Math.min(index, path.size() - 1)));
 

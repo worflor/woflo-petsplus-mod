@@ -67,7 +67,9 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
         
         // Move to target position if needed
         if (targetPos != null) {
-            mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, 0.6);
+            if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
+                mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, 0.6);
+            }
         }
     }
     
@@ -95,7 +97,9 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
             // Try to find new sunlight spot
             targetPos = findNearbySunlight(8);
             if (targetPos != null) {
-                mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, 0.6);
+                if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
+                    mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, 0.6);
+                }
             }
         }
         

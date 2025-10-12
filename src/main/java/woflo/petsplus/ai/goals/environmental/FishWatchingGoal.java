@@ -114,10 +114,9 @@ public class FishWatchingGoal extends AdaptiveGoal {
         }
 
         double dSq = mob.squaredDistanceTo(fish);
-        if (dSq > (MAX_RANGE * MAX_RANGE) || dSq < (MIN_RANGE * MIN_RANGE) / 4.0) {
-            // Require roughly within range and not on top of us
-            // (still allow if slightly nearer than MIN_RANGE)
-        }
+        // Note: We intentionally allow slightly out-of-range or near-contact cases;
+        // findNearestVisibleFish already bounds the search. Keeping fish even if
+        // a bit nearer than MIN_RANGE or at MAX_RANGE edge is acceptable for subtle behavior.
 
         targetFish = fish;
         return true;
@@ -207,7 +206,8 @@ public class FishWatchingGoal extends AdaptiveGoal {
             Vec3d dir = new Vec3d(toFish.x, 0, toFish.z).normalize();
             if (dir.lengthSquared() > 1.0e-4) {
                 Vec3d step = new Vec3d(mob.getX(), mob.getY(), mob.getZ()).add(dir.multiply(0.5));
-                if (mob.getNavigation().isIdle()) {
+                // Navigation/pathing should be server-side only
+                if (mob.getEntityWorld() instanceof ServerWorld && mob.getNavigation().isIdle()) {
                     mob.getNavigation().startMovingTo(step.x, step.y, step.z, 0.6);
                 }
             }

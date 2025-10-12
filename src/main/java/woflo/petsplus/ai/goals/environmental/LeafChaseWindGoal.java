@@ -180,7 +180,9 @@ public class LeafChaseWindGoal extends AdaptiveGoal {
 
         // Begin a quick dart toward the target (followers may stagger before moving)
         if (targetPos != null && followerStaggerTicks == 0) {
-            mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, 1.15);
+            if (mob.getEntityWorld() instanceof ServerWorld) {
+                mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, 1.15);
+            }
         }
     }
 
@@ -211,7 +213,9 @@ public class LeafChaseWindGoal extends AdaptiveGoal {
 
         // Followers: respect stagger before starting movement
         if (joiningAsFollower && targetPos != null && dartTicks == followerStaggerTicks) {
-            mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, 1.1);
+            if (mob.getEntityWorld() instanceof ServerWorld) {
+                mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, 1.1);
+            }
         }
 
         // Keep moving toward the target but do not overshoot; if close, slow down slightly
@@ -221,7 +225,9 @@ public class LeafChaseWindGoal extends AdaptiveGoal {
             if (mob.getNavigation().isIdle()) {
                 // If still within follower stagger window, delay re-issuing orders
                 if (!(joiningAsFollower && dartTicks < Math.max(1, followerStaggerTicks))) {
-                    mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, speed);
+                    if (mob.getEntityWorld() instanceof ServerWorld) {
+                        mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, speed);
+                    }
                 }
             }
         }

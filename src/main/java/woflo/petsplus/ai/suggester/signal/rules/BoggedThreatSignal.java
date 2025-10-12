@@ -50,15 +50,6 @@ public final class BoggedThreatSignal implements DesirabilitySignal {
             return SignalResult.identity();
         }
 
-        // Current position fallback
-        BlockPos originPos = ctx.currentPos();
-        if (originPos == null) {
-            originPos = pet.getBlockPos();
-            if (originPos == null) {
-                return SignalResult.identity();
-            }
-        }
-
         // Tight AABB and chunk-load guard
         double x = pet.getX();
         double y = pet.getY();

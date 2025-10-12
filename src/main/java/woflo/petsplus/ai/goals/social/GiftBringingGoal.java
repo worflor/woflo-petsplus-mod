@@ -73,16 +73,25 @@ public class GiftBringingGoal extends AdaptiveGoal {
         
         if (giftPhase == 0) {
             // Phase 0: Move to item
-            mob.getNavigation().startMovingTo(targetItem, 1.0);
+            if (targetItem == null || !targetItem.isAlive()) {
+                return;
+            }
+            if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
+                mob.getNavigation().startMovingTo(targetItem, 1.0);
+            }
             mob.getLookControl().lookAt(targetItem);
             
             if (mob.squaredDistanceTo(targetItem) < 2.0) {
-                targetItem.discard(); // "Pickup"
+                if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
+                    targetItem.discard(); // "Pickup"
+                }
                 giftPhase = 1;
             }
         } else if (giftPhase == 1) {
             // Phase 1: Return to owner
-            mob.getNavigation().startMovingTo(targetPlayer, 0.9);
+            if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
+                mob.getNavigation().startMovingTo(targetPlayer, 0.9);
+            }
             mob.getLookControl().lookAt(targetPlayer);
             
             // Proud carrying posture
@@ -99,7 +108,9 @@ public class GiftBringingGoal extends AdaptiveGoal {
             }
         } else if (giftPhase == 2) {
             // Phase 2: Present gift
-            mob.getNavigation().stop();
+            if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
+                mob.getNavigation().stop();
+            }
             mob.getLookControl().lookAt(targetPlayer);
             
             // Sit/stop and look at owner expectantly
