@@ -35,15 +35,15 @@ Everything pushes emotional responses to nearby pets. Bond strength, nature, and
 
 The same systems that runs the stimulus bus, mood engine, emotional context, and natures flow into the *perception pipeline* and *behavioural momentum* mechanics.
 
-### [Roles](roles.md)
-**Nine specializations, each with unique abilities.**
-
-Guardian tanks damage. Striker finishes kills. Support heals allies. Scout finds loot. Skyrider boosts mobility. Enchantment-Bound improves luck. Cursed One embraces chaos. Eepy Eeper rewards rest. Eclipsed manipulates the void. Feature levels at 3, 7, 12, 17, 23, and 27 unlock new abilities. Switching roles resets progress but keeps personality. Speaking of progress.
-
 ### [Leveling](leveling.md)
 **Shared experience, shared growth.**
 
 Your XP splits evenly among pets within 32 blocks. Early levels go fast with 160% scaling, late game slows to 70%. Tribute gates block progress at level 10, 20, and 30 until you offer gold, diamond, or netherite scrap. Death wipes all progress. At least you'll have achievements to show for the journey.
+
+### [Roles](roles.md)
+**Nine specializations, each with unique abilities.**
+
+Guardian tanks damage. Striker finishes kills. Support heals allies. Scout finds loot. Skyrider boosts mobility. Enchantment-Bound improves luck. Cursed One embraces chaos. Eepy Eeper rewards rest. Eclipsed manipulates the void. Feature levels at 3, 7, 12, 17, 23, and 27 unlock new abilities. Switching roles resets progress but keeps personality. Speaking of progress.
 
 ### [Advancements](advancements.md)
 **Track your journey through achievements.**
