@@ -36,6 +36,7 @@ public abstract class AdaptiveGoal extends Goal {
     private int activeTicks = 0;
     private int committedDuration = 0;
     private float currentEngagement = 0.5f;
+    private boolean pendingStop = false;
     
     // Emotion feedback caching
     private EmotionFeedback cachedFeedback = null;
@@ -99,6 +100,10 @@ public abstract class AdaptiveGoal extends Goal {
         if (mob.getTarget() != null) {
             return false; // Attack target acquired
         }
+
+        if (pendingStop) {
+            return false;
+        }
         
         // Stop if higher priority goal needs to run
         if (hasActiveHigherPriorityGoals()) {
@@ -133,6 +138,7 @@ public abstract class AdaptiveGoal extends Goal {
     
     @Override
     public void stop() {
+        pendingStop = false;
         // Record satisfaction/enjoyment for memory system
         float finalSatisfaction = calculateFinalSatisfaction();
         recordGoalExperience(finalSatisfaction);
@@ -164,6 +170,10 @@ public abstract class AdaptiveGoal extends Goal {
         }
         
         onTickGoal();
+    }
+
+    protected void requestStop() {
+        this.pendingStop = true;
     }
     
     // === ABSTRACT METHODS - Implement in subclasses ===
@@ -218,7 +228,7 @@ public abstract class AdaptiveGoal extends Goal {
         return switch (goalDefinition.category()) {
             case PLAY -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.PHYSICAL;
             case WANDER -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.PHYSICAL;
-            case IDLE_QUIRK -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.PHYSICAL;
+            case IDLE_QUIRK -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.REST;
             case SPECIAL -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.MENTAL;
             case SOCIAL -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.SOCIAL;
         };

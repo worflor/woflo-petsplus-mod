@@ -52,7 +52,7 @@ public class CircleSpotGoal extends AdaptiveGoal {
     @Override
     protected void onTickGoal() {
         if (!mob.isOnGround()) {
-            stop();
+            requestStop();
             return;
         }
 
@@ -60,7 +60,7 @@ public class CircleSpotGoal extends AdaptiveGoal {
         circleTicks++;
 
         if (circleTicks >= CIRCLE_DURATION) {
-            stop();
+            requestStop();
             return;
         }
 

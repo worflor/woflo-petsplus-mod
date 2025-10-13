@@ -92,7 +92,7 @@ public class AerialPatrolGoal extends AdaptiveGoal {
         }
 
         if (!hasLaunchClearance()) {
-            stop();
+            requestStop();
             return;
         }
 

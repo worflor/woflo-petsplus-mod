@@ -226,6 +226,7 @@ public final class PetMoodEngine {
     private float physicalActivity = 0f;               // Running, jumping, playing
     private float mentalActivity = 0f;                 // Puzzles, searching, tracking
     private float socialActivity = 0f;                 // Interactions with owner/pets
+    private float restActivity = 0f;                   // Restorative downtime loops
 
     // Derived behavioral batteries layered above the raw activity feeds
     private float socialCharge = 0.45f;                // 0=drained, 0.45=content introvert baseline, 1=pack euphoric
@@ -662,6 +663,7 @@ public final class PetMoodEngine {
             case PHYSICAL -> physicalActivity = Math.min(5f, physicalActivity + contribution * 1.2f);
             case MENTAL -> mentalActivity = Math.min(5f, mentalActivity + contribution * 0.8f);
             case SOCIAL -> socialActivity = Math.min(5f, socialActivity + contribution * 0.9f);
+            case REST -> restActivity = Math.min(5f, restActivity + contribution);
         }
         energyProfileDirty = true;
         dirty = true;
@@ -673,7 +675,8 @@ public final class PetMoodEngine {
     public enum ActivityType {
         PHYSICAL,  // Movement, play, exercise
         MENTAL,    // Problem-solving, searching, tracking
-        SOCIAL     // Interactions with owner or other pets
+        SOCIAL,    // Interactions with owner or other pets
+        REST       // Calming, restorative loops and naps
     }
     
     /**
@@ -887,6 +890,7 @@ public final class PetMoodEngine {
         physicalActivity = 0f;
         mentalActivity = 0f;
         socialActivity = 0f;
+        restActivity = 0f;
         lastMomentumUpdate = 0L;
         energyProfileDirty = true;
     }
@@ -1239,9 +1243,10 @@ public final class PetMoodEngine {
         // Calculate personality-influenced baseline from mood and nature
         float baseline = calculateMomentumBaseline();
 
-        // Calculate target momentum from activities
-        float activityLevel = calculateActivityLevel();
-        float targetMomentum = MathHelper.lerp(0.4f, baseline, activityLevel);
+        // Calculate target momentum from activities while keeping idle at baseline
+        float activityLevel = MathHelper.clamp(calculateActivityLevel(), 0f, 1f);
+        float activityBoost = activityLevel * 0.4f;
+        float targetMomentum = MathHelper.clamp(baseline + activityBoost, 0f, 1f);
 
         // Apply inertia for smooth transitions
         float inertiaFactor = calculateInertiaFactor(delta);
@@ -1324,12 +1329,15 @@ public final class PetMoodEngine {
         float normalizedPhysical = Math.min(1f, physicalActivity * 0.4f);
         float normalizedMental = Math.min(1f, mentalActivity * 0.3f);
         float normalizedSocial = Math.min(1f, socialActivity * 0.3f);
+        float normalizedRest = Math.min(1f, restActivity * 0.5f);
 
         float ambientSocial = sampleAmbientSocialComfort(now);
         float bondFactor = normalizedBondStrength();
 
         float physicalDrain = normalizedPhysical * (0.45f + normalizedPhysical * 0.25f) * dt;
         float physicalRecovery = (0.03f + (1f - normalizedPhysical) * 0.08f + socialCharge * 0.01f) * dt;
+        float restBias = (0.04f + (1f - physicalStamina) * 0.12f) * normalizedRest * dt;
+        physicalRecovery += restBias;
         physicalStamina = MathHelper.clamp(physicalStamina + physicalRecovery - physicalDrain, 0.05f, 1f);
 
         float calmMood = moodBlend.getOrDefault(PetComponent.Mood.CALM, 0f);
@@ -1453,11 +1461,13 @@ public final class PetMoodEngine {
         physicalActivity *= Math.pow(decayFactor, 1.2);  // Physical decays faster
         mentalActivity *= Math.pow(decayFactor, 0.8);    // Mental decays slower
         socialActivity *= Math.pow(decayFactor, 1.0);    // Social decays normally
-        
+        restActivity *= Math.pow(decayFactor, 0.5);      // Rest lingers to keep recovery bias for a bit
+
         // Clear near-zero values to prevent float drift
         if (physicalActivity < 0.001f) physicalActivity = 0f;
         if (mentalActivity < 0.001f) mentalActivity = 0f;
         if (socialActivity < 0.001f) socialActivity = 0f;
+        if (restActivity < 0.001f) restActivity = 0f;
     }
     
     /**
