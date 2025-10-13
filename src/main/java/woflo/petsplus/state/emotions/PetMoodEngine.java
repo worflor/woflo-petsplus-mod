@@ -1249,7 +1249,8 @@ public final class PetMoodEngine {
         float targetMomentum = MathHelper.clamp(baseline + activityBoost, 0f, 1f);
 
         // Apply inertia for smooth transitions
-        float inertiaFactor = calculateInertiaFactor(delta);
+        float momentumGap = Math.abs(targetMomentum - behavioralMomentum);
+        float inertiaFactor = calculateInertiaFactor(delta, momentumGap);
         float momentumDelta = (targetMomentum - behavioralMomentum) * inertiaFactor;
 
         // Update momentum with smoothing
@@ -1414,17 +1415,19 @@ public final class PetMoodEngine {
     /**
      * Calculates inertia factor for smooth momentum transitions.
      */
-    private float calculateInertiaFactor(long deltaTicks) {
+    private float calculateInertiaFactor(long deltaTicks, float momentumGap) {
         // Base inertia from nature (resilient pets change energy slower)
-        float resilience = parent.getNatureResilienceMultiplier();
-        float baseInertia = 0.01f / resilience;
-        
-        // Scale by time delta for frame-independent behavior
-        float timeFactor = Math.min(1f, deltaTicks / 20f);
-        
-        // Accelerate transitions when momentum is far from target
-        float urgency = 1f + momentumInertia * 2f;
-        
+        float resilience = Math.max(0.1f, parent.getNatureResilienceMultiplier());
+        float baseInertia = 0.05f / resilience;
+
+        // Scale by time delta for frame-independent behavior (wider window for multi-second bursts)
+        float timeFactor = MathHelper.clamp(deltaTicks / 20f, 0.5f, 6f);
+
+        // Accelerate transitions when momentum is far from target or has been moving recently
+        float gapUrgency = MathHelper.clamp(momentumGap * 3.5f, 0f, 3.5f);
+        float inertiaPulse = MathHelper.clamp(momentumInertia * 12f, 0f, 3f);
+        float urgency = 1f + gapUrgency + inertiaPulse;
+
         return MathHelper.clamp(baseInertia * timeFactor * urgency, 0.001f, 0.5f);
     }
     
