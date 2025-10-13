@@ -15,9 +15,13 @@ import java.util.EnumSet;
  * Aquatic-specific idle quirk - mob surfaces to breathe/look around.
  */
 public class SurfaceBreathGoal extends AdaptiveGoal {
-    private int surfaceTicks = 0;
-    private static final int SURFACE_DURATION = 30;
+    private static final int SURFACE_HOLD_TICKS = 30;
+    private static final int MAX_ASCENT_TICKS = 120;
+
+    private int totalTicks = 0;
+    private int surfaceHoldTicks = 0;
     private boolean reachedSurface = false;
+    private boolean finished = false;
     
     public SurfaceBreathGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.SURFACE_BREATH), EnumSet.of(Control.MOVE));
@@ -30,31 +34,37 @@ public class SurfaceBreathGoal extends AdaptiveGoal {
 
     @Override
     protected boolean shouldContinueGoal() {
-        if (surfaceTicks >= SURFACE_DURATION) {
-            return false;
-        }
-
         if (!mob.isTouchingWater()) {
             return false;
         }
 
-        return true;
+        if (finished) {
+            return false;
+        }
+
+        return totalTicks < MAX_ASCENT_TICKS;
     }
-    
+
     @Override
     protected void onStartGoal() {
-        surfaceTicks = 0;
+        totalTicks = 0;
+        surfaceHoldTicks = 0;
         reachedSurface = false;
+        finished = false;
     }
-    
+
     @Override
     protected void onStopGoal() {
         mob.getNavigation().stop();
+        totalTicks = 0;
+        surfaceHoldTicks = 0;
+        reachedSurface = false;
+        finished = false;
     }
-    
+
     @Override
     protected void onTickGoal() {
-        surfaceTicks++;
+        totalTicks++;
 
         boolean submerged = mob.isSubmergedInWater();
         boolean touchingWater = mob.isTouchingWater();
@@ -64,15 +74,23 @@ public class SurfaceBreathGoal extends AdaptiveGoal {
             return;
         }
 
+        if (totalTicks > MAX_ASCENT_TICKS) {
+            finished = true;
+            requestStop();
+            return;
+        }
+
         if (submerged) {
             if (reachedSurface) {
                 reachedSurface = false;
             }
+            surfaceHoldTicks = 0;
             mob.setVelocity(mob.getVelocity().add(0, 0.05, 0));
             return;
         }
 
         reachedSurface = true;
+        surfaceHoldTicks++;
 
         // Float near the surface; dampen downward drift and add a light upward nudge if sinking
         mob.setVelocity(mob.getVelocity().multiply(0.9, 0.8, 0.9));
@@ -81,13 +99,13 @@ public class SurfaceBreathGoal extends AdaptiveGoal {
         }
 
         // Look around
-        if (surfaceTicks % 10 == 0) {
+        if (surfaceHoldTicks % 10 == 0) {
             int yawStep = mob.getRandom().nextInt(3) - 1; // -1, 0, or 1
             mob.setYaw(mob.getYaw() + yawStep * 45f);
         }
 
         // Splash particles
-        if (surfaceTicks % 15 == 0 && mob.getEntityWorld() instanceof ServerWorld serverWorld) {
+        if (surfaceHoldTicks % 15 == 0 && mob.getEntityWorld() instanceof ServerWorld serverWorld) {
             serverWorld.spawnParticles(
                 ParticleTypes.SPLASH,
                 mob.getX(), mob.getY(), mob.getZ(),
@@ -95,6 +113,11 @@ public class SurfaceBreathGoal extends AdaptiveGoal {
                 0.5, 0.1, 0.5,
                 0.1
             );
+        }
+
+        if (surfaceHoldTicks >= SURFACE_HOLD_TICKS) {
+            finished = true;
+            requestStop();
         }
     }
     

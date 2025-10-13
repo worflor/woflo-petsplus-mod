@@ -1251,7 +1251,8 @@ public final class PetMoodEngine {
         // Calculate target momentum from activities while keeping idle at baseline
         float activityLevel = MathHelper.clamp(calculateActivityLevel(), 0f, 1f);
         float activityBoost = activityLevel * 0.4f;
-        float targetMomentum = MathHelper.clamp(baseline + activityBoost, 0f, 1f);
+        float restCalm = MathHelper.clamp(restActivity * 0.3f, 0f, 0.35f);
+        float targetMomentum = MathHelper.clamp(baseline + activityBoost - restCalm, 0f, 1f);
 
         // Apply inertia for smooth transitions
         float momentumGap = Math.abs(targetMomentum - behavioralMomentum);
