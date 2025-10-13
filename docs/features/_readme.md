@@ -33,7 +33,7 @@ Everything pushes emotional responses to nearby pets. Bond strength, nature, and
 ### [Behaviour](behaviour.md)
 **The ripple's behavioural counterpart.**
 
-The same systems that runs the stimulus bus, mood engine, emotional context, and natures flow into the **perception pipeline** and **behavioural momentum** mechanics.
+The same systems that runs the stimulus bus, mood engine, emotional context, and natures flow into the *perception pipeline* and *behavioural momentum* mechanics.
 
 ### [Roles](roles.md)
 **Nine specializations, each with unique abilities.**
