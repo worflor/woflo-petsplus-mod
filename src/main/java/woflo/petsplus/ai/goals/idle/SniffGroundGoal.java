@@ -15,9 +15,16 @@ import java.util.EnumSet;
  * Land-specific idle quirk - pet sniffs the ground investigating scents.
  */
 public class SniffGroundGoal extends AdaptiveGoal {
+    private static final int BASE_SNIFF_DURATION = 50;
+
     private BlockPos sniffTarget;
     private int sniffTicks = 0;
-    private static final int SNIFF_DURATION = 40;
+    private int getSniffDuration() {
+        PetContext ctx = getContext();
+        float curiosity = ctx.hasPetsPlusComponent() ? ctx.getMoodStrength(woflo.petsplus.state.PetComponent.Mood.CURIOUS) : 0.0f;
+        float multiplier = MathHelper.clamp(1.0f + curiosity, 0.7f, 1.7f);
+        return (int) (BASE_SNIFF_DURATION * multiplier);
+    }
     
     public SniffGroundGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.SNIFF_GROUND), EnumSet.of(Control.LOOK));
@@ -30,7 +37,7 @@ public class SniffGroundGoal extends AdaptiveGoal {
     
     @Override
     protected boolean shouldContinueGoal() {
-        return sniffTicks < SNIFF_DURATION;
+        return sniffTicks < getSniffDuration();
     }
     
     @Override
@@ -44,6 +51,7 @@ public class SniffGroundGoal extends AdaptiveGoal {
             0,
             (int)(Math.sin(angle) * distance)
         );
+        mob.playSound(net.minecraft.sound.SoundEvents.ENTITY_FOX_SNIFF, 1.0f, 1.0f);
     }
     
     @Override

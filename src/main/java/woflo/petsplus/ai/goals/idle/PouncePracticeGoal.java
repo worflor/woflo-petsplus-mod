@@ -14,9 +14,18 @@ import java.util.EnumSet;
  * Land-specific idle quirk - pet practices pouncing on imaginary prey.
  */
 public class PouncePracticeGoal extends AdaptiveGoal {
+    private static final int BASE_CROUCH_DURATION = 20;
+
     private Vec3d pounceTarget;
     private int crouchTicks = 0;
     private boolean hasJumped = false;
+
+    private int getCrouchDuration() {
+        PetContext ctx = getContext();
+        float playfulness = ctx.hasPetsPlusComponent() ? ctx.getMoodStrength(woflo.petsplus.state.PetComponent.Mood.PLAYFUL) : 0.0f;
+        float adjusted = MathHelper.clamp(BASE_CROUCH_DURATION * (1.2f - playfulness), 12f, 30f);
+        return (int) adjusted;
+    }
     
     public PouncePracticeGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.POUNCE_PRACTICE), EnumSet.of(Control.MOVE, Control.JUMP));
@@ -24,6 +33,10 @@ public class PouncePracticeGoal extends AdaptiveGoal {
     
     @Override
     protected boolean canStartGoal() {
+        var profile = woflo.petsplus.ai.traits.SpeciesTraits.getProfile(mob);
+        if (!profile.felineLike() && !profile.canineLike()) {
+            return false;
+        }
         return mob.isOnGround() && mob.getNavigation().isIdle();
     }
     
@@ -58,7 +71,7 @@ public class PouncePracticeGoal extends AdaptiveGoal {
             crouchTicks++;
             
             // Crouch phase (wiggle butt)
-            if (crouchTicks < 20) {
+            if (crouchTicks < getCrouchDuration()) {
                 mob.setSneaking(true);
                 mob.getLookControl().lookAt(pounceTarget);
                 
@@ -70,6 +83,7 @@ public class PouncePracticeGoal extends AdaptiveGoal {
                 }
             } else {
                 // POUNCE!
+                mob.playSound(net.minecraft.sound.SoundEvents.ENTITY_CAT_AMBIENT, 0.5f, 1.5f);
                 mob.setSneaking(false);
                 Vec3d velocity = pounceTarget.subtract(mob.getEntityPos()).normalize().multiply(0.5).add(0, 0.4, 0);
                 mob.setVelocity(velocity);

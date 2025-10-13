@@ -56,8 +56,37 @@ public class CrouchApproachResponseGoal extends AdaptiveGoal {
     
     private BehaviorVariant currentVariant = null;
     private int variantTicks = 0;
+    private static final String CROUCH_APPROACH_SIGNAL = "crouch_approach_signal_tick";
     private long lastSignalTick = -1;
     private static final long SIGNAL_TIMEOUT = 10; // Signal expires after 10 ticks
+
+    private static final float PLAYFUL_MOOD_THRESHOLD = 0.3f;
+    private static final float BONDED_MOOD_THRESHOLD = 0.4f;
+    private static final float CALM_MOOD_THRESHOLD = 0.5f;
+    private static final float HAPPY_MOOD_THRESHOLD = 0.4f;
+    private static final float CURIOUS_MOOD_THRESHOLD = 0.4f;
+    private static final float FOCUSED_MOOD_THRESHOLD = 0.4f;
+    private static final float AFRAID_MOOD_THRESHOLD = 0.3f;
+    private static final float ANGRY_MOOD_THRESHOLD = 0.3f;
+    private static final float RESTLESS_MOOD_THRESHOLD = 0.4f;
+
+    private static final float PLAYFUL_CHANCE = 0.70f;
+    private static final float BONDED_CHANCE = 0.60f;
+    private static final float CALM_CHANCE = 0.40f;
+    private static final float HAPPY_CHANCE = 0.55f;
+    private static final float CURIOUS_CHANCE = 0.50f;
+
+    private static final float FOCUSED_PENALTY = 0.80f;
+    private static final float AFRAID_PENALTY = 0.90f;
+    private static final float ANGRY_PENALTY = 0.70f;
+    private static final float RESTLESS_PENALTY = 0.40f;
+
+    private static final float BOND_STRENGTH_MULTIPLIER = 0.5f;
+    private static final float YOUNG_PET_MULTIPLIER = 1.25f;
+    private static final float MATURE_PET_MULTIPLIER = 0.9f;
+
+    private static final float CLOSE_APPROACH_MULTIPLIER = 1.3f;
+    private static final float DISTANT_APPROACH_MULTIPLIER = 0.7f;
     
     public CrouchApproachResponseGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.CROUCH_APPROACH_RESPONSE), EnumSet.of(Control.MOVE, Control.LOOK));
@@ -159,63 +188,62 @@ public class CrouchApproachResponseGoal extends AdaptiveGoal {
             variantTicks++;
         }
     }
-    
     /**
      * Calculate the probability of responding to crouch-approach signal.
      * Considers mood, bond, energy, species, age, and negative moods.
      */
     private float calculateResponseChance(PetContext ctx) {
         float baseChance = 0.0f;
-        
+
         // Mood modifiers (primary factor) - weighted by blend strength
-        if (ctx.hasMoodInBlend(PetComponent.Mood.PLAYFUL, 0.3f)) {
+        if (ctx.hasMoodInBlend(PetComponent.Mood.PLAYFUL, PLAYFUL_MOOD_THRESHOLD)) {
             float strength = ctx.moodBlend().getOrDefault(PetComponent.Mood.PLAYFUL, 0.0f);
-            baseChance += 0.70f * strength;
+            baseChance += PLAYFUL_CHANCE * strength;
         }
-        if (ctx.hasMoodInBlend(PetComponent.Mood.BONDED, 0.4f)) {
+        if (ctx.hasMoodInBlend(PetComponent.Mood.BONDED, BONDED_MOOD_THRESHOLD)) {
             float strength = ctx.moodBlend().getOrDefault(PetComponent.Mood.BONDED, 0.0f);
-            baseChance += 0.60f * strength;
+            baseChance += BONDED_CHANCE * strength;
         }
-        if (ctx.hasMoodInBlend(PetComponent.Mood.CALM, 0.5f)) {
+        if (ctx.hasMoodInBlend(PetComponent.Mood.CALM, CALM_MOOD_THRESHOLD)) {
             float strength = ctx.moodBlend().getOrDefault(PetComponent.Mood.CALM, 0.0f);
-            baseChance += 0.40f * strength;
+            baseChance += CALM_CHANCE * strength;
         }
-        if (ctx.hasMoodInBlend(PetComponent.Mood.HAPPY, 0.4f)) {
+        if (ctx.hasMoodInBlend(PetComponent.Mood.HAPPY, HAPPY_MOOD_THRESHOLD)) {
             float strength = ctx.moodBlend().getOrDefault(PetComponent.Mood.HAPPY, 0.0f);
-            baseChance += 0.55f * strength;
+            baseChance += HAPPY_CHANCE * strength;
         }
-        if (ctx.hasMoodInBlend(PetComponent.Mood.CURIOUS, 0.4f)) {
+        if (ctx.hasMoodInBlend(PetComponent.Mood.CURIOUS, CURIOUS_MOOD_THRESHOLD)) {
             float strength = ctx.moodBlend().getOrDefault(PetComponent.Mood.CURIOUS, 0.0f);
-            baseChance += 0.50f * strength;
+            baseChance += CURIOUS_CHANCE * strength;
         }
         
         // significantly reduce response
-        if (ctx.hasMoodInBlend(PetComponent.Mood.FOCUSED, 0.4f)) {
+        if (ctx.hasMoodInBlend(PetComponent.Mood.FOCUSED, FOCUSED_MOOD_THRESHOLD)) {
             float strength = ctx.moodBlend().getOrDefault(PetComponent.Mood.FOCUSED, 0.0f);
-            baseChance *= (1.0f - (0.80f * strength)); // Reduce by up to 80%
+            baseChance *= (1.0f - (FOCUSED_PENALTY * strength)); // Reduce by up to 80%
         }
-        if (ctx.hasMoodInBlend(PetComponent.Mood.AFRAID, 0.3f)) {
+        if (ctx.hasMoodInBlend(PetComponent.Mood.AFRAID, AFRAID_MOOD_THRESHOLD)) {
             float strength = ctx.moodBlend().getOrDefault(PetComponent.Mood.AFRAID, 0.0f);
-            baseChance *= (1.0f - (0.90f * strength)); // Very reduced when scared
+            baseChance *= (1.0f - (AFRAID_PENALTY * strength)); // Very reduced when scared
         }
-        if (ctx.hasMoodInBlend(PetComponent.Mood.ANGRY, 0.3f)) {
+        if (ctx.hasMoodInBlend(PetComponent.Mood.ANGRY, ANGRY_MOOD_THRESHOLD)) {
             float strength = ctx.moodBlend().getOrDefault(PetComponent.Mood.ANGRY, 0.0f);
-            baseChance *= (1.0f - (0.70f * strength)); // Reduced when angry
+            baseChance *= (1.0f - (ANGRY_PENALTY * strength)); // Reduced when angry
         }
-        if (ctx.hasMoodInBlend(PetComponent.Mood.RESTLESS, 0.4f)) {
+        if (ctx.hasMoodInBlend(PetComponent.Mood.RESTLESS, RESTLESS_MOOD_THRESHOLD)) {
             float strength = ctx.moodBlend().getOrDefault(PetComponent.Mood.RESTLESS, 0.0f);
-            baseChance *= (1.0f - (0.40f * strength)); // Somewhat distracted
+            baseChance *= (1.0f - (RESTLESS_PENALTY * strength)); // Somewhat distracted
         }
         
         // Bond strength multiplier (×1.5 at max bond)
-        baseChance *= (1.0f + ctx.bondStrength() * 0.5f);
+        baseChance *= (1.0f + ctx.bondStrength() * BOND_STRENGTH_MULTIPLIER);
         
         // Age consideration - young pets are more playful and responsive
         PetContext.AgeCategory age = ctx.getAgeCategory();
         if (age == PetContext.AgeCategory.YOUNG) {
-            baseChance *= 1.25f; // Young pets 25% more responsive
+            baseChance *= YOUNG_PET_MULTIPLIER; // Young pets 25% more responsive
         } else if (age == PetContext.AgeCategory.MATURE) {
-            baseChance *= 0.9f; // Mature pets slightly less impulsive
+            baseChance *= MATURE_PET_MULTIPLIER; // Mature pets slightly less impulsive
         }
         
         float behavioralMomentum = MathHelper.clamp(ctx.behavioralMomentum(), 0f, 1f);
@@ -243,9 +271,9 @@ public class CrouchApproachResponseGoal extends AdaptiveGoal {
         // Distance consideration - closer approach = higher response
         // Sweet spot is 3-6 blocks (natural interaction distance)
         if (ctx.distanceToOwner() <= 4.0f) {
-            baseChance *= 1.3f; // Bonus for very close approach
+            baseChance *= CLOSE_APPROACH_MULTIPLIER; // Bonus for very close approach
         } else if (ctx.distanceToOwner() > 10.0f) {
-            baseChance *= 0.7f; // Penalty for distant approach
+            baseChance *= DISTANT_APPROACH_MULTIPLIER; // Penalty for distant approach
         }
         
         // Species modifier
@@ -338,7 +366,7 @@ public class CrouchApproachResponseGoal extends AdaptiveGoal {
             return false;
         }
         
-        Long signalTick = pc.getStateData("crouch_approach_signal_tick", Long.class, -1L);
+        Long signalTick = pc.getStateData(CROUCH_APPROACH_SIGNAL, Long.class, -1L);
         long worldTime = mob.getEntityWorld().getTime();
         
         if (signalTick < 0 || worldTime - signalTick > SIGNAL_TIMEOUT) {

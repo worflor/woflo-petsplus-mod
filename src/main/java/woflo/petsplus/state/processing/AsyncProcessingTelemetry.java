@@ -4,16 +4,13 @@ import java.util.concurrent.atomic.AtomicLong;
 import woflo.petsplus.config.DebugSettings;
 
 /**
- * Phase A - Chunk 4: Telemetry scaffold for async processing.
- * 
- * Provides compile-safe counters and timers with zero external dependencies.
- * This class is cheap when disabled (no call sites in this phase). Future chunks
- * will add minimal, guarded instrumentation using the APIs exposed here.
+ * Telemetry counters and timers used by async processing components. All metrics are
+ * optional and guarded by {@link DebugSettings}; when disabled the calls are cheap no-ops.
  *
  * Notes:
  * - No references to Minecraft classes.
  * - Thread-safety: AtomicLongs for counters and timer accumulators.
- * - Admin toggles and sample cadence are sourced from DebugSettings.
+ * - Admin toggles and sample cadence are sourced from {@link DebugSettings}.
  */
 public final class AsyncProcessingTelemetry {
 

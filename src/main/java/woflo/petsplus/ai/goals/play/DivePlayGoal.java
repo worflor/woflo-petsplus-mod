@@ -16,9 +16,18 @@ import java.util.EnumSet;
  * Creates energetic aquatic play behavior.
  */
 public class DivePlayGoal extends AdaptiveGoal {
+    private static final int BASE_DIVE_TICKS = 80;
+
     private int diveTicks = 0;
     private boolean diving = false;
-    private static final int MAX_DIVE_TICKS = 100; // 5 seconds
+    private int targetDuration = BASE_DIVE_TICKS;
+
+    private int computeDiveDuration() {
+        PetContext ctx = getContext();
+        float playfulness = ctx.hasPetsPlusComponent() ? ctx.getMoodStrength(woflo.petsplus.state.PetComponent.Mood.PLAYFUL) : 0.0f;
+        float multiplier = MathHelper.clamp(1.0f + playfulness, 0.8f, 1.8f);
+        return (int) (BASE_DIVE_TICKS * multiplier);
+    }
     
     public DivePlayGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.DIVE_PLAY), EnumSet.of(Control.MOVE));
@@ -26,19 +35,24 @@ public class DivePlayGoal extends AdaptiveGoal {
     
     @Override
     protected boolean canStartGoal() {
+        var profile = woflo.petsplus.ai.traits.SpeciesTraits.getProfile(mob);
+        if (!profile.aquatic()) {
+            return false;
+        }
         return mob.isTouchingWater() && 
                mob.getEntityWorld() instanceof ServerWorld;
     }
     
     @Override
     protected boolean shouldContinueGoal() {
-        return diveTicks < MAX_DIVE_TICKS && mob.isTouchingWater();
+        return diveTicks < targetDuration && mob.isTouchingWater();
     }
     
     @Override
     protected void onStartGoal() {
         diveTicks = 0;
         diving = mob.getRandom().nextBoolean();
+        targetDuration = Math.max(40, computeDiveDuration());
     }
     
     @Override
@@ -59,12 +73,18 @@ public class DivePlayGoal extends AdaptiveGoal {
         }
         
         if (diving) {
-            // Dive down
-            mob.setVelocity(
-                mob.getVelocity().x * 0.9,
-                -0.1,
-                mob.getVelocity().z * 0.9
-            );
+            // Try to catch fish
+            java.util.List<net.minecraft.entity.passive.FishEntity> fish = mob.getEntityWorld().getNonSpectatingEntities(net.minecraft.entity.passive.FishEntity.class, mob.getBoundingBox().expand(5));
+            if (!fish.isEmpty()) {
+                mob.getNavigation().startMovingTo(fish.get(0), 1.2);
+            } else {
+                // Dive down
+                mob.setVelocity(
+                    mob.getVelocity().x * 0.9,
+                    -0.1,
+                    mob.getVelocity().z * 0.9
+                );
+            }
             mob.setPitch(60); // Look down
             
             // Bubble particles

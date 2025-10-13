@@ -90,8 +90,8 @@ public class TailChaseGoal extends AdaptiveGoal {
             mob.bodyYaw = targetYaw;
 
             // Particle effect on spin completion
-            if (mob.getEntityWorld().isClient()) {
-                spawnSpinParticles();
+            if (!mob.getEntityWorld().isClient()) {
+                ((net.minecraft.server.world.ServerWorld) mob.getEntityWorld()).spawnParticles(net.minecraft.particle.ParticleTypes.CRIT, mob.getParticleX(1.0D), mob.getRandomBodyY() + 0.5D, mob.getParticleZ(1.0D), 5, 0.5, 0.5, 0.5, 0.02);
             }
         }
     }
@@ -132,9 +132,7 @@ public class TailChaseGoal extends AdaptiveGoal {
         );
     }
     
-    private void spawnSpinParticles() {
-        // TODO: Add particle effects for visual flair
-    }
+
 }
 
 

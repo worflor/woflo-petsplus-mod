@@ -18,7 +18,13 @@ public class PerkEarsScanGoal extends AdaptiveGoal {
     private int scanTicks = 0;
     private int currentScanIndex = 0;
     private static final int SCANS_PER_SESSION = 3;
-    private static final int TICKS_PER_SCAN = 20;
+    private static final int BASE_TICKS_PER_SCAN = 20;
+    private int getScanDuration() {
+        PetContext ctx = getContext();
+        float vigilance = ctx.hasPetsPlusComponent() ? ctx.getMoodStrength(woflo.petsplus.state.PetComponent.Mood.FOCUSED) : 0.0f;
+        float multiplier = MathHelper.clamp(1.0f + vigilance, 0.5f, 1.6f);
+        return Math.max(12, (int) (BASE_TICKS_PER_SCAN * multiplier));
+    }
     
     public PerkEarsScanGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.PERK_EARS_SCAN), EnumSet.of(Control.LOOK));
@@ -50,7 +56,7 @@ public class PerkEarsScanGoal extends AdaptiveGoal {
     protected void onTickGoal() {
         scanTicks++;
         
-        if (scanTicks >= TICKS_PER_SCAN) {
+        if (scanTicks >= getScanDuration()) {
             currentScanIndex++;
             scanTicks = 0;
             pickNextScanTarget();
@@ -64,6 +70,18 @@ public class PerkEarsScanGoal extends AdaptiveGoal {
     }
     
     private void pickNextScanTarget() {
+        PetContext ctx = getContext();
+        if (ctx.getOwner() != null && mob.getRandom().nextFloat() < 0.3f) {
+            scanTarget = ctx.getOwner().getEyePos();
+            return;
+        }
+
+        java.util.List<net.minecraft.entity.LivingEntity> entities = mob.getEntityWorld().getNonSpectatingEntities(net.minecraft.entity.LivingEntity.class, mob.getBoundingBox().expand(10));
+        if (!entities.isEmpty()) {
+            scanTarget = entities.get(mob.getRandom().nextInt(entities.size())).getEyePos();
+            return;
+        }
+
         // Look in different directions
         double angle = mob.getRandom().nextDouble() * Math.PI * 2;
         double distance = 5.0 + mob.getRandom().nextDouble() * 5;

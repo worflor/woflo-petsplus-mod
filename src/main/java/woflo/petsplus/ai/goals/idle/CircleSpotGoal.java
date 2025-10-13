@@ -14,12 +14,25 @@ import java.util.EnumSet;
  * Works with any mob that can move.
  */
 public class CircleSpotGoal extends AdaptiveGoal {
+    private static final int BASE_CIRCLE_DURATION = 60; // 3 seconds baseline
+
     private double centerX;
     private double centerZ;
     private float currentAngle;
     private int circleTicks;
-    private static final float CIRCLE_RADIUS = 1.0f;
-    private static final int CIRCLE_DURATION = 60; // 3 seconds
+    private int targetDuration;
+
+    private float getCircleRadius() {
+        float baseRadius = Math.max(0.6f, mob.getWidth());
+        return baseRadius * 1.5f;
+    }
+
+    private int computeCircleDuration() {
+        PetContext ctx = getContext();
+        float restlessness = ctx.hasPetsPlusComponent() ? ctx.getMoodStrength(woflo.petsplus.state.PetComponent.Mood.RESTLESS) : 0.0f;
+        float durationMultiplier = MathHelper.clamp(1.0f + restlessness, 0.6f, 1.6f);
+        return (int) (BASE_CIRCLE_DURATION * durationMultiplier);
+    }
     
     public CircleSpotGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.CIRCLE_SPOT), EnumSet.of(Control.MOVE));
@@ -32,7 +45,7 @@ public class CircleSpotGoal extends AdaptiveGoal {
     
     @Override
     protected boolean shouldContinueGoal() {
-        return circleTicks < CIRCLE_DURATION && mob.isOnGround();
+        return circleTicks < targetDuration && mob.isOnGround();
     }
 
     @Override
@@ -41,6 +54,7 @@ public class CircleSpotGoal extends AdaptiveGoal {
         centerZ = mob.getZ();
         currentAngle = 0;
         circleTicks = 0;
+        targetDuration = Math.max(40, computeCircleDuration());
     }
 
     @Override
@@ -49,23 +63,22 @@ public class CircleSpotGoal extends AdaptiveGoal {
         circleTicks = 0;
     }
 
-    @Override
     protected void onTickGoal() {
         if (!mob.isOnGround()) {
             requestStop();
             return;
         }
 
-        currentAngle = MathHelper.wrapDegrees(currentAngle + 6); // 6 degrees per tick = full circle in 60 ticks
+        currentAngle = MathHelper.wrapDegrees(currentAngle + 360.0f / targetDuration);
         circleTicks++;
 
-        if (circleTicks >= CIRCLE_DURATION) {
+        if (circleTicks >= targetDuration) {
             requestStop();
             return;
         }
 
-        double targetX = centerX + Math.cos(Math.toRadians(currentAngle)) * CIRCLE_RADIUS;
-        double targetZ = centerZ + Math.sin(Math.toRadians(currentAngle)) * CIRCLE_RADIUS;
+        double targetX = centerX + Math.cos(Math.toRadians(currentAngle)) * getCircleRadius();
+        double targetZ = centerZ + Math.sin(Math.toRadians(currentAngle)) * getCircleRadius();
 
         mob.getNavigation().startMovingTo(targetX, mob.getY(), targetZ, 0.8);
     }

@@ -24,6 +24,10 @@ public class PerchHopGoal extends AdaptiveGoal {
     
     @Override
     protected boolean canStartGoal() {
+        var profile = woflo.petsplus.ai.traits.SpeciesTraits.getProfile(mob);
+        if (!profile.avian()) {
+            return false;
+        }
         return mob.isOnGround() || findNearbyPerch() != null;
     }
     
@@ -52,11 +56,28 @@ public class PerchHopGoal extends AdaptiveGoal {
         
         if (targetPerch != null) {
             mob.getNavigation().startMovingTo(targetPerch.getX(), targetPerch.getY(), targetPerch.getZ(), 1.0);
+            if (mob.getRandom().nextFloat() < 0.1f) {
+                mob.playSound(net.minecraft.sound.SoundEvents.ENTITY_PARROT_FLY, 0.5f, 1.5f);
+            }
         }
     }
     
     private BlockPos findNearbyPerch() {
         // Find a nearby block at similar height
+        for (int i = 0; i < 10; i++) {
+            int dx = mob.getRandom().nextInt(5) - 2;
+            int dz = mob.getRandom().nextInt(5) - 2;
+            int dy = mob.getRandom().nextInt(3) - 1;
+
+            BlockPos candidate = mob.getBlockPos().add(dx, dy, dz);
+            net.minecraft.block.BlockState blockState = mob.getEntityWorld().getBlockState(candidate);
+            if (blockState.isIn(net.minecraft.registry.tag.BlockTags.LEAVES) || blockState.isIn(net.minecraft.registry.tag.BlockTags.LOGS)) {
+                if (mob.getEntityWorld().getBlockState(candidate.up()).isAir()) {
+                    return candidate.up();
+                }
+            }
+        }
+        // Fallback to any solid block
         for (int i = 0; i < 5; i++) {
             int dx = mob.getRandom().nextInt(5) - 2;
             int dz = mob.getRandom().nextInt(5) - 2;

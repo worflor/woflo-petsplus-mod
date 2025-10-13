@@ -13,8 +13,16 @@ import java.util.EnumSet;
  * Universal idle quirk - pet stretches and yawns.
  */
 public class StretchAndYawnGoal extends AdaptiveGoal {
+    private static final int BASE_STRETCH_DURATION = 30;
+
     private int stretchTicks = 0;
-    private static final int STRETCH_DURATION = 30;
+    private int getStretchDuration() {
+        PetContext ctx = getContext();
+        float stamina = ctx.physicalStamina();
+        // Longer stretch for lower stamina
+        float multiplier = MathHelper.clamp(1.5f - stamina, 0.8f, 1.8f);
+        return (int) (BASE_STRETCH_DURATION * multiplier);
+    }
     
     public StretchAndYawnGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.STRETCH_AND_YAW), EnumSet.noneOf(Control.class));
@@ -27,7 +35,7 @@ public class StretchAndYawnGoal extends AdaptiveGoal {
     
     @Override
     protected boolean shouldContinueGoal() {
-        return stretchTicks < STRETCH_DURATION;
+        return stretchTicks < getStretchDuration();
     }
     
     @Override
@@ -44,14 +52,27 @@ public class StretchAndYawnGoal extends AdaptiveGoal {
     @Override
     protected void onTickGoal() {
         stretchTicks++;
-        
-        // Animation would go here (pitch/yaw adjustments, pose changes)
-        if (stretchTicks == 10) {
-            // Front stretch
+
+        if (stretchTicks == 1) {
+            // TODO: Add a yawning sound effect here
+        }
+
+        if (stretchTicks < 10) {
+            // Start stretch
+            mob.setPitch(MathHelper.lerp(stretchTicks / 10.0f, 0, -15));
+        } else if (stretchTicks < 20) {
+            // Hold stretch
             mob.setPitch(-15);
-        } else if (stretchTicks == 20) {
-            // Back to normal
-            mob.setPitch(0);
+        } else if (stretchTicks < 30) {
+            // End stretch
+            mob.setPitch(MathHelper.lerp((stretchTicks - 20) / 10.0f, -15, 0));
+        } else {
+            // Yawn
+            if (stretchTicks == 30) {
+                mob.setPitch(10);
+            } else if (stretchTicks == 40) {
+                mob.setPitch(0);
+            }
         }
     }
     

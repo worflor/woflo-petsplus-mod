@@ -335,11 +335,39 @@ public class PetsCommand {
     }
     
     private static int assignRoleToSpecificPet(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        // TODO: Implement specific pet role assignment when needed
+        String roleInput = StringArgumentType.getString(context, "role");
+        String petNameInput = StringArgumentType.getString(context, "pet_name");
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-        player.sendMessage(Text.literal("Specific pet role assignment not yet implemented")
-            .formatted(Formatting.YELLOW), false);
-        return 0;
+
+        PetRoleType roleType = getBuiltinRoleByName(roleInput);
+        if (roleType == null) {
+            player.sendMessage(Text.literal("Unknown pet role: " + roleInput).formatted(Formatting.RED), false);
+            return 0;
+        }
+        Identifier roleId = roleType.id();
+
+        MobEntity pet = findPetByName(player, petNameInput);
+        if (pet == null) {
+            player.sendMessage(Text.literal("No pet found with the name: " + petNameInput).formatted(Formatting.RED), false);
+            return 0;
+        }
+
+        PetComponent petComp = PetComponent.get(pet);
+        if (petComp == null) {
+            player.sendMessage(Text.literal("The specified entity is not a valid pet.").formatted(Formatting.RED), false);
+            return 0;
+        }
+
+        petComp.setRoleId(roleId);
+
+        player.sendMessage(Text.literal("✓ Assigned ")
+            .formatted(Formatting.GREEN)
+            .append(resolveRoleLabel(roleId, roleType).copy().formatted(Formatting.AQUA))
+            .append(Text.literal(" role to ").formatted(Formatting.GREEN))
+            .append(Text.literal(pet.getName().getString()).formatted(Formatting.YELLOW))
+            .append(Text.literal("!").formatted(Formatting.GREEN)), false);
+
+        return 1;
     }
     
     private static int showNearbyPetsInfo(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
@@ -367,11 +395,24 @@ public class PetsCommand {
     }
     
     private static int showSpecificPetInfo(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        // TODO: Implement specific pet info lookup
+        String petNameInput = StringArgumentType.getString(context, "pet_name");
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-        player.sendMessage(Text.literal("Specific pet info not yet implemented")
-            .formatted(Formatting.YELLOW), false);
-        return 0;
+
+        MobEntity pet = findPetByName(player, petNameInput);
+        if (pet == null) {
+            player.sendMessage(Text.literal("No pet found with the name: " + petNameInput).formatted(Formatting.RED), false);
+            return 0;
+        }
+
+        PetComponent petComp = PetComponent.get(pet);
+        if (petComp == null) {
+            player.sendMessage(Text.literal("The specified entity is not a valid pet.").formatted(Formatting.RED), false);
+            return 0;
+        }
+
+        showPetInfo(player, pet, petComp);
+
+        return 1;
     }
     
     private static int showTributeInfo(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
@@ -412,8 +453,40 @@ public class PetsCommand {
     }
     
     private static int showSpecificTributeInfo(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        // TODO: Implement specific pet tribute info
-        return 0;
+        String petNameInput = StringArgumentType.getString(context, "pet_name");
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+
+        MobEntity pet = findPetByName(player, petNameInput);
+        if (pet == null) {
+            player.sendMessage(Text.literal("No pet found with the name: " + petNameInput).formatted(Formatting.RED), false);
+            return 0;
+        }
+
+        PetComponent petComp = PetComponent.get(pet);
+        if (petComp == null) {
+            player.sendMessage(Text.literal("The specified entity is not a valid pet.").formatted(Formatting.RED), false);
+            return 0;
+        }
+
+        if (petComp.isWaitingForTribute()) {
+            int level = petComp.getLevel();
+            Identifier tributeId = petComp.getTributeMilestone(level);
+            if (tributeId != null) {
+                player.sendMessage(Text.literal("Tribute for ")
+                    .append(pet.getName().copy().formatted(Formatting.YELLOW))
+                    .append(Text.literal(" at level " + level + ":")));
+                player.sendMessage(formatTributeLine(level, tributeId), false);
+            } else {
+                player.sendMessage(Text.literal("Could not find tribute information for ")
+                    .append(pet.getName().copy().formatted(Formatting.YELLOW))
+                    .append(Text.literal(" at level " + level)), false);
+            }
+        } else {
+            player.sendMessage(pet.getName().copy().formatted(Formatting.YELLOW)
+                .append(Text.literal(" is not waiting for a tribute.")), false);
+        }
+
+        return 1;
     }
     
     private static int showCueJournal(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
@@ -951,5 +1024,21 @@ public class PetsCommand {
             this.emotion = emotion;
             this.weight = weight;
         }
+    }
+
+    private static MobEntity findPetByName(ServerPlayerEntity player, String petName) {
+        List<MobEntity> nearbyPets = findNearbyOwnedPets(player);
+        for (MobEntity pet : nearbyPets) {
+            if (pet.hasCustomName() && pet.getCustomName().getString().equalsIgnoreCase(petName)) {
+                return pet;
+            }
+        }
+        // If no pet with a custom name is found, check for default names
+        for (MobEntity pet : nearbyPets) {
+            if (!pet.hasCustomName() && pet.getType().getName().getString().equalsIgnoreCase(petName)) {
+                return pet;
+            }
+        }
+        return null;
     }
 }

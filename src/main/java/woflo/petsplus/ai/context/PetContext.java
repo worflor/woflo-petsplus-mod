@@ -272,6 +272,21 @@ public record PetContext(
     public boolean hasMoodInBlend(PetComponent.Mood mood, float threshold) {
         return moodBlend.getOrDefault(mood, 0f) >= threshold;
     }
+
+    /**
+     * Get the current strength of a mood blend entry.
+     */
+    public float getMoodStrength(PetComponent.Mood mood) {
+        return moodBlend.getOrDefault(mood, 0f);
+    }
+
+    /**
+     * Convenience accessor matching bean-style naming for integrations.
+     */
+    @Nullable
+    public PlayerEntity getOwner() {
+        return owner;
+    }
     
     /**
      * Get ticks since a goal was last executed.

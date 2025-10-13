@@ -1032,10 +1032,6 @@ public class PetComponent {
         }
     }
 
-    private void syncCharacteristicAffinityLookup() {
-        // Role affinity bonuses will be handled by RoleScaling system
-        // TODO: Remove this method once RoleScaling is implemented
-    }
 
     private boolean isCharacteristicsDataEmpty(CharacteristicsModule.Data data) {
         if (data == null) {
@@ -2375,7 +2371,12 @@ public class PetComponent {
         syncCharacteristicAffinityLookup();
         markEntityDirty();
     }
-    
+
+    private void syncCharacteristicAffinityLookup() {
+        // Role affinity bonuses will be handled by RoleScaling system.
+        // Placeholder retained for compatibility with existing integration points.
+    }
+
 
     
     // ===== EMOTION–MOOD SYSTEM (delegated) =====

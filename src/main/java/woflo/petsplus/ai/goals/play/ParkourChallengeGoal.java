@@ -18,9 +18,17 @@ import java.util.EnumSet;
  * Creates playful, energetic behavior.
  */
 public class ParkourChallengeGoal extends AdaptiveGoal {
+    private static final int BASE_MAX_JUMPS = 12;
+
     private BlockPos targetBlock;
     private int jumpAttempts = 0;
-    private static final int MAX_JUMPS = 6;
+
+    private int getMaxJumps() {
+        PetContext ctx = getContext();
+        float playfulness = ctx.hasPetsPlusComponent() ? ctx.getMoodStrength(woflo.petsplus.state.PetComponent.Mood.PLAYFUL) : 0.0f;
+        float multiplier = MathHelper.clamp(1.0f + playfulness, 0.8f, 1.8f);
+        return (int) (BASE_MAX_JUMPS * multiplier);
+    }
     
     public ParkourChallengeGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.PARKOUR_CHALLENGE), EnumSet.of(Control.MOVE, Control.JUMP));
@@ -36,7 +44,7 @@ public class ParkourChallengeGoal extends AdaptiveGoal {
     
     @Override
     protected boolean shouldContinueGoal() {
-        return jumpAttempts < MAX_JUMPS && targetBlock != null;
+        return jumpAttempts < getMaxJumps() && targetBlock != null;
     }
     
     @Override
@@ -99,7 +107,7 @@ public class ParkourChallengeGoal extends AdaptiveGoal {
             BlockState state = mob.getEntityWorld().getBlockState(candidate);
             
             // Interesting blocks for parkour
-            if (isInterestingParkourBlock(state.getBlock())) {
+            if (isInterestingParkourBlock(state)) {
                 return candidate;
             }
         }
@@ -110,19 +118,8 @@ public class ParkourChallengeGoal extends AdaptiveGoal {
     /**
      * Checks if a block is interesting for parkour.
      */
-    private boolean isInterestingParkourBlock(Block block) {
-        return block == Blocks.OAK_FENCE || 
-               block == Blocks.SPRUCE_FENCE ||
-               block == Blocks.BIRCH_FENCE ||
-               block == Blocks.JUNGLE_FENCE ||
-               block == Blocks.ACACIA_FENCE ||
-               block == Blocks.DARK_OAK_FENCE ||
-               block == Blocks.MANGROVE_FENCE ||
-               block == Blocks.CHERRY_FENCE ||
-               block == Blocks.OAK_LOG ||
-               block == Blocks.HAY_BLOCK ||
-               block == Blocks.SLIME_BLOCK ||
-               block == Blocks.SCAFFOLDING;
+    private boolean isInterestingParkourBlock(BlockState state) {
+        return state.isIn(woflo.petsplus.tags.PetsplusBlockTags.PARKOUR_BLOCKS);
     }
     
     @Override

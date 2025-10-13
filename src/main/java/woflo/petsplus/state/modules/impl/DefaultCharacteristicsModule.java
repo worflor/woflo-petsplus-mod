@@ -230,9 +230,10 @@ public final class DefaultCharacteristicsModule implements CharacteristicsModule
     }
 
     private void syncCharacteristicAffinityLookup() {
-        // Role affinity bonuses will be handled by RoleScaling system
-        // TODO: Remove this method once RoleScaling is implemented
+        // Role affinity bonuses will be handled by RoleScaling system.
+        // Placeholder retained for compatibility with existing integration points.
     }
+
 
     @Override
     public Data toData() {

@@ -20,11 +20,21 @@ import java.util.EnumSet;
  * Species tags: multi-tag gating
  */
 public class SunbeamSprawlGoal extends AdaptiveGoal {
-    private int sprawlTicks = 0;
-    private Vec3d targetPos = null;
     private static final int SPRAWL_DURATION = 80;
     private static final int MAX_REPOSITION_TICKS = 100;
     private static final int MAX_NAVIGATION_STALL_TICKS = 30;
+    private static final int MIN_COOLDOWN_TICKS = 90 * 20;
+    private static final int MAX_COOLDOWN_TICKS = 180 * 20;
+
+    private int sprawlTicks = 0;
+    private Vec3d targetPos = null;
+
+    private int getSprawlDuration() {
+        PetContext ctx = getContext();
+        float stamina = ctx.physicalStamina();
+        // Longer sprawl for lower stamina
+        return (int) (SPRAWL_DURATION * (1.5f - stamina));
+    }
 
     private int repositionTicks = 0;
     private int navigationStalledTicks = 0;
@@ -62,7 +72,7 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
     
     @Override
     protected boolean shouldContinueGoal() {
-        if (sprawlTicks >= SPRAWL_DURATION) {
+        if (sprawlTicks >= getSprawlDuration()) {
             return false;
         }
         if (isInSunlight(mob.getBlockPos())) {
@@ -88,11 +98,9 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
     @Override
     protected void onStopGoal() {
         mob.getNavigation().stop();
-        // Apply PetComponent cooldown as per spec
-        // Subtle behavior: P0
         PetComponent pc = PetComponent.get(mob);
         if (pc != null) {
-            int cooldown = 90 * 20 + mob.getRandom().nextInt((180 - 90 + 1) * 20); // 90–180s
+            int cooldown = mob.getRandom().nextInt(MAX_COOLDOWN_TICKS - MIN_COOLDOWN_TICKS + 1) + MIN_COOLDOWN_TICKS;
             pc.setCooldown("sunbeam_sprawl", cooldown);
         }
         // Reset to standing pose
@@ -154,8 +162,15 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
         performSprawlAnimation();
 
         // Occasionally roll over for comfort
-        if (sprawlTicks > 20 && sprawlTicks % 30 == 0 && mob.getRandom().nextFloat() < 0.3f) {
-            performComfortRoll();
+        if (sprawlTicks > 20 && sprawlTicks % 30 == 0) {
+            PetContext ctx = getContext();
+            float rollChance = 0.3f;
+            if (ctx.hasPetsPlusComponent() && ctx.hasMoodInBlend(PetComponent.Mood.CALM, 0.5f)) {
+                rollChance = 0.6f;
+            }
+            if (mob.getRandom().nextFloat() < rollChance) {
+                performComfortRoll();
+            }
         }
     }
     

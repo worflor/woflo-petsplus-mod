@@ -1,11 +1,6 @@
 package woflo.petsplus.policy;
 
-/**
- * Documented policy constants for AI LOD distances and cadence modulation.
- * Documented policy; actual enforcement wired in later chunks.
- *
- * @since Phase A - Chunk 1
- */
+/** Policy constants for AI LOD distances and cadence modulation. */
 public final class AIPerfPolicy {
 
     private AIPerfPolicy() { /* prevent instantiation */ }

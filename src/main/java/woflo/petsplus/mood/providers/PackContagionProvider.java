@@ -125,27 +125,13 @@ public class PackContagionProvider implements EmotionProvider, ReactiveEmotionPr
         }
     }
 
-    /**
-     * Phase A scaffold; accepting samplingInterval without using it.
-     * No behavior change; not referenced by existing logic yet.
-     *
-     * @param samplingIntervalTicks hint for future sampling interval in ticks
-     */
+    /** Placeholder hook for future sampling interval configuration. */
     public static void setSamplingIntervalHint(int samplingIntervalTicks) {
-        // Phase A scaffold; accepting samplingInterval without using it
-        // no-op
+        // intentionally unused
     }
 
-    /**
-     * Phase A scaffold; accepting samplingInterval without using it.
-     * No behavior change; not referenced by existing logic yet.
-     *
-     * @param samplingIntervalTicks caller-provided interval hint
-     * @return the same samplingIntervalTicks value unchanged
-     */
+    /** Returns the provided sampling interval hint unchanged. */
     public static int getSamplingIntervalHintOrDefault(int samplingIntervalTicks) {
-        // Phase A scaffold; accepting samplingInterval without using it
-        // preserve behavior by returning the provided value unchanged
         return samplingIntervalTicks;
     }
 }

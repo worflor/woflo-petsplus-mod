@@ -19,10 +19,19 @@ import java.util.EnumSet;
  * Creates playful aquatic behavior.
  */
 public class WaterSplashGoal extends AdaptiveGoal {
+    private static final int BASE_SPLASH_TICKS = 60;
+
     private int splashTicks = 0;
     private boolean finished = false;
     private float neutralPitch = 0.0f;
-    private static final int MAX_SPLASH_TICKS = 100; // 5 seconds
+    private int targetDuration = BASE_SPLASH_TICKS;
+
+    private int computeSplashDuration() {
+        PetContext ctx = getContext();
+        float playfulness = ctx.hasPetsPlusComponent() ? ctx.getMoodStrength(woflo.petsplus.state.PetComponent.Mood.PLAYFUL) : 0.0f;
+        float multiplier = MathHelper.clamp(1.0f + playfulness, 0.8f, 1.8f);
+        return (int) (BASE_SPLASH_TICKS * multiplier);
+    }
     
     public WaterSplashGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.WATER_SPLASH), EnumSet.of(Control.MOVE, Control.JUMP));
@@ -31,6 +40,11 @@ public class WaterSplashGoal extends AdaptiveGoal {
     @Override
     protected boolean canStartGoal() {
         if (!mob.isOnGround()) return false;
+
+        var profile = woflo.petsplus.ai.traits.SpeciesTraits.getProfile(mob);
+        if (!profile.aquatic() && !profile.canineLike()) {
+            return false;
+        }
 
         // Must be in shallow water (water block above solid ground)
         return isInShallowWater();
@@ -42,7 +56,7 @@ public class WaterSplashGoal extends AdaptiveGoal {
             return false;
         }
 
-        return splashTicks < MAX_SPLASH_TICKS && mob.isOnGround() && isInShallowWater();
+        return splashTicks < targetDuration && mob.isOnGround() && isInShallowWater();
     }
 
     @Override
@@ -50,6 +64,7 @@ public class WaterSplashGoal extends AdaptiveGoal {
         splashTicks = 0;
         finished = false;
         neutralPitch = mob.getPitch();
+        targetDuration = Math.max(30, computeSplashDuration());
     }
     
     @Override
@@ -70,8 +85,8 @@ public class WaterSplashGoal extends AdaptiveGoal {
 
         splashTicks++;
 
-        if (splashTicks >= MAX_SPLASH_TICKS) {
-            splashTicks = MAX_SPLASH_TICKS;
+        if (splashTicks >= targetDuration) {
+            splashTicks = targetDuration;
             finished = true;
             return;
         }
@@ -103,6 +118,7 @@ public class WaterSplashGoal extends AdaptiveGoal {
                 0.5, 0.2, 0.5,
                 0.2
             );
+            mob.playSound(net.minecraft.sound.SoundEvents.ENTITY_PLAYER_SPLASH, 0.5f, 1.0f);
             
             // Occasional water droplets
             if (mob.getRandom().nextFloat() < 0.3f) {

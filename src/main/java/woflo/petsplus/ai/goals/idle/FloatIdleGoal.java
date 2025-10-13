@@ -15,8 +15,16 @@ import java.util.EnumSet;
  * Aquatic-specific idle quirk - mob floats peacefully in water.
  */
 public class FloatIdleGoal extends AdaptiveGoal {
+    private static final int BASE_FLOAT_DURATION = 60;
+
     private int floatTicks = 0;
-    private static final int FLOAT_DURATION = 60;
+
+    private int getFloatDuration() {
+        PetContext ctx = getContext();
+        float calmness = ctx.hasPetsPlusComponent() ? ctx.getMoodStrength(woflo.petsplus.state.PetComponent.Mood.CALM) : 0.0f;
+        float durationMultiplier = MathHelper.clamp(1.0f + calmness, 0.7f, 1.8f);
+        return (int) (BASE_FLOAT_DURATION * durationMultiplier);
+    }
     
     public FloatIdleGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.FLOAT_IDLE), EnumSet.noneOf(Control.class));
@@ -24,12 +32,16 @@ public class FloatIdleGoal extends AdaptiveGoal {
     
     @Override
     protected boolean canStartGoal() {
+        var profile = woflo.petsplus.ai.traits.SpeciesTraits.getProfile(mob);
+        if (!profile.aquatic()) {
+            return false;
+        }
         return mob.isTouchingWater() && mob.getNavigation().isIdle();
     }
     
     @Override
     protected boolean shouldContinueGoal() {
-        return mob.isTouchingWater() && floatTicks < FLOAT_DURATION;
+        return mob.isTouchingWater() && floatTicks < getFloatDuration();
     }
     
     @Override
@@ -52,6 +64,11 @@ public class FloatIdleGoal extends AdaptiveGoal {
         
         // Gentle rotation
         mob.setYaw(mob.getYaw() + (float)Math.sin(floatTicks * 0.05) * 0.5f);
+
+        // Particle effect
+        if (!mob.getEntityWorld().isClient() && mob.getRandom().nextFloat() < 0.1f) {
+            ((ServerWorld) mob.getEntityWorld()).spawnParticles(ParticleTypes.BUBBLE, mob.getParticleX(1.0D), mob.getRandomBodyY(), mob.getParticleZ(1.0D), 1, 0.5, 0.5, 0.5, 0.02);
+        }
     }
     
     @Override

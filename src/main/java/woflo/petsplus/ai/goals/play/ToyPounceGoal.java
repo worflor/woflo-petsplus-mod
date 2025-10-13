@@ -2,6 +2,7 @@ package woflo.petsplus.ai.goals.play;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.BlockState;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.world.ServerWorld;
@@ -18,9 +19,18 @@ import java.util.EnumSet;
  * Play behavior - pounce on toy-like blocks (wool, hay, slime).
  */
 public class ToyPounceGoal extends AdaptiveGoal {
+    private static final int BASE_CROUCH_DURATION = 18;
+
     private BlockPos toyBlock;
     private int pouncePhase = 0; // 0=approach, 1=crouch, 2=pounce, 3=success
     private int phaseTicks = 0;
+
+    private int getCrouchDuration() {
+        PetContext ctx = getContext();
+        float playfulness = ctx.hasPetsPlusComponent() ? ctx.getMoodStrength(woflo.petsplus.state.PetComponent.Mood.PLAYFUL) : 0.0f;
+        float adjusted = MathHelper.clamp(BASE_CROUCH_DURATION * (1.2f - playfulness), 10f, 28f);
+        return (int) adjusted;
+    }
     
     public ToyPounceGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.TOY_POUNCE), EnumSet.of(Control.MOVE, Control.JUMP));
@@ -74,7 +84,7 @@ public class ToyPounceGoal extends AdaptiveGoal {
                     mob.setYaw(mob.getYaw() - 3);
                 }
                 
-                if (phaseTicks > 20) {
+                if (phaseTicks > getCrouchDuration()) {
                     pouncePhase = 2;
                     phaseTicks = 0;
                 }
@@ -106,10 +116,9 @@ public class ToyPounceGoal extends AdaptiveGoal {
             for (int dy = -3; dy <= 3; dy++) {
                 for (int dz = -8; dz <= 8; dz++) {
                     BlockPos check = pos.add(dx, dy, dz);
-                    Block block = mob.getEntityWorld().getBlockState(check).getBlock();
+                    BlockState state = mob.getEntityWorld().getBlockState(check);
                     
-                    if (block == Blocks.WHITE_WOOL || block == Blocks.HAY_BLOCK ||
-                        block == Blocks.SLIME_BLOCK || block.getName().getString().contains("wool")) {
+                    if (state.isIn(woflo.petsplus.tags.PetsplusBlockTags.TOY_BLOCKS)) {
                         return check;
                     }
                 }

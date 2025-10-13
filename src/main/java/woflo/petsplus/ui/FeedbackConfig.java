@@ -95,6 +95,7 @@ public class FeedbackConfig {
 
     // Performance and memory optimization fields
     private static volatile boolean initialized = false;
+    private static volatile boolean initializing = false;
     private static final ReentrantLock initLock = new ReentrantLock();
     private static final Map<String, FeedbackEffect> FEEDBACK_REGISTRY = new ConcurrentHashMap<>();
     private static final Map<String, List<ParticleConfig>> PATTERN_CACHE = new ConcurrentHashMap<>();
@@ -110,9 +111,14 @@ public class FeedbackConfig {
         if (!initialized) {
             initLock.lock();
             try {
-                if (!initialized) {
-                    initializeDefaultEffects();
-                    initialized = true;
+                if (!initialized && !initializing) {
+                    initializing = true;
+                    try {
+                        initializeDefaultEffects();
+                        initialized = true;
+                    } finally {
+                        initializing = false;
+                    }
                 }
             } finally {
                 initLock.unlock();
@@ -370,7 +376,7 @@ public class FeedbackConfig {
         ), new AudioConfig(SoundEvents.ENTITY_CAT_PURR, 0.15f, 1.2f, 6.0), 0, true);
 
         // Striker: Hunt focus marker (called from StrikerHuntManager)
-        if (!hasFeedback("striker_mark_focus")) {
+        if (!FEEDBACK_REGISTRY.containsKey("striker_mark_focus")) {
             register("striker_mark_focus", List.of(
                 new ParticleConfig(ParticleTypes.CRIT, 2, 0.1, 0.15, 0.1, 0.02, "circle", 0.3, false)
             ), new AudioConfig(SoundEvents.UI_BUTTON_CLICK.value(), 0.15f, 1.3f, 6.0), 0, true);
@@ -378,41 +384,41 @@ public class FeedbackConfig {
 
         // Centralized keys added for remaining direct spawns (budget-compliant)
         // Eepy: sleep link at pet
-        if (!hasFeedback("eepy_sleep_link")) {
+        if (!FEEDBACK_REGISTRY.containsKey("eepy_sleep_link")) {
             register("eepy_sleep_link", List.of(
                 new ParticleConfig(ParticleTypes.SPORE_BLOSSOM_AIR, 2, 0.12, 0.0, 0.12, 0.008, "burst", 0.25, true)
             ), null, 0, true);
         }
 
         // Eepy: empowered player hint
-        if (!hasFeedback("eepy_player_empowered")) {
+        if (!FEEDBACK_REGISTRY.containsKey("eepy_player_empowered")) {
             register("eppy_player_empowered", List.of(
                 new ParticleConfig(ParticleTypes.HAPPY_VILLAGER, 2, 0.15, 0.3, 0.15, 0.01, "burst", 0.25, true)
             ), null, 0, true);
         }
 
         // Eepy: pet recovery cue (includes sound)
-        if (!hasFeedback("eepy_pet_recovery")) {
+        if (!FEEDBACK_REGISTRY.containsKey("eepy_pet_recovery")) {
             register("eepy_pet_recovery", List.of(
                 new ParticleConfig(ParticleTypes.HAPPY_VILLAGER, 2, 0.18, 0.15, 0.18, 0.02, "burst", 0.25, true)
             ), new AudioConfig(SoundEvents.ENTITY_CAT_PURR, 0.6f, 1.2f, 6.0), 0, true);
         }
 
         // Cursed One: soul sacrifice activation
-        if (!hasFeedback("cursed_one_soul_sacrifice")) {
+        if (!FEEDBACK_REGISTRY.containsKey("cursed_one_soul_sacrifice")) {
             register("cursed_one_soul_sacrifice", List.of(
                 new ParticleConfig(ParticleTypes.SOUL_FIRE_FLAME, 5, 0.3, 0.25, 0.3, 0.02, "burst", 0.45, true),
                 new ParticleConfig(ParticleTypes.SMOKE, 3, 0.22, 0.18, 0.22, 0.03, "burst", 0.35, false)
             ), new AudioConfig(SoundEvents.ITEM_TOTEM_USE, 0.6f, 0.6f, 12.0), 0, true);
         }
         // Layer an additional charge tone at similar location (balanced pitch)
-        if (!hasFeedback("cursed_one_soul_sacrifice_aux")) {
+        if (!FEEDBACK_REGISTRY.containsKey("cursed_one_soul_sacrifice_aux")) {
             registerCustomFeedback("cursed_one_soul_sacrifice_aux",
                 new FeedbackEffect(List.of(), new AudioConfig(SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.5f, 1.25f, 12.0), 0, true));
         }
 
         // Cooldown refresh subtle spiral + center pop, optional sparkles
-        if (!hasFeedback("cooldown_refresh")) {
+        if (!FEEDBACK_REGISTRY.containsKey("cooldown_refresh")) {
             register("cooldown_refresh", List.of(
                 new ParticleConfig(ParticleTypes.SOUL, 2, 0.0, 0.0, 0.0, 0.01, "spiral", 0.22, true),
                 new ParticleConfig(ParticleTypes.END_ROD, 1, 0.0, 0.0, 0.0, 0.01, "burst", 0.0, false),
@@ -421,7 +427,7 @@ public class FeedbackConfig {
         }
 
         // Dev crown ambient emission key (sustained; emitted at ambient cadence externally)
-        if (!hasFeedback("dev_crown_ambient")) {
+        if (!FEEDBACK_REGISTRY.containsKey("dev_crown_ambient")) {
             register("dev_crown_ambient", List.of(
                 new ParticleConfig(ParticleTypes.END_ROD, 4, 0.01, 0.0, 0.01, 0.002, "circle", 0.4, true),
                 new ParticleConfig(ParticleTypes.ENCHANT, 1, 0.01, 0.05, 0.01, 0.008, "burst", 0.0, false),
@@ -430,7 +436,7 @@ public class FeedbackConfig {
         }
 
         // Afterimage finish burst: primary shards <=8, optional dust <=4, one-shot
-        if (!hasFeedback("afterimage_finish")) {
+        if (!FEEDBACK_REGISTRY.containsKey("afterimage_finish")) {
             register("afterimage_finish", List.of(
                 // Use ENCHANTED_HIT to visually read as shards without requiring BlockStateParticleEffect here
                 new ParticleConfig(ParticleTypes.ENCHANTED_HIT, 8, 0.35, 0.25, 0.35, 0.08, "burst", 0.6, false),
@@ -512,7 +518,7 @@ public class FeedbackConfig {
 
     private static void registerPettingFeedback() {
         // Base petting effects
-        if (!hasFeedback("pet_hearts")) {
+        if (!FEEDBACK_REGISTRY.containsKey("pet_hearts")) {
             register("pet_hearts", List.of(
                 new ParticleConfig(ParticleTypes.HEART, 4, 0.25, 0.3, 0.25, 0.02, "burst", 0.5, true)
             ), null, 0, true);
@@ -626,7 +632,13 @@ public class FeedbackConfig {
     }
 
     public static FeedbackEffect getFeedback(String eventName) {
-        ensureInitialized();
+        if (!initialized) {
+            if (!initializing) {
+                ensureInitialized();
+            } else if (eventName == null || eventName.trim().isEmpty()) {
+                return null;
+            }
+        }
         if (eventName == null || eventName.trim().isEmpty()) {
             return null;
         }
@@ -634,7 +646,9 @@ public class FeedbackConfig {
     }
 
     public static boolean hasFeedback(String eventName) {
-        ensureInitialized();
+        if (!initialized && !initializing) {
+            ensureInitialized();
+        }
         if (eventName == null || eventName.trim().isEmpty()) {
             return false;
         }
@@ -642,7 +656,9 @@ public class FeedbackConfig {
     }
 
     public static void registerCustomFeedback(String eventName, FeedbackEffect effect) {
-        ensureInitialized();
+        if (!initialized && !initializing) {
+            ensureInitialized();
+        }
         if (eventName == null || eventName.trim().isEmpty()) {
             throw new IllegalArgumentException("Event name cannot be null or empty");
         }

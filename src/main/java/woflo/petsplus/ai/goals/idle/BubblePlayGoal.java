@@ -15,8 +15,16 @@ import java.util.EnumSet;
  * Aquatic-specific idle quirk - mob plays with bubbles.
  */
 public class BubblePlayGoal extends AdaptiveGoal {
+    private static final int BASE_PLAY_DURATION = 50;
+
     private int playTicks = 0;
-    private static final int PLAY_DURATION = 50;
+
+    private int getPlayDuration() {
+        PetContext ctx = getContext();
+        float playfulness = ctx.hasPetsPlusComponent() ? ctx.getMoodStrength(woflo.petsplus.state.PetComponent.Mood.PLAYFUL) : 0.0f;
+        float durationMultiplier = MathHelper.clamp(1.0f + playfulness, 0.6f, 1.8f);
+        return (int) (BASE_PLAY_DURATION * durationMultiplier);
+    }
     
     public BubblePlayGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.BUBBLE_PLAY), EnumSet.noneOf(Control.class));
@@ -24,12 +32,16 @@ public class BubblePlayGoal extends AdaptiveGoal {
     
     @Override
     protected boolean canStartGoal() {
+        var profile = woflo.petsplus.ai.traits.SpeciesTraits.getProfile(mob);
+        if (!profile.aquatic()) {
+            return false;
+        }
         return mob.isTouchingWater() && mob.getNavigation().isIdle();
     }
     
     @Override
     protected boolean shouldContinueGoal() {
-        return mob.isTouchingWater() && playTicks < PLAY_DURATION;
+        return mob.isTouchingWater() && playTicks < getPlayDuration();
     }
     
     @Override
@@ -47,17 +59,22 @@ public class BubblePlayGoal extends AdaptiveGoal {
         playTicks++;
         
         // Spin and create bubbles
-        mob.setYaw(mob.getYaw() + 10);
+        mob.setYaw(mob.getYaw() + mob.getRandom().nextFloat() * 20.0f - 10.0f);
         
         // Spawn bubble particles
         if (playTicks % 5 == 0 && mob.getEntityWorld() instanceof ServerWorld serverWorld) {
+            double x = mob.getX() + mob.getRandom().nextGaussian() * 0.5;
+            double y = mob.getY() + 0.5;
+            double z = mob.getZ() + mob.getRandom().nextGaussian() * 0.5;
             serverWorld.spawnParticles(
                 ParticleTypes.BUBBLE,
-                mob.getX(), mob.getY() + 0.5, mob.getZ(),
-                3,
-                0.3, 0.3, 0.3,
+                x, y, z,
+                1,
+                0.0, 0.1, 0.0,
                 0.1
             );
+            // Chase the bubble
+            mob.getNavigation().startMovingTo(x, y, z, 1.2);
         }
     }
     

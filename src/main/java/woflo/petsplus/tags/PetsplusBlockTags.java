@@ -10,6 +10,8 @@ import woflo.petsplus.Petsplus;
  * Shared block tags used by PetsPlus at runtime.
  */
 public final class PetsplusBlockTags {
+    public static final TagKey<Block> TOY_BLOCKS = tag("toy_blocks");
+    public static final TagKey<Block> PARKOUR_BLOCKS = tag("parkour_blocks");
     public static final TagKey<Block> SNIFF_COMFORTS = tag("sniff/comforts");
     public static final TagKey<Block> SNIFF_CURIOSITIES = tag("sniff/curiosities");
     public static final TagKey<Block> SNIFF_WARDING = tag("sniff/warding");

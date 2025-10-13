@@ -8,8 +8,9 @@ import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.ai.goals.GoalIds;
+import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.tags.PetsplusItemTags;
 
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -20,19 +21,20 @@ import java.util.List;
  * Creates helpful, playful behavior.
  */
 public class FetchItemGoal extends AdaptiveGoal {
+    private static final int MAX_FETCH_TICKS = 300; // 15 seconds
+    private static final double BASE_FETCH_DISTANCE = 16.0;
+    private static final double BASE_FETCH_DISTANCE_SQ = BASE_FETCH_DISTANCE * BASE_FETCH_DISTANCE;
+
     private ItemEntity targetItem;
     private PlayerEntity targetPlayer;
     private int fetchPhase = 0; // 0 = find, 1 = pickup, 2 = return
-    private static final int MAX_FETCH_TICKS = 300; // 15 seconds
-    private static final double MAX_FETCH_DISTANCE = 16.0;
-    private static final double MAX_FETCH_DISTANCE_SQ = MAX_FETCH_DISTANCE * MAX_FETCH_DISTANCE;
     private int fetchTicks = 0;
     private ItemStack carriedStack = ItemStack.EMPTY;
 
     public FetchItemGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.FETCH_ITEM), EnumSet.of(Control.MOVE));
     }
-    
+
     @Override
     protected boolean canStartGoal() {
         PetContext ctx = getContext();
@@ -78,7 +80,7 @@ public class FetchItemGoal extends AdaptiveGoal {
             default -> false;
         };
     }
-    
+
     @Override
     protected void onStartGoal() {
         fetchPhase = 0;
@@ -107,7 +109,7 @@ public class FetchItemGoal extends AdaptiveGoal {
         targetPlayer = null;
         fetchPhase = 0;
     }
-    
+
     @Override
     protected void onTickGoal() {
         fetchTicks++;
@@ -174,27 +176,30 @@ public class FetchItemGoal extends AdaptiveGoal {
             requestStop();
             return;
         }
-        
+
         // Tail wag during return
         if (fetchPhase == 1 && fetchTicks % 5 == 0) {
             mob.bodyYaw += mob.getRandom().nextFloat() * 10 - 5;
         }
     }
-    
+
     /**
      * Finds a nearby item to fetch.
      */
     private ItemEntity findNearbyItem(PlayerEntity owner) {
         List<ItemEntity> items = mob.getEntityWorld().getEntitiesByClass(
             ItemEntity.class,
-            mob.getBoundingBox().expand(MAX_FETCH_DISTANCE),
+            mob.getBoundingBox().expand(getFetchDistance()),
             item -> item.isAlive()
                 && !item.getStack().isEmpty()
-                && item.squaredDistanceTo(mob) <= MAX_FETCH_DISTANCE_SQ
-                && item.squaredDistanceTo(owner) <= MAX_FETCH_DISTANCE_SQ
+                && !item.getStack().isIn(PetsplusItemTags.FETCH_BLACKLIST)
+                && item.squaredDistanceTo(mob) <= getFetchDistanceSq()
+                && item.squaredDistanceTo(owner) <= getFetchDistanceSq()
         );
 
-        if (items.isEmpty()) return null;
+        if (items.isEmpty()) {
+            return null;
+        }
 
         // Prefer closest item
         return items.stream()
@@ -207,16 +212,24 @@ public class FetchItemGoal extends AdaptiveGoal {
             return false;
         }
         double distanceSq = mob.squaredDistanceTo(owner);
-        if (distanceSq > MAX_FETCH_DISTANCE_SQ) {
+        if (distanceSq > getFetchDistanceSq()) {
             return false;
         }
         return true;
     }
 
+    private double getFetchDistance() {
+        return BASE_FETCH_DISTANCE;
+    }
+
+    private double getFetchDistanceSq() {
+        return BASE_FETCH_DISTANCE_SQ;
+    }
+
     private void traceSkip(String reason) {
         Petsplus.LOGGER.debug("[FetchItemGoal] Skipping fetch for {} because {}", mob.getDisplayName().getString(), reason);
     }
-    
+
     @Override
     protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
         // Fetch is a complex achievement behavior combining:
@@ -232,7 +245,7 @@ public class FetchItemGoal extends AdaptiveGoal {
             .withContagion(woflo.petsplus.state.PetComponent.Emotion.PLAYFULNESS, 0.020f)  // Spread enthusiasm
             .build();
     }
-    
+
     @Override
     protected float calculateEngagement() {
         PetContext ctx = getContext();
@@ -254,18 +267,15 @@ public class FetchItemGoal extends AdaptiveGoal {
             woflo.petsplus.state.PetComponent.Mood.PLAYFUL, 0.4f)) {
             engagement = 1.0f;
         }
-        
+
         // Higher engagement when bonded
         engagement += ctx.bondStrength() * 0.1f;
-        
+
         // Phase 2 (delivery) is most engaging
         if (fetchPhase == 2) {
             engagement = 1.0f;
         }
-        
+
         return MathHelper.clamp(engagement, 0.0f, 1.0f);
     }
 }
-
-
-

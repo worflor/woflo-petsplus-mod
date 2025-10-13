@@ -14,9 +14,16 @@ import java.util.EnumSet;
  * Flying-specific idle quirk - bird preens its feathers.
  */
 public class PreenFeathersGoal extends AdaptiveGoal {
+    private static final int BASE_PREEN_DURATION = 80;
+
     private int preenTicks = 0;
     private int preenSpot = 0; // 0=wing, 1=chest, 2=tail
-    private static final int PREEN_DURATION = 60;
+    private int getPreenDuration() {
+        PetContext ctx = getContext();
+        float calmness = ctx.hasPetsPlusComponent() ? ctx.getMoodStrength(woflo.petsplus.state.PetComponent.Mood.CALM) : 0.0f;
+        float multiplier = MathHelper.clamp(1.0f + calmness, 0.7f, 1.6f);
+        return (int) (BASE_PREEN_DURATION * multiplier);
+    }
     
     public PreenFeathersGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.PREEN_FEATHERS), EnumSet.noneOf(Control.class));
@@ -34,7 +41,7 @@ public class PreenFeathersGoal extends AdaptiveGoal {
     
     @Override
     protected boolean shouldContinueGoal() {
-        return preenTicks < PREEN_DURATION;
+        return preenTicks < getPreenDuration();
     }
     
     @Override
@@ -52,7 +59,11 @@ public class PreenFeathersGoal extends AdaptiveGoal {
     @Override
     protected void onTickGoal() {
         preenTicks++;
-        
+
+        if (preenTicks == 1) {
+            mob.playSound(net.minecraft.sound.SoundEvents.ENTITY_CHICKEN_AMBIENT, 0.5f, 1.5f);
+        }
+
         // Preen different spots
         switch (preenSpot) {
             case 0: // Wing
@@ -71,10 +82,15 @@ public class PreenFeathersGoal extends AdaptiveGoal {
                 mob.setPitch(30);
                 break;
         }
-        
+
         // Switch spots occasionally
         if (preenTicks % 20 == 0) {
             preenSpot = mob.getRandom().nextInt(3);
+        }
+
+        // Particle effect
+        if (!mob.getEntityWorld().isClient()) {
+            ((net.minecraft.server.world.ServerWorld) mob.getEntityWorld()).spawnParticles(new net.minecraft.particle.ItemStackParticleEffect(net.minecraft.particle.ParticleTypes.ITEM, new net.minecraft.item.ItemStack(net.minecraft.item.Items.FEATHER)), mob.getParticleX(0.5D), mob.getRandomBodyY(), mob.getParticleZ(0.5D), 1, 0.1, 0.1, 0.1, 0.02);
         }
     }
     

@@ -14,7 +14,7 @@ base {
 // Repositories needed for Loom + deps
 repositories {
     mavenCentral()
-    maven { url = "https://maven.fabricmc.net" }
+    maven { url "https://maven.fabricmc.net" }
 }
 
 // Expand version into fabric.mod.json

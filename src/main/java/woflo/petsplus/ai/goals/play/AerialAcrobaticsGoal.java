@@ -15,9 +15,18 @@ import java.util.EnumSet;
  * Creates playful, showy flight behavior.
  */
 public class AerialAcrobaticsGoal extends AdaptiveGoal {
+    private static final int MAX_ACROBATIC_TICKS = 80; // 4 seconds baseline
+
     private int acrobaticTicks = 0;
     private int trickType = 0; // 0 = loop, 1 = barrel roll, 2 = dive bomb
-    private static final int MAX_ACROBATIC_TICKS = 80; // 4 seconds
+    private int targetDuration = MAX_ACROBATIC_TICKS;
+
+    private int computeAcrobaticDuration() {
+        PetContext ctx = getContext();
+        float playfulness = ctx.hasPetsPlusComponent() ? ctx.getMoodStrength(woflo.petsplus.state.PetComponent.Mood.PLAYFUL) : 0.0f;
+        float durationMultiplier = MathHelper.clamp(1.0f + playfulness, 0.7f, 1.8f);
+        return (int) (MAX_ACROBATIC_TICKS * durationMultiplier);
+    }
     
     public AerialAcrobaticsGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.AERIAL_ACROBATICS), EnumSet.of(Control.MOVE));
@@ -25,29 +34,38 @@ public class AerialAcrobaticsGoal extends AdaptiveGoal {
     
     @Override
     protected boolean canStartGoal() {
+        var profile = woflo.petsplus.ai.traits.SpeciesTraits.getProfile(mob);
+        if (!profile.flierPercher()) {
+            return false;
+        }
         return !mob.isOnGround() && 
                mob.getY() > mob.getEntityWorld().getSeaLevel() + 5;
     }
     
     @Override
     protected boolean shouldContinueGoal() {
-        return acrobaticTicks < MAX_ACROBATIC_TICKS && !mob.isOnGround();
+        return acrobaticTicks < targetDuration && !mob.isOnGround();
     }
-    
+
     @Override
     protected void onStartGoal() {
         acrobaticTicks = 0;
         trickType = mob.getRandom().nextInt(3);
+        targetDuration = Math.max(40, computeAcrobaticDuration());
     }
-    
+
     @Override
     protected void onStopGoal() {
         mob.getNavigation().stop();
     }
-    
+
     @Override
     protected void onTickGoal() {
         acrobaticTicks++;
+
+        if (acrobaticTicks == 1) {
+            mob.playSound(net.minecraft.sound.SoundEvents.ENTITY_PLAYER_ATTACK_SWEEP, 1.0f, 1.0f);
+        }
         
         switch (trickType) {
             case 0: // Loop
@@ -61,12 +79,12 @@ public class AerialAcrobaticsGoal extends AdaptiveGoal {
                 break;
         }
     }
-    
+
     /**
      * Performs a vertical loop.
      */
     private void performLoop() {
-        double progress = acrobaticTicks / (double) MAX_ACROBATIC_TICKS;
+        double progress = acrobaticTicks / (double) targetDuration;
         double angle = progress * Math.PI * 2; // Full circle
         
         // Circular motion
@@ -79,12 +97,12 @@ public class AerialAcrobaticsGoal extends AdaptiveGoal {
         mob.setVelocity(velocity);
         mob.setPitch((float) (Math.cos(angle) * 60)); // Pitch changes through loop
     }
-    
+
     /**
      * Performs a barrel roll (spinning).
      */
     private void performBarrelRoll() {
-        double progress = acrobaticTicks / (double) MAX_ACROBATIC_TICKS;
+        double progress = acrobaticTicks / (double) targetDuration;
         double spin = progress * Math.PI * 4; // Two full rotations
         
         // Maintain altitude, spin body
@@ -97,12 +115,12 @@ public class AerialAcrobaticsGoal extends AdaptiveGoal {
         mob.bodyYaw += 9; // Fast spin
         mob.setPitch((float) (Math.sin(spin) * 30)); // Wobble pitch
     }
-    
+
     /**
      * Performs a dive bomb and recovery.
      */
     private void performDiveBomb() {
-        if (acrobaticTicks < MAX_ACROBATIC_TICKS / 2) {
+        if (acrobaticTicks < targetDuration / 2) {
             // Dive phase
             mob.setVelocity(
                 mob.getVelocity().x,

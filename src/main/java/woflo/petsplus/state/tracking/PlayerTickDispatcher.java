@@ -9,13 +9,11 @@ import woflo.petsplus.state.tracking.PlayerTickListener;
  * Design intent:
  * - Enforce per-owner O(1) fairness across active owners
  * - Apply LOD gating based on documented policy cadences and distances
- * - Keep this layer free of direct Minecraft type references; wiring occurs later
+ * - Keep this layer free of direct Minecraft type references
  *
- * This is purely scaffolding for Phase A (Chunk 1). It intentionally has
- * no runtime behavior and is not referenced from existing loops/mixins yet.
- *
- * @since Phase A - Chunk 1
+ * This is scaffolding and intentionally has no runtime behavior yet.
  */
+
 public final class PlayerTickDispatcher {
 
     private PlayerTickDispatcher() {
@@ -24,14 +22,14 @@ public final class PlayerTickDispatcher {
 
     /**
      * Entry point for dispatching the owner-centric tick loop.
-     * No-op placeholder; implementation arrives in later chunks.
+     * No-op placeholder; implementation pending.
      */
     public static void dispatchOwnerLoop() {
         // no-op placeholder
     }
 
     // ---------------------------------------------------------------------
-    // Phase A compile-pass static API stubs (no behavior)
+    // Placeholder static API stubs (no behavior)
     // ---------------------------------------------------------------------
     public static void register(PlayerTickListener listener) { }
 
