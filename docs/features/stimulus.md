@@ -20,18 +20,6 @@ Here's the complete flow:
 
 This creates a living emotional simulation. Your pets aren't scripted—they're responding to *you* and their world.
 
-## Why It Feels Different
-
-Traditional Minecraft pets are simple: tame them, they follow you, they teleport if too far away. That's it.
-
-Pets+ pets actually respond to their world:
-
-- They're idle when nothing's happening (no background processing)
-- They react instantly to events
-- The same event feels different depending on context
-- They remember what happens and learn from it*
-- They share emotions and stories with packmates*
-
 ## Context Is Everything
 
 The same event triggers different emotions depending on the situation. Your pet doesn't just react to *what* happens—they react to *how* it happens.
@@ -87,43 +75,6 @@ Events trigger [emotions](emotions.md). The Mood Engine blends them into the [mo
 It works like real feelings: recent intense stuff matters more than old faded stuff. Each emotion feeds into multiple moods with different strengths, and your pet's [nature](natures.md) shapes how they process everything.
 
 Sudden fear hits instantly. Contentment builds slowly. The system tries to mirror how actual emotions work.
-
-## Emotion Context Cues
-
-When something important happens, you'll get subtle hints about what your pet is feeling.
-
-- `[Your wolf senses danger nearby]`
-- `[Your cat feels cozy by the campfire]`
-- `[Your parrot is delighted by the music]`
-
-These little messages have cooldowns so they don't spam you, and they only appear when something meaningful is happening. Think of them as glimpses into your pet's inner world—not announcements, just flavor.
-
-You can tweak or turn them off in the config.
-
-## Pets Remember and Share Stories
-
-Your pets don't just react to what they see — they **remember events and tell each other about them**.
-
-When something interesting happens (campfires lit, treasures found, combat victories), pets remember:
-
-- **What happened**
-- **How big a deal it was** (minor event vs. major discovery)
-- **How sure they are** (did they witness it firsthand or hear it from a friend?)
-- **When it occurred**
-- **How do they feel about it** (dictates tone)
-
-Pets share these memories when they're hanging out together:
-
-- **Group storytelling** — pack members swap stories during downtime (within 8.5 blocks)
-- **Private whispers** — one-on-one exchanges when two pets cross paths (within 6 blocks)
-
-Gossip shapes emotions secondhand. Hearing about a cozy campfire gathering might boost Sobremesa even if your pet wasn't there. Learning about a nearby threat increases Vigilance.
-
-This creates a **pack memory** — your pets develop shared knowledge and experiences without you having to tell each one individually.
-
-Emotions also spread between nearby pets through **contagion** — when one pet feels something strongly, packmates pick it up. This creates natural pack behavior where fear spreads or victory rallies everyone.
-
-*For details on emotional contagion mechanics, see [Emotions](emotions.md#emotional-contagion).*
 
 ## Putting It All Together
 

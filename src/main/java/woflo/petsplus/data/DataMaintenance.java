@@ -2,11 +2,7 @@ package woflo.petsplus.data;
 
 import java.util.Locale;
 
-/**
- * Phase A scaffolding for data maintenance operations.
- * This is a no-op stub providing placeholders for validation and reload flows.
- * To be replaced in a later chunk with real schema checks and safe reload behavior.
- */
+/** Lightweight stubs for data maintenance operations until full tooling is available. */
 public final class DataMaintenance {
 
     private DataMaintenance() {}
@@ -19,8 +15,6 @@ public final class DataMaintenance {
      */
     public static String validate(String what, String output) {
         String w = normalizeOrDefault(what, "all");
-        // output target is intentionally ignored in Phase A (no I/O performed)
-
         if ("ai".equals(w)) {
             return "Validate (ai): " + buildAiVerboseSummary();
         } else if ("abilities".equals(w)) {
@@ -35,7 +29,7 @@ public final class DataMaintenance {
         return "Validate (" + w + "): OK (stub)";
     }
 
-    // Phase A helpers: tri-state schemaVersion health for AI signal rules (read-only)
+    // Helper: tri-state schemaVersion health for AI signal rules (read-only)
     private static String buildAiVerboseSummary() {
         String moodBlend = formatVerbose("mood_blend", "data/petsplus/ai_signal_rules/mood_blend.json");
         String nature = formatVerbose("nature", "data/petsplus/ai_signal_rules/nature.json");

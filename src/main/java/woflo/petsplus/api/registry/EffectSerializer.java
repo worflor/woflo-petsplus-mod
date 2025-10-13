@@ -102,9 +102,7 @@ public interface EffectSerializer<C> {
         }
     }
 
-    /**
-     * Phase A scaffold: Light wrapper to peek top-level schemaVersion without enforcement.
-     */
+    /** Reads the top-level schema version, if present, without enforcing it. */
     static OptionalInt peekSchemaVersion(JsonObject obj) {
         return RegistryJsonHelper.getSchemaVersionFromObject(obj);
     }

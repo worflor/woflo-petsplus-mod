@@ -173,44 +173,26 @@ public final class MoodService implements MoodAPI {
         }
     }
 
-    /**
-     * Phase A scaffold; constants-only adapters; no current enforcement.
-     * Not referenced at runtime yet; adding here to avoid future churn.
-     *
-     * Returns the base provider cadence for "near" LOD in ticks.
-     */
+    /** Base provider cadence for the "near" LOD in ticks. */
     public static int providerBaseTicksNear() {
         return AIPerfPolicy.PROVIDER_BASE_TICKS_NEAR;
     }
 
-    /**
-     * Phase A scaffold; constants-only adapters; no current enforcement.
-     * Not referenced at runtime yet; adding here to avoid future churn.
-     *
-     * Returns the base provider cadence for "mid" LOD in ticks.
-     */
+    /** Base provider cadence for the "mid" LOD in ticks. */
     public static int providerBaseTicksMid() {
         return AIPerfPolicy.PROVIDER_BASE_TICKS_MID;
     }
 
-    /**
-     * Phase A scaffold; constants-only adapters; no current enforcement.
-     * Not referenced at runtime yet; adding here to avoid future churn.
-     *
-     * Returns the base provider cadence for "far" LOD in ticks.
-     */
+    /** Base provider cadence for the "far" LOD in ticks. */
     public static int providerBaseTicksFar() {
         return AIPerfPolicy.PROVIDER_BASE_TICKS_FAR;
     }
 
     /**
-     * Phase A scaffold; constants-only adapters; no current enforcement.
-     * Not referenced at runtime yet; adding here to avoid future churn.
-     *
-     * Compute the tick modulation divisor for a given distance based on policy buckets.
-     * - NEAR (≤ AIPerfPolicy.NEAR_DIST): 1 (no modulation)
-     * - MID (≤ AIPerfPolicy.MID_DIST): AIPerfPolicy.MID_TICK_MOD
-     * - FAR (> AIPerfPolicy.MID_DIST): AIPerfPolicy.FAR_TICK_MOD
+     * Computes the tick modulation divisor for a given distance based on policy buckets.
+     * - NEAR (<= {@link woflo.petsplus.policy.AIPerfPolicy#NEAR_DIST}): {@code 1}
+     * - MID (<= {@link woflo.petsplus.policy.AIPerfPolicy#MID_DIST}): {@link woflo.petsplus.policy.AIPerfPolicy#MID_TICK_MOD}
+     * - FAR (> {@link woflo.petsplus.policy.AIPerfPolicy#MID_DIST}): {@link woflo.petsplus.policy.AIPerfPolicy#FAR_TICK_MOD}
      *
      * @param distance distance in blocks
      * @return tick modulation divisor for the corresponding LOD

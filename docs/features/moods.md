@@ -50,26 +50,9 @@ Three special moods require extreme conditions to manifest. These aren't calcula
 
 Ultra-rare moods have unique visual effects and behavioral modifiers. They're not meant to be farmed. They're meant to be *moments*.
 
-### Tuning Defensive & Arcane Persistence
-
-Server owners can adjust how long these heightened states linger by editing `moodengine.json`:
-
-- **`guardianVigil` block** – sets the recent damage window, grace period, health thresholds, and status-effect hazard tuning that keep Protective/Guardian moods active after the owner is hurt or afflicted.
-- **`packSpirit` block** – defines the ally radius, minimum packmates, linger time, and bond bonus that stabilize Pack Spirit when bonded pets cluster together. The nested `engagement` tuning lets you weight combat-ready archetypes, mood strength, and role diversity so active guardians contribute more cohesion than idle companions.
-- **`arcaneOverflow` block** – controls the linger/streak timers, ambient scan radius, minimum energy, structure weighting (per-block energy, distance exponent, mystic bonus), and the cooldown/movement thresholds that govern when ambient arcane scans are recomputed. Status-effect weights allow powerful buffs with long durations to feed more momentum than fleeting trickles while shared ambient caches keep clustered pets from re-scanning the same volume every tick, and gear weighting scales contributions based on enchantment power so high-tier kits deliver a stronger surge. Reloading the config immediately invalidates cached ambient samples so new tuning takes effect right away. The optional `structureState` section exposes multipliers for block-state potency—respawn anchors scale by stored charges, beacons ramp with pyramid levels, and sculk catalysts taper without recent blooms—so designers can author granular ambient responses.
-- **`loneliness` block** – tunes how close the owner must stay, how long absences linger, the different grace windows for Saudade versus Hiraeth, and now how long recent social buffers or pack companionship suppress longing before isolation returns (including pack-radius and strength thresholds).
-- **`positiveCues` block** – defines how long recent petting, crouch cuddles, social buffers, play sessions, feeding, and gifts keep Content/Cheerful moods buoyant.
-
 ## Mood Intensity
 
 Moods aren't binary. Each has an intensity level (0.0 to 1.0) representing how strongly it's being felt.
-
-Low-intensity Happy is a content pet lounging nearby. High-intensity Happy is a whirlwind of tail wags and excited circles.
-
-Intensity affects:
-- **Visual feedback** — particle effects, animation speed, color saturation
-- **AI behavior** — goal priority, movement patterns, reaction thresholds
-- **Mood advancement triggers** — some achievements require witnessing a mood "at its most intense"
 
 ## How Moods Shift
 
@@ -85,36 +68,6 @@ Moods update in real time as emotions rise and fall. The system uses adaptive mo
 7. Mood gradually drifts back toward Calm
 
 The transition speed depends on emotional context. A sudden shock switches moods instantly. Gradual environmental changes produce smooth, slow shifts.
-
-## Mood-Based AI
-
-Each mood has associated AI goals that activate when that mood dominates.
-
-- **Happy** → Follow owner closely, wag tail
-- **Playful** → Chase items, bounce around
-- **Curious** → Investigate blocks, wander toward new chunks
-- **Bonded** → Orbit owner, refuse to leave their side
-- **Calm** → Rest, find sunbeams, minimal movement
-- **Passionate** → Charge toward objectives, high energy movement
-- **Yūgen** → Stargazing behavior, contemplative sitting
-- **Focused** → Lock onto tasks, ignore distractions
-- **Sisu** → Push through obstacles, refuse to quit
-- **Saudade** → Return to familiar locations, nostalgic circling
-- **Protective** → Guard owner, position between threats
-- **Restless** → Pace, circle, agitated movement
-- **Afraid** → Flee from threats, stay behind owner
-- **Angry** → Attack hostile targets, aggressive posture
-
-Mood AI doesn't replace role abilities. It *layers on top*. A Guardian pet in Protective mood will prioritize defensive positioning even more aggressively.
-
-## Checking Your Pet's Mood
-
-Moods display in the action bar when you're near your pet. You'll see the current mood label and intensity indicator.
-
-Visual cues:
-- **Particle effects** — color and pattern match the mood
-- **Animation speed** — high-intensity moods have faster, more exaggerated animations
-- **Body language** — ear position, tail movement, posture
 
 ## Why Moods Matter
 

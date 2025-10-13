@@ -41,7 +41,7 @@ Emotions tied to bonds, relationships, and belonging.
 - **Querecia** — deep sense of rest and belonging
 - **Loyalty** — steadfast devotion
 - **Sobremesa** — lingering after a meal together
-- **Pack Spirit** — unity with the group (ultra-rare)
+
 
 ### Threat / Aversion
 Responses to danger, discomfort, or unwanted situations.
@@ -90,6 +90,7 @@ Exceptional emotions triggered only under special circumstances.
 
 - **Echoed Resonance** — Deep Dark attunement
 - **Arcane Overflow** — enchantment saturation
+- **Pack Spirit** — unity with the pack
 
 ## What Triggers Emotions?
 

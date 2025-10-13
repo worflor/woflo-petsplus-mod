@@ -8,15 +8,13 @@ package woflo.petsplus.config;
  * methods are synchronized to ensure safe publication and serialization of writes.
  *
  * No external dependencies; JSON/command wiring will be added in later chunks.
- *
- * @since Phase A - Chunk 1
  */
 public final class DebugSettings {
 
     private static volatile boolean debugEnabled = false;
     private static volatile boolean telemetryEnabled = false;
     private static volatile int telemetrySampleRateTicks = 20;
-    /** Phase A scaffold; gates owner-centric pipeline dispatch (currently no-op) */
+    /** Toggle for owner-centric pipeline dispatch. */
     private static volatile boolean pipelineEnabled = false;
 
     private DebugSettings() {
@@ -85,24 +83,17 @@ public final class DebugSettings {
         telemetrySampleRateTicks = Math.max(1, ticks);
     }
 
-    /**
-     * Phase A scaffold; gates owner-centric pipeline dispatch (currently no-op)
-     * Enable the owner-centric pipeline.
-     */
+    /** Enable the owner-centric pipeline. */
     public static synchronized void enablePipeline() {
         pipelineEnabled = true;
     }
 
-    /**
-     * Phase A scaffold; gates owner-centric pipeline dispatch (currently no-op)
-     * Disable the owner-centric pipeline.
-     */
+    /** Disable the owner-centric pipeline. */
     public static synchronized void disablePipeline() {
         pipelineEnabled = false;
     }
 
     /**
-     * Phase A scaffold; gates owner-centric pipeline dispatch (currently no-op)
      * Check if the owner-centric pipeline is enabled.
      * @return true if enabled
      */

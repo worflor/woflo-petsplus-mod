@@ -228,10 +228,7 @@ public final class RegistryJsonHelper {
         }
     }
 
-    /**
-     * Phase A scaffold: Minimal helper to extract a top-level schemaVersion integer from a JSON element.
-     * No enforcement, best-effort only.
-     */
+    /** Extracts a top-level {@code schemaVersion} integer from a JSON element, if present. */
     public static OptionalInt getSchemaVersionFromJson(JsonElement elem) {
         if (elem == null || elem.isJsonNull() || !elem.isJsonObject()) {
             return OptionalInt.empty();
@@ -239,10 +236,7 @@ public final class RegistryJsonHelper {
         return getSchemaVersionFromObject(elem.getAsJsonObject());
     }
 
-    /**
-     * Phase A scaffold: Minimal helper to extract a top-level schemaVersion integer from a JSON object.
-     * No enforcement, best-effort only.
-     */
+    /** Extracts a top-level {@code schemaVersion} integer from a JSON object, if present. */
     public static OptionalInt getSchemaVersionFromObject(JsonObject obj) {
         if (obj == null) {
             return OptionalInt.empty();
@@ -258,10 +252,7 @@ public final class RegistryJsonHelper {
         return OptionalInt.empty();
     }
 
-    /**
-     * Phase A scaffold: Reads a classpath resource and attempts to parse a top-level schemaVersion.
-     * Never throws and performs no logging; returns OptionalInt.empty() on any failure.
-     */
+    /** Reads a classpath resource and returns the top-level {@code schemaVersion}, if it can be parsed. */
     public static OptionalInt readSchemaVersionFromResource(String resourcePath) {
         if (resourcePath == null || resourcePath.isBlank()) {
             return OptionalInt.empty();
@@ -280,14 +271,11 @@ public final class RegistryJsonHelper {
     }
 
     /**
-     * Phase A scaffold: plan a safe-reload (no-op). Produces a concise summary string only.
-     * Accepts ai|abilities|tags|all; anything else returns an "unknown target" summary.
-     * No I/O, no datapack calls, no logging. Never throws.
-     *
-     * This is scaffolding for later chunks where real reload wiring will be added.
+     * Produces a concise summary string describing a safe reload plan. This intentionally performs
+     * no I/O and is purely informational.
      *
      * @param what target scope: ai, abilities, tags, or all
-     * @param safe whether the planned reload should be safe (flag only in Phase A)
+     * @param safe whether the reload plan should run in safe mode
      * @return concise plan summary string
      */
     public static String planSafeReload(String what, boolean safe) {
@@ -311,10 +299,7 @@ public final class RegistryJsonHelper {
         }
     }
 
-    /**
-     * Phase A: Tri-state schemaVersion health indicator.
-     * Read-only; best-effort; never throws.
-     */
+    /** Tri-state schemaVersion health indicator. */
     public enum SchemaVersionHealth {
         ABSENT,
         PRESENT_INTEGER,

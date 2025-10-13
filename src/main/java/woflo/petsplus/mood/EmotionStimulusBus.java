@@ -21,11 +21,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
- * Phase A scaffold for stimulus coalescing decisions and trace hooks.
- * <p>
- * No coalescing logic or state tables yet; designed for zero per-tick allocations on hot paths.
- * All methods are static and fields are primitive/volatile to avoid allocations and synchronization.
- * Non-goals: no gameplay wiring, no UI, no internal caches in this phase.
+ * Central dispatcher that batches emotion stimuli per pet and commits them on the
+ * server thread with minimal allocation overhead.
  */
 public final class EmotionStimulusBus {
 
@@ -50,74 +47,36 @@ public final class EmotionStimulusBus {
         this.moodService = service != null ? service : MoodService.getInstance();
     }
 
-    // ---------------------------------------------------------------------
-    // Coalescing policy and API (Phase A scaffold)
-    // ---------------------------------------------------------------------
+    // Coalescing policy configuration
 
-    /**
-     * Documented coalescing window policy (in ticks).
-     * Phase A scaffold; tweakable in later phases via policy.
-     */
+    /** Coalescing window policy (in ticks). */
     private static final int COALESCE_WINDOW_TICKS = 4;
 
-    /**
-     * Phase A scaffold; no coalescing logic or state tables yet; designed for zero per-tick allocations.
-     * Returns the documented coalescing window in ticks.
-     *
-     * @return number of ticks in the current coalescing window
-     */
+    /** Returns the configured coalescing window length. */
     public static int coalesceWindowTicks() {
         return COALESCE_WINDOW_TICKS;
     }
 
-    /**
-     * Phase A scaffold; no coalescing logic or state tables yet; designed for zero per-tick allocations.
-     * Placeholder decision API for stimulus coalescing. Always returns false in Phase A.
-     *
-     * @param petId       stable pet identifier (primitive; no allocations)
-     * @param stimulusKey stable stimulus key (primitive; no allocations)
-     * @param nowTick     current tick (primitive; no allocations)
-     * @return false in Phase A (no coalescing yet)
-     */
+    /** Placeholder hook for coalescing policies. Currently never coalesces. */
     public static boolean shouldCoalesce(long petId, int stimulusKey, int nowTick) {
-        // Phase A: behavior intentionally inert; replace with real decision logic in later phases.
         return false;
     }
 
-    // ---------------------------------------------------------------------
-    // Guardable “last coalesce” trace (inert unless enabled)
-    // ---------------------------------------------------------------------
+    // Optional tracing of the last coalesce decision
 
-    /**
-     * Phase A scaffold; no coalescing logic or state tables yet; designed for zero per-tick allocations.
-     * Global toggle for coalesce trace. Guarded alongside DebugSettings.isDebugEnabled().
-     */
     private static volatile boolean COALESCE_TRACE_ENABLED = false;
 
-    /**
-     * Phase A scaffold; no coalescing logic or state tables yet; designed for zero per-tick allocations.
-     * Indicates whether coalesce trace is enabled. Allocation-free.
-     *
-     * @return true if coalesce trace is enabled and may be recorded
-     */
     public static boolean isCoalesceTraceEnabled() {
         return COALESCE_TRACE_ENABLED;
     }
 
-    /**
-     * Phase A scaffold; no coalescing logic or state tables yet; designed for zero per-tick allocations.
-     * Enables coalesce trace. Allocation-free; guarded in recordCoalesce().
-     */
     public static void enableCoalesceTrace() {
         COALESCE_TRACE_ENABLED = true;
     }
 
-    /**
-     * Phase A scaffold; no coalescing logic or state tables yet; designed for zero per-tick allocations.
-     * Disables coalesce trace. Allocation-free.
-     */
     public static void disableCoalesceTrace() {
         COALESCE_TRACE_ENABLED = false;
+        lastCoalesceWallNanos = 0L;
     }
 
     // Trace fields (primitive-only; volatile; updated only if enabled AND debug)
@@ -129,16 +88,8 @@ public final class EmotionStimulusBus {
     private static volatile long lastCoalesceWallNanos = 0L;
 
     /**
-     * Phase A scaffold; no coalescing logic or state tables yet; designed for zero per-tick allocations.
      * Records a snapshot of the most recent coalesce decision for inspector use.
-     * Inert unless both DebugSettings.isDebugEnabled() and COALESCE_TRACE_ENABLED are true.
-     * Uses only primitive volatile fields to avoid allocations on hot paths.
-     *
-     * @param petId       stable pet identifier
-     * @param stimulusKey stable stimulus key
-     * @param startTick   start of the coalescing window (inclusive)
-     * @param endTick     end of the coalescing window (exclusive or inclusive per future policy)
-     * @param magnitude   resulting magnitude after coalescing
+     * Inert unless both {@link DebugSettings#isDebugEnabled()} and {@link #isCoalesceTraceEnabled()} are true.
      */
     public static void recordCoalesce(long petId, int stimulusKey, int startTick, int endTick, float magnitude) {
         if (!(DebugSettings.isDebugEnabled() && COALESCE_TRACE_ENABLED)) {
@@ -152,14 +103,7 @@ public final class EmotionStimulusBus {
         lastCoalesceWallNanos = System.nanoTime();
     }
 
-    /**
-     * Phase A scaffold; no coalescing logic or state tables yet; designed for zero per-tick allocations.
-     * Returns a compact summary of the last recorded coalesce snapshot.
-     * Allocation occurs only upon caller request of this summary (not on per-tick hot paths).
-     *
-     * @return "trace=disabled" if tracing or debug is off, "trace=n/a" if no snapshot yet,
-     *         otherwise compact summary string.
-     */
+    /** Returns a compact summary of the last recorded coalesce snapshot. */
     public static String getLastCoalesceSummary() {
         if (!(DebugSettings.isDebugEnabled() && COALESCE_TRACE_ENABLED)) {
             return "trace=disabled";
@@ -174,35 +118,19 @@ public final class EmotionStimulusBus {
                 + ", mag=" + lastCoalesceMagnitude;
     }
 
-    // ---------------------------------------------------------------------
-    // Phase A scaffold: Dispatch listener API (compile-only; no-ops)
-    // ---------------------------------------------------------------------
-
-    /**
-     * Phase A scaffold; accepting dispatch callbacks without using them.
-     * No behavior change; not referenced by existing logic yet.
-     * This interface is allocation-free in hot paths; listeners are not stored in Phase A.
-     */
+    // Dispatch listener API
     public interface DispatchListener {
         void onDispatch(net.minecraft.entity.mob.MobEntity pet,
                         woflo.petsplus.state.PetComponent component,
                         long time);
     }
 
-    /**
-     * Phase A scaffold; compile-only no-op. Accepts a listener but does not store it.
-     * No behavior change at runtime.
-     */
-    public static void addDispatchListener(DispatchListener listener) {
-        MoodService.getInstance().getStimulusBus().addDispatchListenerInternal(listener);
+    public void addDispatchListener(DispatchListener listener) {
+        addDispatchListenerInternal(listener);
     }
 
-    /**
-     * Phase A scaffold; compile-only no-op. Accepts a listener but does not remove anything.
-     * No behavior change at runtime.
-     */
-    public static void removeDispatchListener(DispatchListener listener) {
-        MoodService.getInstance().getStimulusBus().removeDispatchListenerInternal(listener);
+    public void removeDispatchListener(DispatchListener listener) {
+        removeDispatchListenerInternal(listener);
     }
     
     // Nested listener invoked when a stimulus is queued for a pet.
@@ -220,10 +148,6 @@ public final class EmotionStimulusBus {
     public interface SimpleStimulusCollector {
         void pushEmotion(PetComponent.Emotion emotion, float amount);
     }
-    
-    // ---------------------------------------------------------------------
-    // Added Phase A compile-pass instance/static API stubs (no behavior)
-    // ---------------------------------------------------------------------
     
     public void addQueueListener(EmotionStimulusBus.QueueListener listener) {
         if (listener == null) {

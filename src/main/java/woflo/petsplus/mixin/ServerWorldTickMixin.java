@@ -15,7 +15,7 @@ import java.util.function.BooleanSupplier;
 @Mixin(ServerWorld.class)
 public abstract class ServerWorldTickMixin {
 
-    // Phase A (Chunk 5): Minimal ingress timing sample state (no per-tick allocations)
+    // Telemetry sampling state (avoids per-tick allocations)
     private static int ppTelemetryTick = 0;
     private static boolean ppTelemetrySampled = false;
     private static long ppIngressStartNanos = 0L;
@@ -48,7 +48,7 @@ public abstract class ServerWorldTickMixin {
             GroupCoordinator.cleanupExpiredInvites(world);
         }
 
-        // Phase A (Chunk 5): Minimal ingress timing sample - TAIL
+        // Finish telemetry sample on tick tail if one was started
         if (ppTelemetrySampled) {
             AsyncProcessingTelemetry.stopTimer(AsyncProcessingTelemetry.INGRESS_TIME, ppIngressStartNanos);
             AsyncProcessingTelemetry.INGRESS_EVENTS.incrementAndGet();

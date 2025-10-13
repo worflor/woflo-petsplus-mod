@@ -80,9 +80,7 @@ public interface TriggerSerializer<C> {
         DataResult<Trigger> create(Identifier abilityId, C config);
     }
 
-    /**
-     * Phase A scaffold: Light wrapper to peek top-level schemaVersion without enforcement.
-     */
+    /** Reads the top-level schemaVersion, if present, without enforcing it. */
     static OptionalInt peekSchemaVersion(JsonObject obj) {
         return RegistryJsonHelper.getSchemaVersionFromObject(obj);
     }
