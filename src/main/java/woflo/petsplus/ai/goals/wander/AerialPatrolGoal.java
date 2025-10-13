@@ -22,7 +22,9 @@ public class AerialPatrolGoal extends AdaptiveGoal {
     private int patrolTicks = 0;
     private double patrolRadius = 5.0;
     private double patrolHeight;
+    private int consecutiveTargetFailures = 0;
     private static final int TARGET_SEARCH_ATTEMPTS = 8;
+    private static final int MAX_CONSECUTIVE_TARGET_FAILURES = 4;
     
     public AerialPatrolGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.AERIAL_PATROL), EnumSet.of(Control.MOVE));
@@ -70,12 +72,16 @@ public class AerialPatrolGoal extends AdaptiveGoal {
     protected void onStartGoal() {
         patrolTicks = 0;
         patrolHeight = computeInitialPatrolHeight();
-        pickNewPatrolTarget();
+        consecutiveTargetFailures = 0;
+        if (!pickNewPatrolTarget()) {
+            consecutiveTargetFailures++;
+        }
     }
-    
+
     @Override
     protected void onStopGoal() {
         mob.getNavigation().stop();
+        consecutiveTargetFailures = 0;
     }
     
     @Override
@@ -83,11 +89,18 @@ public class AerialPatrolGoal extends AdaptiveGoal {
         patrolTicks++;
         
         if (patrolTarget == null || mob.getEntityPos().distanceTo(patrolTarget) < 2.0 || patrolTicks % 60 == 0) {
-            pickNewPatrolTarget();
+            if (pickNewPatrolTarget()) {
+                consecutiveTargetFailures = 0;
+            } else {
+                consecutiveTargetFailures++;
+            }
         }
 
         if (patrolTarget == null) {
             mob.getNavigation().stop();
+            if (consecutiveTargetFailures >= MAX_CONSECUTIVE_TARGET_FAILURES) {
+                requestStop();
+            }
             return;
         }
 
@@ -99,7 +112,7 @@ public class AerialPatrolGoal extends AdaptiveGoal {
         mob.getNavigation().startMovingTo(patrolTarget.x, patrolTarget.y, patrolTarget.z, 1.0);
     }
 
-    private void pickNewPatrolTarget() {
+    private boolean pickNewPatrolTarget() {
         Vec3d origin = mob.getEntityPos();
         Vec3d bestCandidate = null;
 
@@ -120,10 +133,11 @@ public class AerialPatrolGoal extends AdaptiveGoal {
 
         if (bestCandidate == null) {
             patrolTarget = null;
-            return;
+            return false;
         }
 
         patrolTarget = bestCandidate;
+        return true;
     }
 
     private boolean hasLaunchClearance() {

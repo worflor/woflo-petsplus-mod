@@ -227,6 +227,7 @@ public final class PetMoodEngine {
     private float mentalActivity = 0f;                 // Puzzles, searching, tracking
     private float socialActivity = 0f;                 // Interactions with owner/pets
     private float restActivity = 0f;                   // Restorative downtime loops
+    private float recentPhysicalBurst = 0f;            // Fast-decaying exertion pulse for stamina response
 
     // Derived behavioral batteries layered above the raw activity feeds
     private float socialCharge = 0.45f;                // 0=drained, 0.45=content introvert baseline, 1=pack euphoric
@@ -660,7 +661,10 @@ public final class PetMoodEngine {
         
         // Apply activity with caps to prevent overflow from rapid recording
         switch (type) {
-            case PHYSICAL -> physicalActivity = Math.min(5f, physicalActivity + contribution * 1.2f);
+            case PHYSICAL -> {
+                physicalActivity = Math.min(5f, physicalActivity + contribution * 1.2f);
+                recentPhysicalBurst = Math.min(1f, recentPhysicalBurst + contribution * 2.5f);
+            }
             case MENTAL -> mentalActivity = Math.min(5f, mentalActivity + contribution * 0.8f);
             case SOCIAL -> socialActivity = Math.min(5f, socialActivity + contribution * 0.9f);
             case REST -> restActivity = Math.min(5f, restActivity + contribution);
@@ -891,6 +895,7 @@ public final class PetMoodEngine {
         mentalActivity = 0f;
         socialActivity = 0f;
         restActivity = 0f;
+        recentPhysicalBurst = 0f;
         lastMomentumUpdate = 0L;
         energyProfileDirty = true;
     }
@@ -1335,11 +1340,14 @@ public final class PetMoodEngine {
         float ambientSocial = sampleAmbientSocialComfort(now);
         float bondFactor = normalizedBondStrength();
 
-        float physicalDrain = normalizedPhysical * (0.45f + normalizedPhysical * 0.25f) * dt;
-        float physicalRecovery = (0.03f + (1f - normalizedPhysical) * 0.08f + socialCharge * 0.01f) * dt;
+        float physicalLoad = Math.max(normalizedPhysical, recentPhysicalBurst);
+        float physicalDrain = physicalLoad * (0.45f + physicalLoad * 0.25f) * dt;
+        float recoveryBase = 0.03f + (1f - physicalLoad) * 0.08f + socialCharge * 0.01f;
+        float physicalRecovery = recoveryBase * dt;
         float restBias = (0.04f + (1f - physicalStamina) * 0.12f) * normalizedRest * dt;
         physicalRecovery += restBias;
         physicalStamina = MathHelper.clamp(physicalStamina + physicalRecovery - physicalDrain, 0.05f, 1f);
+        recentPhysicalBurst = Math.max(0f, recentPhysicalBurst - dt * 0.6f);
 
         float calmMood = moodBlend.getOrDefault(PetComponent.Mood.CALM, 0f);
         float focusMood = moodBlend.getOrDefault(PetComponent.Mood.CURIOUS, 0f);
