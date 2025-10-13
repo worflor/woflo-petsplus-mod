@@ -56,34 +56,39 @@ public class SurfaceBreathGoal extends AdaptiveGoal {
     protected void onTickGoal() {
         surfaceTicks++;
 
-        if (!mob.isTouchingWater()) {
-            reachedSurface = true;
+        boolean submerged = mob.isSubmergedInWater();
+        boolean touchingWater = mob.isTouchingWater();
+
+        if (submerged) {
+            if (reachedSurface) {
+                reachedSurface = false;
+            }
+            mob.setVelocity(mob.getVelocity().add(0, 0.05, 0));
+            return;
         }
 
-        if (!reachedSurface && mob.isSubmergedInWater()) {
-            // Swim upward
-            mob.setVelocity(mob.getVelocity().add(0, 0.05, 0));
-        } else {
-            reachedSurface = true;
-            
-            // Float at surface
-            mob.setVelocity(mob.getVelocity().multiply(0.9, 0.9, 0.9));
-            
-            // Look around
-            if (surfaceTicks % 10 == 0) {
-                mob.setYaw(mob.getYaw() + 45 * mob.getRandom().nextInt(3) - 1);
-            }
-            
-            // Splash particles
-            if (surfaceTicks % 15 == 0 && mob.getEntityWorld() instanceof ServerWorld serverWorld) {
-                serverWorld.spawnParticles(
-                    ParticleTypes.SPLASH,
-                    mob.getX(), mob.getY(), mob.getZ(),
-                    5,
-                    0.5, 0.1, 0.5,
-                    0.1
-                );
-            }
+        reachedSurface = true;
+
+        // Float near the surface; dampen downward drift and add a light upward nudge if sinking
+        mob.setVelocity(mob.getVelocity().multiply(0.9, 0.8, 0.9));
+        if (touchingWater && mob.getVelocity().y < 0.0) {
+            mob.setVelocity(mob.getVelocity().add(0, 0.02, 0));
+        }
+
+        // Look around
+        if (surfaceTicks % 10 == 0) {
+            mob.setYaw(mob.getYaw() + 45 * mob.getRandom().nextInt(3) - 1);
+        }
+
+        // Splash particles
+        if (surfaceTicks % 15 == 0 && mob.getEntityWorld() instanceof ServerWorld serverWorld) {
+            serverWorld.spawnParticles(
+                ParticleTypes.SPLASH,
+                mob.getX(), mob.getY(), mob.getZ(),
+                5,
+                0.5, 0.1, 0.5,
+                0.1
+            );
         }
     }
     

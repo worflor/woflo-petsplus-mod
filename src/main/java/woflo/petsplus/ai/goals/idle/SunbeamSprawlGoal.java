@@ -23,7 +23,11 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
     private int sprawlTicks = 0;
     private Vec3d targetPos = null;
     private static final int SPRAWL_DURATION = 80;
-    private static final int SUNLIGHT_CHECK_INTERVAL = 20;
+    private static final int MAX_REPOSITION_TICKS = 100;
+    private static final int MAX_NAVIGATION_STALL_TICKS = 30;
+
+    private int repositionTicks = 0;
+    private int navigationStalledTicks = 0;
     
     public SunbeamSprawlGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.SUNBEAM_SPRAWL), EnumSet.of(Control.MOVE));
@@ -58,13 +62,21 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
     
     @Override
     protected boolean shouldContinueGoal() {
-        return sprawlTicks < SPRAWL_DURATION && isInSunlight(mob.getBlockPos());
+        if (sprawlTicks >= SPRAWL_DURATION) {
+            return false;
+        }
+        if (isInSunlight(mob.getBlockPos())) {
+            return true;
+        }
+        return repositionTicks < MAX_REPOSITION_TICKS;
     }
-    
+
     @Override
     protected void onStartGoal() {
         sprawlTicks = 0;
-        
+        repositionTicks = 0;
+        navigationStalledTicks = 0;
+
         // Move to target position if needed
         if (targetPos != null) {
             if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
@@ -72,7 +84,7 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
             }
         }
     }
-    
+
     @Override
     protected void onStopGoal() {
         mob.getNavigation().stop();
@@ -87,26 +99,60 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
         mob.setPitch(0);
         mob.setYaw(mob.bodyYaw);
         targetPos = null;
+        repositionTicks = 0;
+        navigationStalledTicks = 0;
     }
-    
+
     @Override
     protected void onTickGoal() {
         sprawlTicks++;
-        
-        // Check sunlight periodically
-        if (sprawlTicks % SUNLIGHT_CHECK_INTERVAL == 0 && !isInSunlight(mob.getBlockPos())) {
-            // Try to find new sunlight spot
-            targetPos = findNearbySunlight(8);
-            if (targetPos != null) {
+
+        boolean inSunlight = isInSunlight(mob.getBlockPos());
+
+        if (!inSunlight) {
+            repositionTicks = Math.min(repositionTicks + 1, MAX_REPOSITION_TICKS + 1);
+
+            if (targetPos == null) {
+                targetPos = findNearbySunlight(8);
+                navigationStalledTicks = 0;
+                if (targetPos == null) {
+                    requestStop();
+                    return;
+                }
                 if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
                     mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, 0.6);
                 }
             }
+
+            if (targetPos != null) {
+                if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
+                    if (mob.getNavigation().isIdle()) {
+                        navigationStalledTicks++;
+                        mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, 0.6);
+                    } else {
+                        navigationStalledTicks = 0;
+                    }
+                }
+
+                if (mob.squaredDistanceTo(targetPos) < 1.0) {
+                    // Close enough to reassess sunlight; clear target so next tick can rescan
+                    targetPos = null;
+                }
+            }
+
+            if (repositionTicks > MAX_REPOSITION_TICKS || navigationStalledTicks > MAX_NAVIGATION_STALL_TICKS) {
+                requestStop();
+                return;
+            }
+        } else {
+            repositionTicks = 0;
+            navigationStalledTicks = 0;
+            targetPos = null;
         }
-        
+
         // Perform sprawl animation
         performSprawlAnimation();
-        
+
         // Occasionally roll over for comfort
         if (sprawlTicks > 20 && sprawlTicks % 30 == 0 && mob.getRandom().nextFloat() < 0.3f) {
             performComfortRoll();
