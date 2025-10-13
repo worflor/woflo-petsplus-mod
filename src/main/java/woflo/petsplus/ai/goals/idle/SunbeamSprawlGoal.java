@@ -26,7 +26,7 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
     private static final int SUNLIGHT_CHECK_INTERVAL = 20;
     
     public SunbeamSprawlGoal(MobEntity mob) {
-        super(mob, GoalRegistry.require(GoalIds.SUNBEAM_SPRAWL), EnumSet.noneOf(Control.class));
+        super(mob, GoalRegistry.require(GoalIds.SUNBEAM_SPRAWL), EnumSet.of(Control.MOVE));
     }
     
     @Override
@@ -75,6 +75,7 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
     
     @Override
     protected void onStopGoal() {
+        mob.getNavigation().stop();
         // Apply PetComponent cooldown as per spec
         // Subtle behavior: P0
         PetComponent pc = PetComponent.get(mob);
