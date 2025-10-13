@@ -34,7 +34,7 @@ public class SurfaceBreathGoal extends AdaptiveGoal {
             return false;
         }
 
-        if (!mob.isTouchingWater() && !reachedSurface) {
+        if (!mob.isTouchingWater()) {
             return false;
         }
 
@@ -59,6 +59,11 @@ public class SurfaceBreathGoal extends AdaptiveGoal {
         boolean submerged = mob.isSubmergedInWater();
         boolean touchingWater = mob.isTouchingWater();
 
+        if (!touchingWater) {
+            requestStop();
+            return;
+        }
+
         if (submerged) {
             if (reachedSurface) {
                 reachedSurface = false;
@@ -77,7 +82,8 @@ public class SurfaceBreathGoal extends AdaptiveGoal {
 
         // Look around
         if (surfaceTicks % 10 == 0) {
-            mob.setYaw(mob.getYaw() + 45 * mob.getRandom().nextInt(3) - 1);
+            int yawStep = mob.getRandom().nextInt(3) - 1; // -1, 0, or 1
+            mob.setYaw(mob.getYaw() + yawStep * 45f);
         }
 
         // Splash particles
