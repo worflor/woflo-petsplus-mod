@@ -34,8 +34,10 @@ public abstract class AdaptiveGoal extends Goal {
     protected final Identifier goalId;
     
     private int activeTicks = 0;
+    private int lastActivitySampleTick = 0;
     private int committedDuration = 0;
     private float currentEngagement = 0.5f;
+    private boolean pendingStop = false;
     
     // Emotion feedback caching
     private EmotionFeedback cachedFeedback = null;
@@ -99,6 +101,10 @@ public abstract class AdaptiveGoal extends Goal {
         if (mob.getTarget() != null) {
             return false; // Attack target acquired
         }
+
+        if (pendingStop) {
+            return false;
+        }
         
         // Stop if higher priority goal needs to run
         if (hasActiveHigherPriorityGoals()) {
@@ -124,6 +130,8 @@ public abstract class AdaptiveGoal extends Goal {
         activeTicks = 0;
         currentEngagement = 0.5f; // Start with neutral engagement
         committedDuration = calculateInitialDuration();
+        lastActivitySampleTick = 0;
+        pendingStop = false;
         onStartGoal();
 
         // Record activity start for behavioral momentum
@@ -133,6 +141,7 @@ public abstract class AdaptiveGoal extends Goal {
     
     @Override
     public void stop() {
+        pendingStop = false;
         // Record satisfaction/enjoyment for memory system
         float finalSatisfaction = calculateFinalSatisfaction();
         recordGoalExperience(finalSatisfaction);
@@ -146,24 +155,42 @@ public abstract class AdaptiveGoal extends Goal {
         
         // Trigger emotion feedback (Phase 2)
         triggerEmotionFeedback();
-        
+
         onStopGoal();
         activeTicks = 0;
+        lastActivitySampleTick = 0;
     }
     
     @Override
     public void tick() {
         activeTicks++;
-        
+
         // Update engagement based on goal-specific logic
         currentEngagement = calculateEngagement();
-        
+
+        // Stream behavioral activity while the goal runs
+        int deltaSinceSample = activeTicks - lastActivitySampleTick;
+        if (deltaSinceSample > 0) {
+            PetComponent pc = PetComponent.get(mob);
+            if (pc != null) {
+                var moodEngine = pc.getMoodEngine();
+                if (moodEngine != null) {
+                    moodEngine.recordBehavioralActivity(getActivityIntensity(), deltaSinceSample, getActivityType());
+                }
+            }
+            lastActivitySampleTick = activeTicks;
+        }
+
         // Adaptive duration adjustment
         if (currentEngagement > 0.7f && committedDuration < BASE_MAX_DURATION) {
             committedDuration += 2; // Extend if enjoying
         }
         
         onTickGoal();
+    }
+
+    protected void requestStop() {
+        this.pendingStop = true;
     }
     
     // === ABSTRACT METHODS - Implement in subclasses ===
@@ -218,7 +245,7 @@ public abstract class AdaptiveGoal extends Goal {
         return switch (goalDefinition.category()) {
             case PLAY -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.PHYSICAL;
             case WANDER -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.PHYSICAL;
-            case IDLE_QUIRK -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.PHYSICAL;
+            case IDLE_QUIRK -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.REST;
             case SPECIAL -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.MENTAL;
             case SOCIAL -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.SOCIAL;
         };
@@ -477,18 +504,21 @@ public abstract class AdaptiveGoal extends Goal {
             pc.getMoodEngine().recordBehavioralActivity(intensity * 0.3f, 10, activityType);
         }
     }
-    
+
     /**
      * Record activity completion for behavioral momentum tracking.
      */
     protected void recordActivityCompletion() {
         PetComponent pc = PetComponent.get(mob);
         if (pc != null && pc.getMoodEngine() != null) {
-            // Record accumulated activity over the goal's lifetime
-            float intensity = getActivityIntensity();
-            var activityType = getActivityType();
-            long duration = Math.min(activeTicks, 400); // Cap at 20 seconds
-            pc.getMoodEngine().recordBehavioralActivity(intensity, duration, activityType);
+            int remainingTicks = activeTicks - lastActivitySampleTick;
+            if (remainingTicks > 0) {
+                int cappedRemaining = Math.min(remainingTicks, 400);
+                float intensity = getActivityIntensity();
+                var activityType = getActivityType();
+                pc.getMoodEngine().recordBehavioralActivity(intensity, cappedRemaining, activityType);
+                lastActivitySampleTick = activeTicks;
+            }
         }
     }
     

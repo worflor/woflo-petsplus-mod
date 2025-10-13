@@ -124,6 +124,7 @@ public class ScentTrailSniffGoal extends AdaptiveGoal {
 
     @Override
     protected void onStopGoal() {
+        mob.getNavigation().stop();
         // Apply explicit PetComponent cooldown key as specified
         PetComponent pc = PetComponent.get(mob);
         if (pc != null) {

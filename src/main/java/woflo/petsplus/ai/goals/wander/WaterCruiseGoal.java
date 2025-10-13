@@ -52,7 +52,7 @@ public class WaterCruiseGoal extends AdaptiveGoal {
         cruiseTicks++;
 
         if (!shouldContinueGoal()) {
-            stop();
+            requestStop();
             return;
         }
 

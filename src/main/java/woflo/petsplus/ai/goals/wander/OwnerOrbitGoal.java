@@ -67,7 +67,7 @@ public class OwnerOrbitGoal extends AdaptiveGoal {
         MobCapabilities.CapabilityProfile capabilities = MobCapabilities.analyze(mob);
 
         if (!canOrbitInCurrentMedium(capabilities)) {
-            stop();
+            requestStop();
             return;
         }
 

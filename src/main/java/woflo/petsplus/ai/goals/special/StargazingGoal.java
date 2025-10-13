@@ -70,7 +70,7 @@ public class StargazingGoal extends AdaptiveGoal {
         gazeTicks++;
 
         if (gazeSpot == null || !isGazeSpotValid(gazeSpot)) {
-            stop();
+            requestStop();
             return;
         }
 

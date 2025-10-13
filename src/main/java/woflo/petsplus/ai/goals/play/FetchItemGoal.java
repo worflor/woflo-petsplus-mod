@@ -113,14 +113,14 @@ public class FetchItemGoal extends AdaptiveGoal {
         fetchTicks++;
 
         if (!shouldContinueGoal()) {
-            stop();
+            requestStop();
             return;
         }
 
         if (fetchPhase == 0) {
             // Phase 0: Move to item
             if (targetItem == null || !targetItem.isAlive()) {
-                stop();
+                requestStop();
                 return;
             }
 
@@ -171,7 +171,7 @@ public class FetchItemGoal extends AdaptiveGoal {
                 mob.setPitch(30); // Look down
             }
 
-            stop();
+            requestStop();
             return;
         }
         

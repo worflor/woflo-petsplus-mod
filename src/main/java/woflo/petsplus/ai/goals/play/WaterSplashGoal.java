@@ -20,6 +20,7 @@ import java.util.EnumSet;
  */
 public class WaterSplashGoal extends AdaptiveGoal {
     private int splashTicks = 0;
+    private boolean finished = false;
     private float neutralPitch = 0.0f;
     private static final int MAX_SPLASH_TICKS = 100; // 5 seconds
     
@@ -37,12 +38,17 @@ public class WaterSplashGoal extends AdaptiveGoal {
 
     @Override
     protected boolean shouldContinueGoal() {
+        if (finished) {
+            return false;
+        }
+
         return splashTicks < MAX_SPLASH_TICKS && mob.isOnGround() && isInShallowWater();
     }
-    
+
     @Override
     protected void onStartGoal() {
         splashTicks = 0;
+        finished = false;
         neutralPitch = mob.getPitch();
     }
     
@@ -52,19 +58,21 @@ public class WaterSplashGoal extends AdaptiveGoal {
         mob.setPitch(neutralPitch);
         mob.bodyYaw = MathHelper.wrapDegrees(mob.bodyYaw);
         splashTicks = 0;
+        finished = false;
     }
-    
+
     @Override
     protected void onTickGoal() {
         if (!mob.isOnGround() || !isInShallowWater()) {
-            stop();
+            requestStop();
             return;
         }
 
         splashTicks++;
 
         if (splashTicks >= MAX_SPLASH_TICKS) {
-            stop();
+            splashTicks = MAX_SPLASH_TICKS;
+            finished = true;
             return;
         }
         

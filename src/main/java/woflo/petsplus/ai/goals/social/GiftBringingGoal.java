@@ -100,14 +100,14 @@ public class GiftBringingGoal extends AdaptiveGoal {
         giftTicks++;
 
         if (!shouldContinueGoal()) {
-            stop();
+            requestStop();
             return;
         }
 
         if (giftPhase == 0) {
             // Phase 0: Move to item
             if (targetItem == null || !targetItem.isAlive()) {
-                stop();
+                requestStop();
                 return;
             }
             mob.getNavigation().startMovingTo(targetItem, 1.0);
@@ -166,7 +166,7 @@ public class GiftBringingGoal extends AdaptiveGoal {
                 mob.bodyYaw += 3;
             }
 
-            stop();
+            requestStop();
             return;
         }
     }
