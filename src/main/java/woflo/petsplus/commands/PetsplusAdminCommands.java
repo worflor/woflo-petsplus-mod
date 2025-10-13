@@ -5,6 +5,7 @@ import woflo.petsplus.api.registry.RoleIdentifierUtil;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.command.argument.EntityArgumentType;
@@ -30,6 +31,10 @@ import woflo.petsplus.stats.nature.NatureModifierSampler;
 import woflo.petsplus.stats.nature.PetNatureSelector;
 import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
 import woflo.petsplus.util.PetTargetingUtil;
+import woflo.petsplus.config.DebugSettings;
+import woflo.petsplus.data.DataMaintenance;
+import woflo.petsplus.mood.EmotionStimulusBus;
+import woflo.petsplus.state.processing.AsyncProcessingTelemetry;
 
 import java.util.Locale;
 
@@ -130,6 +135,75 @@ public class PetsplusAdminCommands {
                         .executes(PetsplusAdminCommands::testAbilityLoot)))
                 .then(CommandManager.literal("effects")
                     .executes(PetsplusAdminCommands::testStatusEffects)))
+            .then(CommandManager.literal("debug")
+                .then(CommandManager.literal("on")
+                    .executes(PetsplusAdminCommands::debugOn))
+                .then(CommandManager.literal("off")
+                    .executes(PetsplusAdminCommands::debugOff))
+                .then(CommandManager.literal("status")
+                    .executes(PetsplusAdminCommands::debugStatus))
+                .then(CommandManager.literal("telemetry")
+                    .then(CommandManager.literal("on")
+                        .executes(PetsplusAdminCommands::telemetryOn))
+                    .then(CommandManager.literal("off")
+                        .executes(PetsplusAdminCommands::telemetryOff))
+                    .then(CommandManager.literal("status")
+                        .executes(PetsplusAdminCommands::telemetryStatus))
+                    .then(CommandManager.literal("rate")
+                        .then(CommandManager.argument("ticks", IntegerArgumentType.integer(1))
+                            .executes(PetsplusAdminCommands::telemetryRate)))
+                    .then(CommandManager.literal("snapshot")
+                        .executes(PetsplusAdminCommands::telemetrySnapshot)))
+                .then(CommandManager.literal("pipeline")
+                    .then(CommandManager.literal("on")
+                        .executes(PetsplusAdminCommands::pipelineOn))
+                    .then(CommandManager.literal("off")
+                        .executes(PetsplusAdminCommands::pipelineOff))
+                    .then(CommandManager.literal("status")
+                        .executes(PetsplusAdminCommands::pipelineStatus)))
+                .then(CommandManager.literal("trace")
+                    .then(CommandManager.literal("coalesce")
+                        .then(CommandManager.literal("on")
+                            .executes(PetsplusAdminCommands::traceCoalesceOn))
+                        .then(CommandManager.literal("off")
+                            .executes(PetsplusAdminCommands::traceCoalesceOff))
+                        .then(CommandManager.literal("status")
+                            .executes(PetsplusAdminCommands::traceCoalesceStatus)))))
+            .then(CommandManager.literal("data")
+                .then(CommandManager.literal("validate")
+                    // Defaults: what=all, output=chat
+                    .executes(ctx -> dataValidate(ctx))
+                    .then(CommandManager.argument("what", StringArgumentType.word())
+                        .suggests((context, builder) -> {
+                            builder.suggest("ai");
+                            builder.suggest("abilities");
+                            builder.suggest("all");
+                            return builder.buildFuture();
+                        })
+                        // When only 'what' is provided, use default output=chat
+                        .executes(ctx -> dataValidate(ctx))
+                        .then(CommandManager.argument("output", StringArgumentType.word())
+                            .suggests((context, builder) -> {
+                                builder.suggest("chat");
+                                builder.suggest("file");
+                                return builder.buildFuture();
+                            })
+                            .executes(ctx -> dataValidate(ctx)))))
+                .then(CommandManager.literal("reload")
+                    // Defaults: what=all, safe=true
+                    .executes(ctx -> dataReload(ctx))
+                    .then(CommandManager.argument("what", StringArgumentType.word())
+                        .suggests((context, builder) -> {
+                            builder.suggest("ai");
+                            builder.suggest("abilities");
+                            builder.suggest("tags");
+                            builder.suggest("all");
+                            return builder.buildFuture();
+                        })
+                        // When only 'what' is provided, use default safe=true
+                        .executes(ctx -> dataReload(ctx))
+                        .then(CommandManager.argument("safe", BoolArgumentType.bool())
+                            .executes(ctx -> dataReload(ctx))))))
             .then(CommandManager.literal("reload")
                 .executes(PetsplusAdminCommands::reloadConfig)));
     }
@@ -528,6 +602,208 @@ public class PetsplusAdminCommands {
         }
     }
     
+    // ============ DEBUG TOGGLES ============
+    
+    private static int debugOn(CommandContext<ServerCommandSource> context) {
+        DebugSettings.enableDebug();
+        context.getSource().sendFeedback(() -> Text.literal("PetsPlus debug: ON"), true);
+        return 1;
+    }
+    
+    private static int debugOff(CommandContext<ServerCommandSource> context) {
+        DebugSettings.disableDebug();
+        context.getSource().sendFeedback(() -> Text.literal("PetsPlus debug: OFF"), true);
+        return 1;
+    }
+    
+    private static int debugStatus(CommandContext<ServerCommandSource> context) {
+        boolean on = DebugSettings.isDebugEnabled();
+        context.getSource().sendFeedback(() -> Text.literal("PetsPlus debug: " + (on ? "ON" : "OFF")), true);
+        return on ? 1 : 0;
+    }
+
+    // ============ TELEMETRY TOGGLES ============
+    private static int telemetryOn(CommandContext<ServerCommandSource> context) {
+        DebugSettings.enableTelemetry();
+        int rate = DebugSettings.getTelemetrySampleRateTicks();
+        context.getSource().sendFeedback(() -> Text.literal("PetsPlus telemetry: ON (rate=" + rate + " ticks)"), true);
+        return 1;
+    }
+
+    private static int telemetryOff(CommandContext<ServerCommandSource> context) {
+        DebugSettings.disableTelemetry();
+        context.getSource().sendFeedback(() -> Text.literal("PetsPlus telemetry: OFF"), true);
+        return 1;
+    }
+
+    private static int telemetryStatus(CommandContext<ServerCommandSource> context) {
+        boolean on = DebugSettings.isTelemetryEnabled();
+        if (on) {
+            int rate = DebugSettings.getTelemetrySampleRateTicks();
+            context.getSource().sendFeedback(() -> Text.literal("PetsPlus telemetry: ON (rate=" + rate + " ticks)"), true);
+            return 1;
+        } else {
+            context.getSource().sendFeedback(() -> Text.literal("PetsPlus telemetry: OFF"), true);
+            return 0;
+        }
+    }
+
+    private static int telemetryRate(CommandContext<ServerCommandSource> context) {
+        int ticks = IntegerArgumentType.getInteger(context, "ticks");
+        if (ticks < 1) ticks = 1; // enforce a sane lower bound, though the argument enforces >= 1
+        DebugSettings.setTelemetrySampleRate(ticks);
+        int effective = DebugSettings.getTelemetrySampleRateTicks();
+        context.getSource().sendFeedback(() -> Text.literal("PetsPlus telemetry sample rate set to " + effective + " ticks"), true);
+        return 1;
+    }
+
+    private static int telemetrySnapshot(CommandContext<ServerCommandSource> context) {
+        // Read-only snapshot of current counters/timers; plain chat output.
+        boolean enabled = AsyncProcessingTelemetry.isEnabled();
+        int rate = AsyncProcessingTelemetry.sampleRateTicks();
+
+        long ingressEvents = AsyncProcessingTelemetry.INGRESS_EVENTS.get();
+        long ownerBatches = AsyncProcessingTelemetry.OWNER_BATCHES.get();
+
+        long enq = AsyncProcessingTelemetry.TASKS_ENQUEUED.get();
+        long exec = AsyncProcessingTelemetry.TASKS_EXECUTED.get();
+        long drop = AsyncProcessingTelemetry.TASKS_DROPPED.get();
+
+        long coalesced = AsyncProcessingTelemetry.STIMULI_COALESCED.get();
+
+        long ingressNanos = AsyncProcessingTelemetry.INGRESS_TIME.getTotalNanos();
+        long ingressCount = AsyncProcessingTelemetry.INGRESS_TIME.getCount();
+
+        long dispatchNanos = AsyncProcessingTelemetry.DISPATCH_TIME.getTotalNanos();
+        long dispatchCount = AsyncProcessingTelemetry.DISPATCH_TIME.getCount();
+
+        long commitNanos = AsyncProcessingTelemetry.COMMIT_TIME.getTotalNanos();
+        long commitCount = AsyncProcessingTelemetry.COMMIT_TIME.getCount();
+
+        StringBuilder sb = new StringBuilder(160);
+        sb.append("telemetry: ").append(enabled ? "on" : "off")
+          .append(" rate=").append(rate)
+          .append(" | ")
+          .append("events[ingress=").append(ingressEvents)
+          .append(" ownerBatches=").append(ownerBatches).append("]")
+          .append(" | ")
+          .append("tasks[enq=").append(enq)
+          .append(" exec=").append(exec)
+          .append(" drop=").append(drop).append("]")
+          .append(" | ")
+          .append("coalesced=").append(coalesced)
+          .append(" | ")
+          .append("time[nanos ")
+          .append("ingress=").append(ingressNanos).append("/c=").append(ingressCount)
+          .append(" dispatch=").append(dispatchNanos).append("/c=").append(dispatchCount)
+          .append(" commit=").append(commitNanos).append("/c=").append(commitCount)
+          .append("]");
+
+        context.getSource().sendFeedback(() -> Text.literal(sb.toString()), true);
+        return 1;
+    }
+
+    // ============ PIPELINE TOGGLES ============
+    private static int pipelineOn(CommandContext<ServerCommandSource> context) {
+        DebugSettings.enablePipeline();
+        context.getSource().sendFeedback(() -> Text.literal("PetsPlus pipeline: ON"), true);
+        return 1;
+    }
+
+    private static int pipelineOff(CommandContext<ServerCommandSource> context) {
+        DebugSettings.disablePipeline();
+        context.getSource().sendFeedback(() -> Text.literal("PetsPlus pipeline: OFF"), true);
+        return 1;
+    }
+
+    private static int pipelineStatus(CommandContext<ServerCommandSource> context) {
+        boolean on = DebugSettings.isPipelineEnabled();
+        context.getSource().sendFeedback(() -> Text.literal("PetsPlus pipeline: " + (on ? "ON" : "OFF")), true);
+        return on ? 1 : 0;
+    }
+
+    // ============ TRACE COALESCE (ADMIN) ============
+
+    private static int traceCoalesceOn(CommandContext<ServerCommandSource> context) {
+        EmotionStimulusBus.enableCoalesceTrace();
+        boolean dbg = DebugSettings.isDebugEnabled();
+        context.getSource().sendFeedback(() -> Text.literal("PetsPlus trace coalesce: ON (debug=" + dbg + ")"), true);
+        return 1;
+    }
+
+    private static int traceCoalesceOff(CommandContext<ServerCommandSource> context) {
+        EmotionStimulusBus.disableCoalesceTrace();
+        context.getSource().sendFeedback(() -> Text.literal("PetsPlus trace coalesce: OFF"), true);
+        return 1;
+    }
+
+    private static int traceCoalesceStatus(CommandContext<ServerCommandSource> context) {
+        boolean on = EmotionStimulusBus.isCoalesceTraceEnabled();
+        boolean dbg = DebugSettings.isDebugEnabled();
+        context.getSource().sendFeedback(() -> Text.literal("PetsPlus trace coalesce: " + (on ? "ON" : "OFF") + " (debug=" + dbg + ")"), true);
+        return on ? 1 : 0;
+    }
+    
+    // ============ DATA MAINTENANCE (STUBS) ============
+
+    private static int dataValidate(CommandContext<ServerCommandSource> context) {
+        String what = "all";
+        String output = "chat";
+
+        try {
+            what = normalizeValidateWhat(StringArgumentType.getString(context, "what"));
+        } catch (Exception ignored) { /* default remains "all" */ }
+
+        try {
+            output = normalizeOutput(StringArgumentType.getString(context, "output"));
+        } catch (Exception ignored) { /* default remains "chat" */ }
+
+        String summary = DataMaintenance.validate(what, output);
+        context.getSource().sendFeedback(() -> Text.literal(summary), true);
+        return 1;
+    }
+
+    private static int dataReload(CommandContext<ServerCommandSource> context) {
+        String what = "all";
+        boolean safe = true;
+
+        try {
+            what = normalizeReloadWhat(StringArgumentType.getString(context, "what"));
+        } catch (Exception ignored) { /* default remains "all" */ }
+
+        try {
+            safe = BoolArgumentType.getBool(context, "safe");
+        } catch (Exception ignored) { /* default remains true */ }
+
+        String summary = DataMaintenance.reload(what, safe);
+        context.getSource().sendFeedback(() -> Text.literal(summary), true);
+        return 1;
+    }
+
+    private static String normalizeValidateWhat(String s) {
+        String v = s == null ? "all" : s.toLowerCase(Locale.ROOT);
+        return switch (v) {
+            case "ai", "abilities", "all" -> v;
+            default -> "all";
+        };
+    }
+
+    private static String normalizeReloadWhat(String s) {
+        String v = s == null ? "all" : s.toLowerCase(Locale.ROOT);
+        return switch (v) {
+            case "ai", "abilities", "tags", "all" -> v;
+            default -> "all";
+        };
+    }
+
+    private static String normalizeOutput(String s) {
+        String v = s == null ? "chat" : s.toLowerCase(Locale.ROOT);
+        return switch (v) {
+            case "chat", "file" -> v;
+            default -> "chat";
+        };
+    }
+
     // ============ EMOTION DEBUG COMMANDS ============
     
     private static int setEmotion(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {

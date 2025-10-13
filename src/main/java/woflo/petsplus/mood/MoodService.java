@@ -7,6 +7,7 @@ import woflo.petsplus.api.mood.MoodAPI;
 import woflo.petsplus.api.mood.MoodListener;
 import woflo.petsplus.api.mood.ReactiveEmotionProvider;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.policy.AIPerfPolicy;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -171,5 +172,56 @@ public final class MoodService implements MoodAPI {
             petMoodSnapshot.put(pet, new int[]{moodOrd, level});
         }
     }
-}
 
+    /**
+     * Phase A scaffold; constants-only adapters; no current enforcement.
+     * Not referenced at runtime yet; adding here to avoid future churn.
+     *
+     * Returns the base provider cadence for "near" LOD in ticks.
+     */
+    public static int providerBaseTicksNear() {
+        return AIPerfPolicy.PROVIDER_BASE_TICKS_NEAR;
+    }
+
+    /**
+     * Phase A scaffold; constants-only adapters; no current enforcement.
+     * Not referenced at runtime yet; adding here to avoid future churn.
+     *
+     * Returns the base provider cadence for "mid" LOD in ticks.
+     */
+    public static int providerBaseTicksMid() {
+        return AIPerfPolicy.PROVIDER_BASE_TICKS_MID;
+    }
+
+    /**
+     * Phase A scaffold; constants-only adapters; no current enforcement.
+     * Not referenced at runtime yet; adding here to avoid future churn.
+     *
+     * Returns the base provider cadence for "far" LOD in ticks.
+     */
+    public static int providerBaseTicksFar() {
+        return AIPerfPolicy.PROVIDER_BASE_TICKS_FAR;
+    }
+
+    /**
+     * Phase A scaffold; constants-only adapters; no current enforcement.
+     * Not referenced at runtime yet; adding here to avoid future churn.
+     *
+     * Compute the tick modulation divisor for a given distance based on policy buckets.
+     * - NEAR (≤ AIPerfPolicy.NEAR_DIST): 1 (no modulation)
+     * - MID (≤ AIPerfPolicy.MID_DIST): AIPerfPolicy.MID_TICK_MOD
+     * - FAR (> AIPerfPolicy.MID_DIST): AIPerfPolicy.FAR_TICK_MOD
+     *
+     * @param distance distance in blocks
+     * @return tick modulation divisor for the corresponding LOD
+     */
+    public static int lodTickModForDistance(double distance) {
+        if (distance <= AIPerfPolicy.NEAR_DIST) {
+            return 1;
+        } else if (distance <= AIPerfPolicy.MID_DIST) {
+            return AIPerfPolicy.MID_TICK_MOD;
+        } else {
+            return AIPerfPolicy.FAR_TICK_MOD;
+        }
+    }
+}

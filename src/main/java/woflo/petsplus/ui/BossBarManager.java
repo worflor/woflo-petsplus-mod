@@ -69,7 +69,7 @@ public final class BossBarManager implements PlayerTickListener {
         scheduleBossBar(player, info, resolveServerTick(player), false);
 
         // Create and show boss bar
-        info.bossBar = new ServerBossBar(message, color, BossBar.Style.PROGRESS);
+        info.bossBar = new ServerBossBar(sanitizeBossBarTitle(message), color, BossBar.Style.PROGRESS);
         try {
             info.bossBar.addPlayer(player);
         } catch (Exception e) {
@@ -88,7 +88,7 @@ public final class BossBarManager implements PlayerTickListener {
         BossBarInfo info = new BossBarInfo(styled, durationTicks, BossBar.Color.PURPLE);
         activeBossBars.put(playerId, info);
         scheduleBossBar(player, info, resolveServerTick(player), false);
-        info.bossBar = new ServerBossBar(styled, BossBar.Color.PURPLE, BossBar.Style.PROGRESS);
+        info.bossBar = new ServerBossBar(sanitizeBossBarTitle(styled), BossBar.Color.PURPLE, BossBar.Style.PROGRESS);
         try {
             info.bossBar.addPlayer(player);
         } catch (Exception e) {
@@ -139,7 +139,7 @@ public final class BossBarManager implements PlayerTickListener {
                 safeMessage = Text.literal(message.getString()).formatted(Formatting.GRAY);
             }
 
-            info = new BossBarInfo(safeMessage, durationTicks, color);
+            info = new BossBarInfo(sanitizeBossBarTitle(safeMessage), durationTicks, color);
             info.fixedPercent = true;
             info.percent = clamp01(percent);
             info.lastUpdateTick = getCurrentTick(player);
@@ -148,7 +148,7 @@ public final class BossBarManager implements PlayerTickListener {
 
             try {
                 // Use PROGRESS style for health bars (smooth gradient), not NOTCHED_20
-                info.bossBar = new ServerBossBar(info.message, color, BossBar.Style.PROGRESS);
+                info.bossBar = new ServerBossBar(sanitizeBossBarTitle(info.message), color, BossBar.Style.PROGRESS);
                 info.bossBar.addPlayer(player);
                 info.bossBar.setPercent(info.percent);
             } catch (Exception e) {
@@ -214,7 +214,7 @@ public final class BossBarManager implements PlayerTickListener {
 
             if (info.bossBar != null && changed) {
                 try {
-                    info.bossBar.setName(info.message);
+                    info.bossBar.setName(sanitizeBossBarTitle(info.message));
                     info.bossBar.setColor(info.color);
                     info.bossBar.setPercent(info.percent);
                     // Keep PROGRESS style for smooth health display
@@ -240,7 +240,7 @@ public final class BossBarManager implements PlayerTickListener {
             info = new BossBarInfo(message.copy().formatted(Formatting.GRAY), durationTicks, color);
             info.fixedPercent = false;
             activeBossBars.put(playerId, info);
-            info.bossBar = new ServerBossBar(info.message, color, BossBar.Style.PROGRESS);
+            info.bossBar = new ServerBossBar(sanitizeBossBarTitle(info.message), color, BossBar.Style.PROGRESS);
             try {
                 info.bossBar.addPlayer(player);
             } catch (Exception e) {
@@ -263,7 +263,7 @@ public final class BossBarManager implements PlayerTickListener {
             info.totalTicks = durationTicks;
             if (info.bossBar != null && changed) {
                 try {
-                    info.bossBar.setName(info.message);
+                    info.bossBar.setName(sanitizeBossBarTitle(info.message));
                     info.bossBar.setColor(info.color);
                     info.bossBar.setStyle(BossBar.Style.PROGRESS);
                 } catch (Exception e) {
@@ -565,6 +565,35 @@ public final class BossBarManager implements PlayerTickListener {
     }
 
     /**
+     * Sanitize any text intended for a boss bar title into a simple, serializable literal.
+     * - Flattens to display string (no nested components/events)
+     * - Strips legacy (§) formatting codes
+     * - Clamps to a reasonable max length to avoid oversized titles
+     */
+    private static Text sanitizeBossBarTitle(Text original) {
+        if (original == null) {
+            return Text.literal("");
+        }
+        String s;
+        try {
+            s = original.getString();
+        } catch (Exception e) {
+            s = "";
+        }
+        if (s == null) {
+            s = "";
+        }
+        // Strip legacy formatting codes like §a, §l, etc. (case-insensitive)
+        s = s.replaceAll("(?i)\\u00A7[0-9A-FK-OR]", "");
+        // Clamp length to avoid edge cases with very long titles
+        final int MAX_LEN = 120;
+        if (s.length() > MAX_LEN) {
+            s = s.substring(0, MAX_LEN);
+        }
+        return Text.literal(s);
+    }
+
+    /**
      * Handle boss bar failure with recovery attempts and fallback.
      */
     private static void handleBossBarFailure(ServerPlayerEntity player, BossBarInfo info, Exception originalError) {
@@ -574,7 +603,7 @@ public final class BossBarManager implements PlayerTickListener {
             // Try to recover by recreating the boss bar
             try {
                 detachBossBar(info);
-                info.bossBar = new ServerBossBar(info.message, info.color, BossBar.Style.PROGRESS);
+                info.bossBar = new ServerBossBar(sanitizeBossBarTitle(info.message), info.color, BossBar.Style.PROGRESS);
                 info.bossBar.addPlayer(player);
                 info.bossBar.setPercent(info.percent);
                 info.resetFailures(); // Recovery successful

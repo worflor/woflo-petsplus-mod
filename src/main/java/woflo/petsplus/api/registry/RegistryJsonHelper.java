@@ -3,6 +3,7 @@ package woflo.petsplus.api.registry;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.Dynamic;
 import com.mojang.serialization.JsonOps;
@@ -14,6 +15,12 @@ import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.effects.BuffEffect;
+
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.OptionalInt;
+import java.util.Locale;
 
 /**
  * Shared helpers for registry bootstrap JSON parsing.
@@ -218,6 +225,168 @@ public final class RegistryJsonHelper {
             return Double.parseDouble(value);
         } catch (NumberFormatException e) {
             return defaultValue;
+        }
+    }
+
+    /**
+     * Phase A scaffold: Minimal helper to extract a top-level schemaVersion integer from a JSON element.
+     * No enforcement, best-effort only.
+     */
+    public static OptionalInt getSchemaVersionFromJson(JsonElement elem) {
+        if (elem == null || elem.isJsonNull() || !elem.isJsonObject()) {
+            return OptionalInt.empty();
+        }
+        return getSchemaVersionFromObject(elem.getAsJsonObject());
+    }
+
+    /**
+     * Phase A scaffold: Minimal helper to extract a top-level schemaVersion integer from a JSON object.
+     * No enforcement, best-effort only.
+     */
+    public static OptionalInt getSchemaVersionFromObject(JsonObject obj) {
+        if (obj == null) {
+            return OptionalInt.empty();
+        }
+        JsonElement sv = obj.get("schemaVersion");
+        if (sv != null && sv.isJsonPrimitive() && sv.getAsJsonPrimitive().isNumber()) {
+            try {
+                return OptionalInt.of(sv.getAsInt());
+            } catch (Exception ignored) {
+                // best-effort only
+            }
+        }
+        return OptionalInt.empty();
+    }
+
+    /**
+     * Phase A scaffold: Reads a classpath resource and attempts to parse a top-level schemaVersion.
+     * Never throws and performs no logging; returns OptionalInt.empty() on any failure.
+     */
+    public static OptionalInt readSchemaVersionFromResource(String resourcePath) {
+        if (resourcePath == null || resourcePath.isBlank()) {
+            return OptionalInt.empty();
+        }
+        try (InputStream in = RegistryJsonHelper.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (in == null) {
+                return OptionalInt.empty();
+            }
+            try (InputStreamReader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
+                JsonElement elem = JsonParser.parseReader(reader);
+                return getSchemaVersionFromJson(elem);
+            }
+        } catch (Exception ex) {
+            return OptionalInt.empty();
+        }
+    }
+
+    /**
+     * Phase A scaffold: plan a safe-reload (no-op). Produces a concise summary string only.
+     * Accepts ai|abilities|tags|all; anything else returns an "unknown target" summary.
+     * No I/O, no datapack calls, no logging. Never throws.
+     *
+     * This is scaffolding for later chunks where real reload wiring will be added.
+     *
+     * @param what target scope: ai, abilities, tags, or all
+     * @param safe whether the planned reload should be safe (flag only in Phase A)
+     * @return concise plan summary string
+     */
+    public static String planSafeReload(String what, boolean safe) {
+        if (what == null) {
+            return "unknown target: plan skipped (no-op)";
+        }
+        String w = what.trim().toLowerCase(Locale.ROOT);
+        String suffix = "validate\u2192build-candidate\u2192safe=" + safe + "\u2192plan-swap (no-op)";
+
+        switch (w) {
+            case "ai":
+                return "ai: " + suffix;
+            case "abilities":
+                return "abilities: " + suffix;
+            case "tags":
+                return "tags: " + suffix;
+            case "all":
+                return "ai: " + suffix + " | abilities: " + suffix + " | tags: " + suffix;
+            default:
+                return "unknown target: plan skipped (no-op)";
+        }
+    }
+
+    /**
+     * Phase A: Tri-state schemaVersion health indicator.
+     * Read-only; best-effort; never throws.
+     */
+    public enum SchemaVersionHealth {
+        ABSENT,
+        PRESENT_INTEGER,
+        PRESENT_NON_INTEGER
+    }
+
+    /**
+     * Best-effort health from a parsed JSON element.
+     * If JSON is not an object, returns ABSENT.
+     */
+    public static SchemaVersionHealth getSchemaVersionHealthFromJson(JsonElement elem) {
+        if (elem == null || elem.isJsonNull() || !elem.isJsonObject()) {
+            return SchemaVersionHealth.ABSENT;
+        }
+        return getSchemaVersionHealthFromObject(elem.getAsJsonObject());
+    }
+
+    /**
+     * Best-effort health from a parsed JSON object.
+     * - If object missing 'schemaVersion' -> ABSENT
+     * - If present and is a primitive number:
+     *     - parse via BigDecimal and check scale()==0 -> PRESENT_INTEGER
+     *     - otherwise PRESENT_NON_INTEGER
+     * - Any other type -> PRESENT_NON_INTEGER
+     */
+    public static SchemaVersionHealth getSchemaVersionHealthFromObject(JsonObject obj) {
+        try {
+            if (obj == null) {
+                return SchemaVersionHealth.ABSENT;
+            }
+            JsonElement sv = obj.get("schemaVersion");
+            if (sv == null || sv.isJsonNull()) {
+                return SchemaVersionHealth.ABSENT;
+            }
+            if (!sv.isJsonPrimitive()) {
+                return SchemaVersionHealth.PRESENT_NON_INTEGER;
+            }
+            if (sv.getAsJsonPrimitive().isNumber()) {
+                try {
+                    java.math.BigDecimal bd = new java.math.BigDecimal(sv.getAsString());
+                    return (bd.scale() == 0)
+                        ? SchemaVersionHealth.PRESENT_INTEGER
+                        : SchemaVersionHealth.PRESENT_NON_INTEGER;
+                } catch (Exception ignored) {
+                    return SchemaVersionHealth.PRESENT_NON_INTEGER;
+                }
+            }
+            // string/boolean primitive
+            return SchemaVersionHealth.PRESENT_NON_INTEGER;
+        } catch (Exception ignored) {
+            return SchemaVersionHealth.ABSENT;
+        }
+    }
+
+    /**
+     * Best-effort health read from a classpath resource.
+     * On any failure, returns ABSENT. No logging.
+     */
+    public static SchemaVersionHealth readSchemaVersionHealthFromResource(String resourcePath) {
+        if (resourcePath == null || resourcePath.isBlank()) {
+            return SchemaVersionHealth.ABSENT;
+        }
+        try (InputStream in = RegistryJsonHelper.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (in == null) {
+                return SchemaVersionHealth.ABSENT;
+            }
+            try (InputStreamReader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
+                JsonElement elem = JsonParser.parseReader(reader);
+                return getSchemaVersionHealthFromJson(elem);
+            }
+        } catch (Exception ex) {
+            return SchemaVersionHealth.ABSENT;
         }
     }
 }

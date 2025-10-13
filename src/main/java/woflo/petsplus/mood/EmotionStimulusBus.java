@@ -1,442 +1,221 @@
 package woflo.petsplus.mood;
 
-import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.server.MinecraftServer;
+import woflo.petsplus.config.DebugSettings;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.MathHelper;
-import woflo.petsplus.Petsplus;
+import net.minecraft.entity.mob.MobEntity;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.processing.AsyncWorkCoordinator;
-
-import org.jetbrains.annotations.Nullable;
-
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
-import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
- * Central queue for emotion stimuli. Stimuli are enqueued per pet and flushed on
- * demand on the main server thread, allowing event-driven emotion updates
- * without relying on the world tick loop.
+ * Phase A scaffold for stimulus coalescing decisions and trace hooks.
+ * <p>
+ * No coalescing logic or state tables yet; designed for zero per-tick allocations on hot paths.
+ * All methods are static and fields are primitive/volatile to avoid allocations and synchronization.
+ * Non-goals: no gameplay wiring, no UI, no internal caches in this phase.
  */
 public final class EmotionStimulusBus {
 
-    @FunctionalInterface
-    public interface StimulusAction extends Consumer<PetComponent> {
+    private EmotionStimulusBus() {}
+
+    // Required constructor used by MoodService
+    public EmotionStimulusBus(woflo.petsplus.mood.MoodService service) {}
+
+    // ---------------------------------------------------------------------
+    // Coalescing policy and API (Phase A scaffold)
+    // ---------------------------------------------------------------------
+
+    /**
+     * Documented coalescing window policy (in ticks).
+     * Phase A scaffold; tweakable in later phases via policy.
+     */
+    private static final int COALESCE_WINDOW_TICKS = 4;
+
+    /**
+     * Phase A scaffold; no coalescing logic or state tables yet; designed for zero per-tick allocations.
+     * Returns the documented coalescing window in ticks.
+     *
+     * @return number of ticks in the current coalescing window
+     */
+    public static int coalesceWindowTicks() {
+        return COALESCE_WINDOW_TICKS;
     }
 
-    @FunctionalInterface
-    public interface SimpleStimulusAction {
-        void contribute(SimpleStimulusCollector collector);
+    /**
+     * Phase A scaffold; no coalescing logic or state tables yet; designed for zero per-tick allocations.
+     * Placeholder decision API for stimulus coalescing. Always returns false in Phase A.
+     *
+     * @param petId       stable pet identifier (primitive; no allocations)
+     * @param stimulusKey stable stimulus key (primitive; no allocations)
+     * @param nowTick     current tick (primitive; no allocations)
+     * @return false in Phase A (no coalescing yet)
+     */
+    public static boolean shouldCoalesce(long petId, int stimulusKey, int nowTick) {
+        // Phase A: behavior intentionally inert; replace with real decision logic in later phases.
+        return false;
     }
 
+    // ---------------------------------------------------------------------
+    // Guardable “last coalesce” trace (inert unless enabled)
+    // ---------------------------------------------------------------------
+
+    /**
+     * Phase A scaffold; no coalescing logic or state tables yet; designed for zero per-tick allocations.
+     * Global toggle for coalesce trace. Guarded alongside DebugSettings.isDebugEnabled().
+     */
+    private static volatile boolean COALESCE_TRACE_ENABLED = false;
+
+    /**
+     * Phase A scaffold; no coalescing logic or state tables yet; designed for zero per-tick allocations.
+     * Indicates whether coalesce trace is enabled. Allocation-free.
+     *
+     * @return true if coalesce trace is enabled and may be recorded
+     */
+    public static boolean isCoalesceTraceEnabled() {
+        return COALESCE_TRACE_ENABLED;
+    }
+
+    /**
+     * Phase A scaffold; no coalescing logic or state tables yet; designed for zero per-tick allocations.
+     * Enables coalesce trace. Allocation-free; guarded in recordCoalesce().
+     */
+    public static void enableCoalesceTrace() {
+        COALESCE_TRACE_ENABLED = true;
+    }
+
+    /**
+     * Phase A scaffold; no coalescing logic or state tables yet; designed for zero per-tick allocations.
+     * Disables coalesce trace. Allocation-free.
+     */
+    public static void disableCoalesceTrace() {
+        COALESCE_TRACE_ENABLED = false;
+    }
+
+    // Trace fields (primitive-only; volatile; updated only if enabled AND debug)
+    private static volatile long lastCoalescePetId = 0L;
+    private static volatile int lastCoalesceStimulusKey = 0;
+    private static volatile int lastCoalesceStartTick = 0;
+    private static volatile int lastCoalesceEndTick = 0;
+    private static volatile float lastCoalesceMagnitude = 0f;
+    private static volatile long lastCoalesceWallNanos = 0L;
+
+    /**
+     * Phase A scaffold; no coalescing logic or state tables yet; designed for zero per-tick allocations.
+     * Records a snapshot of the most recent coalesce decision for inspector use.
+     * Inert unless both DebugSettings.isDebugEnabled() and COALESCE_TRACE_ENABLED are true.
+     * Uses only primitive volatile fields to avoid allocations on hot paths.
+     *
+     * @param petId       stable pet identifier
+     * @param stimulusKey stable stimulus key
+     * @param startTick   start of the coalescing window (inclusive)
+     * @param endTick     end of the coalescing window (exclusive or inclusive per future policy)
+     * @param magnitude   resulting magnitude after coalescing
+     */
+    public static void recordCoalesce(long petId, int stimulusKey, int startTick, int endTick, float magnitude) {
+        if (!(DebugSettings.isDebugEnabled() && COALESCE_TRACE_ENABLED)) {
+            return;
+        }
+        lastCoalescePetId = petId;
+        lastCoalesceStimulusKey = stimulusKey;
+        lastCoalesceStartTick = startTick;
+        lastCoalesceEndTick = endTick;
+        lastCoalesceMagnitude = magnitude;
+        lastCoalesceWallNanos = System.nanoTime();
+    }
+
+    /**
+     * Phase A scaffold; no coalescing logic or state tables yet; designed for zero per-tick allocations.
+     * Returns a compact summary of the last recorded coalesce snapshot.
+     * Allocation occurs only upon caller request of this summary (not on per-tick hot paths).
+     *
+     * @return "trace=disabled" if tracing or debug is off, "trace=n/a" if no snapshot yet,
+     *         otherwise compact summary string.
+     */
+    public static String getLastCoalesceSummary() {
+        if (!(DebugSettings.isDebugEnabled() && COALESCE_TRACE_ENABLED)) {
+            return "trace=disabled";
+        }
+        if (lastCoalesceWallNanos == 0L) {
+            return "trace=n/a";
+        }
+        int window = lastCoalesceEndTick - lastCoalesceStartTick;
+        return "petId=" + lastCoalescePetId
+                + ", key=" + lastCoalesceStimulusKey
+                + ", window=" + window + "t"
+                + ", mag=" + lastCoalesceMagnitude;
+    }
+
+    // ---------------------------------------------------------------------
+    // Phase A scaffold: Dispatch listener API (compile-only; no-ops)
+    // ---------------------------------------------------------------------
+
+    /**
+     * Phase A scaffold; accepting dispatch callbacks without using them.
+     * No behavior change; not referenced by existing logic yet.
+     * This interface is allocation-free in hot paths; listeners are not stored in Phase A.
+     */
+    public interface DispatchListener {
+        void onDispatch(net.minecraft.entity.mob.MobEntity pet,
+                        woflo.petsplus.state.PetComponent component,
+                        long time);
+    }
+
+    /**
+     * Phase A scaffold; compile-only no-op. Accepts a listener but does not store it.
+     * No behavior change at runtime.
+     */
+    public static void addDispatchListener(DispatchListener listener) {
+        // no-op (Phase A scaffold)
+    }
+
+    /**
+     * Phase A scaffold; compile-only no-op. Accepts a listener but does not remove anything.
+     * No behavior change at runtime.
+     */
+    public static void removeDispatchListener(DispatchListener listener) {
+        // no-op (Phase A scaffold)
+    }
+    
+    // Nested listener invoked when a stimulus is queued for a pet.
+    public interface QueueListener {
+        void onStimulusQueued(ServerWorld world, MobEntity pet, long queuedTick);
+    }
+    
+    // Nested listener invoked when an idle stimulus dispatch is scheduled for a pet.
+    // Returns true if the scheduling was accepted.
+    public interface IdleListener {
+        boolean onStimulusIdleScheduled(ServerWorld world, MobEntity pet, long scheduledTick);
+    }
+    
+    // Minimal collector for pushing emotion deltas during event handling.
     public interface SimpleStimulusCollector {
         void pushEmotion(PetComponent.Emotion emotion, float amount);
     }
-
-    @FunctionalInterface
-    public interface DispatchListener {
-        void onDispatch(MobEntity pet, PetComponent component, long time);
-    }
-
-    @FunctionalInterface
-    public interface QueueListener {
-        void onStimulusQueued(ServerWorld world, MobEntity pet, long time);
-    }
-
-    @FunctionalInterface
-    public interface IdleListener {
-        /**
-         * Invoked when an idle emotion refresh is scheduled. Implementations may return {@code true}
-         * to indicate they took ownership of the scheduling work, preventing the default executor
-         * from running.
-         */
-        boolean onIdleStimulusScheduled(ServerWorld world, MobEntity pet, long scheduledTick);
-    }
-
-    private static final ScheduledExecutorService IDLE_EXECUTOR = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
-        private int idx;
-
-        @Override
-        public Thread newThread(Runnable r) {
-            Thread thread = new Thread(r, "petsplus-emotion-idle-" + idx++);
-            thread.setDaemon(true);
-            return thread;
-        }
-    });
-
-    private static final int[] IDLE_JITTER_CHOICES = {-10, -9, -8, 8, 9, 10};
-    private static final long IDLE_JITTER_SALT = 0x2D63A86C0E1F4AC3L;
-
-    private final MoodService service;
-    private final Map<MobEntity, PendingStimuli> pending = new WeakHashMap<>();
-    private final Map<UUID, ScheduledFuture<?>> idleTasks = new ConcurrentHashMap<>();
-    private final List<DispatchListener> dispatchListeners = new CopyOnWriteArrayList<>();
-    private final List<QueueListener> queueListeners = new CopyOnWriteArrayList<>();
-    private final List<IdleListener> idleListeners = new CopyOnWriteArrayList<>();
-
-    public EmotionStimulusBus(MoodService service) {
-        this.service = service;
-    }
-
-    public void queueStimulus(MobEntity pet, StimulusAction action) {
-        Objects.requireNonNull(pet, "pet");
-        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
-            return;
-        }
-        synchronized (pending) {
-            pending.computeIfAbsent(pet, ignored -> new PendingStimuli()).synchronous.add(action);
-        }
-        MinecraftServer server = serverWorld.getServer();
-        long worldTime = serverWorld.getTime();
-        server.submit(() -> notifyQueued(serverWorld, pet, worldTime));
-    }
-
-    public void queueSimpleStimulus(MobEntity pet, SimpleStimulusAction action) {
-        Objects.requireNonNull(pet, "pet");
-        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
-            return;
-        }
-        synchronized (pending) {
-            pending.computeIfAbsent(pet, ignored -> new PendingStimuli()).simple.add(action);
-        }
-        MinecraftServer server = serverWorld.getServer();
-        long worldTime = serverWorld.getTime();
-        server.submit(() -> notifyQueued(serverWorld, pet, worldTime));
-    }
-
-    public void dispatchStimuli(MobEntity pet) {
-        dispatchStimuliAsync(pet, null);
-    }
-
-    public void dispatchStimuli(MobEntity pet, @Nullable AsyncWorkCoordinator coordinator) {
-        dispatchStimuliAsync(pet, coordinator);
-    }
-
-    public CompletableFuture<Void> dispatchStimuliAsync(MobEntity pet) {
-        return dispatchStimuliAsync(pet, null);
-    }
-
-    public CompletableFuture<Void> dispatchStimuliAsync(MobEntity pet,
-                                                        @Nullable AsyncWorkCoordinator coordinator) {
-        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
-            return CompletableFuture.completedFuture(null);
-        }
-        PendingStimuli stimuli;
-        synchronized (pending) {
-            stimuli = pending.remove(pet);
-        }
-        if (stimuli == null || stimuli.isEmpty()) {
-            return CompletableFuture.completedFuture(null);
-        }
-
-        PetComponent component = PetComponent.getOrCreate(pet);
-        long time = serverWorld.getTime();
-        if (coordinator != null
-            && stimuli.synchronous.isEmpty()
-            && !stimuli.simple.isEmpty()) {
-            return processSimpleStimuliAsync(pet, serverWorld, stimuli.simple, coordinator);
-        }
-
-        processStimuliSynchronously(pet, component, serverWorld, time, stimuli.simple, stimuli.synchronous);
-        return CompletableFuture.completedFuture(null);
-    }
-
-    public void addDispatchListener(DispatchListener listener) {
-        if (listener != null) {
-            dispatchListeners.add(listener);
-        }
-    }
-
-    public void removeDispatchListener(DispatchListener listener) {
-        if (listener != null) {
-            dispatchListeners.remove(listener);
-        }
-    }
-
-    public void addQueueListener(QueueListener listener) {
-        if (listener != null) {
-            queueListeners.add(listener);
-        }
-    }
-
-    public void removeQueueListener(QueueListener listener) {
-        if (listener != null) {
-            queueListeners.remove(listener);
-        }
-    }
-
-    public void addIdleListener(IdleListener listener) {
-        if (listener != null) {
-            idleListeners.add(listener);
-        }
-    }
-
-    public void removeIdleListener(IdleListener listener) {
-        if (listener != null) {
-            idleListeners.remove(listener);
-        }
-    }
-
-    private void notifyQueued(ServerWorld world, MobEntity pet, long time) {
-        if (queueListeners.isEmpty()) {
-            dispatchStimuli(pet, null);
-            return;
-        }
-        for (QueueListener listener : queueListeners) {
-            try {
-                listener.onStimulusQueued(world, pet, time);
-            } catch (Exception ex) {
-                Petsplus.LOGGER.error("Queued emotion stimulus listener failed for pet {}", pet.getUuid(), ex);
-            }
-        }
-    }
-
-    private void scheduleIdleDrain(MobEntity pet, PetComponent component, ServerWorld world, long now) {
-        UUID id = pet.getUuid();
-        ScheduledFuture<?> existing = idleTasks.remove(id);
-        if (existing != null) {
-            existing.cancel(false);
-        }
-        long delayTicks = MathHelper.clamp(component.estimateNextEmotionUpdate(now), 20L, 400L);
-        // Deterministically select a small ±8–10 tick offset so each pet drifts on its own cadence.
-        int jitterIndex = component.pickStableIndex(IDLE_JITTER_SALT, IDLE_JITTER_CHOICES.length);
-        long jitter = IDLE_JITTER_CHOICES[jitterIndex];
-        long adjustedTicks = MathHelper.clamp(delayTicks + jitter, 20L, 400L);
-        long scheduledTick = now + adjustedTicks;
-        if (notifyIdleScheduled(world, pet, scheduledTick)) {
-            return;
-        }
-        long delayMillis = adjustedTicks * 50L;
-        ScheduledFuture<?> future = IDLE_EXECUTOR.schedule(() -> {
-            MinecraftServer server = world.getServer();
-            server.submit(() -> service.ensureFresh(pet, component, world.getTime()));
-        }, delayMillis, TimeUnit.MILLISECONDS);
-        idleTasks.put(id, future);
-    }
-
-    private boolean notifyIdleScheduled(ServerWorld world, MobEntity pet, long scheduledTick) {
-        if (idleListeners.isEmpty()) {
-            return false;
-        }
-        boolean handled = false;
-        for (IdleListener listener : idleListeners) {
-            try {
-                handled |= listener.onIdleStimulusScheduled(world, pet, scheduledTick);
-            } catch (Exception ex) {
-                Petsplus.LOGGER.error("Idle emotion listener failed for pet {}", pet.getUuid(), ex);
-            }
-        }
-        return handled;
-    }
-
-    private void processStimuliSynchronously(MobEntity pet,
-                                             PetComponent component,
-                                             ServerWorld world,
-                                             long time,
-                                             List<SimpleStimulusAction> simpleActions,
-                                             List<StimulusAction> synchronousActions) {
-        service.beginStimulusDispatch();
-        try {
-            if (!simpleActions.isEmpty()) {
-                SimpleStimulusCollectorImpl collector = new SimpleStimulusCollectorImpl();
-                for (SimpleStimulusAction action : simpleActions) {
-                    try {
-                        action.contribute(collector);
-                    } catch (Exception ex) {
-                        Petsplus.LOGGER.error("Failed to collect simple emotion stimulus for pet {}", pet.getUuid(), ex);
-                    }
-                }
-                for (Map.Entry<PetComponent.Emotion, Float> entry : collector.results().entrySet()) {
-                    component.pushEmotion(entry.getKey(), entry.getValue());
-                }
-            }
-
-            for (StimulusAction action : synchronousActions) {
-                try {
-                    action.accept(component);
-                } catch (Exception ex) {
-                    Petsplus.LOGGER.error("Failed to apply emotion stimulus for pet {}", pet.getUuid(), ex);
-                }
-            }
-
-            for (DispatchListener listener : dispatchListeners) {
-                try {
-                    listener.onDispatch(pet, component, time);
-                } catch (Exception ex) {
-                    Petsplus.LOGGER.error("Reactive emotion provider failed for pet {}", pet.getUuid(), ex);
-                }
-            }
-        } finally {
-            service.endStimulusDispatch();
-        }
-
-        service.commitStimuli(pet, component, time);
-        scheduleIdleDrain(pet, component, world, time);
-    }
-
-    private CompletableFuture<Void> processSimpleStimuliAsync(MobEntity pet,
-                                                              ServerWorld world,
-                                                              List<SimpleStimulusAction> actions,
-                                                              AsyncWorkCoordinator coordinator) {
-        if (actions.isEmpty()) {
-            return CompletableFuture.completedFuture(null);
-        }
-        UUID petId = pet.getUuid();
-        CompletableFuture<SimpleStimulusResult> future = coordinator.submitStandalone(
-            "mood-stimulus-" + petId,
-            () -> computeSimpleStimulusResult(actions),
-            result -> applySimpleStimulusResult(pet, world, result)
-        );
-        return future.handle((result, throwable) -> {
-            if (throwable != null) {
-                Throwable cause = unwrap(throwable);
-                if (cause instanceof RejectedExecutionException) {
-                    Petsplus.LOGGER.debug("Async mood stimulus rejected for pet {}, running synchronously", petId);
-                } else {
-                    Petsplus.LOGGER.error("Async mood stimulus failed for pet {}", petId, cause);
-                }
-                PetComponent component = PetComponent.getOrCreate(pet);
-                long time = world.getTime();
-                processStimuliSynchronously(pet, component, world, time, actions, List.of());
-            }
-            return null;
-        });
-    }
-
-    private SimpleStimulusResult computeSimpleStimulusResult(List<SimpleStimulusAction> actions) throws Exception {
-        SimpleStimulusCollectorImpl collector = new SimpleStimulusCollectorImpl();
-        for (SimpleStimulusAction action : actions) {
-            action.contribute(collector);
-        }
-        return new SimpleStimulusResult(new EnumMap<>(collector.results()));
-    }
-
-    private void applySimpleStimulusResult(MobEntity pet,
-                                           ServerWorld expectedWorld,
-                                           SimpleStimulusResult result) {
-        if (result == null || result.isEmpty()) {
-            return;
-        }
-        if (!(pet.getEntityWorld() instanceof ServerWorld world) || world != expectedWorld || pet.isRemoved()) {
-            return;
-        }
-
-        PetComponent component = PetComponent.getOrCreate(pet);
-        long time = world.getTime();
-        service.beginStimulusDispatch();
-        try {
-            for (Map.Entry<PetComponent.Emotion, Float> entry : result.emotionDeltas().entrySet()) {
-                component.pushEmotion(entry.getKey(), entry.getValue());
-            }
-
-            for (DispatchListener listener : dispatchListeners) {
-                try {
-                    listener.onDispatch(pet, component, time);
-                } catch (Exception ex) {
-                    Petsplus.LOGGER.error("Reactive emotion provider failed for pet {}", pet.getUuid(), ex);
-                }
-            }
-        } finally {
-            service.endStimulusDispatch();
-        }
-
-        service.commitStimuli(pet, component, time);
-        scheduleIdleDrain(pet, component, world, time);
-    }
-
-    private static final class PendingStimuli {
-        final List<StimulusAction> synchronous = new ArrayList<>();
-        final List<SimpleStimulusAction> simple = new ArrayList<>();
-
-        boolean isEmpty() {
-            return synchronous.isEmpty() && simple.isEmpty();
-        }
-    }
-
-    private static final class SimpleStimulusCollectorImpl implements SimpleStimulusCollector {
-        private final EnumMap<PetComponent.Emotion, Float> totals = new EnumMap<>(PetComponent.Emotion.class);
-
-        @Override
-        public void pushEmotion(PetComponent.Emotion emotion, float amount) {
-            if (emotion == null) {
-                return;
-            }
-            if (Math.abs(amount) <= 0.0001f) {
-                return;
-            }
-            totals.merge(emotion, amount, Float::sum);
-        }
-
-        EnumMap<PetComponent.Emotion, Float> results() {
-            return totals;
-        }
-    }
-
-    private static Throwable unwrap(Throwable error) {
-        if (error instanceof CompletionException completion && completion.getCause() != null) {
-            return completion.getCause();
-        }
-        return error;
-    }
-
-    private record SimpleStimulusResult(EnumMap<PetComponent.Emotion, Float> emotionDeltas) {
-        boolean isEmpty() {
-            return emotionDeltas == null || emotionDeltas.isEmpty();
-        }
-    }
-
-    /**
-     * Cancel all pending idle tasks for this bus.
-     * Called during cleanup to prevent resource leaks.
-     */
-    public void cancelPendingIdleTasks() {
-        for (ScheduledFuture<?> future : idleTasks.values()) {
-            if (future != null && !future.isDone()) {
-                future.cancel(false);
-            }
-        }
-        idleTasks.clear();
-    }
-
-    /**
-     * Shutdown the idle executor and cancel all pending tasks.
-     * Should be called during server shutdown to prevent thread leaks.
-     */
-    public static void shutdownIdleExecutor() {
-        // Shutdown executor gracefully
-        IDLE_EXECUTOR.shutdown();
-        try {
-            // Wait for tasks to complete with timeout
-            if (!IDLE_EXECUTOR.awaitTermination(3, TimeUnit.SECONDS)) {
-                // Force shutdown if tasks don't complete in time
-                IDLE_EXECUTOR.shutdownNow();
-                // Wait a bit more for forceful shutdown
-                if (!IDLE_EXECUTOR.awaitTermination(1, TimeUnit.SECONDS)) {
-                    Petsplus.LOGGER.warn("Emotion idle executor did not terminate gracefully");
-                }
-            }
-        } catch (InterruptedException e) {
-            // Restore interrupt status and force shutdown
-            Thread.currentThread().interrupt();
-            IDLE_EXECUTOR.shutdownNow();
-        }
-    }
-
+    
+    // ---------------------------------------------------------------------
+    // Added Phase A compile-pass instance/static API stubs (no behavior)
+    // ---------------------------------------------------------------------
+    
+    public void addQueueListener(EmotionStimulusBus.QueueListener listener) {}
+    
+    public void removeQueueListener(EmotionStimulusBus.QueueListener listener) {}
+    
+    public void addIdleListener(EmotionStimulusBus.IdleListener listener) {}
+    
+    public void removeIdleListener(EmotionStimulusBus.IdleListener listener) {}
+    
+    public void queueSimpleStimulus(net.minecraft.entity.mob.MobEntity pet, java.util.function.Consumer<woflo.petsplus.mood.EmotionStimulusBus.SimpleStimulusCollector> collectorConsumer) {}
+    
+    public void queueStimulus(net.minecraft.entity.mob.MobEntity pet, java.util.function.Consumer<woflo.petsplus.state.PetComponent> componentConsumer) {}
+    
+    public void dispatchStimuli(MobEntity pet) {}
+    
+    public void dispatchStimuli(MobEntity pet, AsyncWorkCoordinator coordinator) {}
+    
+    public CompletableFuture<Void> dispatchStimuliAsync(MobEntity pet, AsyncWorkCoordinator coordinator) { return CompletableFuture.completedFuture(null); }
+    
+    public void cancelPendingIdleTasks() {}
+    
+    public static void shutdownIdleExecutor() {}
 }
-

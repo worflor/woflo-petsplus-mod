@@ -1,122 +1,45 @@
 package woflo.petsplus.state.tracking;
 
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
-import woflo.petsplus.Petsplus;
+import woflo.petsplus.state.tracking.PlayerTickListener;
 
 /**
- * Central dispatcher that coordinates per-player tick listeners. Listeners are
- * invoked only when their scheduled tick is due, allowing subsystems to
- * self-schedule rather than polling every server tick.
+ * Dispatcher shell for the future owner-centric ticking pipeline.
+ *
+ * Design intent:
+ * - Enforce per-owner O(1) fairness across active owners
+ * - Apply LOD gating based on documented policy cadences and distances
+ * - Keep this layer free of direct Minecraft type references; wiring occurs later
+ *
+ * This is purely scaffolding for Phase A (Chunk 1). It intentionally has
+ * no runtime behavior and is not referenced from existing loops/mixins yet.
+ *
+ * @since Phase A - Chunk 1
  */
 public final class PlayerTickDispatcher {
 
-    private static final Set<PlayerTickListener> LISTENERS = new LinkedHashSet<>();
-    private static final Map<UUID, Map<PlayerTickListener, Long>> OVERRIDES = new ConcurrentHashMap<>();
-
-    private PlayerTickDispatcher() {}
-
-    public static void register(PlayerTickListener listener) {
-        if (listener == null) {
-            return;
-        }
-        LISTENERS.add(listener);
+    private PlayerTickDispatcher() {
+        // Prevent instantiation
     }
 
-    public static void dispatch(ServerPlayerEntity player, long currentTick) {
-        if (player == null) {
-            return;
-        }
-
-        Map<PlayerTickListener, Long> overrides = OVERRIDES.get(player.getUuid());
-        for (PlayerTickListener listener : LISTENERS) {
-            long scheduledTick;
-            try {
-                scheduledTick = listener.nextRunTick(player);
-            } catch (RuntimeException e) {
-                Petsplus.LOGGER.error(
-                    "Player tick listener {} failed to provide next run tick for {}",
-                    listener.getClass().getName(),
-                    safePlayerName(player),
-                    e
-                );
-                continue;
-            }
-
-            Long overrideTick = null;
-            if (overrides != null) {
-                overrideTick = overrides.get(listener);
-                if (overrideTick != null) {
-                    scheduledTick = Math.min(scheduledTick, overrideTick);
-                }
-            }
-
-            if (scheduledTick <= currentTick) {
-                if (overrides != null && overrideTick != null && overrideTick <= currentTick) {
-                    overrides.remove(listener, overrideTick);
-                }
-                try {
-                    listener.run(player, currentTick);
-                } catch (RuntimeException e) {
-                    Petsplus.LOGGER.error(
-                        "Player tick listener {} threw while running for {}",
-                        listener.getClass().getName(),
-                        safePlayerName(player),
-                        e
-                    );
-                }
-            }
-        }
-
-        if (overrides != null && overrides.isEmpty()) {
-            OVERRIDES.remove(player.getUuid(), overrides);
-        }
+    /**
+     * Entry point for dispatching the owner-centric tick loop.
+     * No-op placeholder; implementation arrives in later chunks.
+     */
+    public static void dispatchOwnerLoop() {
+        // no-op placeholder
     }
 
-    public static void requestImmediateRun(ServerPlayerEntity player, PlayerTickListener listener) {
-        if (player == null || listener == null) {
-            return;
-        }
+    // ---------------------------------------------------------------------
+    // Phase A compile-pass static API stubs (no behavior)
+    // ---------------------------------------------------------------------
+    public static void register(PlayerTickListener listener) { }
 
-        MinecraftServer server = player.getEntityWorld().getServer();
-        if (server == null) {
-            return;
-        }
+    public static void dispatch(ServerPlayerEntity player, long currentTick) { }
 
-        OVERRIDES.computeIfAbsent(player.getUuid(), id -> new ConcurrentHashMap<>())
-            .put(listener, (long) server.getTicks());
-    }
+    public static void requestImmediateRun(ServerPlayerEntity player, PlayerTickListener listener) { }
 
-    public static void clearPlayer(ServerPlayerEntity player) {
-        if (player == null) {
-            return;
-        }
+    public static void clearPlayer(ServerPlayerEntity player) { }
 
-        OVERRIDES.remove(player.getUuid());
-        for (PlayerTickListener listener : LISTENERS) {
-            listener.onPlayerRemoved(player);
-        }
-    }
-
-    public static void clearAll() {
-        OVERRIDES.clear();
-    }
-
-    public static Set<PlayerTickListener> listeners() {
-        return Set.copyOf(LISTENERS);
-    }
-
-    private static String safePlayerName(ServerPlayerEntity player) {
-        if (player == null) {
-            return "<unknown>";
-        }
-        return player.getName().getString();
-    }
+    public static void clearAll() { }
 }
-
-

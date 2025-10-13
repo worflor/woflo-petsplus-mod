@@ -27,6 +27,7 @@ import woflo.petsplus.effects.ProjectileDrForOwnerEffect;
 import woflo.petsplus.effects.TagTargetEffect;
 import woflo.petsplus.events.EmotionContextCues;
 import woflo.petsplus.events.EmotionsEventHandler;
+import woflo.petsplus.config.DebugSettings;
 import woflo.petsplus.config.MoodEngineConfig;
 import woflo.petsplus.roles.support.SupportPotionUtils;
 import woflo.petsplus.roles.support.SupportPotionVacuumManager;
@@ -450,123 +451,7 @@ public class StateManager {
     }
 
     public void handlePetTick(MobEntity pet) {
-        PetComponent component = petComponents.get(pet);
-        if (component == null || pet == null) {
-            return;
-        }
-        component.attachStateManager(this);
-
-        if (!pet.isAlive()) {
-            cancelScheduledWork(component, pet);
-            return;
-        }
-
-        PlayerEntity owner = component.getOwner();
-        if (!(owner instanceof ServerPlayerEntity) || owner.isRemoved()) {
-            cancelScheduledWork(component, pet);
-            return;
-        }
-
-        long time = world.getTime();
-        component.ensureSchedulingInitialized(time);
-
-        AsyncMigrationProgressTracker.markComplete(AsyncMigrationProgressTracker.Phase.PET_STATE);
-
-        PetComponent.SwarmStateSnapshot swarmSnapshot = component.snapshotSwarmState();
-        double x = pet.getX();
-        double y = pet.getY();
-        double z = pet.getZ();
-
-        asyncWorkCoordinator.submitStandalone(
-            "pet-tick-" + pet.getUuid(),
-            () -> computePetTickPlan(x, y, z, swarmSnapshot),
-            plan -> applyPetTickPlan(component, pet, plan, time),
-            AsyncJobPriority.HIGH
-        ).exceptionally(error -> {
-            Throwable cause = unwrapAsyncError(error);
-            if (cause instanceof RejectedExecutionException) {
-                Petsplus.LOGGER.debug("Async pet tick rejected for pet {}", pet.getUuid());
-                runSynchronousPetTick(component, pet, time);
-            } else {
-                Petsplus.LOGGER.error("Async pet tick failed for pet {}", pet.getUuid(), cause);
-                runSynchronousPetTick(component, pet, time);
-            }
-            return null;
-        });
-    }
-
-    private static PetTickPlan computePetTickPlan(double x, double y, double z,
-                                                  PetComponent.SwarmStateSnapshot snapshot) {
-        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z) || snapshot == null) {
-            return PetTickPlan.noop();
-        }
-        long cellKey = ChunkSectionPos.asLong(
-            ChunkSectionPos.getSectionCoord(MathHelper.floor(x)),
-            ChunkSectionPos.getSectionCoord(MathHelper.floor(y)),
-            ChunkSectionPos.getSectionCoord(MathHelper.floor(z))
-        );
-
-        double dx = x - snapshot.x();
-        double dy = y - snapshot.y();
-        double dz = z - snapshot.z();
-        double distanceSq = (dx * dx) + (dy * dy) + (dz * dz);
-        final double movementThresholdSq = 0.0625D;
-
-        if (!snapshot.initialized() || snapshot.cellKey() != cellKey || distanceSq >= movementThresholdSq) {
-            return new PetTickPlan(true, cellKey, x, y, z);
-        }
-        return PetTickPlan.noop();
-    }
-
-    private void applyPetTickPlan(PetComponent component, MobEntity pet, PetTickPlan plan, long time) {
-        if (component == null || pet == null || plan == null) {
-            runSynchronousPetTick(component, pet, time);
-            return;
-        }
-
-        boolean swarmUpdated = false;
-        if (plan.swarmUpdate()) {
-            component.applySwarmUpdate(swarmIndex, plan.cellKey(), plan.x(), plan.y(), plan.z());
-            swarmUpdated = true;
-        }
-
-        ownerProcessingManager.markPetChanged(component, time);
-        if (swarmUpdated) {
-            if (hasOwnerEventListeners(OwnerEventType.AURA)) {
-                ownerProcessingManager.signalEvent(component, OwnerEventType.AURA, time);
-            }
-            if (hasOwnerEventListeners(OwnerEventType.SUPPORT)) {
-                ownerProcessingManager.signalEvent(component, OwnerEventType.SUPPORT, time);
-            }
-            if (hasOwnerEventListeners(OwnerEventType.MOVEMENT)) {
-                ownerProcessingManager.signalEvent(component, OwnerEventType.MOVEMENT, time);
-            }
-        }
-    }
-
-    private void runSynchronousPetTick(PetComponent component, MobEntity pet, long time) {
-        if (component == null || pet == null) {
-            return;
-        }
-        boolean swarmUpdated = component.updateSwarmTrackingIfMoved(swarmIndex);
-        ownerProcessingManager.markPetChanged(component, time);
-        if (swarmUpdated) {
-            if (hasOwnerEventListeners(OwnerEventType.AURA)) {
-                ownerProcessingManager.signalEvent(component, OwnerEventType.AURA, time);
-            }
-            if (hasOwnerEventListeners(OwnerEventType.SUPPORT)) {
-                ownerProcessingManager.signalEvent(component, OwnerEventType.SUPPORT, time);
-            }
-            if (hasOwnerEventListeners(OwnerEventType.MOVEMENT)) {
-                ownerProcessingManager.signalEvent(component, OwnerEventType.MOVEMENT, time);
-            }
-        }
-    }
-
-    private record PetTickPlan(boolean swarmUpdate, long cellKey, double x, double y, double z) {
-        static PetTickPlan noop() {
-            return new PetTickPlan(false, Long.MIN_VALUE, 0.0D, 0.0D, 0.0D);
-        }
+        /* centralized pipeline authoritative; legacy per-entity path removed */
     }
 
     public void schedulePetTask(PetComponent component, PetWorkScheduler.TaskType type, long tick) {
@@ -2567,7 +2452,8 @@ public class StateManager {
             }
         }
 
-        public record Sample(BlockPos origin, int radius, long tick, float energy) { }
+        public record Sample(BlockPos origin, int radius, long tick, float energy) {
+        }
     }
 
     private static int resolveArcaneAmbientScanRadius() {

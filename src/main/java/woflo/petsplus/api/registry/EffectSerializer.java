@@ -13,6 +13,7 @@ import woflo.petsplus.api.Effect;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.OptionalInt;
 
 /**
  * Serializer contract for converting datapack JSON payloads into {@link Effect}
@@ -99,6 +100,13 @@ public interface EffectSerializer<C> {
             }
             return pointer + suffix;
         }
+    }
+
+    /**
+     * Phase A scaffold: Light wrapper to peek top-level schemaVersion without enforcement.
+     */
+    static OptionalInt peekSchemaVersion(JsonObject obj) {
+        return RegistryJsonHelper.getSchemaVersionFromObject(obj);
     }
 
     final class Builder<C> {

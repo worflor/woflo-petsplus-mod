@@ -124,5 +124,29 @@ public class PackContagionProvider implements EmotionProvider, ReactiveEmotionPr
             comp.addContagionShare(PetComponent.Emotion.RELIEF, base * 0.5f);
         }
     }
+
+    /**
+     * Phase A scaffold; accepting samplingInterval without using it.
+     * No behavior change; not referenced by existing logic yet.
+     *
+     * @param samplingIntervalTicks hint for future sampling interval in ticks
+     */
+    public static void setSamplingIntervalHint(int samplingIntervalTicks) {
+        // Phase A scaffold; accepting samplingInterval without using it
+        // no-op
+    }
+
+    /**
+     * Phase A scaffold; accepting samplingInterval without using it.
+     * No behavior change; not referenced by existing logic yet.
+     *
+     * @param samplingIntervalTicks caller-provided interval hint
+     * @return the same samplingIntervalTicks value unchanged
+     */
+    public static int getSamplingIntervalHintOrDefault(int samplingIntervalTicks) {
+        // Phase A scaffold; accepting samplingInterval without using it
+        // preserve behavior by returning the provided value unchanged
+        return samplingIntervalTicks;
+    }
 }
 

@@ -9,6 +9,7 @@ import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.Trigger;
 
 import java.util.Objects;
+import java.util.OptionalInt;
 
 /**
  * Serializer contract for turning datapack JSON payloads into concrete {@link Trigger}
@@ -77,6 +78,13 @@ public interface TriggerSerializer<C> {
     @FunctionalInterface
     interface TriggerResultFactory<C> {
         DataResult<Trigger> create(Identifier abilityId, C config);
+    }
+
+    /**
+     * Phase A scaffold: Light wrapper to peek top-level schemaVersion without enforcement.
+     */
+    static OptionalInt peekSchemaVersion(JsonObject obj) {
+        return RegistryJsonHelper.getSchemaVersionFromObject(obj);
     }
 
     /**

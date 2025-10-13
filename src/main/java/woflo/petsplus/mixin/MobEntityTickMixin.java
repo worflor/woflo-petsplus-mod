@@ -9,7 +9,6 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import woflo.petsplus.effects.MagnetizeDropsAndXpEffect;
 import woflo.petsplus.mechanics.CursedOneResurrection;
-import woflo.petsplus.state.StateManager;
 import woflo.petsplus.ui.AfterimageManager;
 
 /**
@@ -27,7 +26,6 @@ public abstract class MobEntityTickMixin {
         }
         MobEntity mob = (MobEntity) entity;
 
-        StateManager.forWorld(serverWorld).handlePetTick(mob);
         AfterimageManager.handleMobTick(mob, serverWorld);
         CursedOneResurrection.handleMobTick(mob, serverWorld);
         MagnetizeDropsAndXpEffect.handleMobTick(mob, serverWorld);
