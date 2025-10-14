@@ -15,63 +15,78 @@ import java.util.EnumSet;
 public class StretchAndYawnGoal extends AdaptiveGoal {
     private static final int BASE_STRETCH_DURATION = 30;
 
-    private int stretchTicks = 0;
-    private int getStretchDuration() {
+    private int animationTicks = 0;
+    private int stretchDuration;
+    private int yawnDuration;
+    private int totalDuration;
+
+    public StretchAndYawnGoal(MobEntity mob) {
+        super(mob, GoalRegistry.require(GoalIds.STRETCH_AND_YAW), EnumSet.noneOf(Control.class));
+    }
+
+    private void calculateDurations() {
         PetContext ctx = getContext();
         float stamina = ctx.physicalStamina();
         // Longer stretch for lower stamina
         float multiplier = MathHelper.clamp(1.5f - stamina, 0.8f, 1.8f);
-        return (int) (BASE_STRETCH_DURATION * multiplier);
+        stretchDuration = (int) (BASE_STRETCH_DURATION * multiplier);
+        yawnDuration = 15; // fixed duration for the yawn
+        totalDuration = stretchDuration + yawnDuration;
     }
-    
-    public StretchAndYawnGoal(MobEntity mob) {
-        super(mob, GoalRegistry.require(GoalIds.STRETCH_AND_YAW), EnumSet.noneOf(Control.class));
-    }
-    
+
     @Override
     protected boolean canStartGoal() {
-        return mob.getNavigation().isIdle();
+        if (!mob.getNavigation().isIdle() || !mob.isOnGround()) {
+            return false;
+        }
+        // Add a check for being in water, which is not ideal for this animation
+        return !mob.isTouchingWaterOrRain();
     }
-    
+
     @Override
     protected boolean shouldContinueGoal() {
-        return stretchTicks < getStretchDuration();
+        return animationTicks < totalDuration;
     }
-    
+
     @Override
     protected void onStartGoal() {
-        stretchTicks = 0;
+        animationTicks = 0;
+        calculateDurations();
     }
 
     @Override
     protected void onStopGoal() {
-        stretchTicks = 0;
+        animationTicks = 0;
         mob.setPitch(0.0f);
     }
-    
+
     @Override
     protected void onTickGoal() {
-        stretchTicks++;
+        animationTicks++;
 
-        if (stretchTicks == 1) {
+        if (animationTicks == 1) {
             // TODO: Add a yawning sound effect here
         }
 
-        if (stretchTicks < 10) {
-            // Start stretch
-            mob.setPitch(MathHelper.lerp(stretchTicks / 10.0f, 0, -15));
-        } else if (stretchTicks < 20) {
-            // Hold stretch
-            mob.setPitch(-15);
-        } else if (stretchTicks < 30) {
-            // End stretch
-            mob.setPitch(MathHelper.lerp((stretchTicks - 20) / 10.0f, -15, 0));
-        } else {
-            // Yawn
-            if (stretchTicks == 30) {
-                mob.setPitch(10);
-            } else if (stretchTicks == 40) {
-                mob.setPitch(0);
+        // Stretch phase
+        if (animationTicks <= stretchDuration) {
+            float progress = (float) animationTicks / stretchDuration;
+            if (progress < 0.33f) { // Wind up
+                mob.setPitch(MathHelper.lerp(progress / 0.33f, 0, -15));
+            } else if (progress < 0.66f) { // Hold
+                mob.setPitch(-15);
+            } else { // Wind down
+                mob.setPitch(MathHelper.lerp((progress - 0.66f) / 0.34f, -15, 0));
+            }
+        }
+        // Yawn phase
+        else {
+            int yawnTicks = animationTicks - stretchDuration;
+            float progress = (float) yawnTicks / yawnDuration;
+            if (progress < 0.5f) {
+                mob.setPitch(MathHelper.lerp(progress / 0.5f, 0, 10));
+            } else {
+                mob.setPitch(MathHelper.lerp((progress - 0.5f) / 0.5f, 10, 0));
             }
         }
     }

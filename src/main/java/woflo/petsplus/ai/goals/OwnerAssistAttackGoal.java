@@ -7,6 +7,7 @@ import java.util.List;
 
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.goal.Goal;
+import net.minecraft.entity.attribute.EntityAttribute;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.passive.TameableEntity;
@@ -611,6 +612,53 @@ public class OwnerAssistAttackGoal extends Goal {
         }
     }
 
+    private boolean isThreatAcceptable(@Nullable LivingEntity target) {
+        if (target == null) {
+            return false;
+        }
+        double targetStrength = estimateThreatStrength(target);
+        double petStrength = estimatePetStrength();
+        double bravery = estimateBraveryFactor();
+        double packSupport = 1.0d + MathHelper.clamp(packSample.confidence(), 0f, 1f) * 0.35d;
+        double tolerance = petStrength * bravery * packSupport;
+        return targetStrength <= tolerance;
+    }
+
+    private double estimateThreatStrength(LivingEntity target) {
+        double health = MathHelper.clamp(target.getMaxHealth(), 1.0f, 200.0f);
+        double attack = readAttributeOr(target, EntityAttributes.ATTACK_DAMAGE, 3.0d);
+        double armor = target.getArmor();
+        return (health * 0.55d) + (attack * 4.5d) + (armor * 0.5d);
+    }
+
+    private double estimatePetStrength() {
+        double health = MathHelper.clamp(mob.getMaxHealth(), 1.0f, 200.0f);
+        double attack = readAttributeOr(mob, EntityAttributes.ATTACK_DAMAGE, 2.5d);
+        double armor = mob.getArmor();
+        return (health * 0.6d) + (attack * 4.0d) + (armor * 0.4d);
+    }
+
+    private double estimateBraveryFactor() {
+        double base = 0.75d;
+        if (petComponent != null) {
+            base += MathHelper.clamp(petComponent.getLevel() / 40.0d, 0.0d, 0.6d);
+        }
+        if (moodSample != null) {
+            base += moodSample.protective() * 0.5d;
+            base += moodSample.passionate() * 0.35d;
+            base += moodSample.angry() * 0.25d;
+            base -= moodSample.afraid() * 0.6d;
+            base -= moodSample.saudade() * 0.2d;
+        }
+        base = MathHelper.clamp(base, 0.45d, 1.75d);
+        return base;
+    }
+
+    private double readAttributeOr(LivingEntity entity, net.minecraft.registry.entry.RegistryEntry<net.minecraft.entity.attribute.EntityAttribute> attribute, double fallback) {
+        double value = entity.getAttributeValue(attribute);
+        return (Double.isFinite(value) && value > 0.0d) ? value : fallback;
+    }
+
     private static double computeBaseAssistSpeed(MobEntity mob) {
         double movement = mob.getAttributeValue(EntityAttributes.MOVEMENT_SPEED);
         if (Double.isNaN(movement) || movement <= 0d) {
@@ -659,6 +707,7 @@ public class OwnerAssistAttackGoal extends Goal {
         static final PackSample EMPTY = new PackSample(0f, 0f, 0f, 0f);
     }
 }
+
 
 
 

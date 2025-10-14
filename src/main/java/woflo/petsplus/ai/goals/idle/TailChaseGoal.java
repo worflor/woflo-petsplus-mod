@@ -23,7 +23,6 @@ public class TailChaseGoal extends AdaptiveGoal {
     private float targetYaw;
     private int spinDirection; // 1 or -1
     private float accumulatedRotation;
-    private static final int MAX_SPINS = 8;
     
     public TailChaseGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.TAIL_CHASE), EnumSet.of(Control.MOVE, Control.LOOK));
@@ -42,7 +41,7 @@ public class TailChaseGoal extends AdaptiveGoal {
     
     @Override
     protected boolean shouldContinueGoal() {
-        return spinCount < MAX_SPINS;
+        return true; // Let the adaptive goal logic handle stopping based on engagement
     }
     
     @Override

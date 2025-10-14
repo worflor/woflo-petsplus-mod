@@ -339,6 +339,7 @@ public class PetComponent {
         public static final String THREAT_SENSITIZED_STREAK = "threat_sensitized_streak";
         public static final String THREAT_LAST_DANGER = "threat_last_danger";
         public static final String THREAT_LAST_RECOVERY_TICK = "threat_last_recovery_tick";
+        public static final String LAST_SAFE_WATER_POS = "last_safe_water_pos";
         public static final String OWNER_LAST_HURT_TICK = "owner_last_hurt_tick";
         public static final String OWNER_LAST_HURT_SEVERITY = "owner_last_hurt_severity";
         public static final String OWNER_LAST_HEALTH_RATIO = "owner_last_health_ratio";

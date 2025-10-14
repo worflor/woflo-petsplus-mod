@@ -7,6 +7,7 @@ import net.minecraft.entity.mob.PathAwareEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
 import woflo.petsplus.state.PetComponent;
@@ -31,6 +32,9 @@ public final class OnFireScrambleGoal extends Goal {
     private static final int MAX_RETARGET_JITTER = 6;
     private static final int SPIN_COOLDOWN_MIN = 20;
     private static final int SPIN_COOLDOWN_MAX = 40;
+    private static final int WATER_SEARCH_RADIUS = 8;
+    private static final double WATER_MEMORY_MAX_DISTANCE_SQ = 196.0d;
+    private static final String WATER_MEMORY_KEY = PetComponent.StateKeys.LAST_SAFE_WATER_POS;
 
     private final MobEntity mob;
     private final PetComponent petComponent;
@@ -41,6 +45,7 @@ public final class OnFireScrambleGoal extends Goal {
     private double activeSpeed = 1.0d;
     private float severity = 0.4f;
     private Vec3d targetPos;
+    private Vec3d rememberedWater;
     private int retargetCooldown;
     private int ticksRunning;
     private float lastYaw;
@@ -96,6 +101,7 @@ public final class OnFireScrambleGoal extends Goal {
         lastYaw = mob.getYaw();
         targetPos = null;
         retargetCooldown = 0;
+        rememberedWater = loadRememberedWater();
 
         energyProfile = resolveEnergyProfile();
         severity = computeSeverity();
@@ -258,6 +264,80 @@ public final class OnFireScrambleGoal extends Goal {
             return null;
         }
         return new Vec3d(sumX / count, sumY / count, sumZ / count);
+    }
+
+    private Vec3d findWaterEscape(double range) {
+        if (!(mob.getEntityWorld() instanceof ServerWorld)) {
+            return null;
+        }
+        Vec3d current = currentPosition();
+        if (rememberedWater != null) {
+            BlockPos rememberedPos = BlockPos.ofFloored(rememberedWater);
+            if (isWater(rememberedPos)) {
+                if (current.squaredDistanceTo(rememberedWater) <= WATER_MEMORY_MAX_DISTANCE_SQ) {
+                    return rememberedWater;
+                }
+            }
+            rememberedWater = null;
+        }
+
+        BlockPos origin = mob.getBlockPos();
+        BlockPos.Mutable mutable = new BlockPos.Mutable();
+        double bestScore = Double.POSITIVE_INFINITY;
+        Vec3d best = null;
+        int horizontal = Math.min(WATER_SEARCH_RADIUS, MathHelper.ceil(range));
+        for (int dx = -horizontal; dx <= horizontal; dx++) {
+            for (int dz = -horizontal; dz <= horizontal; dz++) {
+                for (int dy = -2; dy <= 2; dy++) {
+                    mutable.set(origin.getX() + dx, origin.getY() + dy, origin.getZ() + dz);
+                    if (!isWater(mutable)) {
+                        continue;
+                    }
+                    BlockPos head = mutable.up();
+                    if (!mob.getEntityWorld().getBlockState(head).isAir()) {
+                        continue;
+                    }
+                    Vec3d candidate = Vec3d.ofCenter(mutable);
+                    double distanceSq = candidate.squaredDistanceTo(current);
+                    if (distanceSq < bestScore) {
+                        bestScore = distanceSq;
+                        best = candidate;
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
+    private Vec3d loadRememberedWater() {
+        if (petComponent == null) {
+            return null;
+        }
+        Long stored = petComponent.getStateData(WATER_MEMORY_KEY, Long.class);
+        if (stored == null) {
+            return null;
+        }
+        BlockPos pos = BlockPos.fromLong(stored);
+        if (!isWater(pos)) {
+            return null;
+        }
+        return Vec3d.ofCenter(pos);
+    }
+
+    private void rememberWater(Vec3d pos) {
+        if (petComponent == null || pos == null) {
+            return;
+        }
+        BlockPos blockPos = BlockPos.ofFloored(pos);
+        if (!isWater(blockPos)) {
+            return;
+        }
+        petComponent.setStateData(WATER_MEMORY_KEY, blockPos.asLong());
+        rememberedWater = Vec3d.ofCenter(blockPos);
+    }
+
+    private boolean isWater(BlockPos pos) {
+        return mob.getEntityWorld().getFluidState(pos).isIn(FluidTags.WATER);
     }
 
     private Vec3d findSafeLandingNear(Vec3d target, double range) {

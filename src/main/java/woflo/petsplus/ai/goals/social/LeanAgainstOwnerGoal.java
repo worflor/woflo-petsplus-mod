@@ -2,6 +2,8 @@ package woflo.petsplus.ai.goals.social;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.math.Vec3d;
+import woflo.petsplus.state.PetComponent;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
@@ -14,8 +16,14 @@ import java.util.EnumSet;
  * Social behavior - pet leans against owner's leg for affection.
  */
 public class LeanAgainstOwnerGoal extends AdaptiveGoal {
-    private int leanTicks = 0;
     private static final int LEAN_DURATION = 60;
+    private static final String COOLDOWN_KEY = "lean_against_owner";
+    private static final double LOOK_DOT_THRESHOLD = 0.35d;
+    private static final int MAX_GAZE_GRACE = 20;
+
+    private int leanTicks = 0;
+    private int gazeGraceTicks = 0;
+    private boolean leanLeft = true;
     
     public LeanAgainstOwnerGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.LEAN_AGAINST_OWNER), EnumSet.of(Control.MOVE));
@@ -24,7 +32,27 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
     @Override
     protected boolean canStartGoal() {
         PetContext ctx = getContext();
-        return ctx.owner() != null && ctx.distanceToOwner() < 3.0f;
+        PlayerEntity owner = ctx.owner();
+        if (owner == null) {
+            return false;
+        }
+
+        if (ctx.distanceToOwner() >= 3.2f) {
+            return false;
+        }
+
+        PetComponent component = PetComponent.get(mob);
+        if (component != null) {
+            if (component.isOnCooldown(COOLDOWN_KEY)) {
+                return false;
+            }
+            if (component.hasMoodAbove(PetComponent.Mood.ANGRY, 0.45f)
+                || component.hasMoodAbove(PetComponent.Mood.RESTLESS, 0.6f)) {
+                return false;
+            }
+        }
+
+        return isOwnerLookingAtPet(owner);
     }
     
     @Override
@@ -46,35 +74,64 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
     @Override
     protected void onTickGoal() {
         leanTicks++;
-        
+
         PetContext ctx = getContext();
         PlayerEntity owner = ctx.owner();
-        
         if (owner == null) {
             return;
         }
-        
-        // Move close to owner
-        if (mob.distanceTo(owner) > 1.0) {
-            mob.getNavigation().startMovingTo(owner, 0.8);
+
+        if (isOwnerLookingAtPet(owner)) {
+            gazeGraceTicks = MAX_GAZE_GRACE;
+        } else if (gazeGraceTicks > 0) {
+            gazeGraceTicks--;
+        }
+
+        Vec3d leanTarget = owner.getEntityPos().add(computeLeanOffset(owner));
+        double distanceSq = mob.squaredDistanceTo(leanTarget);
+        if (distanceSq > 0.35d) {
+            mob.getNavigation().startMovingTo(leanTarget.x, leanTarget.y, leanTarget.z, 0.75);
         } else {
             mob.getNavigation().stop();
-            
-            // Face same direction as owner
             mob.setYaw(owner.getYaw());
             mob.headYaw = owner.headYaw;
-            
-            // Slight pushing motion (lean)
-            double dx = owner.getX() - mob.getX();
-            double dz = owner.getZ() - mob.getZ();
-            double distance = Math.sqrt(dx * dx + dz * dz);
-            if (distance > 0.5 && distance < 1.5) {
-                mob.setVelocity(dx / distance * 0.01, 0, dz / distance * 0.01);
+            mob.getLookControl().lookAt(owner, 20.0f, 20.0f);
+
+            double nudgeStrength = 0.008d + Math.min(leanTicks, 40) * 0.00015d;
+            Vec3d fromOwner = mob.getEntityPos().subtract(owner.getEntityPos());
+            double lengthSq = fromOwner.lengthSquared();
+            if (lengthSq > 1.0e-4d) {
+                Vec3d push = fromOwner.normalize().multiply(-nudgeStrength);
+                mob.addVelocity(push.x, 0.0, push.z);
+                mob.velocityModified = true;
             }
         }
     }
     
-    @Override
+    private boolean isOwnerLookingAtPet(PlayerEntity owner) {
+        Vec3d ownerEye = owner.getCameraPosVec(1.0f);
+        Vec3d ownerLook = owner.getRotationVec(1.0f).normalize();
+        Vec3d petEye = mob.getEntityPos().add(0.0, mob.getStandingEyeHeight(), 0.0);
+        Vec3d toPet = petEye.subtract(ownerEye).normalize();
+        double dot = ownerLook.dotProduct(toPet);
+        if (Double.isNaN(dot)) {
+            return false;
+        }
+        return dot >= LOOK_DOT_THRESHOLD;
+    }
+
+    private Vec3d computeLeanOffset(PlayerEntity owner) {
+        Vec3d forward = owner.getRotationVec(1.0f).normalize();
+        Vec3d lateral = new Vec3d(-forward.z, 0.0, forward.x);
+        if (lateral.lengthSquared() < 1.0e-3d) {
+            lateral = new Vec3d(1.0, 0.0, 0.0);
+        } else {
+            lateral = lateral.normalize();
+        }
+        double side = leanLeft ? -0.6d : 0.6d;
+        double forwardStep = -0.35d;
+        return forward.multiply(forwardStep).add(lateral.multiply(side));
+    }
     protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
         return new woflo.petsplus.ai.goals.EmotionFeedback.Builder()
             .add(woflo.petsplus.state.PetComponent.Emotion.SOBREMESA, 0.20f)
@@ -109,3 +166,5 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
         return MathHelper.clamp(engagement, 0.0f, 1.0f);
     }
 }
+
+

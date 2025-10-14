@@ -7,6 +7,7 @@ import net.minecraft.entity.ai.pathing.PathNodeType;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -17,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import woflo.petsplus.Petsplus;
@@ -27,6 +29,7 @@ import woflo.petsplus.behavior.social.SocialContextSnapshot;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
 import woflo.petsplus.state.emotions.PetMoodEngine;
 
 /**
@@ -43,6 +46,18 @@ public class EnhancedFollowOwnerGoal extends Goal {
     private static final long FOLLOW_SAMPLE_INTERVAL = 5L;
     private static final double LATERAL_PUSH_SCALE = 1.1;
     private static final double MOVE_TARGET_REFRESH_EPSILON = 0.0625 * 0.0625;
+    private static final int PATH_FAILURE_TIMEOUT = 80;
+    private static final int PATH_BLOCK_COOLDOWN_TICKS = 100;
+    private static final double MIN_DYNAMIC_SPEED = 0.55d;
+    private static final double MAX_DYNAMIC_SPEED = 1.9d;
+    private static final String FOLLOW_PATH_COOLDOWN_KEY = "follow_path_blocked";
+    private static final Set<Identifier> FOLLOW_SUPPRESSION_GOALS = Set.of(
+        GoalIds.PARALLEL_PLAY,
+        GoalIds.TOY_POUNCE,
+        GoalIds.HIDE_AND_SEEK,
+        GoalIds.SUNBEAM_SPRAWL,
+        GoalIds.SHOW_AND_DROP
+    );
 
     private final MobEntity mob;
     private final PetsplusTameable tameable;
@@ -58,6 +73,8 @@ public class EnhancedFollowOwnerGoal extends Goal {
     private long spacingFocusExpiryTick;
     private Vec3d lastMoveTarget;
     private long lastMomentumSampleTick = Long.MIN_VALUE;
+    private int failedPathTicks;
+    private long pathBlockedUntilTick = Long.MIN_VALUE;
 
     public EnhancedFollowOwnerGoal(MobEntity mob, PetsplusTameable tameable, PetComponent petComponent, double speed, float followDistance, float teleportDistance) {
         this.mob = mob;
@@ -68,6 +85,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
         this.teleportDistance = teleportDistance;
         this.activeFollowDistance = followDistance;
         this.setControls(EnumSet.of(Control.MOVE, Control.LOOK));
+        this.failedPathTicks = 0;
     }
 
     public void setScoutMode(boolean scoutMode) {
@@ -77,6 +95,36 @@ public class EnhancedFollowOwnerGoal extends Goal {
     @Override
     public boolean canStart() {
         if (!this.tameable.petsplus$isTamed()) {
+            return false;
+        }
+
+        if (this.mob.isSleeping()) {
+            return false;
+        }
+
+        if (this.tameable.petsplus$isSitting()) {
+            return false;
+        }
+
+        long currentTick = this.mob.getEntityWorld().getTime();
+        if (pathBlockedUntilTick != Long.MIN_VALUE && currentTick < pathBlockedUntilTick) {
+            return false;
+        }
+
+        if (petComponent.isOnCooldown(FOLLOW_PATH_COOLDOWN_KEY)) {
+            return false;
+        }
+
+        if (petComponent.getAIState().isPanicking()) {
+            return false;
+        }
+
+        Identifier activeGoal = petComponent.getAIState().getActiveMajorGoal();
+        if (activeGoal != null && FOLLOW_SUPPRESSION_GOALS.contains(activeGoal)) {
+            return false;
+        }
+
+        if (petComponent.hasMoodAbove(PetComponent.Mood.ANGRY, 0.55f)) {
             return false;
         }
 
@@ -136,12 +184,28 @@ public class EnhancedFollowOwnerGoal extends Goal {
             return false;
         }
 
+        if (this.mob.isSleeping() || this.tameable.petsplus$isSitting()) {
+            return false;
+        }
+
+        if (petComponent.isOnCooldown(FOLLOW_PATH_COOLDOWN_KEY)) {
+            return false;
+        }
+
+        long now = owner.getEntityWorld().getTime();
+        if (pathBlockedUntilTick != Long.MIN_VALUE && now < pathBlockedUntilTick) {
+            return false;
+        }
+
+        if (petComponent.getAIState().isPanicking()) {
+            return false;
+        }
+
         double distance = this.mob.squaredDistanceTo(owner);
         if (distance > (this.teleportDistance * this.teleportDistance)) {
             return true;
         }
 
-        long now = owner.getEntityWorld().getTime();
         if (OwnerAssistAttackGoal.isPetHesitating(petComponent, now)) {
             return true;
         }
@@ -153,6 +217,8 @@ public class EnhancedFollowOwnerGoal extends Goal {
     public void start() {
         this.stuckCounter = 0;
         this.lastMoveTarget = null;
+        this.failedPathTicks = 0;
+        this.pathBlockedUntilTick = Long.MIN_VALUE;
         long now = this.mob.getEntityWorld().getTime();
         float moodDistanceBonus = petComponent.getMoodFollowDistanceBonus(now);
         this.activeFollowDistance = baseFollowDistance + moodDistanceBonus + petComponent.getFollowSpacingPadding();
@@ -168,6 +234,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
     public void stop() {
         this.mob.getNavigation().stop();
         this.lastMoveTarget = null;
+        this.failedPathTicks = 0;
         lastMomentumSampleTick = Long.MIN_VALUE;
     }
 
@@ -184,8 +251,21 @@ public class EnhancedFollowOwnerGoal extends Goal {
             return;
         }
 
-        Vec3d ownerPos = owner.getEntityPos();
+        if (this.mob.isSleeping() || this.tameable.petsplus$isSitting()) {
+            this.mob.getNavigation().stop();
+            this.lastMoveTarget = null;
+            return;
+        }
+
         long now = owner.getEntityWorld().getTime();
+        if (petComponent.isOnCooldown(FOLLOW_PATH_COOLDOWN_KEY)
+            || (pathBlockedUntilTick != Long.MIN_VALUE && now < pathBlockedUntilTick)) {
+            this.mob.getNavigation().stop();
+            this.lastMoveTarget = null;
+            return;
+        }
+
+        Vec3d ownerPos = owner.getEntityPos();
         boolean hesitating = OwnerAssistAttackGoal.isPetHesitating(petComponent, now);
         boolean moodHoldActive = petComponent.isMoodFollowHoldActive(now);
         float moodDistanceBonus = moodHoldActive ? petComponent.getMoodFollowDistanceBonus(now) : 0.0f;
@@ -264,24 +344,36 @@ public class EnhancedFollowOwnerGoal extends Goal {
             OwnerAssistAttackGoal.clearAssistHesitation(petComponent);
         }
 
-        double adjustedSpeed = hesitating ? this.speed + HESITATION_SPEED_BOOST : this.speed;
+        double adjustedSpeed = resolveDynamicSpeed(distanceToOwnerSq, hesitating);
         boolean navigationIdle = this.mob.getNavigation().isIdle();
         boolean targetChanged = this.lastMoveTarget == null
             || this.lastMoveTarget.squaredDistanceTo(moveTarget) > MOVE_TARGET_REFRESH_EPSILON;
 
         if (navigationIdle || targetChanged) {
             this.mob.getNavigation().startMovingTo(moveTarget.x, moveTarget.y, moveTarget.z, adjustedSpeed);
+        } else {
+            this.mob.getNavigation().setSpeed(adjustedSpeed);
         }
         this.lastMoveTarget = moveTarget;
 
-        if (!this.mob.getNavigation().isFollowingPath()) {
+        boolean followingPath = this.mob.getNavigation().isFollowingPath();
+        if (!followingPath) {
             stuckCounter++;
+            if (distanceToOwnerSq > (this.activeFollowDistance * this.activeFollowDistance)) {
+                failedPathTicks = Math.min(PATH_FAILURE_TIMEOUT + 20, failedPathTicks + 1);
+            }
             if (stuckCounter > 60) {
                 tryAlternativePathfinding(owner, moveTarget);
                 stuckCounter = 0;
             }
         } else {
             stuckCounter = 0;
+            failedPathTicks = 0;
+        }
+
+        if (failedPathTicks > PATH_FAILURE_TIMEOUT) {
+            enterPathBlockedState(now);
+            return;
         }
 
         sampleMomentum(now, hesitating, distanceToOwnerSq);
@@ -529,6 +621,39 @@ public class EnhancedFollowOwnerGoal extends Goal {
 
         float intensity = hesitating ? 0.35f : 0.55f;
         moodEngine.recordBehavioralActivity(intensity, delta, PetMoodEngine.ActivityType.PHYSICAL);
+    }
+
+    private double resolveDynamicSpeed(double distanceToOwnerSq, boolean hesitating) {
+        double base = this.speed;
+        double distance = Math.sqrt(Math.max(distanceToOwnerSq, 0.0));
+        double gap = Math.max(0.0, distance - this.activeFollowDistance);
+        double distanceFactor = MathHelper.clamp(gap / Math.max(1.0f, this.activeFollowDistance), 0.0, 2.5);
+        double momentumBoost = 1.0d;
+        PetMoodEngine moodEngine = petComponent.getMoodEngine();
+        if (moodEngine != null) {
+            float momentum = MathHelper.clamp(moodEngine.getBehavioralMomentum(), 0.0f, 1.0f);
+            BehaviouralEnergyProfile energy = moodEngine.getBehaviouralEnergyProfile();
+            float stamina = energy != null ? MathHelper.clamp(energy.physicalStamina(), 0.0f, 1.0f) : 0.6f;
+            double momentumScale = MathHelper.lerp(momentum, 0.85d, 1.15d);
+            double staminaScale = MathHelper.lerp(stamina, 0.88d, 1.12d);
+            momentumBoost = momentumScale * staminaScale;
+        }
+        double speed = base * momentumBoost + distanceFactor * 0.35d;
+        if (hesitating) {
+            speed += HESITATION_SPEED_BOOST;
+        }
+        return MathHelper.clamp(speed, MIN_DYNAMIC_SPEED, MAX_DYNAMIC_SPEED);
+    }
+
+    private void enterPathBlockedState(long now) {
+        this.pathBlockedUntilTick = now + PATH_BLOCK_COOLDOWN_TICKS;
+        this.failedPathTicks = 0;
+        this.mob.getNavigation().stop();
+        this.lastMoveTarget = null;
+        if (!petComponent.isOnCooldown(FOLLOW_PATH_COOLDOWN_KEY)) {
+            petComponent.setCooldown(FOLLOW_PATH_COOLDOWN_KEY, PATH_BLOCK_COOLDOWN_TICKS);
+        }
+        petComponent.getAIState().incrementQuirkCounter("follow_path_blocked");
     }
 
     private Vec3d computeSwarmCenter(PetSwarmIndex swarmIndex) {
