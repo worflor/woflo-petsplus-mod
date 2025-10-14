@@ -1,6 +1,6 @@
 # Pets+ Docs (ig)
 
-The systems are designed to be deep but intuitive. You are not expected to memorize them. Instead, this guide is here for you when you notice a curious behaviour and want to understand the "why" behind it.
+Unfortunately, your *real pets* have *real emotions*. 
 
 ## Core Concepts
 
@@ -14,7 +14,7 @@ The systems are designed to be deep but intuitive. You are not expected to memor
     The vast spectrum of feelings that make up your pet's inner world.
 
 *   **[Roles: What it do](roles.md)**
-    How a chosen Role gives your pet a purpose and a unique way of interacting with the world.
+    Scaling with level, effecting the core identity, choose a role for your pet to equip them with a purpose.
 
 *   **[Leveling: Where we go](leveling.md)**
     The path of growth that you and your pet walk together, strengthening your bond and unlocking new potential.
@@ -25,9 +25,8 @@ The systems are designed to be deep but intuitive. You are not expected to memor
 *   **[Advancements](advancements.md)**
     A list of special milestones you can achieve on your journey with your companions.
 
-## Roadmap
-
-The world of PetsPlus is always growing. Here are some of the concepts being explored for the future:
+## Future Considerations
+Things I have in mind for the future.
 
 *   **Deeper Mob Intergration:** Including mechanics like Sniffer courting.
 *   **Wellbeing Profile:** A more fleshed-out system for understanding your pet's overall state.
