@@ -62,6 +62,7 @@ public class PettingHandler {
             // Still on cooldown, but provide subtle feedback through the cue helper
             EmotionContextCues.sendCue(serverPlayer,
                 "petting.cooldown." + mob.getUuidAsString(),
+                mob,
                 Text.translatable("petsplus.emotion_cue.petting.cooldown", mob.getDisplayName()),
                 80);
             return ActionResult.SUCCESS;
@@ -143,6 +144,7 @@ public class PettingHandler {
         String message = generatePettingMessage(pet, petCount);
         EmotionContextCues.sendCue(player,
             "petting.message." + pet.getUuidAsString(),
+            pet,
             Text.literal(message),
             0);
     }
@@ -176,24 +178,27 @@ public class PettingHandler {
         Text message = resolveMessage(petting.message(), "Your companion seems content.");
         if (!message.getString().isBlank()) {
             String cueId = "petting.role." + (roleId != null ? roleId.toString() : "default") + "." + pet.getUuidAsString();
-            EmotionContextCues.sendCue(player, cueId, message, 100);
+            EmotionContextCues.sendCue(player, cueId, pet, message, 100);
         }
     }
 
     private static void emitPettingCues(ServerPlayerEntity player, MobEntity pet, int petCount) {
         EmotionContextCues.sendCue(player,
             "petting.affection." + pet.getUuidAsString(),
+            pet,
             Text.translatable("petsplus.emotion_cue.petting.affection", pet.getDisplayName()),
             80);
 
         if (petCount == 1) {
             EmotionContextCues.sendCue(player,
                 "petting.first." + pet.getUuidAsString(),
+                pet,
                 Text.translatable("petsplus.emotion_cue.petting.first", pet.getDisplayName()),
                 6000);
         } else if (petCount % 25 == 0) {
             EmotionContextCues.sendCue(player,
                 "petting.milestone." + pet.getUuidAsString(),
+                pet,
                 Text.translatable("petsplus.emotion_cue.petting.milestone", pet.getDisplayName(), petCount),
                 6000);
         }

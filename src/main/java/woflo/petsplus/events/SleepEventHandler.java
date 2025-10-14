@@ -108,6 +108,7 @@ public class SleepEventHandler {
                 if (pc.hasRole(PetRoleType.EEPY_EEPER)) {
                     EmotionContextCues.sendCue(player,
                         "role.eepy.dream." + pet.getUuidAsString(),
+                        pet,
                         Text.translatable("petsplus.emotion_cue.role.eepy_dream", pet.getDisplayName()),
                         2400);
                 }

@@ -2637,7 +2637,7 @@ public class StateManager {
                             pet.getDisplayName()
                         );
                     };
-                    EmotionContextCues.sendCue(serverOwner, cueId, message, 160);
+                    EmotionContextCues.sendCue(serverOwner, cueId, pet, message, 160);
                 }
                 continue;
             }
