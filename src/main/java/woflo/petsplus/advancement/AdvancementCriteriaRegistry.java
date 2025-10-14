@@ -45,7 +45,6 @@ public class AdvancementCriteriaRegistry {
     public static void register() {
         Petsplus.LOGGER.info("Registering custom advancement criteria...");
         // Trigger static initializer by accessing a field
-        Class<?> unused = PET_LEVEL.getClass();
         Petsplus.LOGGER.info("Successfully registered {} custom advancement criteria", 10);
     }
 

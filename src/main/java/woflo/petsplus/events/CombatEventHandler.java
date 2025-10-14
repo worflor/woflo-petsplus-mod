@@ -91,8 +91,6 @@ public class CombatEventHandler {
     private static final float CHIP_DAMAGE_THRESHOLD = 0.45f;      // Accumulated chip ratio before surging restlessness
     private static final int CHIP_DAMAGE_DECAY_TICKS = 80;         // ~4 seconds for decay calculations
     private static final float CHIP_DAMAGE_DECAY_STEP = 0.18f;     // Amount removed per decay interval
-    private static final float CHIP_DAMAGE_BASE_STARTLE = 0.03f;
-    private static final float CHIP_DAMAGE_STARTLE_SCALE = 0.50f;
     private static final int OWNER_ASSIST_TARGET_TTL = 160;
     private static final int OWNER_ASSIST_CHAIN_LIMIT = 3;
     private static final double OWNER_ASSIST_BROADCAST_RADIUS = 24.0;
@@ -2280,6 +2278,15 @@ public class CombatEventHandler {
         return MathHelper.clamp(base + (scale * MathHelper.clamp(intensity, 0f, 1f)), 0f, 1f);
     }
 
+    private static float hashedNoise(long seed) {
+        seed ^= (seed >>> 33);
+        seed *= 0xff51afd7ed558ccdL;
+        seed ^= (seed >>> 33);
+        seed *= 0xc4ceb9fe1a85ec53L;
+        seed ^= (seed >>> 33);
+        return (float) (Double.longBitsToDouble((seed & 0x000fffffffffffffL) | 0x3ff0000000000000L) - 1.0d);
+    }
+
     private static float damageIntensity(float amount, float maxHealth) {
         if (maxHealth <= 0f) {
             return 0f;
@@ -2343,10 +2350,27 @@ public class CombatEventHandler {
             }
         }
 
-        accum += damageRatio;
+        float severity = MathHelper.clamp(damageRatio / CHIP_DAMAGE_RATIO_CEILING, 0f, 1f);
+        float severityCurve = severity * severity;
+        float accumContribution = damageRatio * MathHelper.lerp(severity, 0.45f, 1.0f);
+        if (treatAsOwnerSadness) {
+            accumContribution *= 0.75f;
+        }
+        accum += accumContribution;
         petComponent.setStateData(lastTickKey, now);
 
-        float startle = scaledAmount(CHIP_DAMAGE_BASE_STARTLE, CHIP_DAMAGE_STARTLE_SCALE, damageRatio);
+        float accumRatio = MathHelper.clamp(accum / CHIP_DAMAGE_THRESHOLD, 0f, 1.35f);
+        float severityEnvelope = MathHelper.clamp(0.42f * severity + 0.38f * severityCurve + 0.20f * accumRatio, 0f, 1f);
+        long nuanceSeed = pet.getUuid().getLeastSignificantBits() ^ pet.getUuid().getMostSignificantBits();
+        nuanceSeed ^= (long) now * 31L;
+        nuanceSeed ^= (long) Float.floatToIntBits(damageRatio) * 17L;
+        float nuanceNoise = hashedNoise(nuanceSeed);
+        float nuanceCentered = (nuanceNoise * 2f) - 1f;
+        float accentSeverity = MathHelper.clamp(severityEnvelope + nuanceCentered * MathHelper.lerp(severityEnvelope, 0.07f, 0.24f), 0f, 1f);
+        float jitteredSeverity = MathHelper.clamp(MathHelper.lerp(0.65f, severityEnvelope, accentSeverity), 0f, 1f);
+
+        float startle = scaledAmount(0.0065f, treatAsOwnerSadness ? 0.18f : 0.26f, jitteredSeverity);
+        startle *= MathHelper.lerp(Math.abs(nuanceCentered), 0.9f, 1.18f);
         if (treatAsOwnerSadness) {
             startle *= 0.55f;
         } else if (isOwnerAttack) {
@@ -2357,24 +2381,89 @@ public class CombatEventHandler {
         petComponent.pushEmotion(PetComponent.Emotion.STARTLE, startle);
 
         if (treatAsOwnerSadness) {
-            petComponent.pushEmotion(PetComponent.Emotion.ENNUI, scaledAmount(0.25f, 0.50f, damageRatio));
-            petComponent.pushEmotion(PetComponent.Emotion.SAUDADE, scaledAmount(0.12f, 0.35f, damageRatio));
+            float ennuiBlend = MathHelper.clamp(MathHelper.lerp(0.55f, severityEnvelope, accentSeverity), 0f, 1f);
+            float saudadeBlend = MathHelper.clamp(MathHelper.lerp(0.45f, severityCurve, accentSeverity), 0f, 1f);
+            petComponent.pushEmotion(PetComponent.Emotion.ENNUI, scaledAmount(0.07f, 0.36f, ennuiBlend));
+            petComponent.pushEmotion(PetComponent.Emotion.SAUDADE, scaledAmount(0.025f, 0.27f, saudadeBlend));
         } else {
-            float frustration = scaledAmount(0.04f, 0.28f, damageRatio);
+            float frustrationBlend = MathHelper.clamp(0.35f * severityEnvelope + 0.40f * accentSeverity + 0.25f * accumRatio, 0f, 1f);
+            float ennuiTrace = MathHelper.clamp(MathHelper.lerp(0.35f, severityEnvelope, accentSeverity), 0f, 1f);
+            float frustration = scaledAmount(0.0105f, 0.21f, frustrationBlend);
+            frustration *= MathHelper.lerp(nuanceNoise, 0.92f, 1.22f);
             petComponent.pushEmotion(PetComponent.Emotion.FRUSTRATION, frustration);
+            petComponent.pushEmotion(PetComponent.Emotion.ENNUI, scaledAmount(0.0055f, 0.14f, ennuiTrace));
         }
 
+        boolean emittedBurst = false;
         while (accum >= CHIP_DAMAGE_THRESHOLD) {
-            if (treatAsOwnerSadness) {
-                petComponent.pushEmotion(PetComponent.Emotion.ENNUI, 0.40f);
-                petComponent.pushEmotion(PetComponent.Emotion.SAUDADE, 0.25f);
-                petComponent.pushEmotion(PetComponent.Emotion.STARTLE, 0.15f);
-            } else {
-                petComponent.pushEmotion(PetComponent.Emotion.STARTLE, 0.12f);
-                petComponent.pushEmotion(PetComponent.Emotion.ENNUI, 0.10f);
-                petComponent.pushEmotion(PetComponent.Emotion.FRUSTRATION, 0.12f);
+            float overshoot = MathHelper.clamp((accum - CHIP_DAMAGE_THRESHOLD) / (CHIP_DAMAGE_THRESHOLD * 0.9f), 0f, 1f);
+            float burstSeed = MathHelper.clamp(0.55f * overshoot + 0.45f * accentSeverity, 0f, 1f);
+            float burstNoise = (hashedNoise(nuanceSeed ^ (emittedBurst ? 0x9E3779B97F4A7C15L : 0xC6A4A7935BD1E995L)) * 2f) - 1f;
+            float burstSeverity = MathHelper.clamp(burstSeed + burstNoise * MathHelper.lerp(burstSeed, 0.06f, 0.2f), 0f, 1f);
+            if (!emittedBurst && burstSeverity < 0.3f) {
+                break;
             }
-            accum -= CHIP_DAMAGE_THRESHOLD * 0.6f;
+
+            float burstCurve = burstSeverity * burstSeverity;
+            if (treatAsOwnerSadness) {
+                petComponent.pushEmotion(PetComponent.Emotion.ENNUI, scaledAmount(0.12f, 0.42f, burstCurve));
+                petComponent.pushEmotion(PetComponent.Emotion.SAUDADE, scaledAmount(0.05f, 0.30f, burstCurve));
+                petComponent.pushEmotion(PetComponent.Emotion.STARTLE, scaledAmount(0.06f, 0.24f, burstCurve));
+            } else {
+                petComponent.pushEmotion(PetComponent.Emotion.STARTLE, scaledAmount(0.05f, 0.28f, burstCurve));
+                petComponent.pushEmotion(PetComponent.Emotion.ENNUI, scaledAmount(0.02f, 0.18f, burstCurve));
+                petComponent.pushEmotion(PetComponent.Emotion.FRUSTRATION, scaledAmount(0.04f, 0.24f, burstCurve));
+            }
+
+            float drainBias = MathHelper.clamp(Math.max(burstSeverity, accentSeverity), 0f, 1f);
+            float drain = MathHelper.lerp(drainBias, CHIP_DAMAGE_THRESHOLD * (0.45f + 0.12f * severityEnvelope), CHIP_DAMAGE_THRESHOLD * 0.95f);
+            accum = Math.max(0f, accum - drain);
+            emittedBurst = true;
+        }
+
+        float retreatEnergy = MathHelper.clamp(0.5f * accentSeverity + 0.5f * severityCurve, 0f, 1f);
+        if (treatAsOwnerSadness) {
+            retreatEnergy *= 0.6f;
+        }
+
+        float retreatVariance = MathHelper.clamp(retreatEnergy + nuanceCentered * MathHelper.lerp(retreatEnergy, 0.05f, 0.18f), 0f, 1f);
+        boolean canHop = pet.isOnGround() || pet.isTouchingWater() || pet.isClimbing();
+        if (canHop && retreatVariance > 0.05f) {
+            Vec3d retreatVector;
+            if (attacker instanceof LivingEntity attackerLiving && !attackerLiving.equals(pet)) {
+                retreatVector = new Vec3d(pet.getX() - attackerLiving.getX(), 0.0d, pet.getZ() - attackerLiving.getZ());
+            } else if (attacker != null && !attacker.equals(pet)) {
+                retreatVector = new Vec3d(pet.getX() - attacker.getX(), 0.0d, pet.getZ() - attacker.getZ());
+            } else {
+                double yaw = MathHelper.nextDouble(pet.getRandom(), -Math.PI, Math.PI);
+                retreatVector = new Vec3d(Math.cos(yaw), 0.0d, Math.sin(yaw));
+            }
+
+            double lengthSq = retreatVector.lengthSquared();
+            if (lengthSq < 1.0E-4d) {
+                retreatVector = new Vec3d(1.0d, 0.0d, 0.0d);
+            }
+
+            Vec3d normalized = retreatVector.normalize();
+            if (Math.abs(nuanceCentered) > 0.01f) {
+                Vec3d lateral = new Vec3d(-normalized.z, 0.0d, normalized.x);
+                double lateralMix = nuanceCentered * MathHelper.lerp(retreatVariance, 0.05f, 0.4f);
+                normalized = normalized.multiply(1.0d - Math.abs(lateralMix)).add(lateral.multiply(lateralMix)).normalize();
+            }
+
+            double hopStrength = MathHelper.lerp(retreatVariance, 0.05d, 0.38d);
+            double liftStrength = MathHelper.lerp(retreatVariance, 0.03d, 0.22d);
+            pet.takeKnockback(hopStrength, normalized.x, normalized.z);
+            pet.addVelocity(0.0d, liftStrength, 0.0d);
+            pet.velocityModified = true;
+
+            if (retreatVariance > 0.18f) {
+                double travel = MathHelper.lerp(retreatVariance, treatAsOwnerSadness ? 0.8d : 1.4d, 4.0d);
+                Vec3d retreatOrigin = new Vec3d(pet.getX(), pet.getY(), pet.getZ());
+                Vec3d retreatTarget = retreatOrigin.add(normalized.multiply(travel));
+                double speed = MathHelper.lerp(retreatVariance, 0.72d, 1.32d);
+                pet.getNavigation().startMovingTo(retreatTarget.x, retreatTarget.y, retreatTarget.z, speed);
+            }
         }
 
         if (accum < 0.001f) {

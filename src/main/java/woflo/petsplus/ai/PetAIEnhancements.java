@@ -5,9 +5,11 @@ import net.minecraft.entity.mob.MobEntity;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.mixin.MobEntityAccessor;
+import net.minecraft.entity.ai.goal.EscapeDangerGoal;
 import woflo.petsplus.ai.goals.CrouchCuddleGoal;
 import woflo.petsplus.ai.goals.EnhancedFollowOwnerGoal;
 import woflo.petsplus.ai.goals.OwnerAssistAttackGoal;
+import woflo.petsplus.ai.goals.special.OnFireScrambleGoal;
 import woflo.petsplus.api.entity.PetsplusTameable;
 
 /**
@@ -32,7 +34,10 @@ public class PetAIEnhancements {
 
             // Crouch cuddle handshake keeps pets cozy near crouching owners
             addCrouchCuddleGoal(pet, petComponent);
-            
+
+            // Replace vanilla panic with nuanced on-fire retreat behaviour
+            addOnFireScrambleGoal(pet, petComponent);
+
             // Improved pathfinding penalties
             adjustPathfindingPenalties(pet, petComponent);
             
@@ -89,6 +94,14 @@ public class PetAIEnhancements {
         MobEntityAccessor accessor = (MobEntityAccessor) pet;
         accessor.getGoalSelector().getGoals().removeIf(entry -> entry.getGoal() instanceof CrouchCuddleGoal);
         accessor.getGoalSelector().add(4, new CrouchCuddleGoal(pet, petComponent));
+    }
+
+    private static void addOnFireScrambleGoal(MobEntity pet, PetComponent petComponent) {
+        MobEntityAccessor accessor = (MobEntityAccessor) pet;
+        accessor.getGoalSelector().getGoals().removeIf(entry ->
+            entry.getGoal() instanceof EscapeDangerGoal
+                || entry.getGoal() instanceof OnFireScrambleGoal);
+        accessor.getGoalSelector().add(1, new OnFireScrambleGoal(pet, petComponent));
     }
     
     /**
