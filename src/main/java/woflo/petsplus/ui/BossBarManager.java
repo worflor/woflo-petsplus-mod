@@ -69,7 +69,6 @@ public final class BossBarManager implements PlayerTickListener {
         removeBossBar(player);
 
         MutableText rawMessage = Text.translatable(messageKey, args)
-            .formatted(Formatting.GRAY)
             .formatted(Formatting.BOLD);
         MutableText displayMessage = sanitizeBossBarTitle(rawMessage);
         BossBarInfo info = new BossBarInfo(displayMessage, durationTicks, color);
@@ -92,7 +91,7 @@ public final class BossBarManager implements PlayerTickListener {
     public static void showTemporaryBossBar(ServerPlayerEntity player, Text message, int durationTicks) {
         UUID playerId = player.getUuid();
         removeBossBar(player);
-        MutableText styled = sanitizeBossBarTitle(message.copy().formatted(Formatting.GRAY));
+        MutableText styled = sanitizeBossBarTitle(message.copy());
         BossBarInfo info = new BossBarInfo(styled, durationTicks, BossBar.Color.PURPLE);
         activeBossBars.put(playerId, info);
         scheduleBossBar(player, info, resolveServerTick(player), false);
@@ -138,13 +137,13 @@ public final class BossBarManager implements PlayerTickListener {
             // Create new boss bar info
             MutableText safeMessage;
             try {
-                safeMessage = sanitizeBossBarTitle(message.copy().formatted(Formatting.GRAY));
+                safeMessage = sanitizeBossBarTitle(message.copy());
             } catch (Exception e) {
                 // Fallback to plain text if formatting fails
                 if (woflo.petsplus.Petsplus.DEBUG_MODE) {
                     woflo.petsplus.Petsplus.LOGGER.warn("Boss bar message formatting failed, using fallback: {}", e.getMessage());
                 }
-                safeMessage = sanitizeBossBarTitle(Text.literal(message.getString()).formatted(Formatting.GRAY));
+                safeMessage = sanitizeBossBarTitle(Text.literal(message.getString()));
             }
 
             info = new BossBarInfo(safeMessage, durationTicks, color);
@@ -183,12 +182,12 @@ public final class BossBarManager implements PlayerTickListener {
 
             MutableText newMsg;
             try {
-                newMsg = sanitizeBossBarTitle(message.copy().formatted(Formatting.GRAY));
+                newMsg = sanitizeBossBarTitle(message.copy());
             } catch (Exception e) {
                 if (woflo.petsplus.Petsplus.DEBUG_MODE) {
                     woflo.petsplus.Petsplus.LOGGER.warn("Boss bar message update formatting failed, using fallback: {}", e.getMessage());
                 }
-                newMsg = sanitizeBossBarTitle(Text.literal(message.getString()).formatted(Formatting.GRAY));
+                newMsg = sanitizeBossBarTitle(Text.literal(message.getString()));
             }
 
             float newPct = clamp01(percent);
@@ -243,7 +242,7 @@ public final class BossBarManager implements PlayerTickListener {
         long scheduleTick = resolveServerTick(player);
         BossBarInfo info = activeBossBars.get(playerId);
         if (info == null) {
-            MutableText sanitized = sanitizeBossBarTitle(message.copy().formatted(Formatting.GRAY));
+            MutableText sanitized = sanitizeBossBarTitle(message.copy());
             info = new BossBarInfo(sanitized, durationTicks, color);
             info.fixedPercent = false;
             activeBossBars.put(playerId, info);
@@ -255,7 +254,7 @@ public final class BossBarManager implements PlayerTickListener {
                 ActionBarUtils.sendActionBar(player, info.message.copy());
             }
         } else {
-            MutableText newMsg = sanitizeBossBarTitle(message.copy().formatted(Formatting.GRAY));
+            MutableText newMsg = sanitizeBossBarTitle(message.copy());
             boolean changed = false;
             String newSignature = createMessageSignature(newMsg);
             if (!newSignature.equals(info.messageSignature)) {
