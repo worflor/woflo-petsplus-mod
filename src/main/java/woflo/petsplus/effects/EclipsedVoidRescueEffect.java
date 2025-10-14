@@ -23,6 +23,7 @@ import woflo.petsplus.api.EffectContext;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.ui.ActionBarUtils;
 
 /**
  * Effect that moves the Eclipsed void-save mechanic into the ability system.
@@ -285,7 +286,7 @@ public class EclipsedVoidRescueEffect implements Effect {
             SoundEvents.ENTITY_SHULKER_TELEPORT, SoundCategory.PLAYERS, 1.0F, 0.6F);
 
         owner.sendMessage(Text.of("§8" + petName + " §5pulled you from the void through shadow magic!"), false);
-        owner.sendMessage(Text.of("§8✦ §5Saved from the void §8✦"), true);
+        ActionBarUtils.sendActionBar(owner, Text.of("§8✦ §5Saved from the void §8✦"));
         owner.sendMessage(Text.of("§8Teleported to safety at: §7" + safeLocation.getX() + ", " + safeLocation.getY() + ", " + safeLocation.getZ()), false);
     }
 }

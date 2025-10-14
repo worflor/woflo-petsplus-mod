@@ -5,6 +5,7 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.text.MutableText;
+import net.minecraft.text.Style;
 import net.minecraft.text.TextColor;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.state.PetComponent;
@@ -21,6 +22,7 @@ import net.minecraft.scoreboard.ScoreHolder;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import woflo.petsplus.state.tracking.PlayerTickListener;
 
@@ -269,12 +271,29 @@ public final class PetInspectionManager {
      * Check if a frame contains animated content that requires forced updates
      */
     private static boolean frameHasAnimation(DisplayFrame frame) {
-        // Frames with mood text or XP flash animations need forced updates
-        // Check if the text string contains mood emoji or color codes that change
+        if (frame == null || frame.text == null) {
+            return false;
+        }
+
+        if (frame.priority == FramePriority.NORMAL) {
+            return true;
+        }
+
         String textStr = frame.text.getString();
-        return textStr.contains("§x") || // Hex colors (used by mood system)
-               textStr.contains("💭") ||  // Mood thought bubble
-               textStr.contains("Lv.");   // Level text (may have XP flash)
+        if (textStr.contains("💭") || textStr.contains("Lv.")) {
+            return true;
+        }
+
+        AtomicBoolean hasDynamicFormatting = new AtomicBoolean(false);
+        frame.text.visit((style, string) -> {
+            if (style != null && (style.getColor() != null || style.isBold() || style.isItalic()
+                || style.isUnderlined() || style.isStrikethrough() || style.isObfuscated())) {
+                hasDynamicFormatting.set(true);
+            }
+            return java.util.Optional.empty();
+        }, Style.EMPTY);
+
+        return hasDynamicFormatting.get();
     }
 
     // Helper methods...

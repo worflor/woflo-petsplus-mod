@@ -24,6 +24,7 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.ui.ActionBarUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -443,7 +444,7 @@ public final class ScoutBackpack {
                 case PLAYER -> Text.translatable("message.petsplus.scout_backpack.route.player");
                 case OFF -> Text.translatable("message.petsplus.scout_backpack.route.off");
             };
-            player.sendMessage(feedback, true);
+            ActionBarUtils.sendActionBar(player, feedback);
             return next;
         }
     }

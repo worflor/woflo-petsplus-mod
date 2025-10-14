@@ -17,6 +17,7 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.util.ChanceValidationUtil;
+import woflo.petsplus.ui.ActionBarUtils;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -87,7 +88,7 @@ public class EepyEeperCore {
                 }
             } else {
                 entry.setValue(remaining);
-                player.sendMessage(Text.translatable("petsplus.eepyeeper.recovery_progress", remaining), true);
+                ActionBarUtils.sendActionBar(player, Text.translatable("petsplus.eepyeeper.recovery_progress", remaining));
             }
         }
     }
