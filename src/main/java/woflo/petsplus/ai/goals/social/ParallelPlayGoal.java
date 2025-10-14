@@ -4,6 +4,7 @@ import net.minecraft.entity.ai.NoPenaltyTargeting;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
@@ -143,7 +144,23 @@ public class ParallelPlayGoal extends AdaptiveGoal {
                 double targetDistanceSq = playSpot.squaredDistanceTo(mob.getX(), mob.getY(), mob.getZ());
                 if (targetDistanceSq > 1.4d) {
                     double speed = computeTravelSpeed(ctx, targetDistanceSq);
-                    mob.getNavigation().startMovingTo(playSpot.x, playSpot.y, playSpot.z, speed);
+                    // Mild lane bias to avoid shoulder-to-shoulder approach shoves
+                    Vec3d moveTarget = playSpot;
+                    if (targetDistanceSq > 1.0d) {
+                        int h = mob.getUuid().hashCode();
+                        double laneSign = ((h >>> 1) & 1) == 0 ? -1.0 : 1.0;
+                        double width = Math.max(0.3d, mob.getWidth());
+                        double laneMag = Math.min(0.35d, 0.25d * width);
+                        Vec3d toTarget = playSpot.subtract(mob.getEntityPos());
+                        double lenSq = toTarget.lengthSquared();
+                        if (lenSq > 1.0e-4d) {
+                            Vec3d perp = new Vec3d(-toTarget.z, 0.0, toTarget.x).normalize().multiply(laneMag * laneSign);
+                            moveTarget = moveTarget.add(perp);
+                        }
+                    }
+                    if ((parallelTicks % 5) == 0 || mob.getNavigation().isIdle()) {
+                        mob.getNavigation().startMovingTo(moveTarget.x, moveTarget.y, moveTarget.z, speed);
+                    }
                     mob.getLookControl().lookAt(owner, 20.0f, 20.0f);
                 } else {
                     performingPlay = true;
@@ -189,6 +206,10 @@ public class ParallelPlayGoal extends AdaptiveGoal {
         double playfulBoost = (ctx != null && ctx.hasPetsPlusComponent()
             && ctx.hasMoodInBlend(PetComponent.Mood.PLAYFUL, 0.3f)) ? 0.12d : 0.0d;
         double speed = 0.6d + distanceFactor * 0.25d + stamina * 0.18d + momentum * 0.12d + playfulBoost;
+        // Mild slowdown near owner to reduce clustering nudges
+        if (ctx != null && ctx.ownerNearby() && ctx.distanceToOwner() < 3.0f) {
+            speed *= 0.88d;
+        }
         return MathHelper.clamp(speed, 0.5d, 1.1d);
     }
 
@@ -203,21 +224,54 @@ public class ParallelPlayGoal extends AdaptiveGoal {
 
     private Vec3d selectPlaySpot(PlayerEntity owner) {
         Vec3d ownerPos = owner.getEntityPos();
-        Vec3d forward = owner.getRotationVec(1.0f).normalize();
-        Vec3d lateral = new Vec3d(-forward.z, 0.0, forward.x);
-        if (lateral.lengthSquared() < 1.0e-4d) {
-            lateral = new Vec3d(1.0, 0.0, 0.0);
-        } else {
-            lateral = lateral.normalize();
-        }
-        double side = mob.getRandom().nextBoolean() ? 1.0d : -1.0d;
-        Vec3d preferred = ownerPos.add(forward.multiply(1.6d)).add(lateral.multiply(side * 2.2d));
-        Vec3d direction = preferred.subtract(mob.getEntityPos());
+        // Deterministic, size-aware slot around owner so multiple pets spread naturally.
+        Vec3d preferred = ownerPos.add(computeOwnerSlot(owner));
         Vec3d candidate = (mob instanceof net.minecraft.entity.mob.PathAwareEntity p) ? NoPenaltyTargeting.find(p, 6, 2) : null;
         if (candidate != null) {
             return candidate;
         }
         return preferred;
+    }
+
+    private Vec3d computeOwnerSlot(PlayerEntity owner) {
+        int h = mob.getUuid().hashCode();
+        double u = ((long)(h & 0x7fffffff)) / (double)0x7fffffff; // [0,1)
+        double angle = u * MathHelper.TAU;
+        double width = Math.max(0.3d, mob.getWidth());
+        // A bit farther than leaning, gives room for play without crowding.
+        double radius = 2.2d + 0.25d * width;
+
+        final double GOLDEN_ANGLE = MathHelper.TAU * 0.38196601125d;
+        final double OCC_MARGIN = 0.20d;
+        Vec3d ownerPos = owner.getEntityPos();
+        Vec3d best = null;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            double ox = Math.cos(angle) * radius;
+            double oz = Math.sin(angle) * radius;
+            Vec3d slotWorld = ownerPos.add(ox, 0.0, oz);
+            if (!isSlotOccupied(owner, slotWorld, width, OCC_MARGIN)) {
+                best = new Vec3d(ox, 0.0, oz);
+                break;
+            }
+            angle += GOLDEN_ANGLE;
+        }
+        if (best == null) {
+            best = new Vec3d(Math.cos(angle) * radius, 0.0, Math.sin(angle) * radius);
+        }
+        return best;
+    }
+
+    private boolean isSlotOccupied(PlayerEntity owner, Vec3d slotWorld, double thisWidth, double occMargin) {
+        double occ = 0.5d * thisWidth + occMargin;
+        Box box = new Box(
+            slotWorld.x - occ, slotWorld.y - 0.75d, slotWorld.z - occ,
+            slotWorld.x + occ, slotWorld.y + 0.75d, slotWorld.z + occ
+        );
+        return !mob.getEntityWorld().getOtherEntities(mob, box, e -> {
+            if (!(e instanceof MobEntity other)) return false;
+            PetComponent pc = PetComponent.get(other);
+            return pc != null && pc.isOwnedBy(owner);
+        }).isEmpty();
     }
 
     private boolean isOwnerEngaged(PlayerEntity owner) {

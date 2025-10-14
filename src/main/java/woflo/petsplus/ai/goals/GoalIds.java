@@ -66,6 +66,7 @@ public final class GoalIds {
     public static final Identifier LEAD_FOLLOW_NUDGE = id("lead_follow_nudge");
     public static final Identifier MIRRORED_YAWN = id("mirrored_yawn");
     public static final Identifier SHOW_AND_DROP = id("show_and_drop");
+    public static final Identifier GIFT_BRINGING = id("gift_bringing");
     public static final Identifier FISH_WATCHING = id("fish_watching");
     public static final Identifier NIGHT_SKY_LISTEN = id("night_sky_listen");
     public static final Identifier SHAKE_DRY = id("shake_dry");

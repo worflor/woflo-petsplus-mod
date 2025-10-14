@@ -12,11 +12,9 @@ import woflo.petsplus.state.tracking.PlayerTickListener;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.WeakHashMap;
 
@@ -31,15 +29,13 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
     private static final double PROXIMITY_RANGE = 3.0;
     private static final double PROXIMITY_RANGE_SQ = PROXIMITY_RANGE * PROXIMITY_RANGE;
     private static final int PROXIMITY_DURATION_TICKS = 30;
-    private static final int APPROACH_HISTORY_SIZE = 3;
-    private static final double APPROACH_ANGLE_THRESHOLD = 0.7;
-    private static final double MIN_APPROACH_SPEED = 0.05;
+    // Legacy approach detection tuning constants (no longer used here) removed.
+    private static final int POST_CUDDLE_PET_WINDOW_TICKS = 10; // ~0.5s window to pet after cuddle completes
 
     private static final Map<ServerPlayerEntity, SneakState> SNEAK_STATES = new WeakHashMap<>();
-    private static final Map<ServerWorld, Map<MobEntity, UUID>> ACTIVE_CHANNEL_OWNERS = new WeakHashMap<>();
-    private static final Map<ServerWorld, Map<MobEntity, Long>> ACTIVE_CHANNEL_EXPIRIES = new WeakHashMap<>();
-    private static final Map<ServerWorld, Set<MobEntity>> ACTIVE_CHANNEL_APPROACHES = new WeakHashMap<>();
+    // Legacy maps removed; single ACTIVE_CHANNELS structure is used.
     private static final Map<ServerWorld, Map<MobEntity, ProximityChannel>> ACTIVE_CHANNELS = new WeakHashMap<>();
+    private static final Map<ServerWorld, Map<MobEntity, PendingProximity>> PENDING_PROXIMITY = new WeakHashMap<>();
 
     private static final OwnerAbilitySignalTracker INSTANCE = new OwnerAbilitySignalTracker();
 
@@ -50,12 +46,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
         return INSTANCE;
     }
 
-    /**
-     * Registers tracker state. All runtime callbacks are driven by mixins.
-     */
-    public static void register() {
-        Petsplus.LOGGER.info("Owner ability signal tracker registered");
-    }
+    // No explicit registration method; PlayerTickListeners registers the singleton.
 
     /**
      * Invoked from mixin when a player's sneaking state changes.
@@ -353,7 +344,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
                 channel.clearCrouchApproach();
                 iterator.remove();
                 component.endCrouchCuddle(channel.ownerId);
-                OwnerAbilitySignalEvent.fire(OwnerAbilitySignalEvent.Type.PROXIMITY_CHANNEL, player, pet);
+                markPendingProximity(world, pet, channel.ownerId, now + POST_CUDDLE_PET_WINDOW_TICKS);
                 continue;
             }
         }
@@ -367,6 +358,53 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
         } else {
             scheduleIdle(state);
         }
+    }
+
+    private static void markPendingProximity(ServerWorld world, MobEntity pet, UUID ownerId, long expiryTick) {
+        if (world == null || pet == null || ownerId == null) {
+            return;
+        }
+        Map<MobEntity, PendingProximity> worldPending = PENDING_PROXIMITY.computeIfAbsent(world, w -> new WeakHashMap<>());
+        worldPending.put(pet, new PendingProximity(ownerId, expiryTick));
+    }
+
+    /**
+     * Called from PettingHandler after a petting interaction. If there is a pending
+     * proximity completion for this pet-owner pair, consumes it and fires the ability signal.
+     */
+    public static void handlePostCuddlePetting(ServerPlayerEntity owner, MobEntity pet) {
+        if (owner == null || pet == null) {
+            return;
+        }
+        if (!(owner.getEntityWorld() instanceof ServerWorld world)) {
+            return;
+        }
+        Map<MobEntity, PendingProximity> worldPending = PENDING_PROXIMITY.get(world);
+        if (worldPending == null) {
+            return;
+        }
+        PendingProximity pending = worldPending.get(pet);
+        if (pending == null) {
+            return;
+        }
+        long now = world.getTime();
+        if (!owner.getUuid().equals(pending.ownerId) || now > pending.expiryTick) {
+            // Not the same owner or expired; clear and skip
+            if (now > pending.expiryTick) {
+                worldPending.remove(pet);
+                if (worldPending.isEmpty()) {
+                    PENDING_PROXIMITY.remove(world);
+                }
+            }
+            return;
+        }
+
+        // Consume and fire
+        worldPending.remove(pet);
+        if (worldPending.isEmpty()) {
+            PENDING_PROXIMITY.remove(world);
+        }
+        OwnerAbilitySignalEvent.fire(OwnerAbilitySignalEvent.Type.PROXIMITY_CHANNEL, owner, pet);
     }
 
     @Override
@@ -481,6 +519,16 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
 
         private void clearCrouchApproach() {
             this.crouchApproachEmitted = false;
+        }
+    }
+
+    private static final class PendingProximity {
+        private final UUID ownerId;
+        private final long expiryTick;
+
+        private PendingProximity(UUID ownerId, long expiryTick) {
+            this.ownerId = ownerId;
+            this.expiryTick = expiryTick;
         }
     }
 }

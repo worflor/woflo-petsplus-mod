@@ -61,6 +61,12 @@ public abstract class ServerPlayNetworkHandlerMixin {
             return;
         }
 
+        // Require an active crouch cuddle with the owner before emitting the shift-interact signal
+        long now = serverWorld.getTime();
+        if (!component.isCrouchCuddleActiveWith(serverPlayer, now)) {
+            return;
+        }
+
         if (mob instanceof TameableEntity tameable && !tameable.isInSittingPose()) {
             return;
         }
@@ -90,4 +96,3 @@ public abstract class ServerPlayNetworkHandlerMixin {
         return isAttack[0];
     }
 }
-
