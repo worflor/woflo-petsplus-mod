@@ -5,6 +5,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 
+import woflo.petsplus.Petsplus;
+
 /**
  * Dispatcher shell for the future owner-centric ticking pipeline.
  *
@@ -51,8 +53,17 @@ public final class PlayerTickDispatcher {
                 continue;
             }
 
-            if (listener.nextRunTick(player) <= currentTick) {
-                listener.run(player, currentTick);
+            try {
+                if (listener.nextRunTick(player) <= currentTick) {
+                    listener.run(player, currentTick);
+                }
+            } catch (Exception ex) {
+                Petsplus.LOGGER.error(
+                    "Player tick listener {} failed for player {}",
+                    listener.getClass().getName(),
+                    player.getName().getString(),
+                    ex
+                );
             }
         }
     }
@@ -77,10 +88,19 @@ public final class PlayerTickDispatcher {
             }
 
             long currentTick = server.getTicks();
-            if (listener.nextRunTick(player) <= currentTick) {
-                listener.run(player, currentTick);
-            } else {
-                dispatch(player, currentTick);
+            try {
+                if (listener.nextRunTick(player) <= currentTick) {
+                    listener.run(player, currentTick);
+                } else {
+                    dispatch(player, currentTick);
+                }
+            } catch (Exception ex) {
+                Petsplus.LOGGER.error(
+                    "Player tick listener {} failed for player {}",
+                    listener.getClass().getName(),
+                    player.getName().getString(),
+                    ex
+                );
             }
         });
     }
