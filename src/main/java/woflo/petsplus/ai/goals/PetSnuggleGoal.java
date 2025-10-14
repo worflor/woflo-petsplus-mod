@@ -265,7 +265,8 @@ public class PetSnuggleGoal extends Goal {
         applyRelationshipPulse(partner, partnerComponent, urgency);
 
         // Soft ambient feedback
-        emitAmbient(world, pet.getEntityPos().add(partner.getPos()).multiply(0.5));
+        Vec3d midpoint = pet.getBoundingBox().getCenter().add(partner.getBoundingBox().getCenter()).multiply(0.5);
+        emitAmbient(world, midpoint);
     }
 
     private static void applySafeHeal(LivingEntity entity, float amount) {
@@ -334,7 +335,7 @@ public class PetSnuggleGoal extends Goal {
             return null;
         }
         PetSwarmIndex index = manager.getSwarmIndex();
-        Vec3d center = pet.getPos();
+        Vec3d center = pet.getBoundingBox().getCenter();
         final Candidate[] best = {null};
         index.forEachPetInRange(center, SEARCH_RADIUS, entry -> {
             if (entry == null) {
