@@ -21,7 +21,7 @@ import net.minecraft.entity.projectile.PersistentProjectileEntity;
 import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryKeys;
-import net.minecraft.registry.RegistryKey;
+
 import net.minecraft.registry.tag.TagKey;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;

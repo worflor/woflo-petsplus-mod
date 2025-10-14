@@ -328,6 +328,9 @@ public class PetComponent {
         public static final String PET_COUNT = "pet_count";
         public static final String LAST_SOCIAL_BUFFER_TICK = "social_buffer_tick";
         public static final String LAST_CROUCH_CUDDLE_TICK = "last_crouch_cuddle_tick";
+        // Snuggle goal state
+        public static final String SNUGGLE_LAST_START_TICK = "snuggle_last_start_tick";
+        public static final String SNUGGLE_COOLDOWN_UNTIL_TICK = "snuggle_cooldown_until_tick";
         public static final String SOCIAL_JITTER_SEED = "social_jitter_seed";
         public static final String GOSSIP_OPT_OUT_UNTIL = "gossip_opt_out_until";
         public static final String GOSSIP_CLUSTER_CURSOR = "gossip_cluster_cursor";

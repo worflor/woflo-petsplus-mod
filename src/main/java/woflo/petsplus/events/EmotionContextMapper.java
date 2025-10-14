@@ -1,6 +1,6 @@
 package woflo.petsplus.events;
 
-import net.minecraft.entity.EntityType;
+
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.damage.DamageTypes;
 import net.minecraft.entity.mob.MobEntity;
