@@ -7,7 +7,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import woflo.petsplus.state.StateManager;
-import woflo.petsplus.state.tracking.PlayerTickDispatcher;
 
 /**
  * Runs lightweight, player-local upkeep without needing global world tick scans.
@@ -19,7 +18,6 @@ public abstract class ServerPlayerEntityTickMixin {
     private void petsplus$onTick(CallbackInfo ci) {
         ServerPlayerEntity player = (ServerPlayerEntity) (Object) this;
         StateManager.forWorld((ServerWorld) player.getEntityWorld()).handleOwnerTick(player);
-        PlayerTickDispatcher.dispatch(player, player.getEntityWorld().getServer().getTicks());
     }
 }
 

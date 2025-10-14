@@ -64,6 +64,7 @@ import woflo.petsplus.state.gossip.GossipTopics;
 import woflo.petsplus.state.gossip.PetGossipLedger;
 import woflo.petsplus.state.gossip.RumorEntry;
 import woflo.petsplus.state.processing.AsyncWorkerBudget;
+import woflo.petsplus.state.tracking.PlayerTickDispatcher;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -431,6 +432,7 @@ public class StateManager {
         PetsplusEffectManager.maybeCleanup(server);
 
         long currentServerTick = server.getTicks();
+        PlayerTickDispatcher.dispatch(player, currentServerTick);
         if (this.nextMaintenanceTick == 0L) {
             this.nextMaintenanceTick = currentServerTick + 20;
         }
