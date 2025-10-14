@@ -292,7 +292,7 @@ public final class AsyncProcessingTelemetry {
         }
         activeJobTotal.add(count);
         activeJobSamples.increment();
-        updateMax(activeJobMax, count);
+        updateMax(maxActiveJobs, count);
     }
 
     public void recordRejectedSubmission() {
