@@ -42,6 +42,16 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
         }
 
         PetComponent component = PetComponent.get(mob);
+        if (ctx.nearbyMobAgeProfile() != null
+            && ctx.nearbyMobAgeProfile().babyFriendlyCount() > 0
+            && Double.isFinite(ctx.nearbyMobAgeProfile().nearestFriendlyBabyDistance())
+            && ctx.nearbyMobAgeProfile().nearestFriendlyBabyDistance() <= 1.5d) {
+            if (component != null) {
+                component.setCooldown(COOLDOWN_KEY, 40);
+            }
+            return false;
+        }
+
         if (component != null) {
             if (component.isOnCooldown(COOLDOWN_KEY)) {
                 return false;

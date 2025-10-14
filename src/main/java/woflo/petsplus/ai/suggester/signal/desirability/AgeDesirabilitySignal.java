@@ -2,6 +2,7 @@ package woflo.petsplus.ai.suggester.signal.desirability;
 
 import net.minecraft.util.Identifier;
 import woflo.petsplus.ai.context.PetContext;
+import woflo.petsplus.ai.context.NearbyMobAgeProfile;
 import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.suggester.signal.DesirabilitySignal;
@@ -21,6 +22,7 @@ public class AgeDesirabilitySignal implements DesirabilitySignal {
     public SignalResult evaluate(GoalDefinition goal, PetContext ctx) {
         float modifier = 1.0f;
         PetContext.AgeCategory age = ctx.getAgeCategory();
+        NearbyMobAgeProfile mobAgeProfile = ctx.nearbyMobAgeProfile();
 
         if (age == PetContext.AgeCategory.YOUNG) {
             if (goal.category() == GoalDefinition.Category.PLAY) {
@@ -41,7 +43,23 @@ public class AgeDesirabilitySignal implements DesirabilitySignal {
             }
         }
 
-        return new SignalResult(modifier, modifier, Map.of("age", age.name()));
+        if (goal.category() == GoalDefinition.Category.SOCIAL && mobAgeProfile != null && mobAgeProfile.hasBabies()) {
+            if (age == PetContext.AgeCategory.YOUNG && mobAgeProfile.babyFriendlyCount() > 0) {
+                modifier *= 1.2f;
+            }
+            if (age != PetContext.AgeCategory.YOUNG && mobAgeProfile.babyHostileCount() > 0) {
+                modifier *= 0.65f;
+            }
+        }
+
+        return new SignalResult(
+            modifier,
+            modifier,
+            Map.of(
+                "age", age.name(),
+                "babies", mobAgeProfile != null ? mobAgeProfile.babyFriendlyCount() + ":" + mobAgeProfile.babyHostileCount() : "0:0"
+            )
+        );
     }
 
     private static boolean isGoal(GoalDefinition goal, Identifier id) {

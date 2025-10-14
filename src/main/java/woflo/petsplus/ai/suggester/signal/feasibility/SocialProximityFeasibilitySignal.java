@@ -2,6 +2,7 @@ package woflo.petsplus.ai.suggester.signal.feasibility;
 
 import net.minecraft.util.Identifier;
 import woflo.petsplus.ai.context.PetContext;
+import woflo.petsplus.ai.context.NearbyMobAgeProfile;
 import woflo.petsplus.ai.context.PetContextCrowdSummary;
 import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.goals.GoalIds;
@@ -38,6 +39,20 @@ public class SocialProximityFeasibilitySignal implements FeasibilitySignal {
             return SignalResult.identity();
         }
 
+        NearbyMobAgeProfile ageProfile = ctx.nearbyMobAgeProfile();
+        if (ageProfile != null && ageProfile.babyHostileCount() > 0) {
+            double hostileDistance = ageProfile.nearestHostileBabyDistance();
+            if (!Double.isFinite(hostileDistance)) {
+                hostileDistance = ageProfile.nearestBabyDistance();
+            }
+            if (Double.isFinite(hostileDistance) && hostileDistance <= 4.0d) {
+                return new SignalResult(0.0f, 0.0f, Map.of(
+                    "reason", "hostile_baby",
+                    "distance", hostileDistance
+                ));
+            }
+        }
+
         if (isOwnerCentric(goal)) {
             if (!ctx.ownerNearby()) {
                 return new SignalResult(0.0f, 0.0f, Map.of("reason", "owner_absent"));
@@ -67,13 +82,19 @@ public class SocialProximityFeasibilitySignal implements FeasibilitySignal {
             ? 0.3f
             : Math.max(0.2f, 0.75f - (distance / 20.0f));
 
+        float safetyPenalty = 1.0f;
+        if (ageProfile != null && ageProfile.babyNeutralCount() > 0) {
+            safetyPenalty = 0.85f;
+        }
+
         return new SignalResult(
             applied,
-            energy,
+            energy * safetyPenalty,
             Map.of(
                 "friendly_count", friendlyCount,
                 "nearest_friendly_distance", distance,
-                "owner_present", ctx.ownerNearby()
+                "owner_present", ctx.ownerNearby(),
+                "baby_safety", safetyPenalty
             )
         );
     }
