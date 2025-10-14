@@ -5,6 +5,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.entity.mob.MobEntity;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.processing.AsyncProcessingTelemetry;
 import woflo.petsplus.state.processing.AsyncWorkCoordinator;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -72,10 +73,16 @@ public final class EmotionStimulusBus {
             Map<Integer, Integer> window = COALESCE_WINDOWS.computeIfAbsent(petId, ignored -> new HashMap<>());
             Integer previousTick = window.get(stimulusKey);
             if (previousTick != null && nowTick - previousTick <= COALESCE_WINDOW_TICKS) {
+                AsyncProcessingTelemetry.STIMULI_COALESCED.incrementAndGet();
                 recordCoalesce(petId, stimulusKey, previousTick, nowTick, 0f);
                 return true;
             }
             window.put(stimulusKey, nowTick);
+            int expiryThreshold = COALESCE_WINDOW_TICKS * 2;
+            window.entrySet().removeIf(entry -> nowTick - entry.getValue() > expiryThreshold);
+            if (window.isEmpty()) {
+                COALESCE_WINDOWS.remove(petId);
+            }
             return false;
         }
     }
@@ -418,11 +425,16 @@ public final class EmotionStimulusBus {
     }
 
     private void drainStimuli(MobEntity pet) {
+        if (pet == null) {
+            return;
+        }
+        long coalesceKey = pet.getUuid().getLeastSignificantBits();
         StimulusWork work;
         synchronized (lock) {
             work = pendingStimuli.remove(pet);
             if (work == null) {
                 clearIdleTask(pet);
+                clearCoalesceWindow(coalesceKey);
                 return;
             }
         }
@@ -458,8 +470,15 @@ public final class EmotionStimulusBus {
 
             moodService.commitStimuli(pet, component, time);
         } finally {
+            clearCoalesceWindow(coalesceKey);
             work.reset();
             recycleWork(work);
+        }
+    }
+
+    private static void clearCoalesceWindow(long petId) {
+        synchronized (COALESCE_LOCK) {
+            COALESCE_WINDOWS.remove(petId);
         }
     }
 

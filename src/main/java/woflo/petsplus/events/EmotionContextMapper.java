@@ -15,6 +15,7 @@ import woflo.petsplus.stats.PetImprint;
 
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -65,10 +66,13 @@ public class EmotionContextMapper {
         public final PetImprint personality;
         public final float healthRatio;
         public final float ownerHealthRatio;
+        public final UUID ownerUuid;
+        public final boolean actorIsOwner;
         
         public ContextFactors(float eventImportance, float relationshipStrength, float personalSafety,
                             float ownerSafety, boolean isFirstTime, boolean isHighIntensityMoment,
-                            PetImprint personality, float healthRatio, float ownerHealthRatio) {
+                            PetImprint personality, float healthRatio, float ownerHealthRatio,
+                            UUID ownerUuid, boolean actorIsOwner) {
             this.eventImportance = MathHelper.clamp(eventImportance, 0f, 1f);
             this.relationshipStrength = MathHelper.clamp(relationshipStrength, 0f, 1f);
             this.personalSafety = MathHelper.clamp(personalSafety, 0f, 1f);
@@ -78,6 +82,8 @@ public class EmotionContextMapper {
             this.personality = personality;
             this.healthRatio = MathHelper.clamp(healthRatio, 0f, 1f);
             this.ownerHealthRatio = MathHelper.clamp(ownerHealthRatio, 0f, 1f);
+            this.ownerUuid = ownerUuid;
+            this.actorIsOwner = actorIsOwner;
         }
     }
     
@@ -299,6 +305,7 @@ public class EmotionContextMapper {
                                                    boolean isOwnerAttacker, boolean isPetVictim) {
         
         PlayerEntity owner = petComp.getOwner();
+        UUID ownerUuid = petComp.getOwnerUuid();
         float relationshipStrength = calculateRelationshipStrength(petComp);
         
         // Add validation for health calculations to prevent division by zero
@@ -314,6 +321,11 @@ public class EmotionContextMapper {
             if (ownerMaxHealth > 0) {
                 ownerSafety = owner.getHealth() / ownerMaxHealth;
             }
+        }
+
+        boolean attackerIsOwner = false;
+        if (source.getAttacker() instanceof PlayerEntity attacker) {
+            attackerIsOwner = ownerUuid != null && ownerUuid.equals(attacker.getUuid());
         }
         
         boolean isFirstTime = isFirstTimeExperience(petComp, "combat_damage");
@@ -334,7 +346,9 @@ public class EmotionContextMapper {
             isHighIntensity,
             petComp.getImprint(),
             petHealthRatio,
-            ownerSafety
+            ownerSafety,
+            ownerUuid,
+            attackerIsOwner
         );
     }
     
@@ -344,12 +358,16 @@ public class EmotionContextMapper {
         
         float relationshipStrength = calculateRelationshipStrength(petComp);
         boolean isFirstTime = isFirstTimeExperience(petComp, type.name());
+        UUID ownerUuid = petComp.getOwnerUuid();
+        boolean actorIsOwner = player != null && ownerUuid != null && ownerUuid.equals(player.getUuid());
         
         // Add validation for health calculations
-        float playerMaxHealth = player.getMaxHealth();
         float playerHealthRatio = 1f;
-        if (playerMaxHealth > 0) {
-            playerHealthRatio = player.getHealth() / playerMaxHealth;
+        if (player != null) {
+            float playerMaxHealth = player.getMaxHealth();
+            if (playerMaxHealth > 0) {
+                playerHealthRatio = player.getHealth() / playerMaxHealth;
+            }
         }
         
         float petMaxHealth = pet.getMaxHealth();
@@ -367,7 +385,9 @@ public class EmotionContextMapper {
             type == SocialInteractionType.BREEDING || type == SocialInteractionType.TRIBUTE,
             petComp.getImprint(),
             petHealthRatio,
-            playerHealthRatio
+            playerHealthRatio,
+            ownerUuid,
+            actorIsOwner
         );
     }
     
@@ -394,7 +414,9 @@ public class EmotionContextMapper {
             isHighIntensity,
             petComp.getImprint(),
             petHealthRatio,
-            1f
+            1f,
+            petComp.getOwnerUuid(),
+            false
         );
     }
     
@@ -540,6 +562,7 @@ public class EmotionContextMapper {
         addEmotion(emotions, PetComponent.Emotion.LOYALTY, 0.6f, context);
         addEmotion(emotions, PetComponent.Emotion.PLAYFULNESS, 0.5f, context);
         addEmotion(emotions, PetComponent.Emotion.CONTENT, 0.4f, context);
+        addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.35f, context);
     }
     
     private static void mapTributeEmotions(Map<PetComponent.Emotion, Float> emotions, ContextFactors context) {
@@ -577,8 +600,16 @@ public class EmotionContextMapper {
     
     // Personality trait helper methods
     private static boolean isPetOwner(PlayerEntity player, ContextFactors context) {
-        // This would need to be implemented based on how pet ownership is tracked
-        return false; // Placeholder
+        if (player == null || context == null) {
+            return false;
+        }
+        if (context.actorIsOwner) {
+            return true;
+        }
+        if (context.ownerUuid != null) {
+            return context.ownerUuid.equals(player.getUuid());
+        }
+        return false;
     }
     
     private static boolean isPlayfulPersonality(PetImprint personality) {

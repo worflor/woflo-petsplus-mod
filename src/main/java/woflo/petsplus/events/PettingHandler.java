@@ -97,12 +97,14 @@ public class PettingHandler {
 
         // Relationship tracking - record petting interaction
         RelationshipEventHandler.onPetPetted(pet, player);
-        
-        // Emotion push: affiliative uplift
-        petComp.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.6f);
-        petComp.pushEmotion(PetComponent.Emotion.UBUNTU, 0.4f);
-        petComp.pushEmotion(PetComponent.Emotion.QUERECIA, 0.4f);
-        petComp.updateMood();
+
+        EmotionProcessor.processSocialInteraction(
+            pet,
+            petComp,
+            player,
+            EmotionContextMapper.SocialInteractionType.PETTING,
+            new PettingContext(newCount, currentTime)
+        );
 
         // Achievement tracking - fire interaction criterion
         woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_INTERACTION.trigger(
@@ -256,6 +258,6 @@ public class PettingHandler {
     public static double getPettingBoostMultiplier() {
         return PetsPlusConfig.getInstance().getPettingBoostMultiplier();
     }
+
+    private record PettingContext(int petCount, long worldTime) {}
 }
-
-

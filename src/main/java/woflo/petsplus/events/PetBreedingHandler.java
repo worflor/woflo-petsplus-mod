@@ -30,10 +30,6 @@ import java.util.UUID;
  * metadata for the newborn while keeping the base breeding flow untouched.
  */
 public final class PetBreedingHandler {
-    private static final float EMOTION_PULSE_PRIMARY = 0.35f;
-    private static final float EMOTION_PULSE_SECONDARY = 0.25f;
-    private static final float EMOTION_PULSE_CHILD = 0.40f;
-
     private PetBreedingHandler() {
     }
 
@@ -236,16 +232,34 @@ public final class PetBreedingHandler {
         if (component == null) {
             return;
         }
-        component.pushEmotion(PetComponent.Emotion.LOYALTY, EMOTION_PULSE_PRIMARY);
-        component.pushEmotion(PetComponent.Emotion.PLAYFULNESS, EMOTION_PULSE_SECONDARY);
+        MobEntity pet = component.getPetEntity();
+        if (pet == null) {
+            return;
+        }
+        EmotionProcessor.processSocialInteraction(
+            pet,
+            component,
+            component.getOwner(),
+            EmotionContextMapper.SocialInteractionType.BREEDING,
+            null
+        );
     }
 
     private static void pulseChildEmotions(@Nullable PetComponent component) {
         if (component == null) {
             return;
         }
-        component.pushEmotion(PetComponent.Emotion.CHEERFUL, EMOTION_PULSE_CHILD);
-        component.pushEmotion(PetComponent.Emotion.LOYALTY, EMOTION_PULSE_PRIMARY);
+        MobEntity pet = component.getPetEntity();
+        if (pet == null) {
+            return;
+        }
+        EmotionProcessor.processSocialInteraction(
+            pet,
+            component,
+            component.getOwner(),
+            EmotionContextMapper.SocialInteractionType.BREEDING,
+            null
+        );
     }
 
     private static PlayerEntity resolveOwner(AnimalEntity entity, @Nullable PetComponent component) {

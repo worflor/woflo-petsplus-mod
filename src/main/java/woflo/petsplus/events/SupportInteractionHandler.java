@@ -133,8 +133,17 @@ public class SupportInteractionHandler {
         }
         EmotionContextCues.sendCue(serverPlayer, cueId, message, 200);
 
+        EmotionProcessor.processSocialInteraction(
+            mob,
+            comp,
+            serverPlayer,
+            EmotionContextMapper.SocialInteractionType.HEALING,
+            new SupportPotionContext(outcome.replaced(), outcome.toppedUp(), comp.getLevel())
+        );
+
         return ActionResult.SUCCESS;
     }
-}
 
+    private record SupportPotionContext(boolean replaced, boolean toppedUp, int petLevel) {}
+}
 

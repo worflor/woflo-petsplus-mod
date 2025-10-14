@@ -147,6 +147,7 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
         );
         try {
             executor.execute(task);
+            AsyncProcessingTelemetry.TASKS_ENQUEUED.incrementAndGet();
         } catch (RejectedExecutionException ex) {
             task.cancel(ex);
             return completion;
@@ -202,6 +203,7 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
         );
         try {
             executor.execute(task);
+            AsyncProcessingTelemetry.TASKS_ENQUEUED.incrementAndGet();
         } catch (RejectedExecutionException ex) {
             task.cancel(ex);
             return completion;
@@ -221,9 +223,10 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
             result = job.run(snapshot);
         } catch (Throwable throwable) {
             failure = throwable;
-        } finally {
-            telemetry.recordAsyncDuration(System.nanoTime() - start);
         }
+        long duration = System.nanoTime() - start;
+        telemetry.recordAsyncDuration(duration);
+        AsyncProcessingTelemetry.TASKS_EXECUTED.incrementAndGet();
 
         try {
             if (failure != null) {
@@ -273,9 +276,10 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
             result = job.call();
         } catch (Throwable throwable) {
             failure = throwable;
-        } finally {
-            telemetry.recordAsyncDuration(System.nanoTime() - start);
         }
+        long duration = System.nanoTime() - start;
+        telemetry.recordAsyncDuration(duration);
+        AsyncProcessingTelemetry.TASKS_EXECUTED.incrementAndGet();
 
         try {
             if (failure != null) {
@@ -420,6 +424,7 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
     }
 
     private <T> CompletableFuture<T> rejectThrottled(String message) {
+        AsyncProcessingTelemetry.TASKS_DROPPED.incrementAndGet();
         telemetry.recordThrottledSubmission();
         return rejectedFuture(message);
     }
@@ -550,6 +555,7 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
                 activeJobs.decrementAndGet();
                 telemetry.recordActiveJobs(activeJobs.get());
                 telemetry.recordRejectedSubmission();
+                AsyncProcessingTelemetry.TASKS_DROPPED.incrementAndGet();
                 if (cause == null) {
                     cause = new RejectedExecutionException("Async task cancelled");
                 }

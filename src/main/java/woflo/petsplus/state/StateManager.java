@@ -473,6 +473,7 @@ public class StateManager {
     }
 
     public void processScheduledPetTasks(long currentTick) {
+        AsyncMigrationProgressTracker.markComplete(AsyncMigrationProgressTracker.Phase.PET_STATE);
         AsyncMigrationProgressTracker.markComplete(AsyncMigrationProgressTracker.Phase.ADVANCED_SYSTEMS);
         asyncWorkCoordinator.drainMainThreadTasks();
         adaptiveTickScaler.recordTick();
@@ -1960,6 +1961,7 @@ public class StateManager {
         private void runBatch(OwnerBatchContext context,
                               long currentTick,
                               boolean markEvents) {
+            AsyncProcessingTelemetry.OWNER_BATCHES.incrementAndGet();
             context.batch().forEachBucket((type, tasks) -> executeBucket(type, tasks, context, currentTick));
             handleDueEvents(context, context.dueEvents(), currentTick, markEvents);
         }
