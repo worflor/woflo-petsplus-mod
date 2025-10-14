@@ -669,6 +669,32 @@ public final class GoalRegistry {
             false,
             NightSkyListenGoal::new
         ));
+        
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.SHAKE_DRY,
+            Category.IDLE_QUIRK,
+            25,
+            300,
+            900,
+            MobCapabilities.CapabilityRequirement.any(),
+            new Vec2f(0.0f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            ShakeDryGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.GO_TO_DRYING_BLOCK,
+            Category.SPECIAL,
+            17,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
+            new Vec2f(0.3f, 0.7f),
+            IdleStaminaBias.NONE,
+            false,
+            GoToDryingBlockGoal::new
+        ));
     }
 
     private GoalRegistry() {

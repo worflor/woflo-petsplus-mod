@@ -39,9 +39,10 @@ public class PettingHandler {
         if (!player.getStackInHand(hand).isEmpty()) return ActionResult.PASS;
         if (!player.isSneaking()) return ActionResult.PASS;
 
-        // Must be a pet owned by this player
+        // Must be a pet (ownership optional; non-owners allowed with reduced effects)
         PetComponent petComp = PetComponent.get(mob);
-        if (petComp == null || !petComp.isOwnedBy(player)) return ActionResult.PASS;
+        if (petComp == null) return ActionResult.PASS;
+        boolean isOwner = petComp.isOwnedBy(player);
 
         // Skip petting for rideable entities when they could be mounted
         // Let vanilla handle mounting, then petting can happen when already mounted
@@ -51,7 +52,7 @@ public class PettingHandler {
 
         // petComp is guaranteed non-null at this point
 
-        // Check cooldown
+        // Check cooldown (pet-wide)
         long currentTime = world.getTime();
         PetsPlusConfig config = PetsPlusConfig.getInstance();
         int cooldownTicks = config.getPettingCooldownTicks();
@@ -67,12 +68,12 @@ public class PettingHandler {
         }
 
         // Perform petting
-        performPetting(serverPlayer, mob, petComp, currentTime);
+        performPetting(serverPlayer, mob, petComp, currentTime, isOwner);
         
         return ActionResult.SUCCESS;
     }
 
-    private static void performPetting(ServerPlayerEntity player, MobEntity pet, PetComponent petComp, long currentTime) {
+    private static void performPetting(ServerPlayerEntity player, MobEntity pet, PetComponent petComp, long currentTime, boolean isOwner) {
         ServerWorld world = (ServerWorld) pet.getEntityWorld();
         Identifier roleId = petComp.getRoleId();
 
@@ -82,16 +83,32 @@ public class PettingHandler {
         int newCount = (currentCount == null ? 0 : currentCount) + 1;
         petComp.setStateData(PetComponent.StateKeys.PET_COUNT, newCount);
 
-        // Base petting effects
-        emitBasePettingEffects(player, pet, world, newCount);
+        // Base petting effects (reduced for non-owners)
+        if (isOwner) {
+            emitBasePettingEffects(player, pet, world, newCount);
+        } else {
+            emitNonOwnerPettingEffects(player, pet, world);
+        }
 
-        // Role-specific effects
-        emitRoleSpecificEffects(player, pet, world, roleId);
+        // Role-specific effects (owner-only)
+        if (isOwner) {
+            emitRoleSpecificEffects(player, pet, world, roleId);
+        }
 
-        // Bonding benefits (small XP bonus, temporary buffs)
-        applyBondingBenefits(player, pet, petComp);
+        // Bonding benefits (owner-only)
+        if (isOwner) {
+            applyBondingBenefits(player, pet, petComp);
+        }
 
-        emitPettingCues(player, pet, newCount);
+        // Petting cues
+        if (isOwner) {
+            emitPettingCues(player, pet, newCount);
+        } else {
+            EmotionContextCues.sendCue(player,
+                "petting.curiosity." + pet.getUuidAsString(),
+                Text.translatable("petsplus.emotion_cue.petting.curiosity", pet.getDisplayName()),
+                80);
+        }
 
         // Relationship tracking - record petting interaction
         RelationshipEventHandler.onPetPetted(pet, player);
@@ -104,12 +121,14 @@ public class PettingHandler {
             new PettingContext(newCount, currentTime)
         );
 
-        // Achievement tracking - fire interaction criterion
-        woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_INTERACTION.trigger(
-            player,
-            woflo.petsplus.advancement.criteria.PetInteractionCriterion.INTERACTION_PETTING,
-            newCount
-        );
+        // Achievement tracking - owner-only
+        if (isOwner) {
+            woflo.petsplus.advancement.AdvancementCriteriaRegistry.PET_INTERACTION.trigger(
+                player,
+                woflo.petsplus.advancement.criteria.PetInteractionCriterion.INTERACTION_PETTING,
+                newCount
+            );
+        }
     }
 
     private static void emitBasePettingEffects(ServerPlayerEntity player, MobEntity pet, ServerWorld world, int petCount) {
@@ -125,6 +144,21 @@ public class PettingHandler {
         EmotionContextCues.sendCue(player,
             "petting.message." + pet.getUuidAsString(),
             Text.literal(message),
+            0);
+    }
+
+    private static void emitNonOwnerPettingEffects(ServerPlayerEntity player, MobEntity pet, ServerWorld world) {
+        // Lighter hearts + neutral curiosity sparkles
+        FeedbackManager.emitFeedback("pet_hearts_light", pet, world);
+        FeedbackManager.emitFeedback("contagion_neutral", pet, world);
+
+        // Softer, generic happy sound
+        FeedbackManager.emitFeedback("pet_generic_happy", pet, world);
+
+        // Subtle message to petter
+        EmotionContextCues.sendCue(player,
+            "petting.message.nonowner." + pet.getUuidAsString(),
+            Text.literal("It tilts its head, curious."),
             0);
     }
 

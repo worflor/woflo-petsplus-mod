@@ -523,6 +523,12 @@ public class FeedbackConfig {
                 new ParticleConfig(ParticleTypes.HEART, 4, 0.25, 0.3, 0.25, 0.02, "burst", 0.5, true)
             ), null, 0, true);
         }
+        // Lighter variant for non-owner petting
+        if (!FEEDBACK_REGISTRY.containsKey("pet_hearts_light")) {
+            register("pet_hearts_light", List.of(
+                new ParticleConfig(ParticleTypes.HEART, 2, 0.20, 0.28, 0.20, 0.01, "burst", 0.4, true)
+            ), null, 0, true);
+        }
 
         // Pet sounds (these will be overridden by specific pet types)
         register("pet_wolf_happy", List.of(), 

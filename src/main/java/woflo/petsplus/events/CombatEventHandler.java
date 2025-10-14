@@ -51,6 +51,7 @@ import woflo.petsplus.roles.striker.StrikerExecution.ExecutionKillSummary;
 import woflo.petsplus.roles.striker.StrikerHuntManager;
 import woflo.petsplus.ui.UIFeedbackManager;
 import woflo.petsplus.util.BehaviorSeedUtil;
+import woflo.petsplus.util.TriggerConditions;
 
 import java.util.Comparator;
 import java.util.HashMap;
@@ -100,6 +101,8 @@ public class CombatEventHandler {
     private static final int OWNER_INTERCEPT_COOLDOWN_TICKS = 40;
     private static final TagKey<EntityType<?>> VANILLA_CREEPER_SOOTHER_TAG = TagKey.of(RegistryKeys.ENTITY_TYPE, Identifier.of("minecraft", "scares_creepers"));
     private static final float OWNER_LOW_HEALTH_THRESHOLD = 0.45f;
+    private static final String STATE_COMBAT_START_TICK = "combat_encounter_start";
+    private static final String STATE_COMBAT_RELIEF_TICK = "combat_relief_last";
 
     public static void register() {
         // Register damage events
@@ -635,6 +638,9 @@ public class CombatEventHandler {
         OwnerCombatState combatState = OwnerCombatState.getOrCreate(owner);
         combatState.onHitTaken();
         long now = owner.getEntityWorld().getTime();
+        if (!combatState.hasTempState(STATE_COMBAT_START_TICK)) {
+            combatState.setTempState(STATE_COMBAT_START_TICK, now);
+        }
 
         if (isFallDamage(damageSource)) {
             Map<String, Object> payload = new HashMap<>();
@@ -651,7 +657,8 @@ public class CombatEventHandler {
         float healthAfter = damageAlreadyApplied ? currentHealth : Math.max(0f, currentHealth - amount);
         float maxHealth = Math.max(1f, owner.getMaxHealth());
         double healthPct = healthAfter / maxHealth;
-        
+        boolean lightHit = amount < maxHealth * 0.10f;
+
         if (healthPct <= 0.35) { // 35% health threshold
             triggerAbilitiesForOwner(owner, "on_owner_low_health");
         }
@@ -690,36 +697,45 @@ public class CombatEventHandler {
 
                     float hazardSeverity = PetMoodEngine.computeStatusHazardSeverity(owner);
                     if (hazardSeverity > 0f) {
-                        pc.setStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_TICK, now);
-                        pc.setStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_SEVERITY, hazardSeverity);
-                    }
+                    pc.setStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_TICK, now);
+                    pc.setStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_SEVERITY, hazardSeverity);
+                }
 
-                    float closeness = 0.35f + 0.65f * proximityFactor(owner, pet, 32.0);
-                    float angstWeight = scaledAmount(0.16f, 0.50f, damageIntensity) * closeness;
-                    float vigilWeight = scaledAmount(0.20f + (0.18f * ownerDangerFactor), 0.55f, damageIntensity) * closeness;
-                    float startleWeight = scaledAmount(0.10f, 0.40f, damageIntensity);
-                    float frustrationWeight = scaledAmount(0.04f, 0.30f, damageIntensity) * closeness;
-                    float forebodingWeight = ownerDangerFactor > 0f
-                        ? scaledAmount(0.05f, 0.40f, Math.max(ownerDangerFactor, damageIntensity)) * closeness
-                        : 0f;
+                float closeness = 0.35f + 0.65f * proximityFactor(owner, pet, 32.0);
+                float angstWeight = scaledAmount(0.16f, 0.50f, damageIntensity) * closeness;
+                float vigilWeight = scaledAmount(0.20f + (0.18f * ownerDangerFactor), 0.55f, damageIntensity) * closeness;
+                float startleWeight = scaledAmount(0.10f, 0.40f, damageIntensity);
+                float frustrationWeight = scaledAmount(0.04f, 0.30f, damageIntensity) * closeness;
+                float forebodingWeight = ownerDangerFactor > 0f
+                    ? scaledAmount(0.05f, 0.40f, Math.max(ownerDangerFactor, damageIntensity)) * closeness
+                    : 0f;
+                float protectiveWeight = scaledAmount(0.14f + (0.16f * ownerDangerFactor), 0.52f,
+                    Math.max(ownerDangerFactor, damageIntensity)) * closeness;
 
-                    if (angstWeight > 0f) {
+                if (angstWeight > 0f) {
+                    if (lightHit) {
+                        pc.pushEmotion(PetComponent.Emotion.WORRIED, angstWeight);
+                    } else {
                         pc.pushEmotion(PetComponent.Emotion.ANGST, angstWeight);
                     }
-                    if (vigilWeight > 0f) {
-                        pc.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, vigilWeight);
-                    }
-                    if (startleWeight > 0f) {
-                        pc.pushEmotion(PetComponent.Emotion.STARTLE, startleWeight);
-                    }
-                    if (frustrationWeight > 0f) {
-                        pc.pushEmotion(PetComponent.Emotion.FRUSTRATION, frustrationWeight);
-                    }
-                    if (forebodingWeight > 0f) {
-                        pc.pushEmotion(PetComponent.Emotion.FOREBODING, forebodingWeight);
-                    }
+                }
+                if (vigilWeight > 0f) {
+                    pc.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, vigilWeight);
+                }
+                if (startleWeight > 0f) {
+                    pc.pushEmotion(PetComponent.Emotion.STARTLE, startleWeight);
+                }
+                if (frustrationWeight > 0f) {
+                    pc.pushEmotion(PetComponent.Emotion.FRUSTRATION, frustrationWeight);
+                }
+                if (forebodingWeight > 0f) {
+                    pc.pushEmotion(PetComponent.Emotion.FOREBODING, forebodingWeight);
+                }
+                if (protectiveWeight > 0f) {
+                    pc.pushEmotion(PetComponent.Emotion.PROTECTIVE, protectiveWeight);
                 }
             }
+        }
         }
 
         maybeCommandIntercept(owner, combatState, damageSource, now);
@@ -734,6 +750,9 @@ public class CombatEventHandler {
         combatState.enterCombat();
         long now = owner.getEntityWorld().getTime();
         combatState.markOwnerInterference(now);
+        if (!combatState.hasTempState(STATE_COMBAT_START_TICK)) {
+            combatState.setTempState(STATE_COMBAT_START_TICK, now);
+        }
 
         float modifiedDamage = damage;
 
@@ -848,11 +867,13 @@ public class CombatEventHandler {
                     } else {
                         float vigilWeight = scaledAmount(0.18f, 0.45f, intensity) * closeness;
                         float hopefulWeight = 0f;
+                        float protectiveWeight = 0f;
                         if (victimIsHostile) {
                             float petHealthRatio = pet.getHealth() / pet.getMaxHealth();
                             if (petHealthRatio > 0.75f) {
                                 hopefulWeight = scaledAmount(0.06f, 0.20f, Math.max(intensity, finishFactor)) * (0.75f + 0.25f * closeness) * petHealthRatio;
                             }
+                            protectiveWeight = scaledAmount(0.14f, 0.38f, Math.max(intensity, ownerPeril)) * closeness;
                         }
                         float stoicWeight = finishFactor > 0f
                             ? scaledAmount(0.05f, 0.30f, finishFactor) * (0.65f + 0.35f * closeness)
@@ -866,22 +887,40 @@ public class CombatEventHandler {
                         } else {
                             float regretWeight = scaledAmount(0.08f, 0.30f, intensity);
                             float wistfulWeight = scaledAmount(0.04f, 0.22f, Math.max(intensity, finishFactor)) * (0.6f + 0.4f * closeness);
+                            float melancholyWeight = scaledAmount(0.06f, 0.24f, Math.max(intensity, finishFactor)) * (0.7f + 0.3f * closeness);
                             if (regretWeight > 0f) {
                                 pc.pushEmotion(PetComponent.Emotion.REGRET, regretWeight);
                             }
                             if (wistfulWeight > 0f) {
                                 pc.pushEmotion(PetComponent.Emotion.HIRAETH, wistfulWeight);
                             }
+                            if (melancholyWeight > 0f) {
+                                pc.pushEmotion(PetComponent.Emotion.MELANCHOLY, melancholyWeight);
+                            }
                         }
 
                         if (vigilWeight > 0f) {
                             pc.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, vigilWeight);
+                        }
+                        if (protectiveWeight > 0f) {
+                            pc.pushEmotion(PetComponent.Emotion.PROTECTIVE, protectiveWeight);
                         }
                         if (hopefulWeight > 0f) {
                             pc.pushEmotion(PetComponent.Emotion.HOPEFUL, hopefulWeight);
                         }
                         if (stoicWeight > 0f) {
                             pc.pushEmotion(PetComponent.Emotion.STOIC, stoicWeight);
+                        }
+
+                        if (victimIsHostile && victim instanceof LivingEntity livingVictim) {
+                            boolean petEngaged = pet.getTarget() == livingVictim || livingVictim.getAttacker() == pet;
+                            if (petEngaged && livingVictim.getMaxHealth() >= pet.getMaxHealth() * 2.0f) {
+                                float sisuWeight = scaledAmount(0.10f, 0.32f,
+                                    Math.max(intensity, finishFactor)) * (0.75f + 0.25f * closeness);
+                                if (sisuWeight > 0f) {
+                                    pc.pushEmotion(PetComponent.Emotion.SISU, sisuWeight);
+                                }
+                            }
                         }
                     }
                 }
@@ -941,6 +980,10 @@ public class CombatEventHandler {
                         if (petHealthRatio > 0.8f) {
                             float hopefulWeight = scaledAmount(0.08f, 0.25f, intensity) * closeness * petHealthRatio;
                             pc.pushEmotion(PetComponent.Emotion.HOPEFUL, hopefulWeight);
+                        }
+                        if (target.getMaxHealth() >= pet.getMaxHealth() * 1.5f) {
+                            float prideWeight = scaledAmount(0.08f, 0.26f, intensity) * (0.7f + 0.3f * closeness);
+                            pc.pushEmotion(PetComponent.Emotion.PRIDE, prideWeight);
                         }
                         pc.pushEmotion(PetComponent.Emotion.CHEERFUL, cheerfulWeight);
                         pc.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, vigilWeight);
@@ -1704,6 +1747,12 @@ public class CombatEventHandler {
             float protectiveBase = scaledAmount(0.18f, 0.40f, triumphScale);
             float stoicBase = scaledAmount(0.16f, 0.35f, triumphScale);
             float cheerfulBase = scaledAmount(0.14f, 0.30f, triumphScale);
+            boolean bossKill = TriggerConditions.isBossEntity(mobVictim);
+            if (bossKill || mobVictim.getMaxHealth() >= pet.getMaxHealth() * 1.5f) {
+                float prideScale = MathHelper.clamp(relativeStrength / 2.0f, 0f, 1f);
+                petComponent.pushEmotion(PetComponent.Emotion.PRIDE,
+                    scaledAmount(0.22f, 0.48f, Math.max(prideScale, triumphScale)));
+            }
 
             petComponent.pushEmotion(PetComponent.Emotion.CHEERFUL, cheerfulBase);
             petComponent.pushEmotion(PetComponent.Emotion.STOIC, stoicBase);
@@ -1895,11 +1944,25 @@ public class CombatEventHandler {
             if (reachedLimit) {
                 combatState.resetAssistChain(now);
             }
+            if (combatState.getTimeSinceLastHit() > 60) {
+                combatState.clearTempState(STATE_COMBAT_START_TICK);
+                combatState.clearTempState(STATE_COMBAT_RELIEF_TICK);
+            }
         }
 
         if (petComponent != null) {
             float closeness = owner != null ? 0.35f + 0.65f * proximityFactor(owner, pet, 16.0) : 0.7f;
-            petComponent.pushEmotion(PetComponent.Emotion.RELIEF, scaledAmount(0.08f, 0.24f, closeness));
+            float reliefBase = scaledAmount(0.08f, 0.24f, closeness);
+            long encounterStart = combatState != null ? combatState.getTempState(STATE_COMBAT_START_TICK) : 0L;
+            long lastReliefWave = combatState != null ? combatState.getTempState(STATE_COMBAT_RELIEF_TICK) : 0L;
+            if (encounterStart > 0 && now - encounterStart >= 600L
+                && (combatState == null || now - lastReliefWave >= 200L)) {
+                reliefBase += 0.18f;
+                if (combatState != null) {
+                    combatState.setTempState(STATE_COMBAT_RELIEF_TICK, now);
+                }
+            }
+            petComponent.pushEmotion(PetComponent.Emotion.RELIEF, reliefBase);
             petComponent.pushEmotion(PetComponent.Emotion.LOYALTY, scaledAmount(0.10f, 0.26f, closeness));
             if (applyRegroup) {
                 OwnerAssistAttackGoal.markAssistRegroup(petComponent, now);

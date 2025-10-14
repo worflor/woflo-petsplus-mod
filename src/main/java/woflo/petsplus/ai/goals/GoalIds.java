@@ -68,4 +68,6 @@ public final class GoalIds {
     public static final Identifier SHOW_AND_DROP = id("show_and_drop");
     public static final Identifier FISH_WATCHING = id("fish_watching");
     public static final Identifier NIGHT_SKY_LISTEN = id("night_sky_listen");
+    public static final Identifier SHAKE_DRY = id("shake_dry");
+    public static final Identifier GO_TO_DRYING_BLOCK = id("go_to_drying_block");
 }

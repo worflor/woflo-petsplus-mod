@@ -17,6 +17,9 @@ import net.minecraft.entity.SpawnGroup;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.mob.HostileEntity;
+import net.minecraft.entity.mob.HuskEntity;
+import net.minecraft.entity.mob.SlimeEntity;
+import net.minecraft.entity.mob.ZombieEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.passive.VillagerEntity;
 import net.minecraft.entity.passive.AbstractHorseEntity;
@@ -182,6 +185,16 @@ public final class EmotionsEventHandler {
     private static final String STATE_LEASH_SMOOTH_OWNER_FORWARD = "social_leash_smooth_owner_forward";
     private static final String STATE_LEASH_SMOOTH_PET_FORWARD = "social_leash_smooth_pet_forward";
     private static final String STATE_LEASH_LAST_SAMPLE_TICK = "social_leash_last_sample_tick";
+    private static final String STATE_OWNER_LAST_FAR_TICK = "social_owner_last_far_tick";
+    private static final String STATE_OWNER_LAST_REUNION_TICK = "social_owner_last_reunion_tick";
+    private static final String STATE_LONELINESS_START_TICK = "environment_lonely_since";
+    private static final String STATE_LONELINESS_LAST_TRIGGER_TICK = "environment_lonely_trigger";
+    private static final long OWNER_REUNION_COOLDOWN_TICKS = 600L;
+    private static final long LONELINESS_DURATION_TICKS = 300L;
+    private static final long LONELINESS_TRIGGER_COOLDOWN_TICKS = 600L;
+    private static final long HOME_AWAY_DURATION_TICKS = 72000L;
+    private static final long HOME_REUNION_COOLDOWN_TICKS = 2400L;
+    private static final double HOME_RADIUS = 24.0d;
     private static final long LEASH_SOCIAL_COOLDOWN_TICKS = 200L;
     private static final long LEASH_MODE_SETTLE_TICKS = 40L;
     private static final long LEASH_SOCIAL_REFRESH_TICKS = 800L;
@@ -194,6 +207,35 @@ public final class EmotionsEventHandler {
     private static final double LEASH_FORWARD_DELTA_THRESHOLD = 0.045d;
     private static final double LEASH_STILL_SPEED_SQ = 0.0025d;
     private static final double LEASH_STILL_FORWARD = 0.02d;
+
+    private static final Set<Block> WABI_SABI_BLOCKS = Set.of(
+        Blocks.MOSSY_COBBLESTONE,
+        Blocks.MOSSY_STONE_BRICKS,
+        Blocks.MOSSY_COBBLESTONE_STAIRS,
+        Blocks.MOSSY_COBBLESTONE_SLAB,
+        Blocks.MOSSY_COBBLESTONE_WALL,
+        Blocks.CRACKED_STONE_BRICKS,
+        Blocks.CRACKED_DEEPSLATE_BRICKS,
+        Blocks.CRACKED_DEEPSLATE_TILES,
+        Blocks.WEATHERED_COPPER,
+        Blocks.EXPOSED_COPPER,
+        Blocks.OXIDIZED_COPPER,
+        Blocks.WEATHERED_CUT_COPPER,
+        Blocks.EXPOSED_CUT_COPPER,
+        Blocks.OXIDIZED_CUT_COPPER,
+        Blocks.WEATHERED_CUT_COPPER_STAIRS,
+        Blocks.EXPOSED_CUT_COPPER_STAIRS,
+        Blocks.OXIDIZED_CUT_COPPER_STAIRS,
+        Blocks.WEATHERED_CUT_COPPER_SLAB,
+        Blocks.EXPOSED_CUT_COPPER_SLAB,
+        Blocks.OXIDIZED_CUT_COPPER_SLAB
+    );
+
+    private static final Set<Item> GROSS_CONSUMABLES = Set.of(
+        Items.ROTTEN_FLESH,
+        Items.SPIDER_EYE,
+        Items.POISONOUS_POTATO
+    );
 
     private enum LeashMood {
         SLACK,
@@ -302,6 +344,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             pushToNearbyOwnedPets(sp, 24, (pc, collector) -> {
                 collector.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.020f);
                 collector.pushEmotion(PetComponent.Emotion.CURIOUS, 0.015f);
+                collector.pushEmotion(PetComponent.Emotion.HANYAUKU, 0.018f);
                 FeedbackManager.emitContagionFeedback(pc.getPet(), (ServerWorld) sp.getEntityWorld(), PetComponent.Emotion.CURIOUS);
             });
         }
@@ -519,12 +562,14 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                         if (tryMarkPetBeat(pc, "combat_owner_kill_passive", now, 240L)) {
                             // Reduced remorse for passive kills
                             collector.pushEmotion(PetComponent.Emotion.REGRET, 0.15f);  // Reduced from 0.35f
+                            collector.pushEmotion(PetComponent.Emotion.MELANCHOLY, 0.18f);
                             // Only add Hiraeth for non-guardian roles
                             if (!pc.hasRole(PetRoleType.GUARDIAN)) {
                                 collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.15f);  // Reduced from 0.25f
                             }
                             // Add subtle contagion for mixed emotions
                             collector.pushEmotion(PetComponent.Emotion.REGRET, 0.010f);  // Subtle regret contagion
+                            collector.pushEmotion(PetComponent.Emotion.MELANCHOLY, 0.008f);
                         }
                     }
                     case BOSS -> {
@@ -586,7 +631,17 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
         EmotionCueConfig config = EmotionCueConfig.get();
         String definitionId = config.findItemUseDefinition(stack);
-        
+
+        if (world instanceof ServerWorld serverWorld) {
+            ItemStack snapshot = stack.copy();
+            if (snapshot.isDamageable() && snapshot.getMaxDamage() > 0) {
+                int remaining = snapshot.getMaxDamage() - snapshot.getDamage();
+                if (remaining <= 1) {
+                    serverWorld.getServer().execute(() -> handlePotentialToolBreak(sp, hand, snapshot));
+                }
+            }
+        }
+
         // Check for feeding/food use
         if (stack.get(DataComponentTypes.FOOD) != null) {
             // Feeding emotions - transitions from anticipation to satisfaction
@@ -601,7 +656,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 FeedbackManager.emitContagionFeedback(pc.getPet(), (ServerWorld) sp.getEntityWorld(), PetComponent.Emotion.CONTENT);
             });
         }
-        
+
         // Check for healing items (potions)
         if (stack.isOf(Items.POTION) || stack.isOf(Items.SPLASH_POTION)) {
             pushToNearbyOwnedPets(sp, 16, (pc, collector) -> {
@@ -610,6 +665,13 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 // Add contagion for healing - spread relief to nearby pets
                 collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.022f);  // Healing relief contagion
                 collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.015f);  // Balance contagion
+            });
+        }
+
+        if (GROSS_CONSUMABLES.contains(stack.getItem())) {
+            pushToNearbyOwnedPets(sp, 16, (pc, collector) -> {
+                collector.pushEmotion(PetComponent.Emotion.DISGUST, 0.22f);
+                collector.pushEmotion(PetComponent.Emotion.CURIOUS, -0.06f);
             });
         }
         
@@ -638,6 +700,21 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         return ActionResult.PASS;
     }
 
+    private static void handlePotentialToolBreak(ServerPlayerEntity player, Hand hand, ItemStack beforeUse) {
+        if (player == null || beforeUse == null) {
+            return;
+        }
+        ItemStack afterUse = player.getStackInHand(hand);
+        boolean broke = afterUse.isEmpty() || !afterUse.isOf(beforeUse.getItem());
+        if (!broke) {
+            return;
+        }
+        pushToNearbyOwnedPets(player, 20, (pc, collector) -> {
+            collector.pushEmotion(PetComponent.Emotion.WABI_SABI, 0.24f);
+            collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.10f);
+        });
+    }
+
     // ==== Block Use → Homey stations, beds, jukebox ====
     private static ActionResult onUseBlock(PlayerEntity player, World world, Hand hand, net.minecraft.util.hit.BlockHitResult hitResult) {
         if (world.isClient() || !(player instanceof ServerPlayerEntity sp)) return ActionResult.PASS;
@@ -658,6 +735,12 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         if (held.isOf(Items.BONE_MEAL)
             && state.isIn(PetNatureSelector.NATURE_CHERRY_BLOOM_BLOCKS)) {
             NatureFlavorHandler.triggerForOwner(sp, 28, Trigger.CHERRY_BLOSSOM_BLOOM);
+        }
+        if (state.isOf(Blocks.COMPOSTER) && GROSS_CONSUMABLES.contains(held.getItem())) {
+            pushToNearbyOwnedPets(sp, 16, (pc, collector) -> {
+                collector.pushEmotion(PetComponent.Emotion.DISGUST, 0.20f);
+                collector.pushEmotion(PetComponent.Emotion.CURIOUS, -0.04f);
+            });
         }
         if (held.isOf(Items.SHEARS)
             && state.isIn(PetNatureSelector.NATURE_CHERRY_BLOOM_BLOCKS)) {
@@ -890,23 +973,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         EmotionCueConfig config = EmotionCueConfig.get();
         String definitionId = config.findEntityUseDefinition(entity, stack);
         
-        // Check if petting a pet (owner-only; align with PettingHandler semantics)
-        if (entity instanceof MobEntity mob && stack.isEmpty() && player.isSneaking()) {
-            PetComponent pc = PetComponent.get(mob);
-            if (pc != null && pc.isOwnedBy(player)) {
-                // Petting emotions (lightweight; returns PASS to let dedicated handler proceed)
-                pushToSinglePet(sp, pc, (comp, collector) -> {
-                    collector.pushEmotion(PetComponent.Emotion.KEFI, 0.20f);  // Initial joy
-                    collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.25f);  // Settling into contentment
-                    collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.15f);  // Bonding
-                    // Add contagion for petting - spread joy to nearby pets
-                    collector.pushEmotion(PetComponent.Emotion.KEFI, 0.018f);  // Joy contagion
-                    collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.012f);  // Social bonding contagion
-                    // Add visual feedback for social contagion
-                    FeedbackManager.emitContagionFeedback(pc.getPet(), (ServerWorld) sp.getEntityWorld(), PetComponent.Emotion.SOBREMESA);
-                });
-            }
-        }
+        // Petting is handled by PettingHandler to avoid duplicate emotion pushes
         
         if (definitionId != null) {
             triggerConfiguredCue(sp, definitionId, config.fallbackRadius(), null);
@@ -1196,6 +1263,9 @@ private record WeatherState(boolean raining, boolean thundering) {}
         long appliedEmotionVersion;
         boolean redstoneActive;
         long lastRedstonePulseTick;
+        boolean awayFromHome;
+        long homeDepartureTick;
+        long lastHomecomingTick;
 
         PlayerEnvState(@Nullable RegistryKey<Biome> biomeKey, @Nullable RegistryKey<World> dimensionKey, Vec3d lastPos, long currentTick) {
             this.biomeKey = biomeKey;
@@ -1212,6 +1282,9 @@ private record WeatherState(boolean raining, boolean thundering) {}
             this.appliedEmotionVersion = 0L;
             this.redstoneActive = false;
             this.lastRedstonePulseTick = currentTick;
+            this.awayFromHome = false;
+            this.homeDepartureTick = currentTick;
+            this.lastHomecomingTick = 0L;
         }
     }
 
@@ -1255,6 +1328,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
         }
 
         updateFallTracking(player, state);
+        handleHomecoming(player, world, state);
 
         boolean runIdleMaintenance = false;
         boolean runNuancedSweep = false;
@@ -1346,6 +1420,69 @@ private record WeatherState(boolean raining, boolean thundering) {}
         } else if (player.isOnGround()) {
             state.lastFallDistance = current;
         }
+    }
+
+    private static void handleHomecoming(ServerPlayerEntity player, ServerWorld world, PlayerEnvState state) {
+        net.minecraft.server.network.ServerPlayerEntity.Respawn respawn = player.getRespawn();
+        BlockPos homePos = null;
+        RegistryKey<World> homeDimension = null;
+        if (respawn != null) {
+            var respawnData = respawn.respawnData();
+            if (respawnData != null) {
+                homePos = respawnData.getPos();
+                homeDimension = world.getRegistryKey();
+            }
+        }
+        if (homePos == null) {
+            var spawnPoint = world.getSpawnPoint();
+            if (spawnPoint != null) {
+                homePos = spawnPoint.getPos();
+                homeDimension = world.getRegistryKey();
+            }
+        }
+        if (homePos == null || homeDimension == null) {
+            return;
+        }
+
+        if (!world.getRegistryKey().equals(homeDimension)) {
+            state.awayFromHome = true;
+            state.homeDepartureTick = world.getTime();
+            return;
+        }
+
+        long now = world.getTime();
+        Vec3d playerPos = player.getEntityPos();
+        double distanceSq = playerPos.squaredDistanceTo(Vec3d.ofCenter(homePos));
+        double radiusSq = HOME_RADIUS * HOME_RADIUS;
+        if (distanceSq > radiusSq) {
+            if (!state.awayFromHome) {
+                state.awayFromHome = true;
+                state.homeDepartureTick = now;
+            }
+            return;
+        }
+
+        if (!state.awayFromHome) {
+            state.homeDepartureTick = now;
+            return;
+        }
+
+        state.awayFromHome = false;
+        if (now - state.homeDepartureTick >= HOME_AWAY_DURATION_TICKS
+            && now - state.lastHomecomingTick >= HOME_REUNION_COOLDOWN_TICKS) {
+            CompletableFuture<StimulusSummary> stimulusFuture = pushToNearbyOwnedPets(player, 32,
+                (pc, collector) -> {
+                    collector.pushEmotion(PetComponent.Emotion.NOSTALGIA, 0.28f);
+                    collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.32f);
+                    collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.18f);
+                }, false);
+            sendCueAfterStimulus(player, stimulusFuture,
+                "journey.homecoming",
+                () -> Text.translatable("petsplus.emotion_cue.journey.homecoming"),
+                HOME_REUNION_COOLDOWN_TICKS);
+            state.lastHomecomingTick = now;
+        }
+        state.homeDepartureTick = now;
     }
 
     private static boolean processIdleMaintenance(OwnerEventFrame frame,
@@ -3415,6 +3552,11 @@ private record WeatherState(boolean raining, boolean thundering) {}
         Vec3d ownerLookDir = owner.getRotationVec(1.0f);
         Vec3d petToPet = pet.getEntityPos().subtract(owner.getEntityPos()).normalize();
         double lookAlignment = ownerLookDir.dotProduct(petToPet);
+        long now = world.getTime();
+        boolean currentlyFar = distanceToOwner > 50 * 50;
+        if (currentlyFar) {
+            pc.setStateData(STATE_OWNER_LAST_FAR_TICK, now);
+        }
 
         // Owner looking directly at pet - awareness and attention
         if (distanceToOwner < 64 && lookAlignment > 0.8) { // Owner looking at pet
@@ -3441,6 +3583,22 @@ private record WeatherState(boolean raining, boolean thundering) {}
             pc.setStateData("relationship_boost", 0.10f);
             EmotionContextCues.sendCue(owner, "social.close." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.social.close", pet.getDisplayName()), 200);
+        }
+
+        if (distanceToOwner <= 16 * 16) {
+            long lastFar = pc.getStateData(STATE_OWNER_LAST_FAR_TICK, Long.class, Long.MIN_VALUE);
+            long lastReunion = pc.getStateData(STATE_OWNER_LAST_REUNION_TICK, Long.class, Long.MIN_VALUE);
+            boolean farRecently = lastFar != Long.MIN_VALUE && now - lastFar <= 2400L;
+            boolean reunionReady = lastReunion == Long.MIN_VALUE || now - lastReunion >= OWNER_REUNION_COOLDOWN_TICKS;
+            if (farRecently && reunionReady) {
+                collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.30f);
+                collector.pushEmotion(PetComponent.Emotion.HANYAUKU, 0.20f);
+                collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.16f);
+                pc.setStateData(STATE_OWNER_LAST_REUNION_TICK, now);
+                pc.clearStateData(STATE_OWNER_LAST_FAR_TICK);
+                EmotionContextCues.sendCue(owner, "social.reunion." + pet.getUuidAsString(),
+                    Text.translatable("petsplus.emotion_cue.social.reunion", pet.getDisplayName()), 400);
+            }
         } else if (distanceToOwner > 50 * 50) { // >50 blocks away (squared for efficiency)
             collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.25f); // Homesick longing
             collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f); // Some wanderlust mixed in
@@ -3450,9 +3608,9 @@ private record WeatherState(boolean raining, boolean thundering) {}
         }
 
         if (leashedToOwner) {
-            long now = world.getTime();
+            long leashNow = world.getTime();
             long lastLeashTick = pc.getStateData(STATE_LAST_LEASH_SOCIAL_TICK, Long.class, Long.MIN_VALUE);
-            long sinceLastLeashCue = lastLeashTick == Long.MIN_VALUE ? Long.MAX_VALUE : now - lastLeashTick;
+            long sinceLastLeashCue = lastLeashTick == Long.MIN_VALUE ? Long.MAX_VALUE : leashNow - lastLeashTick;
             double leashDistance = Math.sqrt(Math.max(distanceToOwner, 0.0d));
             Vec3d ownerVelocity = owner.getVelocity();
             Vec3d petVelocity = pet.getVelocity();
@@ -3478,12 +3636,12 @@ private record WeatherState(boolean raining, boolean thundering) {}
 
             long lastSampleTick = pc.getStateData(STATE_LEASH_LAST_SAMPLE_TICK, Long.class, Long.MIN_VALUE);
             double smoothingAlpha = 1.0d;
-            if (lastSampleTick != Long.MIN_VALUE && now > lastSampleTick) {
-                long delta = Math.min(now - lastSampleTick, LEASH_SMOOTHING_WINDOW_TICKS);
+            if (lastSampleTick != Long.MIN_VALUE && leashNow > lastSampleTick) {
+                long delta = Math.min(leashNow - lastSampleTick, LEASH_SMOOTHING_WINDOW_TICKS);
                 smoothingAlpha = MathHelper.clamp((double) delta / (double) LEASH_SMOOTHING_WINDOW_TICKS,
                     LEASH_SMOOTHING_MIN_ALPHA, 1.0d);
             }
-            pc.setStateData(STATE_LEASH_LAST_SAMPLE_TICK, now);
+            pc.setStateData(STATE_LEASH_LAST_SAMPLE_TICK, leashNow);
             double smoothedDistance = smoothLeashMetric(pc, STATE_LEASH_SMOOTH_DISTANCE, leashDistance, smoothingAlpha);
             double smoothedOwnerSpeedSq = smoothLeashMetric(pc, STATE_LEASH_SMOOTH_OWNER_SPEED, ownerSpeedSq, smoothingAlpha);
             double smoothedPetSpeedSq = smoothLeashMetric(pc, STATE_LEASH_SMOOTH_PET_SPEED, petSpeedSq, smoothingAlpha);
@@ -3503,8 +3661,8 @@ private record WeatherState(boolean raining, boolean thundering) {}
             } else if (leashMood != lastMood) {
                 if (pendingMood != leashMood) {
                     pc.setStateData(STATE_LEASH_PENDING_MODE, leashMood.name());
-                    pc.setStateData(STATE_LEASH_PENDING_SINCE, now);
-                } else if (pendingSince != Long.MIN_VALUE && now - pendingSince >= LEASH_MODE_SETTLE_TICKS && changeCooldownMet) {
+                    pc.setStateData(STATE_LEASH_PENDING_SINCE, leashNow);
+                } else if (pendingSince != Long.MIN_VALUE && leashNow - pendingSince >= LEASH_MODE_SETTLE_TICKS && changeCooldownMet) {
                     shouldEmit = true;
                 }
             } else {
@@ -3521,8 +3679,8 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 pc.clearStateData(STATE_LEASH_PENDING_MODE);
                 pc.clearStateData(STATE_LEASH_PENDING_SINCE);
                 pc.setStateData(STATE_LAST_LEASH_MODE, leashMood.name());
-                pc.setStateData(STATE_LAST_LEASH_MODE_TICK, now);
-                pc.setStateData(STATE_LAST_LEASH_SOCIAL_TICK, now);
+                pc.setStateData(STATE_LAST_LEASH_MODE_TICK, leashNow);
+                pc.setStateData(STATE_LAST_LEASH_SOCIAL_TICK, leashNow);
 
                 String leashCueKey;
                 switch (leashMood) {
@@ -3652,11 +3810,13 @@ private record WeatherState(boolean raining, boolean thundering) {}
                                                       ServerWorld world,
                                                       EmotionStimulusBus.SimpleStimulusCollector collector) {
         BlockPos petPos = pet.getBlockPos();
+        double ownerDistanceSq = pet.squaredDistanceTo(owner);
+        long now = world.getTime();
 
         // Graduated light level awareness with context
         int lightLevel = world.getLightLevel(petPos);
         boolean isNight = world.isNight();
-        boolean nearOwner = pet.distanceTo(owner) < 6;
+        boolean nearOwner = ownerDistanceSq < 6 * 6;
         boolean inShelter = world.getBlockState(petPos.up(2)).isSolidBlock(world, petPos.up(2));
         
         if (lightLevel <= 3) {
@@ -3714,6 +3874,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
         }
 
         // Flowers and nature
+        boolean wabiSabiTriggered = false;
         for (BlockPos offset : BlockPos.iterate(petPos.add(-2, -1, -2), petPos.add(2, 1, 2))) {
             BlockState blockState = world.getBlockState(offset);
             if (blockState.isIn(NATURE_PLANTS)) {
@@ -3721,6 +3882,11 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 EmotionContextCues.sendCue(owner, "environment.flower." + pet.getUuidAsString(),
                     Text.translatable("petsplus.emotion_cue.environment.flower", pet.getDisplayName()), 400);
                 break;
+            }
+            if (!wabiSabiTriggered && WABI_SABI_BLOCKS.contains(blockState.getBlock())) {
+                collector.pushEmotion(PetComponent.Emotion.WABI_SABI, 0.18f);
+                collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.06f);
+                wabiSabiTriggered = true;
             }
             // Check for safety indicators at night
             if (isNight && (blockState.isIn(BlockTags.CAMPFIRES) || blockState.getBlock() instanceof BedBlock)) {
@@ -3731,14 +3897,52 @@ private record WeatherState(boolean raining, boolean thundering) {}
             }
         }
 
+        boolean lonelySetting = lightLevel <= 3 && inShelter && ownerDistanceSq > 20 * 20;
+        if (lonelySetting) {
+            List<MobEntity> nearbyCompanions = world.getEntitiesByClass(MobEntity.class,
+                pet.getBoundingBox().expand(6.0),
+                other -> {
+                    if (other == pet || !other.isAlive()) {
+                        return false;
+                    }
+                    PetComponent otherPc = PetComponent.get(other);
+                    return otherPc != null && otherPc.isOwnedBy(owner);
+                });
+            if (nearbyCompanions.isEmpty()) {
+                long lonelySince = pc.getStateData(STATE_LONELINESS_START_TICK, Long.class, Long.MIN_VALUE);
+                if (lonelySince == Long.MIN_VALUE) {
+                    pc.setStateData(STATE_LONELINESS_START_TICK, now);
+                } else if (now - lonelySince >= LONELINESS_DURATION_TICKS) {
+                    long lastTrigger = pc.getStateData(STATE_LONELINESS_LAST_TRIGGER_TICK, Long.class, Long.MIN_VALUE);
+                    if (lastTrigger == Long.MIN_VALUE || now - lastTrigger >= LONELINESS_TRIGGER_COOLDOWN_TICKS) {
+                        collector.pushEmotion(PetComponent.Emotion.MELANCHOLY, 0.26f);
+                        collector.pushEmotion(PetComponent.Emotion.FOREBODING, -0.06f);
+                        collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.12f);
+                        pc.setStateData(STATE_LONELINESS_LAST_TRIGGER_TICK, now);
+                    }
+                }
+            } else {
+                pc.clearStateData(STATE_LONELINESS_START_TICK);
+                pc.clearStateData(STATE_LONELINESS_LAST_TRIGGER_TICK);
+            }
+        } else {
+            pc.clearStateData(STATE_LONELINESS_START_TICK);
+            pc.clearStateData(STATE_LONELINESS_LAST_TRIGGER_TICK);
+        }
+
         // Hostile mob proximity (extended awareness) - more nuanced detection with fatigue
         var nearbyHostiles = world.getEntitiesByClass(net.minecraft.entity.mob.HostileEntity.class,
             pet.getBoundingBox().expand(16), monster -> true);
         if (!nearbyHostiles.isEmpty()) {
             // Scale fear based on count and variety, with clustering penalty
             java.util.Set<String> hostileTypes = new java.util.HashSet<>();
+            boolean hasUncleanMob = false;
             for (var hostile : nearbyHostiles) {
                 hostileTypes.add(hostile.getType().toString());
+                if (hostile instanceof ZombieEntity || hostile instanceof HuskEntity
+                    || hostile.getType() == EntityType.SLIME || hostile.getType() == EntityType.MAGMA_CUBE) {
+                    hasUncleanMob = true;
+                }
             }
             
             float varietyFactor = Math.min(hostileTypes.size() / 3.0f, 1.0f);
@@ -3750,7 +3954,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
 
             // Context-aware threat response
             // Recalculate nearOwner for hostile response distance (different threshold)
-            nearOwner = pet.distanceTo(owner) < 8;
+            boolean nearOwnerForHostiles = pet.squaredDistanceTo(owner) < 8 * 8;
 
             float baseVigilant = (0.20f + varietyFactor * 0.15f) * countFactor * clusterPenalty;
             float baseForeboding = (0.15f + varietyFactor * 0.10f) * countFactor * clusterPenalty;
@@ -3766,13 +3970,16 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 collector.pushEmotion(PetComponent.Emotion.VIGILANT, baseVigilant * fatigueFactor);
 
                 // Only feel fear if conditions warrant it
-                if (!nearOwner && (isNight || lightLevel <= 7)) {
+                if (!nearOwnerForHostiles && (isNight || lightLevel <= 7)) {
                     collector.pushEmotion(PetComponent.Emotion.FOREBODING, baseForeboding * fatigueFactor);
                 }
 
                 // Always protective, especially near owner
-                float protectiveBonus = nearOwner ? 1.5f : 1.0f;
+                float protectiveBonus = nearOwnerForHostiles ? 1.5f : 1.0f;
                 collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, baseProtectiveness * fatigueFactor * protectiveBonus);
+                if (hasUncleanMob) {
+                    collector.pushEmotion(PetComponent.Emotion.DISGUST, 0.18f * fatigueFactor);
+                }
             }
             EmotionContextCues.sendCue(owner, "environment.hostiles." + pet.getUuidAsString(),
                 Text.translatable("petsplus.emotion_cue.environment.hostiles", pet.getDisplayName()), 200);

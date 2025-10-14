@@ -286,6 +286,7 @@
   "petsplus.emotion_cue.petting.affection": "%s melts into your affection.",
   "petsplus.emotion_cue.petting.first": "%s's trust sparks at this first gentle moment.",
   "petsplus.emotion_cue.petting.milestone": "%s treasures %d cherished cuddles.",
+  "petsplus.emotion_cue.petting.curiosity": "%s tilts its head, curious.",
   "petsplus.emotion_cue.support.potion_ready": "%s shakes off lingering brews and readies for another.",
   "petsplus.emotion_cue.support.potion_full": "%s is already cradling a potion.",
   "petsplus.emotion_cue.support.potion_locked": "%s hasn't learned to carry potions yet.",
