@@ -2,54 +2,59 @@ package woflo.petsplus.ai.goals;
 
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.registry.RegistryKey;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
-import woflo.petsplus.Petsplus;
 import woflo.petsplus.events.EmotionContextCues;
 import net.minecraft.entity.ai.goal.Goal;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
+import woflo.petsplus.state.relationships.InteractionType;
+import woflo.petsplus.state.relationships.RelationshipType;
 
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.UUID;
-import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Passive, cozy "snuggle" channel that very slowly regenerates the pet (and optionally the owner)
- * while the crouch cuddle proximity channel is active. Balanced by strict preconditions and
- * cooldowns so it feels like a camp-side comfort, not a combat heal.
+ * Passive, cozy "snuggle" channel that very slowly regenerates a pair of pets that settle in
+ * together out of combat. Balanced by strict preconditions, pair locking and cooldowns so it feels
+ * like a camp-side comfort, not a combat heal.
  */
 public class PetSnuggleGoal extends Goal {
     // Tuning
-    private static final double MAX_DISTANCE_SQ = 2.5 * 2.5; // must be very close
-    private static final double PACK_REQUIRED_RADIUS = 6.0; // require another pet within 6 blocks
+    private static final double MAX_DISTANCE_SQ = 2.5 * 2.5; // must be very close once paired
+    private static final double SEARCH_RADIUS = 6.0; // look for snuggle friends nearby
     private static final long MIN_SAFE_SINCE_COMBAT_TICKS = 100; // ~5s
     private static final int HEAL_PULSE_INTERVAL_TICKS = 80; // 4s between pulses
     private static final int SESSION_MAX_DURATION_TICKS = 20 * 20; // cap channel to ~20s per session
 
-    private static final int OWNER_HEAL_COOLDOWN_TICKS = 1200; // 60s per owner (shared across pets)
     private static final int SESSION_COOLDOWN_TICKS = 2400; // 2 minutes per pet after a session
 
     private static final float PET_HEAL_LVL_LT15 = 1.0f; // 0.5 heart
     private static final float PET_HEAL_LVL_GE15 = 2.0f; // 1 heart
-    private static final float OWNER_HEAL_AMOUNT = 1.0f; // 0.5 heart for owner
+    private static final float MIN_HEALTH_NEED = 0.6f;
+
+    private static final float RELATIONSHIP_BASE_SCALE = 0.9f;
+    private static final float RELATIONSHIP_URGENCY_SCALE = 0.45f;
 
     // Shared cooldown registries
-    private static final Map<UUID, Long> OWNER_NEXT_HEAL_TICK = new ConcurrentHashMap<>();
-    private static final Map<String, Long> PAIR_NEXT_HEAL_TICK = new ConcurrentHashMap<>(); // owner|pet -> tick
+    private static final Map<String, Long> PAIR_NEXT_HEAL_TICK = new ConcurrentHashMap<>(); // petA|petB -> tick
+    private static final Map<UUID, UUID> ACTIVE_PAIRINGS = new ConcurrentHashMap<>();
+    private static final Map<UUID, PairTimer> ACTIVE_PAIR_EXPIRY = new ConcurrentHashMap<>();
 
     private final MobEntity pet;
     private final PetComponent component;
 
-    @Nullable private ServerPlayerEntity owner;
+    @Nullable private MobEntity partner;
+    @Nullable private PetComponent partnerComponent;
     private long lastPulseTick;
     private long startTick;
 
@@ -65,12 +70,18 @@ public class PetSnuggleGoal extends Goal {
         if (!(pet.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
-        ServerPlayerEntity resolved = resolveActiveOwner(world);
-        if (resolved == null) {
+
+        long now = world.getTime();
+        cleanupExpiredPairings(world, now);
+
+        if (component.isInCombat()) {
             return false;
         }
 
-        long now = world.getTime();
+        if (isPaired(pet.getUuid(), world, now)) {
+            return false;
+        }
+
         Long cooldownUntil = component.getStateData(PetComponent.StateKeys.SNUGGLE_COOLDOWN_UNTIL_TICK, Long.class);
         if (cooldownUntil != null && now < cooldownUntil) {
             return false;
@@ -81,25 +92,17 @@ public class PetSnuggleGoal extends Goal {
             return false;
         }
 
-        // Require pet to benefit (below max) or owner to benefit, but prefer pet HP gate
-        if (pet.getHealth() >= pet.getMaxHealth() * 0.98f) {
-            // Allow starting only if owner is missing a bit of health and owner cooldown allows soon
-            if (resolved.getHealth() >= resolved.getMaxHealth() * 0.98f) {
-                return false;
-            }
-        }
-
-        // Require at least one other owned pet nearby (low-key more pets requirement)
-        if (!hasNearbyPackMate(world, resolved)) {
+        Candidate candidate = findBestPartner(world, now);
+        if (candidate == null) {
             return false;
         }
 
-        // Range check (tight cuddle distance)
-        if (pet.squaredDistanceTo(resolved) > MAX_DISTANCE_SQ) {
+        if (pet.getUuid().compareTo(candidate.partner().getUuid()) > 0) {
             return false;
         }
 
-        this.owner = resolved;
+        this.partner = candidate.partner();
+        this.partnerComponent = candidate.partnerComponent();
         return true;
     }
 
@@ -108,12 +111,20 @@ public class PetSnuggleGoal extends Goal {
         if (!(pet.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
-        ServerPlayerEntity o = owner;
-        if (o == null || o.isRemoved() || !o.isAlive() || o.getEntityWorld() != world) {
+        MobEntity partner = this.partner;
+        if (partner == null || partner.isRemoved() || !partner.isAlive() || partner.getEntityWorld() != world) {
+            return false;
+        }
+
+        if (pet.getUuid().compareTo(partner.getUuid()) > 0) {
             return false;
         }
 
         long now = world.getTime();
+        if (component.isInCombat()) {
+            return false;
+        }
+
         // Session cap to avoid indefinite channels
         if (now - startTick > SESSION_MAX_DURATION_TICKS) {
             return false;
@@ -122,16 +133,29 @@ public class PetSnuggleGoal extends Goal {
         if (pet.isRemoved() || !pet.isAlive()) {
             return false;
         }
-        // Must still be in crouch cuddle window and close
-        if (!component.isCrouchCuddleActiveWith(o, now)) {
-            return false;
-        }
-        if (pet.squaredDistanceTo(o) > MAX_DISTANCE_SQ) {
+        if (partner.squaredDistanceTo(pet) > MAX_DISTANCE_SQ) {
             return false;
         }
 
         // Still calm
         if ((now - Math.max(0L, component.getLastAttackTick())) < MIN_SAFE_SINCE_COMBAT_TICKS) {
+            return false;
+        }
+
+        PetComponent partnerComponent = this.partnerComponent;
+        if (partnerComponent == null) {
+            return false;
+        }
+
+        if (partnerComponent.isInCombat()) {
+            return false;
+        }
+
+        if ((now - Math.max(0L, partnerComponent.getLastAttackTick())) < MIN_SAFE_SINCE_COMBAT_TICKS) {
+            return false;
+        }
+
+        if (!isPairedWith(pet.getUuid(), partner.getUuid(), world, now)) {
             return false;
         }
 
@@ -147,14 +171,37 @@ public class PetSnuggleGoal extends Goal {
         lastPulseTick = startTick; // first heal pulse comes after interval
         component.setStateData(PetComponent.StateKeys.SNUGGLE_LAST_START_TICK, startTick);
 
-        // Subtle cue
-        ServerPlayerEntity o = owner;
-        if (o != null) {
-            EmotionContextCues.sendCue(o,
-                "snuggle.start." + pet.getUuidAsString(),
-                pet,
-                net.minecraft.text.Text.translatable("petsplus.snuggle.start", pet.getDisplayName()),
-                200);
+        MobEntity partner = this.partner;
+        PetComponent partnerComponent = this.partnerComponent;
+        if (partner != null && partnerComponent != null) {
+            partnerComponent.setStateData(PetComponent.StateKeys.SNUGGLE_LAST_START_TICK, startTick);
+            long expiry = startTick + SESSION_MAX_DURATION_TICKS + 40L;
+            RegistryKey<World> worldKey = world.getRegistryKey();
+            ACTIVE_PAIRINGS.put(pet.getUuid(), partner.getUuid());
+            ACTIVE_PAIRINGS.put(partner.getUuid(), pet.getUuid());
+            PairTimer timer = new PairTimer(worldKey, expiry);
+            ACTIVE_PAIR_EXPIRY.put(pet.getUuid(), timer);
+            ACTIVE_PAIR_EXPIRY.put(partner.getUuid(), timer);
+
+            // Gentle cue for both pets' owners (if online)
+            var ownerA = component.getOwner();
+            if (ownerA instanceof net.minecraft.server.network.ServerPlayerEntity serverOwnerA) {
+                EmotionContextCues.sendCue(
+                    serverOwnerA,
+                    "snuggle.start." + pet.getUuidAsString(),
+                    pet,
+                    net.minecraft.text.Text.translatable("petsplus.snuggle.start", pet.getDisplayName()),
+                    200);
+            }
+            var ownerB = partnerComponent.getOwner();
+            if (ownerB instanceof net.minecraft.server.network.ServerPlayerEntity serverOwnerB) {
+                EmotionContextCues.sendCue(
+                    serverOwnerB,
+                    "snuggle.start." + partner.getUuidAsString(),
+                    partner,
+                    net.minecraft.text.Text.translatable("petsplus.snuggle.start", partner.getDisplayName()),
+                    200);
+            }
         }
     }
 
@@ -164,13 +211,20 @@ public class PetSnuggleGoal extends Goal {
             long now = world.getTime();
             long until = now + SESSION_COOLDOWN_TICKS;
             component.setStateData(PetComponent.StateKeys.SNUGGLE_COOLDOWN_UNTIL_TICK, until);
+            PetComponent partnerComponent = this.partnerComponent;
+            if (partnerComponent != null) {
+                partnerComponent.setStateData(PetComponent.StateKeys.SNUGGLE_COOLDOWN_UNTIL_TICK, until);
+            }
         }
-        owner = null;
+        UUID partnerId = this.partner != null ? this.partner.getUuid() : null;
+        removePairingEntries(pet.getUuid(), partnerId);
+        this.partner = null;
+        this.partnerComponent = null;
     }
 
     @Override
     public void tick() {
-        if (!(pet.getEntityWorld() instanceof ServerWorld world) || owner == null) {
+        if (!(pet.getEntityWorld() instanceof ServerWorld world)) {
             return;
         }
         long now = world.getTime();
@@ -179,76 +233,41 @@ public class PetSnuggleGoal extends Goal {
         }
         lastPulseTick = now;
 
-        ServerPlayerEntity o = owner;
-        if (o == null) return;
-
-        // Healing cadence: pet always, owner only if eligible
-        float petHeal = component.getLevel() >= 15 ? PET_HEAL_LVL_GE15 : PET_HEAL_LVL_LT15;
-        applySafeHeal(pet, petHeal);
-
-        // Owner shared cooldown across all pets
-        if (canOwnerReceiveHeal(o, now)) {
-            applySafeHeal(o, OWNER_HEAL_AMOUNT);
-            OWNER_NEXT_HEAL_TICK.put(o.getUuid(), now + OWNER_HEAL_COOLDOWN_TICKS);
+        MobEntity partner = this.partner;
+        PetComponent partnerComponent = this.partnerComponent;
+        if (partner == null || partnerComponent == null) {
+            return;
         }
 
-        // Pair anti-spam: ensure pair interval between pulses
-        String pairKey = pairKey(o.getUuid(), pet.getUuid());
+        String pairKey = pairKey(pet.getUuid(), partner.getUuid());
         Long next = PAIR_NEXT_HEAL_TICK.get(pairKey);
         if (next != null && now < next) {
             return;
         }
         PAIR_NEXT_HEAL_TICK.put(pairKey, now + HEAL_PULSE_INTERVAL_TICKS);
 
+        // Healing cadence: both pets pulse heal based on their level
+        float petHeal = component.getLevel() >= 15 ? PET_HEAL_LVL_GE15 : PET_HEAL_LVL_LT15;
+        applySafeHeal(pet, petHeal);
+
+        float partnerHeal = partnerComponent.getLevel() >= 15 ? PET_HEAL_LVL_GE15 : PET_HEAL_LVL_LT15;
+        applySafeHeal(partner, partnerHeal);
+
         // Emotions – cozy, bonded
-        float packFactor = 1.0f + 0.25f * MathHelper.clamp(nearbyAllyCount(world, o) - 1, 0, 3);
-        component.pushEmotion(PetComponent.Emotion.CONTENT, 0.06f * packFactor);
-        component.pushEmotion(PetComponent.Emotion.UBUNTU, 0.05f * packFactor);
+        float urgency = snuggleUrgency(pet, partner);
+        component.pushEmotion(PetComponent.Emotion.CONTENT, 0.05f + 0.04f * urgency);
+        component.pushEmotion(PetComponent.Emotion.LOYALTY, 0.03f + 0.03f * urgency);
+        component.pushEmotion(PetComponent.Emotion.UBUNTU, 0.04f + 0.03f * urgency);
+        partnerComponent.pushEmotion(PetComponent.Emotion.CONTENT, 0.05f + 0.04f * urgency);
+        partnerComponent.pushEmotion(PetComponent.Emotion.LOYALTY, 0.03f + 0.03f * urgency);
+        partnerComponent.pushEmotion(PetComponent.Emotion.UBUNTU, 0.04f + 0.03f * urgency);
+
+        // Relationship bonding – treat as restorative proximity scaled by need & kinship
+        applyRelationshipPulse(partner, partnerComponent, urgency);
 
         // Soft ambient feedback
-        emitAmbient(world, pet.getEntityPos());
-    }
-
-    private boolean hasNearbyPackMate(ServerWorld world, ServerPlayerEntity owner) {
-        StateManager manager = StateManager.forWorld(world);
-        if (manager == null) return false;
-        PetSwarmIndex index = manager.getSwarmIndex();
-        final Vec3d center = owner.getEntityPos();
-        final int[] count = {0};
-        index.forEachPetInRange(owner, center, PACK_REQUIRED_RADIUS, entry -> {
-            if (entry == null) return;
-            MobEntity other = entry.pet();
-            if (other == null || other == pet || other.isRemoved() || !other.isAlive()) return;
-            PetComponent c = entry.component();
-            if (c != null && c.isOwnedBy(owner)) {
-                count[0]++;
-            }
-        });
-        return count[0] > 0;
-    }
-
-    private int nearbyAllyCount(ServerWorld world, ServerPlayerEntity owner) {
-        StateManager manager = StateManager.forWorld(world);
-        if (manager == null) return 1;
-        PetSwarmIndex index = manager.getSwarmIndex();
-        final Vec3d center = owner.getEntityPos();
-        final int[] count = {1}; // include self
-        index.forEachPetInRange(owner, center, PACK_REQUIRED_RADIUS, entry -> {
-            if (entry == null) return;
-            MobEntity other = entry.pet();
-            if (other == null || other.isRemoved() || !other.isAlive()) return;
-            PetComponent c = entry.component();
-            if (c != null && c.isOwnedBy(owner)) {
-                count[0]++;
-            }
-        });
-        return count[0];
-    }
-
-    private boolean canOwnerReceiveHeal(ServerPlayerEntity owner, long now) {
-        Long gate = OWNER_NEXT_HEAL_TICK.get(owner.getUuid());
-        if (gate != null && now < gate) return false;
-        return owner.getHealth() < owner.getMaxHealth();
+        Vec3d midpoint = pet.getBoundingBox().getCenter().add(partner.getBoundingBox().getCenter()).multiply(0.5);
+        emitAmbient(world, midpoint);
     }
 
     private static void applySafeHeal(LivingEntity entity, float amount) {
@@ -269,21 +288,264 @@ public class PetSnuggleGoal extends Goal {
         } catch (Throwable ignored) {}
     }
 
-    @Nullable
-    private ServerPlayerEntity resolveActiveOwner(ServerWorld world) {
-        @Nullable java.util.UUID ownerId = component.getOwnerUuid();
-        if (ownerId == null) return null;
-        ServerPlayerEntity maybe = world.getServer().getPlayerManager().getPlayer(ownerId);
-        if (maybe == null || maybe.isRemoved() || !maybe.isAlive() || maybe.isSpectator()) return null;
+    private void applyRelationshipPulse(MobEntity partner, PetComponent partnerComponent, float urgency) {
+        float kinship = kinshipAffinity(partner, partnerComponent);
+        float trustScale = RELATIONSHIP_BASE_SCALE + RELATIONSHIP_URGENCY_SCALE * urgency;
+        float affectionScale = RELATIONSHIP_BASE_SCALE + kinship;
+        float respectScale = RELATIONSHIP_BASE_SCALE + kinship * 0.35f;
 
-        long now = world.getTime();
-        if (!component.isCrouchCuddleActiveWith(maybe, now)) return null;
-        if (!maybe.isSneaking()) return null;
-        return maybe;
+        component.recordEntityInteraction(
+            partner.getUuid(),
+            InteractionType.PROXIMITY,
+            trustScale,
+            affectionScale,
+            respectScale
+        );
+        partnerComponent.recordEntityInteraction(
+            pet.getUuid(),
+            InteractionType.PROXIMITY,
+            trustScale,
+            affectionScale,
+            respectScale
+        );
     }
 
-    private static String pairKey(UUID owner, UUID pet) {
-        return owner.toString() + "|" + pet.toString();
+    private float kinshipAffinity(MobEntity partner, PetComponent partnerComponent) {
+        float affinity = 0.0f;
+        if (pet.getType() == partner.getType()) {
+            affinity += 0.35f;
+        }
+        if (sharesOwner(partnerComponent)) {
+            affinity += 0.25f;
+        } else {
+            RelationshipType relation = component.getRelationshipType(partner.getUuid());
+            if (relation == RelationshipType.COMPANION) {
+                affinity += 0.3f;
+            } else if (relation == RelationshipType.FRIEND) {
+                affinity += 0.2f;
+            } else if (relation == RelationshipType.FUN_ACQUAINTANCE) {
+                affinity += 0.1f;
+            }
+        }
+        return MathHelper.clamp(affinity, 0.0f, 0.5f);
     }
+
+    private Candidate findBestPartner(ServerWorld world, long now) {
+        StateManager manager = StateManager.forWorld(world);
+        if (manager == null) {
+            return null;
+        }
+        PetSwarmIndex index = manager.getSwarmIndex();
+        Vec3d center = pet.getBoundingBox().getCenter();
+        final Candidate[] best = {null};
+        index.forEachPetInRange(center, SEARCH_RADIUS, entry -> {
+            if (entry == null) {
+                return;
+            }
+            MobEntity other = entry.pet();
+            if (other == null || other == pet || other.isRemoved() || !other.isAlive()) {
+                return;
+            }
+            if (!(other.getEntityWorld() instanceof ServerWorld) || other.getEntityWorld() != world) {
+                return;
+            }
+            PetComponent otherComponent = entry.component();
+            if (otherComponent == null) {
+                return;
+            }
+            if (!canPairWith(world, other, otherComponent, now)) {
+                return;
+            }
+
+            double distanceSq = pet.squaredDistanceTo(other);
+            double score = scoreCandidate(other, otherComponent, distanceSq);
+            if (score <= 0.0) {
+                return;
+            }
+
+            Candidate current = best[0];
+            if (current == null || score > current.score()) {
+                best[0] = new Candidate(other, otherComponent, score);
+            }
+        });
+
+        return best[0];
+    }
+
+    private boolean canPairWith(ServerWorld world, MobEntity other, PetComponent otherComponent, long now) {
+        if (isPaired(other.getUuid(), world, now)) {
+            return false;
+        }
+        if (otherComponent == component) {
+            return false;
+        }
+        Long cooldownUntil = otherComponent.getStateData(PetComponent.StateKeys.SNUGGLE_COOLDOWN_UNTIL_TICK, Long.class);
+        if (cooldownUntil != null && now < cooldownUntil) {
+            return false;
+        }
+        if (otherComponent.isInCombat()) {
+            return false;
+        }
+
+        if ((now - Math.max(0L, otherComponent.getLastAttackTick())) < MIN_SAFE_SINCE_COMBAT_TICKS) {
+            return false;
+        }
+
+        float selfMissing = missingHealth(pet);
+        float otherMissing = missingHealth(other);
+        if ((selfMissing + otherMissing) < MIN_HEALTH_NEED) { // require at least some need
+            return false;
+        }
+
+        if (!sharesOwner(otherComponent)) {
+            RelationshipType relation = component.getRelationshipType(other.getUuid());
+            RelationshipType reverse = otherComponent.getRelationshipType(pet.getUuid());
+            if (!allowsSnuggle(relation) || !allowsSnuggle(reverse)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private double scoreCandidate(MobEntity other, PetComponent otherComponent, double distanceSq) {
+        double distance = Math.sqrt(Math.max(0.0001, distanceSq));
+        double normalizedDistance = MathHelper.clamp(1.0 - (distance / SEARCH_RADIUS), 0.0, 1.0);
+
+        double selfMissing = Math.min(10.0, missingHealth(pet));
+        double otherMissing = Math.min(10.0, missingHealth(other));
+        double healthScore = (selfMissing * 1.2) + (otherMissing * 1.0);
+
+        double affinity = 0.0;
+        if (pet.getType() == other.getType()) {
+            affinity += 2.0;
+        }
+        if (sharesOwner(otherComponent)) {
+            affinity += 1.0;
+        } else {
+            RelationshipType relation = component.getRelationshipType(other.getUuid());
+            if (relation == RelationshipType.COMPANION) {
+                affinity += 1.5;
+            } else if (relation == RelationshipType.FRIEND) {
+                affinity += 1.0;
+            } else if (relation == RelationshipType.FUN_ACQUAINTANCE) {
+                affinity += 0.5;
+            }
+        }
+
+        double urgency = Math.max(selfMissing, otherMissing);
+        double score = (healthScore + affinity * 1.2 + urgency * 1.5) * (0.5 + normalizedDistance * 0.5);
+        return score;
+    }
+
+    private float missingHealth(LivingEntity entity) {
+        return Math.max(0.0f, entity.getMaxHealth() - entity.getHealth());
+    }
+
+    private static boolean allowsSnuggle(RelationshipType type) {
+        if (type == null) {
+            return false;
+        }
+        return type == RelationshipType.COMPANION || type == RelationshipType.FRIEND || type == RelationshipType.FUN_ACQUAINTANCE;
+    }
+
+    private static float snuggleUrgency(LivingEntity a, LivingEntity b) {
+        float missing = Math.max(Math.max(0.0f, a.getMaxHealth() - a.getHealth()), Math.max(0.0f, b.getMaxHealth() - b.getHealth()));
+        return MathHelper.clamp(missing / 6.0f, 0.0f, 1.2f);
+    }
+
+    private boolean sharesOwner(PetComponent otherComponent) {
+        UUID ownerA = component.getOwnerUuid();
+        UUID ownerB = otherComponent.getOwnerUuid();
+        return ownerA != null && ownerA.equals(ownerB);
+    }
+
+    private void cleanupExpiredPairings(ServerWorld world, long now) {
+        RegistryKey<World> worldKey = world.getRegistryKey();
+        ACTIVE_PAIR_EXPIRY.forEach((id, timer) -> {
+            if (timer == null) {
+                removePairingEntries(id, ACTIVE_PAIRINGS.get(id));
+                return;
+            }
+            if (!worldKey.equals(timer.worldKey())) {
+                return;
+            }
+            if (timer.expiryTick() < now) {
+                removePairingEntries(id, ACTIVE_PAIRINGS.get(id));
+            }
+        });
+    }
+
+    private boolean isPaired(UUID id, ServerWorld world, long now) {
+        cleanupExpiredPairings(world, now);
+        UUID partnerId = ACTIVE_PAIRINGS.get(id);
+        if (partnerId == null) {
+            ACTIVE_PAIR_EXPIRY.remove(id);
+            return false;
+        }
+        PairTimer timer = ACTIVE_PAIR_EXPIRY.get(id);
+        if (timer == null) {
+            ACTIVE_PAIRINGS.remove(id);
+            return false;
+        }
+        if (!world.getRegistryKey().equals(timer.worldKey())) {
+            removePairingEntries(id, partnerId);
+            return false;
+        }
+        if (timer.expiryTick() < now) {
+            removePairingEntries(id, partnerId);
+            return false;
+        }
+        return true;
+    }
+
+    private boolean isPairedWith(UUID id, UUID partnerId, ServerWorld world, long now) {
+        cleanupExpiredPairings(world, now);
+        UUID partner = ACTIVE_PAIRINGS.get(id);
+        if (partner == null || !partner.equals(partnerId)) {
+            if (partner == null) {
+                ACTIVE_PAIR_EXPIRY.remove(id);
+            }
+            return false;
+        }
+        PairTimer timer = ACTIVE_PAIR_EXPIRY.get(id);
+        if (timer == null) {
+            removePairingEntries(id, partnerId);
+            return false;
+        }
+        if (!world.getRegistryKey().equals(timer.worldKey())) {
+            removePairingEntries(id, partnerId);
+            return false;
+        }
+        if (timer.expiryTick() < now) {
+            removePairingEntries(id, partnerId);
+            return false;
+        }
+        return true;
+    }
+
+    private static void removePairingEntries(UUID id, @Nullable UUID partnerId) {
+        if (id == null) {
+            return;
+        }
+        ACTIVE_PAIRINGS.remove(id);
+        ACTIVE_PAIR_EXPIRY.remove(id);
+        if (partnerId != null) {
+            ACTIVE_PAIRINGS.remove(partnerId, id);
+            ACTIVE_PAIR_EXPIRY.remove(partnerId);
+            PAIR_NEXT_HEAL_TICK.remove(pairKey(id, partnerId));
+        }
+    }
+
+    private static String pairKey(UUID first, UUID second) {
+        if (first.compareTo(second) <= 0) {
+            return first + "|" + second;
+        }
+        return second + "|" + first;
+    }
+
+    private record Candidate(MobEntity partner, PetComponent partnerComponent, double score) {}
+
+    private record PairTimer(RegistryKey<World> worldKey, long expiryTick) {}
 }
 

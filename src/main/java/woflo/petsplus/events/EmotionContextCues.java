@@ -13,7 +13,7 @@ import net.minecraft.text.Text;
 import net.minecraft.text.TranslatableTextContent;
 
 import woflo.petsplus.Petsplus;
-
+import woflo.petsplus.state.tracking.PlayerTickListener;
 import woflo.petsplus.ui.UIFeedbackManager;
 
 /**
