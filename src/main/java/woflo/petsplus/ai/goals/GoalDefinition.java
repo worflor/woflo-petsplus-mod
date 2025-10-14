@@ -26,6 +26,9 @@ public record GoalDefinition(
 ) {
 
     private static final float DEFAULT_MIN_BIAS = 0.05f;
+    private static final float INCOMPATIBLE_SENTINEL = 0.08f;
+    private static final float COMPATIBILITY_THRESHOLD = 0.12f;
+    private static final float BATTERY_DEPLETION_EPSILON = 0.001f;
 
     public GoalDefinition {
         Objects.requireNonNull(id, "id");
@@ -42,11 +45,26 @@ public record GoalDefinition(
     }
 
     public boolean isEnergyCompatible(float momentum) {
-        return getEnergyBias(momentum) > DEFAULT_MIN_BIAS;
+        return getEnergyBias(momentum) > COMPATIBILITY_THRESHOLD;
     }
 
     public boolean isEnergyCompatible(BehaviouralEnergyProfile profile) {
-        return getEnergyBias(profile) > 0.12f;
+        if (profile == null) {
+            return isEnergyCompatible(0.5f);
+        }
+
+        float momentumBias = getEnergyBias(profile.momentum());
+        if (momentumBias <= INCOMPATIBLE_SENTINEL) {
+            return false;
+        }
+
+        DomainEnergy domainEnergy = resolveDomainEnergy(profile, momentumBias);
+        if (domainEnergy.limiting <= DEFAULT_MIN_BIAS + BATTERY_DEPLETION_EPSILON) {
+            return false;
+        }
+
+        float combined = computeEnergyBiasRaw(profile, momentumBias, domainEnergy);
+        return combined > COMPATIBILITY_THRESHOLD;
     }
 
     public float getEnergyBias(float momentum) {
@@ -56,7 +74,9 @@ public record GoalDefinition(
         float halfRange = (max - min) / 2f;
 
         if (momentum < min || momentum > max) {
-            return 0.1f;
+            // Behaviour evaluation treats this sentinel as "momentum incompatible" and will skip
+            // blending so the overall bias stays beneath the 0.12 viability threshold.
+            return INCOMPATIBLE_SENTINEL;
         }
 
         float distanceFromCenter = Math.abs(momentum - center);
@@ -69,56 +89,154 @@ public record GoalDefinition(
             return getEnergyBias(0.5f);
         }
 
-        if (category == Category.IDLE_QUIRK) {
-            float baseBias = getEnergyBias(profile.momentum());
-            float centre = (energyRange.x + energyRange.y) / 2f;
-            float staminaBias = switch (idleStaminaBias) {
-                case LOW -> favourLowBattery(profile.physicalStamina(), centre, 0.22f);
-                case HIGH -> favourHighBattery(profile.physicalStamina(), centre, 0.25f);
-                case CENTERED, NONE -> favourCenteredBattery(profile.physicalStamina(), centre, 0.2f);
-            };
+        float baseBias = getEnergyBias(profile.momentum());
 
-            float combined = MathHelper.clamp((baseBias * 0.55f) + (staminaBias * 0.45f), DEFAULT_MIN_BIAS, 1.0f);
+        if (baseBias <= INCOMPATIBLE_SENTINEL) {
+            // Momentum fell outside the configured band; treat the goal as energy incompatible even
+            // if stamina or social reserves look healthy to avoid "free" activations at low momentum.
+            return INCOMPATIBLE_SENTINEL;
+        }
+
+        DomainEnergy domainEnergy = resolveDomainEnergy(profile, baseBias);
+        if (domainEnergy.limiting <= DEFAULT_MIN_BIAS + BATTERY_DEPLETION_EPSILON) {
+            return INCOMPATIBLE_SENTINEL;
+        }
+
+        float combined = computeEnergyBiasRaw(profile, baseBias, domainEnergy);
+
+        if (combined <= COMPATIBILITY_THRESHOLD) {
+            // Low stamina, focus, or social charge can now flag a goal as incompatible by keeping
+            // the raw blend below the activation threshold before desirability clamps run.
+            return INCOMPATIBLE_SENTINEL;
+        }
+
+        return MathHelper.clamp(combined, DEFAULT_MIN_BIAS, 1.0f);
+    }
+
+    private float computeEnergyBiasRaw(BehaviouralEnergyProfile profile, float baseBias, DomainEnergy domainEnergy) {
+        float domainBias = domainEnergy.combined;
+
+        if (category == Category.IDLE_QUIRK) {
+            float combined = (baseBias * 0.55f) + (domainBias * 0.45f);
 
             if (socialIdleBias) {
                 float socialBias = favourCenteredBattery(profile.socialCharge(), 0.45f, 0.28f);
-                combined = MathHelper.clamp((combined * 0.75f) + (socialBias * 0.25f), DEFAULT_MIN_BIAS, 1.0f);
+                combined = (combined * 0.75f) + (socialBias * 0.25f);
             }
 
             return combined;
         }
 
-        float baseBias = getEnergyBias(profile.momentum());
-        float domainBias;
         float baseWeight;
         float domainWeight;
 
         switch (category) {
             case PLAY, WANDER -> {
-                domainBias = batteryBias(profile.physicalStamina(), 0.65f, 0.22f);
                 baseWeight = 0.5f;
                 domainWeight = 0.5f;
             }
             case SOCIAL -> {
-                domainBias = batteryBias(profile.socialCharge(), 0.45f, 0.25f);
                 baseWeight = 0.4f;
                 domainWeight = 0.6f;
             }
             case SPECIAL -> {
-                domainBias = batteryBias(profile.mentalFocus(), 0.6f, 0.25f);
                 baseWeight = 0.45f;
                 domainWeight = 0.55f;
             }
             default -> {
-                domainBias = baseBias;
                 baseWeight = 0.6f;
                 domainWeight = 0.4f;
             }
         }
 
-        float combined = (baseBias * baseWeight) + (domainBias * domainWeight);
-        return MathHelper.clamp(combined, DEFAULT_MIN_BIAS, 1.0f);
+        return (baseBias * baseWeight) + (domainBias * domainWeight);
     }
+
+    private DomainEnergy resolveDomainEnergy(BehaviouralEnergyProfile profile, float baseBias) {
+        return switch (category) {
+            case IDLE_QUIRK -> resolveIdleDomainEnergy(profile);
+            case PLAY, WANDER -> {
+                float staminaBias = batteryBias(profile.physicalStamina(), 0.65f, 0.22f);
+                yield new DomainEnergy(staminaBias, staminaBias);
+            }
+            case SOCIAL -> {
+                float socialBias = batteryBias(profile.socialCharge(), 0.45f, 0.25f);
+                yield new DomainEnergy(socialBias, socialBias);
+            }
+            case SPECIAL -> resolveSpecialDomainEnergy(profile);
+            default -> new DomainEnergy(baseBias, baseBias);
+        };
+    }
+
+    private DomainEnergy resolveIdleDomainEnergy(BehaviouralEnergyProfile profile) {
+        float centre = (energyRange.x + energyRange.y) / 2f;
+        float staminaBias = resolveIdleStaminaBias(profile, centre);
+        float limiting = staminaBias;
+
+        if (socialIdleBias) {
+            float socialCharge = profile.socialCharge();
+            float socialBias;
+            if (socialCharge <= 0.15f + BATTERY_DEPLETION_EPSILON) {
+                socialBias = DEFAULT_MIN_BIAS;
+            } else {
+                socialBias = favourCenteredBattery(socialCharge, 0.45f, 0.28f);
+            }
+            limiting = Math.min(limiting, socialBias);
+        }
+
+        return new DomainEnergy(staminaBias, limiting);
+    }
+
+    private DomainEnergy resolveSpecialDomainEnergy(BehaviouralEnergyProfile profile) {
+        float focusBias = batteryBias(profile.mentalFocus(), 0.6f, 0.25f);
+        float limiting = focusBias;
+
+        if (idleStaminaBias == IdleStaminaBias.NONE) {
+            return new DomainEnergy(focusBias, limiting);
+        }
+
+        float centre = (energyRange.x + energyRange.y) / 2f;
+        float staminaBias = resolveIdleStaminaBias(profile, centre);
+        limiting = Math.min(limiting, staminaBias);
+
+        float combined = blendFocusAndStamina(focusBias, staminaBias);
+        return new DomainEnergy(combined, limiting);
+    }
+
+    private float blendFocusAndStamina(float focusBias, float staminaBias) {
+        return (focusBias * 0.6f) + (staminaBias * 0.4f);
+    }
+
+    private float resolveIdleStaminaBias(BehaviouralEnergyProfile profile, float centre) {
+        float stamina = profile.physicalStamina();
+
+        return switch (idleStaminaBias) {
+            case LOW -> {
+                float tolerance = 0.22f;
+                if (isAbovePreferredWindow(stamina, centre, tolerance)) {
+                    yield DEFAULT_MIN_BIAS;
+                }
+                yield favourLowBattery(stamina, centre, tolerance);
+            }
+            case HIGH -> {
+                float tolerance = 0.25f;
+                if (isBelowPreferredWindow(stamina, centre, tolerance)) {
+                    yield DEFAULT_MIN_BIAS;
+                }
+                yield favourHighBattery(stamina, centre, tolerance);
+            }
+            case CENTERED -> {
+                float tolerance = 0.2f;
+                if (isOutsidePreferredWindow(stamina, centre, tolerance)) {
+                    yield DEFAULT_MIN_BIAS;
+                }
+                yield favourCenteredBattery(stamina, centre, tolerance);
+            }
+            case NONE -> favourCenteredBattery(stamina, centre, 0.2f);
+        };
+    }
+
+    private record DomainEnergy(float combined, float limiting) { }
 
     public AdaptiveGoal createGoal(MobEntity mob) {
         return factory.create(mob);
@@ -186,6 +304,20 @@ public record GoalDefinition(
         float halfWindow = Math.max((upper - lower) / 2f, 0.0001f);
         float normalizedDistance = MathHelper.clamp(Math.abs(value - midpoint) / halfWindow, 0f, 1f);
         return MathHelper.clamp(0.95f - normalizedDistance * 0.35f, DEFAULT_MIN_BIAS, 1.0f);
+    }
+
+    private static boolean isAbovePreferredWindow(float value, float midpoint, float tolerance) {
+        float upper = Math.min(1f, midpoint + tolerance);
+        return value >= upper - BATTERY_DEPLETION_EPSILON;
+    }
+
+    private static boolean isBelowPreferredWindow(float value, float midpoint, float tolerance) {
+        float lower = Math.max(0f, midpoint - tolerance);
+        return value <= lower + BATTERY_DEPLETION_EPSILON;
+    }
+
+    private static boolean isOutsidePreferredWindow(float value, float midpoint, float tolerance) {
+        return isBelowPreferredWindow(value, midpoint, tolerance) || isAbovePreferredWindow(value, midpoint, tolerance);
     }
 
     public enum Category {

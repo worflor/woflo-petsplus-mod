@@ -65,6 +65,9 @@ public class HearthSettleGoal extends AdaptiveGoal {
         if (pc != null && pc.isOnCooldown("world_micro")) {
             return false;
         }
+        if (pc != null && pc.isOnCooldown("hearth_settle")) {
+            return false;
+        }
 
         // Owner urgency/threat abort
         if (pc != null && pc.getCachedOwnerEntity() != null) {

@@ -73,6 +73,9 @@ public class PuddlePawGoal extends AdaptiveGoal {
         if (pc != null && pc.isOnCooldown("world_micro")) {
             return false; // Variety micro spacing
         }
+        if (pc != null && pc.isOnCooldown("puddle_paw")) {
+            return false;
+        }
 
         // Momentum gating (explicit as per spec)
         MomentumState ms = MomentumState.capture(mob);

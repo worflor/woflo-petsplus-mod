@@ -71,6 +71,9 @@ public class FishWatchingGoal extends AdaptiveGoal {
         if (pc != null && pc.isOnCooldown("environment_micro")) {
             return false; // variety anti-spam
         }
+        if (pc != null && pc.isOnCooldown("fish_watching")) {
+            return false;
+        }
 
         // Momentum gating and owner urgency before invite/join
         // Momentum gate + owner urgency

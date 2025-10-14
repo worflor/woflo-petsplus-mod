@@ -8,6 +8,7 @@ import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
@@ -20,6 +21,8 @@ import java.util.EnumSet;
  */
 public class ToyPounceGoal extends AdaptiveGoal {
     private static final int BASE_CROUCH_DURATION = 18;
+
+    private static final double MIN_LAUNCH_DISTANCE_SQUARED = 1.0e-4;
 
     private BlockPos toyBlock;
     private int pouncePhase = 0; // 0=approach, 1=crouch, 2=pounce, 3=success
@@ -64,19 +67,22 @@ public class ToyPounceGoal extends AdaptiveGoal {
         phaseTicks++;
         
         switch (pouncePhase) {
-            case 0: // Approach
-                if (mob.getBlockPos().isWithinDistance(toyBlock, 3.0)) {
+            case 0: { // Approach
+                Vec3d toyCenter = Vec3d.ofCenter(toyBlock);
+                if (mob.squaredDistanceTo(toyCenter.x, toyCenter.y, toyCenter.z) <= 9.0) {
                     pouncePhase = 1;
                     phaseTicks = 0;
                 } else {
-                    mob.getNavigation().startMovingTo(toyBlock.getX(), toyBlock.getY(), toyBlock.getZ(), 1.0);
+                    mob.getNavigation().startMovingTo(toyCenter.x, toyCenter.y, toyCenter.z, 1.0);
                 }
                 break;
-                
-            case 1: // Crouch and wiggle
+            }
+
+            case 1: { // Crouch and wiggle
                 mob.setSneaking(true);
-                mob.getLookControl().lookAt(toyBlock.getX(), toyBlock.getY(), toyBlock.getZ());
-                
+                Vec3d toyFocus = Vec3d.ofCenter(toyBlock);
+                mob.getLookControl().lookAt(toyFocus.x, toyFocus.y, toyFocus.z);
+
                 // Wiggle
                 if (phaseTicks % 4 < 2) {
                     mob.setYaw(mob.getYaw() + 3);
@@ -89,23 +95,35 @@ public class ToyPounceGoal extends AdaptiveGoal {
                     phaseTicks = 0;
                 }
                 break;
-                
-            case 2: // Pounce!
+            }
+
+            case 2: { // Pounce!
                 mob.setSneaking(false);
                 if (phaseTicks == 1) {
                     // Jump toward toy
-                    double dx = toyBlock.getX() - mob.getX();
-                    double dz = toyBlock.getZ() - mob.getZ();
-                    double distance = Math.sqrt(dx * dx + dz * dz);
-                    mob.setVelocity(dx / distance * 0.5, 0.5, dz / distance * 0.5);
+                    Vec3d toyCenter = Vec3d.ofCenter(toyBlock);
+                    double dx = toyCenter.x - mob.getX();
+                    double dz = toyCenter.z - mob.getZ();
+                    double horizontalSquared = dx * dx + dz * dz;
+
+                    if (horizontalSquared < MIN_LAUNCH_DISTANCE_SQUARED) {
+                        double randomAngle = mob.getRandom().nextDouble() * (Math.PI * 2.0);
+                        double vx = Math.cos(randomAngle) * 0.5;
+                        double vz = Math.sin(randomAngle) * 0.5;
+                        mob.setVelocity(vx, 0.5, vz);
+                    } else {
+                        double distance = Math.sqrt(horizontalSquared);
+                        mob.setVelocity(dx / distance * 0.5, 0.5, dz / distance * 0.5);
+                    }
                     mob.velocityModified = true;
                 }
-                
+
                 if (mob.isOnGround() && phaseTicks > 5) {
                     pouncePhase = 3;
                     spawnSuccessParticles();
                 }
                 break;
+            }
         }
     }
     

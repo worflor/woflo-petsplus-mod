@@ -50,7 +50,12 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
         if (!hasRequiredSpeciesTags(profile)) {
             return false;
         }
-        
+
+        PetComponent pc = PetComponent.get(mob);
+        if (pc != null && pc.isOnCooldown("sunbeam_sprawl")) {
+            return false;
+        }
+
         // World predicates for Subtle behavior: P0
         if (!isDaytime() || mob.getEntityWorld().isRaining()) {
             return false;
