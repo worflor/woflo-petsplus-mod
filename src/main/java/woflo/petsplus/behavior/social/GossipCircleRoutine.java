@@ -189,6 +189,7 @@ public class GossipCircleRoutine implements SocialBehaviorRoutine {
                     Text cueText = GossipNarration.buildCircleCue(storyteller, cluster, rumor, context.currentTick());
                     EmotionContextCues.sendCue(context.owner(),
                         "social.gossip.circle." + context.pet().getUuidAsString() + "." + clusterIndex,
+                        context.pet(),
                         cueText,
                         2400);
                 }

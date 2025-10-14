@@ -65,6 +65,7 @@ public class WhisperRoutine implements SocialBehaviorRoutine {
                 if (context.tryMarkBeat("first_meeting_" + otherPetId, 800)) {
                     EmotionContextCues.sendCue(context.owner(),
                         "social.first_meeting." + context.pet().getUuidAsString(),
+                        context.pet(),
                         Text.translatable("petsplus.emotion_cue.social.first_meeting",
                             context.pet().getDisplayName(), otherPet.getDisplayName()),
                         400);
@@ -98,6 +99,7 @@ public class WhisperRoutine implements SocialBehaviorRoutine {
                 if (context.tryMarkBeat("solidarity_" + otherPetId, 600)) {
                     EmotionContextCues.sendCue(context.owner(),
                         "social.solidarity." + context.pet().getUuidAsString(),
+                        context.pet(),
                         Text.translatable("petsplus.emotion_cue.social.solidarity",
                             context.pet().getDisplayName(), otherPet.getDisplayName()),
                         300);

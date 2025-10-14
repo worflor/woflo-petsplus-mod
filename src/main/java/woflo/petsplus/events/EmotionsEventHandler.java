@@ -3302,6 +3302,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
             });
             bus.dispatchStimuli(pet, coordinator);
             EmotionContextCues.sendCue(context.owner(), "social.alpha." + context.pet().getUuidAsString(),
+                context.pet(),
                 Text.translatable("petsplus.emotion_cue.social.alpha", context.pet().getDisplayName()), 600);
         } else if (hierarchyPosition >= 0.3f && hierarchyPosition <= 0.7f) {
             // Middle rank - beta submission with harmony
@@ -3312,6 +3313,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
             });
             bus.dispatchStimuli(pet, coordinator);
             EmotionContextCues.sendCue(context.owner(), "social.beta." + context.pet().getUuidAsString(),
+                context.pet(),
                 Text.translatable("petsplus.emotion_cue.social.beta", context.pet().getDisplayName()), 500);
         } else {
             // Low rank - omega with mild discontent
@@ -3322,6 +3324,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
             });
             bus.dispatchStimuli(pet, coordinator);
             EmotionContextCues.sendCue(context.owner(), "social.omega." + context.pet().getUuidAsString(),
+                context.pet(),
                 Text.translatable("petsplus.emotion_cue.social.omega", context.pet().getDisplayName()), 500);
         }
 
@@ -3427,6 +3430,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.16f); // Comforted by compassion
             }
             EmotionContextCues.sendCue(owner, "social.look." + pet.getUuidAsString(),
+                pet,
                 Text.translatable("petsplus.emotion_cue.social.look", pet.getDisplayName()), 200);
         }
 
@@ -3440,12 +3444,14 @@ private record WeatherState(boolean raining, boolean thundering) {}
             // Add relationship guard increase for closeness
             pc.setStateData("relationship_boost", 0.10f);
             EmotionContextCues.sendCue(owner, "social.close." + pet.getUuidAsString(),
+                pet,
                 Text.translatable("petsplus.emotion_cue.social.close", pet.getDisplayName()), 200);
         } else if (distanceToOwner > 50 * 50) { // >50 blocks away (squared for efficiency)
             collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.25f); // Homesick longing
             collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f); // Some wanderlust mixed in
             // Note: Decay for Hiraeth should be slower (0.998/tick) - handled in PetMoodEngine
             EmotionContextCues.sendCue(owner, "social.far." + pet.getUuidAsString(),
+                pet,
                 Text.translatable("petsplus.emotion_cue.social.far", pet.getDisplayName()), 400);
         }
 
@@ -3565,6 +3571,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 }
 
                 EmotionContextCues.sendCue(owner, "social.leash." + pet.getUuidAsString(),
+                    pet,
                     Text.translatable(leashCueKey, pet.getDisplayName()), 200);
             }
         } else {
@@ -3589,6 +3596,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 collector.pushEmotion(PetComponent.Emotion.KEFI, 0.20f); // Victory joy from helping
             }
             EmotionContextCues.sendCue(owner, "social.combat." + pet.getUuidAsString(),
+                pet,
                 Text.translatable("petsplus.emotion_cue.social.combat", pet.getDisplayName()), 200);
         }
 
@@ -3596,11 +3604,13 @@ private record WeatherState(boolean raining, boolean thundering) {}
             collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.20f); // Increased subtle awareness
             collector.pushEmotion(PetComponent.Emotion.FOCUSED, 0.15f); // Alert to owner's stealth
             EmotionContextCues.sendCue(owner, "social.sneak." + pet.getUuidAsString(),
+                pet,
                 Text.translatable("petsplus.emotion_cue.social.sneak", pet.getDisplayName()), 200);
             if (pc.hasRole(PetRoleType.ECLIPSED)) {
                 collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.10f); // Extra mysterious feeling
                 EmotionContextCues.sendCue(owner,
                     "role.eclipsed.shadow." + pet.getUuidAsString(),
+                    pet,
                     Text.translatable("petsplus.emotion_cue.role.eclipsed_shroud", pet.getDisplayName()),
                     200);
             }
@@ -3615,11 +3625,13 @@ private record WeatherState(boolean raining, boolean thundering) {}
             collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.28f); // Rally to the owner
             collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.18f); // Gentle reassurance
             EmotionContextCues.sendCue(owner, "social.owner_hurt." + pet.getUuidAsString(),
+                pet,
                 Text.translatable("petsplus.emotion_cue.social.owner_hurt", pet.getDisplayName()), 200);
             if (pc.hasRole(PetRoleType.GUARDIAN)) {
                 collector.pushEmotion(PetComponent.Emotion.PROTECTIVE, 0.20f); // Extra for guardians
                 EmotionContextCues.sendCue(owner,
                     "role.guardian.vigil." + pet.getUuidAsString(),
+                    pet,
                     Text.translatable("petsplus.emotion_cue.role.guardian_vigil", pet.getDisplayName()),
                     200);
             }
@@ -3670,8 +3682,8 @@ private record WeatherState(boolean raining, boolean thundering) {}
                     collector.pushEmotion(PetComponent.Emotion.PROTECTIVE, 0.15f); // Protective of owner in dark
                 }
             }
-            EmotionContextCues.sendCue(owner, "environment.dark." + pet.getUuidAsString(),
-                Text.translatable("petsplus.emotion_cue.environment.dark", pet.getDisplayName()), 200);
+            EmotionContextCues.sendPetCue(owner, "environment.dark." + pet.getUuidAsString(), pet,
+                "petsplus.emotion_cue.environment.dark", 200, pet.getDisplayName());
         } else if (lightLevel <= 7) {
             // Dim light - vigilant but not afraid
             collector.pushEmotion(PetComponent.Emotion.VIGILANT, 0.15f);
@@ -3689,8 +3701,8 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.15f);
                 collector.pushEmotion(PetComponent.Emotion.CONTENT, 0.10f);
             }
-            EmotionContextCues.sendCue(owner, "environment.bright." + pet.getUuidAsString(),
-                Text.translatable("petsplus.emotion_cue.environment.bright", pet.getDisplayName()), 400);
+            EmotionContextCues.sendPetCue(owner, "environment.bright." + pet.getUuidAsString(), pet,
+                "petsplus.emotion_cue.environment.bright", 400, pet.getDisplayName());
         }
 
         // Height awareness
@@ -3698,19 +3710,19 @@ private record WeatherState(boolean raining, boolean thundering) {}
         if (y > 120) { // High altitude
             collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.18f); // Awe at heights
             collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.15f); // Wanderlust from vistas
-            EmotionContextCues.sendCue(owner, "environment.high." + pet.getUuidAsString(),
-                Text.translatable("petsplus.emotion_cue.environment.high", pet.getDisplayName()), 400);
+            EmotionContextCues.sendPetCue(owner, "environment.high." + pet.getUuidAsString(), pet,
+                "petsplus.emotion_cue.environment.high", 400, pet.getDisplayName());
         } else if (y < 20) { // Deep underground
             collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.25f); // Underground unease
-            EmotionContextCues.sendCue(owner, "environment.deep." + pet.getUuidAsString(),
-                Text.translatable("petsplus.emotion_cue.environment.deep", pet.getDisplayName()), 400);
+            EmotionContextCues.sendPetCue(owner, "environment.deep." + pet.getUuidAsString(), pet,
+                "petsplus.emotion_cue.environment.deep", 400, pet.getDisplayName());
         }
 
         // Water proximity
         if (world.getBlockState(petPos.down()).getFluidState().isEmpty() == false) {
             collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.15f); // Water brings balance
-            EmotionContextCues.sendCue(owner, "environment.water." + pet.getUuidAsString(),
-                Text.translatable("petsplus.emotion_cue.environment.water", pet.getDisplayName()), 400);
+            EmotionContextCues.sendPetCue(owner, "environment.water." + pet.getUuidAsString(), pet,
+                "petsplus.emotion_cue.environment.water", 400, pet.getDisplayName());
         }
 
         // Flowers and nature
@@ -3718,8 +3730,8 @@ private record WeatherState(boolean raining, boolean thundering) {}
             BlockState blockState = world.getBlockState(offset);
             if (blockState.isIn(NATURE_PLANTS)) {
                 collector.pushEmotion(PetComponent.Emotion.MONO_NO_AWARE, 0.12f); // Beauty of nature
-                EmotionContextCues.sendCue(owner, "environment.flower." + pet.getUuidAsString(),
-                    Text.translatable("petsplus.emotion_cue.environment.flower", pet.getDisplayName()), 400);
+                EmotionContextCues.sendPetCue(owner, "environment.flower." + pet.getUuidAsString(), pet,
+                    "petsplus.emotion_cue.environment.flower", 400, pet.getDisplayName());
                 break;
             }
             // Check for safety indicators at night
@@ -3774,11 +3786,12 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 float protectiveBonus = nearOwner ? 1.5f : 1.0f;
                 collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, baseProtectiveness * fatigueFactor * protectiveBonus);
             }
-            EmotionContextCues.sendCue(owner, "environment.hostiles." + pet.getUuidAsString(),
-                Text.translatable("petsplus.emotion_cue.environment.hostiles", pet.getDisplayName()), 200);
+            EmotionContextCues.sendPetCue(owner, "environment.hostiles." + pet.getUuidAsString(), pet,
+                "petsplus.emotion_cue.environment.hostiles", 200, pet.getDisplayName());
             if (pc.hasRole(PetRoleType.GUARDIAN)) {
                 EmotionContextCues.sendCue(owner,
                     "role.guardian.hold." + pet.getUuidAsString(),
+                    pet,
                     Text.translatable("petsplus.emotion_cue.role.guardian_hold", pet.getDisplayName()),
                     200);
             }
@@ -3801,6 +3814,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
             collector.pushEmotion(PetComponent.Emotion.KEFI, 0.15f * (float)Math.min(speed, 1.0));  // Scale with velocity
             collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.10f); // Adventure spirit
             EmotionContextCues.sendCue(owner, "movement.run." + pet.getUuidAsString(),
+                pet,
                 Text.translatable("petsplus.emotion_cue.movement.run", pet.getDisplayName()), 200);
         } else if (speed > 0.1 && speed <= 0.3) { // Safe exploration speed
             collector.pushEmotion(PetComponent.Emotion.KEFI, 0.15f); // Spirited exploration
@@ -3808,6 +3822,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
         } else if (speed < 0.01) { // Pet is very still
             collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.05f); // Peaceful stillness
             EmotionContextCues.sendCue(owner, "movement.still." + pet.getUuidAsString(),
+                pet,
                 Text.translatable("petsplus.emotion_cue.movement.still", pet.getDisplayName()), 200);
         }
         
@@ -3822,11 +3837,13 @@ private record WeatherState(boolean raining, boolean thundering) {}
             collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.25f);  // Dread of falling
             collector.pushEmotion(PetComponent.Emotion.ANGST, 0.20f);
             EmotionContextCues.sendCue(owner, "movement.fall." + pet.getUuidAsString(),
+                pet,
                 Text.translatable("petsplus.emotion_cue.movement.fall", pet.getDisplayName()), 200);
         } else if (velocity.y > 0.4) { // Jumping up - moderate joy
             collector.pushEmotion(PetComponent.Emotion.KEFI, 0.10f); // Joy of leaping
             collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.08f);
             EmotionContextCues.sendCue(owner, "movement.jump." + pet.getUuidAsString(),
+                pet,
                 Text.translatable("petsplus.emotion_cue.movement.jump", pet.getDisplayName()), 200);
         }
 
@@ -3836,10 +3853,12 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 collector.pushEmotion(PetComponent.Emotion.DISGUST, 0.08f); // Cats dislike water but not extreme
                 collector.pushEmotion(PetComponent.Emotion.ANGST, 0.06f);
                 EmotionContextCues.sendCue(owner, "movement.cat_swim." + pet.getUuidAsString(),
+                    pet,
                     Text.translatable("petsplus.emotion_cue.movement.cat_swim", pet.getDisplayName()), 200);
             } else {
                 collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.04f); // Others find it refreshing
                 EmotionContextCues.sendCue(owner, "movement.swim." + pet.getUuidAsString(),
+                    pet,
                     Text.translatable("petsplus.emotion_cue.movement.swim", pet.getDisplayName()), 200);
             }
         }
@@ -3861,6 +3880,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 if (pct <= 0.35f) {
                     EmotionContextCues.sendCue(owner,
                         "role.striker.mark." + pet.getUuidAsString(),
+                        pet,
                         Text.translatable("petsplus.emotion_cue.role.striker_mark",
                             pet.getDisplayName(), target.getDisplayName()),
                         200);
@@ -3878,6 +3898,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
                     if (ratio <= 0.25d) {
                         EmotionContextCues.sendCue(owner,
                             "role.support.potion_low." + pet.getUuidAsString(),
+                            pet,
                             Text.translatable("petsplus.emotion_cue.role.support_low", pet.getDisplayName()),
                             600);
                     }
@@ -3889,6 +3910,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
             if (!owner.isOnGround() && owner.fallDistance > 4.0f && owner.getVelocity().y < -0.6f) {
                 EmotionContextCues.sendCue(owner,
                     "role.skyrider.catch." + pet.getUuidAsString(),
+                    pet,
                     Text.translatable("petsplus.emotion_cue.role.skyrider_dive", pet.getDisplayName()),
                     200);
             }
@@ -3899,11 +3921,13 @@ private record WeatherState(boolean raining, boolean thundering) {}
             if (worldKey == World.NETHER) {
                 EmotionContextCues.sendCue(owner,
                     "role.cursed.nether." + pet.getUuidAsString(),
+                    pet,
                     Text.translatable("petsplus.emotion_cue.role.cursed_nether", pet.getDisplayName()),
                     600);
             } else if (world.getLightLevel(pet.getBlockPos()) <= 3) {
                 EmotionContextCues.sendCue(owner,
                     "role.cursed.gloom." + pet.getUuidAsString(),
+                    pet,
                     Text.translatable("petsplus.emotion_cue.role.cursed_gloom", pet.getDisplayName()),
                     400);
             }
@@ -4005,6 +4029,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
                     if (pet instanceof ParrotEntity && musicDuration % 200 == 0) {
                         collector.pushEmotion(PetComponent.Emotion.KEFI, 0.20f); // Dancing burst
                         EmotionContextCues.sendCue(owner, "music.parrot_dance." + pet.getUuidAsString(),
+                            pet,
                             Text.translatable("petsplus.emotion_cue.music.parrot_dance", pet.getDisplayName()), 400);
                     }
                 } catch (IllegalArgumentException ignored) {}
@@ -4755,11 +4780,13 @@ private record WeatherState(boolean raining, boolean thundering) {}
 
             if (!shelteredAndDry) {
                 EmotionContextCues.sendCue(owner, "weather.thunder.pet." + pet.getUuidAsString(),
+                    pet,
                     Text.translatable("petsplus.emotion_cue.weather.thunder_pet", pet.getDisplayName()), 400);
             } else if (tryMarkPetBeat(pc, "weather_shelter", now, 200L)) {
                 collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.04f);
                 collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.03f);
                 EmotionContextCues.sendCue(owner, "weather.shelter." + pet.getUuidAsString(),
+                    pet,
                     Text.translatable("petsplus.emotion_cue.weather.shelter", pet.getDisplayName()), 400);
             }
         } else if (world.isRaining()) {
@@ -4768,6 +4795,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
                     collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.03f);
                     collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.02f);
                     EmotionContextCues.sendCue(owner, "weather.shelter." + pet.getUuidAsString(),
+                        pet,
                         Text.translatable("petsplus.emotion_cue.weather.shelter", pet.getDisplayName()), 400);
                 }
             } else if (isCat) {
@@ -4775,18 +4803,21 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 collector.pushEmotion(PetComponent.Emotion.DISGUST, discomfort);
                 collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.06f + (soaked ? 0.02f : 0f));
                 EmotionContextCues.sendCue(owner, "weather.rain.cat." + pet.getUuidAsString(),
+                    pet,
                     Text.translatable("petsplus.emotion_cue.weather.rain_cat", pet.getDisplayName()), 400);
             } else if (isWolf) {
                 float delight = exposedToSky || soaked ? 0.05f : 0.03f;
                 collector.pushEmotion(PetComponent.Emotion.KEFI, delight);
                 collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.04f + (soaked ? 0.02f : 0f));
                 EmotionContextCues.sendCue(owner, "weather.rain.dog." + pet.getUuidAsString(),
+                    pet,
                     Text.translatable("petsplus.emotion_cue.weather.rain_dog", pet.getDisplayName()), 400);
             } else {
                 float refresh = exposedToSky || soaked ? 0.03f : 0.015f;
                 collector.pushEmotion(PetComponent.Emotion.LAGOM, refresh);
                 if (exposedToSky || soaked) {
                     EmotionContextCues.sendCue(owner, "weather.rain.pet." + pet.getUuidAsString(),
+                        pet,
                         Text.translatable("petsplus.emotion_cue.weather.rain_pet", pet.getDisplayName()), 400);
                 }
             }
@@ -4795,6 +4826,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.06f);
                 collector.pushEmotion(PetComponent.Emotion.KEFI, 0.04f); // Energy from clear skies
                 EmotionContextCues.sendCue(owner, "weather.clear." + pet.getUuidAsString(),
+                    pet,
                     Text.translatable("petsplus.emotion_cue.weather.clear", pet.getDisplayName()), 6000);
             }
         }
@@ -4807,13 +4839,13 @@ private record WeatherState(boolean raining, boolean thundering) {}
             if (temperature > 1.0f) { // Hot biomes
                 collector.pushEmotion(PetComponent.Emotion.LAGOM, -0.02f); // Slight discomfort
                 collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.03f); // Seeking shade
-                EmotionContextCues.sendCue(owner, "environment.hot." + pet.getUuidAsString(),
-                    Text.translatable("petsplus.emotion_cue.environment.hot", pet.getDisplayName()), 600);
+                EmotionContextCues.sendPetCue(owner, "environment.hot." + pet.getUuidAsString(), pet,
+                    "petsplus.emotion_cue.environment.hot", 600, pet.getDisplayName());
             } else if (temperature < 0.0f) { // Cold biomes
                 collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.04f); // Seeking warmth/owner
                 collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.03f); // Cozy feelings
-                EmotionContextCues.sendCue(owner, "environment.cold." + pet.getUuidAsString(),
-                    Text.translatable("petsplus.emotion_cue.environment.cold", pet.getDisplayName()), 600);
+                EmotionContextCues.sendPetCue(owner, "environment.cold." + pet.getUuidAsString(), pet,
+                    "petsplus.emotion_cue.environment.cold", 600, pet.getDisplayName());
             }
         } catch (Exception ignored) {}
     }
@@ -4897,6 +4929,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
             collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.04f); // Security from wealth
             collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.06f); // Guarding valuable things
             EmotionContextCues.sendCue(owner, "inventory.valuables",
+                pet,
                 Text.translatable("petsplus.emotion_cue.inventory.valuables"), 1200);
             NatureFlavorHandler.triggerForPet(pet, pc, (ServerWorld) owner.getEntityWorld(), owner,
                 Trigger.INVENTORY_VALUABLE, now);
@@ -4906,6 +4939,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
             collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.05f); // Food security
             collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.03f); // Comfort from sustenance
             EmotionContextCues.sendCue(owner, "inventory.food",
+                pet,
                 Text.translatable("petsplus.emotion_cue.inventory.food"), 1200);
         }
 
@@ -4913,6 +4947,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
             collector.pushEmotion(PetComponent.Emotion.YUGEN, 0.06f); // Wonder at magical things
             collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.02f); // Slight wariness
             EmotionContextCues.sendCue(owner, "inventory.magic",
+                pet,
                 Text.translatable("petsplus.emotion_cue.inventory.magic"), 1200);
         }
 
@@ -4925,6 +4960,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
             collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.05f); // Ready for danger
             collector.pushEmotion(PetComponent.Emotion.STOIC, 0.03f); // Determination
             EmotionContextCues.sendCue(owner, "inventory.weapons",
+                pet,
                 Text.translatable("petsplus.emotion_cue.inventory.weapons"), 1200);
         }
 
@@ -4932,6 +4968,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
             collector.pushEmotion(PetComponent.Emotion.KEFI, 0.03f); // Energy from productivity
             collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.04f); // Balance from useful work
             EmotionContextCues.sendCue(owner, "inventory.tools",
+                pet,
                 Text.translatable("petsplus.emotion_cue.inventory.tools"), 1200);
         }
     }
