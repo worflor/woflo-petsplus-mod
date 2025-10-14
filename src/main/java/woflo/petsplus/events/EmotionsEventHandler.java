@@ -103,6 +103,7 @@ import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
+import java.util.function.Consumer;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
@@ -1001,7 +1002,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             if (pet == null || pc == null) {
                 continue;
             }
-            MoodService.getInstance().getStimulusBus().queueSimpleStimulus(pet, collector -> {
+            queueStimulus(pet, "memory_lane", collector -> {
                 collector.pushEmotion(PetComponent.Emotion.SAUDADE, 0.95f);
                 collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.85f);
                 collector.pushEmotion(PetComponent.Emotion.REGRET, 0.70f);
@@ -1011,13 +1012,29 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
     }
 
     // ==== Weather transitions (ultra-light) → SOBREMESA, YUGEN, FOREBODING, RELIEF ====
-    private static final java.util.Map<ServerWorld, WeatherState> WEATHER = new java.util.WeakHashMap<>();
-    private static final Map<ServerWorld, Long> LAST_WET_WEATHER_TICK = new WeakHashMap<>();
-    private static final Map<UUID, Long> LAST_CLEAR_WEATHER_TRIGGER = new HashMap<>();
-    private static final Map<UUID, ConcurrentHashMap<UUID, Long>> LAST_OWNER_ATTACK_TARGET = new ConcurrentHashMap<>();
-    private static final Map<UUID, OwnerKillStreak> OWNER_KILL_STREAKS = new ConcurrentHashMap<>();
-    private static final Map<ServerPlayerEntity, String> INVENTORY_SIGNATURES = new WeakHashMap<>();
-    private record WeatherState(boolean raining, boolean thundering) {}
+private static final java.util.Map<ServerWorld, WeatherState> WEATHER = new java.util.WeakHashMap<>();
+private static final Map<ServerWorld, Long> LAST_WET_WEATHER_TICK = new WeakHashMap<>();
+private static final Map<UUID, Long> LAST_CLEAR_WEATHER_TRIGGER = new HashMap<>();
+private static final Map<UUID, ConcurrentHashMap<UUID, Long>> LAST_OWNER_ATTACK_TARGET = new ConcurrentHashMap<>();
+private static final Map<UUID, OwnerKillStreak> OWNER_KILL_STREAKS = new ConcurrentHashMap<>();
+private static final Map<ServerPlayerEntity, String> INVENTORY_SIGNATURES = new WeakHashMap<>();
+private record WeatherState(boolean raining, boolean thundering) {}
+
+    private static final Map<String, Identifier> STIMULUS_KEY_CACHE = new ConcurrentHashMap<>();
+
+    private static Identifier stimulusKey(String name) {
+        return STIMULUS_KEY_CACHE.computeIfAbsent(name, key -> Identifier.of(Petsplus.MOD_ID, "stimulus/" + key));
+    }
+
+    private static void queueStimulus(MobEntity pet, String key,
+                                      Consumer<EmotionStimulusBus.SimpleStimulusCollector> consumer) {
+        MoodService.getInstance().getStimulusBus().queueSimpleStimulus(pet, stimulusKey(key), consumer);
+    }
+
+    private static void queueStimulus(EmotionStimulusBus bus, MobEntity pet, String key,
+                                      Consumer<EmotionStimulusBus.SimpleStimulusCollector> consumer) {
+        bus.queueSimpleStimulus(pet, stimulusKey(key), consumer);
+    }
 
     private static final TagKey<Item> VALUABLE_ITEMS = TagKey.of(RegistryKeys.ITEM,
         Identifier.of("petsplus", "emotion/valuable_items"));
@@ -1658,7 +1675,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             }
 
             Map<PetComponent.Mood, Float> before = snapshotMoodBlend(component);
-            bus.queueSimpleStimulus(pet, replayCollector -> {
+            queueStimulus(bus, pet, "replay_legacy_provider", replayCollector -> {
                 for (Map.Entry<PetComponent.Emotion, Float> entry : deltas.entrySet()) {
                     replayCollector.pushEmotion(entry.getKey(), entry.getValue());
                 }
@@ -1890,7 +1907,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             AsyncWorkCoordinator coordinator = stateManager.getAsyncWorkCoordinator();
             EmotionStimulusBus bus = MoodService.getInstance().getStimulusBus();
             forEachOwnedPet(owner, 32.0d, (pet, component) -> {
-                bus.queueSimpleStimulus(pet, collector -> {
+                queueStimulus(bus, pet, "weather_reaction", collector -> {
                     addAdvancedWeatherTriggers(pet, component, owner, world, collector);
                     addTagBasedItemTriggers(pet, component, owner, collector);
                 });
@@ -1911,7 +1928,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         AsyncWorkCoordinator coordinator = stateManager.getAsyncWorkCoordinator();
         EmotionStimulusBus bus = MoodService.getInstance().getStimulusBus();
         forEachOwnedPet(player, 32.0d, (pet, component) -> {
-            bus.queueSimpleStimulus(pet, collector -> addTagBasedItemTriggers(pet, component, player, collector));
+            queueStimulus(bus, pet, "inventory_tag_items", collector -> addTagBasedItemTriggers(pet, component, player, collector));
             bus.dispatchStimuli(pet, coordinator);
         });
     }
@@ -2307,7 +2324,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 }
 
                 EmotionStimulusBus bus = MoodService.getInstance().getStimulusBus();
-                bus.queueSimpleStimulus(pet, replayCollector -> {
+                queueStimulus(bus, pet, "replay_batch", replayCollector -> {
                     for (Map.Entry<PetComponent.Emotion, Float> delta : deltas.entrySet()) {
                         replayCollector.pushEmotion(delta.getKey(), delta.getValue());
                     }
@@ -2398,7 +2415,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             StateManager stateManager = StateManager.forWorld((ServerWorld) owner.getEntityWorld());
             AsyncWorkCoordinator coordinator = stateManager.getAsyncWorkCoordinator();
             EmotionStimulusBus bus = MoodService.getInstance().getStimulusBus();
-            bus.queueSimpleStimulus(pet, replayCollector -> {
+            queueStimulus(bus, pet, "replay_owner_interval", replayCollector -> {
                 for (Map.Entry<PetComponent.Emotion, Float> entry : deltas.entrySet()) {
                     replayCollector.pushEmotion(entry.getKey(), entry.getValue());
                 }
@@ -3276,7 +3293,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
         if (hierarchyPosition > 0.7f) {
             // High rank - alpha assertion with cultural emotions
-            bus.queueSimpleStimulus(pet, collector -> {
+            queueStimulus(bus, pet, "hierarchy_alpha", collector -> {
                 collector.pushEmotion(PetComponent.Emotion.KEFI, 0.25f);  // Joyful leadership passion
                 collector.pushEmotion(PetComponent.Emotion.PROTECTIVE, 0.40f);  // Strong protective instinct
                 collector.pushEmotion(PetComponent.Emotion.PRIDE, 0.15f);  // Moderate pride
@@ -3288,7 +3305,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 Text.translatable("petsplus.emotion_cue.social.alpha", context.pet().getDisplayName()), 600);
         } else if (hierarchyPosition >= 0.3f && hierarchyPosition <= 0.7f) {
             // Middle rank - beta submission with harmony
-            bus.queueSimpleStimulus(pet, collector -> {
+            queueStimulus(bus, pet, "hierarchy_beta", collector -> {
                 collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.20f);  // Relaxed social bonding
                 collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.15f);  // Balanced acceptance
                 collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.10f);  // Community feeling
@@ -3298,7 +3315,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 Text.translatable("petsplus.emotion_cue.social.beta", context.pet().getDisplayName()), 500);
         } else {
             // Low rank - omega with mild discontent
-            bus.queueSimpleStimulus(pet, collector -> {
+            queueStimulus(bus, pet, "hierarchy_omega", collector -> {
                 collector.pushEmotion(PetComponent.Emotion.ENNUI, 0.15f);  // Boredom in low status
                 collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.10f);  // Some acceptance
                 collector.pushEmotion(PetComponent.Emotion.LOYALTY, 0.15f);  // Loyal despite position
@@ -3310,7 +3327,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
 
         // Group bonding for all ranks when multiple pets present
         if (evaluation.totalNeighbors() >= 3) {
-            bus.queueSimpleStimulus(pet, collector -> {
+            queueStimulus(bus, pet, "hierarchy_group", collector -> {
                 collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.25f);  // Strong group unity
                 collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.16f);  // Warmth of the circle
             });
@@ -4425,7 +4442,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                                                                   EnumMap<PetComponent.Emotion, Float> deltas) {
             CompletableFuture<Void> completion = new CompletableFuture<>();
             CompletableFuture<Void> scheduling = submitToServerAsync(server, () -> {
-                bus.queueSimpleStimulus(pet, collector -> {
+                queueStimulus(bus, pet, "async_summary_dispatch", collector -> {
                     for (Map.Entry<PetComponent.Emotion, Float> delta : deltas.entrySet()) {
                         collector.pushEmotion(delta.getKey(), delta.getValue());
                     }
@@ -4708,7 +4725,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 PetComponent pc = entry.component();
                 if (pet == null || pc == null) continue;
 
-                bus.queueSimpleStimulus(pet, collector -> {
+                queueStimulus(bus, pet, "advanced_triggers", collector -> {
                     // Enhanced weather awareness
                     addAdvancedWeatherTriggers(pet, pc, player, world, collector);
 

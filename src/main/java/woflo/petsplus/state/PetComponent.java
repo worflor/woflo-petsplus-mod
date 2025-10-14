@@ -137,6 +137,9 @@ public class PetComponent {
     private long followSpacingSampleTick = Long.MIN_VALUE;
     private long moodFollowHoldUntilTick = Long.MIN_VALUE;
     private float moodFollowDistanceBonus = 0.0f;
+    private Identifier lastSuggestedGoalId;
+    private float lastSuggestionScore;
+    private long lastSuggestionTick = Long.MIN_VALUE;
 
     // UI state
     private long xpFlashStartTick = -1;
@@ -1374,6 +1377,7 @@ public class PetComponent {
         scheduleNextSupportPotionScan(currentTick);
         scheduleNextParticleCheck(currentTick);
         scheduleNextGossipDecay(currentTick + Math.max(MIN_GOSSIP_DECAY_DELAY, gossipLedger.scheduleNextDecayDelay()));
+        scheduleNextMoodProviderTick(currentTick);
     }
 
     public void resetTickScheduling(long currentTick) {
@@ -1402,6 +1406,10 @@ public class PetComponent {
 
     public void scheduleNextGossipDecay(long nextTick) {
         submitScheduledTask(PetWorkScheduler.TaskType.GOSSIP_DECAY, nextTick);
+    }
+
+    public void scheduleNextMoodProviderTick(long nextTick) {
+        submitScheduledTask(PetWorkScheduler.TaskType.MOOD_PROVIDER, nextTick);
     }
 
     private void submitScheduledTask(PetWorkScheduler.TaskType type, long nextTick) {
@@ -1446,6 +1454,31 @@ public class PetComponent {
     public void invalidateSwarmTracking() {
         swarmTrackingInitialized = false;
         lastSwarmCellKey = Long.MIN_VALUE;
+    }
+
+    public void recordGoalSuggestion(@Nullable Identifier goalId, float score, long tick) {
+        if (goalId == null) {
+            this.lastSuggestedGoalId = null;
+            this.lastSuggestionScore = 0f;
+            this.lastSuggestionTick = Long.MIN_VALUE;
+            return;
+        }
+        this.lastSuggestedGoalId = goalId;
+        this.lastSuggestionScore = MathHelper.clamp(score, 0f, 16f);
+        this.lastSuggestionTick = tick;
+    }
+
+    @Nullable
+    public Identifier getLastSuggestedGoalId() {
+        return lastSuggestedGoalId;
+    }
+
+    public float getLastSuggestionScore() {
+        return lastSuggestionScore;
+    }
+
+    public long getLastSuggestionTick() {
+        return lastSuggestionTick;
     }
 
     public SwarmStateSnapshot snapshotSwarmState() {

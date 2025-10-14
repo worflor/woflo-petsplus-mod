@@ -24,7 +24,8 @@ public final class PetWorkScheduler {
         SUPPORT_POTION,
         PARTICLE,
         GOSSIP_DECAY,
-        CONTAGION
+        CONTAGION,
+        MOOD_PROVIDER
     }
 
     public static final class ScheduledTask {

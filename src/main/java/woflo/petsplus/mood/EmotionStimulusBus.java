@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
@@ -19,6 +20,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import net.minecraft.util.Identifier;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Central dispatcher that batches emotion stimuli per pet and commits them on the
@@ -58,8 +61,27 @@ public final class EmotionStimulusBus {
     }
 
     /** Placeholder hook for coalescing policies. Currently never coalesces. */
+    private static final Object COALESCE_LOCK = new Object();
+    private static final Map<Long, Map<Integer, Integer>> COALESCE_WINDOWS = new HashMap<>();
+
     public static boolean shouldCoalesce(long petId, int stimulusKey, int nowTick) {
-        return false;
+        if (COALESCE_WINDOW_TICKS <= 0 || stimulusKey == 0) {
+            return false;
+        }
+        synchronized (COALESCE_LOCK) {
+            Map<Integer, Integer> window = COALESCE_WINDOWS.computeIfAbsent(petId, ignored -> new HashMap<>());
+            Integer previousTick = window.get(stimulusKey);
+            if (previousTick != null && nowTick - previousTick <= COALESCE_WINDOW_TICKS) {
+                recordCoalesce(petId, stimulusKey, previousTick, nowTick, 0f);
+                return true;
+            }
+            window.put(stimulusKey, nowTick);
+            return false;
+        }
+    }
+
+    private static int keyHash(@Nullable Identifier key) {
+        return key != null ? key.hashCode() : 0;
     }
 
     // Optional tracing of the last coalesce decision
@@ -178,27 +200,49 @@ public final class EmotionStimulusBus {
     }
 
     public void queueSimpleStimulus(net.minecraft.entity.mob.MobEntity pet, java.util.function.Consumer<woflo.petsplus.mood.EmotionStimulusBus.SimpleStimulusCollector> collectorConsumer) {
+        queueSimpleStimulus(pet, null, collectorConsumer);
+    }
+
+    public void queueSimpleStimulus(net.minecraft.entity.mob.MobEntity pet,
+                                    @Nullable Identifier coalesceKey,
+                                    java.util.function.Consumer<woflo.petsplus.mood.EmotionStimulusBus.SimpleStimulusCollector> collectorConsumer) {
         if (pet == null || collectorConsumer == null) {
+            return;
+        }
+        ServerWorld world = pet.getEntityWorld() instanceof ServerWorld sw ? sw : null;
+        int tick = world != null ? (int) world.getTime() : 0;
+        long petId = pet.getUuid().getLeastSignificantBits();
+        int stimulusKey = keyHash(coalesceKey);
+        if (shouldCoalesce(petId, stimulusKey, tick)) {
             return;
         }
         StimulusWork work = getOrCreateWork(pet);
         PetComponent component = work.ensureComponent(pet);
         collectorConsumer.accept(work);
-        ServerWorld world = pet.getEntityWorld() instanceof ServerWorld sw ? sw : null;
-        long tick = world != null ? world.getTime() : 0L;
         notifyQueued(world, pet, work, tick);
         scheduleIdle(world, pet, work, tick + 1L);
     }
 
     public void queueStimulus(net.minecraft.entity.mob.MobEntity pet, java.util.function.Consumer<woflo.petsplus.state.PetComponent> componentConsumer) {
+        queueStimulus(pet, null, componentConsumer);
+    }
+
+    public void queueStimulus(net.minecraft.entity.mob.MobEntity pet,
+                              @Nullable Identifier coalesceKey,
+                              java.util.function.Consumer<woflo.petsplus.state.PetComponent> componentConsumer) {
         if (pet == null || componentConsumer == null) {
+            return;
+        }
+        ServerWorld world = pet.getEntityWorld() instanceof ServerWorld sw ? sw : null;
+        int tick = world != null ? (int) world.getTime() : 0;
+        long petId = pet.getUuid().getLeastSignificantBits();
+        int stimulusKey = keyHash(coalesceKey);
+        if (shouldCoalesce(petId, stimulusKey, tick)) {
             return;
         }
         StimulusWork work = getOrCreateWork(pet);
         work.addComponentConsumer(componentConsumer);
         work.ensureComponent(pet);
-        ServerWorld world = pet.getEntityWorld() instanceof ServerWorld sw ? sw : null;
-        long tick = world != null ? world.getTime() : 0L;
         notifyQueued(world, pet, work, tick);
         scheduleIdle(world, pet, work, tick + 1L);
     }

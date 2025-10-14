@@ -7,6 +7,7 @@ import woflo.petsplus.ai.behavior.MomentumState;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.mixin.MobEntityAccessor;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.Petsplus;
 
 import java.util.ArrayDeque;
 import java.util.Collections;
@@ -28,6 +29,8 @@ public abstract class AdaptiveGoal extends Goal {
     private static final Map<MobEntity, Map<Identifier, Long>> FALLBACK_LAST_EXECUTED = new WeakHashMap<>();
     private static final int HISTORY_LIMIT = 8;
     private static final String COOLDOWN_PREFIX = "adaptive_goal:";
+    private static final Identifier STIMULUS_KEY_GOAL_REWARD = Identifier.of(Petsplus.MOD_ID, "stimulus/adaptive_goal_reward");
+    private static final Identifier STIMULUS_KEY_GOAL_CONTAGION = Identifier.of(Petsplus.MOD_ID, "stimulus/adaptive_goal_contagion");
 
     protected final MobEntity mob;
     protected final GoalDefinition goalDefinition;
@@ -545,7 +548,7 @@ public abstract class AdaptiveGoal extends Goal {
         
         // Queue emotions via stimulus bus (async-safe)
         var stimulusBus = woflo.petsplus.mood.MoodService.getInstance().getStimulusBus();
-        stimulusBus.queueSimpleStimulus(mob, collector -> {
+        stimulusBus.queueSimpleStimulus(mob, STIMULUS_KEY_GOAL_REWARD, collector -> {
             // Push all defined emotions
             for (var entry : cachedFeedback.emotions().entrySet()) {
                 collector.pushEmotion(entry.getKey(), entry.getValue());
@@ -588,7 +591,7 @@ public abstract class AdaptiveGoal extends Goal {
         // Queue contagion emotions
         var stimulusBus = woflo.petsplus.mood.MoodService.getInstance().getStimulusBus();
         for (MobEntity nearbyPet : nearbyPets) {
-            stimulusBus.queueSimpleStimulus(nearbyPet, collector -> {
+            stimulusBus.queueSimpleStimulus(nearbyPet, STIMULUS_KEY_GOAL_CONTAGION, collector -> {
                 collector.pushEmotion(feedback.contagionEmotion(), feedback.contagionStrength());
             });
             stimulusBus.dispatchStimuli(nearbyPet);

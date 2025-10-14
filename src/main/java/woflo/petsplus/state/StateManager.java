@@ -65,6 +65,11 @@ import woflo.petsplus.state.gossip.PetGossipLedger;
 import woflo.petsplus.state.gossip.RumorEntry;
 import woflo.petsplus.state.processing.AsyncWorkerBudget;
 import woflo.petsplus.state.tracking.PlayerTickDispatcher;
+import woflo.petsplus.policy.AIPerfPolicy;
+import woflo.petsplus.ai.AdaptiveAIManager;
+import woflo.petsplus.ai.director.DirectorDecision;
+import woflo.petsplus.ai.suggester.GoalSuggester;
+import woflo.petsplus.ai.goals.GoalDefinition;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -99,6 +104,7 @@ public class StateManager {
     private static final long DEFAULT_AURA_RECHECK = 40L;
     private static final int MAX_SPATIAL_DEFERRALS = 3;
     private static final long MAX_SPATIAL_WAIT_TICKS = 20L;
+    private static final Identifier DIRECTOR_NUDGE_STIMULUS = Identifier.of(Petsplus.MOD_ID, "stimulus/director_nudge");
 
     private final ServerWorld world;
     private final Map<MobEntity, PetComponent> petComponents = new WeakHashMap<>();
@@ -1525,6 +1531,8 @@ public class StateManager {
             case SUPPORT_POTION -> runSupportScan(pet, component, serverOwner, currentTick);
             case PARTICLE -> runParticlePass(pet, component, serverOwner, currentTick);
             case GOSSIP_DECAY -> component.tickGossipLedger(currentTick);
+            case CONTAGION -> { /* handled via contagion pipeline */ }
+            case MOOD_PROVIDER -> runMoodProviderTick(pet, component, serverOwner, currentTick);
         }
 
         ownerProcessingManager.onTaskExecuted(component, task.type(), currentTick);
@@ -1541,8 +1549,42 @@ public class StateManager {
         }
         TriggerContext ctx = new TriggerContext(world, pet, owner, "interval_tick");
         woflo.petsplus.abilities.AbilityManager.triggerAbilities(pet, ctx);
+
+        DirectorDecision decision = AdaptiveAIManager.tickDirector(pet);
+        if (decision != null && decision.suggestion() != null) {
+            GoalSuggester.Suggestion suggestion = decision.suggestion();
+            component.recordGoalSuggestion(suggestion.definition().id(), suggestion.score(), currentTick);
+            applySuggestionNudge(pet, component, suggestion);
+        } else {
+            component.recordGoalSuggestion(null, 0f, Long.MIN_VALUE);
+        }
+
         long delay = scaleIntervalForDistance(INTERVAL_TICK_SPACING, pet, owner);
         component.scheduleNextIntervalTick(currentTick + delay);
+    }
+
+    private void applySuggestionNudge(MobEntity pet,
+                                      PetComponent component,
+                                      GoalSuggester.Suggestion suggestion) {
+        GoalDefinition definition = suggestion.definition();
+        if (definition == null) {
+            return;
+        }
+        PetComponent.Emotion targetEmotion = switch (definition.category()) {
+            case PLAY -> PetComponent.Emotion.PLAYFULNESS;
+            case WANDER -> PetComponent.Emotion.CURIOUS;
+            case SPECIAL -> PetComponent.Emotion.FOCUSED;
+            case SOCIAL -> PetComponent.Emotion.UBUNTU;
+            case IDLE_QUIRK -> PetComponent.Emotion.CONTENT;
+        };
+        if (targetEmotion == null) {
+            return;
+        }
+        float score = MathHelper.clamp(suggestion.score(), 0f, 16f);
+        float amount = MathHelper.clamp(0.06f + (score * 0.015f), 0.06f, 0.35f);
+        EmotionStimulusBus bus = MoodService.getInstance().getStimulusBus();
+        bus.queueSimpleStimulus(pet, DIRECTOR_NUDGE_STIMULUS, collector -> collector.pushEmotion(targetEmotion, amount));
+        bus.dispatchStimuli(pet);
     }
 
     private void runAuraPulse(MobEntity pet, PetComponent component, ServerPlayerEntity owner,
@@ -1600,6 +1642,37 @@ public class StateManager {
             long delay = scaleIntervalForDistance(DEFAULT_AURA_RECHECK, pet, owner);
             component.scheduleNextAuraCheck(currentTick + delay);
         }
+    }
+
+    private void runMoodProviderTick(MobEntity pet,
+                                     PetComponent component,
+                                     @Nullable ServerPlayerEntity owner,
+                                     long currentTick) {
+        if (!(world instanceof ServerWorld serverWorld)) {
+            component.scheduleNextMoodProviderTick(currentTick + MoodService.providerBaseTicksMid());
+            return;
+        }
+
+        MoodService moodService = MoodService.getInstance();
+        moodService.processPet(serverWorld, pet, component, currentTick);
+        moodService.getStimulusBus().dispatchStimuli(pet);
+
+        double distance = owner != null ? pet.distanceTo(owner) : Double.POSITIVE_INFINITY;
+        int baseInterval;
+        if (owner == null) {
+            baseInterval = MoodService.providerBaseTicksFar();
+        } else if (distance <= AIPerfPolicy.NEAR_DIST) {
+            baseInterval = MoodService.providerBaseTicksNear();
+        } else if (distance <= AIPerfPolicy.MID_DIST) {
+            baseInterval = MoodService.providerBaseTicksMid();
+        } else {
+            baseInterval = MoodService.providerBaseTicksFar();
+        }
+
+        int lodMod = MoodService.lodTickModForDistance(distance);
+        long delay = Math.max(1L, (long) baseInterval * lodMod);
+        delay = scaleIntervalForDistance(delay, pet, owner);
+        component.scheduleNextMoodProviderTick(currentTick + delay);
     }
 
     private List<PetSwarmIndex.SwarmEntry> gatherSwarmFromSpatial(@Nullable UUID ownerId,
