@@ -181,6 +181,8 @@ public final class PetMoodEngine {
     private float recentLevel23Time = 0f;
     private int previousMoodLevel = 0;
     private float previousMoodStrength = 0f;
+    @Nullable
+    private PetComponent.Mood previousMoodSnapshot = null;
 
     private final EnumMap<PetComponent.Emotion, Float> paletteBlend =
             new EnumMap<>(PetComponent.Emotion.class);
@@ -1186,6 +1188,7 @@ public final class PetMoodEngine {
         moodBlend.put(PetComponent.Mood.CALM, 1f);
         currentMood = PetComponent.Mood.CALM;
         moodLevel = 0;
+        previousMoodSnapshot = currentMood;
         updateDominantHistory(0f);
         lastNormalizedWeights.clear();
         for (PetComponent.Mood mood : PetComponent.Mood.values()) {
@@ -1200,12 +1203,15 @@ public final class PetMoodEngine {
 
     private void updateMoodLevel(float currentStrength) {
         // Get mood-specific thresholds if available, otherwise use default
-        float[] thresholds = getMoodSpecificThresholds(currentMood);
-        
+        PetComponent.Mood moodEvaluated = currentMood;
+        float[] thresholds = getMoodSpecificThresholds(moodEvaluated);
+
+        int lastLevel = moodLevel;
+
         // Apply buildup multiplier based on emotional momentum
-        float buildupMultiplier = computeBuildupMultiplier(currentStrength);
+        float buildupMultiplier = computeBuildupMultiplier(moodEvaluated, currentStrength);
         float effectiveStrength = MathHelper.clamp(currentStrength * buildupMultiplier, 0f, 1f);
-        
+
         // Calculate raw level from thresholds (simple linear scan - O(n) where n=3, very cheap)
         int rawLevel = 0;
         for (int i = 0; i < thresholds.length; i++) {
@@ -1215,18 +1221,20 @@ public final class PetMoodEngine {
                 break;  // Thresholds are sorted, can early exit
             }
         }
-        
+
         // Apply hysteresis to prevent level jitter
-        int newLevel = applyLevelHysteresis(rawLevel, effectiveStrength, thresholds);
-        
+        int newLevel = applyLevelHysteresis(rawLevel, effectiveStrength, thresholds, lastLevel);
+
+        int clampedLevel = MathHelper.clamp(newLevel, 0, thresholds.length);
         // Update level history for habituation tracking (only if level actually changed)
-        if (newLevel != previousMoodLevel) {
-            updateLevelHistory(newLevel, lastMoodUpdate);
+        if (clampedLevel != lastLevel) {
+            updateLevelHistory(clampedLevel, lastMoodUpdate);
         }
-        
-        previousMoodLevel = moodLevel;
+
+        moodLevel = clampedLevel;
+        previousMoodLevel = clampedLevel;
         previousMoodStrength = currentStrength;
-        moodLevel = MathHelper.clamp(newLevel, 0, thresholds.length);
+        previousMoodSnapshot = moodEvaluated;
     }
 
     private void updateDominantHistory(float strength) {
@@ -3942,7 +3950,7 @@ public final class PetMoodEngine {
         
         // Show buildup metrics
         float currentStrength = moodBlend.getOrDefault(currentMood, 0f);
-        float buildupMult = computeBuildupMultiplier(currentStrength);
+        float buildupMult = computeBuildupMultiplier(currentMood, currentStrength);
         int activeEmotionCount = (int) emotionRecords.values().stream()
             .filter(r -> r.intensity > EPSILON)
             .count();
@@ -4237,8 +4245,16 @@ public final class PetMoodEngine {
      * Rising emotions get boosted (feels responsive), falling get gentle resistance.
      * This creates a "feeling the buildup" experience where escalating emotions accelerate.
      */
-    private float computeBuildupMultiplier(float currentStrength) {
-        // Need at least one previous reading AND must be same mood to compare
+    private float computeBuildupMultiplier(PetComponent.Mood currentMood, float currentStrength) {
+        if (currentMood == null) {
+            return 1.0f;
+        }
+
+        if (previousMoodSnapshot == null || previousMoodSnapshot != currentMood) {
+            return 1.0f;
+        }
+
+        // Need at least one previous reading for this mood to compare
         if (previousMoodStrength <= 0f || previousMoodLevel < 0) {
             return 1.0f;  // First update or mood switch, no trend available
         }
@@ -4277,13 +4293,13 @@ public final class PetMoodEngine {
      * @param thresholds The threshold array for current mood
      * @return The final level after hysteresis
      */
-    private int applyLevelHysteresis(int rawLevel, float effectiveStrength, float[] thresholds) {
+    private int applyLevelHysteresis(int rawLevel, float effectiveStrength, float[] thresholds, int lastLevel) {
         // No previous level data or no change - skip hysteresis
-        if (previousMoodLevel < 0 || rawLevel == previousMoodLevel) {
+        if (lastLevel < 0 || rawLevel == lastLevel) {
             return rawLevel;
         }
-        
-        if (rawLevel > previousMoodLevel) {
+
+        if (rawLevel > lastLevel) {
             // GOING UP: need to exceed threshold by extra margin (creates "earning it" feel)
             // The threshold we're trying to cross is at index (rawLevel - 1)
             int thresholdIndex = rawLevel - 1;
@@ -4304,12 +4320,12 @@ public final class PetMoodEngine {
             
             if (actualMargin < requiredMargin) {
                 // Not enough push - stay at current level
-                return previousMoodLevel;
+                return lastLevel;
             }
         } else {
             // GOING DOWN: need to fall below threshold by small margin (easier than going up)
-            // The threshold we're falling below is at index (previousMoodLevel - 1)
-            int thresholdIndex = previousMoodLevel - 1;
+            // The threshold we're falling below is at index (lastLevel - 1)
+            int thresholdIndex = lastLevel - 1;
             
             // Bounds check
             if (thresholdIndex < 0 || thresholdIndex >= thresholds.length) {
@@ -4324,10 +4340,10 @@ public final class PetMoodEngine {
             
             if (actualMargin < requiredMargin) {
                 // Haven't fallen enough - stay at current level
-                return previousMoodLevel;
+                return lastLevel;
             }
         }
-        
+
         // Passed hysteresis checks - commit to new level
         return rawLevel;
     }

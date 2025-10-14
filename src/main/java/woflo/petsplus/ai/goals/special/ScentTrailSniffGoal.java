@@ -61,6 +61,9 @@ public class ScentTrailSniffGoal extends AdaptiveGoal {
 
         // Heuristic for "owner recent interaction ≤ 20s within 8 blocks"
         PetComponent pc = PetComponent.get(mob);
+        if (pc != null && pc.isOnCooldown("scent_trail_sniff")) {
+            return false;
+        }
         long now = mob.getEntityWorld().getTime();
         BlockPos candidate = null;
 

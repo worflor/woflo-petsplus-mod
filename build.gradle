@@ -43,9 +43,9 @@ jar {
     }
 }
 
-// Remove any tests by disabling Test tasks defensively (directory will be deleted separately)
+// Configure test tasks so targeted unit coverage can run under JUnit Jupiter
 tasks.withType(Test).configureEach {
-    enabled = false
+    useJUnitPlatform()
 }
 
 // Publishing (standard Loom template)
@@ -69,4 +69,7 @@ dependencies {
 
     // Fabric API for mod features
     modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+
+    testImplementation "org.junit.jupiter:junit-jupiter-api:5.10.2"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:5.10.2"
 }

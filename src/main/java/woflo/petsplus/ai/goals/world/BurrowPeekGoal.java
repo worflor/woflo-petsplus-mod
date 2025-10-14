@@ -68,6 +68,9 @@ public class BurrowPeekGoal extends AdaptiveGoal {
         if (pc != null && pc.isOnCooldown("world_micro")) {
             return false;
         }
+        if (pc != null && pc.isOnCooldown("burrow_peek")) {
+            return false;
+        }
 
         // Momentum gating
         MomentumState ms = MomentumState.capture(mob);
