@@ -17,7 +17,7 @@ import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.roles.skyrider.SkyriderWinds;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.ui.UIFeedbackManager;
+
 
 /**
  * Applies the Windlash Rider jump surge and attack rider when the owner begins a qualifying fall.

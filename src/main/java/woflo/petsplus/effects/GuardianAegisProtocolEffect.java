@@ -7,7 +7,7 @@ import net.minecraft.util.Identifier;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
 import woflo.petsplus.roles.guardian.GuardianAegisProtocolManager;
-import woflo.petsplus.ui.UIFeedbackManager;
+
 
 /**
  * Effect that awards Guardian Aegis Protocol stacks after a successful redirect.

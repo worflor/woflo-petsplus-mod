@@ -1,8 +1,6 @@
 package woflo.petsplus.api;
 
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.player.PlayerEntity;
+
 import net.minecraft.util.Identifier;
 
 /**

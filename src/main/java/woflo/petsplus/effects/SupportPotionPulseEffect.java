@@ -17,7 +17,7 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.entry.RegistryEntry;
 import org.jetbrains.annotations.Nullable;
-import woflo.petsplus.advancement.AdvancementCriteriaRegistry;
+
 import woflo.petsplus.advancement.criteria.PetStatThresholdCriterion;
 import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;

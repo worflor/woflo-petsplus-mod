@@ -21,7 +21,7 @@ import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.ui.UIFeedbackManager;
+
 import woflo.petsplus.util.EffectConfigHelper;
 
 /**

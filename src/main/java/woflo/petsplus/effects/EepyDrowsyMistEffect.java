@@ -30,7 +30,7 @@ import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
 import woflo.petsplus.ui.FeedbackManager;
-import woflo.petsplus.ui.UIFeedbackManager;
+
 
 import java.util.Iterator;
 import java.util.Map;

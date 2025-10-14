@@ -20,7 +20,7 @@ import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.roles.striker.StrikerExecution;
 import woflo.petsplus.roles.striker.StrikerHuntManager;
 import woflo.petsplus.ui.FeedbackManager;
-import woflo.petsplus.ui.UIFeedbackManager;
+
 
 /**
  * Applies the Striker bloodlust surge buffs based on recent execution momentum.

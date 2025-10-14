@@ -3,7 +3,6 @@ package woflo.petsplus.ai.behavior.variants;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import woflo.petsplus.ai.context.PetContext;
-import woflo.petsplus.state.PetComponent;
 
 /**
  * Playful bouncing behavior - jumps excitedly toward owner.
