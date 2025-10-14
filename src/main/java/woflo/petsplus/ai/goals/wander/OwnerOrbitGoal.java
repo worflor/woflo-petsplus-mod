@@ -20,6 +20,7 @@ public class OwnerOrbitGoal extends AdaptiveGoal {
     private double orbitAngle;
     private double orbitRadius = 4.0;
     private Vec3d orbitTarget;
+    private Vec3d lastIssuedTarget;
     
     public OwnerOrbitGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.OWNER_ORBIT), EnumSet.of(Control.MOVE, Control.LOOK));
@@ -55,13 +56,15 @@ public class OwnerOrbitGoal extends AdaptiveGoal {
     @Override
     protected void onStartGoal() {
         orbitAngle = mob.getRandom().nextDouble() * Math.PI * 2;
+        lastIssuedTarget = null;
     }
-    
+
     @Override
     protected void onStopGoal() {
         mob.getNavigation().stop();
+        lastIssuedTarget = null;
     }
-    
+
     @Override
     protected void onTickGoal() {
         MobCapabilities.CapabilityProfile capabilities = MobCapabilities.analyze(mob);
@@ -93,8 +96,8 @@ public class OwnerOrbitGoal extends AdaptiveGoal {
         }
 
         // Move to orbit position
-        mob.getNavigation().startMovingTo(orbitTarget.x, orbitTarget.y, orbitTarget.z, 0.9);
-        
+        issueNavigation(orbitTarget, 0.9);
+
         // Periodically look at owner
         if (mob.age % 20 < 10) {
             mob.getLookControl().lookAt(owner, 30, 30);
@@ -158,5 +161,17 @@ public class OwnerOrbitGoal extends AdaptiveGoal {
 
         return true;
     }
-}
 
+    private void issueNavigation(Vec3d target, double speed) {
+        if (target == null) {
+            return;
+        }
+
+        if (!mob.getNavigation().isIdle() && lastIssuedTarget != null
+            && target.squaredDistanceTo(lastIssuedTarget) <= 0.04) {
+            return;
+        }
+        mob.getNavigation().startMovingTo(target.x, target.y, target.z, speed);
+        lastIssuedTarget = target;
+    }
+}

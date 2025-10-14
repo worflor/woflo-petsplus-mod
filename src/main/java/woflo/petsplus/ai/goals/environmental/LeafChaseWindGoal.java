@@ -51,6 +51,7 @@ public class LeafChaseWindGoal extends AdaptiveGoal {
     // Open invite follower state
     private boolean joiningAsFollower = false; // Species tags: open invite join
     private int followerStaggerTicks = 0;
+    private Vec3d lastIssuedNavigationTarget;
 
     public LeafChaseWindGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.LEAF_CHASE_WIND), EnumSet.of(Control.MOVE, Control.LOOK));
@@ -73,8 +74,12 @@ public class LeafChaseWindGoal extends AdaptiveGoal {
         // Momentum gate + owner urgency
         MomentumState ms = MomentumState.capture(mob);
         float m = MathHelper.clamp(ms.momentum(), 0f, 1f);
-        if (m >= 0.65f) return false;
-        if (m >= 0.35f && mob.getRandom().nextBoolean()) return false;
+        if (m < 0.3f) {
+            return false;
+        }
+        if (m < 0.5f && mob.getRandom().nextFloat() < 0.5f) {
+            return false;
+        }
 
         if (pc0 != null && pc0.getCachedOwnerEntity() != null) {
             var ocs = OwnerCombatState.get(pc0.getCachedOwnerEntity());
@@ -117,6 +122,7 @@ public class LeafChaseWindGoal extends AdaptiveGoal {
                 joiningAsFollower = true;
                 followerStaggerTicks = GroupTuning.FOLLOWER_STAGGER_TICKS_MIN
                     + mob.getRandom().nextInt(GroupTuning.FOLLOWER_STAGGER_TICKS_MAX - GroupTuning.FOLLOWER_STAGGER_TICKS_MIN + 1);
+                lastIssuedNavigationTarget = null;
                 // If no initiator found (edge), still allow start with no movement target; will settle quickly
                 return true;
             }
@@ -132,6 +138,7 @@ public class LeafChaseWindGoal extends AdaptiveGoal {
         BlockPos found = findNearbyLeaves(scanRange);
         if (found != null) {
             targetPos = Vec3d.ofCenter(found);
+            lastIssuedNavigationTarget = null;
             return true;
         }
 
@@ -140,6 +147,7 @@ public class LeafChaseWindGoal extends AdaptiveGoal {
             Vec3d random = pickNearbyGroundTarget(scanRange);
             if (random != null) {
                 targetPos = random;
+                lastIssuedNavigationTarget = null;
                 return true;
             }
         }
@@ -180,9 +188,7 @@ public class LeafChaseWindGoal extends AdaptiveGoal {
 
         // Begin a quick dart toward the target (followers may stagger before moving)
         if (targetPos != null && followerStaggerTicks == 0) {
-            if (mob.getEntityWorld() instanceof ServerWorld) {
-                mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, 1.15);
-            }
+            issueNavigationCommand(1.15);
         }
     }
 
@@ -205,6 +211,7 @@ public class LeafChaseWindGoal extends AdaptiveGoal {
         targetPos = null;
         joiningAsFollower = false;
         followerStaggerTicks = 0;
+        lastIssuedNavigationTarget = null;
     }
 
     @Override
@@ -213,22 +220,15 @@ public class LeafChaseWindGoal extends AdaptiveGoal {
 
         // Followers: respect stagger before starting movement
         if (joiningAsFollower && targetPos != null && dartTicks == followerStaggerTicks) {
-            if (mob.getEntityWorld() instanceof ServerWorld) {
-                mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, 1.1);
-            }
+            issueNavigationCommand(1.1);
         }
 
         // Keep moving toward the target but do not overshoot; if close, slow down slightly
         if (targetPos != null) {
             double distSq = mob.squaredDistanceTo(targetPos);
             double speed = distSq > 4.0 ? 1.2 : 0.9;
-            if (mob.getNavigation().isIdle()) {
-                // If still within follower stagger window, delay re-issuing orders
-                if (!(joiningAsFollower && dartTicks < Math.max(1, followerStaggerTicks))) {
-                    if (mob.getEntityWorld() instanceof ServerWorld) {
-                        mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, speed);
-                    }
-                }
+            if (!(joiningAsFollower && dartTicks < Math.max(1, followerStaggerTicks))) {
+                issueNavigationCommand(speed);
             }
         }
 
@@ -297,5 +297,19 @@ public class LeafChaseWindGoal extends AdaptiveGoal {
             }
         }
         return null;
+    }
+
+    private void issueNavigationCommand(double speed) {
+        if (targetPos == null || !(mob.getEntityWorld() instanceof ServerWorld)) {
+            return;
+        }
+        if (!mob.getNavigation().isIdle()) {
+            if (lastIssuedNavigationTarget != null
+                && targetPos.squaredDistanceTo(lastIssuedNavigationTarget) <= 0.04) {
+                return;
+            }
+        }
+        mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, speed);
+        lastIssuedNavigationTarget = targetPos;
     }
 }

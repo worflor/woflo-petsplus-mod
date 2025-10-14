@@ -26,6 +26,7 @@ import woflo.petsplus.behavior.social.SocialContextSnapshot;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.emotions.PetMoodEngine;
 
 /**
  * Enhanced follow owner goal with better pathfinding and role-specific behavior.
@@ -55,6 +56,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
     private MobEntity spacingFocus;
     private long spacingFocusExpiryTick;
     private Vec3d lastMoveTarget;
+    private long lastMomentumSampleTick = Long.MIN_VALUE;
 
     public EnhancedFollowOwnerGoal(MobEntity mob, PetsplusTameable tameable, PetComponent petComponent, double speed, float followDistance, float teleportDistance) {
         this.mob = mob;
@@ -153,12 +155,19 @@ public class EnhancedFollowOwnerGoal extends Goal {
         long now = this.mob.getEntityWorld().getTime();
         float moodDistanceBonus = petComponent.getMoodFollowDistanceBonus(now);
         this.activeFollowDistance = baseFollowDistance + moodDistanceBonus + petComponent.getFollowSpacingPadding();
+
+        if (petComponent.getMoodEngine() != null) {
+            // Kick off a small burst so momentum reacts quickly to new movement.
+            petComponent.getMoodEngine().recordBehavioralActivity(0.4f, 6L, PetMoodEngine.ActivityType.PHYSICAL);
+        }
+        lastMomentumSampleTick = now;
     }
 
     @Override
     public void stop() {
         this.mob.getNavigation().stop();
         this.lastMoveTarget = null;
+        lastMomentumSampleTick = Long.MIN_VALUE;
     }
 
     @Override
@@ -265,6 +274,8 @@ public class EnhancedFollowOwnerGoal extends Goal {
         } else {
             stuckCounter = 0;
         }
+
+        sampleMomentum(now, hesitating, distanceToOwnerSq);
     }
 
     /**
@@ -483,6 +494,32 @@ public class EnhancedFollowOwnerGoal extends Goal {
                world.getBlockState(pos).isAir() &&
                world.getBlockState(pos.up()).isAir() &&
                world.getFluidState(pos).isEmpty();
+    }
+
+    private void sampleMomentum(long worldTime, boolean hesitating, double distanceToOwnerSq) {
+        PetMoodEngine moodEngine = petComponent.getMoodEngine();
+        if (moodEngine == null) {
+            return;
+        }
+
+        boolean activelyMoving = this.mob.getNavigation().isFollowingPath()
+            || distanceToOwnerSq > (this.activeFollowDistance * this.activeFollowDistance);
+
+        if (!activelyMoving) {
+            lastMomentumSampleTick = Long.MIN_VALUE;
+            return;
+        }
+
+        if (lastMomentumSampleTick == Long.MIN_VALUE) {
+            lastMomentumSampleTick = worldTime;
+            return;
+        }
+
+        long delta = Math.max(1L, worldTime - lastMomentumSampleTick);
+        lastMomentumSampleTick = worldTime;
+
+        float intensity = hesitating ? 0.35f : 0.55f;
+        moodEngine.recordBehavioralActivity(intensity, delta, PetMoodEngine.ActivityType.PHYSICAL);
     }
 }
 

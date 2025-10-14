@@ -4,8 +4,10 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.ai.pathing.Path;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
@@ -22,6 +24,7 @@ public class ParkourChallengeGoal extends AdaptiveGoal {
 
     private BlockPos targetBlock;
     private int jumpAttempts = 0;
+    private Vec3d lastIssuedNavigationTarget;
 
     private int getMaxJumps() {
         PetContext ctx = getContext();
@@ -50,28 +53,25 @@ public class ParkourChallengeGoal extends AdaptiveGoal {
     @Override
     protected void onStartGoal() {
         jumpAttempts = 0;
+        lastIssuedNavigationTarget = null;
     }
-    
+
     @Override
     protected void onStopGoal() {
         mob.getNavigation().stop();
         mob.setPitch(0.0f);
         targetBlock = null;
         jumpAttempts = 0;
+        lastIssuedNavigationTarget = null;
     }
-    
+
     @Override
     protected void onTickGoal() {
         if (targetBlock == null) return;
-        
+
         // Navigate toward block
-        mob.getNavigation().startMovingTo(
-            targetBlock.getX(), 
-            targetBlock.getY(), 
-            targetBlock.getZ(), 
-            1.2
-        );
-        
+        issueNavigationCommand(1.2);
+
         // Attempt jumps when close
         if (mob.getBlockPos().isWithinDistance(targetBlock, 3.0)) {
             if (mob.isOnGround() && mob.getRandom().nextFloat() < 0.3f) {
@@ -85,6 +85,7 @@ public class ParkourChallengeGoal extends AdaptiveGoal {
             BlockPos newTarget = findParkourBlock();
             if (newTarget != null) {
                 targetBlock = newTarget;
+                lastIssuedNavigationTarget = null;
             }
         }
         
@@ -108,7 +109,10 @@ public class ParkourChallengeGoal extends AdaptiveGoal {
             
             // Interesting blocks for parkour
             if (isInterestingParkourBlock(state)) {
-                return candidate;
+                Path path = mob.getNavigation().findPathTo(candidate, 0);
+                if (path != null && path.reachesTarget()) {
+                    return candidate;
+                }
             }
         }
         
@@ -160,5 +164,22 @@ public class ParkourChallengeGoal extends AdaptiveGoal {
         
         return MathHelper.clamp(engagement, 0.0f, 1.0f);
     }
-}
 
+    private void issueNavigationCommand(double speed) {
+        if (targetBlock == null) {
+            return;
+        }
+        Vec3d target = new Vec3d(targetBlock.getX() + 0.5, targetBlock.getY(), targetBlock.getZ() + 0.5);
+        if (!mob.getNavigation().isIdle() && lastIssuedNavigationTarget != null
+            && target.squaredDistanceTo(lastIssuedNavigationTarget) <= 0.04) {
+            return;
+        }
+        mob.getNavigation().startMovingTo(
+            targetBlock.getX(),
+            targetBlock.getY(),
+            targetBlock.getZ(),
+            speed
+        );
+        lastIssuedNavigationTarget = target;
+    }
+}

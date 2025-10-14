@@ -55,6 +55,7 @@ public class PuddlePawGoal extends AdaptiveGoal {
     // Open invite follower state
     private boolean joiningAsFollower = false; // Species tags: open invite join
     private int followerStaggerTicks = 0;
+    private Vec3d lastIssuedNavigationTarget;
 
     public PuddlePawGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.PUDDLE_PAW), EnumSet.of(Control.MOVE, Control.LOOK));
@@ -123,6 +124,7 @@ public class PuddlePawGoal extends AdaptiveGoal {
                     joiningAsFollower = true;
                     followerStaggerTicks = GroupTuning.FOLLOWER_STAGGER_TICKS_MIN
                         + mob.getRandom().nextInt(GroupTuning.FOLLOWER_STAGGER_TICKS_MAX - GroupTuning.FOLLOWER_STAGGER_TICKS_MIN + 1);
+                    lastIssuedNavigationTarget = null;
                     return true;
                 }
             }
@@ -144,6 +146,7 @@ public class PuddlePawGoal extends AdaptiveGoal {
                 return false;
             }
         }
+        lastIssuedNavigationTarget = null;
 
         return true;
     }
@@ -180,7 +183,7 @@ public class PuddlePawGoal extends AdaptiveGoal {
         }
 
         if (targetPos != null && followerStaggerTicks == 0) {
-            mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, 0.95);
+            issueNavigationCommand(0.95);
         }
     }
 
@@ -201,6 +204,7 @@ public class PuddlePawGoal extends AdaptiveGoal {
         targetPos = null;
         joiningAsFollower = false;
         followerStaggerTicks = 0;
+        lastIssuedNavigationTarget = null;
     }
 
     @Override
@@ -209,7 +213,7 @@ public class PuddlePawGoal extends AdaptiveGoal {
 
         // Followers: respect stagger before starting movement
         if (joiningAsFollower && targetPos != null && ticks == Math.max(1, followerStaggerTicks)) {
-            mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, 0.9);
+            issueNavigationCommand(0.9);
         }
 
         // Subtle splash/footstep wiggle near the edge/spot
@@ -225,11 +229,8 @@ public class PuddlePawGoal extends AdaptiveGoal {
         if (targetPos != null) {
             double dSq = mob.squaredDistanceTo(targetPos);
             double speed = dSq > 2.25 ? 1.05 : 0.75;
-            if (mob.getNavigation().isIdle()) {
-                // If still within follower stagger window, delay re-issuing orders
-                if (!(joiningAsFollower && ticks < Math.max(1, followerStaggerTicks))) {
-                    mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, speed);
-                }
+            if (!(joiningAsFollower && ticks < Math.max(1, followerStaggerTicks))) {
+                issueNavigationCommand(speed);
             }
         }
     }
@@ -357,5 +358,17 @@ public class PuddlePawGoal extends AdaptiveGoal {
 
     private static int secondsToTicks(int s) {
         return Math.max(0, s * 20);
+    }
+
+    private void issueNavigationCommand(double speed) {
+        if (targetPos == null) {
+            return;
+        }
+        if (!mob.getNavigation().isIdle() && lastIssuedNavigationTarget != null
+            && targetPos.squaredDistanceTo(lastIssuedNavigationTarget) <= 0.04) {
+            return;
+        }
+        mob.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, speed);
+        lastIssuedNavigationTarget = targetPos;
     }
 }

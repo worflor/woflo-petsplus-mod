@@ -52,7 +52,7 @@ public class SocialProximityFeasibilitySignal implements FeasibilitySignal {
         int friendlyCount = summary != null ? summary.friendlyCount() : 0;
 
         if (friendlyCount <= 0) {
-            return new SignalResult(0.1f, 0.1f, Map.of("reason", "no_packmates"));
+            return new SignalResult(0.0f, 0.0f, Map.of("reason", "no_packmates"));
         }
 
         double nearestFriendlyDistance = summary.nearestFriendlyDistance();

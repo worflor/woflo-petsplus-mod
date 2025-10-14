@@ -27,6 +27,10 @@ public class EnergyDesirabilitySignal implements DesirabilitySignal {
             profile = BehaviouralEnergyProfile.neutral();
         }
 
+        if (!goal.isEnergyCompatible(profile)) {
+            return new SignalResult(0.0f, 0.0f, Map.of("reason", "energy_incompatible"));
+        }
+
         float momentum = profile.momentum();
         float socialCharge = profile.socialCharge();
         float physicalStamina = profile.physicalStamina();
