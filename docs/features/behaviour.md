@@ -1,56 +1,28 @@
-blawg
+# Behaviour: The Pet Answers
 
+Your pet feels things. The world whispers to them, and their soul listens, translating signals into a storm of fleeting emotions. But that inner storm doesn't lead to chaos. It settles. It coalesces into a single, dominant **Mood** that defines their current state of being.
 
-pasted from stimulus:
+This document is about that answer. It’s about how your pet expresses its inner world through its actions.
 
+## From Emotion to Mood
 
-## Pets Remember and Share Stories
+Think of emotions as ingredients and a mood as the resulting dish. A dash of joy from being pet, a sprinkle of curiosity from a strange sound, a lingering sense of loyalty—these feelings are constantly being blended together. Recent and intense feelings naturally have the most influence, meaning your pet lives in the moment while still being shaped by its past.
 
-Your pets don't just react to what they see — they **remember events and tell each other about them**.
+This emotional cocktail results in a recognizable mood. It’s not just “happy” or “sad”; it’s a complex state that dictates your pet’s priorities and purpose.
 
-When something interesting happens (campfires lit, treasures found, combat victories), pets remember:
+## Moods Drive Actions
 
-- **What happened**
-- **How big a deal it was** (minor event vs. major discovery)
-- **How sure they are** (did they witness it firsthand or hear it from a friend?)
-- **When it occurred**
-- **How do they feel about it** (dictates tone)
+A mood is not a passive status effect. It is an objective. It changes your pet’s very AI, overriding default behaviours with new, mood-specific goals.
 
-Pets share these memories when they're hanging out together:
+- A **Protective** pet is a bodyguard. It will actively position itself between you and danger, its focus entirely on your safety.
+- A **Playful** pet is a joyful troublemaker. It might chase after thrown items or pounce on butterflies, its attention captured by the promise of fun.
+- A **Curious** pet is an explorer. It may wander off to investigate a strange noise or a new cave, its instinct to discover overriding its command to follow.
+- A **Bonded** pet is a loyal shadow. It will stick closer than usual, orbit you while you work, and refuse to be left behind, its entire world shrunk to the space you occupy.
 
-- **Group storytelling** — pack members swap stories during downtime (within 8.5 blocks)
-- **Private whispers** — one-on-one exchanges when two pets cross paths (within 6 blocks)
+Each mood carries a set of these unique behaviours, making your pet feel alive, responsive, and sometimes, unpredictable.
 
-Gossip shapes emotions secondhand. Hearing about a cozy campfire gathering might boost Sobremesa even if your pet wasn't there. Learning about a nearby threat increases Vigilance.
+## The Rhythm of Rest
 
-This creates a **pack memory** — your pets develop shared knowledge and experiences without you having to tell each one individually.
+You may notice that pets in the distance, or those who haven't been stimulated recently, appear calmer and less active. This is by design. To ensure your world feels alive without overwhelming it, your companions conserve their energy. Their complex behavioural systems quiet down when they are on the periphery, resting until you draw near or a new, important signal cuts through the noise. 
 
-Emotions also spread between nearby pets through **contagion** — when one pet feels something strongly, packmates pick it up. This creates natural pack behavior where fear spreads or victory rallies everyone.
-
-*For details on emotional contagion mechanics, see [Emotions](emotions.md#emotional-contagion).*
-
-
-
-
-pasted from moods:
-
-## Mood-Based AI
-
-Each mood has associated AI goals that activate when that mood dominates.
-
-- **Happy** → Follow owner closely, wag tail
-- **Playful** → Chase items, bounce around
-- **Curious** → Investigate blocks, wander toward new chunks
-- **Bonded** → Orbit owner, refuse to leave their side
-- **Calm** → Rest, find sunbeams, minimal movement
-- **Passionate** → Charge toward objectives, high energy movement
-- **Yūgen** → Stargazing behavior, contemplative sitting
-- **Focused** → Lock onto tasks, ignore distractions
-- **Sisu** → Push through obstacles, refuse to quit
-- **Saudade** → Return to familiar locations, nostalgic circling
-- **Protective** → Guard owner, position between threats
-- **Restless** → Pace, circle, agitated movement
-- **Afraid** → Flee from threats, stay behind owner
-- **Angry** → Attack hostile targets, aggressive posture
-
-Mood AI doesn't replace role abilities. It *layers on top*. A Guardian pet in Protective mood will prioritize defensive positioning even more aggressively.
+They are not offline. They are simply at peace, waiting for the next moment that matters.

@@ -1,141 +1,47 @@
-# Emotions
+# Emotions: The Inner Palette
 
-Your pet's emotional life runs deeper than you'd expect. Behind every tail wag and every protective growl sits a system tracking 41 distinct emotions, each influencing how your pet experiences and reacts to the world.
+Behind every action and every mood, there is an inner world of feeling. Emotions are the vocabulary of your pet's soul, the raw colors that mix and blend to paint the portrait of their current state. This inner world is deep, with over 40 distinct emotions, but you don't need to track them. You just need to feel them.
 
-*See also: [Stimulus System](stimulus.md) for how events trigger emotions, and [Moods](moods.md) for how emotions blend into visible states.*
+*For how these emotions are triggered, see [Stimulus: The World Whispers](stimulus.md).*
+*For how they translate into action, see [Behaviour: The Pet Answers](behaviour.md).*
 
-## How Emotions Work
+## Roles Shape Feelings
 
-Emotions aren't static labels. They're dynamic weights that rise and fall based on what your pet experiences. Feed your pet, and Cheerful spikes. Leave them alone for too long, and Hiraeth (longing) creeps in. Get ambushed while traveling together, and Vigilant surges alongside Protectiveness.
+A pet's [Role](roles.md) is more than a set of abilities; it is a core part of their personality that tunes their emotional landscape. Each role provides a unique lens on the world, amplifying some feelings while muting others.
 
-*Learn more about how events trigger emotions in the [Stimulus System](stimulus.md).*
+- A **Support** is tuned for empathy, feeling a stronger pang of **Worried** when you're hurt and a deeper sense of **Content** when the pack is safe and sound.
+- A **Guardian**'s heart beats with **Protectiveness**. They are predisposed to feel **Vigilant** and are quick to anger when their charge is threatened.
+- An **Eclipsed**, touched by the void, might react to strange magic with a surge of **Curiosity** instead of fear, their emotions as alien as their powers.
 
-Each emotion has:
-- **Intensity** — how strongly the emotion is felt right now
-- **Impact budget** — accumulated emotional weight over time
-- **Cadence** — how often this emotion gets triggered
-- **Freshness** — how recent the last trigger was
+This emotional tuning is what makes each role feel distinct. It’s not just what they do; it’s how they feel while doing it.
 
-These metrics combine to determine which emotions dominate your pet's current state.
+## The Emotional Spectrum
 
-## The 41 Emotions
+While you don't need to memorize them, the emotions your pet can feel are vast and nuanced. They are grouped here by their general theme.
 
-Emotions are grouped into thematic clusters that reflect different aspects of your pet's inner experience.
+#### Positive / Bright
+*Cheerful, Hopeful, Content, Playfulness, Kefi (spirited enthusiasm), Pride, Relief, Hanyauku (playful tiptoeing)*
 
-### Positive / Bright
-Uplifting feelings that arise from joy, connection, and satisfaction.
+#### Connection / Social
+*Ubuntu (communal care), Querecia (sense of home), Loyalty, Sobremesa (lingering together after a meal)*
 
-- **Cheerful** — simple happiness and bursts of excitement
-- **Hopeful** — optimistic anticipation
-- **Content** — quiet satisfaction
-- **Playfulness** — energetic fun
-- **Kefi** — spirited enthusiasm
-- **Pride** — dignified accomplishment
-- **Relief** — tension released
-- **Hanyauku** — playful tiptoe walking
+#### Threat / Aversion
+*Startle, Vigilant, Protectiveness, Foreboding, Worried, Angst, Frustration, Disgust*
 
-### Connection / Social
-Emotions tied to bonds, relationships, and belonging.
+#### Reflective / Contemplative
+*Yūgen (profound mystery), Stoic, Focused, Gaman (patient endurance), Lagom ("just right"), Wabi-Sabi (beauty in imperfection), Mono no Aware (awareness of impermanence), Curious*
 
-- **Ubuntu** — interconnectedness and communal care
-- **Querecia** — deep sense of rest and belonging
-- **Loyalty** — steadfast devotion
-- **Sobremesa** — lingering after a meal together
+#### Longing / Melancholic
+*Hiraeth (homesickness), Saudade (wistful nostalgia), Fernweh (wanderlust), Melancholy, Nostalgia, Regret, Ennui (boredom)*
 
+#### Resilient / Determined
+*Sisu (determined grit), Restless*
 
-### Threat / Aversion
-Responses to danger, discomfort, or unwanted situations.
+#### Ultra-Rare
+*Echoed Resonance (Deep Dark attunement), Arcane Overflow (magic saturation), Pack Spirit (pack unity)*
 
-- **Startle** — sudden alarm
-- **Vigilant** — alert watchfulness
-- **Protectiveness** — defensive instinct (as state)
-- **Protective** — protective action (as emotion)
-- **Foreboding** — anticipatory dread
-- **Worried** — anxious concern
-- **Angst** — gnawing worry
-- **Frustration** — blocked goals
-- **Disgust** — revulsion
+## The Nature of Feelings
 
-### Reflective / Contemplative
-Quiet, observational, or philosophical states.
+Feelings are not static. They are fluid, adapting to your shared experiences. The tenth treat is never as exciting as the first, because pets, like people, get used to things. This makes new and rare experiences feel much more significant when they happen.
 
-- **Yūgen** — profound, mysterious awareness
-- **Stoic** — calm endurance
-- **Focused** — concentrated attention
-- **Gaman** — patient perseverance
-- **Lagom** — "just right" balance
-- **Wabi-Sabi** — beauty in imperfection
-- **Mono no Aware** — awareness of impermanence
-- **Curious** — hunger for discovery
-
-### Longing / Melancholic
-Yearning, nostalgia, and bittersweet emotions.
-
-- **Hiraeth** — homesickness, longing for the familiar
-- **Saudade** — wistful nostalgia
-- **Fernweh** — wanderlust, farsickness
-- **Melancholy** — pensive sadness
-- **Nostalgia** — longing for the past
-- **Regret** — remorse over past actions
-- **Ennui** — listless boredom
-
-### Resilient / Determined
-Endurance, grit, and inner strength.
-
-- **Sisu** — determined grit
-- **Restless** — unsettled energy
-
-### Ultra-Rare States
-Exceptional emotions triggered only under special circumstances.
-
-- **Echoed Resonance** — Deep Dark attunement
-- **Arcane Overflow** — enchantment saturation
-- **Pack Spirit** — unity with the pack
-
-## What Triggers Emotions?
-
-Emotions respond to gameplay events in real time. No background polling, no tick spam. Just clean, event-driven reactions.
-
-**Examples:**
-- Being pet by owner → Cheerful, Content
-- Combat with hostiles → Kefi, Vigilant, Protectiveness
-- Owner takes damage → Protectiveness, Angst
-- Exploring new chunks → Curiosity, Hopeful
-- Left alone for extended periods → Hiraeth, Saudade
-- Witnessing owner die → Terror, Dread
-- Music from jukebox → Yūgen, Lagom
-- Breeding success → Pride, Pack Spirit
-
-The system tracks context. A pet getting attacked while alone triggers different emotions than getting attacked while their owner is nearby. Personality traits (from characteristics and natures) modulate how intensely each emotion is felt.
-
-## Habituation and Sensitization
-
-Emotions aren't static responses. Your pet adapts.
-
-**Habituation** — Repeated exposure to the same trigger *decreases* sensitivity over time. Pet your companion a hundred times in a row, and the Cheerful spike gets smaller. This is psychologically accurate; novelty fades.
-
-**Sensitization** — Infrequent or unexpected triggers *increase* sensitivity. A pet that rarely sees combat will react more intensely when it happens.
-
-This creates emergent personality. A pet constantly thrown into battle becomes stoic and unflinching. A pampered housecat startles at every shadow.
-
-## Emotional Contagion
-
-Emotions spread between nearby pets. A pack traveling together synchronizes emotionally. One pet's fear can ripple through the group. Shared victories amplify Pride and Pack Spirit across all participants.
-
-Bond strength affects contagion. Strongly bonded pets are more emotionally attuned to each other.
-
-## How Emotions Become Moods
-
-Emotions don't display directly. Instead, they blend together into recognizable **mood states**. Think of emotions as ingredients and moods as the resulting dish.
-
-Multiple emotions combine, weighted by their current intensity and freshness, to produce the dominant mood. The system recalculates this blend continuously as new events occur.
-
-A pet experiencing high Cheerful + moderate Playfulness + low Curiosity will likely show a **Happy** mood. Swap in high Vigilant + moderate Protectiveness + low Dread, and you get **Protective** mood instead.
-
-See the [Moods](moods.md) documentation for how this blending works and what each mood means.
-
-## Why This Matters
-
-Emotions give your pet memory and personality. A pet that's been through hell and back won't react the same as a fresh tame. Environmental storytelling emerges naturally. You don't need to track this consciously; it just happens, and you notice it in how your pet behaves.
-
-The system is designed to reward observation. Pay attention to your pet's mood shifts, and you'll learn what they respond to. Ignore them, and you're missing half the mod.
+These feelings are also contagious. A pack that travels together feels together. One pet's fear can ripple through the group, and a shared victory can amplify everyone's pride. Ultimately, all these individual feelings are constantly being blended into the dominant **Mood** that drives your pet's behaviour.

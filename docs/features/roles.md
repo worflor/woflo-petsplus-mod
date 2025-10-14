@@ -1,186 +1,49 @@
-# Roles
+# Roles: The Core Identity
 
-Roles decide *how* your pet shows up for you. Pick a specialization and
-their emotional life, [XP curve](leveling.md), and learned tricks snap
-into focus. Change the role later and they keep the vibes, but levels,
-abilities, and tributes reset.
+A role is your pet's purpose. It is the core of their identity, shaping not only what they do, but how they see the world and what they feel is important. When you choose a role, you are giving your pet a destiny. This choice will define their abilities, their priorities, and their part in your shared story.
 
-## How Roles Fit Into the Ecosystem
-
-- **They ride on leveling.** Feature breakpoints at 3, 7, 12, 17, 23, and
-  27 unlock the good stuff. Peek at the [leveling guide](leveling.md) for
-  the pacing.
-- **They respect personality.** A Fierce pet plays Guardian differently
-  than a Frisky one because [natures](natures.md) tilt stats and learning.
-  Pair that with the current [mood track](moods.md) to understand why a pet
-  leans in or taps out.
-- **They blend with moods.** A Striker in an [Angry mood](moods.md) goes
-  feral. A Support basking in **Bonded** doubles down on healing. Check the
-  [emotions overview](emotions.md) if you need a refresher on what those
-  feelings actually do.
-- **They’re remixable.** Everything lives in JSON, so adding or tweaking a
-  role is a datapack edit away, especially once you’ve mapped out desired
-  [stimulus reactions](stimulus.md).
-
-## Role Quick Reference
-
-| Role | Core Fantasy | Signature Gifts |
-|------|--------------|-----------------|
-| **Guardian** | Living shield, loyal bulwark | Redirects damage, taunts foes, shrugs off knockback |
-| **Striker** | Executioner with zero chill | Execute bonuses, crit windows, kill momentum |
-| **Support** | Cozy sustain engine | Regen auras, potion sharing, cleanses |
-| **Scout** | Treasure-seeking pathfinder | Glowing marks, loot luck, ore sense |
-| **Skyrider** | Gravity-denying windrunner | Fall negation, jump boosts, launch effects |
-| **Enchantment-Bound** | Gear-whispering luck totem | Fortune nudges, repair discounts, durability saves |
-| **Cursed One** | Soul-bound glass cannon | Extreme spikes, lethal linkage to owner |
-| **Eepy Eeper** | Restful hearth spirit | Sleep buffs, hunger relief, chill-zone healing |
-| **Eclipsed** | Void-marking saboteur | Target branding, ender utility, debuffs |
-
-Each role carries its own `xpCurve`, stat lean, and unlock list. What
-follows are the vibes, highlights, and why you’d bring each into a pack.
-If you’re sketching a new archetype, cross-reference the leveling
-[feature tiers](leveling.md#role-rewards-and-feature-levels) to keep the
-flow consistent.
+While a pet's [Nature](natures.md) is its innate personality, its Role is its chosen profession. This identity is the primary lens through which your pet interprets the world, influencing its [emotions](emotions.md) and driving its [behaviour](behaviour.md). Changing a role is a significant decision. While their personality remains, their journey of progression, including levels and abilities, will begin anew.
 
 ## The Nine Roles
 
-### Guardian — “I’ve got you.”
+Each role offers a unique way for your pet to contribute. They unlock new abilities and passive effects as your bond deepens through the [leveling](leveling.md) journey.
 
-- **Identity:** Frontline protector that soaks hits meant for you.
-- **Vibe:** Stoic, immovable, stubbornly loyal.
-- **Standout Unlocks:**
-  - Redirect a chunk of your damage starting at Level 3.
-  - Project barriers and crowd-control auras in the late 20s.
-  - Passive knockback resistance from Level 1 keeps them anchored.
-- **Best When:** You are melee-focused, wandering dangerous places, or
-  just need a safety net while you experiment.
+### Guardian
+**"I will keep you safe."**
+A living shield and loyal bulwark. The Guardian is a stoic protector that instinctively puts itself in harm's way, redirecting damage meant for you and shrugging off blows that would fell a lesser companion.
 
-### Striker — “Point me at the problem.”
+### Striker
+**"Point me at the problem."**
+A relentless executioner. The Striker lives for the thrill of the hunt, growing stronger with every kill. It excels at finishing fights, creating openings, and rewarding an aggressive playstyle.
 
-- **Identity:** Burst finisher obsessed with last hits.
-- **Vibe:** Relentless, hungry, high-tempo.
-- **Standout Unlocks:**
-  - Execute bonuses that scale with enemy missing health.
-  - Shared crit windows that juice your own attacks.
-  - Momentum stacks that escalate damage on kill streaks.
-- **Best When:** You’re hunting bosses, speed-clearing structures, or
-  want a companion that rewards aggression.
+### Support
+**"Rest for a moment, friend."**
+A walking comfort zone. The Support is a nurturing presence that keeps the pack healthy and resilient. It provides healing auras, extends the effects of helpful potions, and cleanses ailments.
 
-### Support — “Drink some water, bestie.”
+### Scout
+**"I think something's over here!"**
+A curious pathfinder. The Scout is an exploration specialist with a nose for treasure and a knack for spotting danger. It illuminates valuable resources and alerts you to hidden threats.
 
-- **Identity:** Walking comfort zone that keeps the squad upright.
-- **Vibe:** Gentle, nurturing, stubbornly positive.
-- **Standout Unlocks:**
-  - Regeneration aura around Level 3 that blankets the squad.
-  - Potion duration extension and sharing mid levels.
-  - Cleanses and emergency heals in the 20s.
-- **Best When:** You’re in long expeditions, co-op sessions, or leaning on
-  potion-heavy builds.
+### Skyrider
+**"The ground is merely a suggestion."**
+A master of mobility that defies gravity. The Skyrider assists with vertical movement, negates fall damage, and uses the power of air and elevation to its advantage in combat.
 
-### Scout — “I know a shortcut.”
+### Enchantment-Bound
+**"Your tools sing a powerful song."**
+A quiet enabler that hums with arcane energy. This pet is attuned to the magic within your gear. It passively boosts tool efficiency, improves enchanting outcomes, and preserves durability.
 
-- **Identity:** Exploration specialist with pockets full of trinkets.
-- **Vibe:** Curious, chatty, always wandering ahead.
-- **Standout Unlocks:**
-  - Glowing tags for nearby hostiles.
-  - Loot magnetism and XP orb attraction while you roam.
-  - Ore pings and structure whispers at higher ranks.
-- **Best When:** You’re spelunking, map-filling, or chasing loot tables.
+### Cursed One
+**"We burn bright, or not at all."**
+A soul-bound glass cannon. This role creates an intense, dramatic bond with immense power at a terrible cost. The pet is exceptionally strong, but its life is permanently tethered to your own.
 
-### Skyrider — “Falling is canceled.”
+### Eepy Eeper
+**"Nap time is sacred."**
+A restful hearth spirit. This cozy companion turns any camp into a haven of tranquility. It amplifies the benefits of resting, provides passive regeneration, and makes downtime more restorative.
 
-- **Identity:** Mobility powerhouse that fights gravity on your behalf.
-- **Vibe:** Airy, daring, eternally moving.
-- **Standout Unlocks:**
-  - Fall damage softeners from Level 1 onward.
-  - Air-launch counterattacks and crowd control around Level 12.
-  - Burst levitation or slow-fall windows near the capstone.
-- **Best When:** You lack an elytra, build vertically, or weaponize
-  knockback.
+### Eclipsed
+**"Marked for the void."**
+A saboteur infused with ender magic. The Eclipsed is a master of battlefield control, branding targets to make them vulnerable and using void-powered tricks to disorient foes and assist allies.
 
-### Enchantment-Bound — “Your tools remember more.”
+## A Note on Progression
 
-- **Identity:** Economic enabler that whispers to gear.
-- **Vibe:** Soft hum of lapis dust and tinkering benches.
-- **Standout Unlocks:**
-  - Efficiency and haste bursts for your tools.
-  - Fortune/Looting nudges and better repair costs midgame.
-  - Durability preservation chances once tributes are paid.
-- **Best When:** You grind resources, maintain a base, or live in the
-  enchanting table UI.
-
-### Cursed One — “We burn bright or not at all.”
-
-- **Identity:** Soul-bound damage monster with lethal strings attached.
-- **Vibe:** Dramatic, intense, unflinchingly loyal.
-- **Standout Unlocks:**
-  - Massive stat spikes the moment the role is assigned.
-  - Owner death = pet death. No revival, no second chances.
-  - Chaotic combat procs at higher ranks.
-- **Best When:** You’re playing hardcore, living dangerously, or telling
-  a tragic story on purpose.
-
-### Eepy Eeper — “Nap time is sacred.”
-
-- **Identity:** Rest-focused aura buddy that rewards slowing down.
-- **Vibe:** Cozy blanket, campfire crackle, gentle purring.
-- **Standout Unlocks:**
-  - Resting near the pet creates healing zones early on.
-  - Sleep amplifiers top off hunger and regen overnight.
-  - Downtime buffs reduce hunger drain while idle.
-- **Best When:** You’re base-building, roleplaying slice-of-life, or need
-  calm between adventures.
-
-### Eclipsed — “Mark them for the void.”
-
-- **Identity:** Debuff artist infused with ender magic.
-- **Vibe:** Whispered secrets, violet sparks, calculated strikes.
-- **Standout Unlocks:**
-  - Branding marks that make targets take bonus damage from everyone.
-  - Detection of invisible or hidden mobs while scouting ahead.
-  - Portable ender chest access and void-aligned debuffs late game.
-- **Best When:** You’re staging End expeditions, coordinating raids, or
-  love battlefield control.
-
-## Role Rewards and Breakpoints
-
-Every role ships with a `level_rewards` list that maps straight onto the
-[feature levels](leveling.md#role-rewards-and-feature-levels). Expect the
-pattern below, but individual JSON definitions can remix specifics:
-
-- **Level 1:** Identity passive(s) active immediately.
-- **Level 3:** First active ability or aura (Rank I).
-- **Level 7:** Second ability or Rank II upgrade.
-- **Level 12:** Major utility spike.
-- **Level 17:** Rank III tier or fresh mechanic.
-- **Level 23:** High-tier upgrade or support effect.
-- **Level 27:** Pre-tribute capstone prep.
-- **Level 30:** Post-tribute ultimate ability.
-
-Switching roles wipes this progress, but tributes already paid stay
-consumed—choose carefully.
-
-## Stacking Roles in a Pack
-
-Mixing specializations multiplies options:
-
-- **Guardian + Support + Striker** covers defense, sustain, and burst,
-  especially when moods are tuned for [party synergy](emotions.md#bonded).
-- **Scout + Eclipsed** hunts treasure and neutralizes threats before they
-  reach you.
-- **Skyrider + Enchantment-Bound** keeps builders safe while accelerating
-  block gathering.
-
-Swap pets depending on mood, biome, or story beat. They remember
-everything, so play the ensemble cast.
-
-## Customizing Roles
-
-- `passives` set up aura intervals, radius, and sit rules.
-- `abilities` handle cooldowns, triggers, and rank scaling.
-- `attributes` bias health, damage, speed, or armor to fit the fantasy.
-- `xpCurve` defines tribute milestones and reward pacing.
-
-Refresh the datapack to hot-swap adjustments. No code changes required—just
-your imagination, a quick `/reload`, and the [design philosophy](design_philosophy.md)
-that defines your world.
+Each role has its own unique journey of growth. New abilities and stronger effects will unlock at key milestones in your pet's development. For more on how this progression works, see **[Leveling: The Shared Journey](leveling.md)**.

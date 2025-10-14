@@ -1,81 +1,39 @@
-# Pets+ Documentation (i guess)
+# Pets+ Docs (ig)
 
-**[Design Philosophy](design_philosophy.md)** — Understand how these systems fit together and why they do what they do.
+Welcome to the feature documentation for PetsPlus. This is not a manual, but a field guide. It is designed to give you a deeper appreciation for the living, breathing companions that this mod brings to your world.
 
---- 
+The systems are designed to be deep but intuitive. You are not expected to memorize them. Instead, this guide is here for you when you notice a curious behaviour and want to understand the "why" behind it.
 
-Unfortunately, your *real pets* have *real feelings* now.
+## Core Concepts
 
----
+*   **[Stimulus: The World Whispers](stimulus.md)**
+    How your pet perceives the world, and how its identity gives meaning to the events it observes.
 
-## Core Systems
+*   **[Behaviour: The Pet Answers](behaviour.md)**
+    How your pet's inner feelings translate into moods and outward actions.
 
-### [Natures](natures.md)
-**Your pet's permanent personality.**
+*   **[Emotions: The Inner Palette](emotions.md)**
+    The vast spectrum of feelings that make up your pet's inner world.
 
-Where you tame a pet shapes who they become. Tame in cold climates for Frisky, hot areas for Fierce. Born pets roll special natures like Blossom in a Cherry Grove, Echoed in the Deep Dark, or Solace if birthed alone. Each pet gets unique stat variance, so no two companions are identical. These baseline traits determine how your pet feels about everything.
+*   **[Roles: The Core Identity](roles.md)**
+    How a chosen Role gives your pet a purpose and a unique way of interacting with the world.
 
-### [Emotions](emotions.md)
-**29 different feelings, all shifting in real-time.**
+*   **[Leveling: The Shared Journey](leveling.md)**
+    The path of growth that you and your pet walk together, strengthening your bond and unlocking new potential.
 
-Your pet tracks Pride, Curiosity, Frustration, Hiraeth, Kefi, and 24 more emotions at once. Actions have weight. Beat them up and they remember. Give treats and they remember that too, just differently. Emotions decay over time, weaken when repeated too often, and intensify under pressure. When enough of them pile up, things get complicated.
+*   **[Natures: The Origin Story](natures.md)**
+    The unchangeable core of your pet's personality, imprinted by the circumstances of its birth or taming.
 
-### [Moods](moods.md)
-**When emotions peak, moods take over.**
+*   **[Advancements](advancements.md)**
+    A list of special milestones you can achieve on your journey with your companions.
 
-14 core moods like Happy, Playful, Angry, and Saudade shape how your pet acts.
+## Roadmap
 
-### [Stimulus](stimulus.md)
-**Every action ripples outward.**
+The world of PetsPlus is always growing. Here are some of the concepts being explored for the future:
 
-Everything pushes emotional responses to nearby pets. Bond strength, nature, and proximity all shape how they react.
-
-### [Behaviour](behaviour.md)
-**The ripple's behavioural counterpart.**
-
-The same systems that runs the stimulus bus, mood engine, emotional context, and natures flow into the *perception pipeline* and *behavioural momentum* mechanics.
-
-### [Leveling](leveling.md)
-**Shared experience, shared growth.**
-
-Your XP splits evenly among pets within 32 blocks. Early levels go fast with 160% scaling, late game slows to 70%. Tribute gates block progress at level 10, 20, and 30 until you offer gold, diamond, or netherite scrap. Death wipes all progress. At least you'll have achievements to show for the journey.
-
-### [Roles](roles.md)
-**Nine specializations, each with unique abilities.**
-
-Guardian tanks damage. Striker finishes kills. Support heals allies. Scout finds loot. Skyrider boosts mobility. Enchantment-Bound improves luck. Cursed One embraces chaos. Eepy Eeper rewards rest. Eclipsed manipulates the void. Feature levels at 3, 7, 12, 17, 23, and 27 unlock new abilities. Switching roles resets progress but keeps personality. Speaking of progress.
-
-### [Advancements](advancements.md)
-**Track your journey through achievements.**
-
-Five branches reward different playstyles: Bonding Basics for first steps, Emotional Journey for witnessing peak moods, Mystical Connections for special moments, Role Specialization for mastery, and Special milestones for unique events. Some are implemented, others are planned. Either way, your pets remember everything.
-
-## Additional Features
-
-**Social System** — Pets gossip in circles when grouped, whisper one-on-one when alone. They remember first meetings, notice long separations, read leash tension with smoothed slack tolerance before reacting, and respond when packmates show strong emotions.
-
-**More tames** - Frogs with slimeballs, Rabbits with carrots, and turtles with seagrass.
-
-**Pet Trading** — Sneak and right-click another player while holding a leash to transfer ownership. Your pet remembers.
-
-## How Systems Connect
-
-**Nature shapes emotions.** Each nature sets base emotional weights and volatility. Fierce pets anger faster, Frisky pets play harder.
-
-**Emotions form moods.** High intensity triggers mood states. Stack Cheerful, Pride, and Kefi for Passionate. Stack Angst, Frustration, and Hiraeth for Restless.
-
-**Events trigger emotions.** Killing enemies boosts Pride. Dying near pets spikes Angst. Eating without sharing builds Frustration. Context matters.
-
-**Roles unlock abilities.** Leveling opens new skills at specific thresholds. Each role has different progression paths.
-
-**Learning affects growth.** XP gain scales with innate talent, proximity to action, and level curve. Tribute gates add progression checkpoints.
-
-## Datapack and Configs
-
-Customize everything through datapacks and configs:
-
-- **Role definitions** — abilities, XP curves, tribute items, stat scaling (JSON datapacks)
-- **Ability definitions** — cooldowns, effects, triggers, descriptions (JSON datapacks)
-- **Mood system** — emotion weights, decay rates, threshold adjustments (asset configs)
-- **Emotion-to-mood mappings** — how emotions blend into moods (asset configs)
-- **Context cues** — visual feedback for emotional events (asset configs)
+*   **Deeper Social Systems:** Including mechanics like Sniffer courting.
+*   **Wellbeing Profile:** A more fleshed-out system for understanding your pet's overall state.
+*   **Expansion Modules:**
+    *   **Neurodivergence:** Utilizing the core systems to introduce traits inspired by autism, ADHD, OCD, and bipolar disorder.
+    *   **Lunaris Nature Pack:** A full expansion of the astrology system with deeper support for zodiac signs.
+    *   **More Nature Packs:** General expansions to add even more variety to pet origins.

@@ -1,108 +1,27 @@
-# Leveling and Progression
+# Leveling: The Shared Journey
 
-Leveling is the bond meter between you and your pet. Every glimmer of XP
-you earn spills outward, powering the abilities linked to their chosen
-[role](roles.md). Shared effort, shared glow-up.
+Leveling is the story of your bond. It is a measure of the time, effort, and shared experiences that connect you to your companion. As you grow, they grow with you. Every monster slain, every ore mined, and every fish caught strengthens the connection, empowering your pet to better fulfill its [Role](roles.md).
 
-## The Shared XP Loop
+## The Echo of Experience
 
-If you earn XP, every nearby pet does too. Combat, mining, smelting,
-breeding, fishing, trading, advancements—if it fills your bar, it echoes
-through the pack as long as they’re close enough. Stack it with mood boosts
-from the [emotions loop](emotions.md) or smart [stimulus setups](stimulus.md)
-to keep everyone in motion.
+Your pets learn by watching you. When you gain experience, a portion of it echoes out to your nearby companions, rewarding them for being part of your journey. They don't need to land the killing blow or be actively involved, they just need to be present, within about 32 blocks.
 
-- **Range:** 32 blocks from you.
-- **Split:** XP divides evenly across owned pets inside that radius.
-- **Flavor:** After the split, each pet nudges their share based on level
-  scaling, their innate learning lean, and whether they were actually
-  helping.
+However, the echo is not a simple, even split. It is shaped by a few key factors:
 
-Roll with the whole crew for vibes or stick to a tight duo for thicker
-slices.
+*   **A Sharper Mind:** Some pets are simply more studious. A pet's innate focus and its chosen Role can make it a faster learner, allowing it to absorb a greater share of experience from every event.
+*   **Active Participation:** A pet that has recently been in combat will feel more engaged and absorb a bonus amount of experience. They learn best by doing.
+*   **The Wisdom of Youth:** Younger pets are eager to learn. They receive a significant boost to experience gain in their early levels, helping them quickly find their footing and catch up to the rest of the pack.
 
-### Level Scaling Tiers
+This system ensures that while all pets grow with you, their individual journey is unique. A scholarly Support pet might level faster from quiet tasks, while a battle-hardened Striker thrives in the heat of combat.
 
-Pets climb from level 1 to 30. Early levels rocket so new bonds come
-online quickly; late levels slow down to respect endgame toys.
+## Rituals of Commitment
 
-| Level Band | Multiplier | Notes |
-|------------|------------|-------|
-| 1–5        | 160%       | Hyper-growth while the bond forms |
-| 6–10       | 130%       | Still fast, still forgiving |
-| 11–15      | 110%       | Smoothing into midgame |
-| 16–20      | 100%       | One-to-one with player XP |
-| 21–25      | 80%        | Slow climb toward capstone unlocks |
-| 26–30      | 70%        | Endgame grind for ultimate abilities |
+Progression is more than just a bar filling up. At key milestones in your pet's development, their journey will pause. They will look to you for a sign of your shared commitment, a ritual to acknowledge the bond you've forged together. This is a tribute.
 
-### Participation & Learning
+To perform the ritual, you must present your pet with a specific, symbolic offering while sneaking. This act of devotion will unlock their milestone, allowing their growth to continue. Each Role has its own unique set of tribute offerings, defined in its datapack.
 
-Each pet keeps tabs on what they were doing when XP rained in:
+These moments are important. They are a chance to pause and recognize the journey you've shared, and to prepare for the path that lies ahead. Until the tribute is paid, your pet's progression is on hold, waiting for you to reaffirm your bond.
 
-- **Participation:** If they haven’t lifted a paw in five minutes, they
-  get a small penalty. Active helpers keep full credit, especially when you
-  match their current [mood](moods.md) to the activity.
-- **Learning:** Their [nature](natures.md) and baked-in quirks tilt how
-  fast they learn. Some are prodigies, some are professional nappers.
+## The Fruits of Growth
 
-## The Curve Behind the Scenes
-
-XP needed per level ramps up on a gentle slope. Those same feature
-breakpoints—levels **3, 7, 12, 17, 23, and 27**—layer extra spice on top.
-Each [role](roles.md#role-rewards-and-breakpoints) carries its own
-`xpCurve`, so a Guardian’s grind may feel different from an Eepy Eeper’s
-nap-filled journey. Datapack makers can swap those numbers without
-touching code, letting you align progression with a pet’s [nature](natures.md)
-or pack story.
-
-## Tribute Gates
-
-Three ritual checkpoints force you to prove the bond before pressing on:
-
-| Tribute Level | Default Offering | What It Means |
-|---------------|-----------------|---------------|
-| 10            | Gold ingot       | “We’re committed.” |
-| 20            | Diamond          | “We’ve been through things.” |
-| 30            | Netherite scrap  | “We’re in this forever.” |
-
-When a pet hits a tribute level, XP gain pauses. Sneak + right-click the
-offering to prove the bond and resume leveling. Each role can override
-these milestones in its datapack JSON.
-
-## Role Rewards and Feature Levels
-
-Levels aren’t just numbers. Every role packs a reward table that snaps into place at feature levels:
-
-- **Level 1:** Passive identity arrives the moment you assign the role.
-- **Level 3:** First active ability or aura.
-- **Level 7:** Second ability or Rank II upgrade.
-- **Level 12:** Midgame spike—think Support’s wider aura or Striker’s kill momentum.
-- **Level 17:** Rank III tier or a fresh trick.
-- **Level 23:** High-tier upgrade, often pack-defining utility.
-- **Level 27:** Final polish before the last tribute.
-- **Level 30:** Post-tribute ultimate that redefines the kit.
-
-See the [Roles overview](roles.md#the-nine-roles) for what each
-specialization unlocks along the way.
-
-## Tuning the Flow
-
-Want to remix progression? The global config adjusts how hard XP hits,
-while each role JSON controls scaling, tributes, and reward timing. Nudge
-a few numbers and you’ve got a whole new leveling story that still honors
-your preferred [design philosophy](design_philosophy.md).
-
-## Death & Recovery
-
-Losing a pet is brutal. They drop a **Proof of Existence** memorial and
-every level, ability, and tribute disappears with them. If you revive
-them through other mods or miracles, the leveling climb restarts from
-scratch.
-
-## Config Hooks
-
-Server owners and modpack creators can redefine the whole loop through
-datapacks and configs—slow-burn RPG arcs, hyper-fast arenas, whatever
-fits your world. Every level should feel like a shared story between you
-and your companion, especially when paired with customized [roles](roles.md)
-and mood-aware [emotions](emotions.md).
+Leveling up is a tangible reward. With each new level, your pet grows stronger. At the most significant milestones, they will unlock powerful new abilities and passive effects defined by their Role. These are moments of celebration, marking a new chapter in your companion's life and a new depth to your shared power.
