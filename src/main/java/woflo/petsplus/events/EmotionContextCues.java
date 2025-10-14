@@ -111,14 +111,26 @@ public class EmotionContextCues implements PlayerTickListener {
         if (message.getContent() instanceof TranslatableTextContent translatable) {
             Object[] args = translatable.getArgs();
             if (pet != null) {
+                // Tie cue to the specific pet as source
                 UIFeedbackManager.sendActionBarMessage(player, pet, translatable.getKey(), args);
             } else {
-                UIFeedbackManager.sendActionBarMessage(player, translatable.getKey(), args);
+                // Require focus when no explicit pet source is provided; drop otherwise
+                boolean queued = woflo.petsplus.ui.ActionBarCueManager.queueCueRequireFocus(
+                    player,
+                    woflo.petsplus.ui.ActionBarCueManager.ActionBarCue.of(translatable.getKey(), args)
+                );
+                if (!queued) {
+                    return; // no focused pet -> no message
+                }
             }
             return;
         }
 
-        ActionBarUtils.sendActionBar(player, message.copy());
+        // Non-translatable text: require focus and send directly, never chat
+        boolean queued = woflo.petsplus.ui.ActionBarCueManager.queueTextCueRequireFocus(player, message.copy());
+        if (!queued) {
+            // nothing to do if not focused
+        }
     }
 
     private static boolean shouldSendCue(ServerPlayerEntity player, String cueId, long cooldownTicks,

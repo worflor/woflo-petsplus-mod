@@ -2,15 +2,16 @@ package woflo.petsplus.ai.goals.environmental;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.random.Random;
+import net.minecraft.world.Heightmap;
 import net.minecraft.world.World;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalDefinition;
-import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.tags.ModBlockTags;
+import woflo.petsplus.ai.goals.GoalIds;
+import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
 
 import java.util.EnumSet;
-import java.util.Random;
 
 public class GoToDryingBlockGoal extends AdaptiveGoal {
 
@@ -20,13 +21,16 @@ public class GoToDryingBlockGoal extends AdaptiveGoal {
     private BlockPos targetDryingBlock;
     private int dryingTicks;
 
-    public GoToDryingBlockGoal(MobEntity mob, GoalDefinition goalDefinition) {
-        super(mob, goalDefinition, EnumSet.of(Control.MOVE));
+    public GoToDryingBlockGoal(MobEntity mob) {
+        super(mob, GoalRegistry.require(GoalIds.GO_TO_DRYING_BLOCK), EnumSet.of(Control.MOVE));
     }
 
     @Override
     protected boolean canStartGoal() {
         if (!isEntityWet(mob)) {
+            return false;
+        }
+        if (isSheltered(mob)) {
             return false;
         }
         if (mob.getType().isIn(PetsplusEntityTypeTags.AQUATIC_LIKE)) {
@@ -77,19 +81,33 @@ public class GoToDryingBlockGoal extends AdaptiveGoal {
 
     private boolean findDryingBlock() {
         BlockPos mobPos = mob.getBlockPos();
-        Random random = new Random();
+        Random random = mob.getRandom();
+        World world = mob.getEntityWorld();
         for (int i = 0; i < 10; i++) {
-            BlockPos potentialPos = mobPos.add(random.nextInt(SEARCH_RADIUS * 2) - SEARCH_RADIUS, random.nextInt(6) - 3, random.nextInt(SEARCH_RADIUS * 2) - SEARCH_RADIUS);
-            if (mob.getEntityWorld().getBlockState(potentialPos).isIn(ModBlockTags.DRYING_BLOCKS)) {
-                this.targetDryingBlock = potentialPos;
-                return true;
+            int xOffset = random.nextBetween(-SEARCH_RADIUS, SEARCH_RADIUS);
+            int zOffset = random.nextBetween(-SEARCH_RADIUS, SEARCH_RADIUS);
+            BlockPos samplePos = mobPos.add(xOffset, 0, zOffset);
+            BlockPos groundPos = world.getTopPosition(Heightmap.Type.MOTION_BLOCKING, samplePos);
+            BlockPos standPos = groundPos.up();
+
+            if (!world.isSkyVisible(standPos)
+                && world.isAir(standPos)
+                && world.getFluidState(standPos).isEmpty()
+                && world.getBlockState(groundPos).isSideSolidFullSquare(world, groundPos, Direction.UP)) {
+                var path = mob.getNavigation().findPathTo(standPos, 0);
+                if (path != null) {
+                    this.targetDryingBlock = standPos;
+                    return true;
+                }
             }
         }
         return false;
     }
 
     private static boolean isEntityWet(MobEntity entity) {
-        return entity.isWet();
+        return entity.isSubmergedInWater()
+            || entity.isTouchingWater()
+            || entity.isTouchingWaterOrRain();
     }
 
     @Override
@@ -99,11 +117,16 @@ public class GoToDryingBlockGoal extends AdaptiveGoal {
 
     @Override
     protected woflo.petsplus.state.emotions.PetMoodEngine.ActivityType getActivityType() {
-        return woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.NEUTRAL;
+        return woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.REST;
     }
 
     @Override
     protected float getActivityIntensity() {
         return 0.1f;
+    }
+
+    private static boolean isSheltered(MobEntity entity) {
+        World world = entity.getEntityWorld();
+        return world != null && !world.isSkyVisible(entity.getBlockPos());
     }
 }

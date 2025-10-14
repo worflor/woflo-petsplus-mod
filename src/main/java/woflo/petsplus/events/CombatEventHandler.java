@@ -8,6 +8,7 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.damage.DamageTypes;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.BlazeEntity;
 import net.minecraft.entity.mob.CreeperEntity;
 import net.minecraft.entity.mob.GhastEntity;
@@ -216,6 +217,14 @@ public class CombatEventHandler {
         }
 
         // Check if the damage was dealt by a player
+        if (attackingOwner instanceof ServerPlayerEntity serverOwner
+            && !targetCancelled && appliedDamage > 0.0F
+            && damageSource.isOf(DamageTypes.PLAYER_ATTACK)
+            && damageSource.getSource() == attackingOwner
+            && isCriticalMeleeHit(serverOwner)) {
+            broadcastOwnerCriticalHit(serverOwner, entity, appliedDamage);
+        }
+
         if (attackingOwner != null && !targetCancelled && appliedDamage > 0.0F) {
             handleOwnerDealtDamage(attackingOwner, entity, appliedDamage);
         }
@@ -954,46 +963,96 @@ public class CombatEventHandler {
         if (wasCrit) {
             triggerAbilitiesForOwner(shooter, "owner_projectile_crit");
 
-            float intensity = damageIntensity(damage, target.getMaxHealth());
-            long now = shooter.getEntityWorld().getTime();
-
-            if (shooter instanceof ServerPlayerEntity) {
-                List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(shooter);
-                if (!swarm.isEmpty()) {
-                    Vec3d shooterPos = shooter.getEntityPos();
-                    double radiusSq = 32.0 * 32.0;
-                    for (PetSwarmIndex.SwarmEntry entry : swarm) {
-                        MobEntity pet = entry.pet();
-                        PetComponent pc = entry.component();
-                        if (pet == null || pc == null || !pet.isAlive()) {
-                            continue;
-                        }
-                        if (!withinRadius(entry, shooterPos, radiusSq)) {
-                            continue;
-                        }
-                        pc.setLastAttackTick(now);
-                        float closeness = 0.40f + 0.60f * proximityFactor(shooter, pet, 32.0);
-                        float cheerfulWeight = scaledAmount(0.08f, 0.25f, intensity);
-                        float vigilWeight = scaledAmount(0.10f, 0.30f, intensity) * closeness;
-
-                        float petHealthRatio = pet.getHealth() / pet.getMaxHealth();
-                        if (petHealthRatio > 0.8f) {
-                            float hopefulWeight = scaledAmount(0.08f, 0.25f, intensity) * closeness * petHealthRatio;
-                            pc.pushEmotion(PetComponent.Emotion.HOPEFUL, hopefulWeight);
-                        }
-                        if (target.getMaxHealth() >= pet.getMaxHealth() * 1.5f) {
-                            float prideWeight = scaledAmount(0.08f, 0.26f, intensity) * (0.7f + 0.3f * closeness);
-                            pc.pushEmotion(PetComponent.Emotion.PRIDE, prideWeight);
-                        }
-                        pc.pushEmotion(PetComponent.Emotion.CHEERFUL, cheerfulWeight);
-                        pc.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, vigilWeight);
-                    }
-                }
+            if (shooter instanceof ServerPlayerEntity serverOwner) {
+                broadcastOwnerCriticalHit(serverOwner, target, damage);
             }
         }
 
         // Handle as regular damage too
         handleOwnerDealtDamage(shooter, target, damage);
+    }
+
+    private static void broadcastOwnerCriticalHit(ServerPlayerEntity owner, LivingEntity target, float damage) {
+        if (owner == null || target == null || owner.getEntityWorld() == null) {
+            return;
+        }
+
+        List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(owner);
+        if (swarm.isEmpty()) {
+            return;
+        }
+
+        Vec3d ownerPos = owner.getEntityPos();
+        double radiusSq = 32.0 * 32.0;
+        float targetMaxHealth = Math.max(1f, target.getMaxHealth());
+        float intensity = damageIntensity(damage, targetMaxHealth);
+        boolean bossVictim = TriggerConditions.isBossEntity(target);
+        long now = owner.getEntityWorld().getTime();
+
+        for (PetSwarmIndex.SwarmEntry entry : swarm) {
+            MobEntity pet = entry.pet();
+            PetComponent pc = entry.component();
+            if (pet == null || pc == null || !pet.isAlive()) {
+                continue;
+            }
+            if (!withinRadius(entry, ownerPos, radiusSq)) {
+                continue;
+            }
+
+            pc.setLastAttackTick(now);
+            float closeness = 0.40f + 0.60f * proximityFactor(owner, pet, 32.0);
+            float cheerfulWeight = scaledAmount(0.08f, 0.25f, intensity);
+            float vigilWeight = scaledAmount(0.10f, 0.30f, intensity) * closeness;
+
+            float petMaxHealth = Math.max(1f, pet.getMaxHealth());
+            float petHealthRatio = MathHelper.clamp(pet.getHealth() / petMaxHealth, 0f, 1f);
+            if (petHealthRatio > 0.8f) {
+                float hopefulWeight = scaledAmount(0.08f, 0.25f, intensity) * closeness * petHealthRatio;
+                if (hopefulWeight > 0f) {
+                    pc.pushEmotion(PetComponent.Emotion.HOPEFUL, hopefulWeight);
+                }
+            }
+
+            boolean formidable = bossVictim || targetMaxHealth >= petMaxHealth * 1.5f;
+            if (formidable) {
+                float prideWeight = scaledAmount(0.08f, 0.26f, intensity) * (0.7f + 0.3f * closeness);
+                if (prideWeight > 0f) {
+                    pc.pushEmotion(PetComponent.Emotion.PRIDE, prideWeight);
+                }
+            }
+
+            if (cheerfulWeight > 0f) {
+                pc.pushEmotion(PetComponent.Emotion.CHEERFUL, cheerfulWeight);
+            }
+            if (vigilWeight > 0f) {
+                pc.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, vigilWeight);
+            }
+        }
+    }
+
+    private static boolean isCriticalMeleeHit(ServerPlayerEntity player) {
+        if (player == null) {
+            return false;
+        }
+        if (player.getAttackCooldownProgress(0.5f) < 1.0f) {
+            return false;
+        }
+        if (player.fallDistance <= 0.0f) {
+            return false;
+        }
+        if (player.isOnGround() || player.isClimbing()) {
+            return false;
+        }
+        if (player.isTouchingWater() || player.isInLava()) {
+            return false;
+        }
+        if (player.hasStatusEffect(StatusEffects.BLINDNESS)) {
+            return false;
+        }
+        if (player.hasVehicle() || player.isSprinting()) {
+            return false;
+        }
+        return true;
     }
 
     static void populateProjectileMetadata(Map<String, Object> payload, Identifier projectileId, @Nullable String rawType) {

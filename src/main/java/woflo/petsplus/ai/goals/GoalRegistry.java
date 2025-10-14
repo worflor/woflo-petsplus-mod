@@ -695,6 +695,19 @@ public final class GoalRegistry {
             false,
             GoToDryingBlockGoal::new
         ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.WET_SHAKE,
+            Category.IDLE_QUIRK,
+            29,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.any(),
+            new Vec2f(0.0f, 0.2f),
+            IdleStaminaBias.LOW,
+            false,
+            WetShakeGoal::new
+        ));
     }
 
     private GoalRegistry() {

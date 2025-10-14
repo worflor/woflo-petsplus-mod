@@ -42,6 +42,11 @@ public final class PetsplusEntityTypeTags {
         Identifier.of(Petsplus.MOD_ID, "aquatic")
     );
 
+    public static final TagKey<EntityType<?>> AQUATIC_LIKE = TagKey.of(
+        RegistryKeys.ENTITY_TYPE,
+        Identifier.of(Petsplus.MOD_ID, "aquatic_like")
+    );
+
     public static final TagKey<EntityType<?>> REPTILE_SHELLY = TagKey.of(
         RegistryKeys.ENTITY_TYPE,
         Identifier.of(Petsplus.MOD_ID, "reptile_shelly")

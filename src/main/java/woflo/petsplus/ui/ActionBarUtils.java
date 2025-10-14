@@ -27,13 +27,8 @@ public final class ActionBarUtils {
             player.sendMessage(message, true);
             return;
         } catch (Exception vanillaFailure) {
-            // Continue to chat fallback
+            // Do not fall back to chat for context cues
         }
-
-        try {
-            player.sendMessage(message, false); // Fallback to chat if overlay delivery fails
-        } catch (Exception ignored) {
-            // Final fallback is to drop the message to avoid cascading failures
-        }
+        // Final fallback is to drop the message to avoid chat spam
     }
 }

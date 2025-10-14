@@ -88,6 +88,7 @@ public final class ActionBarCueManager implements PlayerTickListener {
         QueuedCue queued = new QueuedCue(
             cue.messageKey(),
             cue.args().clone(),
+            cue.explicitText(),
             source,
             cue.priority(),
             currentTick,
@@ -105,6 +106,92 @@ public final class ActionBarCueManager implements PlayerTickListener {
      */
     public static void queueCue(ServerPlayerEntity player, String messageKey, Object... args) {
         queueCue(player, ActionBarCue.of(messageKey, args));
+    }
+
+    /**
+     * Queue a text cue that strictly requires a recent pet focus; if no focus is
+     * available, the cue is dropped (no broadcast fallback), avoiding chat spam.
+     * Returns true if queued, false if no eligible focus/source.
+     */
+    public static boolean queueTextCueRequireFocus(ServerPlayerEntity player, Text text) {
+        if (player == null || text == null) {
+            return false;
+        }
+
+        MinecraftServer server = player.getEntityWorld().getServer();
+        if (server == null) {
+            return false;
+        }
+
+        long currentTick = server.getTicks();
+        PlayerCueState state = PLAYER_STATES.computeIfAbsent(player.getUuid(), id -> new PlayerCueState());
+        int recentPetLimit = resolveRecentPetLimit();
+        state.pruneFocuses(currentTick, recentPetLimit);
+
+        ActionBarCueSource source = state.deriveImplicitSource(currentTick, recentPetLimit);
+        if (source == null) {
+            // No recent pet focus; drop the cue per strict focus requirement
+            return false;
+        }
+
+        QueuedCue queued = new QueuedCue(
+            null,
+            new Object[0],
+            text,
+            source,
+            ActionBarCuePriority.NORMAL,
+            currentTick,
+            DEFAULT_TTL_TICKS,
+            DEFAULT_REPEAT_COOLDOWN_TICKS,
+            null
+        );
+
+        state.cues.add(queued);
+        requestImmediateRun(player, state, currentTick);
+        return true;
+    }
+
+    /**
+     * Queue a keyed cue that strictly requires a recent pet focus; if no focus is
+     * available, the cue is dropped (no broadcast fallback). Returns true if queued.
+     */
+    public static boolean queueCueRequireFocus(ServerPlayerEntity player, ActionBarCue cue) {
+        if (player == null || cue == null) {
+            return false;
+        }
+
+        MinecraftServer server = player.getEntityWorld().getServer();
+        if (server == null) {
+            return false;
+        }
+
+        long currentTick = server.getTicks();
+        PlayerCueState state = PLAYER_STATES.computeIfAbsent(player.getUuid(), id -> new PlayerCueState());
+        int recentPetLimit = resolveRecentPetLimit();
+        state.pruneFocuses(currentTick, recentPetLimit);
+
+        ActionBarCueSource source = cue.source();
+        if (source == null) {
+            source = state.deriveImplicitSource(currentTick, recentPetLimit);
+        }
+        if (source == null) {
+            return false; // require focus, no broadcast fallback
+        }
+
+        QueuedCue queued = new QueuedCue(
+            cue.messageKey(),
+            cue.args().clone(),
+            cue.explicitText(),
+            source,
+            cue.priority(),
+            currentTick,
+            cue.ttlTicks(),
+            cue.repeatCooldownTicks(),
+            cue.customDeduplicationKey()
+        );
+        state.cues.add(queued);
+        requestImmediateRun(player, state, currentTick);
+        return true;
     }
 
     /**
@@ -251,7 +338,13 @@ public final class ActionBarCueManager implements PlayerTickListener {
             state.cooldowns.put(dedupeKey, currentTick + cue.repeatCooldownTicks());
         }
 
-        Text message = Text.translatable(cue.messageKey(), cue.args()).formatted(Formatting.GRAY);
+        Text message;
+        if (cue.explicitText() != null) {
+            // Preserve formatting of explicit text; do not override to gray here
+            message = cue.explicitText();
+        } else {
+            message = Text.translatable(cue.messageKey(), cue.args()).formatted(Formatting.GRAY);
+        }
         ActionBarUtils.sendActionBar(player, message);
     }
 
@@ -417,6 +510,7 @@ public final class ActionBarCueManager implements PlayerTickListener {
     private record QueuedCue(
         String messageKey,
         Object[] args,
+        Text explicitText,
         ActionBarCueSource source,
         ActionBarCuePriority priority,
         long createdTick,
@@ -435,7 +529,12 @@ public final class ActionBarCueManager implements PlayerTickListener {
             if (source.petId() == null) {
                 return null;
             }
-            return source.petId() + "|" + messageKey;
+            if (messageKey != null) {
+                return source.petId() + "|" + messageKey;
+            }
+            // For explicit texts, fall back to text content as key
+            String txt = explicitText == null ? null : explicitText.getString();
+            return txt == null ? null : (source.petId() + "|txt:" + txt);
         }
     }
 
@@ -450,6 +549,7 @@ public final class ActionBarCueManager implements PlayerTickListener {
         private int repeatCooldownTicks = DEFAULT_REPEAT_COOLDOWN_TICKS;
         private ActionBarCueSource source;
         private String customDeduplicationKey;
+        private Text explicitText;
 
         private ActionBarCue(String messageKey, Object... args) {
             this.messageKey = messageKey;
@@ -458,6 +558,12 @@ public final class ActionBarCueManager implements PlayerTickListener {
 
         public static ActionBarCue of(String messageKey, Object... args) {
             return new ActionBarCue(messageKey, args);
+        }
+
+        public static ActionBarCue ofText(Text text) {
+            ActionBarCue cue = new ActionBarCue(null);
+            cue.explicitText = text;
+            return cue;
         }
 
         public ActionBarCue withPriority(ActionBarCuePriority priority) {
@@ -517,6 +623,10 @@ public final class ActionBarCueManager implements PlayerTickListener {
 
         String customDeduplicationKey() {
             return customDeduplicationKey;
+        }
+
+        Text explicitText() {
+            return explicitText;
         }
     }
 

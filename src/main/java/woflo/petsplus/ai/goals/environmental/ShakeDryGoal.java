@@ -8,7 +8,8 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalDefinition;
+import woflo.petsplus.ai.goals.GoalIds;
+import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
 
@@ -20,8 +21,8 @@ public class ShakeDryGoal extends AdaptiveGoal {
     private static final String ZOOMIES_UNTIL_KEY = "zoomies_until";
     private static final int SHAKE_DURATION = 40; // 2 seconds
 
-    public ShakeDryGoal(MobEntity mob, GoalDefinition goalDefinition) {
-        super(mob, goalDefinition, EnumSet.of(Control.MOVE));
+    public ShakeDryGoal(MobEntity mob) {
+        super(mob, GoalRegistry.require(GoalIds.SHAKE_DRY), EnumSet.of(Control.MOVE));
     }
 
     @Override
@@ -52,7 +53,7 @@ public class ShakeDryGoal extends AdaptiveGoal {
 
     @Override
     protected boolean shouldContinueGoal() {
-        return activeTicks < SHAKE_DURATION;
+        return getActiveTicks() < SHAKE_DURATION;
     }
 
     @Override

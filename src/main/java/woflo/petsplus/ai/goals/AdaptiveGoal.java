@@ -55,6 +55,10 @@ public abstract class AdaptiveGoal extends Goal {
         this.goalId = goalDefinition.id();
         this.setControls(controls);
     }
+
+    protected int getActiveTicks() {
+        return activeTicks;
+    }
     
     @Override
     public boolean canStart() {
