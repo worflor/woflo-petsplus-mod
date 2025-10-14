@@ -25,6 +25,7 @@ import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.history.HistoryManager;
 import woflo.petsplus.mechanics.StargazeMechanic;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.ui.ActionBarUtils;
 
 /**
  * Handles tribute payments for pet milestone unlocks using configurable tribute items.
@@ -204,7 +205,7 @@ public class TributeHandler {
 
             // Success feedback
             player.sendMessage(Text.translatable("petsplus.tribute.accept", petName, tributeName), false);
-            player.sendMessage(Text.translatable("petsplus.tribute.payment_success", milestoneLevel), true);
+            ActionBarUtils.sendActionBar(player, Text.translatable("petsplus.tribute.payment_success", milestoneLevel));
 
             // Enhanced visual and audio feedback with orbital completion effect
             woflo.petsplus.ui.TributeOrbitalEffects.emitTributeCompleteEffect(pet, (ServerWorld) pet.getEntityWorld(), milestoneLevel);
@@ -245,7 +246,7 @@ public class TributeHandler {
 
         } catch (Exception e) {
             Petsplus.LOGGER.error("Error processing tribute payment", e);
-            player.sendMessage(Text.translatable("petsplus.tribute.payment_failed"), true);
+            ActionBarUtils.sendActionBar(player, Text.translatable("petsplus.tribute.payment_failed"));
             return false;
         }
     }

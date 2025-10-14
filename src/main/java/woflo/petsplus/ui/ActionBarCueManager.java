@@ -252,7 +252,7 @@ public final class ActionBarCueManager implements PlayerTickListener {
         }
 
         Text message = Text.translatable(cue.messageKey(), cue.args()).formatted(Formatting.GRAY);
-        player.sendMessage(message, true);
+        ActionBarUtils.sendActionBar(player, message);
     }
 
     private static boolean isEligible(ServerPlayerEntity player, PlayerCueState state, QueuedCue cue, long currentTick, int recentPetLimit) {

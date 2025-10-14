@@ -33,6 +33,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import woflo.petsplus.ui.ActionBarUtils;
+
 /**
  * Applies passive aura and support behaviors driven by role metadata.
  */
@@ -388,7 +390,7 @@ public final class PetsplusEffectManager {
         Long lastSent = LAST_EFFECT_NOTIFICATION.get(notificationKey);
         if (lastSent == null || now - lastSent >= 10_000) {
             try {
-                owner.sendMessage(message, true);
+                ActionBarUtils.sendActionBar(owner, message);
             } catch (Throwable ignored) {}
             LAST_EFFECT_NOTIFICATION.put(notificationKey, now);
         }

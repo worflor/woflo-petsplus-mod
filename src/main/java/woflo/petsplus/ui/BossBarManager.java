@@ -4,13 +4,18 @@ import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.boss.ServerBossBar;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.MutableText;
+import net.minecraft.text.Style;
+import net.minecraft.text.StringVisitable;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import woflo.petsplus.state.tracking.PlayerTickDispatcher;
 import woflo.petsplus.state.tracking.PlayerTickListener;
@@ -56,25 +61,27 @@ public final class BossBarManager implements PlayerTickListener {
     /**
      * Show a temporary boss bar for ability feedback.
      */
-    public static void showTemporaryBossBar(ServerPlayerEntity player, String messageKey, Object[] args, 
+    public static void showTemporaryBossBar(ServerPlayerEntity player, String messageKey, Object[] args,
                                           int durationTicks, BossBar.Color color) {
         UUID playerId = player.getUuid();
-        
+
         // Remove existing boss bar if any
         removeBossBar(player);
-        
-    Text message = Text.translatable(messageKey, args).formatted(Formatting.GRAY).formatted(Formatting.BOLD);
-        BossBarInfo info = new BossBarInfo(message, durationTicks, color);
+
+        MutableText rawMessage = Text.translatable(messageKey, args)
+            .formatted(Formatting.BOLD);
+        MutableText displayMessage = sanitizeBossBarTitle(rawMessage);
+        BossBarInfo info = new BossBarInfo(displayMessage, durationTicks, color);
         activeBossBars.put(playerId, info);
         scheduleBossBar(player, info, resolveServerTick(player), false);
 
         // Create and show boss bar
-        info.bossBar = new ServerBossBar(sanitizeBossBarTitle(message), color, BossBar.Style.PROGRESS);
+        info.bossBar = new ServerBossBar(info.message, color, BossBar.Style.PROGRESS);
         try {
             info.bossBar.addPlayer(player);
         } catch (Exception e) {
             // Fallback: send action bar message instead
-            player.sendMessage(message, true);
+            ActionBarUtils.sendActionBar(player, displayMessage.copy());
         }
     }
 
@@ -84,16 +91,16 @@ public final class BossBarManager implements PlayerTickListener {
     public static void showTemporaryBossBar(ServerPlayerEntity player, Text message, int durationTicks) {
         UUID playerId = player.getUuid();
         removeBossBar(player);
-        Text styled = message.copy().formatted(Formatting.GRAY);
+        MutableText styled = sanitizeBossBarTitle(message.copy());
         BossBarInfo info = new BossBarInfo(styled, durationTicks, BossBar.Color.PURPLE);
         activeBossBars.put(playerId, info);
         scheduleBossBar(player, info, resolveServerTick(player), false);
-        info.bossBar = new ServerBossBar(sanitizeBossBarTitle(styled), BossBar.Color.PURPLE, BossBar.Style.PROGRESS);
+        info.bossBar = new ServerBossBar(info.message, BossBar.Color.PURPLE, BossBar.Style.PROGRESS);
         try {
             info.bossBar.addPlayer(player);
         } catch (Exception e) {
             // Fallback: send action bar message instead
-            player.sendMessage(styled, true);
+            ActionBarUtils.sendActionBar(player, styled.copy());
         }
     }
 
@@ -128,18 +135,18 @@ public final class BossBarManager implements PlayerTickListener {
         BossBarInfo info = activeBossBars.get(playerId);
         if (info == null) {
             // Create new boss bar info
-            Text safeMessage;
+            MutableText safeMessage;
             try {
-                safeMessage = message.copy().formatted(Formatting.GRAY);
+                safeMessage = sanitizeBossBarTitle(message.copy());
             } catch (Exception e) {
                 // Fallback to plain text if formatting fails
                 if (woflo.petsplus.Petsplus.DEBUG_MODE) {
                     woflo.petsplus.Petsplus.LOGGER.warn("Boss bar message formatting failed, using fallback: {}", e.getMessage());
                 }
-                safeMessage = Text.literal(message.getString()).formatted(Formatting.GRAY);
+                safeMessage = sanitizeBossBarTitle(Text.literal(message.getString()));
             }
 
-            info = new BossBarInfo(sanitizeBossBarTitle(safeMessage), durationTicks, color);
+            info = new BossBarInfo(safeMessage, durationTicks, color);
             info.fixedPercent = true;
             info.percent = clamp01(percent);
             info.lastUpdateTick = getCurrentTick(player);
@@ -148,14 +155,14 @@ public final class BossBarManager implements PlayerTickListener {
 
             try {
                 // Use PROGRESS style for health bars (smooth gradient), not NOTCHED_20
-                info.bossBar = new ServerBossBar(sanitizeBossBarTitle(info.message), color, BossBar.Style.PROGRESS);
+                info.bossBar = new ServerBossBar(info.message, color, BossBar.Style.PROGRESS);
                 info.bossBar.addPlayer(player);
                 info.bossBar.setPercent(info.percent);
             } catch (Exception e) {
                 // Clean up on failure and fallback to action bar
                 activeBossBars.remove(playerId);
                 try {
-                    player.sendMessage(info.message, true);
+                    ActionBarUtils.sendActionBar(player, info.message.copy());
                 } catch (Exception fallbackError) {
                     // Ultimate fallback - do nothing if even action bar fails
                 }
@@ -173,25 +180,21 @@ public final class BossBarManager implements PlayerTickListener {
                 return;
             }
 
-            Text newMsg;
+            MutableText newMsg;
             try {
-                newMsg = message.copy().formatted(Formatting.GRAY);
+                newMsg = sanitizeBossBarTitle(message.copy());
             } catch (Exception e) {
                 if (woflo.petsplus.Petsplus.DEBUG_MODE) {
                     woflo.petsplus.Petsplus.LOGGER.warn("Boss bar message update formatting failed, using fallback: {}", e.getMessage());
                 }
-                newMsg = Text.literal(message.getString()).formatted(Formatting.GRAY);
+                newMsg = sanitizeBossBarTitle(Text.literal(message.getString()));
             }
 
             float newPct = clamp01(percent);
             info.fixedPercent = true;
             info.lastUpdateTick = currentTick;
 
-            boolean changed = forceUpdate; // Always consider changed if forceUpdate is true
-            if (!newMsg.getString().equals(info.message.getString())) {
-                info.message = newMsg;
-                changed = true;
-            }
+            boolean changed = false;
             if (Math.abs(newPct - info.percent) > EPSILON) {
                 info.percent = newPct;
                 changed = true;
@@ -207,14 +210,16 @@ public final class BossBarManager implements PlayerTickListener {
             info.remainingTicks = Math.max(info.remainingTicks, durationTicks);
             info.totalTicks = Math.max(info.totalTicks, durationTicks);
 
-            // Always update the message for animated content, even if string content is the same
-            if (forceUpdate) {
+            String newSignature = createMessageSignature(newMsg);
+            if (forceUpdate || !newSignature.equals(info.messageSignature)) {
                 info.message = newMsg;
+                info.messageSignature = newSignature;
+                changed = true;
             }
 
             if (info.bossBar != null && changed) {
                 try {
-                    info.bossBar.setName(sanitizeBossBarTitle(info.message));
+                    info.bossBar.setName(info.message.copy());
                     info.bossBar.setColor(info.color);
                     info.bossBar.setPercent(info.percent);
                     // Keep PROGRESS style for smooth health display
@@ -237,21 +242,24 @@ public final class BossBarManager implements PlayerTickListener {
         long scheduleTick = resolveServerTick(player);
         BossBarInfo info = activeBossBars.get(playerId);
         if (info == null) {
-            info = new BossBarInfo(message.copy().formatted(Formatting.GRAY), durationTicks, color);
+            MutableText sanitized = sanitizeBossBarTitle(message.copy());
+            info = new BossBarInfo(sanitized, durationTicks, color);
             info.fixedPercent = false;
             activeBossBars.put(playerId, info);
-            info.bossBar = new ServerBossBar(sanitizeBossBarTitle(info.message), color, BossBar.Style.PROGRESS);
+            info.bossBar = new ServerBossBar(info.message, color, BossBar.Style.PROGRESS);
             try {
                 info.bossBar.addPlayer(player);
             } catch (Exception e) {
                 // Fallback: send action bar message instead
-                player.sendMessage(info.message, true);
+                ActionBarUtils.sendActionBar(player, info.message.copy());
             }
         } else {
-            Text newMsg = message.copy().formatted(Formatting.GRAY);
+            MutableText newMsg = sanitizeBossBarTitle(message.copy());
             boolean changed = false;
-            if (!newMsg.getString().equals(info.message.getString())) {
+            String newSignature = createMessageSignature(newMsg);
+            if (!newSignature.equals(info.messageSignature)) {
                 info.message = newMsg;
+                info.messageSignature = newSignature;
                 changed = true;
             }
             if (info.color != color) {
@@ -263,13 +271,13 @@ public final class BossBarManager implements PlayerTickListener {
             info.totalTicks = durationTicks;
             if (info.bossBar != null && changed) {
                 try {
-                    info.bossBar.setName(sanitizeBossBarTitle(info.message));
+                    info.bossBar.setName(info.message.copy());
                     info.bossBar.setColor(info.color);
                     info.bossBar.setStyle(BossBar.Style.PROGRESS);
                 } catch (Exception e) {
                     // If boss bar update fails, remove and fall back to action bar
                     detachBossBar(info);
-                    player.sendMessage(info.message, true);
+                    ActionBarUtils.sendActionBar(player, info.message.copy());
                 }
             }
         }
@@ -410,6 +418,7 @@ public final class BossBarManager implements PlayerTickListener {
                     info.clearSchedule();
                     detachBossBar(info);
                 }
+                ActionBarUtils.sendActionBar(player, info.message.copy());
                 return;
             }
         }
@@ -460,6 +469,7 @@ public final class BossBarManager implements PlayerTickListener {
         int remainingTicks;
         ServerBossBar bossBar;
         Text message;
+        String messageSignature;
         boolean fixedPercent = false;
         float percent = 1.0f;
         BossBar.Color color = BossBar.Color.PURPLE;
@@ -493,6 +503,7 @@ public final class BossBarManager implements PlayerTickListener {
             this.remainingTicks = this.totalTicks;
             this.message = message != null ? message : Text.literal("");
             this.color = color != null ? color : BossBar.Color.PURPLE;
+            this.messageSignature = createMessageSignature(this.message);
         }
 
         boolean shouldFallbackToActionBar() {
@@ -564,33 +575,92 @@ public final class BossBarManager implements PlayerTickListener {
         return 2; // Faster 100ms response for low-frequency updates
     }
 
+    private static final int MAX_BOSSBAR_TITLE_LENGTH = 120;
+
     /**
-     * Sanitize any text intended for a boss bar title into a simple, serializable literal.
-     * - Flattens to display string (no nested components/events)
-     * - Strips legacy (§) formatting codes
-     * - Clamps to a reasonable max length to avoid oversized titles
+     * Sanitize boss bar titles while preserving visual styling and removing unsafe components.
      */
-    private static Text sanitizeBossBarTitle(Text original) {
+    private static MutableText sanitizeBossBarTitle(Text original) {
         if (original == null) {
-            return Text.literal("");
+            return Text.empty();
         }
-        String s;
-        try {
-            s = original.getString();
-        } catch (Exception e) {
-            s = "";
+
+        MutableText sanitized = Text.empty();
+        AtomicInteger remaining = new AtomicInteger(MAX_BOSSBAR_TITLE_LENGTH);
+
+        original.visit((style, string) -> {
+            if (string == null || string.isEmpty()) {
+                return Optional.empty();
+            }
+
+            String cleaned = string.replace('\r', ' ').replace('\n', ' ');
+            if (cleaned.isEmpty()) {
+                return Optional.empty();
+            }
+
+            int limit = remaining.get();
+            if (limit <= 0) {
+                return Optional.of(StringVisitable.TERMINATE_VISIT);
+            }
+
+            String segment = cleaned.length() > limit ? cleaned.substring(0, limit) : cleaned;
+            if (!segment.isEmpty()) {
+                Style sanitizedStyle = sanitizeStyle(style);
+                sanitized.append(Text.literal(segment).setStyle(sanitizedStyle));
+                remaining.addAndGet(-segment.length());
+            }
+
+            return remaining.get() <= 0
+                ? Optional.of(StringVisitable.TERMINATE_VISIT)
+                : Optional.empty();
+        }, Style.EMPTY);
+
+        if (sanitized.getSiblings().isEmpty() && sanitized.getString().isEmpty()) {
+            return Text.empty();
         }
-        if (s == null) {
-            s = "";
+
+        return sanitized;
+    }
+
+    private static Style sanitizeStyle(Style style) {
+        if (style == null) {
+            return Style.EMPTY;
         }
-        // Strip legacy formatting codes like §a, §l, etc. (case-insensitive)
-        s = s.replaceAll("(?i)\\u00A7[0-9A-FK-OR]", "");
-        // Clamp length to avoid edge cases with very long titles
-        final int MAX_LEN = 120;
-        if (s.length() > MAX_LEN) {
-            s = s.substring(0, MAX_LEN);
+
+        return style
+            .withClickEvent(null)
+            .withHoverEvent(null)
+            .withInsertion(null);
+    }
+
+    private static String createMessageSignature(Text text) {
+        if (text == null) {
+            return "";
         }
-        return Text.literal(s);
+
+        StringBuilder builder = new StringBuilder();
+        text.visit((style, string) -> {
+            if (string == null || string.isEmpty()) {
+                return Optional.empty();
+            }
+
+            Style safeStyle = style == null ? Style.EMPTY : style;
+            builder.append('[');
+            if (safeStyle.getColor() != null) {
+                builder.append('#').append(Integer.toHexString(safeStyle.getColor().getRgb()));
+            }
+            if (safeStyle.isBold()) builder.append('b');
+            if (safeStyle.isItalic()) builder.append('i');
+            if (safeStyle.isUnderlined()) builder.append('u');
+            if (safeStyle.isStrikethrough()) builder.append('s');
+            if (safeStyle.isObfuscated()) builder.append('o');
+            builder.append(']');
+            builder.append(string);
+            builder.append('|');
+            return Optional.empty();
+        }, Style.EMPTY);
+
+        return builder.toString();
     }
 
     /**
@@ -603,7 +673,7 @@ public final class BossBarManager implements PlayerTickListener {
             // Try to recover by recreating the boss bar
             try {
                 detachBossBar(info);
-                info.bossBar = new ServerBossBar(sanitizeBossBarTitle(info.message), info.color, BossBar.Style.PROGRESS);
+                info.bossBar = new ServerBossBar(info.message, info.color, BossBar.Style.PROGRESS);
                 info.bossBar.addPlayer(player);
                 info.bossBar.setPercent(info.percent);
                 info.resetFailures(); // Recovery successful
@@ -615,12 +685,7 @@ public final class BossBarManager implements PlayerTickListener {
 
         // Fallback to action bar
         detachBossBar(info);
-        try {
-            player.sendMessage(info.message, true);
-        } catch (Exception fallbackError) {
-            // Even action bar failed - remove the boss bar entirely
-            activeBossBars.remove(player.getUuid());
-        }
+        ActionBarUtils.sendActionBar(player, info.message.copy());
     }
 
     private static void detachBossBar(BossBarInfo info) {

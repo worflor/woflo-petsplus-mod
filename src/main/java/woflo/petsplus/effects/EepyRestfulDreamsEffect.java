@@ -22,6 +22,7 @@ import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.roles.eepyeeper.EepyEeperCore;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.util.ChanceValidationUtil;
+import woflo.petsplus.ui.ActionBarUtils;
 
 /**
  * Applies the Restful Dreams sleep bonuses when an owner successfully rests.
@@ -135,7 +136,7 @@ public class EepyRestfulDreamsEffect implements Effect {
                     pet.addStatusEffect(new StatusEffectInstance(StatusEffects.RESISTANCE, petResistanceDuration, petResistanceAmplifier));
                 }
                 component.addExperience(bonusXp);
-                owner.sendMessage(Text.translatable("petsplus.eepyeeper.sleep_bonus"), true);
+                ActionBarUtils.sendActionBar(owner, Text.translatable("petsplus.eepyeeper.sleep_bonus"));
                 restfulDreamsActive = true;
             }
 
