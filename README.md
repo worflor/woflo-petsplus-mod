@@ -5,22 +5,17 @@
 </p>
 
 <h1 align="center">woflo's Pets+</h1>
-<h3 align="center">dev-0.95-Bee-havioural-momentum</h3>
-<h4 align="center">next: idk</h4>
+<h3 align="center">dev-0.96-Pet-this-Pet-that</h3>
+<h4 align="center">next: goal improvements</h4>
 
 ---
 
 <h4 align="center">Recent Changes</h3>
 <ul align="center" style="list-style-type:none; padding-left:0; text-align:left; margin:0;">
-  <li>Added 0.93 [nature] - Blossom, its not out of this relationship. It's in, it's so in, it's humiliating.</li>
-  <li>Added 0.93 [nature] - Clockwork, technical and curious.</li>
-  <li>Added 0.93 [nature] - Scrappy and Sentinel, birds of a feather.</li>
-  <li>Replaced 0.93 [nature] - Twilight and Nocturne are now Lunaris.</li>
-  <li>Added 0.93 [nature] - Lunaris, astrology girlies rejoice. All 12 signs uniquely manifest through the Lunaris nature. 
-  <li>Changed 0.93 [nature] - Rebalanced all the natures in terms of base impact; refining core identities to be more unique.</li>
   <li>Backend 0.94 [nature] - Parent natures are now exposed as predicates for natures.</li>
   <li>Updated 0.94 [version] - 1.21.8 -> 1.21.10. ;-;</li>
   <li>Rework 0.95 [ai] - Following the same path as the stimulus pipeline, AI uses pet context, mood engine snapshots, and more to allow dynamic emergent behaviour</li>
+   <li>Added 0.96 [ai] - AIState exists</li>
 </ul>
 
 ---
