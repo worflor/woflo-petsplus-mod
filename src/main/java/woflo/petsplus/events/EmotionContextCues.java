@@ -7,13 +7,16 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.Deque;
 import java.util.ArrayDeque;
 
+import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.text.TranslatableTextContent;
 
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.tracking.PlayerTickListener;
+import woflo.petsplus.ui.ActionBarUtils;
+import woflo.petsplus.ui.UIFeedbackManager;
 
 /**
  * Manages emotion context cues for players.
@@ -40,48 +43,30 @@ public class EmotionContextCues implements PlayerTickListener {
      * @param cooldownTicks The cooldown in ticks before this cue can be sent again
      */
     public static void sendCue(ServerPlayerEntity player, String cueId, Text message, long cooldownTicks) {
+        sendCue(player, cueId, null, message, cooldownTicks);
+    }
+
+    public static void sendCue(ServerPlayerEntity player, String cueId, MobEntity pet, Text message, long cooldownTicks) {
         if (player == null || cueId == null || message == null) {
             return;
         }
-        
+
         UUID playerId = player.getUuid();
         Map<String, Long> playerCues = PLAYER_CUE_COOLDOWNS.computeIfAbsent(playerId, id -> new ConcurrentHashMap<>());
-        
+
         long currentTime = player.getEntityWorld().getTime();
-        Long lastSent = playerCues.get(cueId);
-        
-        // Add diagnostic logging
-        if (DIAGNOSTIC_LOGGING) {
-            String threadName = Thread.currentThread().getName();
-            long sequenceNumber = CUE_SEQUENCE_NUMBERS.computeIfAbsent(playerId, id -> new AtomicLong(0)).incrementAndGet();
-            Petsplus.LOGGER.info("[CUE-DEBUG] Thread: {} Player: {} Cue: {} Sequence: {} Time: {} LastSent: {} Cooldown: {}", 
-                threadName, player.getName().getString(), cueId, sequenceNumber, currentTime, lastSent, cooldownTicks);
+        if (!shouldSendCue(player, cueId, cooldownTicks, playerCues, currentTime)) {
+            return;
         }
-        
-        if (lastSent == null || currentTime - lastSent >= cooldownTicks) {
-            // Use atomic operation to avoid race conditions
-            Long previousTime = playerCues.putIfAbsent(cueId, currentTime);
-            if (previousTime != null && currentTime - previousTime < cooldownTicks) {
-                // Another thread already set the cooldown within the window
-                if (DIAGNOSTIC_LOGGING) {
-                    Petsplus.LOGGER.info("[CUE-DEBUG] Race condition detected for cue {} on player {}", cueId, player.getName().getString());
-                }
-                return;
-            }
-            
-            player.sendMessage(message.copy().formatted(Formatting.GRAY));
-            
-            if (DIAGNOSTIC_LOGGING) {
-                Petsplus.LOGGER.info("[CUE-DEBUG] Sent cue {} to player {}", cueId, player.getName().getString());
-            }
-        } else {
-            if (DIAGNOSTIC_LOGGING) {
-                Petsplus.LOGGER.info("[CUE-DEBUG] Cooldown active for cue {} on player {} (remaining: {} ticks)", 
-                    cueId, player.getName().getString(), cooldownTicks - (currentTime - lastSent));
-            }
+
+        dispatchToUi(player, pet, message);
+
+        if (DIAGNOSTIC_LOGGING) {
+            String channel = pet != null ? "action bar (pet)" : "action bar";
+            Petsplus.LOGGER.info("[CUE-DEBUG] Sent cue {} to player {} via {}", cueId, player.getName().getString(), channel);
         }
     }
-    
+
     /**
      * Sends a cue to a player without a cooldown.
      * @param player The player to send the cue to
@@ -89,7 +74,86 @@ public class EmotionContextCues implements PlayerTickListener {
      * @param message The message to send
      */
     public static void sendCue(ServerPlayerEntity player, String cueId, Text message) {
-        sendCue(player, cueId, message, 0);
+        sendCue(player, cueId, null, message, 0);
+    }
+
+    public static void sendCue(ServerPlayerEntity player, String cueId, MobEntity pet, Text message) {
+        sendCue(player, cueId, pet, message, 0);
+    }
+
+    public static void sendPetCue(ServerPlayerEntity player, String cueId, MobEntity pet, String messageKey,
+                                  long cooldownTicks, Object... args) {
+        if (player == null || cueId == null || messageKey == null) {
+            return;
+        }
+
+        if (pet == null) {
+            sendCue(player, cueId, Text.translatable(messageKey, args), cooldownTicks);
+            return;
+        }
+
+        UUID playerId = player.getUuid();
+        Map<String, Long> playerCues = PLAYER_CUE_COOLDOWNS.computeIfAbsent(playerId, id -> new ConcurrentHashMap<>());
+        long currentTime = player.getEntityWorld().getTime();
+
+        if (!shouldSendCue(player, cueId, cooldownTicks, playerCues, currentTime)) {
+            return;
+        }
+
+        UIFeedbackManager.sendActionBarMessage(player, pet, messageKey, args);
+
+        if (DIAGNOSTIC_LOGGING) {
+            Petsplus.LOGGER.info("[CUE-DEBUG] Sent cue {} to player {} via action bar", cueId, player.getName().getString());
+        }
+    }
+
+    private static void dispatchToUi(ServerPlayerEntity player, MobEntity pet, Text message) {
+        if (message.getContent() instanceof TranslatableTextContent translatable) {
+            Object[] args = translatable.getArgs();
+            if (pet != null) {
+                UIFeedbackManager.sendActionBarMessage(player, pet, translatable.getKey(), args);
+            } else {
+                UIFeedbackManager.sendActionBarMessage(player, translatable.getKey(), args);
+            }
+            return;
+        }
+
+        ActionBarUtils.sendActionBar(player, message.copy());
+    }
+
+    private static boolean shouldSendCue(ServerPlayerEntity player, String cueId, long cooldownTicks,
+                                         Map<String, Long> playerCues, long currentTime) {
+        Long lastSent = playerCues.get(cueId);
+
+        if (DIAGNOSTIC_LOGGING) {
+            String threadName = Thread.currentThread().getName();
+            long sequenceNumber = CUE_SEQUENCE_NUMBERS.computeIfAbsent(player.getUuid(),
+                id -> new AtomicLong(0)).incrementAndGet();
+            Petsplus.LOGGER.info("[CUE-DEBUG] Thread: {} Player: {} Cue: {} Sequence: {} Time: {} LastSent: {} Cooldown: {}",
+                threadName, player.getName().getString(), cueId, sequenceNumber, currentTime, lastSent, cooldownTicks);
+        }
+
+        if (lastSent != null && currentTime - lastSent < cooldownTicks) {
+            if (DIAGNOSTIC_LOGGING) {
+                Petsplus.LOGGER.info("[CUE-DEBUG] Cooldown active for cue {} on player {} (remaining: {} ticks)",
+                    cueId, player.getName().getString(), cooldownTicks - (currentTime - lastSent));
+            }
+            return false;
+        }
+
+        Long previousTime = playerCues.putIfAbsent(cueId, currentTime);
+        if (previousTime != null) {
+            if (currentTime - previousTime < cooldownTicks) {
+                if (DIAGNOSTIC_LOGGING) {
+                    Petsplus.LOGGER.info("[CUE-DEBUG] Race condition detected for cue {} on player {}", cueId,
+                        player.getName().getString());
+                }
+                return false;
+            }
+            playerCues.put(cueId, currentTime);
+        }
+
+        return true;
     }
     
     /**

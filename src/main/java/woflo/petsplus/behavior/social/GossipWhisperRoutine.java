@@ -260,6 +260,7 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
             Text cueText = GossipNarration.buildWhisperCue(whisperer, listener, rumor, context.currentTick());
             EmotionContextCues.sendCue(context.owner(),
                 "social.gossip.whisper." + context.pet().getUuidAsString(),
+                context.pet(),
                 cueText,
                 1800);
         }

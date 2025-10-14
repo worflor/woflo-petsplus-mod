@@ -68,6 +68,7 @@ public class SupportInteractionHandler {
                 0.8f, 1.3f);
             EmotionContextCues.sendCue(serverPlayer,
                 "support.potion.ready." + mob.getUuidAsString(),
+                mob,
                 Text.translatable("petsplus.emotion_cue.support.potion_ready", mob.getDisplayName()),
                 200);
 
@@ -82,6 +83,7 @@ public class SupportInteractionHandler {
         if (comp.getLevel() < behavior.minLevel()) {
             EmotionContextCues.sendCue(serverPlayer,
                 "support.potion.locked." + mob.getUuidAsString(),
+                mob,
                 Text.translatable("petsplus.emotion_cue.support.potion_locked", mob.getDisplayName()),
                 160);
             return ActionResult.SUCCESS;
@@ -107,7 +109,7 @@ public class SupportInteractionHandler {
                 case INCOMPATIBLE -> Text.translatable("petsplus.emotion_cue.support.potion_incompatible", mob.getDisplayName());
                 case TOO_FULL, INVALID, NONE -> Text.translatable("petsplus.emotion_cue.support.potion_full", mob.getDisplayName());
             };
-            EmotionContextCues.sendCue(serverPlayer, cueId, message, 200);
+            EmotionContextCues.sendCue(serverPlayer, cueId, mob, message, 200);
             return ActionResult.SUCCESS;
         }
 
@@ -131,7 +133,7 @@ public class SupportInteractionHandler {
             message = Text.translatable("petsplus.emotion_cue.support.potion_topped_up", mob.getDisplayName());
             cueId = "support.potion.topped." + mob.getUuidAsString();
         }
-        EmotionContextCues.sendCue(serverPlayer, cueId, message, 200);
+        EmotionContextCues.sendCue(serverPlayer, cueId, mob, message, 200);
 
         EmotionProcessor.processSocialInteraction(
             mob,

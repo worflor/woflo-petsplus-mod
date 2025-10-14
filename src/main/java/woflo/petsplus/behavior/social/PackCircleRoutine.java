@@ -136,6 +136,7 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
                     if (context.tryMarkBeat("social_lonely", 300)) {
                         EmotionContextCues.sendCue(context.owner(),
                             "social.lonely." + context.pet().getUuidAsString(),
+                            context.pet(),
                             Text.translatable("petsplus.emotion_cue.social.lonely", context.pet().getDisplayName()),
                             300);
                     }
@@ -150,6 +151,7 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
                 if (context.tryMarkBeat("social_pair", 400)) {
                     EmotionContextCues.sendCue(context.owner(),
                         "social.pair." + context.pet().getUuidAsString(),
+                        context.pet(),
                         Text.translatable("petsplus.emotion_cue.social.pair", context.pet().getDisplayName()),
                         400);
                 }
@@ -174,6 +176,7 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
             context.pushEmotion(PetComponent.Emotion.HIRAETH, 0.03f);
             EmotionContextCues.sendCue(context.owner(),
                 "social.eldest." + context.pet().getUuidAsString(),
+                context.pet(),
                 Text.translatable("petsplus.emotion_cue.social.eldest", context.pet().getDisplayName()),
                 400);
         } else if (context.hasOlderPet() && context.tryMarkBeat("social_elder", 350)) {
@@ -181,6 +184,7 @@ public class PackCircleRoutine implements SocialBehaviorRoutine {
             context.pushEmotion(PetComponent.Emotion.FOCUSED, 0.02f);
             EmotionContextCues.sendCue(context.owner(),
                 "social.elder." + context.pet().getUuidAsString(),
+                context.pet(),
                 Text.translatable("petsplus.emotion_cue.social.elder", context.pet().getDisplayName()),
                 350);
         }
