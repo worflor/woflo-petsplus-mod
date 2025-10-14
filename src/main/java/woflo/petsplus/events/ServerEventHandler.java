@@ -5,8 +5,9 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.Petsplus;
-import woflo.petsplus.state.tracking.PlayerTickDispatcher;
 import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.tracking.PlayerTickDispatcher;
+import woflo.petsplus.state.tracking.PlayerTickListeners;
 import woflo.petsplus.ui.ActionBarCueManager;
 
 /**
@@ -24,6 +25,7 @@ public class ServerEventHandler {
     private static void onServerStarting(MinecraftServer server) {
         Petsplus.LOGGER.info("PetsPlus: Server starting - initializing state managers");
         // State managers will be initialized lazily when worlds are accessed
+        PlayerTickListeners.registerAll();
     }
     
     private static void onServerStopping(MinecraftServer server) {

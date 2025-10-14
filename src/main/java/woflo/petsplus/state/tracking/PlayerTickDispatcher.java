@@ -62,7 +62,11 @@ public final class PlayerTickDispatcher {
             return;
         }
 
-        MinecraftServer server = player.getServer();
+        if (player.getEntityWorld() == null) {
+            return;
+        }
+
+        MinecraftServer server = player.getEntityWorld().getServer();
         if (server == null) {
             return;
         }
