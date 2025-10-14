@@ -289,13 +289,43 @@ public abstract class AdaptiveGoal extends Goal {
         try {
             MobEntityAccessor accessor = (MobEntityAccessor) mob;
             int ourPriority = goalDefinition.priority();
+            EnumSet<Control> ourControls = getControls();
+            boolean requireExclusive = requiresExclusiveAccess();
+
+            if (!requireExclusive && (ourControls == null || ourControls.isEmpty())) {
+                return false;
+            }
 
             return accessor.getGoalSelector().getGoals().stream()
                 .filter(goal -> goal.getGoal() != this)
-                .anyMatch(goal -> goal.getPriority() < ourPriority && goal.isRunning());
+                .filter(goal -> goal.getPriority() < ourPriority && goal.isRunning())
+                .anyMatch(goal -> {
+                    if (requireExclusive) {
+                        return true;
+                    }
+
+                    EnumSet<Control> theirControls = goal.getGoal().getControls();
+                    if (theirControls == null || theirControls.isEmpty()) {
+                        return false;
+                    }
+
+                    for (Control control : ourControls) {
+                        if (theirControls.contains(control)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                });
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * Whether this goal must acquire exclusive access even if no controls overlap.
+     */
+    protected boolean requiresExclusiveAccess() {
+        return false;
     }
     
     /**

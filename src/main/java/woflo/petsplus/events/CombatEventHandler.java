@@ -20,6 +20,7 @@ import net.minecraft.entity.projectile.PersistentProjectileEntity;
 import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryKeys;
+import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.tag.TagKey;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -49,6 +50,7 @@ import woflo.petsplus.roles.striker.StrikerExecution;
 import woflo.petsplus.roles.striker.StrikerExecution.ExecutionKillSummary;
 import woflo.petsplus.roles.striker.StrikerHuntManager;
 import woflo.petsplus.ui.UIFeedbackManager;
+import woflo.petsplus.util.BehaviorSeedUtil;
 
 import java.util.Comparator;
 import java.util.HashMap;
@@ -1441,7 +1443,7 @@ public class CombatEventHandler {
         }
 
         // Chip damage accumulation → restlessness buildup
-        applyChipDamageRestlessness(pet, petComponent, amount, damageIntensity, attacker, owner);
+        applyChipDamageRestlessness(pet, petComponent, amount, damageIntensity, attacker, owner, damageSource);
 
         if (lowHealthFactor > 0f) {
             float panic = scaledAmount(0.12f, 0.45f, lowHealthFactor);
@@ -2313,13 +2315,112 @@ public class CombatEventHandler {
         return MathHelper.clamp(1f - (float) (distSq / maxSq), 0f, 1f);
     }
 
+    private record CombatVariance(
+        long baseSeed,
+        float nuanceNoise,
+        float lateralBias,
+        float retreatTempo,
+        float spinBias,
+        float moodAnchor,
+        float urgencyBias
+    ) {
+        float nuanceCentered() {
+            return (nuanceNoise * 2f) - 1f;
+        }
+    }
+
+    private static CombatVariance computeCombatVariance(
+        MobEntity pet,
+        @Nullable PetComponent petComponent,
+        @Nullable DamageSource damageSource,
+        float damageRatio,
+        long now,
+        boolean treatAsOwnerSadness
+    ) {
+        long baseSalt = 0xB0C10AA3D15C4A27L;
+        long uuidSalt = pet.getUuid().getLeastSignificantBits() ^ pet.getUuid().getMostSignificantBits();
+
+        long typeSalt = 0L;
+        if (damageSource != null) {
+            String typeName = damageSource.getName();
+            if (typeName != null) {
+                long typeHash = typeName.hashCode();
+                typeSalt = (typeHash << 32) ^ typeHash;
+            }
+        }
+
+        long timeBucket = now / 7L; // Re-roll variance a few times per second for pacing
+        long ratioBits = Float.floatToIntBits(MathHelper.clamp(damageRatio, 0f, 1f));
+
+        float protective = 0f;
+        float restless = 0f;
+        float playful = 0f;
+        float focused = 0f;
+        if (petComponent != null) {
+            PetMoodEngine moodEngine = petComponent.getMoodEngine();
+            if (moodEngine != null) {
+                protective = MathHelper.clamp(moodEngine.getMoodStrength(PetComponent.Mood.PROTECTIVE), 0f, 1f);
+                restless = MathHelper.clamp(moodEngine.getMoodStrength(PetComponent.Mood.RESTLESS), 0f, 1f);
+                playful = MathHelper.clamp(moodEngine.getMoodStrength(PetComponent.Mood.PLAYFUL), 0f, 1f);
+                focused = MathHelper.clamp(moodEngine.getMoodStrength(PetComponent.Mood.FOCUSED), 0f, 1f);
+            }
+        }
+
+        long moodSalt = ((long) (protective * 997f) << 48)
+            ^ ((long) (restless * 997f) << 32)
+            ^ ((long) (playful * 997f) << 16)
+            ^ (long) (focused * 997f);
+
+        long sadnessSalt = treatAsOwnerSadness ? 0x5F2D3AB19E3779B9L : 0L;
+
+        long combinedSalt = baseSalt ^ uuidSalt ^ typeSalt ^ sadnessSalt;
+        combinedSalt ^= (timeBucket * 0x9E3779B97F4A7C15L);
+        combinedSalt ^= ((long) ratioBits << 1);
+        combinedSalt ^= moodSalt;
+
+        long mixedSeed;
+        if (petComponent != null) {
+            mixedSeed = petComponent.mixStableSeed(combinedSalt);
+        } else {
+            mixedSeed = BehaviorSeedUtil.mixBehaviorSeed(uuidSalt, combinedSalt);
+        }
+
+        float nuanceNoise = hashedNoise(mixedSeed);
+        float lateralBias = MathHelper.clamp((hashedNoise(mixedSeed ^ 0x6A09E667F3BCC909L) * 2f) - 1f, -1f, 1f);
+        float retreatTempo = MathHelper.clamp(
+            0.85f
+                + ((hashedNoise(mixedSeed ^ 0xBB67AE8584CAA73BL) * 2f) - 1f) * 0.25f
+                + protective * 0.20f
+                + focused * 0.18f
+                - restless * 0.12f
+                - (treatAsOwnerSadness ? 0.10f : 0f),
+            0.6f,
+            1.4f
+        );
+
+        float spinBias = MathHelper.clamp((hashedNoise(mixedSeed ^ 0x3C6EF372FE94F82BL) * 2f) - 1f, -1f, 1f);
+        float moodAnchor = MathHelper.clamp(
+            0.88f + protective * 0.32f - restless * 0.22f + playful * 0.18f,
+            0.6f,
+            1.5f
+        );
+        float urgencyBias = MathHelper.clamp(
+            0.8f + restless * 0.25f + protective * 0.18f + playful * 0.12f,
+            0.55f,
+            1.5f
+        );
+
+        return new CombatVariance(mixedSeed, nuanceNoise, lateralBias, retreatTempo, spinBias, moodAnchor, urgencyBias);
+    }
+
     private static void applyChipDamageRestlessness(
         MobEntity pet,
         PetComponent petComponent,
         float amount,
         float damageRatio,
         Entity attacker,
-        PlayerEntity owner
+        PlayerEntity owner,
+        DamageSource damageSource
     ) {
         if (amount <= 0.0f) {
             return;
@@ -2361,16 +2462,24 @@ public class CombatEventHandler {
 
         float accumRatio = MathHelper.clamp(accum / CHIP_DAMAGE_THRESHOLD, 0f, 1.35f);
         float severityEnvelope = MathHelper.clamp(0.42f * severity + 0.38f * severityCurve + 0.20f * accumRatio, 0f, 1f);
-        long nuanceSeed = pet.getUuid().getLeastSignificantBits() ^ pet.getUuid().getMostSignificantBits();
-        nuanceSeed ^= (long) now * 31L;
-        nuanceSeed ^= (long) Float.floatToIntBits(damageRatio) * 17L;
-        float nuanceNoise = hashedNoise(nuanceSeed);
-        float nuanceCentered = (nuanceNoise * 2f) - 1f;
-        float accentSeverity = MathHelper.clamp(severityEnvelope + nuanceCentered * MathHelper.lerp(severityEnvelope, 0.07f, 0.24f), 0f, 1f);
-        float jitteredSeverity = MathHelper.clamp(MathHelper.lerp(0.65f, severityEnvelope, accentSeverity), 0f, 1f);
+        CombatVariance variance = computeCombatVariance(pet, petComponent, damageSource, damageRatio, now, treatAsOwnerSadness);
+        float nuanceNoise = variance.nuanceNoise();
+        float nuanceCentered = variance.nuanceCentered();
+        float accentSeverity = MathHelper.clamp(
+            severityEnvelope + nuanceCentered * MathHelper.lerp(severityEnvelope, 0.07f, 0.24f),
+            0f,
+            1f
+        );
+        accentSeverity = MathHelper.clamp(accentSeverity * MathHelper.lerp(variance.moodAnchor(), 0.85f, 1.18f), 0f, 1f);
+        float jitteredSeverity = MathHelper.clamp(
+            MathHelper.lerp(0.65f, severityEnvelope, accentSeverity) * MathHelper.lerp(variance.urgencyBias(), 0.9f, 1.18f),
+            0f,
+            1f
+        );
 
         float startle = scaledAmount(0.0065f, treatAsOwnerSadness ? 0.18f : 0.26f, jitteredSeverity);
         startle *= MathHelper.lerp(Math.abs(nuanceCentered), 0.9f, 1.18f);
+        startle *= MathHelper.lerp(variance.urgencyBias(), 0.82f, 1.16f);
         if (treatAsOwnerSadness) {
             startle *= 0.55f;
         } else if (isOwnerAttack) {
@@ -2390,6 +2499,7 @@ public class CombatEventHandler {
             float ennuiTrace = MathHelper.clamp(MathHelper.lerp(0.35f, severityEnvelope, accentSeverity), 0f, 1f);
             float frustration = scaledAmount(0.0105f, 0.21f, frustrationBlend);
             frustration *= MathHelper.lerp(nuanceNoise, 0.92f, 1.22f);
+            frustration *= MathHelper.lerp(variance.moodAnchor(), 0.85f, 1.12f);
             petComponent.pushEmotion(PetComponent.Emotion.FRUSTRATION, frustration);
             petComponent.pushEmotion(PetComponent.Emotion.ENNUI, scaledAmount(0.0055f, 0.14f, ennuiTrace));
         }
@@ -2398,13 +2508,20 @@ public class CombatEventHandler {
         while (accum >= CHIP_DAMAGE_THRESHOLD) {
             float overshoot = MathHelper.clamp((accum - CHIP_DAMAGE_THRESHOLD) / (CHIP_DAMAGE_THRESHOLD * 0.9f), 0f, 1f);
             float burstSeed = MathHelper.clamp(0.55f * overshoot + 0.45f * accentSeverity, 0f, 1f);
-            float burstNoise = (hashedNoise(nuanceSeed ^ (emittedBurst ? 0x9E3779B97F4A7C15L : 0xC6A4A7935BD1E995L)) * 2f) - 1f;
-            float burstSeverity = MathHelper.clamp(burstSeed + burstNoise * MathHelper.lerp(burstSeed, 0.06f, 0.2f), 0f, 1f);
+            long burstSalt = variance.baseSeed() ^ (emittedBurst ? 0x9E3779B97F4A7C15L : 0xC6A4A7935BD1E995L);
+            burstSalt ^= (long) (overshoot * 6553f);
+            float burstNoise = (hashedNoise(burstSalt) * 2f) - 1f;
+            float burstSeverity = MathHelper.clamp(
+                (burstSeed * MathHelper.lerp(variance.urgencyBias(), 0.9f, 1.15f))
+                    + burstNoise * MathHelper.lerp(burstSeed, 0.06f, 0.2f),
+                0f,
+                1f
+            );
             if (!emittedBurst && burstSeverity < 0.3f) {
                 break;
             }
 
-            float burstCurve = burstSeverity * burstSeverity;
+            float burstCurve = MathHelper.clamp(burstSeverity * burstSeverity * MathHelper.lerp(variance.moodAnchor(), 0.9f, 1.18f), 0f, 1f);
             if (treatAsOwnerSadness) {
                 petComponent.pushEmotion(PetComponent.Emotion.ENNUI, scaledAmount(0.12f, 0.42f, burstCurve));
                 petComponent.pushEmotion(PetComponent.Emotion.SAUDADE, scaledAmount(0.05f, 0.30f, burstCurve));
@@ -2415,18 +2532,31 @@ public class CombatEventHandler {
                 petComponent.pushEmotion(PetComponent.Emotion.FRUSTRATION, scaledAmount(0.04f, 0.24f, burstCurve));
             }
 
-            float drainBias = MathHelper.clamp(Math.max(burstSeverity, accentSeverity), 0f, 1f);
-            float drain = MathHelper.lerp(drainBias, CHIP_DAMAGE_THRESHOLD * (0.45f + 0.12f * severityEnvelope), CHIP_DAMAGE_THRESHOLD * 0.95f);
+            float drainBias = MathHelper.clamp(Math.max(burstSeverity, accentSeverity) * MathHelper.lerp(variance.moodAnchor(), 0.9f, 1.18f), 0f, 1f);
+            float drain = MathHelper.lerp(
+                drainBias,
+                CHIP_DAMAGE_THRESHOLD * (0.45f + 0.12f * severityEnvelope),
+                CHIP_DAMAGE_THRESHOLD * 0.95f
+            );
+            drain *= MathHelper.lerp(variance.retreatTempo(), 0.92f, 1.12f);
             accum = Math.max(0f, accum - drain);
             emittedBurst = true;
         }
 
         float retreatEnergy = MathHelper.clamp(0.5f * accentSeverity + 0.5f * severityCurve, 0f, 1f);
+        retreatEnergy *= MathHelper.lerp(variance.moodAnchor(), 0.78f, 1.28f);
         if (treatAsOwnerSadness) {
             retreatEnergy *= 0.6f;
+        } else {
+            retreatEnergy *= MathHelper.lerp(variance.urgencyBias(), 0.92f, 1.1f);
         }
 
-        float retreatVariance = MathHelper.clamp(retreatEnergy + nuanceCentered * MathHelper.lerp(retreatEnergy, 0.05f, 0.18f), 0f, 1f);
+        float retreatVariance = MathHelper.clamp(
+            retreatEnergy + variance.nuanceCentered() * MathHelper.lerp(retreatEnergy, 0.05f, 0.18f),
+            0f,
+            1f
+        );
+        retreatVariance = MathHelper.clamp(retreatVariance * variance.retreatTempo(), 0f, 1f);
         boolean canHop = pet.isOnGround() || pet.isTouchingWater() || pet.isClimbing();
         if (canHop && retreatVariance > 0.05f) {
             Vec3d retreatVector;
@@ -2435,7 +2565,7 @@ public class CombatEventHandler {
             } else if (attacker != null && !attacker.equals(pet)) {
                 retreatVector = new Vec3d(pet.getX() - attacker.getX(), 0.0d, pet.getZ() - attacker.getZ());
             } else {
-                double yaw = MathHelper.nextDouble(pet.getRandom(), -Math.PI, Math.PI);
+                double yaw = MathHelper.lerp((variance.spinBias() + 1f) * 0.5d, -Math.PI, Math.PI);
                 retreatVector = new Vec3d(Math.cos(yaw), 0.0d, Math.sin(yaw));
             }
 
@@ -2445,23 +2575,32 @@ public class CombatEventHandler {
             }
 
             Vec3d normalized = retreatVector.normalize();
-            if (Math.abs(nuanceCentered) > 0.01f) {
+            if (Math.abs(variance.lateralBias()) > 0.01f) {
                 Vec3d lateral = new Vec3d(-normalized.z, 0.0d, normalized.x);
-                double lateralMix = nuanceCentered * MathHelper.lerp(retreatVariance, 0.05f, 0.4f);
+                double lateralMix = variance.lateralBias() * MathHelper.lerp(retreatVariance, 0.05f, 0.4f);
                 normalized = normalized.multiply(1.0d - Math.abs(lateralMix)).add(lateral.multiply(lateralMix)).normalize();
             }
 
-            double hopStrength = MathHelper.lerp(retreatVariance, 0.05d, 0.38d);
-            double liftStrength = MathHelper.lerp(retreatVariance, 0.03d, 0.22d);
+            double hopStrength = MathHelper.lerp(retreatVariance, 0.05d, 0.38d) * MathHelper.lerp(variance.retreatTempo(), 0.85d, 1.25d);
+            double liftStrength = MathHelper.lerp(retreatVariance, 0.03d, 0.22d) * MathHelper.lerp(variance.moodAnchor(), 0.85d, 1.25d);
             pet.takeKnockback(hopStrength, normalized.x, normalized.z);
             pet.addVelocity(0.0d, liftStrength, 0.0d);
             pet.velocityModified = true;
 
+            if (Math.abs(variance.spinBias()) > 0.05f) {
+                float spinAmount = variance.spinBias() * MathHelper.lerp(retreatVariance, treatAsOwnerSadness ? 8f : 12f, treatAsOwnerSadness ? 24f : 32f);
+                pet.setYaw(pet.getYaw() + spinAmount);
+                pet.bodyYaw = pet.getYaw();
+                pet.headYaw = MathHelper.clamp(pet.headYaw + spinAmount * 0.65f, pet.getYaw() - 45f, pet.getYaw() + 45f);
+            }
+
             if (retreatVariance > 0.18f) {
-                double travel = MathHelper.lerp(retreatVariance, treatAsOwnerSadness ? 0.8d : 1.4d, 4.0d);
+                double travel = MathHelper.lerp(retreatVariance, treatAsOwnerSadness ? 0.8d : 1.4d, 4.0d)
+                    * MathHelper.lerp(variance.moodAnchor(), 0.9d, 1.3d);
                 Vec3d retreatOrigin = new Vec3d(pet.getX(), pet.getY(), pet.getZ());
                 Vec3d retreatTarget = retreatOrigin.add(normalized.multiply(travel));
-                double speed = MathHelper.lerp(retreatVariance, 0.72d, 1.32d);
+                double speed = MathHelper.lerp(retreatVariance, 0.72d, 1.32d)
+                    * MathHelper.lerp(variance.retreatTempo(), 0.85d, 1.35d);
                 pet.getNavigation().startMovingTo(retreatTarget.x, retreatTarget.y, retreatTarget.z, speed);
             }
         }

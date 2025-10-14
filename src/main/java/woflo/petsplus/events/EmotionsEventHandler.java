@@ -890,11 +890,11 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         EmotionCueConfig config = EmotionCueConfig.get();
         String definitionId = config.findEntityUseDefinition(entity, stack);
         
-        // Check if petting a pet
+        // Check if petting a pet (owner-only; align with PettingHandler semantics)
         if (entity instanceof MobEntity mob && stack.isEmpty() && player.isSneaking()) {
             PetComponent pc = PetComponent.get(mob);
-            if (pc != null) {
-                // Petting emotions
+            if (pc != null && pc.isOwnedBy(player)) {
+                // Petting emotions (lightweight; returns PASS to let dedicated handler proceed)
                 pushToSinglePet(sp, pc, (comp, collector) -> {
                     collector.pushEmotion(PetComponent.Emotion.KEFI, 0.20f);  // Initial joy
                     collector.pushEmotion(PetComponent.Emotion.LAGOM, 0.25f);  // Settling into contentment

@@ -13,7 +13,6 @@ import woflo.petsplus.Petsplus;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Language;
-import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.config.PetsPlusConfig;
@@ -40,9 +39,9 @@ public class PettingHandler {
         if (!player.getStackInHand(hand).isEmpty()) return ActionResult.PASS;
         if (!player.isSneaking()) return ActionResult.PASS;
 
-        // Must be a tamed entity owned by this player
-        if (!(mob instanceof PetsplusTameable tameable) || !tameable.petsplus$isTamed()) return ActionResult.PASS;
-        if (tameable.petsplus$getOwner() != player) return ActionResult.PASS;
+        // Must be a pet owned by this player
+        PetComponent petComp = PetComponent.get(mob);
+        if (petComp == null || !petComp.isOwnedBy(player)) return ActionResult.PASS;
 
         // Skip petting for rideable entities when they could be mounted
         // Let vanilla handle mounting, then petting can happen when already mounted
@@ -50,8 +49,7 @@ public class PettingHandler {
             return ActionResult.PASS;
         }
 
-        PetComponent petComp = PetComponent.get(mob);
-        if (petComp == null) return ActionResult.PASS;
+        // petComp is guaranteed non-null at this point
 
         // Check cooldown
         long currentTime = world.getTime();

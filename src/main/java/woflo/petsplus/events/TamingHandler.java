@@ -16,6 +16,7 @@ import net.minecraft.world.World;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.taming.CustomTameables;
+import woflo.petsplus.state.PetComponent;
 
 /**
  * Handles custom taming interactions for entities that aren't vanilla tameables.
@@ -87,7 +88,10 @@ public final class TamingHandler {
 
     private static ActionResult toggleSitting(PlayerEntity player, ServerWorld world, Hand hand, MobEntity mob,
                                               PetsplusTameable tameable, CustomTameables.Definition definition) {
-        if (!tameable.petsplus$isOwnedBy(player)) {
+        // Use PetComponent ownership validation which is authoritative across vanilla and bridged tameables.
+        // This avoids edge cases where entity-backed owner resolution may be inconsistent.
+        PetComponent pc = PetComponent.get(mob);
+        if (pc == null || !pc.isOwnedBy(player)) {
             return ActionResult.PASS;
         }
 
@@ -113,5 +117,3 @@ public final class TamingHandler {
             6, 0.4, 0.4, 0.4, 0.02);
     }
 }
-
-
