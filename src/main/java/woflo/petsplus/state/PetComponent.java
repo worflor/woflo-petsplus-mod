@@ -60,7 +60,6 @@ import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
 
 import net.minecraft.util.math.ChunkSectionPos;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -111,13 +110,9 @@ public class PetComponent {
     private final RelationshipModule relationshipModule;
     private final StimulusTimeline stimulusTimeline;
     private final ExperienceLog experienceLog;
+    private final PetAIState aiState = new PetAIState();
 
     private StateManager stateManager;
-
-    private static final int MAX_RECENT_GOALS = 8;
-    private final ArrayDeque<Identifier> recentGoals = new ArrayDeque<>(MAX_RECENT_GOALS);
-    private final Map<Identifier, Long> goalExecutionTimestamps = new HashMap<>();
-    private final Map<String, Integer> quirkCounters = new HashMap<>();
 
     private final PerceptionBus perceptionBus;
     private final PetContextCache contextCache;
@@ -137,10 +132,6 @@ public class PetComponent {
     private long followSpacingSampleTick = Long.MIN_VALUE;
     private long moodFollowHoldUntilTick = Long.MIN_VALUE;
     private float moodFollowDistanceBonus = 0.0f;
-    private Identifier lastSuggestedGoalId;
-    private float lastSuggestionScore;
-    private long lastSuggestionTick = Long.MIN_VALUE;
-
     // UI state
     private long xpFlashStartTick = -1;
     private static final int XP_FLASH_DURATION = 7; // 0.35 seconds
@@ -417,6 +408,7 @@ public class PetComponent {
         this.perceptionBus.subscribe(PerceptionStimulusType.WORLD_TICK, contextSliceState);
         this.contextCache.markAllDirty();
         this.experienceLog = new ExperienceLog();
+        this.aiState.reset();
 
         // Initialize modules
         this.moodEngine = new PetMoodEngine(this);
@@ -488,9 +480,13 @@ public class PetComponent {
     public PetGossipLedger getGossipLedger() {
         return gossipLedger;
     }
-    
+
     public PetMoodEngine getMoodEngine() {
         return moodEngine;
+    }
+
+    public PetAIState getAIState() {
+        return aiState;
     }
 
     public PerceptionBus getPerceptionBus() {
@@ -732,37 +728,33 @@ public class PetComponent {
     }
 
     public void recordGoalStart(Identifier goalId) {
+        aiState.recordGoalStart(goalId);
         if (goalId == null) {
             return;
-        }
-        recentGoals.remove(goalId);
-        recentGoals.addFirst(goalId);
-        while (recentGoals.size() > MAX_RECENT_GOALS) {
-            recentGoals.removeLast();
         }
         markContextDirty(ContextSlice.HISTORY);
         publishStimulus(PerceptionStimulusType.GOAL_HISTORY, ContextSlice.HISTORY, goalId);
     }
 
     public void recordGoalCompletion(Identifier goalId, long worldTime) {
+        aiState.recordGoalCompletion(goalId, worldTime);
         if (goalId == null) {
             return;
         }
-        goalExecutionTimestamps.put(goalId, Math.max(0L, worldTime));
         markContextDirty(ContextSlice.HISTORY);
         publishStimulus(PerceptionStimulusType.GOAL_HISTORY, ContextSlice.HISTORY, goalId);
     }
 
     public Deque<Identifier> getRecentGoalsSnapshot() {
-        return new ArrayDeque<>(recentGoals);
+        return aiState.getRecentGoalsSnapshot();
     }
 
     public Map<Identifier, Long> getGoalExecutionTimestamps() {
-        return Map.copyOf(goalExecutionTimestamps);
+        return aiState.getGoalExecutionTimestamps();
     }
 
     public Map<String, Integer> getQuirkCountersSnapshot() {
-        return Map.copyOf(quirkCounters);
+        return aiState.getQuirkCountersSnapshot();
     }
 
     public SocialSnapshot snapshotSocialGraph() {
@@ -802,11 +794,7 @@ public class PetComponent {
         if (key == null) {
             return;
         }
-        if (value <= 0) {
-            quirkCounters.remove(key);
-        } else {
-            quirkCounters.put(key, value);
-        }
+        aiState.setQuirkCounter(key, value);
         markContextDirty(ContextSlice.HISTORY);
         publishStimulus(PerceptionStimulusType.GOAL_HISTORY, ContextSlice.HISTORY, key);
     }
@@ -815,7 +803,7 @@ public class PetComponent {
         if (key == null) {
             return;
         }
-        quirkCounters.merge(key, 1, Integer::sum);
+        aiState.incrementQuirkCounter(key);
         markContextDirty(ContextSlice.HISTORY);
         publishStimulus(PerceptionStimulusType.GOAL_HISTORY, ContextSlice.HISTORY, key);
     }
@@ -1457,28 +1445,20 @@ public class PetComponent {
     }
 
     public void recordGoalSuggestion(@Nullable Identifier goalId, float score, long tick) {
-        if (goalId == null) {
-            this.lastSuggestedGoalId = null;
-            this.lastSuggestionScore = 0f;
-            this.lastSuggestionTick = Long.MIN_VALUE;
-            return;
-        }
-        this.lastSuggestedGoalId = goalId;
-        this.lastSuggestionScore = MathHelper.clamp(score, 0f, 16f);
-        this.lastSuggestionTick = tick;
+        aiState.recordGoalSuggestion(goalId, score, tick);
     }
 
     @Nullable
     public Identifier getLastSuggestedGoalId() {
-        return lastSuggestedGoalId;
+        return aiState.getLastSuggestedGoalId();
     }
 
     public float getLastSuggestionScore() {
-        return lastSuggestionScore;
+        return aiState.getLastSuggestionScore();
     }
 
     public long getLastSuggestionTick() {
-        return lastSuggestionTick;
+        return aiState.getLastSuggestionTick();
     }
 
     public SwarmStateSnapshot snapshotSwarmState() {

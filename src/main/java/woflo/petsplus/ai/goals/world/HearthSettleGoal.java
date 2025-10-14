@@ -5,6 +5,7 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.passive.TameableEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
@@ -19,6 +20,11 @@ import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
+
+import java.util.List;
+import java.util.UUID;
 
 /**
  * Reworked HearthSettleGoal: Pets seek out warm places to rest when they feel cozy and safe.
@@ -40,6 +46,7 @@ public class HearthSettleGoal extends AdaptiveGoal {
 
     @Override
     protected boolean canStartGoal() {
+        settlePos = null;
         // Condition: Must be night and not raining.
         if (mob.getEntityWorld().isDay() || mob.getEntityWorld().isRaining()) {
             return false;
@@ -55,6 +62,12 @@ public class HearthSettleGoal extends AdaptiveGoal {
         // Condition: Cooldowns must not be active.
         if (pc.isOnCooldown("world_micro") || pc.isOnCooldown("hearth_settle")) {
             return false;
+        }
+
+        Vec3d huddleTarget = findHuddleTarget(pc);
+        if (huddleTarget != null) {
+            settlePos = huddleTarget;
+            return true;
         }
 
         // Condition: Owner must be nearby and safe.
@@ -99,6 +112,10 @@ public class HearthSettleGoal extends AdaptiveGoal {
     protected void onStartGoal() {
         ticks = 0;
         duration = MIN_TICKS + mob.getRandom().nextInt((MAX_TICKS - MIN_TICKS) + 1);
+        PetComponent pc = PetComponent.get(mob);
+        if (pc != null) {
+            pc.getAIState().setActiveMajorGoal(GoalIds.HEARTH_SETTLE);
+        }
         if (settlePos != null) {
             mob.getNavigation().startMovingTo(settlePos.x, settlePos.y, settlePos.z, 0.75);
         }
@@ -112,6 +129,7 @@ public class HearthSettleGoal extends AdaptiveGoal {
             pc.setCooldown("hearth_settle", cd);
             int variety = secondsToTicks(20) + mob.getRandom().nextInt(secondsToTicks(16));
             pc.setCooldown("world_micro", variety);
+            pc.getAIState().setActiveMajorGoal(null);
         }
         if (mob.canMoveVoluntarily()) {
             setSitting(false);
@@ -231,6 +249,41 @@ public class HearthSettleGoal extends AdaptiveGoal {
                     if (!groundState.isOf(Blocks.MAGMA_BLOCK) && !groundState.isOf(Blocks.CACTUS) && !groundState.isOf(Blocks.SWEET_BERRY_BUSH)) {
                         return Vec3d.ofBottomCenter(groundPos).add(0, 1.0, 0);
                     }
+                }
+            }
+        }
+        return null;
+    }
+
+    private Vec3d findHuddleTarget(PetComponent pc) {
+        UUID ownerId = pc.getOwnerUuid();
+        if (ownerId == null) {
+            return null;
+        }
+        if (!(mob.getEntityWorld() instanceof ServerWorld serverWorld)) {
+            return null;
+        }
+        PetSwarmIndex swarmIndex = StateManager.forWorld(serverWorld).getSwarmIndex();
+        List<PetSwarmIndex.SwarmEntry> entries = swarmIndex.snapshotOwner(ownerId);
+        if (entries.isEmpty()) {
+            return null;
+        }
+        for (PetSwarmIndex.SwarmEntry entry : entries) {
+            MobEntity other = entry.pet();
+            if (other == null || other == mob) {
+                continue;
+            }
+            PetComponent otherComponent = entry.component();
+            if (otherComponent == null) {
+                otherComponent = PetComponent.get(other);
+            }
+            if (otherComponent == null) {
+                continue;
+            }
+            if (GoalIds.HEARTH_SETTLE.equals(otherComponent.getAIState().getActiveMajorGoal())) {
+                Vec3d adjacent = findAdjacentSafeSettle(other.getBlockPos().down());
+                if (adjacent != null) {
+                    return adjacent;
                 }
             }
         }

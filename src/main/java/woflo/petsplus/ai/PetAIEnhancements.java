@@ -176,11 +176,10 @@ public class PetAIEnhancements {
         String roleId = petComponent.getRoleId().getPath();
         
         return switch (roleId) {
-            case "guardian" -> 8.0f;  // Closer for protection
+            case "guardian" -> 8.0f;  // Close for protection
             case "scout" -> 15.0f;   // Further for exploration
-            case "striker" -> 10.0f; // Medium for combat positioning
-            case "support" -> 6.0f;  // Close for assistance
-            default -> 10.0f;
+            case "support" -> 7.0f;  // Close for assistance
+            default -> 12.0f;         // Baseline 
         };
     }
     

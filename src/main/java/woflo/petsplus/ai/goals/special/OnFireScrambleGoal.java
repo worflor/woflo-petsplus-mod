@@ -4,14 +4,20 @@ import net.minecraft.entity.ai.NoPenaltyTargeting;
 import net.minecraft.entity.ai.goal.Goal;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.mob.PathAwareEntity;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
 import woflo.petsplus.state.emotions.PetMoodEngine;
+import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 
 import java.util.EnumSet;
+import java.util.List;
+import java.util.UUID;
 
 /**
  * Replaces the vanilla panic goal while the pet is on fire with a nuanced retreat routine.
@@ -103,12 +109,19 @@ public final class OnFireScrambleGoal extends Goal {
         activeSpeed = computeSpeed(severity, energyProfile);
 
         applyStartHop();
+
+        if (petComponent != null) {
+            petComponent.getAIState().setPanicking(true);
+        }
     }
 
     @Override
     public void stop() {
         mob.getNavigation().stop();
         targetPos = null;
+        if (petComponent != null) {
+            petComponent.getAIState().setPanicking(false);
+        }
     }
 
     @Override
@@ -164,6 +177,16 @@ public final class OnFireScrambleGoal extends Goal {
         retargetCooldown = BASE_RETARGET_TICKS + mob.getRandom().nextInt(MAX_RETARGET_JITTER + 1);
 
         double range = MathHelper.lerp(severity, 1.8d, 6.5d);
+        Vec3d safeCenter = resolveSafeCenter();
+        if (safeCenter != null) {
+            Vec3d safeLanding = findSafeLandingNear(safeCenter, range);
+            if (safeLanding != null) {
+                targetPos = safeLanding;
+                mob.getNavigation().startMovingTo(safeLanding.x, safeLanding.y, safeLanding.z,
+                    MathHelper.clamp(activeSpeed * speedJitter(), MIN_STEP_SPEED, MAX_STEP_SPEED));
+                return;
+            }
+        }
         Vec3d pos = null;
 
         if (severity < 0.35f && mob.getRandom().nextFloat() < 0.7f) {
@@ -196,6 +219,84 @@ public final class OnFireScrambleGoal extends Goal {
         double jitter = 0.85d + (mob.getRandom().nextDouble() * 0.3d);
         double momentumPulse = 0.9d + energyProfile.momentum() * 0.2d;
         return MathHelper.clamp(jitter * momentumPulse, 0.75d, 1.3d);
+    }
+
+    private Vec3d resolveSafeCenter() {
+        if (petComponent == null) {
+            return null;
+        }
+        UUID ownerId = petComponent.getOwnerUuid();
+        if (ownerId == null) {
+            return null;
+        }
+        if (!(mob.getEntityWorld() instanceof ServerWorld serverWorld)) {
+            return null;
+        }
+        PetSwarmIndex swarmIndex = StateManager.forWorld(serverWorld).getSwarmIndex();
+        List<PetSwarmIndex.SwarmEntry> entries = swarmIndex.snapshotOwner(ownerId);
+        if (entries.isEmpty()) {
+            return null;
+        }
+        double sumX = 0.0;
+        double sumY = 0.0;
+        double sumZ = 0.0;
+        int count = 0;
+        for (PetSwarmIndex.SwarmEntry entry : entries) {
+            PetComponent component = entry.component();
+            if (component == null) {
+                component = PetComponent.get(entry.pet());
+            }
+            if (component == null || component.getAIState().isPanicking()) {
+                continue;
+            }
+            sumX += entry.x();
+            sumY += entry.y();
+            sumZ += entry.z();
+            count++;
+        }
+        if (count == 0) {
+            return null;
+        }
+        return new Vec3d(sumX / count, sumY / count, sumZ / count);
+    }
+
+    private Vec3d findSafeLandingNear(Vec3d target, double range) {
+        var world = mob.getEntityWorld();
+        int horizontal = MathHelper.ceil(range);
+        BlockPos base = BlockPos.ofFloored(target);
+        BlockPos.Mutable mutable = new BlockPos.Mutable();
+
+        for (int dx = -horizontal; dx <= horizontal; dx++) {
+            for (int dz = -horizontal; dz <= horizontal; dz++) {
+                if (MathHelper.sqrt((float) (dx * dx + dz * dz)) > range) {
+                    continue;
+                }
+                for (int dy = 1; dy >= -1; dy--) {
+                    mutable.set(base, dx, dy - 1, dz);
+                    BlockPos ground = mutable.toImmutable();
+                    BlockPos air = ground.up();
+                    if (!world.isAir(air)) {
+                        continue;
+                    }
+                    if (!world.getBlockState(ground).isSolidBlock(world, ground)) {
+                        continue;
+                    }
+                    if (isHazardousGround(world.getBlockState(ground).getBlock())) {
+                        continue;
+                    }
+                    return Vec3d.ofBottomCenter(ground).add(0.0, 1.0, 0.0);
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean isHazardousGround(net.minecraft.block.Block block) {
+        return block == net.minecraft.block.Blocks.MAGMA_BLOCK
+            || block == net.minecraft.block.Blocks.CACTUS
+            || block == net.minecraft.block.Blocks.SWEET_BERRY_BUSH
+            || block == net.minecraft.block.Blocks.FIRE
+            || block == net.minecraft.block.Blocks.CAMPFIRE;
     }
 
     private void applyStartHop() {

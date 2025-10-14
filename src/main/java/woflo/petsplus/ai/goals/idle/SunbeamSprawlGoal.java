@@ -1,6 +1,7 @@
 package woflo.petsplus.ai.goals.idle;
 
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
@@ -10,8 +11,12 @@ import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.traits.SpeciesProfile;
 import woflo.petsplus.ai.traits.SpeciesTraits;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 
 import java.util.EnumSet;
+import java.util.List;
+import java.util.UUID;
 
 /**
  * Sunbeam sprawl idle behavior - pet finds and stretches out in sunlight.
@@ -45,6 +50,7 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
     
     @Override
     protected boolean canStartGoal() {
+        targetPos = null;
         // Species tags: multi-tag gating (cached profile, O(1) lookup)
         SpeciesProfile profile = SpeciesTraits.getProfile(mob);
         if (!hasRequiredSpeciesTags(profile)) {
@@ -60,7 +66,15 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
         if (!isDaytime() || mob.getEntityWorld().isRaining()) {
             return false;
         }
-        
+
+        if (pc != null) {
+            Vec3d sharedTarget = findHuddleTarget(pc);
+            if (sharedTarget != null) {
+                targetPos = sharedTarget;
+                return true;
+            }
+        }
+
         // Must be idle and not moving
         if (!mob.getNavigation().isIdle() || mob.getVelocity().horizontalLength() > 0.1) {
             return false;
@@ -92,6 +106,11 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
         repositionTicks = 0;
         navigationStalledTicks = 0;
 
+        PetComponent pc = PetComponent.get(mob);
+        if (pc != null) {
+            pc.getAIState().setActiveMajorGoal(GoalIds.SUNBEAM_SPRAWL);
+        }
+
         // Move to target position if needed
         if (targetPos != null) {
             if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
@@ -107,6 +126,7 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
         if (pc != null) {
             int cooldown = mob.getRandom().nextInt(MAX_COOLDOWN_TICKS - MIN_COOLDOWN_TICKS + 1) + MIN_COOLDOWN_TICKS;
             pc.setCooldown("sunbeam_sprawl", cooldown);
+            pc.getAIState().setActiveMajorGoal(null);
         }
         // Reset to standing pose
         mob.setPitch(0);
@@ -259,13 +279,19 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
      * Subtle behavior: P0
      */
     private Vec3d findNearbySunlight(int range) {
-        net.minecraft.util.math.BlockPos currentPos = mob.getBlockPos();
+        return findNearbySunlightAround(mob.getBlockPos(), range, false);
+    }
+
+    private Vec3d findNearbySunlightAround(net.minecraft.util.math.BlockPos origin, int range, boolean allowOrigin) {
         var world = mob.getEntityWorld();
 
         for (int x = -range; x <= range; x++) {
             for (int z = -range; z <= range; z++) {
-                if (MathHelper.sqrt((float)(x * x + z * z)) > range) continue;
-                net.minecraft.util.math.BlockPos groundPos = currentPos.add(x, 0, z);
+                if (!allowOrigin && x == 0 && z == 0) {
+                    continue;
+                }
+                if (MathHelper.sqrt((float) (x * x + z * z)) > range) continue;
+                net.minecraft.util.math.BlockPos groundPos = origin.add(x, 0, z);
                 net.minecraft.util.math.BlockPos airPos = groundPos.up();
 
                 if (!world.isAir(airPos)) {
@@ -283,6 +309,41 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
             }
         }
 
+        return null;
+    }
+
+    private Vec3d findHuddleTarget(PetComponent pc) {
+        UUID ownerId = pc.getOwnerUuid();
+        if (ownerId == null) {
+            return null;
+        }
+        if (!(mob.getEntityWorld() instanceof ServerWorld serverWorld)) {
+            return null;
+        }
+        PetSwarmIndex swarmIndex = StateManager.forWorld(serverWorld).getSwarmIndex();
+        List<PetSwarmIndex.SwarmEntry> entries = swarmIndex.snapshotOwner(ownerId);
+        if (entries.isEmpty()) {
+            return null;
+        }
+        for (PetSwarmIndex.SwarmEntry entry : entries) {
+            MobEntity other = entry.pet();
+            if (other == null || other == mob) {
+                continue;
+            }
+            PetComponent otherComponent = entry.component();
+            if (otherComponent == null) {
+                otherComponent = PetComponent.get(other);
+            }
+            if (otherComponent == null) {
+                continue;
+            }
+            if (GoalIds.SUNBEAM_SPRAWL.equals(otherComponent.getAIState().getActiveMajorGoal())) {
+                Vec3d adjacent = findNearbySunlightAround(other.getBlockPos(), 3, false);
+                if (adjacent != null) {
+                    return adjacent;
+                }
+            }
+        }
         return null;
     }
     

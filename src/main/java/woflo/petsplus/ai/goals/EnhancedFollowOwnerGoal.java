@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.ai.goals.OwnerAssistAttackGoal;
@@ -183,6 +184,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
             return;
         }
 
+        Vec3d ownerPos = owner.getEntityPos();
         long now = owner.getEntityWorld().getTime();
         boolean hesitating = OwnerAssistAttackGoal.isPetHesitating(petComponent, now);
         boolean moodHoldActive = petComponent.isMoodFollowHoldActive(now);
@@ -194,6 +196,13 @@ public class EnhancedFollowOwnerGoal extends Goal {
         PetSwarmIndex swarmIndex = null;
         if (owner.getEntityWorld() instanceof ServerWorld serverWorld) {
             swarmIndex = StateManager.forWorld(serverWorld).getSwarmIndex();
+        }
+        Vec3d followAnchor = ownerPos;
+        if (swarmIndex != null) {
+            Vec3d swarmCenter = computeSwarmCenter(swarmIndex);
+            if (swarmCenter != null) {
+                followAnchor = ownerPos.lerp(swarmCenter, 0.25);
+            }
         }
         if (swarmIndex != null && !moodHoldActive) {
             long lastSampleTick = petComponent.getFollowSpacingSampleTick();
@@ -227,7 +236,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
         Entity lookTarget = (!hesitating && this.spacingFocus != null) ? this.spacingFocus : owner;
         this.mob.getLookControl().lookAt(lookTarget, lookYaw, this.mob.getMaxLookPitchChange());
 
-        Vec3d moveTarget = owner.getEntityPos().add(offsetX, 0.0, offsetZ);
+        Vec3d moveTarget = followAnchor.add(offsetX, 0.0, offsetZ);
         double distanceToOwnerSq = this.mob.squaredDistanceTo(owner);
         boolean worldsMatch = owner.getEntityWorld().getRegistryKey().equals(this.mob.getEntityWorld().getRegistryKey());
         if (!worldsMatch || Double.isInfinite(distanceToOwnerSq)) {
@@ -520,6 +529,31 @@ public class EnhancedFollowOwnerGoal extends Goal {
 
         float intensity = hesitating ? 0.35f : 0.55f;
         moodEngine.recordBehavioralActivity(intensity, delta, PetMoodEngine.ActivityType.PHYSICAL);
+    }
+
+    private Vec3d computeSwarmCenter(PetSwarmIndex swarmIndex) {
+        UUID ownerId = petComponent.getOwnerUuid();
+        if (ownerId == null) {
+            return null;
+        }
+        List<PetSwarmIndex.SwarmEntry> entries = swarmIndex.snapshotOwner(ownerId);
+        if (entries.isEmpty()) {
+            return null;
+        }
+        double sumX = 0.0;
+        double sumY = 0.0;
+        double sumZ = 0.0;
+        int count = 0;
+        for (PetSwarmIndex.SwarmEntry entry : entries) {
+            sumX += entry.x();
+            sumY += entry.y();
+            sumZ += entry.z();
+            count++;
+        }
+        if (count == 0) {
+            return null;
+        }
+        return new Vec3d(sumX / count, sumY / count, sumZ / count);
     }
 }
 
