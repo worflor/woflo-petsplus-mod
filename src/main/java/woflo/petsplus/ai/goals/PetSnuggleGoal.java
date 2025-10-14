@@ -2,11 +2,13 @@ package woflo.petsplus.ai.goals;
 
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.registry.RegistryKey;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.events.EmotionContextCues;
 import net.minecraft.entity.ai.goal.Goal;
@@ -46,7 +48,7 @@ public class PetSnuggleGoal extends Goal {
     // Shared cooldown registries
     private static final Map<String, Long> PAIR_NEXT_HEAL_TICK = new ConcurrentHashMap<>(); // petA|petB -> tick
     private static final Map<UUID, UUID> ACTIVE_PAIRINGS = new ConcurrentHashMap<>();
-    private static final Map<UUID, Long> ACTIVE_PAIR_EXPIRY = new ConcurrentHashMap<>();
+    private static final Map<UUID, PairTimer> ACTIVE_PAIR_EXPIRY = new ConcurrentHashMap<>();
 
     private final MobEntity pet;
     private final PetComponent component;
@@ -70,13 +72,13 @@ public class PetSnuggleGoal extends Goal {
         }
 
         long now = world.getTime();
-        cleanupExpiredPairings(now);
+        cleanupExpiredPairings(world, now);
 
         if (component.isInCombat()) {
             return false;
         }
 
-        if (isPaired(pet.getUuid(), now)) {
+        if (isPaired(pet.getUuid(), world, now)) {
             return false;
         }
 
@@ -153,7 +155,7 @@ public class PetSnuggleGoal extends Goal {
             return false;
         }
 
-        if (!isPairedWith(pet.getUuid(), partner.getUuid(), now)) {
+        if (!isPairedWith(pet.getUuid(), partner.getUuid(), world, now)) {
             return false;
         }
 
@@ -174,10 +176,12 @@ public class PetSnuggleGoal extends Goal {
         if (partner != null && partnerComponent != null) {
             partnerComponent.setStateData(PetComponent.StateKeys.SNUGGLE_LAST_START_TICK, startTick);
             long expiry = startTick + SESSION_MAX_DURATION_TICKS + 40L;
+            RegistryKey<World> worldKey = world.getRegistryKey();
             ACTIVE_PAIRINGS.put(pet.getUuid(), partner.getUuid());
             ACTIVE_PAIRINGS.put(partner.getUuid(), pet.getUuid());
-            ACTIVE_PAIR_EXPIRY.put(pet.getUuid(), expiry);
-            ACTIVE_PAIR_EXPIRY.put(partner.getUuid(), expiry);
+            PairTimer timer = new PairTimer(worldKey, expiry);
+            ACTIVE_PAIR_EXPIRY.put(pet.getUuid(), timer);
+            ACTIVE_PAIR_EXPIRY.put(partner.getUuid(), timer);
 
             // Gentle cue for both pets' owners (if online)
             var ownerA = component.getOwner();
@@ -212,13 +216,10 @@ public class PetSnuggleGoal extends Goal {
                 partnerComponent.setStateData(PetComponent.StateKeys.SNUGGLE_COOLDOWN_UNTIL_TICK, until);
             }
         }
-        MobEntity partner = this.partner;
-        if (partner != null) {
-            PAIR_NEXT_HEAL_TICK.remove(pairKey(pet.getUuid(), partner.getUuid()));
-        }
-        clearPairing();
-        partner = null;
-        partnerComponent = null;
+        UUID partnerId = this.partner != null ? this.partner.getUuid() : null;
+        removePairingEntries(pet.getUuid(), partnerId);
+        this.partner = null;
+        this.partnerComponent = null;
     }
 
     @Override
@@ -352,7 +353,7 @@ public class PetSnuggleGoal extends Goal {
             if (otherComponent == null) {
                 return;
             }
-            if (!canPairWith(other, otherComponent, now)) {
+            if (!canPairWith(world, other, otherComponent, now)) {
                 return;
             }
 
@@ -371,8 +372,8 @@ public class PetSnuggleGoal extends Goal {
         return best[0];
     }
 
-    private boolean canPairWith(MobEntity other, PetComponent otherComponent, long now) {
-        if (isPaired(other.getUuid(), now)) {
+    private boolean canPairWith(ServerWorld world, MobEntity other, PetComponent otherComponent, long now) {
+        if (isPaired(other.getUuid(), world, now)) {
             return false;
         }
         if (otherComponent == component) {
@@ -459,48 +460,81 @@ public class PetSnuggleGoal extends Goal {
         return ownerA != null && ownerA.equals(ownerB);
     }
 
-    private void cleanupExpiredPairings(long now) {
-        ACTIVE_PAIR_EXPIRY.entrySet().removeIf(entry -> {
-            if (entry.getValue() == null || entry.getValue() < now) {
-                UUID id = entry.getKey();
-                UUID partner = ACTIVE_PAIRINGS.remove(id);
-                if (partner != null) {
-                    PAIR_NEXT_HEAL_TICK.remove(pairKey(id, partner));
-                    ACTIVE_PAIRINGS.remove(partner, id);
-                    ACTIVE_PAIR_EXPIRY.remove(partner);
-                }
-                return true;
+    private void cleanupExpiredPairings(ServerWorld world, long now) {
+        RegistryKey<World> worldKey = world.getRegistryKey();
+        ACTIVE_PAIR_EXPIRY.forEach((id, timer) -> {
+            if (timer == null) {
+                removePairingEntries(id, ACTIVE_PAIRINGS.get(id));
+                return;
             }
-            return false;
+            if (!worldKey.equals(timer.worldKey())) {
+                return;
+            }
+            if (timer.expiryTick() < now) {
+                removePairingEntries(id, ACTIVE_PAIRINGS.get(id));
+            }
         });
     }
 
-    private boolean isPaired(UUID id, long now) {
-        cleanupExpiredPairings(now);
-        return ACTIVE_PAIRINGS.containsKey(id);
+    private boolean isPaired(UUID id, ServerWorld world, long now) {
+        cleanupExpiredPairings(world, now);
+        UUID partnerId = ACTIVE_PAIRINGS.get(id);
+        if (partnerId == null) {
+            ACTIVE_PAIR_EXPIRY.remove(id);
+            return false;
+        }
+        PairTimer timer = ACTIVE_PAIR_EXPIRY.get(id);
+        if (timer == null) {
+            ACTIVE_PAIRINGS.remove(id);
+            return false;
+        }
+        if (!world.getRegistryKey().equals(timer.worldKey())) {
+            removePairingEntries(id, partnerId);
+            return false;
+        }
+        if (timer.expiryTick() < now) {
+            removePairingEntries(id, partnerId);
+            return false;
+        }
+        return true;
     }
 
-    private boolean isPairedWith(UUID id, UUID partnerId, long now) {
-        cleanupExpiredPairings(now);
+    private boolean isPairedWith(UUID id, UUID partnerId, ServerWorld world, long now) {
+        cleanupExpiredPairings(world, now);
         UUID partner = ACTIVE_PAIRINGS.get(id);
-        return partner != null && partner.equals(partnerId);
+        if (partner == null || !partner.equals(partnerId)) {
+            if (partner == null) {
+                ACTIVE_PAIR_EXPIRY.remove(id);
+            }
+            return false;
+        }
+        PairTimer timer = ACTIVE_PAIR_EXPIRY.get(id);
+        if (timer == null) {
+            removePairingEntries(id, partnerId);
+            return false;
+        }
+        if (!world.getRegistryKey().equals(timer.worldKey())) {
+            removePairingEntries(id, partnerId);
+            return false;
+        }
+        if (timer.expiryTick() < now) {
+            removePairingEntries(id, partnerId);
+            return false;
+        }
+        return true;
     }
 
-    private void clearPairing() {
-        MobEntity partner = this.partner;
-        if (partner == null) {
-            ACTIVE_PAIRINGS.remove(pet.getUuid());
-            ACTIVE_PAIR_EXPIRY.remove(pet.getUuid());
+    private static void removePairingEntries(UUID id, @Nullable UUID partnerId) {
+        if (id == null) {
             return;
         }
-        UUID selfId = pet.getUuid();
-        UUID partnerId = partner.getUuid();
-        ACTIVE_PAIRINGS.remove(selfId);
-        ACTIVE_PAIRINGS.remove(partnerId, selfId);
-        ACTIVE_PAIRINGS.remove(selfId, partnerId);
-        ACTIVE_PAIR_EXPIRY.remove(selfId);
-        ACTIVE_PAIR_EXPIRY.remove(partnerId);
-        PAIR_NEXT_HEAL_TICK.remove(pairKey(selfId, partnerId));
+        ACTIVE_PAIRINGS.remove(id);
+        ACTIVE_PAIR_EXPIRY.remove(id);
+        if (partnerId != null) {
+            ACTIVE_PAIRINGS.remove(partnerId, id);
+            ACTIVE_PAIR_EXPIRY.remove(partnerId);
+            PAIR_NEXT_HEAL_TICK.remove(pairKey(id, partnerId));
+        }
     }
 
     private static String pairKey(UUID first, UUID second) {
@@ -511,5 +545,7 @@ public class PetSnuggleGoal extends Goal {
     }
 
     private record Candidate(MobEntity partner, PetComponent partnerComponent, double score) {}
+
+    private record PairTimer(RegistryKey<World> worldKey, long expiryTick) {}
 }
 
