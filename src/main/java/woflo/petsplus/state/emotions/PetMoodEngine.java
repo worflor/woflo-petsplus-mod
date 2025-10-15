@@ -3942,13 +3942,17 @@ public final class PetMoodEngine {
         TextColor secondaryColor = TextColor.fromFormatting(mood.secondaryFormatting);
         List<PetComponent.WeightedEmotionColor> palette = currentPaletteStops;
 
-        Text baseText = switch (Math.max(level, 0)) {
-            case 0 -> createStaticPaletteText(label, palette, primaryColor);
-            case 1 -> createBreathingText(label, palette, primaryColor, secondaryColor, 1);
-            case 2 -> createBreathingGradient(label, palette, primaryColor, secondaryColor, 2);
-            case 3 -> createBreathingMovingGradient(label, palette, primaryColor, secondaryColor, 3);
-            default -> createBreathingMovingGradient(label, palette, primaryColor, secondaryColor, level);
-        };
+        boolean hasGradientPalette = palette != null && palette.size() >= 2;
+
+        Text baseText = hasGradientPalette
+                ? switch (Math.max(level, 0)) {
+                    case 0 -> createStaticPaletteText(label, palette, primaryColor);
+                    case 1 -> createBreathingText(label, palette, primaryColor, secondaryColor, 1);
+                    case 2 -> createBreathingGradient(label, palette, primaryColor, secondaryColor, 2);
+                    case 3 -> createBreathingMovingGradient(label, palette, primaryColor, secondaryColor, 3);
+                    default -> createBreathingMovingGradient(label, palette, primaryColor, secondaryColor, level);
+                }
+                : createGentleSingleStopText(label, palette, primaryColor, secondaryColor, level);
 
         if (!withDebug) {
             return baseText;
@@ -4072,6 +4076,58 @@ public final class PetMoodEngine {
             TextColor paletteColor = PetComponent.sampleEmotionPalette(palette, gradientAnchor, base);
             float emphasis = MathHelper.clamp(0.65f + (float) shimmer * 0.3f, 0f, 1f);
             TextColor finalColor = blendWithFallback(base, paletteColor, emphasis);
+            out.append(Text.literal(String.valueOf(chars[i])).styled(s -> s.withColor(finalColor)));
+        }
+        return out;
+    }
+
+    private Text createGentleSingleStopText(String text,
+            List<PetComponent.WeightedEmotionColor> palette,
+            TextColor fallbackPrimary, TextColor fallbackSecondary, int level) {
+        TextColor paletteColor = (palette == null || palette.isEmpty()) ? null : palette.get(0).color();
+        TextColor softenedBase = paletteColor != null
+                ? blendWithFallback(fallbackPrimary, paletteColor, 0.4f)
+                : fallbackPrimary;
+
+        int safeLevel = Math.max(level, 0);
+        if (safeLevel == 0) {
+            return Text.literal(text).styled(style -> style.withColor(softenedBase));
+        }
+
+        return createGentleSingleStopBreathing(text, softenedBase, fallbackSecondary, safeLevel);
+    }
+
+    private MutableText createGentleSingleStopBreathing(String text, TextColor baseColor,
+            TextColor fallbackSecondary, int level) {
+        long worldTime = parent.getPet().getEntityWorld().getTime();
+        int breathingSpeed = computeBreathingDuration(Math.max(level, 1), BASE_BREATHING_SPEEDS);
+        int updateInterval = getAnimationUpdateInterval(Math.max(level, 1));
+        long animationTime = (worldTime / updateInterval) * updateInterval;
+        double breathingPhase = (animationTime % breathingSpeed) / (double) breathingSpeed;
+        double breathingIntensity = (Math.sin(breathingPhase * 2 * Math.PI) + 1) / 2;
+
+        double[] minIntensities = {0.10, 0.14, 0.18};
+        double[] maxIntensities = {0.25, 0.30, 0.34};
+        int levelIndex = Math.min(Math.max(level, 1) - 1, minIntensities.length - 1);
+        double minIntensity = minIntensities[levelIndex];
+        double maxIntensity = maxIntensities[levelIndex];
+        double scaledIntensity = minIntensity + (breathingIntensity * (maxIntensity - minIntensity));
+
+        TextColor lightenTarget = UIStyle.interpolateColor(baseColor, TextColor.fromRgb(0xFFFFFF), 0.25f);
+        TextColor darkenTarget = UIStyle.interpolateColor(baseColor, TextColor.fromRgb(0x000000), 0.18f);
+        TextColor accentBase = fallbackSecondary != null
+                ? UIStyle.interpolateColor(baseColor, fallbackSecondary, 0.15f)
+                : baseColor;
+
+        MutableText out = Text.empty();
+        char[] chars = text.toCharArray();
+        for (int i = 0; i < chars.length; i++) {
+            double charPhase = (i * 0.35) + (breathingPhase * 1.2);
+            double charBreathing = (Math.sin(charPhase) + 1) / 2;
+            double finalPulse = (scaledIntensity + charBreathing * 0.2) / 1.2;
+            float pulseBlend = MathHelper.clamp((float) finalPulse, 0f, 1f);
+            TextColor gentleHighlight = UIStyle.interpolateColor(accentBase, lightenTarget, pulseBlend * 0.6f);
+            TextColor finalColor = UIStyle.interpolateColor(darkenTarget, gentleHighlight, pulseBlend);
             out.append(Text.literal(String.valueOf(chars[i])).styled(s -> s.withColor(finalColor)));
         }
         return out;
