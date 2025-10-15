@@ -471,7 +471,7 @@ public final class GoalRegistry {
             PerchOnShoulderGoal::new
         ));
 
-        // Removed unused registration: EyeContact
+        // Eye Contact goal retired; datapack definition and factory stub removed to prevent loader errors
 
         registerBuiltIn(new GoalDefinition(
             GoalIds.ORBIT_SWIM,
