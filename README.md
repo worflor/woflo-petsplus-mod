@@ -10,7 +10,7 @@
 
 ---
 
-<h4 align="center">Recent Changes</h3>
+<h4 align="center">Recent Changes</4>
 <ul align="center" style="list-style-type:none; padding-left:0; text-align:left; margin:0;">
   <li>Backend 0.94 [nature] - Parent natures are now exposed as predicates for nature conditions.</li>
   <li>Updated 0.94 [version] - 1.21.8 -> 1.21.10. ;-;</li>
