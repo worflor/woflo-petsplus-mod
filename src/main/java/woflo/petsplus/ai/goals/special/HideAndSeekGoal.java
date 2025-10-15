@@ -1798,12 +1798,12 @@ public class HideAndSeekGoal extends AdaptiveGoal {
                 iterator.remove();
                 continue;
             }
+            if (!Objects.equals(session.worldKey, world.getRegistryKey())) {
+                continue;
+            }
             if (now >= session.expiryTick) {
                 tearDownSession(session);
                 iterator.remove();
-                continue;
-            }
-            if (!Objects.equals(session.worldKey, world.getRegistryKey())) {
                 continue;
             }
         }
