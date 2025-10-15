@@ -438,6 +438,23 @@ public final class GoalRegistry {
         ));
 
         registerBuiltIn(new GoalDefinition(
+            GoalIds.NURSE_BABY,
+            Category.SOCIAL,
+            15,
+            secondsToTicks(25),
+            secondsToTicks(45),
+            MobCapabilities.CapabilityRequirement.allOf(List.of(
+                MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+                MobCapabilities.CapabilityRequirement.fromToken("can_wander")
+            )),
+            new Vec2f(0.15f, 0.7f),
+            IdleStaminaBias.NONE,
+            false,
+            true,
+            NurseBabyGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
             GoalIds.SHOW_OFF_TRICK,
             Category.SOCIAL,
             15,
