@@ -73,6 +73,7 @@ public class PurposefulPatrolGoal extends AdaptiveGoal {
     protected void onStopGoal() {
         mob.getNavigation().stop();
         patrolPoints.clear();
+        mob.setPitch(0.0f);
     }
     
     @Override

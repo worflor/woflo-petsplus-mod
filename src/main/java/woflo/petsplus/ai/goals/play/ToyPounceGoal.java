@@ -46,7 +46,7 @@ public class ToyPounceGoal extends AdaptiveGoal {
     
     @Override
     protected boolean shouldContinueGoal() {
-        return pouncePhase < 3 && toyBlock != null;
+        return pouncePhase < 3 && toyBlock != null && isToyBlockValid(toyBlock);
     }
     
     @Override
@@ -64,6 +64,11 @@ public class ToyPounceGoal extends AdaptiveGoal {
     @Override
     protected void onTickGoal() {
         phaseTicks++;
+
+        if (toyBlock == null || !isToyBlockValid(toyBlock)) {
+            requestStop();
+            return;
+        }
         
         switch (pouncePhase) {
             case 0: { // Approach
@@ -143,6 +148,19 @@ public class ToyPounceGoal extends AdaptiveGoal {
         }
         
         return null;
+    }
+
+    private boolean isToyBlockValid(BlockPos check) {
+        if (check == null) {
+            return false;
+        }
+
+        if (!mob.getEntityWorld().isChunkLoaded(check)) {
+            return false;
+        }
+
+        BlockState state = mob.getEntityWorld().getBlockState(check);
+        return state.isIn(woflo.petsplus.tags.PetsplusBlockTags.TOY_BLOCKS);
     }
     
     private void spawnSuccessParticles() {
