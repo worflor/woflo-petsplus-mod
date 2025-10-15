@@ -19,6 +19,11 @@
   <li>Updated 0.96 [ai] - Pet Adaptive Goals now react *properly* with relationships, bonds, and owner vs non owner pets.</li>
 	<li>Added 0.96 [ai] - Pet Director (old) and Group Coordinator (new) systems live in the AIState now.</li>
   <li>Added 0.96 [ai] - Swarm Snapshots flow through AIState so Adaptive Goals CAN view nearby entities if a nearby scan has occured recently. Some goal's request a fresh scan, some don't need fresh information.</li>
+	<li>Added 0.96 [ai] - Bedtime Companion Goal.</li>
+  	<li>Added 0.96 [ai] - Sentinel Watch Goal.</li>
+  <li>Added 0.96 [ai] - Nurse Baby Goal.</li>
+  	<li>Added 0.96 [ai] - Hide and Seek Goal.</li>
+  	<li>Added 0.96 [ai] - Cuddle Heal Goal.</li>
 	<li>Broken 0.96 [my sanity] - my sanity hurts.</li>
 </ul>
 
