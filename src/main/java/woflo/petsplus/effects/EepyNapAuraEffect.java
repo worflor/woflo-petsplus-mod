@@ -22,6 +22,7 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.state.PetComponent;
 
+import woflo.petsplus.ui.FeedbackManager;
 import woflo.petsplus.util.EffectConfigHelper;
 
 /**
@@ -116,28 +117,7 @@ public class EepyNapAuraEffect implements Effect {
     private void emitParticlesAndAmbient(ServerWorld world, MobEntity pet) {
         Vec3d pos = pet.getEntityPos();
         if (particleCount > 0) {
-            world.spawnParticles(
-                net.minecraft.particle.ParticleTypes.END_ROD,
-                pos.x,
-                pos.y + 1.0D,
-                pos.z,
-                particleCount,
-                0.45D,
-                0.25D,
-                0.45D,
-                0.01D
-            );
-            world.spawnParticles(
-                net.minecraft.particle.ParticleTypes.SPORE_BLOSSOM_AIR,
-                pos.x,
-                pos.y + 0.8D,
-                pos.z,
-                Math.max(1, particleCount / 2),
-                0.35D,
-                0.2D,
-                0.35D,
-                0.008D
-            );
+            FeedbackManager.emitFeedback("passive_eepy_nap_aura", pet, world);
         }
 
         world.playSound(null, pos.x, pos.y, pos.z, SoundEvents.ENTITY_CAT_PURR, SoundCategory.NEUTRAL, 0.25F, 0.8F + world.random.nextFloat() * 0.1F);
