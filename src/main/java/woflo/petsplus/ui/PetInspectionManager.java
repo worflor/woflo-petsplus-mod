@@ -2,6 +2,7 @@ package woflo.petsplus.ui;
 
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.text.MutableText;
@@ -49,6 +50,7 @@ public final class PetInspectionManager {
         }
         inspecting.remove(player.getUuid());
         BossBarManager.removeBossBar(player);
+        ActionBarCueManager.onPlayerDisconnect(player);
         clearEmotionScoreboard(player);
     }
 
@@ -61,6 +63,7 @@ public final class PetInspectionManager {
             state.pauseForDimensionChange();
         }
         BossBarManager.removeBossBar(player);
+        ActionBarCueManager.onPlayerDisconnect(player);
         clearEmotionScoreboard(player);
     }
 
@@ -88,6 +91,21 @@ public final class PetInspectionManager {
         }
         InspectionState state = inspecting.get(player.getUuid());
         return state != null ? state.lastPetId : null;
+    }
+
+    /**
+     * Resolves the actual mob entity currently being inspected if the window is open; returns null otherwise.
+     */
+    public static @org.jetbrains.annotations.Nullable MobEntity getActiveInspectedPet(ServerPlayerEntity player) {
+        java.util.UUID petId = getActiveInspectedPetId(player);
+        if (petId == null) {
+            return null;
+        }
+        if (!(player.getEntityWorld() instanceof ServerWorld serverWorld)) {
+            return null;
+        }
+        Entity entity = serverWorld.getEntity(petId);
+        return entity instanceof MobEntity mob ? mob : null;
     }
 
     private static void updateForPlayer(ServerPlayerEntity player) {

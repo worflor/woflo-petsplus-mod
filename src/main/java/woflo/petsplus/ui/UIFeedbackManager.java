@@ -17,7 +17,14 @@ public class UIFeedbackManager {
      * Send an action bar message to the player using the contextual cue system.
      */
     public static void sendActionBarMessage(ServerPlayerEntity player, String messageKey, Object... args) {
-        ActionBarCueManager.queueCue(player, ActionBarCueManager.ActionBarCue.of(messageKey, args));
+        if (player == null) {
+            return;
+        }
+        MobEntity activePet = PetInspectionManager.getActiveInspectedPet(player);
+        if (activePet == null) {
+            return;
+        }
+        sendActionBarMessage(player, activePet, messageKey, args);
     }
 
     /**

@@ -17,6 +17,7 @@ import java.util.UUID;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.tracking.PlayerTickDispatcher;
 import woflo.petsplus.state.tracking.PlayerTickListener;
+import woflo.petsplus.Petsplus;
 
 /**
  * Central manager for action-bar feedback cues. Provides lightweight, event-driven
@@ -32,11 +33,7 @@ public final class ActionBarCueManager implements PlayerTickListener {
     private static final int FOCUS_MEMORY_TICKS = 20 * 180; // 3 minutes
 
     private static final Map<UUID, PlayerCueState> PLAYER_STATES = new HashMap<>();
-    private static final ActionBarCueSource BROADCAST_SOURCE = new ActionBarCueSource(
-        null,
-        null,
-        Double.POSITIVE_INFINITY
-    );
+    private static final boolean DIAGNOSTIC_LOGGING = Boolean.getBoolean("petsplus.debug.cue_logging");
 
     private ActionBarCueManager() {}
 
@@ -78,10 +75,11 @@ public final class ActionBarCueManager implements PlayerTickListener {
         ActionBarCueSource source = cue.source();
         if (source == null) {
             source = state.deriveImplicitSource(currentTick, recentPetLimit);
-            // No current or recent focus; fall back to a broadcast cue so generic
-            // notifications (e.g. cooldowns) still reach the player.
             if (source == null) {
-                source = BROADCAST_SOURCE;
+                if (DIAGNOSTIC_LOGGING && Petsplus.LOGGER != null) {
+                    Petsplus.LOGGER.debug("[CUE] Dropped cue without focus: key={}, player={}", cue.messageKey(), player.getName().getString());
+                }
+                return;
             }
         }
 
@@ -370,10 +368,16 @@ public final class ActionBarCueManager implements PlayerTickListener {
             // Tie cue visibility to the inspection window (boss bar) lifecycle
             java.util.UUID activePet = PetInspectionManager.getActiveInspectedPetId(player);
             if (activePet == null || !activePet.equals(source.petId())) {
+                if (DIAGNOSTIC_LOGGING && Petsplus.LOGGER != null) {
+                    Petsplus.LOGGER.debug("[CUE] Not eligible (no active window/mismatch): player={}, petSource={}", player.getName().getString(), source.petId());
+                }
                 return false;
             }
             // Also ensure we still consider proximity/recency in case window changed pets quickly
             if (!state.hasInterestIn(source.petId(), currentTick, recentPetLimit)) {
+                if (DIAGNOSTIC_LOGGING && Petsplus.LOGGER != null) {
+                    Petsplus.LOGGER.debug("[CUE] Not eligible (no recent interest): player={}, petSource={}", player.getName().getString(), source.petId());
+                }
                 return false;
             }
         }
