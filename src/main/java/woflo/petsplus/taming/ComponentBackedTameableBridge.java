@@ -69,7 +69,7 @@ public final class ComponentBackedTameableBridge {
         PetComponent component = PetComponent.getOrCreate(this.mob);
         component.setOwnerUuid(ownerUuid);
         if (ownerUuid != null && this.mob.getEntityWorld() instanceof ServerWorld serverWorld) {
-            PlayerEntity player = serverWorld.getPlayerByUuid(ownerUuid);
+            PlayerEntity player = resolveOwner(serverWorld, ownerUuid);
             if (player != null) {
                 component.setOwner(player);
             }
@@ -84,7 +84,7 @@ public final class ComponentBackedTameableBridge {
             return null;
         }
         if (this.mob.getEntityWorld() instanceof ServerWorld serverWorld) {
-            return serverWorld.getPlayerByUuid(this.ownerUuid);
+            return resolveOwner(serverWorld, this.ownerUuid);
         }
         return null;
     }
@@ -114,6 +114,18 @@ public final class ComponentBackedTameableBridge {
         component.setStateData("petsplus:tamed", this.tamed);
         component.setStateData("petsplus:sitting", this.sitting);
         component.setStateData("petsplus:owner_uuid", this.ownerUuid != null ? this.ownerUuid.toString() : "");
+    }
+
+    @Nullable
+    private PlayerEntity resolveOwner(ServerWorld serverWorld, UUID ownerUuid) {
+        PlayerEntity player = serverWorld.getPlayerByUuid(ownerUuid);
+        if (player == null && serverWorld.getServer() != null) {
+            player = serverWorld.getServer().getPlayerManager().getPlayer(ownerUuid);
+        }
+        if (player != null && (!player.isAlive() || player.isRemoved())) {
+            return null;
+        }
+        return player;
     }
 }
 

@@ -79,7 +79,7 @@ public abstract class TameableEntityMixin implements PetsplusTameable {
         component.setStateData("petsplus:owner_uuid", ownerUuid.toString());
         component.setOwnerUuid(ownerUuid);
         if (petsplus$self().getEntityWorld() instanceof ServerWorld serverWorld) {
-            PlayerEntity player = serverWorld.getPlayerByUuid(ownerUuid);
+            PlayerEntity player = petsplus$resolveOwner(serverWorld, ownerUuid);
             if (player != null) {
                 petsplus$self().setOwner(player);
                 component.setOwner(player);
@@ -89,7 +89,14 @@ public abstract class TameableEntityMixin implements PetsplusTameable {
 
     @Override
     public @Nullable LivingEntity petsplus$getOwner() {
-        return petsplus$self().getOwner();
+        LivingEntity owner = petsplus$self().getOwner();
+        if (owner == null && petsplus$self().getEntityWorld() instanceof ServerWorld serverWorld) {
+            UUID ownerUuid = petsplus$getComponent().getOwnerUuid();
+            if (ownerUuid != null) {
+                return petsplus$resolveOwner(serverWorld, ownerUuid);
+            }
+        }
+        return owner;
     }
 
     @Override
@@ -119,5 +126,17 @@ public abstract class TameableEntityMixin implements PetsplusTameable {
         if (petsplus$self().getEntityWorld() instanceof ServerWorld) {
             StargazeMechanic.handlePetSittingChange((net.minecraft.entity.mob.MobEntity) (Object) this, sitting);
         }
+    }
+
+    @Unique
+    private @Nullable PlayerEntity petsplus$resolveOwner(ServerWorld serverWorld, UUID ownerUuid) {
+        PlayerEntity player = serverWorld.getPlayerByUuid(ownerUuid);
+        if (player == null && serverWorld.getServer() != null) {
+            player = serverWorld.getServer().getPlayerManager().getPlayer(ownerUuid);
+        }
+        if (player != null && (!player.isAlive() || player.isRemoved())) {
+            return null;
+        }
+        return player;
     }
 }

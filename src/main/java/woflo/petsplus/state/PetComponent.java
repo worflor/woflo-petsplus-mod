@@ -701,15 +701,19 @@ public class PetComponent {
                 : null;
         }
 
-        void reset() {
+        void resetOwnerContext() {
             owner = null;
             ownerDistance = Float.MAX_VALUE;
             ownerNearby = false;
+            lastOwnerStimulusTick = Long.MIN_VALUE;
+        }
+
+        void reset() {
+            resetOwnerContext();
             crowdEntities = List.of();
             crowdSummary = PetContextCrowdSummary.empty();
             mobAgeProfile = NearbyMobAgeProfile.empty();
             mobInteractionProfile = PetMobInteractionProfile.defaultProfile();
-            lastOwnerStimulusTick = Long.MIN_VALUE;
             lastCrowdStimulusTick = Long.MIN_VALUE;
             environmentSnapshot = null;
             worldSnapshot = null;
@@ -3305,11 +3309,43 @@ public class PetComponent {
      */
     @Deprecated
     public void onOwnerChanged(UUID previousOwnerUuid, UUID newOwnerUuid) {
+        ServerWorld serverWorld = pet.getEntityWorld() instanceof ServerWorld world ? world : null;
+
         // Clear previous best friend tracking
-        if (previousOwnerUuid != null && pet.getEntityWorld() instanceof ServerWorld serverWorld) {
+        if (previousOwnerUuid != null && serverWorld != null) {
             BestFriendTracker tracker = BestFriendTracker.get(serverWorld);
             tracker.clearIfBestFriend(previousOwnerUuid, pet.getUuid());
         }
+
+        if (!Objects.equals(previousOwnerUuid, newOwnerUuid)) {
+            resetOwnerScopedState();
+        }
+
+        if (stateManager != null) {
+            long currentTick = serverWorld != null ? serverWorld.getTime() : currentWorldTime();
+            stateManager.getOwnerProcessingManager().markPetChanged(this, currentTick);
+            stateManager.getSwarmIndex().updatePet(pet, this);
+        }
+    }
+
+    private void resetOwnerScopedState() {
+        ownerModule.clearCrouchCuddle();
+        clearStateData(StateKeys.LAST_CROUCH_CUDDLE_TICK);
+        clearStateData(StateKeys.OWNER_LAST_HURT_TICK);
+        clearStateData(StateKeys.OWNER_LAST_HURT_SEVERITY);
+        clearStateData(StateKeys.OWNER_LAST_HEALTH_RATIO);
+        clearStateData(StateKeys.OWNER_LAST_LOW_HEALTH_TICK);
+        clearStateData(StateKeys.OWNER_LAST_STATUS_HAZARD_TICK);
+        clearStateData(StateKeys.OWNER_LAST_STATUS_HAZARD_SEVERITY);
+        clearStateData(StateKeys.OWNER_LAST_NEARBY_TICK);
+        clearStateData(StateKeys.OWNER_LAST_NEARBY_DISTANCE);
+        clearStateData(StateKeys.OWNER_LAST_SEEN_TICK);
+        clearStateData(StateKeys.OWNER_LAST_SEEN_DISTANCE);
+        clearStateData(StateKeys.OWNER_LAST_SEEN_DIMENSION);
+        clearStateData(StateKeys.BREEDING_OWNER_UUID);
+        contextSliceState.resetOwnerContext();
+        markContextDirty(ContextSlice.OWNER);
+        publishStimulus(PerceptionStimulusType.OWNER_NEARBY, ContextSlice.OWNER, null);
     }
     
     /**
