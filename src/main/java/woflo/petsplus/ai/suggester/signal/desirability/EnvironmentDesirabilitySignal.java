@@ -326,7 +326,8 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
             return false;
         }
         // 2 minutes (2400 ticks) window
-        return ctx.worldTime() - lastWetTick < 2400L;
+        long ticksSinceWet = Math.max(0L, ctx.worldTime() - lastWetTick);
+        return ticksSinceWet < 2400L;
     }
 
     private static boolean isNearPuddle(MobEntity mob) {

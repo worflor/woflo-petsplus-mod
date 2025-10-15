@@ -173,7 +173,7 @@ public record PetContext(
         if (pc != null) {
             EnvironmentPerceptionBridge.WorldSnapshot worldSnapshot = pc.getCachedWorldSnapshot();
             if (worldSnapshot != null) {
-                worldTime = worldSnapshot.worldTime();
+                worldTime = Math.max(actualWorldTime, worldSnapshot.worldTime());
                 isDaytime = worldSnapshot.daytime();
             }
         }
@@ -322,7 +322,8 @@ public record PetContext(
      * Get ticks since a goal was last executed.
      */
     public long ticksSince(GoalDefinition goal) {
-        return worldTime - lastExecuted.getOrDefault(goal.id(), 0L);
+        long last = lastExecuted.getOrDefault(goal.id(), 0L);
+        return Math.max(0L, worldTime - last);
     }
 
     public float socialCharge() {
