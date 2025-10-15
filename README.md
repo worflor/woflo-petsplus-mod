@@ -6,16 +6,20 @@
 
 <h1 align="center">woflo's Pets+</h1>
 <h3 align="center">dev-0.96-Pet-this-Pet-that</h3>
-<h4 align="center">next: goal improvements</h4>
+<h4 align="center">next: complex logic just to make interactions more cohesive</h4>
 
 ---
 
 <h4 align="center">Recent Changes</h3>
 <ul align="center" style="list-style-type:none; padding-left:0; text-align:left; margin:0;">
-  <li>Backend 0.94 [nature] - Parent natures are now exposed as predicates for natures.</li>
+  <li>Backend 0.94 [nature] - Parent natures are now exposed as predicates for nature conditions.</li>
   <li>Updated 0.94 [version] - 1.21.8 -> 1.21.10. ;-;</li>
-  <li>Rework 0.95 [ai] - Following the same path as the stimulus pipeline, AI uses pet context, mood engine snapshots, and more to allow dynamic emergent behaviour</li>
-   <li>Added 0.96 [ai] - AIState exists</li>
+  <li>Rework 0.95 [ai] - Following the same path as the stimulus pipeline, AI uses pet context, mood engine snapshots, and more to allow dynamic emergent behaviour (adaptive goal).</li>
+  <li>Added 0.96 [ai] - AIState exists.</li>
+  <li>Updated 0.96 [ai] - Pet Adaptive Goals now react *properly* with relationships, bonds, and owner vs non owner pets.</li>
+	<li>Added 0.96 [ai] - Pet Director (old) and Group Coordinator (new) systems live in the AIState now.</li>
+  <li>Added 0.96 [ai] - Swarm Snapshots flow through AIState so Adaptive Goal's CAN view nearby entities if a nearby scan has occured recently. Some goal's request a fresh scan, some don't need fresh information.</li>
+	<li>Broken 0.96 [my sanity] - my sanity hurts.</li>
 </ul>
 
 ---
@@ -30,12 +34,13 @@
 
 ### What you'll notice
 - Realtime fluctuations in your pet's mood; shifting through the stimulus its exposed to throughout its environment and interactions.
+- Adaptive Goal's allow your pet's current objective to fluctuate based on the surrounding environment and their internal state.
 - Natures act like baseline *personalities*, adding quirks to your pets moods and stats.
 - Levels unlocks grow as you adventure, explore, and keep pets close.
 - Roles allow your pet to fulfill... roles!
 - Memories and stories are tracked.
 
-Curious how each layer fits together? The [feature docs](docs/features/_readme.md) is your friend.
+Curious how each layer fits together? The [feature docs](docs/features/_readme.md) might be your friend.
 
 ### Play It!
 1. Download the latest jar file. 
