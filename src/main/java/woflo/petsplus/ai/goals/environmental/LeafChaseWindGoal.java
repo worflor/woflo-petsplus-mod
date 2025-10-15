@@ -165,6 +165,12 @@ public class LeafChaseWindGoal extends AdaptiveGoal {
                 return false;
             }
         }
+        if (joiningAsFollower && targetPos == null) {
+            int settleThreshold = Math.max(1, followerStaggerTicks);
+            if (dartTicks >= settleThreshold) {
+                return false;
+            }
+        }
         return dartTicks < dartDuration;
     }
 
@@ -221,6 +227,14 @@ public class LeafChaseWindGoal extends AdaptiveGoal {
         // Followers: respect stagger before starting movement
         if (joiningAsFollower && targetPos != null && dartTicks == followerStaggerTicks) {
             issueNavigationCommand(1.1);
+        }
+
+        if (joiningAsFollower && targetPos == null) {
+            int settleThreshold = Math.max(1, followerStaggerTicks);
+            if (dartTicks >= settleThreshold) {
+                requestStop();
+                return;
+            }
         }
 
         // Keep moving toward the target but do not overshoot; if close, slow down slightly

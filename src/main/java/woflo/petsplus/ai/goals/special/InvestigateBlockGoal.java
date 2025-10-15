@@ -20,6 +20,8 @@ import java.util.EnumSet;
 public class InvestigateBlockGoal extends AdaptiveGoal {
     private BlockPos targetBlock;
     private int investigateTicks = 0;
+    private float startingPitch = 0.0f;
+    private boolean capturedPitch = false;
     private static final int MAX_INVESTIGATE_TICKS = 100; // 5 seconds
     
     public InvestigateBlockGoal(MobEntity mob) {
@@ -34,26 +36,35 @@ public class InvestigateBlockGoal extends AdaptiveGoal {
     
     @Override
     protected boolean shouldContinueGoal() {
-        return investigateTicks < MAX_INVESTIGATE_TICKS && targetBlock != null;
+        return investigateTicks < MAX_INVESTIGATE_TICKS && hasValidTargetBlock();
     }
-    
+
     @Override
     protected void onStartGoal() {
         investigateTicks = 0;
+        startingPitch = mob.getPitch();
+        capturedPitch = true;
     }
-    
+
     @Override
     protected void onStopGoal() {
         mob.getNavigation().stop();
+        if (capturedPitch) {
+            mob.setPitch(startingPitch);
+            capturedPitch = false;
+        }
         targetBlock = null;
     }
-    
+
     @Override
     protected void onTickGoal() {
         investigateTicks++;
-        
-        if (targetBlock == null) return;
-        
+
+        if (!hasValidTargetBlock()) {
+            requestStop();
+            return;
+        }
+
         double distance = mob.getBlockPos().getSquaredDistance(targetBlock);
         
         if (distance > 4.0) {
@@ -96,6 +107,24 @@ public class InvestigateBlockGoal extends AdaptiveGoal {
                 mob.setPitch(-10); // Tilt up
             }
         }
+    }
+
+    private boolean hasValidTargetBlock() {
+        if (targetBlock == null) {
+            return false;
+        }
+
+        var world = mob.getEntityWorld();
+        if (world == null || !world.isChunkLoaded(targetBlock)) {
+            return false;
+        }
+
+        BlockState state = world.getBlockState(targetBlock);
+        if (state.isAir()) {
+            return false;
+        }
+
+        return isInterestingBlock(state.getBlock());
     }
     
     /**

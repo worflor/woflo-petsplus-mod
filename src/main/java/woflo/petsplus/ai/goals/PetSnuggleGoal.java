@@ -216,6 +216,11 @@ public class PetSnuggleGoal extends Goal {
                 partnerComponent.setStateData(PetComponent.StateKeys.SNUGGLE_COOLDOWN_UNTIL_TICK, until);
             }
         }
+        haltEntityMovement(pet);
+        MobEntity partner = this.partner;
+        if (partner != null) {
+            haltEntityMovement(partner);
+        }
         UUID partnerId = this.partner != null ? this.partner.getUuid() : null;
         removePairingEntries(pet.getUuid(), partnerId);
         this.partner = null;
@@ -227,17 +232,26 @@ public class PetSnuggleGoal extends Goal {
         if (!(pet.getEntityWorld() instanceof ServerWorld world)) {
             return;
         }
+        MobEntity partner = this.partner;
+        PetComponent partnerComponent = this.partnerComponent;
+        if (partner == null || partnerComponent == null || partner.isRemoved() || !partner.isAlive()) {
+            return;
+        }
+        if (partner.getEntityWorld() != world) {
+            return;
+        }
+        if (partner.squaredDistanceTo(pet) > MAX_DISTANCE_SQ) {
+            return;
+        }
+
+        haltEntityMovement(pet);
+        haltEntityMovement(partner);
+
         long now = world.getTime();
         if ((now - lastPulseTick) < HEAL_PULSE_INTERVAL_TICKS) {
             return;
         }
         lastPulseTick = now;
-
-        MobEntity partner = this.partner;
-        PetComponent partnerComponent = this.partnerComponent;
-        if (partner == null || partnerComponent == null) {
-            return;
-        }
 
         String pairKey = pairKey(pet.getUuid(), partner.getUuid());
         Long next = PAIR_NEXT_HEAL_TICK.get(pairKey);
@@ -268,6 +282,19 @@ public class PetSnuggleGoal extends Goal {
         // Soft ambient feedback
         Vec3d midpoint = pet.getBoundingBox().getCenter().add(partner.getBoundingBox().getCenter()).multiply(0.5);
         emitAmbient(world, midpoint);
+    }
+
+    private static void haltEntityMovement(@Nullable MobEntity entity) {
+        if (entity == null) {
+            return;
+        }
+        var navigation = entity.getNavigation();
+        if (navigation != null && !navigation.isIdle()) {
+            navigation.stop();
+        }
+        if (!entity.getVelocity().equals(Vec3d.ZERO)) {
+            entity.setVelocity(Vec3d.ZERO);
+        }
     }
 
     private static void applySafeHeal(LivingEntity entity, float amount) {

@@ -26,6 +26,10 @@ public final class GoalRegistry {
     private static final Map<Identifier, GoalDefinition> BUILT_IN_DEFAULTS = new LinkedHashMap<>();
     private static final Set<Identifier> DATA_DRIVEN = new HashSet<>();
 
+    private static int secondsToTicks(int seconds) {
+        return Math.max(0, seconds) * 20;
+    }
+
     static {
         registerBuiltIn(new GoalDefinition(
             GoalIds.STRETCH_AND_YAW,
@@ -264,8 +268,8 @@ public final class GoalRegistry {
             GoalIds.SCENT_TRAIL_FOLLOW,
             Category.WANDER,
             20,
-            0,
-            0,
+            secondsToTicks(4),
+            secondsToTicks(10),
             MobCapabilities.CapabilityRequirement.allOf(List.of(
                 MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
                 MobCapabilities.CapabilityRequirement.fromToken("prefers_land")
@@ -313,8 +317,8 @@ public final class GoalRegistry {
             GoalIds.TOY_POUNCE,
             Category.PLAY,
             18,
-            0,
-            0,
+            secondsToTicks(9),
+            secondsToTicks(18),
             MobCapabilities.CapabilityRequirement.fromToken("can_jump"),
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.NONE,
@@ -327,8 +331,8 @@ public final class GoalRegistry {
             GoalIds.PARKOUR_CHALLENGE,
             Category.PLAY,
             18,
-            0,
-            0,
+            secondsToTicks(10),
+            secondsToTicks(20),
             MobCapabilities.CapabilityRequirement.allOf(List.of(
                 MobCapabilities.CapabilityRequirement.fromToken("can_jump"),
                 MobCapabilities.CapabilityRequirement.fromToken("can_wander")
@@ -344,8 +348,8 @@ public final class GoalRegistry {
             GoalIds.FETCH_ITEM,
             Category.PLAY,
             18,
-            0,
-            0,
+            secondsToTicks(20),
+            secondsToTicks(40),
             MobCapabilities.CapabilityRequirement.allOf(List.of(
                 MobCapabilities.CapabilityRequirement.fromToken("can_pick_up_items"),
                 MobCapabilities.CapabilityRequirement.fromToken("has_owner")
@@ -361,8 +365,8 @@ public final class GoalRegistry {
             GoalIds.DIVE_PLAY,
             Category.PLAY,
             18,
-            0,
-            0,
+            secondsToTicks(8),
+            secondsToTicks(16),
             MobCapabilities.CapabilityRequirement.fromToken("can_swim"),
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.NONE,
@@ -375,8 +379,8 @@ public final class GoalRegistry {
             GoalIds.AERIAL_ACROBATICS,
             Category.PLAY,
             18,
-            0,
-            0,
+            secondsToTicks(7),
+            secondsToTicks(14),
             MobCapabilities.CapabilityRequirement.fromToken("can_fly"),
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.NONE,
@@ -389,8 +393,8 @@ public final class GoalRegistry {
             GoalIds.WATER_SPLASH,
             Category.PLAY,
             18,
-            0,
-            0,
+            secondsToTicks(10),
+            secondsToTicks(18),
             MobCapabilities.CapabilityRequirement.allOf(List.of(
                 MobCapabilities.CapabilityRequirement.fromToken("can_swim"),
                 MobCapabilities.CapabilityRequirement.fromToken("can_wander")
@@ -437,8 +441,8 @@ public final class GoalRegistry {
             GoalIds.SHOW_OFF_TRICK,
             Category.SOCIAL,
             15,
-            0,
-            0,
+            secondsToTicks(12),
+            secondsToTicks(24),
             MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.NONE,
@@ -453,8 +457,8 @@ public final class GoalRegistry {
             GoalIds.PERCH_ON_SHOULDER,
             Category.SOCIAL,
             15,
-            0,
-            0,
+            secondsToTicks(12),
+            secondsToTicks(24),
             MobCapabilities.CapabilityRequirement.allOf(List.of(
                 MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
                 MobCapabilities.CapabilityRequirement.fromToken("can_fly"),
@@ -473,8 +477,8 @@ public final class GoalRegistry {
             GoalIds.ORBIT_SWIM,
             Category.SOCIAL,
             15,
-            0,
-            0,
+            secondsToTicks(8),
+            secondsToTicks(18),
             MobCapabilities.CapabilityRequirement.allOf(List.of(
                 MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
                 MobCapabilities.CapabilityRequirement.fromToken("can_swim")
@@ -504,8 +508,8 @@ public final class GoalRegistry {
             GoalIds.HIDE_AND_SEEK,
             Category.SPECIAL,
             16,
-            0,
-            0,
+            secondsToTicks(18),
+            secondsToTicks(40),
             MobCapabilities.CapabilityRequirement.allOf(List.of(
                 MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
                 MobCapabilities.CapabilityRequirement.fromToken("can_wander")
@@ -521,8 +525,8 @@ public final class GoalRegistry {
             GoalIds.INVESTIGATE_BLOCK,
             Category.SPECIAL,
             16,
-            0,
-            0,
+            secondsToTicks(8),
+            secondsToTicks(16),
             MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.NONE,
@@ -535,8 +539,8 @@ public final class GoalRegistry {
             GoalIds.STARGAZING,
             Category.SPECIAL,
             16,
-            0,
-            0,
+            secondsToTicks(30),
+            secondsToTicks(60),
             MobCapabilities.CapabilityRequirement.fromToken("can_sit"),
             new Vec2f(0.0f, 0.5f),
             IdleStaminaBias.NONE,
