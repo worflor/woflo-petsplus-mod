@@ -26,6 +26,7 @@ import woflo.petsplus.Petsplus;
 import woflo.petsplus.advancement.BestFriendTracker;
 import woflo.petsplus.ai.PetAIEnhancements;
 import woflo.petsplus.ai.PetMobInteractionProfile;
+import woflo.petsplus.ai.director.DirectorDecision;
 import woflo.petsplus.ai.context.CrowdScan;
 import woflo.petsplus.ai.context.NearbyMobAgeProfile;
 import woflo.petsplus.ai.context.PetContextCrowdSummary;
@@ -40,6 +41,8 @@ import woflo.petsplus.ai.context.perception.StimulusSnapshot;
 import woflo.petsplus.ai.context.perception.StimulusTimeline;
 import woflo.petsplus.ai.context.social.SocialSnapshot;
 import woflo.petsplus.ai.feedback.ExperienceLog;
+import woflo.petsplus.ai.planner.PlanResolution;
+import woflo.petsplus.ai.suggester.GoalSuggester;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.component.PetsplusComponents;
@@ -1471,6 +1474,16 @@ public class PetComponent {
         lastSwarmCellKey = Long.MIN_VALUE;
     }
 
+    public void recordDirectorDecision(@Nullable DirectorDecision decision) {
+        aiState.recordDirectorDecision(decision);
+    }
+
+    public void recordDirectorDecision(@Nullable GoalSuggester.Suggestion suggestion,
+                                       @Nullable PlanResolution resolution,
+                                       long tick) {
+        aiState.recordDirectorDecision(suggestion, resolution, tick);
+    }
+
     public void recordGoalSuggestion(@Nullable Identifier goalId, float score, long tick) {
         aiState.recordGoalSuggestion(goalId, score, tick);
     }
@@ -1486,6 +1499,20 @@ public class PetComponent {
 
     public long getLastSuggestionTick() {
         return aiState.getLastSuggestionTick();
+    }
+
+    @Nullable
+    public String getLastSuggestionReason() {
+        return aiState.getLastSuggestionReason();
+    }
+
+    @Nullable
+    public PetAIState.PlanSummary getLastSuggestionPlanSummary() {
+        return aiState.getLastPlanSummary();
+    }
+
+    public List<PetAIState.SuggestionSnapshot> getSuggestionHistorySnapshot() {
+        return aiState.getSuggestionHistorySnapshot();
     }
 
     public SwarmStateSnapshot snapshotSwarmState() {

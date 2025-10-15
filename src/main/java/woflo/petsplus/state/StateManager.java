@@ -1554,10 +1554,10 @@ public class StateManager {
         DirectorDecision decision = AdaptiveAIManager.tickDirector(pet);
         if (decision != null && decision.suggestion() != null) {
             GoalSuggester.Suggestion suggestion = decision.suggestion();
-            component.recordGoalSuggestion(suggestion.definition().id(), suggestion.score(), currentTick);
+            component.recordDirectorDecision(suggestion, decision.resolution(), decision.tick());
             applySuggestionNudge(pet, component, suggestion);
         } else {
-            component.recordGoalSuggestion(null, 0f, Long.MIN_VALUE);
+            component.recordDirectorDecision(null, null, currentTick);
         }
 
         long delay = scaleIntervalForDistance(INTERVAL_TICK_SPACING, pet, owner);
