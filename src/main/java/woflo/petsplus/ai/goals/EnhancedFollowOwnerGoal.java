@@ -18,10 +18,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 import woflo.petsplus.Petsplus;
+import woflo.petsplus.ai.goals.GoalDefinition;
+import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.ai.goals.OwnerAssistAttackGoal;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.behavior.social.PetSocialData;
@@ -52,13 +53,6 @@ public class EnhancedFollowOwnerGoal extends Goal {
     private static final double MIN_DYNAMIC_SPEED = 0.55d;
     private static final double MAX_DYNAMIC_SPEED = 1.9d;
     private static final String FOLLOW_PATH_COOLDOWN_KEY = "follow_path_blocked";
-    private static final Set<Identifier> FOLLOW_SUPPRESSION_GOALS = Set.of(
-        GoalIds.PARALLEL_PLAY,
-        GoalIds.TOY_POUNCE,
-        GoalIds.HIDE_AND_SEEK,
-        GoalIds.SUNBEAM_SPRAWL,
-        GoalIds.SHOW_AND_DROP
-    );
 
     private final MobEntity mob;
     private final PetsplusTameable tameable;
@@ -120,8 +114,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
             return false;
         }
 
-        Identifier activeGoal = petComponent.getActiveAdaptiveGoalId();
-        if (activeGoal != null && FOLLOW_SUPPRESSION_GOALS.contains(activeGoal)) {
+        if (isMajorActivityActive()) {
             return false;
         }
 
@@ -209,6 +202,10 @@ public class EnhancedFollowOwnerGoal extends Goal {
         }
 
         if (petComponent.getAIState().isPanicking()) {
+            return false;
+        }
+
+        if (isMajorActivityActive()) {
             return false;
         }
 
@@ -403,6 +400,18 @@ public class EnhancedFollowOwnerGoal extends Goal {
         }
 
         sampleMomentum(now, hesitating, distanceToOwnerSq);
+    }
+
+    boolean isMajorActivityActive() {
+        if (petComponent == null) {
+            return false;
+        }
+        Identifier activeId = petComponent.getAIState().getActiveMajorGoal();
+        if (activeId == null) {
+            return false;
+        }
+        GoalDefinition activeDefinition = GoalRegistry.get(activeId).orElse(null);
+        return activeDefinition != null && activeDefinition.marksMajorActivity();
     }
 
     /**
