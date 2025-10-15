@@ -256,6 +256,7 @@ public class HideAndSeekGoal extends AdaptiveGoal {
         int roundsCompleted;
         final long createdTick;
         long expiryTick;
+        long lastPhaseTickTime;
 
         HideSession(RegistryKey<World> worldKey,
                     UUID ownerId,
@@ -274,6 +275,7 @@ public class HideAndSeekGoal extends AdaptiveGoal {
             this.roleAffinities = roleAffinities;
             this.createdTick = createdTick;
             this.expiryTick = createdTick + profile.sessionMaxTicks;
+            this.lastPhaseTickTime = createdTick - 1;
         }
 
         boolean contains(UUID uuid) {
@@ -282,6 +284,17 @@ public class HideAndSeekGoal extends AdaptiveGoal {
 
         boolean everyoneReady() {
             return ready.containsAll(participants);
+        }
+
+        boolean tryAdvancePhaseTick(long worldTime) {
+            synchronized (this) {
+                if (lastPhaseTickTime != worldTime) {
+                    phaseTicks++;
+                    lastPhaseTickTime = worldTime;
+                    return true;
+                }
+                return false;
+            }
         }
     }
 
@@ -564,7 +577,7 @@ public class HideAndSeekGoal extends AdaptiveGoal {
             return;
         }
 
-        session.phaseTicks++;
+        session.tryAdvancePhaseTick(sw.getTime());
         if (director) {
             tickDirector(sw, session);
         }
