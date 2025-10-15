@@ -440,6 +440,21 @@ public class CombatEventHandler {
             return DamageProcessingOutcome.allowOutcome(amount);
         }
 
+        // Friendly-fire guard: prevent damaging pets owned by the same owner (custom or vanilla tamed)
+        if (victim instanceof MobEntity victimMob) {
+            boolean sameOwnerPet = false;
+            PetComponent victimComp = PetComponent.get(victimMob);
+            if (victimComp != null && owner != null && victimComp.isOwnedBy(owner)) {
+                sameOwnerPet = true;
+            } else if (victimMob instanceof TameableEntity tame) {
+                LivingEntity tameOwner = tame.getOwner();
+                sameOwnerPet = tameOwner != null && tameOwner.equals(owner);
+            }
+            if (sameOwnerPet) {
+                return DamageProcessingOutcome.cancelledOutcome();
+            }
+        }
+
         boolean lethalPreCheck = victim.getHealth() - amount <= 0.0F;
         double victimHpPct = Math.max(0.0F, victim.getHealth()) / Math.max(1.0F, victim.getMaxHealth());
 
@@ -826,7 +841,15 @@ public class CombatEventHandler {
         if (owner.getEntityWorld() instanceof ServerWorld) {
             if (victim instanceof MobEntity victimMob) {
                 PetComponent victimComponent = PetComponent.get(victimMob);
-                if (victimComponent != null && victimComponent.isOwnedBy(owner)) {
+                boolean sameOwnerPet = victimComponent != null && victimComponent.isOwnedBy(owner);
+                // Also guard vanilla tamed entities owned by this owner
+                if (!sameOwnerPet && victimMob instanceof TameableEntity tame) {
+                    LivingEntity tameOwner = tame.getOwner();
+                    sameOwnerPet = tameOwner != null && tameOwner.equals(owner);
+                }
+
+                if (sameOwnerPet) {
+                    // Do not set aggro/notify against our own pets
                     combatState.clearAggroTarget();
                 } else {
                     combatState.rememberAggroTarget(victim, now, OWNER_ASSIST_TARGET_TTL, true, aggressionSignal, urgencySignal, victimIsHostile);
@@ -1850,6 +1873,20 @@ public class CombatEventHandler {
             return;
         }
 
+        // If the target is one of our own pets (custom or vanilla), do not broadcast
+        if (target instanceof MobEntity targetMob) {
+            PetComponent targetComponent = PetComponent.get(targetMob);
+            if (targetComponent != null && targetComponent.isOwnedBy(owner)) {
+                return;
+            }
+            if (targetMob instanceof TameableEntity tame) {
+                LivingEntity tameOwner = tame.getOwner();
+                if (tameOwner != null && tameOwner.equals(owner)) {
+                    return;
+                }
+            }
+        }
+
         List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(owner);
         if (swarm.isEmpty()) {
             return;
@@ -1878,6 +1915,24 @@ public class CombatEventHandler {
                 continue;
             }
             pc.setLastAttackTick(now);
+
+            // Extra safety: ensure this pet can target the entity (and skip friendly-fire)
+            if (target instanceof MobEntity tMob) {
+                PetComponent tComp = PetComponent.get(tMob);
+                if (tComp != null && tComp.isOwnedBy(owner)) {
+                    continue;
+                }
+                if (tMob instanceof TameableEntity tTame) {
+                    LivingEntity tOwner = tTame.getOwner();
+                    if (tOwner != null && tOwner.equals(owner)) {
+                        continue;
+                    }
+                }
+            }
+
+            if (!pet.canTarget(target)) {
+                continue;
+            }
 
             if (pet.getTarget() != target) {
                 pet.setTarget(target);

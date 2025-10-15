@@ -366,8 +366,16 @@ public final class ActionBarCueManager implements PlayerTickListener {
             return false;
         }
 
-        if (source.petId() != null && !state.hasInterestIn(source.petId(), currentTick, recentPetLimit)) {
-            return false;
+        if (source.petId() != null) {
+            // Tie cue visibility to the inspection window (boss bar) lifecycle
+            java.util.UUID activePet = PetInspectionManager.getActiveInspectedPetId(player);
+            if (activePet == null || !activePet.equals(source.petId())) {
+                return false;
+            }
+            // Also ensure we still consider proximity/recency in case window changed pets quickly
+            if (!state.hasInterestIn(source.petId(), currentTick, recentPetLimit)) {
+                return false;
+            }
         }
 
         Vec3d position = source.position();

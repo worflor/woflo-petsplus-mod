@@ -362,6 +362,13 @@ public class OwnerAssistAttackGoal extends Goal {
             if (targetComponent != null && owner != null && targetComponent.isOwnedBy(owner)) {
                 return false;
             }
+            // Also guard against vanilla tamed entities with the same owner
+            if (mobCandidate instanceof TameableEntity tame) {
+                LivingEntity tameOwner = tame.getOwner();
+                if (tameOwner != null && tameOwner.equals(owner)) {
+                    return false;
+                }
+            }
         }
         return true;
     }

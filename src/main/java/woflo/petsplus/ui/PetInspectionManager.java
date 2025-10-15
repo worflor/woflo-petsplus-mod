@@ -64,6 +64,32 @@ public final class PetInspectionManager {
         clearEmotionScoreboard(player);
     }
 
+    /**
+     * Returns true if the inspection UI window (boss bar) is currently open for the player.
+     * This includes the active focus period and the post-focus linger period.
+     */
+    public static boolean isInspectionWindowOpen(ServerPlayerEntity player) {
+        if (player == null) {
+            return false;
+        }
+        InspectionState state = inspecting.get(player.getUuid());
+        if (state == null) {
+            return false;
+        }
+        return state.lastPetId != null && (state.hasFocus || state.lingerTicks > 0);
+    }
+
+    /**
+     * Returns the UUID of the currently inspected pet while the inspection window is open; otherwise null.
+     */
+    public static @org.jetbrains.annotations.Nullable java.util.UUID getActiveInspectedPetId(ServerPlayerEntity player) {
+        if (!isInspectionWindowOpen(player)) {
+            return null;
+        }
+        InspectionState state = inspecting.get(player.getUuid());
+        return state != null ? state.lastPetId : null;
+    }
+
     private static void updateForPlayer(ServerPlayerEntity player) {
         MobEntity pet = findLookedAtPet(player);
         UUID pid = player.getUuid();
@@ -101,6 +127,8 @@ public final class PetInspectionManager {
         } else {
             BossBarManager.removeBossBar(player);
             clearEmotionScoreboard(player);
+            // Ensure any pending action-bar cues are cleared when the window fully closes
+            ActionBarCueManager.onPlayerDisconnect(player);
             inspecting.remove(player.getUuid());
         }
 
