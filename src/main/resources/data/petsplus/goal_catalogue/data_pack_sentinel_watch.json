@@ -1,0 +1,27 @@
+{
+  "category": "social",
+  "priority": 16,
+  "cooldown": {
+    "min": 240,
+    "max": 480
+  },
+  "requirement": {
+    "all_of": [
+      "has_owner",
+      {
+        "any_of": [
+          "can_wander",
+          "can_fly"
+        ]
+      }
+    ]
+  },
+  "energy_range": {
+    "min": 0.35,
+    "max": 0.9
+  },
+  "idle_stamina_bias": "none",
+  "social_idle_bias": true,
+  "marks_major_activity": true,
+  "goal_factory": "woflo.petsplus.ai.goals.social.PackSentinelWatchGoal"
+}
