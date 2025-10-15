@@ -62,17 +62,28 @@ public class SniffGroundGoal extends AdaptiveGoal {
     @Override
     protected void onTickGoal() {
         sniffTicks++;
-        
+
         // Look at ground
         Vec3d targetVec = Vec3d.ofBottomCenter(sniffTarget);
         mob.getLookControl().lookAt(targetVec.x, targetVec.y, targetVec.z);
         mob.setPitch(45); // Nose to ground
-        
+
         // Sniff animation (head bob)
         if (sniffTicks % 10 < 5) {
             mob.setPitch(40);
         } else {
             mob.setPitch(50);
+        }
+
+        // Subtle foot shuffle toward the spot (no navigation; tiny velocity nudges)
+        if (sniffTicks <= 20) {
+            Vec3d to = targetVec.subtract(mob.getEntityPos());
+            double len = to.length();
+            if (len > 0.001 && len < 2.5) {
+                Vec3d step = to.normalize().multiply(0.02);
+                mob.addVelocity(step.x, 0.0, step.z);
+                mob.velocityModified = true;
+            }
         }
     }
     

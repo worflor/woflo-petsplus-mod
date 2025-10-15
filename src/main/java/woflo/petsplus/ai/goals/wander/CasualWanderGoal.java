@@ -28,6 +28,7 @@ import java.util.EnumSet;
  * Casual meandering wander - slow, curved paths with pauses.
  */
 public class CasualWanderGoal extends AdaptiveGoal {
+    private static final String LAST_WET_TICK_KEY = "last_wet_tick";
     private static final int MAX_DURATION_TICKS = 200;
     private static final int RECENT_TARGET_HISTORY = 6;
     private static final int ENTITY_INTEREST_RADIUS_SQ = 64;
@@ -52,6 +53,11 @@ public class CasualWanderGoal extends AdaptiveGoal {
             return false;
         }
         if (!mob.getNavigation().isIdle()) {
+            return false;
+        }
+
+        // Shelter-hold: avoid starting wander while drying under cover in rain
+        if (isShelterHoldActive()) {
             return false;
         }
 
@@ -80,6 +86,10 @@ public class CasualWanderGoal extends AdaptiveGoal {
         if (mob.isSubmergedInWater()) {
             return false;
         }
+        // Stop wandering if we enter a shelter-hold (e.g., rain resumes and we’re drying)
+        if (isShelterHoldActive()) {
+            return false;
+        }
         PetComponent component = PetComponent.get(mob);
         if (component != null && component.hasMoodAbove(PetComponent.Mood.ANGRY, 0.55f)) {
             return false;
@@ -95,6 +105,22 @@ public class CasualWanderGoal extends AdaptiveGoal {
         isPaused = false;
         pauseTicks = 0;
         selectNewTarget(getContext(), true);
+    }
+
+    private boolean isShelterHoldActive() {
+        World world = mob.getEntityWorld();
+        if (world == null || (!world.isRaining() && !world.isThundering())) {
+            return false;
+        }
+        if (world.isSkyVisible(mob.getBlockPos())) {
+            return false; // not sheltered
+        }
+        PetComponent pc = PetComponent.get(mob);
+        if (pc == null) {
+            return false;
+        }
+        Long lastWet = pc.getStateData(LAST_WET_TICK_KEY, Long.class);
+        return lastWet != null && world.getTime() - lastWet <= 2400L;
     }
     
     @Override

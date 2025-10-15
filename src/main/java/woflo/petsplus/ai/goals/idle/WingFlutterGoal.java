@@ -6,6 +6,9 @@ import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.ai.goals.GoalIds;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.particle.ParticleTypes;
+import net.minecraft.sound.SoundEvents;
 
 import java.util.EnumSet;
 
@@ -33,6 +36,11 @@ public class WingFlutterGoal extends AdaptiveGoal {
     @Override
     protected void onStartGoal() {
         flutterTicks = 0;
+        // Soft flutter sound to sell the motion (low volume)
+        try {
+            mob.playSound(SoundEvents.ENTITY_PARROT_FLY, 0.25f, 1.2f + (mob.getRandom().nextFloat() * 0.2f - 0.1f));
+        } catch (Throwable ignored) {
+        }
     }
     
     @Override
@@ -48,9 +56,28 @@ public class WingFlutterGoal extends AdaptiveGoal {
         if (flutterTicks % 4 < 2) {
             mob.setVelocity(mob.getVelocity().add(0, 0.02, 0));
         }
-        
+
         // Add slight rotation for visual interest
         mob.setYaw(mob.getYaw() + (float)Math.sin(flutterTicks * 0.3) * 2);
+
+        // Gentle head pitch oscillation
+        mob.setPitch((float)(Math.sin(flutterTicks * 0.2f) * 6.0f));
+
+        // Occasional tiny air puff to indicate motion
+        if (!mob.getEntityWorld().isClient() && flutterTicks % 8 == 0) {
+            try {
+                ((ServerWorld) mob.getEntityWorld()).spawnParticles(
+                    ParticleTypes.CLOUD,
+                    mob.getParticleX(0.6D),
+                    mob.getRandomBodyY(),
+                    mob.getParticleZ(0.6D),
+                    1,
+                    0.03, 0.02, 0.03,
+                    0.01
+                );
+            } catch (Throwable ignored) {
+            }
+        }
     }
     
     @Override

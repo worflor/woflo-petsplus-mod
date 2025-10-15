@@ -16,7 +16,7 @@ import java.util.EnumSet;
 public class GoToDryingBlockGoal extends AdaptiveGoal {
 
     private static final int SEARCH_RADIUS = 10;
-    private static final int DRY_TIME_TICKS = 60; // 3 seconds
+    private static final int DRY_TIME_TICKS = 100; // 5 seconds minimum hold near shelter
 
     private BlockPos targetDryingBlock;
     private int dryingTicks;
@@ -41,13 +41,19 @@ public class GoToDryingBlockGoal extends AdaptiveGoal {
 
     @Override
     protected boolean shouldContinueGoal() {
-        if (dryingTicks >= DRY_TIME_TICKS) {
+        if (targetDryingBlock == null) {
             return false;
         }
-        if (targetDryingBlock == null || !isEntityWet(mob)) {
-            return false;
+        boolean atSpot = mob.getBlockPos().getSquaredDistance(targetDryingBlock) < 4.0;
+        // Continue pathing until we reach the spot while wet
+        if (!atSpot) {
+            return isEntityWet(mob);
         }
-        return mob.getBlockPos().getSquaredDistance(targetDryingBlock) < 4.0; // Continue if close to the block
+        // Once at the spot, hold for a minimum drying time regardless of current wet flag
+        if (dryingTicks < DRY_TIME_TICKS) {
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -60,8 +66,19 @@ public class GoToDryingBlockGoal extends AdaptiveGoal {
 
     @Override
     protected void onTickGoal() {
-        if (targetDryingBlock != null && mob.getBlockPos().getSquaredDistance(targetDryingBlock) < 4.0) {
-            dryingTicks++;
+        if (targetDryingBlock != null) {
+            if (mob.getBlockPos().getSquaredDistance(targetDryingBlock) < 4.0) {
+                // Only increment while spot remains sheltered; if it becomes exposed, stop holding.
+                if (!mob.getEntityWorld().isSkyVisible(targetDryingBlock)) {
+                    dryingTicks++;
+                } else {
+                    // Lost shelter (block changed), abandon.
+                    requestStop();
+                }
+            } else if (isEntityWet(mob) && (this.mob.getNavigation().isIdle())) {
+                // Still wet and not at spot; kick navigation if it stalled
+                this.mob.getNavigation().startMovingTo(targetDryingBlock.getX(), targetDryingBlock.getY(), targetDryingBlock.getZ(), 1.0);
+            }
         }
     }
 

@@ -17,6 +17,7 @@ import java.util.EnumSet;
  * Social behavior - pet leans against owner's leg for affection.
  */
 public class LeanAgainstOwnerGoal extends AdaptiveGoal {
+    private static final String LAST_WET_TICK_KEY = "last_wet_tick";
     private static final int LEAN_DURATION = 60;
     private static final String COOLDOWN_KEY = "lean_against_owner";
     private static final double LOOK_DOT_THRESHOLD = 0.35d;
@@ -63,6 +64,16 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
             if (component.hasMoodAbove(PetComponent.Mood.ANGRY, 0.45f)
                 || component.hasMoodAbove(PetComponent.Mood.RESTLESS, 0.6f)) {
                 return false;
+            }
+            // If raining and pet is sheltered with recent wetness, avoid initiating lean unless already very close
+            var world = mob.getEntityWorld();
+            if (world != null && (world.isRaining() || world.isThundering()) && !world.isSkyVisible(mob.getBlockPos())) {
+                Long lastWet = component.getStateData(LAST_WET_TICK_KEY, Long.class);
+                if (lastWet != null && world.getTime() - lastWet <= 2400L) {
+                    if (ctx.distanceToOwner() > 2.0f) {
+                        return false;
+                    }
+                }
             }
         }
 

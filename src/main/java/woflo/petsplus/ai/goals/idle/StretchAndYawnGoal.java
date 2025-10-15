@@ -3,6 +3,9 @@ package woflo.petsplus.ai.goals.idle;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.particle.ParticleTypes;
+import net.minecraft.sound.SoundEvents;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.ai.goals.GoalIds;
@@ -52,6 +55,11 @@ public class StretchAndYawnGoal extends AdaptiveGoal {
     protected void onStartGoal() {
         animationTicks = 0;
         calculateDurations();
+        // Soft anticipatory breath
+        try {
+            mob.playSound(SoundEvents.ENTITY_CAT_PURR, 0.2f, 0.8f + (mob.getRandom().nextFloat() * 0.2f - 0.1f));
+        } catch (Throwable ignored) {
+        }
     }
 
     @Override
@@ -64,8 +72,26 @@ public class StretchAndYawnGoal extends AdaptiveGoal {
     protected void onTickGoal() {
         animationTicks++;
 
-        if (animationTicks == 1) {
-            // TODO: Add a yawning sound effect here
+        if (animationTicks == stretchDuration + 1) {
+            // Gentle yawn effect (sound + faint breath puff)
+            try {
+                mob.playSound(SoundEvents.ENTITY_FOX_AMBIENT, 0.2f, 0.7f);
+            } catch (Throwable ignored) {
+            }
+            if (!mob.getEntityWorld().isClient()) {
+                try {
+                    ((ServerWorld) mob.getEntityWorld()).spawnParticles(
+                        ParticleTypes.CLOUD,
+                        mob.getParticleX(0.5D),
+                        mob.getRandomBodyY(),
+                        mob.getParticleZ(0.5D),
+                        2,
+                        0.1, 0.0, 0.1,
+                        0.02
+                    );
+                } catch (Throwable ignored) {
+                }
+            }
         }
 
         // Stretch phase
@@ -88,6 +114,8 @@ public class StretchAndYawnGoal extends AdaptiveGoal {
             } else {
                 mob.setPitch(MathHelper.lerp((progress - 0.5f) / 0.5f, 10, 0));
             }
+            // Slight head wobble during yawn
+            mob.setYaw(mob.getYaw() + (float)Math.sin(yawnTicks * 0.3f) * 0.8f);
         }
     }
     

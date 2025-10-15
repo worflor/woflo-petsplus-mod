@@ -18,6 +18,7 @@ import java.util.List;
  * Creates territorial, guardian-like behavior.
  */
 public class PurposefulPatrolGoal extends AdaptiveGoal {
+    private static final String LAST_WET_TICK_KEY = "last_wet_tick";
     private List<BlockPos> patrolPoints = new ArrayList<>();
     private int currentPointIndex = 0;
     private int patrolTicks = 0;
@@ -29,12 +30,19 @@ public class PurposefulPatrolGoal extends AdaptiveGoal {
     
     @Override
     protected boolean canStartGoal() {
+        // Shelter-hold: avoid patrol while drying under cover in rain
+        if (isShelterHoldActive()) {
+            return false;
+        }
         setupPatrolPoints();
         return !patrolPoints.isEmpty() && mob.isOnGround();
     }
     
     @Override
     protected boolean shouldContinueGoal() {
+        if (isShelterHoldActive()) {
+            return false;
+        }
         return patrolTicks < MAX_PATROL_TICKS && !patrolPoints.isEmpty();
     }
     
@@ -43,6 +51,22 @@ public class PurposefulPatrolGoal extends AdaptiveGoal {
         patrolTicks = 0;
         currentPointIndex = 0;
         setupPatrolPoints();
+    }
+
+    private boolean isShelterHoldActive() {
+        var world = mob.getEntityWorld();
+        if (world == null || (!world.isRaining() && !world.isThundering())) {
+            return false;
+        }
+        if (world.isSkyVisible(mob.getBlockPos())) {
+            return false;
+        }
+        var pc = woflo.petsplus.state.PetComponent.get(mob);
+        if (pc == null) {
+            return false;
+        }
+        Long lastWet = pc.getStateData(LAST_WET_TICK_KEY, Long.class);
+        return lastWet != null && world.getTime() - lastWet <= 2400L;
     }
     
     @Override

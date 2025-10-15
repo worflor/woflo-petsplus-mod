@@ -30,10 +30,16 @@ public class PerchOnShoulderGoal extends AdaptiveGoal {
     protected boolean canStartGoal() {
         PetContext ctx = getContext();
         PlayerEntity owner = ctx.owner();
-        
+
         // Only small flying pets
         if (owner == null || mob.getWidth() > 0.6f) return false;
-        
+
+        // Avoid perching if the owner is exposed to rain (keeps cute vibe under cover)
+        if ((mob.getEntityWorld().isRaining() || mob.getEntityWorld().isThundering())
+            && mob.getEntityWorld().isSkyVisible(owner.getBlockPos())) {
+            return false;
+        }
+
         if (!mob.isOnGround() && ctx.ownerNearby() && ctx.distanceToOwner() < 8.0) {
             if (ctx.mobInteractionProfile() != null && ctx.mobInteractionProfile().maintainBuffer()) {
                 double nearest = ctx.nearbyMobAgeProfile() != null ? ctx.nearbyMobAgeProfile().nearestBabyDistance() : Double.POSITIVE_INFINITY;

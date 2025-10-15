@@ -36,6 +36,7 @@ import woflo.petsplus.state.emotions.PetMoodEngine;
  * Enhanced follow owner goal with better pathfinding and role-specific behavior.
  */
 public class EnhancedFollowOwnerGoal extends Goal {
+    private static final String LAST_WET_TICK_KEY = "last_wet_tick";
     private static final float HESITATION_LOOK_YAW = 20.0f;
     private static final double HESITATION_SPEED_BOOST = 0.2d;
     private static final float HESITATION_DISTANCE_FACTOR = 0.6f;
@@ -128,6 +129,16 @@ public class EnhancedFollowOwnerGoal extends Goal {
             return false;
         }
 
+        // Rain-shelter hold: if it's raining, the pet is sheltered and was recently wet,
+        // avoid starting follow unless the owner is already very close (won't force leaving cover).
+        if (isShelterHoldActive()) {
+            LivingEntity owner = this.tameable.petsplus$getOwner();
+            double distanceSq = (owner == null) ? Double.POSITIVE_INFINITY : this.mob.squaredDistanceTo(owner);
+            if (!Double.isNaN(distanceSq) && distanceSq > (3.0 * 3.0)) {
+                return false;
+            }
+        }
+
         LivingEntity livingOwner = this.tameable.petsplus$getOwner();
         if (!(livingOwner instanceof PlayerEntity owner)) {
             return false;
@@ -201,6 +212,14 @@ public class EnhancedFollowOwnerGoal extends Goal {
             return false;
         }
 
+        // Keep holding position under shelter if recently wet during rain.
+        if (isShelterHoldActive()) {
+            double distance = this.mob.squaredDistanceTo(owner);
+            if (!Double.isNaN(distance) && distance > (3.0 * 3.0)) {
+                return false;
+            }
+        }
+
         double distance = this.mob.squaredDistanceTo(owner);
         if (distance > (this.teleportDistance * this.teleportDistance)) {
             return true;
@@ -260,6 +279,13 @@ public class EnhancedFollowOwnerGoal extends Goal {
         long now = owner.getEntityWorld().getTime();
         if (petComponent.isOnCooldown(FOLLOW_PATH_COOLDOWN_KEY)
             || (pathBlockedUntilTick != Long.MIN_VALUE && now < pathBlockedUntilTick)) {
+            this.mob.getNavigation().stop();
+            this.lastMoveTarget = null;
+            return;
+        }
+
+        // Respect shelter hold during rain: don't leave cover to follow while drying off.
+        if (isShelterHoldActive()) {
             this.mob.getNavigation().stop();
             this.lastMoveTarget = null;
             return;
@@ -621,6 +647,31 @@ public class EnhancedFollowOwnerGoal extends Goal {
 
         float intensity = hesitating ? 0.35f : 0.55f;
         moodEngine.recordBehavioralActivity(intensity, delta, PetMoodEngine.ActivityType.PHYSICAL);
+    }
+
+    private boolean isShelterHoldActive() {
+        // Active if
+        // - raining or thundering
+        // - pet is not exposed to sky at its current position (sheltered)
+        // - pet was recently wet (tracked by EnvironmentDesirabilitySignal / ShakeDryGoal)
+        var world = this.mob.getEntityWorld();
+        if (world == null || (!world.isRaining() && !world.isThundering())) {
+            return false;
+        }
+        if (world.isSkyVisible(this.mob.getBlockPos())) {
+            return false; // not sheltered
+        }
+        PetComponent pc = this.petComponent;
+        if (pc == null) {
+            return false;
+        }
+        Long lastWetTick = pc.getStateData(LAST_WET_TICK_KEY, Long.class);
+        if (lastWetTick == null) {
+            return false;
+        }
+        long now = world.getTime();
+        // Consider "recently wet" within 120 seconds (2400 ticks), aligning with signals
+        return now - lastWetTick <= 2400L;
     }
 
     private double resolveDynamicSpeed(double distanceToOwnerSq, boolean hesitating) {

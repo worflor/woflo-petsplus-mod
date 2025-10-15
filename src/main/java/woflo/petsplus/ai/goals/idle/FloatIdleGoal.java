@@ -57,17 +57,23 @@ public class FloatIdleGoal extends AdaptiveGoal {
     @Override
     protected void onTickGoal() {
         floatTicks++;
-        
+
         // Gentle bobbing motion
         double bob = Math.sin(floatTicks * 0.1) * 0.01;
         mob.setVelocity(mob.getVelocity().multiply(0.98, 0.95, 0.98).add(0, bob, 0));
-        
+
         // Gentle rotation
         mob.setYaw(mob.getYaw() + (float)Math.sin(floatTicks * 0.05) * 0.5f);
 
         // Particle effect
-        if (!mob.getEntityWorld().isClient() && mob.getRandom().nextFloat() < 0.1f) {
-            ((ServerWorld) mob.getEntityWorld()).spawnParticles(ParticleTypes.BUBBLE, mob.getParticleX(1.0D), mob.getRandomBodyY(), mob.getParticleZ(1.0D), 1, 0.5, 0.5, 0.5, 0.02);
+        if (!mob.getEntityWorld().isClient()) {
+            if (mob.getRandom().nextFloat() < 0.1f) {
+                ((ServerWorld) mob.getEntityWorld()).spawnParticles(ParticleTypes.BUBBLE, mob.getParticleX(1.0D), mob.getRandomBodyY(), mob.getParticleZ(1.0D), 1, 0.5, 0.5, 0.5, 0.02);
+            }
+            // Occasional bubble pop for texture
+            if (floatTicks % 40 == 0 && mob.getRandom().nextBoolean()) {
+                ((ServerWorld) mob.getEntityWorld()).spawnParticles(ParticleTypes.BUBBLE_POP, mob.getParticleX(0.6D), mob.getRandomBodyY(), mob.getParticleZ(0.6D), 1, 0.1, 0.1, 0.1, 0.01);
+            }
         }
     }
     

@@ -17,6 +17,7 @@ import java.util.EnumSet;
  * Owner orbit - maintains distance while circling owner.
  */
 public class OwnerOrbitGoal extends AdaptiveGoal {
+    private static final String LAST_WET_TICK_KEY = "last_wet_tick";
     private double orbitAngle;
     private double orbitRadius = 4.0;
     private Vec3d orbitTarget;
@@ -33,6 +34,13 @@ public class OwnerOrbitGoal extends AdaptiveGoal {
             return false;
         }
 
+        // Shelter-hold: if raining and pet is sheltered and recently wet, avoid leaving cover
+        if (isShelterHoldActive()) {
+            if (ctx.distanceToOwner() > 3.0f) {
+                return false;
+            }
+        }
+
         MobCapabilities.CapabilityProfile capabilities = MobCapabilities.analyze(mob);
 
         if (!canOrbitInCurrentMedium(capabilities)) {
@@ -46,6 +54,11 @@ public class OwnerOrbitGoal extends AdaptiveGoal {
     protected boolean shouldContinueGoal() {
         PetContext ctx = getContext();
         if (ctx.owner() == null || !ctx.ownerNearby()) {
+            return false;
+        }
+
+        // Continue only if not shelter-holding or owner is very close
+        if (isShelterHoldActive() && ctx.distanceToOwner() > 3.0f) {
             return false;
         }
 
@@ -67,6 +80,11 @@ public class OwnerOrbitGoal extends AdaptiveGoal {
 
     @Override
     protected void onTickGoal() {
+        // Don’t step out from under cover during shelter-hold
+        if (isShelterHoldActive()) {
+            mob.getNavigation().stop();
+            return;
+        }
         MobCapabilities.CapabilityProfile capabilities = MobCapabilities.analyze(mob);
 
         if (!canOrbitInCurrentMedium(capabilities)) {
@@ -110,6 +128,25 @@ public class OwnerOrbitGoal extends AdaptiveGoal {
             woflo.petsplus.state.PetComponent.Emotion.GUARDIAN_VIGIL, 0.12f,
             woflo.petsplus.state.PetComponent.Emotion.LOYALTY, 0.10f
         );
+    }
+
+    private boolean isShelterHoldActive() {
+        var world = this.mob.getEntityWorld();
+        if (world == null || (!world.isRaining() && !world.isThundering())) {
+            return false;
+        }
+        if (world.isSkyVisible(this.mob.getBlockPos())) {
+            return false;
+        }
+        var pc = woflo.petsplus.state.PetComponent.get(mob);
+        if (pc == null) {
+            return false;
+        }
+        Long lastWetTick = pc.getStateData(LAST_WET_TICK_KEY, Long.class);
+        if (lastWetTick == null) {
+            return false;
+        }
+        return world.getTime() - lastWetTick <= 2400L;
     }
     
     @Override
