@@ -11,7 +11,7 @@
 ---
 
 <h4 align="center">Recent Changes</h4>
-<ul align="center" style="list-style-type:none; padding-left:0; text-align:left; margin:0;">
+<ul>
   <li>Backend 0.94 [nature] - Parent natures are now exposed as predicates for nature conditions.</li>
   <li>Updated 0.94 [version] - 1.21.8 -> 1.21.10. ;-;</li>
   <li>Rework 0.95 [ai] - Following the same path as the stimulus pipeline, AI uses pet context, mood engine snapshots, and more to allow dynamic emergent behaviour (adaptive goal).</li>
