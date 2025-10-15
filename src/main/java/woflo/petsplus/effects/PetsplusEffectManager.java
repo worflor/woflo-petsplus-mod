@@ -5,7 +5,6 @@ import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.particle.ParticleTypes;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.server.MinecraftServer;
@@ -16,7 +15,6 @@ import net.minecraft.sound.SoundEvent;
 import net.minecraft.text.Text;
 
 import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.entity.PetsplusTameable;
@@ -34,6 +32,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import woflo.petsplus.ui.ActionBarUtils;
+import woflo.petsplus.ui.FeedbackManager;
 
 /**
  * Applies passive aura and support behaviors driven by role metadata.
@@ -328,54 +327,26 @@ public final class PetsplusEffectManager {
 
     private static void emitParticles(ServerWorld world, MobEntity pet, ServerPlayerEntity owner,
                                       Set<LivingEntity> recipients, double radius, String particleEvent) {
+        if (world == null || world.isClient()) {
+            return;
+        }
+        String eventKey = resolveAuraFeedbackKey(particleEvent);
+        if (eventKey == null) {
+            return;
+        }
+        FeedbackManager.emitFeedback(eventKey, pet, world);
+    }
+
+    private static String resolveAuraFeedbackKey(String particleEvent) {
         if (particleEvent == null || particleEvent.isBlank()) {
-            return;
+            return null;
         }
-        if (world.isClient()) {
-            return;
-        }
-        switch (particleEvent) {
-            case "guardian" -> emitGuardianParticles(world, pet.getEntityPos(), owner != null ? owner.getEntityPos() : pet.getEntityPos());
-            case "support" -> emitSupportParticles(world, pet, radius, recipients);
-            case "nap_time" -> emitNapTimeParticles(world, pet.getEntityPos(), radius);
-            default -> emitGenericParticles(world, pet.getEntityPos());
-        }
-    }
-
-    private static void emitGuardianParticles(ServerWorld world, Vec3d petPos, Vec3d ownerPos) {
-        for (int i = 0; i < 8; i++) {
-            double angle = i * Math.PI / 4;
-            double x = petPos.x + Math.cos(angle) * 1.5;
-            double z = petPos.z + Math.sin(angle) * 1.5;
-            world.spawnParticles(ParticleTypes.ENCHANT, x, petPos.y + 1, z, 1, 0, 0, 0, 0.02);
-        }
-        world.spawnParticles(ParticleTypes.END_ROD, ownerPos.x, ownerPos.y + 1, ownerPos.z, 4, 0.2, 0.4, 0.2, 0.01);
-    }
-
-    private static void emitSupportParticles(ServerWorld world, MobEntity pet, double radius, Set<LivingEntity> recipients) {
-        Vec3d center = pet.getEntityPos();
-        int count = Math.max(4, recipients.size() * 3);
-        for (int i = 0; i < count; i++) {
-            double angle = i * (Math.PI * 2 / count);
-            double distance = Math.min(radius, 2.5);
-            double x = center.x + Math.cos(angle) * distance;
-            double z = center.z + Math.sin(angle) * distance;
-            world.spawnParticles(ParticleTypes.HEART, x, center.y + 0.7, z, 1, 0.1, 0.2, 0.1, 0);
-        }
-    }
-
-    private static void emitNapTimeParticles(ServerWorld world, Vec3d petPos, double radius) {
-        for (int i = 0; i < 6; i++) {
-            double angle = world.random.nextDouble() * Math.PI * 2;
-            double distance = world.random.nextDouble() * radius;
-            double x = petPos.x + Math.cos(angle) * distance;
-            double z = petPos.z + Math.sin(angle) * distance;
-            world.spawnParticles(ParticleTypes.SNEEZE, x, petPos.y + 0.5, z, 1, 0.0, 0.1, 0.0, 0.01);
-        }
-    }
-
-    private static void emitGenericParticles(ServerWorld world, Vec3d petPos) {
-        world.spawnParticles(ParticleTypes.GLOW, petPos.x, petPos.y + 0.8, petPos.z, 3, 0.2, 0.3, 0.2, 0.01);
+        return switch (particleEvent) {
+            case "guardian" -> "passive_guardian_aura";
+            case "support" -> "passive_support_aura";
+            case "nap_time" -> "passive_eepy_nap_aura";
+            default -> "passive_generic_aura";
+        };
     }
 
     private static boolean isPetSitting(MobEntity pet) {

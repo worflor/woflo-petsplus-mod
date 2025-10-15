@@ -184,6 +184,9 @@ public class FeedbackConfig {
         // Role identification particles (passive)
         registerRoleParticles();
 
+        // Passive aura cues that were previously direct spawns
+        registerPassiveAuraFeedback();
+
         // Ability feedback effects (active)
         registerAbilityFeedback();
 
@@ -252,6 +255,27 @@ public class FeedbackConfig {
         register("eclipsed_ambient", List.of(
             new ParticleConfig(ParticleTypes.PORTAL, 2, 0.02, 0.02, 0.02, 0.01, "random", 0.6, true),
             new ParticleConfig(ParticleTypes.REVERSE_PORTAL, 1, 0.1, 0.08, 0.1, 0.02, "burst", 0.1, false)
+        ), null, 0, true);
+    }
+
+    private static void registerPassiveAuraFeedback() {
+        register("passive_guardian_aura", List.of(
+            new ParticleConfig(ParticleTypes.END_ROD, 1, 0.05, 0.12, 0.05, 0.01, "circle", 1.0, true),
+            new ParticleConfig(ParticleTypes.ENCHANT, 1, 0.04, 0.06, 0.04, 0.008, "burst", 0.2, false)
+        ), null, 0, true);
+
+        register("passive_support_aura", List.of(
+            new ParticleConfig(EffectParticleEffect.of(ParticleTypes.EFFECT, 0.6F, 1.0F, 0.6F, 1.0F), 1, 0.05, 0.08, 0.05, 0.01, "circle", 0.8, true),
+            new ParticleConfig(ParticleTypes.HAPPY_VILLAGER, 1, 0.05, 0.12, 0.05, 0.0, "burst", 0.2, false)
+        ), null, 0, true);
+
+        register("passive_eepy_nap_aura", List.of(
+            new ParticleConfig(ParticleTypes.SPORE_BLOSSOM_AIR, 1, 0.08, 0.04, 0.08, 0.006, "area", 0.6, true),
+            new ParticleConfig(ParticleTypes.END_ROD, 1, 0.04, 0.18, 0.04, 0.008, "spiral", 0.4, true)
+        ), null, 0, true);
+
+        register("passive_generic_aura", List.of(
+            new ParticleConfig(ParticleTypes.GLOW, 1, 0.05, 0.1, 0.05, 0.01, "burst", 0.25, true)
         ), null, 0, true);
     }
 
