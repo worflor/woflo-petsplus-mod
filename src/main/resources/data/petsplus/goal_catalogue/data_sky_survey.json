@@ -1,0 +1,22 @@
+{
+  "category": "special",
+  "priority": 21,
+  "cooldown": {
+    "min": 30,
+    "max": 90
+  },
+  "requirement": {
+    "all_of": [
+      "can_fly",
+      "has_owner",
+      "prefers_air"
+    ]
+  },
+  "energy_range": {
+    "min": 0.45,
+    "max": 0.95
+  },
+  "idle_stamina_bias": "centered",
+  "marks_major_activity": true,
+  "goal_factory": "woflo.petsplus.ai.goals.special.SkySurveyGoal"
+}

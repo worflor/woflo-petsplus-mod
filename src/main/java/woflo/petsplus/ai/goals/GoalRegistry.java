@@ -579,6 +579,23 @@ public final class GoalRegistry {
             false,
             StargazingGoal::new
         ));
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.SKY_SURVEY,
+            Category.SPECIAL,
+            21,
+            secondsToTicks(40),
+            secondsToTicks(90),
+            MobCapabilities.CapabilityRequirement.allOf(List.of(
+                MobCapabilities.CapabilityRequirement.fromToken("can_fly"),
+                MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+                MobCapabilities.CapabilityRequirement.fromToken("prefers_air")
+            )),
+            new Vec2f(0.45f, 0.95f),
+            IdleStaminaBias.CENTERED,
+            false,
+            true,
+            SkySurveyGoal::new
+        ));
         // Subtle behavior: P0 - Sunbeam sprawl (world interaction)
         registerBuiltIn(new GoalDefinition(
             GoalIds.SUNBEAM_SPRAWL,

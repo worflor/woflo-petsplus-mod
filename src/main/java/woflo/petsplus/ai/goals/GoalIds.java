@@ -55,6 +55,7 @@ public final class GoalIds {
     public static final Identifier HIDE_AND_SEEK = id("hide_and_seek");
     public static final Identifier INVESTIGATE_BLOCK = id("investigate_block");
     public static final Identifier STARGAZING = id("stargazing");
+    public static final Identifier SKY_SURVEY = id("sky_survey");
     // Subtle behavior: P0
     public static final Identifier SUNBEAM_SPRAWL = id("sunbeam_sprawl");
     public static final Identifier SCENT_TRAIL_SNIFF = id("scent_trail_sniff");
