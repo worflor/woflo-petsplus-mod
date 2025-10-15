@@ -3,6 +3,7 @@ package woflo.petsplus.ai.goals.social;
 import net.minecraft.block.BedBlock;
 import net.minecraft.block.enums.BedPart;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.ai.pathing.Path;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.passive.CatEntity;
 import net.minecraft.entity.passive.ParrotEntity;
@@ -28,6 +29,8 @@ import woflo.petsplus.ai.goals.EmotionFeedback;
 import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.relationships.InteractionType;
 
 import java.util.ArrayList;
@@ -59,6 +62,8 @@ public class BedtimeCompanionGoal extends AdaptiveGoal {
     private boolean forcedSit;
     private float closenessAffinity = 0.62f;
     private float displayedCloseness = 0.6f;
+    private boolean participationHealGranted;
+    private int reachabilityCooldown;
 
     public BedtimeCompanionGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.BEDTIME_COMPANION), EnumSet.of(Control.MOVE, Control.LOOK));
@@ -132,6 +137,8 @@ public class BedtimeCompanionGoal extends AdaptiveGoal {
         forcedCatPose = false;
         forcedSit = false;
         displayedCloseness = closenessAffinity;
+        participationHealGranted = false;
+        reachabilityCooldown = 0;
     }
 
     @Override
@@ -148,6 +155,8 @@ public class BedtimeCompanionGoal extends AdaptiveGoal {
         stuckTicks = 0;
         affectionCooldown = 0;
         lastDistanceSq = Double.POSITIVE_INFINITY;
+        participationHealGranted = false;
+        reachabilityCooldown = 0;
     }
 
     @Override
@@ -188,7 +197,29 @@ public class BedtimeCompanionGoal extends AdaptiveGoal {
             this.style = activePlan.style();
         }
 
+        SnugglePlan validatedPlan = ensurePlanReachable(player, activePlan);
+        if (validatedPlan == null) {
+            requestStop();
+            return;
+        }
+        if (validatedPlan != activePlan) {
+            this.plan = validatedPlan;
+            this.style = validatedPlan.style();
+            activePlan = validatedPlan;
+            settleTicks = 0;
+            relationshipTicks = 0;
+            stuckTicks = 0;
+            lastDistanceSq = Double.POSITIVE_INFINITY;
+            releaseAffectionState();
+        } else {
+            activePlan = validatedPlan;
+        }
+
         Vec3d target = activePlan.target();
+        if (target == null) {
+            requestStop();
+            return;
+        }
         double previousDistanceSq = lastDistanceSq;
         double distanceSq = mob.squaredDistanceTo(target);
         lastDistanceSq = distanceSq;
@@ -219,7 +250,11 @@ public class BedtimeCompanionGoal extends AdaptiveGoal {
                 target = activePlan.target();
                 distanceSq = mob.squaredDistanceTo(target);
                 lastDistanceSq = distanceSq;
+                settleTicks = 0;
+                relationshipTicks = 0;
                 stuckTicks = 0;
+                reachabilityCooldown = 10 + mob.getRandom().nextInt(10);
+                releaseAffectionState();
             }
             planCooldown = 40 + mob.getRandom().nextInt(30);
         }
@@ -253,6 +288,10 @@ public class BedtimeCompanionGoal extends AdaptiveGoal {
             mob.getLookControl().lookAt(player, 18.0f, 18.0f);
             float closenessForEffects = MathHelper.clamp((displayedCloseness * 0.6f) + (planCloseness * 0.4f), 0.0f, 1.0f);
             applyStyleSettled(player, closenessForEffects, planCloseness);
+
+            if (!participationHealGranted && mob.getEntityWorld() instanceof ServerWorld serverWorld) {
+                grantParticipationHeal(serverWorld);
+            }
 
             if (relationshipTicks >= RELATIONSHIP_PULSE_INTERVAL) {
                 relationshipTicks = 0;
@@ -357,12 +396,14 @@ public class BedtimeCompanionGoal extends AdaptiveGoal {
         }
 
         // gentle sway towards owner for cuddly effect
-        Vec3d ownerPos = owner.getEntityPos();
-        Vec3d petPos = mob.getEntityPos();
-        double swayScale = 0.008d + (double) closenessForEffects * 0.014d;
-        Vec3d towardOwner = ownerPos.subtract(petPos).multiply(swayScale);
-        mob.addVelocity(towardOwner.x, 0.0d, towardOwner.z);
-        mob.velocityModified = true;
+        if (mob.isOnGround()) {
+            Vec3d ownerPos = owner.getEntityPos();
+            Vec3d petPos = mob.getEntityPos();
+            double swayScale = 0.008d + (double) closenessForEffects * 0.014d;
+            Vec3d towardOwner = ownerPos.subtract(petPos).multiply(swayScale);
+            mob.addVelocity(towardOwner.x, 0.0d, towardOwner.z);
+            mob.velocityModified = true;
+        }
     }
 
     private void maybePlayAmbient(ServerWorld world, @Nullable SoundEvent sound, float volume, float basePitch, float particleChance, float closeness) {
@@ -473,19 +514,87 @@ public class BedtimeCompanionGoal extends AdaptiveGoal {
         return getContext().owner();
     }
 
-    private SnugglePlan resolvePlan(net.minecraft.entity.player.PlayerEntity owner, SnuggleStyle preferred) {
+    private SnugglePlan resolvePlan(net.minecraft.entity.player.PlayerEntity owner, SnuggleStyle preferred, SnuggleStyle... exclude) {
         SnuggleStyle[] order = switch (preferred) {
             case BED_TOP -> new SnuggleStyle[]{SnuggleStyle.BED_TOP, SnuggleStyle.BED_SIDE, SnuggleStyle.PERCH_NEARBY};
             case BED_SIDE -> new SnuggleStyle[]{SnuggleStyle.BED_SIDE, SnuggleStyle.BED_TOP, SnuggleStyle.PERCH_NEARBY};
             case PERCH_NEARBY -> new SnuggleStyle[]{SnuggleStyle.PERCH_NEARBY, SnuggleStyle.BED_SIDE, SnuggleStyle.BED_TOP};
         };
         for (SnuggleStyle candidate : order) {
+            if (isExcluded(candidate, exclude)) {
+                continue;
+            }
             SnugglePlan plan = computePlanForStyle(owner, candidate);
             if (plan != null) {
                 return plan;
             }
         }
         return null;
+    }
+
+    private SnugglePlan ensurePlanReachable(net.minecraft.entity.player.PlayerEntity owner, SnugglePlan plan) {
+        if (plan == null) {
+            return null;
+        }
+        World world = mob.getEntityWorld();
+        if (world == null) {
+            return null;
+        }
+
+        Vec3d target = plan.target();
+        if (target == null || !Double.isFinite(target.x) || !Double.isFinite(target.y) || !Double.isFinite(target.z)) {
+            SnugglePlan fallback = resolvePlan(owner, plan.style());
+            if (fallback != null && !fallback.equals(plan)) {
+                return fallback;
+            }
+            return resolvePlan(owner, style, plan.style());
+        }
+
+        BlockPos targetPos = BlockPos.ofFloored(target);
+        if (!world.isChunkLoaded(targetPos)) {
+            SnugglePlan fallback = resolvePlan(owner, plan.style());
+            if (fallback != null && !fallback.equals(plan)) {
+                return fallback;
+            }
+            return resolvePlan(owner, style, plan.style());
+        }
+
+        if (reachabilityCooldown > 0) {
+            reachabilityCooldown--;
+            return plan;
+        }
+
+        double distanceSq = mob.squaredDistanceTo(target);
+        if (distanceSq <= 1.75d) {
+            reachabilityCooldown = 20;
+            return plan;
+        }
+
+        Path path = mob.getNavigation().findPathTo(targetPos, 0);
+        reachabilityCooldown = 34 + mob.getRandom().nextInt(20);
+        if (path == null || !path.reachesTarget()) {
+            SnugglePlan fallback = resolvePlan(owner, plan.style());
+            if (fallback != null && !fallback.equals(plan)) {
+                return fallback;
+            }
+            fallback = resolvePlan(owner, style, plan.style());
+            if (fallback != null) {
+                return fallback;
+            }
+        }
+        return plan;
+    }
+
+    private static boolean isExcluded(SnuggleStyle candidate, SnuggleStyle... exclude) {
+        if (exclude == null) {
+            return false;
+        }
+        for (SnuggleStyle style : exclude) {
+            if (style == candidate) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private SnugglePlan computePlanForStyle(net.minecraft.entity.player.PlayerEntity owner, SnuggleStyle style) {
@@ -713,6 +822,84 @@ public class BedtimeCompanionGoal extends AdaptiveGoal {
     private void releaseAffectionState() {
         if (mob instanceof WolfEntity wolf) {
             wolf.setBegging(false);
+        }
+    }
+
+    private void grantParticipationHeal(ServerWorld world) {
+        if (participationHealGranted) {
+            return;
+        }
+
+        PetComponent component = PetComponent.get(mob);
+        if (component == null) {
+            return;
+        }
+
+        UUID ownerId = component.getOwnerUuid();
+        if (ownerId == null) {
+            return;
+        }
+
+        int participantCount = countActiveParticipants(world, ownerId);
+        int additionalPets = Math.max(0, participantCount - 1);
+        float healPercent = MathHelper.clamp(0.5f + (additionalPets * 0.05f), 0.5f, 0.8f);
+        float healAmount = mob.getMaxHealth() * healPercent;
+        applySafeHeal(mob, healAmount);
+        participationHealGranted = true;
+    }
+
+    private int countActiveParticipants(ServerWorld world, UUID ownerId) {
+        StateManager manager = StateManager.forWorld(world);
+        if (manager == null) {
+            return 1;
+        }
+
+        PetSwarmIndex swarmIndex = manager.getSwarmIndex();
+        List<PetSwarmIndex.SwarmEntry> entries = swarmIndex.snapshotOwner(ownerId);
+        if (entries == null || entries.isEmpty()) {
+            return 1;
+        }
+
+        int count = 0;
+        for (PetSwarmIndex.SwarmEntry entry : entries) {
+            if (entry == null) {
+                continue;
+            }
+            MobEntity participant = entry.pet();
+            PetComponent participantComponent = entry.component();
+            if (participant == null || participantComponent == null) {
+                continue;
+            }
+            if (!participant.isAlive() || participant.isRemoved()) {
+                continue;
+            }
+            if (!GoalIds.BEDTIME_COMPANION.equals(participantComponent.getActiveAdaptiveGoalId())) {
+                continue;
+            }
+            count++;
+        }
+        return Math.max(count, 1);
+    }
+
+    private static void applySafeHeal(LivingEntity entity, float amount) {
+        if (entity == null || amount <= 0f) {
+            return;
+        }
+        float currentHealth = entity.getHealth();
+        float maxHealth = entity.getMaxHealth();
+        float missingHealth = Math.max(0f, maxHealth - currentHealth);
+        if (missingHealth <= 0f) {
+            return;
+        }
+        float healAmount = Math.min(amount, missingHealth);
+        if (healAmount <= 0f) {
+            return;
+        }
+        try {
+            entity.heal(healAmount);
+        } catch (Throwable t) {
+            float newHealth = Math.min(maxHealth, currentHealth + healAmount);
+            entity.setHealth(newHealth);
         }
     }
 
