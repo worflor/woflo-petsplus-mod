@@ -41,6 +41,7 @@ final class GoalDataParser {
             ? GoalDefinition.IdleStaminaBias.valueOf(getString(json, "idle_stamina_bias").toUpperCase(Locale.ROOT))
             : GoalDefinition.IdleStaminaBias.CENTERED;
         boolean socialBias = json.has("social_idle_bias") && json.get("social_idle_bias").getAsBoolean();
+        boolean marksMajorActivity = json.has("marks_major_activity") && json.get("marks_major_activity").getAsBoolean();
 
         String factoryClass = getString(json, "goal_factory");
         GoalDefinition.GoalFactory factory = createFactory(factoryClass);
@@ -55,6 +56,7 @@ final class GoalDataParser {
             energyRange,
             idleBias,
             socialBias,
+            marksMajorActivity,
             factory
         );
     }

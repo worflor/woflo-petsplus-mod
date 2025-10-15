@@ -24,6 +24,7 @@ class GoalDefinitionEnergyCompatibilityTest {
             new Vec2f(0.3f, 0.8f),
             GoalDefinition.IdleStaminaBias.CENTERED,
             false,
+            false,
             mob -> null
         );
 
@@ -51,6 +52,7 @@ class GoalDefinitionEnergyCompatibilityTest {
             MobCapabilities.CapabilityRequirement.any(),
             new Vec2f(0.2f, 0.9f),
             GoalDefinition.IdleStaminaBias.LOW,
+            false,
             false,
             mob -> null
         );
@@ -80,6 +82,7 @@ class GoalDefinitionEnergyCompatibilityTest {
             new Vec2f(0.25f, 0.85f),
             GoalDefinition.IdleStaminaBias.CENTERED,
             false,
+            false,
             mob -> null
         );
 
@@ -107,6 +110,7 @@ class GoalDefinitionEnergyCompatibilityTest {
             MobCapabilities.CapabilityRequirement.any(),
             new Vec2f(0.2f, 0.9f),
             GoalDefinition.IdleStaminaBias.LOW,
+            false,
             false,
             mob -> null
         );
@@ -146,6 +150,7 @@ class GoalDefinitionEnergyCompatibilityTest {
             new Vec2f(0.2f, 0.7f),
             GoalDefinition.IdleStaminaBias.HIGH,
             false,
+            false,
             mob -> null
         );
 
@@ -174,6 +179,7 @@ class GoalDefinitionEnergyCompatibilityTest {
             new Vec2f(0.2f, 0.8f),
             GoalDefinition.IdleStaminaBias.CENTERED,
             true,
+            false,
             mob -> null
         );
 

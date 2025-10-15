@@ -11,6 +11,7 @@
     "max": 1.0
   },
   "idle_stamina_bias": "centered",
+  "marks_major_activity": true,
   "social_idle_bias": false,
   "goal_factory": "woflo.petsplus.ai.goals.play.FetchItemGoal"
 }

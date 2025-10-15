@@ -19,6 +19,8 @@ public final class PetAIState {
     private static final int MAX_RECENT_GOALS = 8;
 
     private @Nullable Identifier activeMajorGoal;
+    private @Nullable Identifier activeAdaptiveGoalId;
+    private long activeAdaptiveGoalStartTick = Long.MIN_VALUE;
     private boolean panicking;
     private final ArrayDeque<Identifier> recentGoals = new ArrayDeque<>(MAX_RECENT_GOALS);
     private final Map<Identifier, Long> goalExecutionTimestamps = new HashMap<>();
@@ -32,6 +34,8 @@ public final class PetAIState {
      */
     public void reset() {
         this.activeMajorGoal = null;
+        this.activeAdaptiveGoalId = null;
+        this.activeAdaptiveGoalStartTick = Long.MIN_VALUE;
         this.panicking = false;
         this.recentGoals.clear();
         this.goalExecutionTimestamps.clear();
@@ -53,6 +57,22 @@ public final class PetAIState {
      */
     public void setActiveMajorGoal(@Nullable Identifier goalId) {
         this.activeMajorGoal = goalId;
+    }
+
+    public @Nullable Identifier getActiveAdaptiveGoalId() {
+        return activeAdaptiveGoalId;
+    }
+
+    public void setActiveAdaptiveGoalId(@Nullable Identifier activeAdaptiveGoalId) {
+        this.activeAdaptiveGoalId = activeAdaptiveGoalId;
+    }
+
+    public long getActiveAdaptiveGoalStartTick() {
+        return activeAdaptiveGoalStartTick;
+    }
+
+    public void setActiveAdaptiveGoalStartTick(long activeAdaptiveGoalStartTick) {
+        this.activeAdaptiveGoalStartTick = activeAdaptiveGoalStartTick;
     }
 
     /**

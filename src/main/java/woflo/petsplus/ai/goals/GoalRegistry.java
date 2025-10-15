@@ -37,6 +37,7 @@ public final class GoalRegistry {
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.LOW,
             false,
+            false,
             StretchAndYawnGoal::new
         ));
 
@@ -49,6 +50,7 @@ public final class GoalRegistry {
             MobCapabilities.CapabilityRequirement.any(),
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.CENTERED,
+            false,
             false,
             CircleSpotGoal::new
         ));
@@ -63,6 +65,7 @@ public final class GoalRegistry {
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.HIGH,
             true,
+            false,
             TailChaseGoal::new
         ));
 
@@ -78,6 +81,7 @@ public final class GoalRegistry {
             )),
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.CENTERED,
+            false,
             false,
             SniffGroundGoal::new
         ));
@@ -95,6 +99,7 @@ public final class GoalRegistry {
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.HIGH,
             false,
+            false,
             PouncePracticeGoal::new
         ));
 
@@ -111,6 +116,7 @@ public final class GoalRegistry {
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.CENTERED,
             false,
+            false,
             PerkEarsScanGoal::new
         ));
 
@@ -123,6 +129,7 @@ public final class GoalRegistry {
             MobCapabilities.CapabilityRequirement.fromToken("can_sit"),
             new Vec2f(0.0f, 0.4f),
             IdleStaminaBias.LOW,
+            false,
             false,
             SitSphinxPoseGoal::new
         ));
@@ -137,6 +144,7 @@ public final class GoalRegistry {
             new Vec2f(0.0f, 0.4f),
             IdleStaminaBias.LOW,
             false,
+            false,
             PreenFeathersGoal::new
         ));
 
@@ -149,6 +157,7 @@ public final class GoalRegistry {
             MobCapabilities.CapabilityRequirement.fromToken("can_fly"),
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.HIGH,
+            false,
             false,
             WingFlutterGoal::new
         ));
@@ -163,6 +172,7 @@ public final class GoalRegistry {
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.HIGH,
             true,
+            false,
             PerchHopGoal::new
         ));
 
@@ -175,6 +185,7 @@ public final class GoalRegistry {
             MobCapabilities.CapabilityRequirement.aquatic(),
             new Vec2f(0.0f, 0.4f),
             IdleStaminaBias.LOW,
+            false,
             false,
             FloatIdleGoal::new
         ));
@@ -189,6 +200,7 @@ public final class GoalRegistry {
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.HIGH,
             true,
+            false,
             BubblePlayGoal::new
         ));
 
@@ -201,6 +213,7 @@ public final class GoalRegistry {
             MobCapabilities.CapabilityRequirement.aquatic(),
             new Vec2f(0.0f, 1.0f),
             IdleStaminaBias.LOW,
+            false,
             false,
             SurfaceBreathGoal::new
         ));
@@ -215,6 +228,7 @@ public final class GoalRegistry {
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.NONE,
             false,
+            false,
             CasualWanderGoal::new
         ));
 
@@ -228,6 +242,7 @@ public final class GoalRegistry {
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.NONE,
             false,
+            false,
             AerialPatrolGoal::new
         ));
 
@@ -240,6 +255,7 @@ public final class GoalRegistry {
             MobCapabilities.CapabilityRequirement.aquatic(),
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.NONE,
+            false,
             false,
             WaterCruiseGoal::new
         ));
@@ -257,6 +273,7 @@ public final class GoalRegistry {
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.NONE,
             false,
+            false,
             ScentTrailFollowGoal::new
         ));
 
@@ -269,6 +286,7 @@ public final class GoalRegistry {
             MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.NONE,
+            false,
             false,
             PurposefulPatrolGoal::new
         ));
@@ -287,6 +305,7 @@ public final class GoalRegistry {
             new Vec2f(0.0f, 1.0f),
             IdleStaminaBias.NONE,
             false,
+            false,
             OwnerOrbitGoal::new
         ));
 
@@ -300,6 +319,7 @@ public final class GoalRegistry {
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.NONE,
             false,
+            true,
             ToyPounceGoal::new
         ));
 
@@ -316,6 +336,7 @@ public final class GoalRegistry {
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.NONE,
             false,
+            true,
             ParkourChallengeGoal::new
         ));
 
@@ -332,6 +353,7 @@ public final class GoalRegistry {
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.NONE,
             false,
+            true,
             FetchItemGoal::new
         ));
 
@@ -345,6 +367,7 @@ public final class GoalRegistry {
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.NONE,
             false,
+            true,
             DivePlayGoal::new
         ));
 
@@ -358,6 +381,7 @@ public final class GoalRegistry {
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.NONE,
             false,
+            true,
             AerialAcrobaticsGoal::new
         ));
 
@@ -373,6 +397,7 @@ public final class GoalRegistry {
             )),
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.NONE,
+            false,
             false,
             WaterSplashGoal::new
         ));
@@ -390,6 +415,7 @@ public final class GoalRegistry {
             new Vec2f(0.0f, 0.6f),
             IdleStaminaBias.NONE,
             false,
+            false,
             LeanAgainstOwnerGoal::new
         ));
 
@@ -403,6 +429,7 @@ public final class GoalRegistry {
             new Vec2f(0.3f, 0.8f),
             IdleStaminaBias.NONE,
             false,
+            true,
             ParallelPlayGoal::new
         ));
 
@@ -416,6 +443,7 @@ public final class GoalRegistry {
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.NONE,
             false,
+            true,
             ShowOffTrickGoal::new
         ));
 
@@ -435,6 +463,7 @@ public final class GoalRegistry {
             new Vec2f(0.0f, 0.7f),
             IdleStaminaBias.NONE,
             false,
+            true,
             PerchOnShoulderGoal::new
         ));
 
@@ -453,6 +482,7 @@ public final class GoalRegistry {
             new Vec2f(0.3f, 0.8f),
             IdleStaminaBias.NONE,
             false,
+            true,
             OrbitSwimGoal::new
         ));
 
@@ -465,6 +495,7 @@ public final class GoalRegistry {
             MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
             new Vec2f(0.3f, 0.9f),
             IdleStaminaBias.NONE,
+            false,
             false,
             CrouchApproachResponseGoal::new
         ));
@@ -482,6 +513,7 @@ public final class GoalRegistry {
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.NONE,
             false,
+            true,
             HideAndSeekGoal::new
         ));
 
@@ -494,6 +526,7 @@ public final class GoalRegistry {
             MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.NONE,
+            false,
             false,
             InvestigateBlockGoal::new
         ));
@@ -508,6 +541,7 @@ public final class GoalRegistry {
             new Vec2f(0.0f, 0.5f),
             IdleStaminaBias.NONE,
             false,
+            false,
             StargazingGoal::new
         ));
         // Subtle behavior: P0 - Sunbeam sprawl (world interaction)
@@ -521,6 +555,7 @@ public final class GoalRegistry {
             new Vec2f(0.0f, 0.6f),
             IdleStaminaBias.LOW,
             false,
+            true,
             SunbeamSprawlGoal::new
         ));
         // Subtle behavior: P0 - Scent trail sniff (world interaction)
@@ -533,6 +568,7 @@ public final class GoalRegistry {
             MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.CENTERED,
+            false,
             false,
             ScentTrailSniffGoal::new
         ));
@@ -547,6 +583,7 @@ public final class GoalRegistry {
             new Vec2f(0.0f, 0.8f),
             IdleStaminaBias.NONE,
             false,
+            false,
             PackGroomGoal::new
         ));
         // Subtle behavior: P0 - Leaf chase wind (environmental playful dart)
@@ -560,6 +597,7 @@ public final class GoalRegistry {
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.NONE,
             false,
+            false,
             LeafChaseWindGoal::new
         ));
         // Subtle behavior: P1 - Puddle paw (world interaction)
@@ -572,6 +610,7 @@ public final class GoalRegistry {
             MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
             new Vec2f(0.0f, 0.6f),
             IdleStaminaBias.LOW,
+            false,
             false,
             PuddlePawGoal::new
         ));
@@ -589,6 +628,7 @@ public final class GoalRegistry {
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.CENTERED,
             false,
+            false,
             BurrowPeekGoal::new
         ));
         // Subtle behavior: P1 - Hearth settle (world interaction)
@@ -602,6 +642,7 @@ public final class GoalRegistry {
             new Vec2f(0.0f, 0.6f),
             IdleStaminaBias.LOW,
             false,
+            true,
             HearthSettleGoal::new
         ));
         // Subtle behavior: P1 - Lead follow nudge (social)
@@ -614,6 +655,7 @@ public final class GoalRegistry {
             MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
             new Vec2f(0.0f, 1.0f),
             IdleStaminaBias.NONE,
+            false,
             false,
             LeadFollowNudgeGoal::new
         ));
@@ -628,6 +670,7 @@ public final class GoalRegistry {
             new Vec2f(0.0f, 1.0f),
             IdleStaminaBias.NONE,
             false,
+            false,
             MirroredYawnGoal::new
         ));
         // Subtle behavior: P1 - Gift bringing (social)
@@ -641,6 +684,7 @@ public final class GoalRegistry {
             new Vec2f(0.25f, 0.75f),
             IdleStaminaBias.NONE,
             false,
+            true,
             GiftBringingGoal::new
         ));
         // Subtle behavior: P1 - Show and drop (social)
@@ -654,6 +698,7 @@ public final class GoalRegistry {
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.NONE,
             false,
+            true,
             ShowAndDropGoal::new
         ));
         // Subtle behavior: P1 - Fish watching (environmental)
@@ -667,6 +712,7 @@ public final class GoalRegistry {
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.CENTERED,
             false,
+            true,
             FishWatchingGoal::new
         ));
         // Subtle behavior: P1 - Night sky listen (environmental)
@@ -680,6 +726,7 @@ public final class GoalRegistry {
             new Vec2f(0.0f, 0.5f),
             IdleStaminaBias.LOW,
             false,
+            true,
             NightSkyListenGoal::new
         ));
         
@@ -692,6 +739,7 @@ public final class GoalRegistry {
             MobCapabilities.CapabilityRequirement.any(),
             new Vec2f(0.0f, 1.0f),
             IdleStaminaBias.NONE,
+            false,
             false,
             ShakeDryGoal::new
         ));
@@ -706,6 +754,7 @@ public final class GoalRegistry {
             new Vec2f(0.3f, 0.7f),
             IdleStaminaBias.NONE,
             false,
+            false,
             GoToDryingBlockGoal::new
         ));
 
@@ -718,6 +767,7 @@ public final class GoalRegistry {
             MobCapabilities.CapabilityRequirement.any(),
             new Vec2f(0.0f, 0.2f),
             IdleStaminaBias.LOW,
+            false,
             false,
             WetShakeGoal::new
         ));

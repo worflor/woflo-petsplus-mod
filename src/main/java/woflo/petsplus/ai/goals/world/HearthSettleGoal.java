@@ -112,10 +112,6 @@ public class HearthSettleGoal extends AdaptiveGoal {
     protected void onStartGoal() {
         ticks = 0;
         duration = MIN_TICKS + mob.getRandom().nextInt((MAX_TICKS - MIN_TICKS) + 1);
-        PetComponent pc = PetComponent.get(mob);
-        if (pc != null) {
-            pc.getAIState().setActiveMajorGoal(GoalIds.HEARTH_SETTLE);
-        }
         if (settlePos != null) {
             mob.getNavigation().startMovingTo(settlePos.x, settlePos.y, settlePos.z, 0.75);
         }
@@ -129,7 +125,6 @@ public class HearthSettleGoal extends AdaptiveGoal {
             pc.setCooldown("hearth_settle", cd);
             int variety = secondsToTicks(20) + mob.getRandom().nextInt(secondsToTicks(16));
             pc.setCooldown("world_micro", variety);
-            pc.getAIState().setActiveMajorGoal(null);
         }
         if (mob.canMoveVoluntarily()) {
             setSitting(false);
