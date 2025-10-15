@@ -8,6 +8,7 @@ import woflo.petsplus.ai.suggester.signal.desirability.MemoryDesirabilitySignal;
 import woflo.petsplus.ai.suggester.signal.desirability.MoodBlendDesirabilitySignal;
 import woflo.petsplus.ai.suggester.signal.desirability.NatureDesirabilitySignal;
 import woflo.petsplus.ai.suggester.signal.desirability.VarietyDesirabilitySignal;
+import woflo.petsplus.ai.suggester.signal.feasibility.ActiveGoalFeasibilitySignal;
 import woflo.petsplus.ai.suggester.signal.feasibility.CombatLockoutFeasibilitySignal;
 import woflo.petsplus.ai.suggester.signal.feasibility.MobStateFeasibilitySignal;
 import woflo.petsplus.ai.suggester.signal.feasibility.SocialProximityFeasibilitySignal;
@@ -51,6 +52,7 @@ public final class SignalBootstrap {
 
         if (FeasibilitySignalRegistry.isEmpty()) {
             FeasibilitySignalRegistry.register(new SocialProximityFeasibilitySignal());
+            FeasibilitySignalRegistry.register(new ActiveGoalFeasibilitySignal());
             FeasibilitySignalRegistry.register(new MobStateFeasibilitySignal());
             FeasibilitySignalRegistry.register(new CombatLockoutFeasibilitySignal());
         }
