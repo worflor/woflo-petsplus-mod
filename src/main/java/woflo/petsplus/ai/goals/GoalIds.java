@@ -47,6 +47,7 @@ public final class GoalIds {
     public static final Identifier LEAN_AGAINST_OWNER = id("lean_against_owner");
     public static final Identifier PARALLEL_PLAY = id("parallel_play");
     public static final Identifier SHOW_OFF_TRICK = id("show_off_trick");
+    public static final Identifier BEDTIME_COMPANION = id("bedtime_companion");
     public static final Identifier PERCH_ON_SHOULDER = id("perch_on_shoulder");
     public static final Identifier ORBIT_SWIM = id("orbit_swim");
     public static final Identifier CROUCH_APPROACH_RESPONSE = id("crouch_approach_response");

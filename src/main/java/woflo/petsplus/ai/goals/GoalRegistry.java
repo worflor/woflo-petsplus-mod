@@ -451,6 +451,20 @@ public final class GoalRegistry {
             ShowOffTrickGoal::new
         ));
 
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.BEDTIME_COMPANION,
+            Category.SOCIAL,
+            16,
+            secondsToTicks(30),
+            secondsToTicks(60),
+            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+            new Vec2f(0.0f, 0.85f),
+            IdleStaminaBias.NONE,
+            false,
+            false,
+            BedtimeCompanionGoal::new
+        ));
+
         // Removed unused registration: GiftBringing
 
         registerBuiltIn(new GoalDefinition(
