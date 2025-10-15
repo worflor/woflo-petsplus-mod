@@ -28,19 +28,25 @@ public class DefaultOwnerModule implements OwnerModule {
     @Override
     @Nullable
     public PlayerEntity getOwner(ServerWorld world) {
-        // Clear cache if owner was removed
-        if (ownerCache != null && ownerCache.isRemoved()) {
+        // Clear cache if owner was removed or can no longer be interacted with
+        if (ownerCache != null && (!ownerCache.isAlive() || ownerCache.isRemoved())) {
             ownerCache = null;
         }
-        
+
         // Try to resolve owner from UUID if cache is empty
         if (ownerCache == null && ownerUuid != null) {
             PlayerEntity resolved = world.getPlayerByUuid(ownerUuid);
-            if (resolved != null) {
+            if (resolved == null && world.getServer() != null) {
+                resolved = world.getServer().getPlayerManager().getPlayer(ownerUuid);
+            }
+
+            if (resolved != null && resolved.isAlive() && !resolved.isRemoved()) {
                 ownerCache = resolved;
+            } else {
+                ownerCache = null;
             }
         }
-        
+
         return ownerCache;
     }
 
