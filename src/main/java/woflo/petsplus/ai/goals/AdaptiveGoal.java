@@ -144,10 +144,22 @@ public abstract class AdaptiveGoal extends Goal {
         onStartGoal();
 
         // Record activity start for behavioral momentum
+        PetComponent pc = PetComponent.get(mob);
+        if (pc != null) {
+            long worldTime = 0L;
+            var world = mob.getEntityWorld();
+            if (world != null) {
+                worldTime = world.getTime();
+            }
+            pc.beginAdaptiveGoal(goalId, worldTime);
+            if (goalDefinition.marksMajorActivity()) {
+                pc.getAIState().setActiveMajorGoal(goalId);
+            }
+        }
         recordActivityStart();
         trackGoalStart();
     }
-    
+
     @Override
     public void stop() {
         pendingStop = false;
@@ -156,14 +168,32 @@ public abstract class AdaptiveGoal extends Goal {
         recordGoalExperience(finalSatisfaction);
 
         applyGoalCooldown();
-        
+
         // Record activity completion for behavioral momentum
         recordActivityCompletion();
 
         trackGoalCompletion();
-        
+
         // Trigger emotion feedback (Phase 2)
         triggerEmotionFeedback();
+
+        PetComponent pc = PetComponent.get(mob);
+        if (pc != null) {
+            long worldTime = 0L;
+            var world = mob.getEntityWorld();
+            if (world != null) {
+                worldTime = world.getTime();
+            }
+            Identifier activeGoal = pc.getActiveAdaptiveGoalId();
+            if (goalId.equals(activeGoal)) {
+                pc.endAdaptiveGoal(goalId, worldTime);
+            }
+            if (goalDefinition.marksMajorActivity()) {
+                if (goalId.equals(pc.getAIState().getActiveMajorGoal())) {
+                    pc.getAIState().setActiveMajorGoal(null);
+                }
+            }
+        }
 
         onStopGoal();
         activeTicks = 0;

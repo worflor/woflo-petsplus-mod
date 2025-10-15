@@ -65,7 +65,10 @@ public record PetContext(
     Deque<Identifier> recentGoals,
     Map<Identifier, Long> lastExecuted,
     Map<String, Integer> quirkCounters,
-    
+
+    @Nullable Identifier activeAdaptiveGoalId,
+    long activeAdaptiveGoalStartTick,
+
     // Behavioural state (PetsPlus only, defaults for vanilla)
     float behavioralMomentum, // 0=still/tired, 0.5=neutral, 1=hyperactive
     BehaviouralEnergyProfile behaviouralEnergyProfile
@@ -211,7 +214,12 @@ public record PetContext(
         Map<String, Integer> quirkCounters = pc != null
             ? Map.copyOf(pc.getQuirkCountersSnapshot())
             : Collections.emptyMap();
-        
+
+        Identifier activeAdaptiveGoalId = pc != null ? pc.getActiveAdaptiveGoalId() : null;
+        long activeAdaptiveGoalStartTick = pc != null
+            ? pc.getActiveAdaptiveGoalStartTick()
+            : Long.MIN_VALUE;
+
         // Behavioral energy stack
         BehaviouralEnergyProfile energyProfile = pc != null
             ? pc.getMoodEngine().getBehaviouralEnergyProfile()
@@ -227,6 +235,7 @@ public record PetContext(
             entitySnapshot, crowdSummary, mobAgeProfile, interactionProfile, mob.getBlockPos(), worldTime, isDaytime,
             stimulusSnapshot, socialSnapshot, dormant,
             recentGoals, lastExecuted, quirkCounters,
+            activeAdaptiveGoalId, activeAdaptiveGoalStartTick,
             momentum,
             energyProfile
         );

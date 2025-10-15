@@ -106,11 +106,6 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
         repositionTicks = 0;
         navigationStalledTicks = 0;
 
-        PetComponent pc = PetComponent.get(mob);
-        if (pc != null) {
-            pc.getAIState().setActiveMajorGoal(GoalIds.SUNBEAM_SPRAWL);
-        }
-
         // Move to target position if needed
         if (targetPos != null) {
             if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
@@ -126,7 +121,6 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
         if (pc != null) {
             int cooldown = mob.getRandom().nextInt(MAX_COOLDOWN_TICKS - MIN_COOLDOWN_TICKS + 1) + MIN_COOLDOWN_TICKS;
             pc.setCooldown("sunbeam_sprawl", cooldown);
-            pc.getAIState().setActiveMajorGoal(null);
         }
         // Reset to standing pose
         mob.setPitch(0);

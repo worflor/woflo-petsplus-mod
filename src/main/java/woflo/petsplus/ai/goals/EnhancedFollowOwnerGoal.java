@@ -120,7 +120,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
             return false;
         }
 
-        Identifier activeGoal = petComponent.getAIState().getActiveMajorGoal();
+        Identifier activeGoal = petComponent.getActiveAdaptiveGoalId();
         if (activeGoal != null && FOLLOW_SUPPRESSION_GOALS.contains(activeGoal)) {
             return false;
         }

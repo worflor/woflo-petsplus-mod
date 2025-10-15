@@ -22,6 +22,11 @@ public record GoalDefinition(
     Vec2f energyRange,
     IdleStaminaBias idleStaminaBias,
     boolean socialIdleBias,
+    /**
+     * Whether this goal represents a showcase or otherwise major activity that should suppress
+     * automatic follow behaviour while active.
+     */
+    boolean marksMajorActivity,
     GoalFactory factory
 ) {
 

@@ -497,6 +497,37 @@ public class PetComponent {
         return aiState;
     }
 
+    public void beginAdaptiveGoal(@Nullable Identifier goalId, long worldTime) {
+        if (goalId == null) {
+            aiState.setActiveAdaptiveGoalId(null);
+            aiState.setActiveAdaptiveGoalStartTick(Long.MIN_VALUE);
+            return;
+        }
+        aiState.setActiveAdaptiveGoalId(goalId);
+        aiState.setActiveAdaptiveGoalStartTick(Math.max(0L, worldTime));
+    }
+
+    public void endAdaptiveGoal(@Nullable Identifier goalId, long worldTime) {
+        if (goalId == null) {
+            aiState.setActiveAdaptiveGoalId(null);
+            aiState.setActiveAdaptiveGoalStartTick(Long.MIN_VALUE);
+            return;
+        }
+        Identifier current = aiState.getActiveAdaptiveGoalId();
+        if (goalId.equals(current)) {
+            aiState.setActiveAdaptiveGoalId(null);
+            aiState.setActiveAdaptiveGoalStartTick(Long.MIN_VALUE);
+        }
+    }
+
+    public @Nullable Identifier getActiveAdaptiveGoalId() {
+        return aiState.getActiveAdaptiveGoalId();
+    }
+
+    public long getActiveAdaptiveGoalStartTick() {
+        return aiState.getActiveAdaptiveGoalStartTick();
+    }
+
     public PerceptionBus getPerceptionBus() {
         return perceptionBus;
     }
