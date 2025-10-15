@@ -42,8 +42,8 @@ public class ActiveGoalFeasibilitySignal implements FeasibilitySignal {
         }
 
         long now = ctx.worldTime();
-        long elapsed = now - startTick;
-        if (elapsed < 0L || elapsed <= gracePeriodTicks) {
+        long elapsed = Math.max(0L, now - startTick);
+        if (elapsed <= gracePeriodTicks) {
             return new SignalResult(0.0f, 0.0f, Map.of(
                 "reason", "active_goal",
                 "active_goal", activeGoalId.toString(),

@@ -75,6 +75,21 @@ class ActiveGoalFeasibilitySignalTest {
     }
 
     @Test
+    void staleWorldSnapshotStillHonoursGracePeriod() {
+        Identifier activeId = OTHER_GOAL.id();
+        PetContext context = emptyContext(activeId, 200L, 180L);
+        ActiveGoalFeasibilitySignal signal = new ActiveGoalFeasibilitySignal(40L);
+
+        SignalResult result = signal.evaluate(TEST_GOAL, context);
+
+        assertEquals(0.0f, result.appliedValue(), 0.0001f);
+        assertEquals(0.0f, result.rawValue(), 0.0001f);
+        assertEquals("active_goal", result.trace().get("reason"));
+        assertEquals(activeId.toString(), result.trace().get("active_goal"));
+        assertEquals(0L, ((Number) result.trace().get("elapsed")).longValue());
+    }
+
+    @Test
     void releasesOtherGoalsAfterGracePeriodExpires() {
         Identifier activeId = OTHER_GOAL.id();
         PetContext context = emptyContext(activeId, 100L, 180L);
