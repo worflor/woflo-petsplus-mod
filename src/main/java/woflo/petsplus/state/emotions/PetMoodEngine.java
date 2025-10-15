@@ -1454,21 +1454,31 @@ public final class PetMoodEngine {
      */
     private float generateOrganicVariation(long now) {
         long petSeed = parent.getStablePerPetSeed();
-        
+
         // Multiple sine waves at different frequencies for organic movement
-        // Convert to radians once for all calculations
-        double baseTime = now * 0.001; // Scale down for smoother variation
-        double seedOffset = petSeed * 0.001;
-        
-        float microVariation = (float)Math.sin((baseTime + seedOffset) * 60) * 0.015f;
-        float mesoVariation = (float)Math.sin((baseTime + seedOffset * 2) * 12) * 0.025f;
-        float macroVariation = (float)Math.sin((baseTime + seedOffset * 3) * 3) * 0.035f;
-        
+        double timeSeconds = now * 0.001; // Scale down for smoother variation
+
+        double microPhase = timeSeconds * 60 + normalizedPhaseFromSeed(petSeed, 0);
+        double mesoPhase = timeSeconds * 12 + normalizedPhaseFromSeed(petSeed, 21);
+        double macroPhase = timeSeconds * 3 + normalizedPhaseFromSeed(petSeed, 42);
+
+        float microVariation = (float)Math.sin(microPhase) * 0.015f;
+        float mesoVariation = (float)Math.sin(mesoPhase) * 0.025f;
+        float macroVariation = (float)Math.sin(macroPhase) * 0.035f;
+
         // Personality-based variation intensity
         float volatility = parent.getNatureVolatilityMultiplier();
         float variationScale = 0.5f + volatility * 0.5f;
-        
+
         return (microVariation + mesoVariation + macroVariation) * variationScale;
+    }
+
+    private static double normalizedPhaseFromSeed(long seed, int rotation) {
+        long rotated = Long.rotateLeft(seed, rotation);
+        long mask = (1L << 53) - 1;
+        long fractionBits = rotated & mask;
+        double normalized = fractionBits / (double)(1L << 53);
+        return normalized * (Math.PI * 2);
     }
     
     /**
