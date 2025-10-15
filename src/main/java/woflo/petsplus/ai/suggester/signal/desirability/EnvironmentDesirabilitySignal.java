@@ -11,6 +11,7 @@ import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.goals.GoalIds;
+import woflo.petsplus.ai.goals.social.BedtimeCompanionGoal;
 import woflo.petsplus.ai.suggester.signal.DesirabilitySignal;
 import woflo.petsplus.ai.suggester.signal.SignalResult;
 import woflo.petsplus.state.PetComponent;
@@ -54,7 +55,42 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
             }
         }
 
+        PlayerEntity owner = ctx.getOwner();
+        boolean ownerSleeping = owner != null && owner.isSleeping();
         boolean isNight = !ctx.isDaytime();
+
+        if (ownerSleeping) {
+            if (isGoal(goal, GoalIds.BEDTIME_COMPANION)) {
+                float affinity = BedtimeCompanionGoal.calculateSnuggleAffinity(mob, ctx, owner);
+                float social = MathHelper.clamp(ctx.socialCharge(), 0.0f, 1.0f);
+                float bondWeight = 1.55f + affinity * 0.9f;
+                float socialWeight = 0.85f + social * 0.6f;
+                if (component != null && component.isDormant()) {
+                    socialWeight *= 0.92f;
+                }
+                if (ctx.hasMoodInBlend(PetComponent.Mood.CALM, 0.24f) || ctx.hasMoodInBlend(PetComponent.Mood.BONDED, 0.2f)) {
+                    bondWeight *= 1.12f;
+                }
+                if (ctx.hasMoodInBlend(PetComponent.Mood.RESTLESS, 0.22f) || ctx.hasEmotionAbove(PetComponent.Emotion.WORRIED, 0.22f)) {
+                    bondWeight *= 0.68f;
+                }
+                if (affinity < 0.3f) {
+                    bondWeight *= MathHelper.clamp(0.7f + affinity * 0.9f, 0.45f, 1.1f);
+                }
+                float boost = MathHelper.clamp(bondWeight * socialWeight, 0.35f, 3.85f);
+                modifier *= boost;
+                trace.put("owner_sleeping_companion", boost);
+                trace.put("snuggle_affinity", affinity);
+            } else {
+                if (goal.category() == GoalDefinition.Category.PLAY) {
+                    modifier *= 0.55f;
+                    trace.put("owner_sleeping_play", 0.55f);
+                } else if (goal.category() == GoalDefinition.Category.WANDER) {
+                    modifier *= 0.7f;
+                    trace.put("owner_sleeping_wander", 0.7f);
+                }
+            }
+        }
 
         if (isGoal(goal, GoalIds.STARGAZING)) {
             if (isNight) {
@@ -92,7 +128,6 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
         boolean isThundering = mob != null && mob.getEntityWorld().isThundering();
 
         if (isRaining) {
-            PlayerEntity owner = ctx.getOwner();
             boolean ownerNearby = ctx.ownerNearby();
             boolean ownerWet = isEntityWet(owner);
             boolean ownerExposed = isEntityExposedToRain(owner);

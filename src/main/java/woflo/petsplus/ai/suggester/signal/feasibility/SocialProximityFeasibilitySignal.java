@@ -23,6 +23,7 @@ public class SocialProximityFeasibilitySignal implements FeasibilitySignal {
         GoalIds.LEAN_AGAINST_OWNER,
         GoalIds.PARALLEL_PLAY,
         GoalIds.SHOW_OFF_TRICK,
+        GoalIds.BEDTIME_COMPANION,
         GoalIds.PERCH_ON_SHOULDER,
         GoalIds.ORBIT_SWIM,
         GoalIds.CROUCH_APPROACH_RESPONSE
