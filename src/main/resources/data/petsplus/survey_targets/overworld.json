@@ -1,0 +1,55 @@
+{
+  "dimension": "minecraft:overworld",
+  "targets": [
+    {
+      "kind": "structure_tag",
+      "id": "petsplus:survey/villages",
+      "weight": 1.0,
+      "min_distance": 64.0,
+      "max_distance": 320.0,
+      "search_radius": 256,
+      "skip_known": true,
+      "cooldown_ticks": 1200
+    },
+    {
+      "kind": "structure_tag",
+      "id": "petsplus:survey/trail_ruins",
+      "weight": 0.9,
+      "min_distance": 48.0,
+      "max_distance": 260.0,
+      "search_radius": 224,
+      "skip_known": true,
+      "cooldown_ticks": 1400
+    },
+    {
+      "kind": "structure_tag",
+      "id": "petsplus:survey/ancient_cities",
+      "weight": 0.75,
+      "min_distance": 96.0,
+      "max_distance": 480.0,
+      "search_radius": 320,
+      "skip_known": true,
+      "cooldown_ticks": 2000
+    },
+    {
+      "kind": "structure_tag",
+      "id": "petsplus:survey/shipwrecks",
+      "weight": 0.65,
+      "min_distance": 48.0,
+      "max_distance": 280.0,
+      "search_radius": 256,
+      "skip_known": true,
+      "cooldown_ticks": 1600
+    },
+    {
+      "kind": "structure_tag",
+      "id": "petsplus:survey/monuments",
+      "weight": 0.6,
+      "min_distance": 96.0,
+      "max_distance": 420.0,
+      "search_radius": 320,
+      "skip_known": true,
+      "cooldown_ticks": 1800
+    }
+  ]
+}

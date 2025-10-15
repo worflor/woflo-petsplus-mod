@@ -358,6 +358,12 @@ public class PetComponent {
         public static final String OWNER_LAST_SEEN_TICK = "owner_last_seen_tick";
         public static final String OWNER_LAST_SEEN_DISTANCE = "owner_last_seen_distance";
         public static final String OWNER_LAST_SEEN_DIMENSION = "owner_last_seen_dimension";
+        public static final String SURVEY_LAST_TARGET_POS = "survey_last_target_pos";
+        public static final String SURVEY_LAST_TARGET_ID = "survey_last_target_id";
+        public static final String SURVEY_LAST_TARGET_KIND = "survey_last_target_kind";
+        public static final String SURVEY_LAST_TARGET_DIMENSION = "survey_last_target_dimension";
+        public static final String SURVEY_LAST_TARGET_TICK = "survey_last_target_tick";
+        public static final String SURVEY_LAST_SEARCH_TICK = "survey_last_search_tick";
         public static final String HEALTH_LAST_LOW_TICK = "health_last_low_tick";
         public static final String HEALTH_RECOVERY_COOLDOWN = "health_recovery_cooldown";
         public static final String PACK_LAST_NEARBY_TICK = "pack_last_nearby_tick";
