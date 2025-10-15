@@ -6,6 +6,8 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import org.jetbrains.annotations.Nullable;
+import woflo.petsplus.ai.PetAIEnhancements;
+import woflo.petsplus.ai.PetMobInteractionProfile;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.context.perception.EnvironmentPerceptionBridge;
@@ -50,6 +52,8 @@ public record PetContext(
     float distanceToOwner,
     List<Entity> nearbyEntities,
     PetContextCrowdSummary crowdSummary,
+    NearbyMobAgeProfile nearbyMobAgeProfile,
+    PetMobInteractionProfile mobInteractionProfile,
     BlockPos currentPos,
     long worldTime,
     boolean isDaytime,
@@ -124,19 +128,37 @@ public record PetContext(
 
         List<Entity> entitySnapshot;
         PetContextCrowdSummary crowdSummary;
+        NearbyMobAgeProfile mobAgeProfile;
+        PetMobInteractionProfile interactionProfile;
         if (pc != null) {
             List<Entity> cachedEntities = pc.getCachedCrowdEntities();
             if (cachedEntities != null && !cachedEntities.isEmpty()) {
                 entitySnapshot = cachedEntities;
                 PetContextCrowdSummary cachedSummary = pc.getCachedCrowdSummary();
-                crowdSummary = cachedSummary != null ? cachedSummary : PetContextCrowdSummary.fromEntities(mob, entitySnapshot);
+                NearbyMobAgeProfile cachedProfile = pc.getCachedMobAgeProfile();
+                CrowdScan.Result scan = null;
+                if (cachedSummary == null || cachedProfile == null) {
+                    scan = CrowdScan.analyze(mob, entitySnapshot);
+                }
+                crowdSummary = cachedSummary != null ? cachedSummary : scan.summary();
+                mobAgeProfile = cachedProfile != null ? cachedProfile : scan.ageProfile();
+                PetMobInteractionProfile cachedInteraction = pc.getCachedMobInteractionProfile();
+                interactionProfile = cachedInteraction != null
+                    ? cachedInteraction
+                    : PetAIEnhancements.createMobInteractionProfile(mob, pc, mobAgeProfile, crowdSummary);
             } else {
                 entitySnapshot = captureNearbyEntities(mob);
-                crowdSummary = PetContextCrowdSummary.fromEntities(mob, entitySnapshot);
+                CrowdScan.Result scan = CrowdScan.analyze(mob, entitySnapshot);
+                crowdSummary = scan.summary();
+                mobAgeProfile = scan.ageProfile();
+                interactionProfile = PetAIEnhancements.createMobInteractionProfile(mob, pc, mobAgeProfile, crowdSummary);
             }
         } else {
             entitySnapshot = captureNearbyEntities(mob);
-            crowdSummary = PetContextCrowdSummary.fromEntities(mob, entitySnapshot);
+            CrowdScan.Result scan = CrowdScan.analyze(mob, entitySnapshot);
+            crowdSummary = scan.summary();
+            mobAgeProfile = scan.ageProfile();
+            interactionProfile = PetAIEnhancements.createMobInteractionProfile(mob, null, mobAgeProfile, crowdSummary);
         }
 
         var world = mob.getEntityWorld();
@@ -202,7 +224,7 @@ public record PetContext(
             role, natureId, natureProfile,
             level, bondStrength, ticksAlive,
             owner, ownerNearby, distanceToOwner,
-            entitySnapshot, crowdSummary, mob.getBlockPos(), worldTime, isDaytime,
+            entitySnapshot, crowdSummary, mobAgeProfile, interactionProfile, mob.getBlockPos(), worldTime, isDaytime,
             stimulusSnapshot, socialSnapshot, dormant,
             recentGoals, lastExecuted, quirkCounters,
             momentum,

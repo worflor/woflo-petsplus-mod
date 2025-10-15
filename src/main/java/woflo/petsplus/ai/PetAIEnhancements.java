@@ -2,6 +2,8 @@ package woflo.petsplus.ai;
 
 import net.minecraft.entity.ai.goal.*;
 import net.minecraft.entity.mob.MobEntity;
+import woflo.petsplus.ai.context.NearbyMobAgeProfile;
+import woflo.petsplus.ai.context.PetContextCrowdSummary;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.mixin.MobEntityAccessor;
@@ -199,12 +201,24 @@ public class PetAIEnhancements {
      */
     private static float getTeleportDistance(PetComponent petComponent) {
         String roleId = petComponent.getRoleId().getPath();
-        
+
         return switch (roleId) {
             case "scout" -> 20.0f;   // Scouts can range further before teleporting
             case "support" -> 12.0f; // Support pets teleport sooner to stay close
             default -> 16.0f;
         };
+    }
+
+    public static PetMobInteractionProfile createMobInteractionProfile(
+        MobEntity pet,
+        PetComponent petComponent,
+        NearbyMobAgeProfile ageProfile,
+        PetContextCrowdSummary summary
+    ) {
+        if (ageProfile == null) {
+            return PetMobInteractionProfile.defaultProfile();
+        }
+        return PetMobInteractionProfile.derive(pet, petComponent, ageProfile, summary);
     }
 }
 

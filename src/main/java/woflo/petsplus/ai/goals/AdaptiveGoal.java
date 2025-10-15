@@ -3,7 +3,9 @@ package woflo.petsplus.ai.goals;
 import net.minecraft.entity.ai.goal.Goal;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.util.Identifier;
+import woflo.petsplus.ai.PetMobInteractionProfile;
 import woflo.petsplus.ai.behavior.MomentumState;
+import woflo.petsplus.ai.context.NearbyMobAgeProfile;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.mixin.MobEntityAccessor;
 import woflo.petsplus.state.PetComponent;
@@ -527,6 +529,33 @@ public abstract class AdaptiveGoal extends Goal {
     protected PetContext getContext() {
         PetComponent pc = PetComponent.get(mob);
         return pc != null ? PetContext.capture(mob, pc) : PetContext.captureVanilla(mob);
+    }
+
+    protected NearbyMobAgeProfile getNearbyMobAgeProfile() {
+        PetContext ctx = getContext();
+        return ctx != null && ctx.nearbyMobAgeProfile() != null
+            ? ctx.nearbyMobAgeProfile()
+            : NearbyMobAgeProfile.empty();
+    }
+
+    protected PetMobInteractionProfile getMobInteractionProfile() {
+        PetContext ctx = getContext();
+        return ctx != null && ctx.mobInteractionProfile() != null
+            ? ctx.mobInteractionProfile()
+            : PetMobInteractionProfile.defaultProfile();
+    }
+
+    protected double nearestBabyMobDistance() {
+        return getNearbyMobAgeProfile().nearestBabyDistance();
+    }
+
+    protected boolean hasBabyMobWithin(double distance) {
+        NearbyMobAgeProfile profile = getNearbyMobAgeProfile();
+        if (!profile.hasBabies()) {
+            return false;
+        }
+        double nearest = profile.nearestBabyDistance();
+        return Double.isFinite(nearest) && nearest <= distance;
     }
     
     /**

@@ -1,5 +1,6 @@
 package woflo.petsplus.ai.planner;
 
+import woflo.petsplus.ai.context.NearbyMobAgeProfile;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.group.GroupCoordinator;
@@ -102,6 +103,16 @@ public final class DeterministicPlanner {
         builder.append('|').append(context.activeEmotions().hashCode());
         builder.append('|').append(context.crowdSummary().friendlyCount());
         builder.append('|').append(context.ownerNearby());
+        NearbyMobAgeProfile ageProfile = context.nearbyMobAgeProfile();
+        if (ageProfile != null) {
+            builder.append('|').append(ageProfile.babyFriendlyCount())
+                .append(':').append(ageProfile.babyNeutralCount())
+                .append(':').append(ageProfile.babyHostileCount());
+            double nearest = ageProfile.nearestBabyDistance();
+            if (Double.isFinite(nearest)) {
+                builder.append('@').append(Math.round(nearest * 10.0d));
+            }
+        }
         if (plan.requiresOwnerGroup()) {
             builder.append('|').append(context.component() != null ? context.component().getOwnerUuid() : "");
         }

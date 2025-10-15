@@ -139,11 +139,17 @@ public class ParallelPlayGoal extends AdaptiveGoal {
             playSpot = selectPlaySpot(owner);
         }
 
+        double radiusScale = computeRadiusScale(ctx);
+
         if (!performingPlay) {
             if (playSpot != null) {
                 double targetDistanceSq = playSpot.squaredDistanceTo(mob.getX(), mob.getY(), mob.getZ());
                 if (targetDistanceSq > 1.4d) {
                     double speed = computeTravelSpeed(ctx, targetDistanceSq);
+                    if (radiusScale < 0.999d) {
+                        speed *= MathHelper.clamp(0.55d + radiusScale * 0.45d, 0.55d, 0.95d);
+                    }
+
                     // Mild lane bias to avoid shoulder-to-shoulder approach shoves
                     Vec3d moveTarget = playSpot;
                     if (targetDistanceSq > 1.0d) {
@@ -174,7 +180,7 @@ public class ParallelPlayGoal extends AdaptiveGoal {
             mob.getNavigation().stop();
             animationTicks++;
             Vec3d animationCenter = playSpot != null ? playSpot : owner.getEntityPos();
-            Vec3d offset = computePlayOffset(animationTicks);
+            Vec3d offset = computePlayOffset(animationTicks, radiusScale);
             Vec3d desired = animationCenter.add(offset);
             Vec3d delta = desired.subtract(mob.getEntityPos());
             mob.addVelocity(delta.x * 0.08, delta.y * 0.04, delta.z * 0.08);
@@ -213,13 +219,31 @@ public class ParallelPlayGoal extends AdaptiveGoal {
         return MathHelper.clamp(speed, 0.5d, 1.1d);
     }
 
-    private Vec3d computePlayOffset(int ticks) {
+    private Vec3d computePlayOffset(int ticks, double radiusScale) {
         double phase = (ticks % 60) / 60.0d * MathHelper.TAU;
-        double radius = 1.1d + Math.sin(ticks * 0.12d) * 0.25d;
+        double radius = (1.1d + Math.sin(ticks * 0.12d) * 0.25d) * MathHelper.clamp(radiusScale, 0.45d, 1.0d);
         double x = Math.cos(phase) * radius;
         double z = Math.sin(phase) * radius;
         double y = Math.sin(ticks * 0.18d) * 0.05d;
         return new Vec3d(x, y, z);
+    }
+
+    private double computeRadiusScale(PetContext ctx) {
+        if (ctx == null || ctx.nearbyMobAgeProfile() == null) {
+            return 1.0d;
+        }
+        double nearest = ctx.nearbyMobAgeProfile().nearestFriendlyBabyDistance();
+        if (!Double.isFinite(nearest)) {
+            nearest = ctx.nearbyMobAgeProfile().nearestBabyDistance();
+        }
+        if (!Double.isFinite(nearest) || nearest > 2.5d) {
+            return 1.0d;
+        }
+        double scale = MathHelper.clamp(nearest / 2.5d, 0.45d, 1.0d);
+        if (ctx.mobInteractionProfile() != null && ctx.mobInteractionProfile().softenAnimations()) {
+            scale = Math.min(scale, 0.85d);
+        }
+        return scale;
     }
 
     private Vec3d selectPlaySpot(PlayerEntity owner) {

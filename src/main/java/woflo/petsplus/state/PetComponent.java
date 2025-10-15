@@ -24,6 +24,10 @@ import net.minecraft.server.world.ServerWorld;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.advancement.BestFriendTracker;
+import woflo.petsplus.ai.PetAIEnhancements;
+import woflo.petsplus.ai.PetMobInteractionProfile;
+import woflo.petsplus.ai.context.CrowdScan;
+import woflo.petsplus.ai.context.NearbyMobAgeProfile;
 import woflo.petsplus.ai.context.PetContextCrowdSummary;
 import woflo.petsplus.ai.context.perception.ContextSlice;
 import woflo.petsplus.ai.context.perception.EnvironmentPerceptionBridge;
@@ -522,6 +526,14 @@ public class PetComponent {
         return contextSliceState.crowdSummary;
     }
 
+    public NearbyMobAgeProfile getCachedMobAgeProfile() {
+        return contextSliceState.mobAgeProfile;
+    }
+
+    public PetMobInteractionProfile getCachedMobInteractionProfile() {
+        return contextSliceState.mobInteractionProfile;
+    }
+
     @Nullable
     public EnvironmentPerceptionBridge.EnvironmentSnapshot getCachedEnvironmentSnapshot() {
         return contextSliceState.environmentSnapshot;
@@ -556,6 +568,8 @@ public class PetComponent {
         private boolean ownerNearby;
         private List<Entity> crowdEntities = List.of();
         private PetContextCrowdSummary crowdSummary = PetContextCrowdSummary.empty();
+        private NearbyMobAgeProfile mobAgeProfile = NearbyMobAgeProfile.empty();
+        private PetMobInteractionProfile mobInteractionProfile = PetMobInteractionProfile.defaultProfile();
         private long lastOwnerStimulusTick = Long.MIN_VALUE;
         private long lastCrowdStimulusTick = Long.MIN_VALUE;
         private EnvironmentPerceptionBridge.EnvironmentSnapshot environmentSnapshot;
@@ -606,9 +620,16 @@ public class PetComponent {
 
         private void handleCrowdStimulus(PerceptionStimulus stimulus) {
             crowdEntities = convertCrowdPayload(stimulus.payload());
-            crowdSummary = crowdEntities.isEmpty()
-                ? PetContextCrowdSummary.empty()
-                : PetContextCrowdSummary.fromEntities(pet, crowdEntities);
+            if (crowdEntities.isEmpty()) {
+                crowdSummary = PetContextCrowdSummary.empty();
+                mobAgeProfile = NearbyMobAgeProfile.empty();
+                mobInteractionProfile = PetMobInteractionProfile.defaultProfile();
+            } else {
+                CrowdScan.Result scan = CrowdScan.analyze(pet, crowdEntities);
+                crowdSummary = scan.summary();
+                mobAgeProfile = scan.ageProfile();
+                mobInteractionProfile = PetAIEnhancements.createMobInteractionProfile(pet, PetComponent.this, mobAgeProfile, crowdSummary);
+            }
             lastCrowdStimulusTick = stimulus.tick();
         }
 
@@ -652,6 +673,8 @@ public class PetComponent {
             ownerNearby = false;
             crowdEntities = List.of();
             crowdSummary = PetContextCrowdSummary.empty();
+            mobAgeProfile = NearbyMobAgeProfile.empty();
+            mobInteractionProfile = PetMobInteractionProfile.defaultProfile();
             lastOwnerStimulusTick = Long.MIN_VALUE;
             lastCrowdStimulusTick = Long.MIN_VALUE;
             environmentSnapshot = null;
