@@ -18,6 +18,7 @@ import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.ui.FeedbackManager;
+import woflo.petsplus.interaction.OwnerAbilitySignalTracker;
 
 /**
  * Handles petting interactions with tamed pets.
@@ -65,6 +66,10 @@ public class PettingHandler {
                 mob,
                 Text.translatable("petsplus.emotion_cue.petting.cooldown", mob.getDisplayName()),
                 80);
+            // Even if petting effects are on cooldown, allow post-cuddle ability trigger consumption
+            if (isOwner) {
+                OwnerAbilitySignalTracker.handlePostCuddlePetting(serverPlayer, mob);
+            }
             return ActionResult.SUCCESS;
         }
 
@@ -129,6 +134,11 @@ public class PettingHandler {
                 woflo.petsplus.advancement.criteria.PetInteractionCriterion.INTERACTION_PETTING,
                 newCount
             );
+        }
+
+        // If a proximity channel just completed for this owner-pet pair, consume it now
+        if (isOwner) {
+            OwnerAbilitySignalTracker.handlePostCuddlePetting(player, pet);
         }
     }
 

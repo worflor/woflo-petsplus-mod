@@ -3,6 +3,7 @@ package woflo.petsplus.ai.goals.social;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.Box;
 import woflo.petsplus.state.PetComponent;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
@@ -20,6 +21,9 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
     private static final String COOLDOWN_KEY = "lean_against_owner";
     private static final double LOOK_DOT_THRESHOLD = 0.35d;
     private static final int MAX_GAZE_GRACE = 20;
+    private static final double GOLDEN_ANGLE = MathHelper.TAU * 0.38196601125d; // ~137.5°
+    private static final double OCC_MARGIN = 0.18d;
+    private static final double NEAR_OWNER_SLOW_RADIUS_SQ = 9.0d; // 3 blocks
 
     private int leanTicks = 0;
     private int gazeGraceTicks = 0;
@@ -97,10 +101,34 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
             gazeGraceTicks--;
         }
 
-        Vec3d leanTarget = owner.getEntityPos().add(computeLeanOffset(owner));
-        double distanceSq = mob.squaredDistanceTo(leanTarget);
+        Vec3d baseTarget = owner.getEntityPos().add(computeLeanOffset(owner));
+        double distanceSq = mob.squaredDistanceTo(baseTarget);
         if (distanceSq > 0.35d) {
-            mob.getNavigation().startMovingTo(leanTarget.x, leanTarget.y, leanTarget.z, 0.75);
+            Vec3d moveTarget = baseTarget;
+            if (distanceSq > 1.0d) {
+                // Mild lane bias to avoid shoulder-to-shoulder shoves when approaching.
+                int h = mob.getUuid().hashCode();
+                double laneSign = ((h >>> 1) & 1) == 0 ? -1.0 : 1.0;
+                double width = Math.max(0.3d, mob.getWidth());
+                double laneMag = Math.min(0.35d, 0.25d * width);
+                Vec3d toTarget = baseTarget.subtract(mob.getEntityPos());
+                double lenSq = toTarget.lengthSquared();
+                if (lenSq > 1.0e-4d) {
+                    Vec3d perp = new Vec3d(-toTarget.z, 0.0, toTarget.x).normalize().multiply(laneMag * laneSign);
+                    moveTarget = moveTarget.add(perp);
+                }
+            }
+
+            double speed = 0.75d;
+            double ownerDistSq = mob.squaredDistanceTo(owner);
+            if (ownerDistSq < NEAR_OWNER_SLOW_RADIUS_SQ) {
+                speed *= 0.86d; // subtle slowdown near owner/cluster
+            }
+
+            // Repath jitter to avoid sync-stepping in groups
+            if ((leanTicks & 3) == 0 || mob.getNavigation().isIdle()) {
+                mob.getNavigation().startMovingTo(moveTarget.x, moveTarget.y, moveTarget.z, speed);
+            }
         } else {
             mob.getNavigation().stop();
             mob.setYaw(owner.getYaw());
@@ -131,16 +159,44 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
     }
 
     private Vec3d computeLeanOffset(PlayerEntity owner) {
-        Vec3d forward = owner.getRotationVec(1.0f).normalize();
-        Vec3d lateral = new Vec3d(-forward.z, 0.0, forward.x);
-        if (lateral.lengthSquared() < 1.0e-3d) {
-            lateral = new Vec3d(1.0, 0.0, 0.0);
-        } else {
-            lateral = lateral.normalize();
+        // Deterministic, size-aware slot around the owner with light occupancy fallback.
+        int h = mob.getUuid().hashCode();
+        double u = ((long)(h & 0x7fffffff)) / (double)0x7fffffff; // [0,1)
+        double angle = u * MathHelper.TAU;
+
+        double width = Math.max(0.3d, mob.getWidth());
+        double radius = 0.80d + 0.25d * width;
+
+        Vec3d ownerPos = owner.getEntityPos();
+        Vec3d bestOffset = null;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            double ox = Math.cos(angle) * radius;
+            double oz = Math.sin(angle) * radius;
+            Vec3d slotWorld = ownerPos.add(ox, 0.0, oz);
+
+            if (!isSlotOccupied(owner, slotWorld, width)) {
+                bestOffset = new Vec3d(ox, 0.0, oz);
+                break;
+            }
+            angle += GOLDEN_ANGLE;
         }
-        double side = leanLeft ? -0.6d : 0.6d;
-        double forwardStep = -0.35d;
-        return forward.multiply(forwardStep).add(lateral.multiply(side));
+        if (bestOffset == null) {
+            bestOffset = new Vec3d(Math.cos(angle) * radius, 0.0, Math.sin(angle) * radius);
+        }
+        return bestOffset;
+    }
+
+    private boolean isSlotOccupied(PlayerEntity owner, Vec3d slotWorld, double thisWidth) {
+        double occ = 0.5d * thisWidth + OCC_MARGIN;
+        Box box = new Box(
+            slotWorld.x - occ, slotWorld.y - 0.75d, slotWorld.z - occ,
+            slotWorld.x + occ, slotWorld.y + 0.75d, slotWorld.z + occ
+        );
+        return !mob.getEntityWorld().getOtherEntities(mob, box, e -> {
+            if (!(e instanceof MobEntity other)) return false;
+            PetComponent pc = PetComponent.get(other);
+            return pc != null && pc.isOwnedBy(owner);
+        }).isEmpty();
     }
     protected woflo.petsplus.ai.goals.EmotionFeedback defineEmotionFeedback() {
         return new woflo.petsplus.ai.goals.EmotionFeedback.Builder()

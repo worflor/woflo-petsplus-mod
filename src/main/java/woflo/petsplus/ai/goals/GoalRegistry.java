@@ -630,6 +630,19 @@ public final class GoalRegistry {
             false,
             MirroredYawnGoal::new
         ));
+        // Subtle behavior: P1 - Gift bringing (social)
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.GIFT_BRINGING,
+            Category.SOCIAL,
+            15,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+            new Vec2f(0.25f, 0.75f),
+            IdleStaminaBias.NONE,
+            false,
+            GiftBringingGoal::new
+        ));
         // Subtle behavior: P1 - Show and drop (social)
         registerBuiltIn(new GoalDefinition(
             GoalIds.SHOW_AND_DROP,

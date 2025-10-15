@@ -7,13 +7,12 @@
   },
   "requirement": {
     "all_of": [
-      "has_owner",
-      "can_pick_up_items"
+      "has_owner"
     ]
   },
   "energy_range": {
-    "min": 0.3,
-    "max": 0.7
+    "min": 0.2,
+    "max": 0.75
   },
   "idle_stamina_bias": "none",
   "goal_factory": "woflo.petsplus.ai.goals.social.GiftBringingGoal"
