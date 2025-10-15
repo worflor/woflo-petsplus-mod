@@ -58,6 +58,7 @@ public final class GoalIds {
     public static final Identifier SUNBEAM_SPRAWL = id("sunbeam_sprawl");
     public static final Identifier SCENT_TRAIL_SNIFF = id("scent_trail_sniff");
     public static final Identifier PACK_GROOM = id("pack_groom");
+    public static final Identifier PACK_SENTINEL_WATCH = id("pack_sentinel_watch");
     public static final Identifier LEAF_CHASE_WIND = id("leaf_chase_wind");
     // Subtle behavior: P1
     // Species tags: multi-tag gating

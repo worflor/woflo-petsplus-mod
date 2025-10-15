@@ -607,6 +607,25 @@ public final class GoalRegistry {
             false,
             PackGroomGoal::new
         ));
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.PACK_SENTINEL_WATCH,
+            Category.SOCIAL,
+            16,
+            secondsToTicks(12),
+            secondsToTicks(24),
+            MobCapabilities.CapabilityRequirement.allOf(List.of(
+                MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+                MobCapabilities.CapabilityRequirement.anyOf(List.of(
+                    MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
+                    MobCapabilities.CapabilityRequirement.fromToken("can_fly")
+                ))
+            )),
+            new Vec2f(0.35f, 0.9f),
+            IdleStaminaBias.NONE,
+            true,
+            true,
+            PackSentinelWatchGoal::new
+        ));
         // Subtle behavior: P0 - Leaf chase wind (environmental playful dart)
         registerBuiltIn(new GoalDefinition(
             GoalIds.LEAF_CHASE_WIND,
