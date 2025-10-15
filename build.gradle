@@ -34,6 +34,12 @@ java {
     withSourcesJar()
 }
 
+loom {
+    mixin {
+        defaultRefmapName = "petsplus.refmap.json"
+    }
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.release = 21
 }
