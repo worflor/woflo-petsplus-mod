@@ -70,6 +70,7 @@ import woflo.petsplus.ai.AdaptiveAIManager;
 import woflo.petsplus.ai.director.DirectorDecision;
 import woflo.petsplus.ai.suggester.GoalSuggester;
 import woflo.petsplus.ai.goals.GoalDefinition;
+import woflo.petsplus.stats.nature.NatureTabooHandler;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -1538,6 +1539,11 @@ public class StateManager {
             case GOSSIP_DECAY -> component.tickGossipLedger(currentTick);
             case CONTAGION -> { /* handled via contagion pipeline */ }
             case MOOD_PROVIDER -> runMoodProviderTick(pet, component, serverOwner, currentTick);
+            case TABOO_REVIEW -> {
+                if (world instanceof ServerWorld serverWorld) {
+                    NatureTabooHandler.runScheduledReview(component, serverWorld, currentTick);
+                }
+            }
         }
 
         ownerProcessingManager.onTaskExecuted(component, task.type(), currentTick);

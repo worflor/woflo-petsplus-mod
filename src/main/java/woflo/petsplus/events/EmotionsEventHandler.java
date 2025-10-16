@@ -56,6 +56,7 @@ import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.world.World;
@@ -87,6 +88,8 @@ import woflo.petsplus.mood.EmotionStimulusBus;
 import woflo.petsplus.mood.MoodService;
 import woflo.petsplus.stats.nature.NatureFlavorHandler;
 import woflo.petsplus.stats.nature.NatureFlavorHandler.Trigger;
+import woflo.petsplus.stats.nature.NatureTabooHandler;
+import woflo.petsplus.stats.nature.NatureTabooHandler.TabooTrigger;
 import woflo.petsplus.stats.nature.PetNatureSelector;
 import woflo.petsplus.ui.FeedbackManager;
 
@@ -198,6 +201,10 @@ public final class EmotionsEventHandler {
     private static final long LEASH_SOCIAL_COOLDOWN_TICKS = 200L;
     private static final long LEASH_MODE_SETTLE_TICKS = 40L;
     private static final long LEASH_SOCIAL_REFRESH_TICKS = 800L;
+    private static final long TABOO_SOIL_DECAY_WINDOW = 200L;
+    private static final long TABOO_FOREST_DECAY_WINDOW = 240L;
+    private static final long TABOO_HOME_CLUTTER_DECAY_WINDOW = 260L;
+    private static final long TABOO_JUNK_DECAY_WINDOW = 320L;
     private static final long LEASH_SMOOTHING_WINDOW_TICKS = 12L;
     private static final double LEASH_SMOOTHING_MIN_ALPHA = 0.15d;
     private static final double LEASH_SLACK_ENTER_DISTANCE = 3.0d;
@@ -325,17 +332,66 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             triggerConfiguredCue(sp, definitionId, config.fallbackRadius(), null);
         }
 
+        if (!(world instanceof ServerWorld serverWorld)) {
+            return;
+        }
+        long now = serverWorld.getTime();
+        PlayerEnvState envState = PLAYER_ENV.computeIfAbsent(sp,
+            p -> createEnvState(sp, serverWorld, now));
+
+        float soilWeight = 0f;
         if (state.isOf(Blocks.RED_MUSHROOM) || state.isOf(Blocks.BROWN_MUSHROOM)
-            || state.isOf(Blocks.RED_MUSHROOM_BLOCK) || state.isOf(Blocks.BROWN_MUSHROOM_BLOCK)
-            || state.isOf(Blocks.MUSHROOM_STEM) || state.isOf(Blocks.CRIMSON_FUNGUS)
-            || state.isOf(Blocks.WARPED_FUNGUS)) {
+            || state.isOf(Blocks.CRIMSON_FUNGUS) || state.isOf(Blocks.WARPED_FUNGUS)) {
             NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.BREAK_MUSHROOM);
+            soilWeight += 0.9f;
+        }
+        if (state.isOf(Blocks.RED_MUSHROOM_BLOCK) || state.isOf(Blocks.BROWN_MUSHROOM_BLOCK)
+            || state.isOf(Blocks.MUSHROOM_STEM)) {
+            NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.BREAK_MUSHROOM);
+            soilWeight += 1.4f;
         }
         if (state.isOf(Blocks.MUD) || state.isOf(Blocks.MUDDY_MANGROVE_ROOTS)) {
             NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.BREAK_MUD);
         }
         if (state.isOf(Blocks.SNOW_BLOCK) || state.isOf(Blocks.SNOW) || state.isOf(Blocks.POWDER_SNOW)) {
             NatureFlavorHandler.triggerForOwner(sp, 24, Trigger.BREAK_SNOW);
+        }
+
+        if (state.isIn(BlockTags.MUSHROOM_GROW_BLOCK)) {
+            soilWeight += 0.7f;
+        }
+        if (state.isIn(BlockTags.NYLIUM)) {
+            soilWeight += 0.8f;
+        }
+        if (state.isOf(Blocks.MOSS_BLOCK) || state.isOf(Blocks.MOSS_CARPET)) {
+            soilWeight += 0.6f;
+        }
+
+        if (soilWeight > 0f) {
+            float intensity = envState.accumulateTabooExposure(TabooTrigger.SOIL_STERILIZATION,
+                now, soilWeight, TABOO_SOIL_DECAY_WINDOW, 0.85f, 0.55f, 4.2f);
+            if (intensity > 0f) {
+                NatureTabooHandler.triggerForOwner(sp, 36, TabooTrigger.SOIL_STERILIZATION, intensity);
+            }
+        }
+
+        float deforestWeight = 0f;
+        if (state.isIn(BlockTags.LOGS)) {
+            deforestWeight += 1.35f;
+        }
+        if (state.isIn(BlockTags.LEAVES)) {
+            deforestWeight += 0.8f;
+        }
+        if (state.isIn(BlockTags.SAPLINGS) || state.isOf(Blocks.MANGROVE_PROPAGULE)) {
+            deforestWeight += 0.7f;
+        }
+
+        if (deforestWeight > 0f) {
+            float intensity = envState.accumulateTabooExposure(TabooTrigger.MASS_DEFORESTATION,
+                now, deforestWeight, TABOO_FOREST_DECAY_WINDOW, 0.9f, 0.45f, 3.8f);
+            if (intensity > 0f) {
+                NatureTabooHandler.triggerForOwner(sp, 48, TabooTrigger.MASS_DEFORESTATION, intensity);
+            }
         }
 
         emitOwnerBrokeBlockTrigger(sp, pos, state);
@@ -349,9 +405,7 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             });
         }
 
-        if (world instanceof ServerWorld serverWorld) {
-            invalidateArcaneAmbient(serverWorld, pos, state);
-        }
+        invalidateArcaneAmbient(serverWorld, pos, state);
     }
 
     static void emitOwnerBrokeBlockTrigger(ServerPlayerEntity player, BlockPos pos, BlockState state) {
@@ -1111,6 +1165,8 @@ private record WeatherState(boolean raining, boolean thundering) {}
         Identifier.of("petsplus", "emotion/ranged_weapons"));
     private static final TagKey<Item> SUPPORT_TOOLS = TagKey.of(RegistryKeys.ITEM,
         Identifier.of("petsplus", "emotion/support_tools"));
+    private static final TagKey<Item> JUNK_ITEMS = TagKey.of(RegistryKeys.ITEM,
+        Identifier.of("petsplus", "emotion/junk_items"));
     private static final TagKey<Block> NATURE_PLANTS = TagKey.of(RegistryKeys.BLOCK,
         Identifier.of("petsplus", "emotion/environment/nature_plants"));
     private static final TagKey<Biome> DESERT_LIKE_BIOMES = TagKey.of(RegistryKeys.BIOME,
@@ -1266,6 +1322,9 @@ private record WeatherState(boolean raining, boolean thundering) {}
         boolean awayFromHome;
         long homeDepartureTick;
         long lastHomecomingTick;
+        EnumMap<TabooTrigger, TabooTelemetryAccumulator> tabooTelemetry;
+        BlockPos cachedHomePos;
+        long nextHomeSampleTick;
 
         PlayerEnvState(@Nullable RegistryKey<Biome> biomeKey, @Nullable RegistryKey<World> dimensionKey, Vec3d lastPos, long currentTick) {
             this.biomeKey = biomeKey;
@@ -1285,6 +1344,167 @@ private record WeatherState(boolean raining, boolean thundering) {}
             this.awayFromHome = false;
             this.homeDepartureTick = currentTick;
             this.lastHomecomingTick = 0L;
+            this.tabooTelemetry = new EnumMap<>(TabooTrigger.class);
+            this.cachedHomePos = null;
+            this.nextHomeSampleTick = 0L;
+        }
+
+        float accumulateTabooExposure(TabooTrigger trigger,
+                                      long now,
+                                      float weight,
+                                      long decayWindow,
+                                      float baseline,
+                                      float scale,
+                                      float clampMax) {
+            if (weight <= 0f) {
+                return 0f;
+            }
+            TabooTelemetryAccumulator accumulator = tabooTelemetry.computeIfAbsent(trigger,
+                t -> new TabooTelemetryAccumulator());
+            return accumulator.record(weight, now, decayWindow, baseline, scale, clampMax);
+        }
+
+        void clearTabooTelemetry() {
+            tabooTelemetry.clear();
+            cachedHomePos = null;
+            nextHomeSampleTick = 0L;
+        }
+
+        void resetTabooExposure(TabooTrigger trigger) {
+            if (trigger == null) {
+                return;
+            }
+            TabooTelemetryAccumulator accumulator = tabooTelemetry.remove(trigger);
+            if (accumulator != null) {
+                accumulator.reset();
+            }
+        }
+
+        BlockPos resolveHomePosition(ServerPlayerEntity owner, ServerWorld world, long now) {
+            if (owner == null || world == null) {
+                return null;
+            }
+            if (cachedHomePos != null && now < nextHomeSampleTick) {
+                return cachedHomePos;
+            }
+            cachedHomePos = resolveOwnerHome(owner, world);
+            nextHomeSampleTick = now + 200L;
+            return cachedHomePos;
+        }
+
+        void invalidateHomeCache() {
+            cachedHomePos = null;
+            nextHomeSampleTick = 0L;
+        }
+
+    }
+
+    private static final class TabooTelemetryAccumulator {
+        private float score = 0f;
+        private long lastTick = Long.MIN_VALUE;
+        private float lastEmissionScore = 0f;
+        private float lastEmissionIntensity = 0f;
+        private long lastEmissionTick = Long.MIN_VALUE;
+
+        float record(float weight,
+                     long now,
+                     long decayWindow,
+                     float baseline,
+                     float scale,
+                     float clampMax) {
+            if (weight <= 0f) {
+                return 0f;
+            }
+            long window = Math.max(decayWindow, 1L);
+            if (lastTick != Long.MIN_VALUE && now > lastTick && score > 0f) {
+                long delta = now - lastTick;
+                if (delta >= window * 6L) {
+                    score = 0f;
+                    if (lastEmissionTick != Long.MIN_VALUE) {
+                        lastEmissionScore = 0f;
+                        lastEmissionIntensity = Math.max(lastEmissionIntensity, baseline);
+                    }
+                } else if (delta > 0L) {
+                    float decay = computeDecayFactor(delta, window);
+                    if (decay <= 0.001f) {
+                        score = 0f;
+                        if (lastEmissionTick != Long.MIN_VALUE) {
+                            lastEmissionScore = 0f;
+                            lastEmissionIntensity = Math.max(lastEmissionIntensity, baseline);
+                        }
+                    } else {
+                        score *= decay;
+                    }
+                }
+            }
+            lastTick = now;
+
+            score = Math.max(0f, score + Math.max(0f, weight));
+            if (scale > 0f) {
+                float maxScore = Math.max(0f, (clampMax - baseline) / scale);
+                if (maxScore > 0f && score > maxScore) {
+                    score = Math.min(score, maxScore * 1.15f);
+                }
+            }
+
+            if (score <= 0f) {
+                return 0f;
+            }
+
+            float upperClamp = clampMax > baseline ? clampMax : baseline + 4.0f;
+            float intensity = MathHelper.clamp(baseline + score * scale, baseline, upperClamp);
+
+            if (!shouldEmit(intensity, baseline, window, now)) {
+                return 0f;
+            }
+
+            lastEmissionTick = now;
+            lastEmissionScore = score;
+            lastEmissionIntensity = intensity;
+            return intensity;
+        }
+
+        void reset() {
+            score = 0f;
+            lastTick = Long.MIN_VALUE;
+            lastEmissionScore = 0f;
+            lastEmissionIntensity = 0f;
+            lastEmissionTick = Long.MIN_VALUE;
+        }
+
+        private boolean shouldEmit(float intensity, float baseline, long window, long now) {
+            if (intensity <= baseline) {
+                return false;
+            }
+            long minInterval = Math.max(20L, Math.min(window / 3L, 200L));
+            if (lastEmissionTick == Long.MIN_VALUE) {
+                return intensity >= baseline + 0.08f || score >= 0.9f;
+            }
+
+            long elapsed = now - lastEmissionTick;
+            float scoreDelta = score - lastEmissionScore;
+
+            if (elapsed < minInterval && scoreDelta < 0.35f) {
+                return false;
+            }
+
+            long extendedInterval = Math.max(minInterval * 2L, minInterval + 40L);
+            if (elapsed < extendedInterval && intensity <= lastEmissionIntensity + 0.05f && scoreDelta < 0.15f) {
+                return false;
+            }
+
+            return true;
+        }
+
+        private static float computeDecayFactor(long delta, long window) {
+            if (delta <= 0L || window <= 0L) {
+                return 1.0f;
+            }
+            if (delta >= window * 6L) {
+                return 0.0f;
+            }
+            double normalized = Math.min((double) delta / (double) window, 12.0d);
+            return (float) Math.exp(-normalized);
         }
     }
 
@@ -1654,6 +1874,11 @@ private record WeatherState(boolean raining, boolean thundering) {}
         List<CompletableFuture<Void>> pendingWork = new ArrayList<>(2);
 
         if (plan.triggerIdleCue()) {
+            long idleTicks = plan.idleTicks();
+            if (idleTicks >= 3600L) {
+                float idleIntensity = 1.0f + (float) MathHelper.clamp((idleTicks - 3600L) / 2400.0f, 0.0f, 3.0f);
+                NatureTabooHandler.triggerForOwner(player, 48, TabooTrigger.STAGNANT_ROUTINE, idleIntensity);
+            }
             // Context-dependent idle emotions from rebalanced logic
             if (plan.isNight()) {
                 // Night idle - check distance from base for Hiraeth
@@ -1886,6 +2111,8 @@ private record WeatherState(boolean raining, boolean thundering) {}
                         collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.10f);  // Reduced from 0.15f
                         // Add contagion for rain exposure
                         collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.012f);  // Rain startle contagion
+                        NatureTabooHandler.triggerForPet(pet, pc, world, sp, TabooTrigger.DOUSED_FLAME, 1.0f);
+                        NatureTabooHandler.triggerForPet(pet, pc, world, sp, TabooTrigger.BITTER_COLD_WATER, 1.0f);
                     } else {
                         // Cozy indoors during rain
                         collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.35f);
@@ -1917,6 +2144,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
                     }
                 });
                 NatureFlavorHandler.triggerForOwner(sp, 48, Trigger.WEATHER_CLEAR);
+                NatureTabooHandler.triggerForOwner(sp, 48, TabooTrigger.CALM_WEATHER, 1.0f);
                 sendCueAfterStimulus(sp, stimulusFuture,
                     "weather.rain_end",
                     () -> Text.translatable("petsplus.emotion_cue.weather.rain_end"),
@@ -1935,6 +2163,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
                         // Add contagion for thunder danger
                         collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.025f);  // Thunder fear contagion
                         collector.pushEmotion(PetComponent.Emotion.STARTLE, 0.020f);   // Thunder startle contagion
+                        NatureTabooHandler.triggerForPet(pet, pc, world, sp, TabooTrigger.STORM_BARRAGE, 1.0f);
                     } else {
                         // Less fear when sheltered
                         collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.25f);
@@ -2081,12 +2310,17 @@ private record WeatherState(boolean raining, boolean thundering) {}
         boolean hasWeapons = false;
         boolean hasTools = false;
         boolean hasArchaeology = false;
+        float junkWeight = 0f;
+        int junkStacks = 0;
+        int filledSlots = 0;
 
         for (int i = 0; i < inventory.size(); i++) {
             ItemStack stack = inventory.getStack(i);
             if (stack.isEmpty()) {
                 continue;
             }
+
+            filledSlots++;
 
             if (stack.isIn(ItemTags.TRIM_MATERIALS) || stack.isIn(VALUABLE_ITEMS)) {
                 hasValuableItems = true;
@@ -2117,6 +2351,52 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 stack.isOf(Items.SHEARS) ||
                 stack.isIn(SUPPORT_TOOLS)) {
                 hasTools = true;
+            }
+
+            if (stack.isIn(JUNK_ITEMS)) {
+                float stackWeight = MathHelper.clamp(stack.getCount() / 32.0f, 0.25f, 1.25f);
+                if (stack.isDamaged()) {
+                    stackWeight += 0.2f;
+                }
+                junkWeight += stackWeight;
+                junkStacks++;
+            }
+        }
+
+        if (inventory.player instanceof ServerPlayerEntity owner && owner.getEntityWorld() instanceof ServerWorld ownerWorld) {
+            PlayerEnvState envState = PLAYER_ENV.computeIfAbsent(owner,
+                ignored -> createEnvState(owner, ownerWorld, ownerWorld.getTime()));
+            if (junkStacks > 0) {
+                float occupancy = filledSlots > 0 ? (float) junkStacks / (float) filledSlots : 0f;
+                float weight = junkWeight * MathHelper.clamp(0.6f + occupancy * 0.5f, 0.6f, 1.6f);
+                long now = ownerWorld.getTime();
+                float junkIntensity = envState.accumulateTabooExposure(TabooTrigger.JUNK_GLUT,
+                    now, weight, TABOO_JUNK_DECAY_WINDOW, 0.85f, 0.45f, 3.4f);
+                if (junkIntensity > 0f) {
+                    NatureTabooHandler.triggerForOwner(owner, 24, TabooTrigger.JUNK_GLUT, junkIntensity);
+                }
+
+                BlockPos homePos = envState.resolveHomePosition(owner, ownerWorld, now);
+                if (homePos != null) {
+                    Vec3d ownerPos = owner.getEntityPos();
+                    double distanceSq = ownerPos.squaredDistanceTo(Vec3d.ofCenter(homePos));
+                    if (distanceSq <= HOME_RADIUS * HOME_RADIUS) {
+                        float proximityScale = MathHelper.clamp(1.0f + occupancy * 0.4f, 0.9f, 1.6f);
+                        float homeWeight = weight * proximityScale;
+                        float homeIntensity = envState.accumulateTabooExposure(TabooTrigger.HOME_DISARRAY,
+                            now, homeWeight, TABOO_HOME_CLUTTER_DECAY_WINDOW, 0.9f, 0.4f, 3.2f);
+                        if (homeIntensity > 0f) {
+                            NatureTabooHandler.triggerForOwner(owner, HOME_RADIUS, TabooTrigger.HOME_DISARRAY, homeIntensity);
+                        }
+                    } else {
+                        envState.resetTabooExposure(TabooTrigger.HOME_DISARRAY);
+                    }
+                } else {
+                    envState.resetTabooExposure(TabooTrigger.HOME_DISARRAY);
+                }
+            } else {
+                envState.resetTabooExposure(TabooTrigger.JUNK_GLUT);
+                envState.resetTabooExposure(TabooTrigger.HOME_DISARRAY);
             }
         }
 
@@ -2975,6 +3255,30 @@ private record WeatherState(boolean raining, boolean thundering) {}
         }
     }
 
+    @Nullable
+    private static BlockPos resolveOwnerHome(ServerPlayerEntity owner, ServerWorld world) {
+        if (owner == null || world == null) {
+            return null;
+        }
+
+        net.minecraft.server.network.ServerPlayerEntity.Respawn respawn = owner.getRespawn();
+        if (respawn != null) {
+            var respawnData = respawn.respawnData();
+            if (respawnData != null) {
+                BlockPos respawnPos = respawnData.getPos();
+                if (respawnPos != null) {
+                    return respawnPos;
+                }
+            }
+        }
+
+        var spawnPoint = world.getSpawnPoint();
+        if (spawnPoint != null) {
+            return spawnPoint.getPos();
+        }
+        return null;
+    }
+
     private static void handleNuancedEmotions(ServerPlayerEntity player,
                                               ServerWorld world,
                                               long currentTick,
@@ -3732,6 +4036,22 @@ private record WeatherState(boolean raining, boolean thundering) {}
                     pet,
                     Text.translatable(leashCueKey, pet.getDisplayName()), 200);
             }
+            if (leashMood == LeashMood.OWNER_PULL || leashMood == LeashMood.BRACING) {
+                double combinedSpeed = smoothedOwnerSpeedSq + smoothedPetSpeedSq;
+                if (combinedSpeed < 0.05 && smoothedDistance > 4.0) {
+                    NatureTabooHandler.triggerForPet(pet, pc, world, owner, TabooTrigger.LEASH_STASIS, 1.0f);
+                }
+                if (leashMood == LeashMood.OWNER_PULL) {
+                    double ownerSpeed = Math.sqrt(Math.max(smoothedOwnerSpeedSq, 0.0d));
+                    double leashTension = MathHelper.clamp((smoothedDistance - 3.0d) / 3.0d, 0.0d, 1.5d);
+                    double forwardGap = MathHelper.clamp((smoothedOwnerForward - smoothedPetForward) / 0.3d, 0.0d, 1.0d);
+                    if (ownerSpeed > 0.45d && smoothedDistance > 3.0d && smoothedOwnerForward > 0.05d) {
+                        double pace = MathHelper.clamp((ownerSpeed - 0.45d) / 0.4d, 0.0d, 1.6d);
+                        float rushedIntensity = (float) (1.0d + pace + leashTension + forwardGap);
+                        NatureTabooHandler.triggerForPet(pet, pc, world, owner, TabooTrigger.RUSHED_MARCH, rushedIntensity);
+                    }
+                }
+            }
         } else {
             if (pc.getStateData(STATE_LEASH_PENDING_MODE, String.class) != null) {
                 pc.clearStateData(STATE_LEASH_PENDING_MODE);
@@ -3844,6 +4164,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
             }
             EmotionContextCues.sendPetCue(owner, "environment.dark." + pet.getUuidAsString(), pet,
                 "petsplus.emotion_cue.environment.dark", 200, pet.getDisplayName());
+            NatureTabooHandler.triggerForPet(pet, pc, world, owner, TabooTrigger.PROLONGED_DARKNESS, 1.0f);
         } else if (lightLevel <= 7) {
             // Dim light - vigilant but not afraid
             collector.pushEmotion(PetComponent.Emotion.VIGILANT, 0.15f);
@@ -3863,6 +4184,9 @@ private record WeatherState(boolean raining, boolean thundering) {}
             }
             EmotionContextCues.sendPetCue(owner, "environment.bright." + pet.getUuidAsString(), pet,
                 "petsplus.emotion_cue.environment.bright", 400, pet.getDisplayName());
+            if (lightLevel >= 14) {
+                NatureTabooHandler.triggerForPet(pet, pc, world, owner, TabooTrigger.SUDDEN_GLARE, 1.0f);
+            }
         }
 
         // Height awareness
@@ -3876,6 +4200,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
             collector.pushEmotion(PetComponent.Emotion.FOREBODING, 0.25f); // Underground unease
             EmotionContextCues.sendPetCue(owner, "environment.deep." + pet.getUuidAsString(), pet,
                 "petsplus.emotion_cue.environment.deep", 400, pet.getDisplayName());
+            NatureTabooHandler.triggerForPet(pet, pc, world, owner, TabooTrigger.DEEP_UNDERGROUND, 1.0f);
         }
 
         // Water proximity
@@ -3930,6 +4255,11 @@ private record WeatherState(boolean raining, boolean thundering) {}
                         collector.pushEmotion(PetComponent.Emotion.MELANCHOLY, 0.26f);
                         collector.pushEmotion(PetComponent.Emotion.FOREBODING, -0.06f);
                         collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.12f);
+                        float lonelinessIntensity = MathHelper.clamp(
+                            1.0f + (float) (now - lonelySince - LONELINESS_DURATION_TICKS) / (float) LONELINESS_DURATION_TICKS,
+                            1.0f,
+                            3.0f);
+                        NatureTabooHandler.triggerForPet(pet, pc, world, owner, TabooTrigger.LONELY_SILENCE, lonelinessIntensity);
                         pc.setStateData(STATE_LONELINESS_LAST_TRIGGER_TICK, now);
                     }
                 }
@@ -4989,6 +5319,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 EmotionContextCues.sendCue(owner, "weather.thunder.pet." + pet.getUuidAsString(),
                     pet,
                     Text.translatable("petsplus.emotion_cue.weather.thunder_pet", pet.getDisplayName()), 400);
+                NatureTabooHandler.triggerForPet(pet, pc, world, owner, TabooTrigger.STORM_BARRAGE, 0.8f + exposure);
             } else if (tryMarkPetBeat(pc, "weather_shelter", now, 200L)) {
                 collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.04f);
                 collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.03f);
@@ -5012,6 +5343,9 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 EmotionContextCues.sendCue(owner, "weather.rain.cat." + pet.getUuidAsString(),
                     pet,
                     Text.translatable("petsplus.emotion_cue.weather.rain_cat", pet.getDisplayName()), 400);
+                if (soaked) {
+                    NatureTabooHandler.triggerForPet(pet, pc, world, owner, TabooTrigger.BITTER_COLD_WATER, 0.8f);
+                }
             } else if (isWolf) {
                 float delight = exposedToSky || soaked ? 0.05f : 0.03f;
                 collector.pushEmotion(PetComponent.Emotion.KEFI, delight);
@@ -5026,6 +5360,9 @@ private record WeatherState(boolean raining, boolean thundering) {}
                     EmotionContextCues.sendCue(owner, "weather.rain.pet." + pet.getUuidAsString(),
                         pet,
                         Text.translatable("petsplus.emotion_cue.weather.rain_pet", pet.getDisplayName()), 400);
+                    if (soaked) {
+                        NatureTabooHandler.triggerForPet(pet, pc, world, owner, TabooTrigger.DOUSED_FLAME, 0.6f);
+                    }
                 }
             }
         } else {
@@ -5035,6 +5372,12 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 EmotionContextCues.sendCue(owner, "weather.clear." + pet.getUuidAsString(),
                     pet,
                     Text.translatable("petsplus.emotion_cue.weather.clear", pet.getDisplayName()), 6000);
+            }
+            if (exposedToSky && world.isDay()) {
+                NatureTabooHandler.triggerForPet(pet, pc, world, owner, TabooTrigger.RAW_SUNLIGHT, 0.5f);
+            }
+            if (!world.isRaining() && !world.isThundering() && !pet.isTouchingWater()) {
+                NatureTabooHandler.triggerForPet(pet, pc, world, owner, TabooTrigger.EXTREME_DROUGHT, 0.4f);
             }
         }
 
@@ -5048,11 +5391,13 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.03f); // Seeking shade
                 EmotionContextCues.sendPetCue(owner, "environment.hot." + pet.getUuidAsString(), pet,
                     "petsplus.emotion_cue.environment.hot", 600, pet.getDisplayName());
+                NatureTabooHandler.triggerForPet(pet, pc, world, owner, TabooTrigger.SCORCHING_HEAT, temperature);
             } else if (temperature < 0.0f) { // Cold biomes
                 collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.04f); // Seeking warmth/owner
                 collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.03f); // Cozy feelings
                 EmotionContextCues.sendPetCue(owner, "environment.cold." + pet.getUuidAsString(), pet,
                     "petsplus.emotion_cue.environment.cold", 600, pet.getDisplayName());
+                NatureTabooHandler.triggerForPet(pet, pc, world, owner, TabooTrigger.BITTER_COLD_WATER, Math.abs(temperature));
             }
         } catch (Exception ignored) {}
     }
@@ -5273,6 +5618,9 @@ private record WeatherState(boolean raining, boolean thundering) {}
                                               @Nullable RegistryKey<World> previous,
                                               RegistryKey<World> current) {
         state.dimensionKey = current;
+        state.clearTabooTelemetry();
+        state.invalidateHomeCache();
+        state.resetTabooExposure(TabooTrigger.HOME_DISARRAY);
         EmotionContextCues.clearForDimensionChange(player);
         if (current == World.OVERWORLD && previous != null && previous != World.OVERWORLD) {
             pushToNearbyOwnedPets(player, 64, (pc, collector) -> {
