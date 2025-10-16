@@ -59,6 +59,7 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -4259,8 +4260,36 @@ public final class PetMoodEngine {
         if (value == null || value.isEmpty()) {
             return value;
         }
-        String lower = value.toLowerCase();
-        return Character.toUpperCase(lower.charAt(0)) + lower.substring(1);
+        String sanitized = value.replace('_', ' ');
+        if (sanitized.isEmpty()) {
+            return sanitized;
+        }
+
+        String lower = sanitized.toLowerCase(Locale.ROOT);
+        StringBuilder builder = new StringBuilder(lower.length());
+        boolean capitalizeNext = true;
+        for (int i = 0; i < lower.length(); i++) {
+            char c = lower.charAt(i);
+            if (Character.isLetter(c)) {
+                if (capitalizeNext) {
+                    builder.append(Character.toUpperCase(c));
+                    capitalizeNext = false;
+                } else {
+                    builder.append(c);
+                }
+            } else if (Character.isDigit(c)) {
+                builder.append(c);
+                capitalizeNext = false;
+            } else {
+                builder.append(c);
+                capitalizeNext = true;
+            }
+
+            if (Character.isWhitespace(c)) {
+                capitalizeNext = true;
+            }
+        }
+        return builder.toString();
     }
 
     private String prettify(String value) {
