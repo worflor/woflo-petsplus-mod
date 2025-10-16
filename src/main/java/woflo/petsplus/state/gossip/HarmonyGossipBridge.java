@@ -8,6 +8,7 @@ import woflo.petsplus.state.PetComponent;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Bridges the nature harmony system with the gossip/tone pipeline so social
@@ -26,14 +27,33 @@ public final class HarmonyGossipBridge {
         }
         PetComponent.HarmonyState storytellerState = storyteller.getHarmonyState();
         PetComponent.HarmonyState listenerState = listener.getHarmonyState();
-        if (storytellerState == null || listenerState == null) {
+
+        PetComponent.HarmonyCompatibility storytellerCompatibility = resolveCompatibility(storyteller, listener);
+        PetComponent.HarmonyCompatibility listenerCompatibility = resolveCompatibility(listener, storyteller);
+
+        if (isInactive(storytellerState) && isInactive(listenerState)
+            && storytellerCompatibility == null && listenerCompatibility == null) {
             return HarmonyGossipProfile.NEUTRAL;
         }
-        float positiveBias = computeSharedBias(storytellerState.harmonySetIds(), listenerState.harmonySetIds(),
+        if (storytellerState == null) {
+            storytellerState = PetComponent.HarmonyState.empty();
+        }
+        if (listenerState == null) {
+            listenerState = PetComponent.HarmonyState.empty();
+        }
+
+        float setPositiveBias = computeSharedBias(storytellerState.harmonySetIds(), listenerState.harmonySetIds(),
             storytellerState.harmonyStrength(), listenerState.harmonyStrength());
-        float negativeBias = computeSharedBias(storytellerState.disharmonySetIds(), listenerState.disharmonySetIds(),
+        float setNegativeBias = computeSharedBias(storytellerState.disharmonySetIds(), listenerState.disharmonySetIds(),
             storytellerState.disharmonyStrength(), listenerState.disharmonyStrength());
-        return new HarmonyGossipProfile(positiveBias, negativeBias);
+
+        float compatibilityPositive = compatibilityBias(storytellerCompatibility, listenerCompatibility, true);
+        float compatibilityNegative = compatibilityBias(storytellerCompatibility, listenerCompatibility, false);
+
+        return new HarmonyGossipProfile(
+            blendBias(setPositiveBias, compatibilityPositive),
+            blendBias(setNegativeBias, compatibilityNegative)
+        );
     }
 
     private static float computeSharedBias(List<Identifier> storytellerSets,
@@ -60,6 +80,62 @@ public final class HarmonyGossipBridge {
         float normalizedStrength = MathHelper.clamp(combinedStrength / 2.5f, 0f, 1f);
         float bias = (membership * 0.5f) + (normalizedStrength * 0.5f);
         return MathHelper.clamp(bias, 0f, 1f);
+    }
+
+    private static boolean isInactive(@Nullable PetComponent.HarmonyState state) {
+        return state == null || state.isEmpty();
+    }
+
+    @Nullable
+    private static PetComponent.HarmonyCompatibility resolveCompatibility(@Nullable PetComponent source,
+                                                                           @Nullable PetComponent target) {
+        if (source == null || target == null) {
+            return null;
+        }
+        if (target.getPetEntity() == null) {
+            return null;
+        }
+        UUID targetId = target.getPetEntity().getUuid();
+        if (targetId == null) {
+            return null;
+        }
+        return source.getHarmonyCompatibility(targetId);
+    }
+
+    private static float compatibilityBias(@Nullable PetComponent.HarmonyCompatibility primary,
+                                           @Nullable PetComponent.HarmonyCompatibility secondary,
+                                           boolean positive) {
+        float total = 0f;
+        int count = 0;
+        if (primary != null) {
+            float value = positive ? primary.harmonyStrength() : primary.disharmonyStrength();
+            if (value > 0f) {
+                total += MathHelper.clamp(value / 3.0f, 0f, 1f);
+                count++;
+            }
+        }
+        if (secondary != null) {
+            float value = positive ? secondary.harmonyStrength() : secondary.disharmonyStrength();
+            if (value > 0f) {
+                total += MathHelper.clamp(value / 3.0f, 0f, 1f);
+                count++;
+            }
+        }
+        if (count == 0) {
+            return 0f;
+        }
+        return MathHelper.clamp(total / count, 0f, 1f);
+    }
+
+    private static float blendBias(float setBias, float compatibilityBias) {
+        if (setBias <= 0f) {
+            return compatibilityBias;
+        }
+        if (compatibilityBias <= 0f) {
+            return setBias;
+        }
+        float combined = (setBias * 0.55f) + (compatibilityBias * 0.65f);
+        return MathHelper.clamp(combined, 0f, 1f);
     }
 
     public record HarmonyGossipProfile(float positiveBias, float negativeBias) {
