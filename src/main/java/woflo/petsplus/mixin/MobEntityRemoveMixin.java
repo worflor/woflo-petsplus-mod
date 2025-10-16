@@ -27,7 +27,7 @@ public abstract class MobEntityRemoveMixin {
         // shoulder‑perch despawns and any other temporary removal paths
         // where component role may not survive round‑trip.
         var component = woflo.petsplus.state.PetComponent.get(mob);
-        if (component != null && component.getOwner() != null && component.getAssignedRoleId() != null) {
+        if (component != null && component.getOwnerUuid() != null && component.getAssignedRoleId() != null) {
             woflo.petsplus.state.PetRoleMemory.remember(mob.getUuid(), component.getRoleId());
         }
     }

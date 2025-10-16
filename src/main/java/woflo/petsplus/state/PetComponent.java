@@ -1056,7 +1056,7 @@ public class PetComponent {
         }
         if (pet.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
             StateManager manager = StateManager.forWorld(serverWorld);
-            return manager.getAllPetComponents().get(pet);
+            return manager.peekPetComponent(pet);
         }
         return COMPONENTS.get(pet);
     }

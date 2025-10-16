@@ -2390,7 +2390,9 @@ public class StateManager {
      * Get all pet components for debugging/admin purposes.
      */
     public Map<MobEntity, PetComponent> getAllPetComponents() {
-        return new HashMap<>(petComponents);
+        synchronized (petComponents) {
+            return new HashMap<>(petComponents);
+        }
     }
 
     /**
