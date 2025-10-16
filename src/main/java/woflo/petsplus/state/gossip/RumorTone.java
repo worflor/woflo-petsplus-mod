@@ -75,7 +75,9 @@ public enum RumorTone {
         }
         float positive = profile.positiveBias();
         float negative = profile.negativeBias();
-        if (negative >= 0.55f) {
+        float playful = profile.playfulSarcasm();
+        float effectiveNegative = Math.max(0f, negative - (playful * 0.4f));
+        if (effectiveNegative >= 0.55f) {
             switch (tone) {
                 case COZY, WONDER -> tone = SARCASM;
                 case BRAG -> tone = WARNING;
@@ -83,7 +85,7 @@ public enum RumorTone {
                 default -> {
                 }
             }
-        } else if (negative >= 0.3f) {
+        } else if (effectiveNegative >= 0.3f) {
             switch (tone) {
                 case BRAG -> tone = SARCASM;
                 case COZY -> tone = WEARY;
@@ -91,7 +93,7 @@ public enum RumorTone {
                 }
             }
         }
-        if (positive >= 0.55f && negative < 0.45f) {
+        if (positive >= 0.55f && effectiveNegative < 0.45f) {
             switch (tone) {
                 case WARNING, SPOOKY -> tone = COZY;
                 case WEARY -> tone = WONDER;
@@ -99,9 +101,18 @@ public enum RumorTone {
                 default -> {
                 }
             }
-        } else if (positive >= 0.35f && negative < 0.3f) {
+        } else if (positive >= 0.35f && effectiveNegative < 0.3f) {
             if (tone == WHISPER) {
                 tone = COZY;
+            }
+        }
+        if (tone == SARCASM && playful > 0f) {
+            if (playful >= 0.65f && positive >= effectiveNegative) {
+                tone = BRAG;
+            } else if (playful >= 0.45f && positive >= effectiveNegative * 0.8f) {
+                tone = COZY;
+            } else if (playful >= 0.35f && effectiveNegative <= 0.4f) {
+                tone = WONDER;
             }
         }
         return tone;

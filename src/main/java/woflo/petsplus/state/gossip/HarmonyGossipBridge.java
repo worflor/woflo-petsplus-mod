@@ -4,6 +4,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.relationships.RelationshipProfile;
 
 import java.util.HashSet;
 import java.util.List;
@@ -50,9 +51,27 @@ public final class HarmonyGossipBridge {
         float compatibilityPositive = compatibilityBias(storytellerCompatibility, listenerCompatibility, true);
         float compatibilityNegative = compatibilityBias(storytellerCompatibility, listenerCompatibility, false);
 
+        RelationshipProfile storytellerRelationship = resolveRelationship(storyteller, listener);
+        RelationshipProfile listenerRelationship = resolveRelationship(listener, storyteller);
+
+        float storytellerBond = bondScore(storytellerRelationship);
+        float listenerBond = bondScore(listenerRelationship);
+        float bondScore = combineBond(storytellerBond, listenerBond);
+
+        float synergySignal = Math.max(setPositiveBias, compatibilityPositive);
+        float frictionSignal = Math.max(setNegativeBias, compatibilityNegative);
+        float playfulSarcasm = computePlayfulSarcasm(bondScore, synergySignal, frictionSignal);
+
+        float positiveBias = blendBias(setPositiveBias, compatibilityPositive);
+        float negativeBias = blendBias(
+            mitigateNegative(setNegativeBias, playfulSarcasm),
+            mitigateNegative(compatibilityNegative, playfulSarcasm * 1.1f)
+        );
+
         return new HarmonyGossipProfile(
-            blendBias(setPositiveBias, compatibilityPositive),
-            blendBias(setNegativeBias, compatibilityNegative)
+            positiveBias,
+            negativeBias,
+            playfulSarcasm
         );
     }
 
@@ -84,6 +103,68 @@ public final class HarmonyGossipBridge {
 
     private static boolean isInactive(@Nullable PetComponent.HarmonyState state) {
         return state == null || state.isEmpty();
+    }
+
+    @Nullable
+    private static RelationshipProfile resolveRelationship(@Nullable PetComponent source,
+                                                            @Nullable PetComponent target) {
+        if (source == null || target == null || target.getPetEntity() == null) {
+            return null;
+        }
+        UUID targetId = target.getPetEntity().getUuid();
+        if (targetId == null) {
+            return null;
+        }
+        return source.getRelationshipWith(targetId);
+    }
+
+    private static float bondScore(@Nullable RelationshipProfile profile) {
+        if (profile == null) {
+            return 0f;
+        }
+        float trust = MathHelper.clamp((profile.trust() + 1f) / 2f, 0f, 1f);
+        float affection = MathHelper.clamp(profile.affection(), 0f, 1f);
+        float respect = MathHelper.clamp(profile.respect(), 0f, 1f);
+        float comfort = MathHelper.clamp(profile.getComfort(), 0f, 1f);
+        float bond = (trust * 0.35f) + (affection * 0.35f) + (comfort * 0.2f) + (respect * 0.1f);
+        return MathHelper.clamp(bond, 0f, 1f);
+    }
+
+    private static float combineBond(float first, float second) {
+        if (first <= 0f && second <= 0f) {
+            return 0f;
+        }
+        float total = 0f;
+        int count = 0;
+        if (first > 0f) {
+            total += first;
+            count++;
+        }
+        if (second > 0f) {
+            total += second;
+            count++;
+        }
+        if (count == 0) {
+            return 0f;
+        }
+        return MathHelper.clamp(total / count, 0f, 1f);
+    }
+
+    private static float computePlayfulSarcasm(float bondScore, float synergySignal, float frictionSignal) {
+        if (bondScore <= 0f && synergySignal <= 0f) {
+            return 0f;
+        }
+        float base = (bondScore * 0.65f) + (synergySignal * 0.45f);
+        float damp = frictionSignal * 0.55f;
+        return MathHelper.clamp(base - damp, 0f, 1f);
+    }
+
+    private static float mitigateNegative(float bias, float playfulSarcasm) {
+        if (bias <= 0f || playfulSarcasm <= 0f) {
+            return bias;
+        }
+        float mitigation = playfulSarcasm * (0.25f + (bias * 0.15f));
+        return MathHelper.clamp(bias - mitigation, 0f, 1f);
     }
 
     @Nullable
@@ -138,18 +219,22 @@ public final class HarmonyGossipBridge {
         return MathHelper.clamp(combined, 0f, 1f);
     }
 
-    public record HarmonyGossipProfile(float positiveBias, float negativeBias) {
-        public static final HarmonyGossipProfile NEUTRAL = new HarmonyGossipProfile(0f, 0f);
+    public record HarmonyGossipProfile(float positiveBias, float negativeBias, float playfulSarcasm) {
+        public static final HarmonyGossipProfile NEUTRAL = new HarmonyGossipProfile(0f, 0f, 0f);
 
         public boolean isNeutral() {
-            return positiveBias <= 0.0001f && negativeBias <= 0.0001f;
+            return positiveBias <= 0.0001f && negativeBias <= 0.0001f && playfulSarcasm <= 0.0001f;
         }
 
         public float adjustPositive(float value) {
             if (value <= 0f) {
                 return 0f;
             }
-            float scale = MathHelper.clamp(1.0f + (positiveBias * 0.6f) - (negativeBias * 0.7f), 0.1f, 1.8f);
+            float scale = MathHelper.clamp(
+                1.0f + (positiveBias * 0.6f) + (playfulSarcasm * 0.15f) - (negativeBias * 0.7f),
+                0.1f,
+                1.8f
+            );
             return value * scale;
         }
 
@@ -157,7 +242,11 @@ public final class HarmonyGossipBridge {
             if (value <= 0f) {
                 return 0f;
             }
-            float scale = MathHelper.clamp(1.0f + (positiveBias * 0.3f) - (negativeBias * 0.5f), 0.1f, 1.6f);
+            float scale = MathHelper.clamp(
+                1.0f + (positiveBias * 0.3f) + (playfulSarcasm * 0.1f) - (negativeBias * 0.5f),
+                0.1f,
+                1.6f
+            );
             return value * scale;
         }
 
@@ -165,7 +254,11 @@ public final class HarmonyGossipBridge {
             if (value <= 0f) {
                 return 0f;
             }
-            float scale = MathHelper.clamp(1.0f + (positiveBias * 0.5f) - (negativeBias * 0.35f), 0.1f, 1.7f);
+            float scale = MathHelper.clamp(
+                1.0f + (positiveBias * 0.5f) + (playfulSarcasm * 0.2f) - (negativeBias * 0.35f),
+                0.1f,
+                1.7f
+            );
             return value * scale;
         }
 
@@ -173,7 +266,8 @@ public final class HarmonyGossipBridge {
             if (value <= 0f) {
                 return 0f;
             }
-            float scale = MathHelper.clamp(1.0f + (negativeBias * 0.75f) - (positiveBias * 0.2f), 0.3f, 2.2f);
+            float mitigation = (positiveBias * 0.2f) + (playfulSarcasm * 0.5f);
+            float scale = MathHelper.clamp(1.0f + (negativeBias * 0.75f) - mitigation, 0.25f, 2.1f);
             return value * scale;
         }
 
@@ -191,7 +285,8 @@ public final class HarmonyGossipBridge {
             }
             float scaled = base * MathHelper.clamp(negativeBias * 1.35f, 0f, 1.15f);
             float mitigation = base * MathHelper.clamp(positiveBias * 0.5f, 0f, 0.5f);
-            return Math.max(0f, scaled - mitigation);
+            float levity = base * MathHelper.clamp(playfulSarcasm * 0.65f, 0f, 0.6f);
+            return Math.max(0f, scaled - mitigation - levity);
         }
 
         public float admirationBonus() {
@@ -199,6 +294,14 @@ public final class HarmonyGossipBridge {
                 return 0f;
             }
             return MathHelper.clamp(positiveBias * 0.04f, 0f, 0.05f);
+        }
+
+        public float sassyAmusement() {
+            if (playfulSarcasm <= 0f) {
+                return 0f;
+            }
+            float amusement = (playfulSarcasm * 0.7f) + (positiveBias * 0.2f) - (negativeBias * 0.15f);
+            return MathHelper.clamp(amusement, 0f, 1f);
         }
     }
 }
