@@ -23,6 +23,7 @@ Creating the right environment for a specific nature requires planning and effor
 *   A **Tempest** nature requires the child to be born during a raging storm.
 *   A **Hearth** nature can only be achieved indoors, surrounded by cozy materials.
 *   An **Infernal** nature can only be forged in the oppressive heat of the Nether.
+*   Seeking an **Abstract** pet? Braid the parents into a 1×1×1, perfectly sealed pocket with zero light—the nature can spark on its own, but each Unnatural parent you bring to the ritual surges the odds.
 
 There are over a dozen of these special, born natures to discover. Each requires a unique set of environmental conditions related to location, weather, time of day, or even the social situation of the birth. Experiment with different setups to see what origin stories you can create.
 

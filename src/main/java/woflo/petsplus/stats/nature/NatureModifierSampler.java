@@ -122,11 +122,15 @@ public final class NatureModifierSampler {
         register("clockwork", NatureStat.AGILITY, 0.06f, NatureStat.FOCUS, 0.03f,
             1.10f, 1.00f, 0.85f, 1.10f,
             Emotion.FOCUSED, 0.40f, Emotion.CURIOUS, 0.28f, Emotion.RESTLESS, 0.22f);
-        
+
         register("unnatural", NatureStat.SPEED, 0.06f, NatureStat.AGILITY, 0.03f,
             1.55f, 0.70f, 1.30f, 0.75f,
             Emotion.ECHOED_RESONANCE, 0.42f, Emotion.ARCANE_OVERFLOW, 0.32f, Emotion.FERNWEH, 0.28f);
-        
+
+        register("abstract", NatureStat.FOCUS, 0.07f, NatureStat.SPEED, 0.04f,
+            0.44f, 1.62f, 0.64f, 1.18f,
+            Emotion.YUGEN, 0.45f, Emotion.MONO_NO_AWARE, 0.34f, Emotion.MELANCHOLY, 0.26f);
+
         register("homestead", NatureStat.LOYALTY, 0.05f, NatureStat.VITALITY, 0.03f,
             0.75f, 1.05f, 1.10f, 1.15f,
             Emotion.CONTENT, 0.38f, Emotion.QUERECIA, 0.28f, Emotion.SOBREMESA, 0.22f);
