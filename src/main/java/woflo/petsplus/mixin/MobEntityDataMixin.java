@@ -4,6 +4,7 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.storage.ReadView;
 import net.minecraft.storage.WriteView;
+import net.minecraft.util.Identifier;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -26,6 +27,17 @@ public class MobEntityDataMixin {
         MobEntity entity = (MobEntity) (Object) this;
         PetComponent component = PetComponent.getOrCreate(entity);
 
+        WriteView petsPlusData = view.get("PetsPlusData");
+        if (petsPlusData != null) {
+            Identifier roleId = component.getRoleId();
+            if (roleId != null) {
+                petsPlusData.putString("role", roleId.toString());
+            } else {
+                petsPlusData.remove("role");
+            }
+            petsPlusData.putString("petUuid", entity.getUuidAsString());
+        }
+
         component.saveToEntity();
     }
 
@@ -35,6 +47,15 @@ public class MobEntityDataMixin {
 
         PetComponent component = PetComponent.getOrCreate(entity);
         component.loadFromEntity();
+
+        view.getOptionalReadView("PetsPlusData").ifPresent(data -> {
+            data.getOptionalString("role").ifPresent(roleString -> {
+                Identifier parsed = Identifier.tryParse(roleString);
+                if (parsed != null) {
+                    component.setRoleId(parsed);
+                }
+            });
+        });
 
         // If the component did not carry an assigned role (e.g., due to shoulder
         // perch serialization path), restore the last remembered role for this UUID.
