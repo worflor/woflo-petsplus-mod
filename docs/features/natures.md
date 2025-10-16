@@ -1,6 +1,6 @@
 # Natures: The Origin Story
 
-A nature is the steady core of your pet’s personality—the mark left by how they entered your world. Roles decide what a pet does; nature sets how it feels while doing it. Pets gain their nature in one of two ways: taming them in the wild or raising them through a planned birth.
+A nature is the steady core of your pet’s personality: the mark left by how they entered your world. Roles decide what a pet does; nature sets how it feels while doing it. Pets gain their nature in one of two ways: taming them in the wild or raising them through a planned birth.
 
 ## Wild Natures: The Call of the Wild
 
@@ -15,7 +15,7 @@ Taming a stray locks in whatever vibe the biome taught it.
 Breeding lets you script stranger stories. The room, the weather, even who’s watching can tip the scales toward a specific nature.
 
 * **Radiant:** Deliver under bright daylight.
-* **Lunaris:** Time the birth for the deep of night—moon phase included.
+* **Lunaris:** Time the birth for the deep of night, moon phase included.
 * **Tempest:** Wait for a thunderstorm.
 * **Hearth:** Keep it indoors among cozy blocks.
 * **Infernal:** Brave the Nether’s heat.
