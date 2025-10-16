@@ -204,6 +204,13 @@ public final class NatureFlavorHandler {
             .hook(Trigger.USE_TRIAL_KEY, Slot.MINOR, 0.6f, 200)
             .hook(Trigger.WEATHER_THUNDER_START, Slot.QUIRK, 0.35f, 240));
 
+        register("abstract", builder -> builder
+            .hook(Trigger.OWNER_RESPAWN, Slot.MAJOR, 0.78f, 220)
+            .hook(Trigger.USE_ENDER_ARTIFACT, Slot.MINOR, 0.52f, 200)
+            .hook(Trigger.WEATHER_THUNDER_START, Slot.MINOR, 0.36f, 260)
+            .hook(Trigger.NIGHTFALL, Slot.QUIRK, 0.44f, 240)
+            .hook(Trigger.DAYBREAK, Slot.QUIRK, -0.28f, 260));
+
         register("verdant", builder -> builder
             .hook(Trigger.PLACE_SAPLING, Slot.MAJOR, 0.75f, 160)
             .hook(Trigger.CHERRY_BLOSSOM_BLOOM, Slot.MINOR, 0.55f, 200)

@@ -1,33 +1,55 @@
-# Natures: The Origin Story
+# Natures
 
-A nature is the unchangeable core of your pet's personality, the origin story that defines its foundational-vibe. It is an imprint left by the circumstances of their birth or taming, a permanent set of quirks and tendencies that makes your pet unique. While their [Role](roles.md) is their chosen profession, their Nature is the bedrock of who they are.
+Natures are the lasting mood that settles into a pet the moment it joins you. The story of that first meeting shapes how the pet moves, reacts, and cheers you on. You discover them by taming wanderers or by choreographing a birth.
 
-There are two paths through which a pet can gain a nature: being tamed from the wild or being bred under specific conditions.
+## Two ways to meet a nature
 
-## Wild Natures: The Call of the Wild
+Pets pull from different nature pools depending on how they arrive. Wild partners keep the instincts they learned outside your base. Newborns soak up whatever scene you build for them.
 
-A pet tamed in the wild receives a nature that reflects the environment where it grew up. These natures are a product of survival, shaped by the climate of their home biome.
+### Wild natures
 
-*   **Frisky:** Found in cold climates. These pets are quick, alert, and adapted to the challenges of frozen landscapes.
-*   **Feral:** Found in temperate climates. Balanced and resourceful, these are the quintessential survivors.
-*   **Fierce:** Found in hot climates. Resilient and aggressive, these pets are forged by the heat of deserts and savannas.
+Taming a stray locks in a climate-taught personality. Cold, temperate, and hot biomes each lend a different temperament:
 
-## Born Natures: A Product of Circumstance
+* **Frisky:** Frozen homes create alert, playful scouts.
+* **Feral:** Mild regions raise steady survivors.
+* **Fierce:** Blistering zones forge bold guardians.
 
-A pet born through breeding has the potential for a much wider, more mystical range of natures. These are not random. They are a direct result of the specific conditions at the moment of their birth. This is where you, as a caretaker, can influence destiny.
+### Born natures
 
-Creating the right environment for a specific nature requires planning and effort. The world itself imprints upon the newborn.
+Breeding lets you stage set pieces. Weather, architecture, altitude, storage, crowds, and even contraptions all weigh in on the roll.
 
-*   Want a **Radiant** pet? Ensure it is born under the clear light of day.
-*   Seeking a **Lunaris** pet? Plan the birth for the deep of night. The phase of the moon will even grant it a secret astrological sign, a deeper layer of personality.
-*   A **Tempest** nature requires the child to be born during a raging storm.
-*   A **Hearth** nature can only be achieved indoors, surrounded by cozy materials.
-*   An **Infernal** nature can only be forged in the oppressive heat of the Nether.
+* **Radiant:** Daylight under an open sky with clear weather.
+* **Lunaris:** Overworld nights with the moon overhead and the sky in view.
+* **Homestead:** Any build that shows clear homestead touches.
+* **Hearth:** Indoors while cozy blocks surround the egg.
+* **Tempest:** Rain or thunder crashing through the area.
+* **Solace:** No nearby players or pets sharing the room.
+* **Festival:** A lively audience of players or pets cheering nearby.
+* **Otherworldly:** Births that finish outside both the Overworld and the Nether.
+* **Infernal:** The molten pressure of the Nether itself.
+* **Echoed:** Deep Dark biomes steeped in sculk.
+* **Mycelial:** Mushroom fields with their gentle glow.
+* **Gilded:** Ores stacked around the nest.
+* **Gloom:** Indoors, nearly dark, and without rich ores to break the mood.
+* **Verdant:** Lush greenery within arm's reach.
+* **Summit:** High altitude perches with open sky.
+* **Tidal:** Fully submerged ocean births.
+* **Molten:** Lava or magma radiating heat nearby.
+* **Frosty:** Snowfall, powder snow, or frigid storms wrapping the scene.
+* **Mire:** Muddy mangrove or swamp surroundings.
+* **Relic:** Major structures watching over the cradle.
+* **Ceramic:** Active dig sites, decorated pots, or trial chambers with clear weather.
+* **Blossom:** Cherry blooms or lush meadows open to the sun.
+* **Clockwork:** Redstone networks humming inside a sheltered build.
+* **Sentinel:** Post-battle rooms stocked with organized gear and storage.
+* **Scrappy:** Post-battle chaos with messy or understocked storage.
+* **Unnatural:** Both parents arrive wild and unclaimed.
+* **Abstract:** Seal the egg inside a pitch black one block pocket with no water, witnesses, or light leaks. The nature can surface for any lineage, and every Unnatural parent sharply boosts the odds.
 
-There are over a dozen of these special, born natures to discover. Each requires a unique set of environmental conditions related to location, weather, time of day, or even the social situation of the birth. Experiment with different setups to see what origin stories you can create.
+That lineup covers every nature bundled with PetsPlus. Mix biomes, structures, light levels, crowds, and redstone to see how the rules collide.
 
-## What Natures Do
+## What natures do
 
-A nature provides subtle shifts to a pet's stats and emotional tendencies. A Fierce pet might be quicker to anger, while a Frisky one might be more playful. These are not massive gameplay buffs but personality quirks that make each pet feel like an individual. Even two pets with the same nature will have slight variations, ensuring no two companions are ever truly identical.
+A nature nudges stats and emotional weights without erasing the pet you met. Two pets with the same nature still land on slightly different rolls, so each friend keeps a personal spark.
 
-If you wish to know more about your pet's specific personality, you can craft and use the Pet Compendium to see its nature.
+Craft the Pet Compendium when you want the full breakdown.

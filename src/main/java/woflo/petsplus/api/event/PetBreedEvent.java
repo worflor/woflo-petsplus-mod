@@ -236,6 +236,7 @@ public final class PetBreedEvent {
             private final boolean swampBiome;
             private final boolean snowyPrecipitation;
             private final int skyLightLevel;
+            private final int blockLightLevel;
             private final int height;
             private final boolean hasOpenSky;
             private final boolean hasCozyBlocks;
@@ -252,6 +253,7 @@ public final class PetBreedEvent {
             private final boolean hasActiveRedstone;
             private final boolean hasHomesteadBlocks;
             private final boolean hasRecentCombat;
+            private final boolean sealedPocket;
             private final int nearbyChestCount;
             private final int totalStorageItems;
             private final int uniqueItemTypes;
@@ -266,6 +268,7 @@ public final class PetBreedEvent {
                                boolean swampBiome,
                                boolean snowyPrecipitation,
                                int skyLightLevel,
+                               int blockLightLevel,
                                int height,
                                boolean hasOpenSky,
                                boolean hasCozyBlocks,
@@ -282,6 +285,7 @@ public final class PetBreedEvent {
                                boolean hasActiveRedstone,
                                boolean hasHomesteadBlocks,
                                boolean hasRecentCombat,
+                               boolean sealedPocket,
                                int nearbyChestCount,
                                int totalStorageItems,
                                int uniqueItemTypes,
@@ -295,6 +299,7 @@ public final class PetBreedEvent {
                 this.swampBiome = swampBiome;
                 this.snowyPrecipitation = snowyPrecipitation;
                 this.skyLightLevel = skyLightLevel;
+                this.blockLightLevel = blockLightLevel;
                 this.height = height;
                 this.hasOpenSky = hasOpenSky;
                 this.hasCozyBlocks = hasCozyBlocks;
@@ -311,6 +316,7 @@ public final class PetBreedEvent {
                 this.hasActiveRedstone = hasActiveRedstone;
                 this.hasHomesteadBlocks = hasHomesteadBlocks;
                 this.hasRecentCombat = hasRecentCombat;
+                this.sealedPocket = sealedPocket;
                 this.nearbyChestCount = nearbyChestCount;
                 this.totalStorageItems = totalStorageItems;
                 this.uniqueItemTypes = uniqueItemTypes;
@@ -351,6 +357,10 @@ public final class PetBreedEvent {
 
             public int getSkyLightLevel() {
                 return skyLightLevel;
+            }
+
+            public int getBlockLightLevel() {
+                return blockLightLevel;
             }
 
             public int getHeight() {
@@ -415,6 +425,10 @@ public final class PetBreedEvent {
 
             public boolean hasRecentCombat() {
                 return hasRecentCombat;
+            }
+
+            public boolean isSealedPocket() {
+                return sealedPocket;
             }
 
             public int getNearbyChestCount() {

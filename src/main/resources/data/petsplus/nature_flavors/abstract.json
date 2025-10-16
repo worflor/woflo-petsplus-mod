@@ -1,0 +1,35 @@
+{
+  "replace": true,
+  "hooks": [
+    {
+      "trigger": "OWNER_RESPAWN",
+      "slot": "major",
+      "scale": 0.78,
+      "cooldown": 220
+    },
+    {
+      "trigger": "USE_ENDER_ARTIFACT",
+      "slot": "minor",
+      "scale": 0.52,
+      "cooldown": 200
+    },
+    {
+      "trigger": "WEATHER_THUNDER_START",
+      "slot": "minor",
+      "scale": 0.36,
+      "cooldown": 260
+    },
+    {
+      "trigger": "NIGHTFALL",
+      "slot": "quirk",
+      "scale": 0.44,
+      "cooldown": 240
+    },
+    {
+      "trigger": "DAYBREAK",
+      "slot": "quirk",
+      "scale": -0.28,
+      "cooldown": 260
+    }
+  ]
+}
