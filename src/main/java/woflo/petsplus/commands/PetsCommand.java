@@ -20,8 +20,11 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.mojang.brigadier.suggestion.Suggestions;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.minecraft.block.BlockState;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.command.CommandSource;
+import net.minecraft.entity.EntityType;
+import net.minecraft.entity.SpawnReason;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.item.Item;
 import net.minecraft.registry.Registry;
@@ -29,22 +32,31 @@ import net.minecraft.registry.Registries;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.random.Random;
 import org.jetbrains.annotations.Nullable;
+import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.commands.suggestions.PetsSuggestionProviders;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.events.EmotionContextCues;
+import woflo.petsplus.events.PetDetectionHandler;
 import woflo.petsplus.naming.AttributeKey;
 import woflo.petsplus.naming.NameParser;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.stats.PetAttributeManager;
 import woflo.petsplus.stats.nature.PetNatureSelector;
+import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
 import woflo.petsplus.ui.ChatLinks;
 import woflo.petsplus.util.PetTargetingUtil;
+
+import net.minecraft.world.Heightmap;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -79,6 +91,19 @@ public class PetsCommand {
             return Suggestions.empty();
         }
     };
+
+    private static final List<EntityType<? extends MobEntity>> PETTEST_SPECIES_POOL = List.of(
+        EntityType.WOLF,
+        EntityType.CAT,
+        EntityType.PARROT,
+        EntityType.RABBIT,
+        EntityType.FROG,
+        EntityType.TURTLE
+    );
+
+    private static final double PETTEST_SPAWN_RADIUS = 5.0D;
+    private static final double PETTEST_RADIUS_STEP = 1.5D;
+    private static final int PETTEST_MIN_ATTEMPTS = 6;
     
     public static void register() {
         CommandRegistrationCallback.EVENT.register(PetsCommand::registerCommands);
@@ -150,6 +175,8 @@ public class PetsCommand {
                 .then(CommandManager.literal("setlevel")
                     .then(CommandManager.argument("level", StringArgumentType.string())
                         .executes(PetsCommand::adminSetPetLevel)))
+                .then(CommandManager.literal("pettest")
+                    .executes(PetsCommand::adminSpawnPetTest))
                 .then(CommandManager.literal("testname")
                     .then(CommandManager.argument("name", StringArgumentType.greedyString())
                         .executes(PetsCommand::adminTestNameParsing))))
@@ -540,11 +567,200 @@ public class PetsCommand {
 
         return 1;
     }
-    
+
+    private static int adminSpawnPetTest(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        ServerWorld world = context.getSource().getWorld();
+
+        List<Identifier> roleOrder = PetRoleType.BUILTIN_ORDER;
+        if (roleOrder.isEmpty()) {
+            player.sendMessage(Text.literal("No built-in pet roles are registered.").formatted(Formatting.RED), false);
+            return 0;
+        }
+
+        List<Identifier> naturePool = new ArrayList<>(PetNatureSelector.getRegisteredNatureIds());
+        if (naturePool.isEmpty()) {
+            player.sendMessage(Text.literal("No pet natures are registered; cannot assign random natures.")
+                .formatted(Formatting.RED), false);
+            return 0;
+        }
+
+        Random random = world.getRandom();
+        List<MutableText> summaryLines = new ArrayList<>();
+        int spawned = 0;
+        int failures = 0;
+
+        for (int index = 0; index < roleOrder.size(); index++) {
+            Identifier roleId = roleOrder.get(index);
+            PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+            if (roleType == null) {
+                failures++;
+                player.sendMessage(Text.literal("Role registry entry missing for ")
+                        .formatted(Formatting.RED)
+                        .append(Text.literal(RoleIdentifierUtil.formatName(roleId)).formatted(Formatting.YELLOW)), false);
+                continue;
+            }
+
+            MobEntity mob = spawnPetTestEntity(world, player, random, index, roleOrder.size());
+            if (mob == null) {
+                failures++;
+                player.sendMessage(Text.literal("Failed to spawn test pet for role ")
+                    .formatted(Formatting.RED)
+                    .append(Text.literal(RoleIdentifierUtil.formatName(roleId)).formatted(Formatting.YELLOW)), false);
+                continue;
+            }
+
+            PetDetectionHandler.clearPending(mob);
+            PetDetectionHandler.registerPet(mob, player, roleType);
+
+            PetComponent component = PetComponent.getOrCreate(mob);
+            component.ensureImprint();
+
+            Identifier natureId = naturePool.get(random.nextInt(naturePool.size()));
+            component.setNatureId(natureId);
+            component.clearStateData(PetComponent.StateKeys.BREEDING_ASSIGNED_NATURE);
+            component.clearStateData(PetComponent.StateKeys.WILD_ASSIGNED_NATURE);
+
+            AstrologyRegistry.SignCycleSnapshot cycleSnapshot = AstrologyRegistry.SignCycleSnapshot.EMPTY;
+            if (natureId.equals(AstrologyRegistry.LUNARIS_NATURE_ID)) {
+                cycleSnapshot = AstrologyRegistry.advanceSignCycle();
+                Identifier assigned = cycleSnapshot.assigned();
+                if (assigned != null) {
+                    AstrologyRegistry.applySign(component, assigned);
+                }
+            } else {
+                AstrologyRegistry.applySign(component, null);
+            }
+
+            PetAttributeManager.applyAttributeModifiers(mob, component);
+
+            MutableText line = Text.literal("• ").formatted(Formatting.DARK_AQUA)
+                .append(mob.getDisplayName().copy().formatted(Formatting.YELLOW))
+                .append(Text.literal("  Type: ").formatted(Formatting.GRAY))
+                .append(mob.getType().getName().copy().formatted(Formatting.GREEN))
+                .append(Text.literal("  Role: ").formatted(Formatting.GRAY))
+                .append(Text.literal(RoleIdentifierUtil.formatName(roleId)).formatted(Formatting.AQUA))
+                .append(Text.literal("  Nature: ").formatted(Formatting.GRAY))
+                .append(AstrologyRegistry.getNatureText(component).copy().formatted(Formatting.LIGHT_PURPLE));
+
+            if (natureId.equals(AstrologyRegistry.LUNARIS_NATURE_ID) && cycleSnapshot.hasAssignment()) {
+                line.append(Text.literal("  Sign: ").formatted(Formatting.DARK_GRAY))
+                    .append(Text.literal(AstrologyRegistry.getDisplayTitle(component.getAstrologySignId()))
+                        .formatted(Formatting.AQUA));
+                if (cycleSnapshot.total() > 1 && cycleSnapshot.next() != null) {
+                    line.append(Text.literal(" (Next: ").formatted(Formatting.DARK_GRAY))
+                        .append(Text.literal(AstrologyRegistry.getDisplayTitle(cycleSnapshot.next()))
+                            .formatted(Formatting.AQUA))
+                        .append(Text.literal(")").formatted(Formatting.DARK_GRAY));
+                }
+            }
+
+            summaryLines.add(line);
+            spawned++;
+        }
+
+        if (spawned > 0) {
+            player.sendMessage(Text.literal("Spawned Pets+ role test lineup (" + spawned + "/" + roleOrder.size() + ")")
+                .formatted(Formatting.GOLD), false);
+            for (MutableText line : summaryLines) {
+                player.sendMessage(line, false);
+            }
+            if (failures > 0) {
+                player.sendMessage(Text.literal(failures + " roles could not be spawned; check surroundings.")
+                    .formatted(Formatting.YELLOW), false);
+            }
+            return spawned;
+        }
+
+        player.sendMessage(Text.literal("Unable to spawn any pets for the admin test.").formatted(Formatting.RED), false);
+        return 0;
+    }
+
+    private static @Nullable MobEntity spawnPetTestEntity(ServerWorld world, ServerPlayerEntity player,
+                                                          Random random, int index, int totalRoles) {
+        int attempts = Math.max(PETTEST_SPECIES_POOL.size() * 2, PETTEST_MIN_ATTEMPTS);
+        for (int attempt = 0; attempt < attempts; attempt++) {
+            EntityType<? extends MobEntity> entityType = PETTEST_SPECIES_POOL.get(random.nextInt(PETTEST_SPECIES_POOL.size()));
+            double baseAngle = (2.0 * Math.PI * index) / Math.max(1, totalRoles);
+            double angle = baseAngle
+                + (random.nextDouble() - 0.5D) * 0.55D
+                + (attempt % 2 == 0 ? 0.0D : Math.PI / Math.max(2, totalRoles));
+            double distance = PETTEST_SPAWN_RADIUS + attempt * PETTEST_RADIUS_STEP + random.nextDouble() * 1.75D;
+            double offsetX = Math.cos(angle) * distance;
+            double offsetZ = Math.sin(angle) * distance;
+
+            BlockPos basePos = BlockPos.ofFloored(player.getX() + offsetX, player.getY(), player.getZ() + offsetZ);
+            if (!world.isChunkLoaded(basePos)) {
+                continue;
+            }
+            BlockPos topPos = world.getTopPosition(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, basePos);
+            if (!world.isChunkLoaded(topPos) || !world.getWorldBorder().contains(topPos)) {
+                continue;
+            }
+
+            BlockPos floorPos = topPos.down();
+            BlockState floorState = world.getBlockState(floorPos);
+            if (floorState.isAir() || !floorState.getFluidState().isEmpty()) {
+                continue;
+            }
+            if (!world.getFluidState(topPos).isEmpty()) {
+                continue;
+            }
+
+            MobEntity mob = entityType.create(world, SpawnReason.COMMAND);
+            if (mob == null) {
+                continue;
+            }
+            if (!(mob instanceof PetsplusTameable tameable)) {
+                mob.discard();
+                continue;
+            }
+
+            double spawnX = topPos.getX() + 0.5D;
+            double spawnY = topPos.getY();
+            double spawnZ = topPos.getZ() + 0.5D;
+
+            mob.refreshPositionAndAngles(spawnX, spawnY, spawnZ, random.nextFloat() * 360.0F, 0.0F);
+            mob.setBodyYaw(mob.getYaw());
+            mob.setHeadYaw(mob.getYaw());
+            mob.fallDistance = 0.0F;
+
+            mob.initialize(world, world.getLocalDifficulty(topPos), SpawnReason.COMMAND, null);
+            mob.calculateDimensions();
+
+            if (!world.isChunkLoaded(BlockPos.ofFloored(spawnX, spawnY, spawnZ))) {
+                mob.discard();
+                continue;
+            }
+
+            if (!world.isSpaceEmpty(mob)) {
+                mob.discard();
+                continue;
+            }
+
+            if (!world.spawnEntity(mob)) {
+                mob.discard();
+                continue;
+            }
+
+            tameable.petsplus$setTamed(true);
+            tameable.petsplus$setOwner(player);
+            tameable.petsplus$setSitting(false);
+            mob.setPersistent();
+            mob.setOnGround(true);
+            mob.setVelocity(0.0D, 0.0D, 0.0D);
+            mob.heal(mob.getMaxHealth());
+            mob.getNavigation().stop();
+            return mob;
+        }
+
+        return null;
+    }
+
     private static int adminSetPetLevel(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
         String levelStr = StringArgumentType.getString(context, "level");
-        
+
         // Parse level
         int level;
         try {
