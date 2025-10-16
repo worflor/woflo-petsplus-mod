@@ -477,12 +477,6 @@ public class PetsplusAdminCommands {
                     cycleMessage.append(Text.literal(" (" + cycleSnapshot.displayIndex() + "/" + cycleSnapshot.total() + ")")
                         .formatted(Formatting.DARK_GRAY));
                 }
-                Identifier nextSignId = cycleSnapshot.next();
-                if (nextSignId != null && cycleSnapshot.total() > 1) {
-                    cycleMessage.append(Text.literal(" • Next: ")
-                        .formatted(Formatting.DARK_GRAY))
-                        .append(Text.literal(AstrologyRegistry.getDisplayTitle(nextSignId)).formatted(Formatting.AQUA));
-                }
                 player.sendMessage(cycleMessage, false);
             } else {
                 player.sendMessage(Text.literal("No Lunaris signs are configured; cycle cannot advance.")

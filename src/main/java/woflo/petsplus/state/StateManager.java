@@ -455,6 +455,10 @@ public class StateManager {
             ownerStates.entrySet().removeIf(entry -> entry.getKey() == null || entry.getKey().isRemoved());
 
             this.nextMaintenanceTick = currentServerTick + 200;
+
+            // Prune any stale role memories captured during shoulder‑perch
+            // or other temporary removals.
+            woflo.petsplus.state.PetRoleMemory.cleanup();
         }
     }
 

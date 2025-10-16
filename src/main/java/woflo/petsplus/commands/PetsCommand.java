@@ -647,12 +647,6 @@ public class PetsCommand {
                 line.append(Text.literal("  Sign: ").formatted(Formatting.DARK_GRAY))
                     .append(Text.literal(AstrologyRegistry.getDisplayTitle(component.getAstrologySignId()))
                         .formatted(Formatting.AQUA));
-                if (cycleSnapshot.total() > 1 && cycleSnapshot.next() != null) {
-                    line.append(Text.literal(" (Next: ").formatted(Formatting.DARK_GRAY))
-                        .append(Text.literal(AstrologyRegistry.getDisplayTitle(cycleSnapshot.next()))
-                            .formatted(Formatting.AQUA))
-                        .append(Text.literal(")").formatted(Formatting.DARK_GRAY));
-                }
             }
 
             summaryLines.add(line);

@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.CampfireBlock;
 import net.minecraft.block.RespawnAnchorBlock;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.ItemEnchantmentsComponent;
@@ -21,6 +22,7 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.registry.tag.BiomeTags;
+import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityType;
@@ -32,6 +34,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkSectionPos;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import net.minecraft.world.biome.Biome;
@@ -982,11 +985,14 @@ public final class PetMoodEngine {
             survivors.add(best);
         }
 
+        // Copy survivors to avoid concurrent modifications during downstream weighting
+        List<Candidate> survivorsSnapshot = List.copyOf(survivors);
+
         // Derived stats for weighting
-        scratchFrequencies = ensureCapacity(scratchFrequencies, survivors.size());
-        scratchFrequencyCount = survivors.size();
+        scratchFrequencies = ensureCapacity(scratchFrequencies, survivorsSnapshot.size());
+        scratchFrequencyCount = survivorsSnapshot.size();
         for (int i = 0; i < scratchFrequencyCount; i++) {
-            scratchFrequencies[i] = survivors.get(i).frequency;
+            scratchFrequencies[i] = survivorsSnapshot.get(i).frequency;
         }
         float freqMedian = selectQuantile(scratchFrequencies, scratchFrequencyCount, 0.5f, 1f);
         // Reserved for future frequency-based mood adjustments
@@ -998,7 +1004,7 @@ public final class PetMoodEngine {
 
         // Weight synthesis - Simplified additive model based on psychological realism
         List<Candidate> weighted = new ArrayList<>();
-        for (Candidate candidate : survivors) {
+        for (Candidate candidate : survivorsSnapshot) {
             EmotionRecord record = candidate.record;
             float intensity = MathHelper.clamp(record.intensity, 0f, 1f);
             // Double-check intensity bounds
@@ -2787,6 +2793,26 @@ public final class PetMoodEngine {
             severity = Math.max(severity, freezeSeverity);
         }
 
+        World world = entity.getEntityWorld();
+        if (world != null) {
+            BlockPos basePos = entity.getBlockPos();
+            BlockPos.Mutable mutable = new BlockPos.Mutable();
+            float contactHazard = 0f;
+
+            mutable.set(basePos);
+            contactHazard = Math.max(contactHazard, resolveContactHazardSeverity(world, mutable));
+
+            mutable.set(basePos.down());
+            contactHazard = Math.max(contactHazard, resolveContactHazardSeverity(world, mutable));
+
+            for (Direction direction : Direction.Type.HORIZONTAL) {
+                mutable.set(basePos.getX() + direction.getOffsetX(), basePos.getY(), basePos.getZ() + direction.getOffsetZ());
+                contactHazard = Math.max(contactHazard, resolveContactHazardSeverity(world, mutable));
+            }
+
+            severity = Math.max(severity, contactHazard);
+        }
+
         for (StatusEffectInstance effect : entity.getStatusEffects()) {
             if (effect == null) {
                 continue;
@@ -2827,6 +2853,38 @@ public final class PetMoodEngine {
         }
 
         return MathHelper.clamp(severity, 0f, 1f);
+    }
+
+    private static float resolveContactHazardSeverity(World world, BlockPos pos) {
+        return resolveContactHazardSeverity(world, pos, world.getBlockState(pos));
+    }
+
+    private static float resolveContactHazardSeverity(World world, BlockPos pos, BlockState state) {
+        float severity = 0f;
+
+        if (state.isOf(Blocks.CACTUS)) {
+            severity = Math.max(severity, 0.55f);
+        } else if (state.isOf(Blocks.SWEET_BERRY_BUSH)) {
+            severity = Math.max(severity, 0.42f);
+        } else if (state.isOf(Blocks.MAGMA_BLOCK)) {
+            severity = Math.max(severity, 0.65f);
+        } else if (state.isOf(Blocks.FIRE) || state.isOf(Blocks.SOUL_FIRE)) {
+            severity = Math.max(severity, 0.7f);
+        } else if (state.isOf(Blocks.POWDER_SNOW)) {
+            severity = Math.max(severity, 0.38f);
+        }
+
+        if (state.getBlock() instanceof CampfireBlock) {
+            if (state.contains(CampfireBlock.LIT) && state.get(CampfireBlock.LIT)) {
+                severity = Math.max(severity, 0.5f);
+            }
+        }
+
+        if (world.getFluidState(pos).isIn(FluidTags.LAVA)) {
+            severity = Math.max(severity, 0.95f);
+        }
+
+        return severity;
     }
 
     private float collectArcaneStructureEnergy(ServerWorld world, BlockPos origin, int radius) {

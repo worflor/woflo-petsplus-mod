@@ -22,12 +22,14 @@ import net.minecraft.state.property.Properties;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
 import net.minecraft.world.Heightmap;
 import net.minecraft.world.LightType;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeKeys;
+import net.minecraft.util.shape.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.event.PetBreedEvent;
 import woflo.petsplus.state.PetComponent;
@@ -71,6 +73,16 @@ public final class PetNatureSelector {
         Identifier.of("petsplus", "natures/redstone_power_sources"));
     public static final TagKey<Block> NATURE_HOMESTEAD_BLOCKS = TagKey.of(RegistryKeys.BLOCK,
         Identifier.of("petsplus", "natures/homestead_markers"));
+    private static final Identifier UNNATURAL_NATURE_ID = Identifier.of("petsplus", "unnatural");
+    private static final float ABSTRACT_BASE_CHANCE = 0.015f;
+    private static final float ABSTRACT_MIN_CHANCE = 0.005f;
+    private static final float ABSTRACT_FIRST_UNNATURAL_BONUS = 0.45f;
+    private static final float ABSTRACT_SECOND_UNNATURAL_BONUS = 0.43f;
+    private static final float ABSTRACT_CHANCE_NOISE = 0.08f;
+    private static final float ABSTRACT_MAX_CHANCE = 0.93f;
+    private static final int ABSTRACT_MAX_WITNESS_PLAYERS = 1;
+    private static final int ABSTRACT_MAX_WITNESS_PETS = 0;
+    private static final double POCKET_FACE_TOLERANCE = 1.0E-3D;
 
     private PetNatureSelector() {
     }
@@ -112,6 +124,7 @@ public final class PetNatureSelector {
         registerNature("sentinel", PetNatureSelector::matchesSentinel);
         registerNature("scrappy", PetNatureSelector::matchesScrappy);
         registerNature("unnatural", ctx -> !ctx.primaryOwned() && !ctx.partnerOwned(), ctx -> false);
+        registerNature("abstract", PetNatureSelector::matchesAbstract, (random, ctx) -> false);
     }
 
     /**
@@ -123,15 +136,28 @@ public final class PetNatureSelector {
     }
 
     private static void registerNature(String path, Predicate<NatureContext> predicate) {
-        registerNature(path, predicate, predicate);
+        registerNature(path, (random, ctx) -> predicate.test(ctx));
     }
 
     private static void registerNature(String path, Predicate<NatureContext> birthPredicate,
                                        Predicate<NatureContext> tamePredicate) {
+        registerNature(path,
+            (random, ctx) -> birthPredicate.test(ctx),
+            (random, ctx) -> tamePredicate.test(ctx));
+    }
+
+    private static void registerNature(String path, RandomPredicate<NatureContext> predicate) {
+        registerNature(path, predicate, predicate);
+    }
+
+    private static void registerNature(String path, RandomPredicate<NatureContext> birthPredicate,
+                                       RandomPredicate<NatureContext> tamePredicate) {
         Identifier id = Identifier.of("petsplus", path);
         REGISTERED_NATURES.add(id);
-        BIRTH_RULES.add(new NatureRule<>(id, context -> context != null && birthPredicate.test(new BirthNatureContext(context))));
-        TAME_RULES.add(new NatureRule<>(id, context -> context != null && tamePredicate.test(context)));
+        BIRTH_RULES.add(new NatureRule<>(id, (random, context) ->
+            context != null && birthPredicate.test(random, new BirthNatureContext(context))));
+        TAME_RULES.add(new NatureRule<>(id, (random, context) ->
+            context != null && tamePredicate.test(random, context)));
     }
 
     /**
@@ -215,6 +241,7 @@ public final class PetNatureSelector {
         boolean snowyPrecipitation = hasPrecipitation && biomeTemperature <= 0.15f;
 
         int skyLight = world.getLightLevel(LightType.SKY, pos);
+        int blockLight = world.getLightLevel(LightType.BLOCK, pos);
         boolean hasOpenSky = world.isSkyVisible(pos);
         int height = pos.getY();
 
@@ -228,6 +255,7 @@ public final class PetNatureSelector {
         sample.hasRecentCombat = hasRecentCombat;
         
         sample.finalizeAfterScan();
+        boolean sealedPocket = isSealedOneBlockPocket(world, pos);
         boolean fullySubmerged = entity.isSubmergedIn(FluidTags.WATER);
 
         return new PetBreedEvent.BirthContext.Environment(
@@ -240,6 +268,7 @@ public final class PetNatureSelector {
             swamp,
             snowyPrecipitation,
             skyLight,
+            blockLight,
             height,
             hasOpenSky,
             sample.hasCozyBlocks(),
@@ -256,6 +285,7 @@ public final class PetNatureSelector {
             sample.hasActiveRedstone(),
             sample.hasHomesteadBlocks(),
             sample.hasRecentCombat(),
+            sealedPocket,
             sample.getNearbyChestCount(),
             sample.getTotalStorageItems(),
             sample.getUniqueItemTypes(),
@@ -272,7 +302,7 @@ public final class PetNatureSelector {
         int matchCount = 0;
 
         for (NatureRule<T> rule : rules) {
-            if (!rule.predicate.test(context)) {
+            if (!rule.predicate.test(random, context)) {
                 continue;
             }
 
@@ -434,8 +464,117 @@ public final class PetNatureSelector {
             || (context.environment().getBiomeTemperature() <= 0.2f && (context.isRaining() || context.isThundering()));
     }
 
+    private static boolean matchesAbstract(Random random, NatureContext context) {
+        if (context == null || random == null) {
+            return false;
+        }
+
+        PetBreedEvent.BirthContext.Environment env = context.environment();
+        if (env == null) {
+            return false;
+        }
+
+        if (!context.isIndoors() || env.hasOpenSky()) {
+            return false;
+        }
+        if (!env.isSealedPocket()) {
+            return false;
+        }
+        if (env.getSkyLightLevel() > 0 || env.getBlockLightLevel() > 0) {
+            return false;
+        }
+        if (env.isFullySubmerged()) {
+            return false;
+        }
+        if (!isAbstractWitnessSolitary(context)) {
+            return false;
+        }
+
+        int unnaturalParents = countUnnaturalParents(context);
+        float chance = resolveAbstractChance(random, unnaturalParents);
+
+        return random.nextFloat() < chance;
+    }
+
+    private static boolean isAbstractWitnessSolitary(NatureContext context) {
+        return context.nearbyPlayers() <= ABSTRACT_MAX_WITNESS_PLAYERS
+            && context.nearbyPets() <= ABSTRACT_MAX_WITNESS_PETS;
+    }
+
+    private static int countUnnaturalParents(NatureContext context) {
+        int count = 0;
+        if (UNNATURAL_NATURE_ID.equals(context.primaryParentNatureId())) {
+            count++;
+        }
+        if (UNNATURAL_NATURE_ID.equals(context.partnerParentNatureId())) {
+            count++;
+        }
+        return count;
+    }
+
+    private static float resolveAbstractChance(Random random, int unnaturalParents) {
+        float chance = ABSTRACT_BASE_CHANCE;
+        if (unnaturalParents > 0) {
+            chance += ABSTRACT_FIRST_UNNATURAL_BONUS;
+            if (unnaturalParents > 1) {
+                chance += ABSTRACT_SECOND_UNNATURAL_BONUS;
+            }
+        }
+        float noise = (random.nextFloat() - 0.5f) * ABSTRACT_CHANCE_NOISE;
+        chance = MathHelper.clamp(chance + noise, ABSTRACT_MIN_CHANCE, ABSTRACT_MAX_CHANCE);
+        return chance;
+    }
+
     private static boolean isDimension(NatureContext context, Identifier dimension) {
         return Objects.equals(context.dimensionId(), dimension);
+    }
+
+    private static boolean isSealedOneBlockPocket(ServerWorld world, BlockPos pos) {
+        if (world == null || pos == null) {
+            return false;
+        }
+
+        BlockState centerState = world.getBlockState(pos);
+        VoxelShape centerShape = centerState.getCollisionShape(world, pos);
+        if (!centerState.isAir() && !centerShape.isEmpty()) {
+            return false;
+        }
+
+        if (!world.getFluidState(pos).isEmpty()) {
+            return false;
+        }
+
+        for (Direction direction : Direction.values()) {
+            BlockPos neighborPos = pos.offset(direction);
+            BlockState neighborState = world.getBlockState(neighborPos);
+            if (!isPocketBoundary(world, neighborPos, neighborState, direction.getOpposite())) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static boolean isPocketBoundary(ServerWorld world, BlockPos pos, BlockState state, Direction face) {
+        if (state == null || state.isAir()) {
+            return false;
+        }
+        if (!state.getFluidState().isEmpty()) {
+            return false;
+        }
+        VoxelShape shape = state.getCollisionShape(world, pos);
+        if (shape.isEmpty()) {
+            return false;
+        }
+
+        return switch (face) {
+            case DOWN -> shape.getMin(Direction.Axis.Y) <= POCKET_FACE_TOLERANCE;
+            case UP -> shape.getMax(Direction.Axis.Y) >= 1.0D - POCKET_FACE_TOLERANCE;
+            case NORTH -> shape.getMin(Direction.Axis.Z) <= POCKET_FACE_TOLERANCE;
+            case SOUTH -> shape.getMax(Direction.Axis.Z) >= 1.0D - POCKET_FACE_TOLERANCE;
+            case WEST -> shape.getMin(Direction.Axis.X) <= POCKET_FACE_TOLERANCE;
+            case EAST -> shape.getMax(Direction.Axis.X) >= 1.0D - POCKET_FACE_TOLERANCE;
+        };
     }
 
     public static boolean isBlockEmittingRedstone(ServerWorld world, BlockPos pos, BlockState state) {
@@ -1290,6 +1429,11 @@ public final class PetNatureSelector {
         }
     }
 
-    private record NatureRule<T>(Identifier id, Predicate<T> predicate) {
+    @FunctionalInterface
+    private interface RandomPredicate<T> {
+        boolean test(Random random, T context);
+    }
+
+    private record NatureRule<T>(Identifier id, RandomPredicate<T> predicate) {
     }
 }

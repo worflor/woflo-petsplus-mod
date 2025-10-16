@@ -2,6 +2,9 @@ package woflo.petsplus.events;
 
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.CampfireBlock;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
@@ -21,7 +24,7 @@ import net.minecraft.entity.projectile.PersistentProjectileEntity;
 import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryKeys;
-
+import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.registry.tag.TagKey;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -29,10 +32,12 @@ import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.EntityHitResult;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
+import net.minecraft.registry.tag.FluidTags;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.api.registry.PetRoleType;
@@ -2590,6 +2595,72 @@ public class CombatEventHandler {
         return new CombatVariance(mixedSeed, nuanceNoise, lateralBias, retreatTempo, spinBias, moodAnchor, urgencyBias);
     }
 
+    @Nullable
+    private static Vec3d computeHazardRetreatVector(MobEntity pet, @Nullable DamageSource damageSource) {
+        if (damageSource != null) {
+            Vec3d hazardCenter = damageSource.getPosition();
+            if (hazardCenter != null) {
+                Vec3d away = new Vec3d(pet.getX() - hazardCenter.x, 0.0d, pet.getZ() - hazardCenter.z);
+                if (away.lengthSquared() > 1.0E-4d) {
+                    return away.normalize();
+                }
+            }
+        }
+
+        World world = pet.getEntityWorld();
+        BlockPos petPos = pet.getBlockPos();
+        Vec3d closestHazard = null;
+        double closestDistanceSq = Double.MAX_VALUE;
+        BlockPos.Mutable mutable = new BlockPos.Mutable();
+
+        for (int dy = -1; dy <= 1; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dy == 0 && dz == 0) {
+                        continue;
+                    }
+                    mutable.set(petPos.getX() + dx, petPos.getY() + dy, petPos.getZ() + dz);
+                    BlockState state = world.getBlockState(mutable);
+                    boolean isHazard = isHazardBlock(state) || world.getFluidState(mutable).isIn(FluidTags.LAVA);
+                    if (!isHazard) {
+                        continue;
+                    }
+                    Vec3d center = Vec3d.ofCenter(mutable);
+                    double distanceSq = center.squaredDistanceTo(pet.getX(), pet.getY(), pet.getZ());
+                    if (distanceSq < closestDistanceSq) {
+                        closestDistanceSq = distanceSq;
+                        closestHazard = center;
+                    }
+                }
+            }
+        }
+
+        if (closestHazard != null) {
+            Vec3d away = new Vec3d(pet.getX() - closestHazard.x, 0.0d, pet.getZ() - closestHazard.z);
+            if (away.lengthSquared() > 1.0E-4d) {
+                return away.normalize();
+            }
+        }
+
+        return null;
+    }
+
+    private static boolean isHazardBlock(BlockState state) {
+        if (state.isOf(Blocks.CACTUS)
+            || state.isOf(Blocks.SWEET_BERRY_BUSH)
+            || state.isOf(Blocks.MAGMA_BLOCK)
+            || state.isOf(Blocks.FIRE)
+            || state.isOf(Blocks.SOUL_FIRE)) {
+            return true;
+        }
+
+        if (state.getBlock() instanceof CampfireBlock) {
+            return state.contains(CampfireBlock.LIT) && state.get(CampfireBlock.LIT);
+        }
+
+        return false;
+    }
+
     private static void applyChipDamageRestlessness(
         MobEntity pet,
         PetComponent petComponent,
@@ -2742,8 +2813,13 @@ public class CombatEventHandler {
             } else if (attacker != null && !attacker.equals(pet)) {
                 retreatVector = new Vec3d(pet.getX() - attacker.getX(), 0.0d, pet.getZ() - attacker.getZ());
             } else {
-                double yaw = MathHelper.lerp((variance.spinBias() + 1f) * 0.5d, -Math.PI, Math.PI);
-                retreatVector = new Vec3d(Math.cos(yaw), 0.0d, Math.sin(yaw));
+                Vec3d hazardRetreat = computeHazardRetreatVector(pet, damageSource);
+                if (hazardRetreat != null) {
+                    retreatVector = hazardRetreat;
+                } else {
+                    double yaw = MathHelper.lerp((variance.spinBias() + 1f) * 0.5d, -Math.PI, Math.PI);
+                    retreatVector = new Vec3d(Math.cos(yaw), 0.0d, Math.sin(yaw));
+                }
             }
 
             double lengthSq = retreatVector.lengthSquared();

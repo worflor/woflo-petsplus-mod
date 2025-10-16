@@ -16,8 +16,19 @@ public abstract class MobEntityRemoveMixin {
 
     @Inject(method = "remove(Lnet/minecraft/entity/Entity$RemovalReason;)V", at = @At("TAIL"))
     private void petsplus$onRemoved(Entity.RemovalReason reason, CallbackInfo ci) {
-        if ((Object) this instanceof MobEntity mob) {
-            OwnerAbilitySignalTracker.handlePetRemoved(mob);
+        if (!((Object) this instanceof MobEntity mob)) {
+            return;
+        }
+
+        // Tear down any owner ability channels
+        OwnerAbilitySignalTracker.handlePetRemoved(mob);
+
+        // Remember the role for owned pets being removed. This covers
+        // shoulder‑perch despawns and any other temporary removal paths
+        // where component role may not survive round‑trip.
+        var component = woflo.petsplus.state.PetComponent.get(mob);
+        if (component != null && component.getOwner() != null && component.getAssignedRoleId() != null) {
+            woflo.petsplus.state.PetRoleMemory.remember(mob.getUuid(), component.getRoleId());
         }
     }
 }

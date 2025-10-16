@@ -36,6 +36,15 @@ public class MobEntityDataMixin {
         PetComponent component = PetComponent.getOrCreate(entity);
         component.loadFromEntity();
 
+        // If the component did not carry an assigned role (e.g., due to shoulder
+        // perch serialization path), restore the last remembered role for this UUID.
+        if (component.getAssignedRoleId() == null) {
+            var remembered = woflo.petsplus.state.PetRoleMemory.recall(entity.getUuid());
+            if (remembered != null) {
+                component.setRoleId(remembered);
+            }
+        }
+
         boolean sittingOffsetApplied = component.getStateData("petsplus:sitting_offset", Boolean.class, false);
         if (entity instanceof SittingOffsetTracker tracker) {
             tracker.petsplus$setSittingOffsetApplied(sittingOffsetApplied);
