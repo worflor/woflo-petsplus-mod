@@ -1,34 +1,30 @@
 # Natures: The Origin Story
 
-A nature is the unchangeable core of your pet's personality, the origin story that defines its foundational-vibe. It is an imprint left by the circumstances of their birth or taming, a permanent set of quirks and tendencies that makes your pet unique. While their [Role](roles.md) is their chosen profession, their Nature is the bedrock of who they are.
-
-There are two paths through which a pet can gain a nature: being tamed from the wild or being bred under specific conditions.
+A nature is the steady core of your pet’s personality—the mark left by how they entered your world. Roles decide what a pet does; nature sets how it feels while doing it. Pets gain their nature in one of two ways: taming them in the wild or raising them through a planned birth.
 
 ## Wild Natures: The Call of the Wild
 
-A pet tamed in the wild receives a nature that reflects the environment where it grew up. These natures are a product of survival, shaped by the climate of their home biome.
+Taming a stray locks in whatever vibe the biome taught it.
 
-*   **Frisky:** Found in cold climates. These pets are quick, alert, and adapted to the challenges of frozen landscapes.
-*   **Feral:** Found in temperate climates. Balanced and resourceful, these are the quintessential survivors.
-*   **Fierce:** Found in hot climates. Resilient and aggressive, these pets are forged by the heat of deserts and savannas.
+* **Frisky:** Cold homes breed quick, alert partners.
+* **Feral:** Temperate lands raise balanced survivors.
+* **Fierce:** Hot climates forge pets with heat-hardened grit.
 
 ## Born Natures: A Product of Circumstance
 
-A pet born through breeding has the potential for a much wider, more mystical range of natures. These are not random. They are a direct result of the specific conditions at the moment of their birth. This is where you, as a caretaker, can influence destiny.
+Breeding lets you script stranger stories. The room, the weather, even who’s watching can tip the scales toward a specific nature.
 
-Creating the right environment for a specific nature requires planning and effort. The world itself imprints upon the newborn.
+* **Radiant:** Deliver under bright daylight.
+* **Lunaris:** Time the birth for the deep of night—moon phase included.
+* **Tempest:** Wait for a thunderstorm.
+* **Hearth:** Keep it indoors among cozy blocks.
+* **Infernal:** Brave the Nether’s heat.
+* **Abstract:** Seal both parents in a pitch-black 1×1×1 pocket. The nature can appear on any bloodline, but each Unnatural parent you bring multiplies the odds.
 
-*   Want a **Radiant** pet? Ensure it is born under the clear light of day.
-*   Seeking a **Lunaris** pet? Plan the birth for the deep of night. The phase of the moon will even grant it a secret astrological sign, a deeper layer of personality.
-*   A **Tempest** nature requires the child to be born during a raging storm.
-*   A **Hearth** nature can only be achieved indoors, surrounded by cozy materials.
-*   An **Infernal** nature can only be forged in the oppressive heat of the Nether.
-*   Seeking an **Abstract** pet? Braid the parents into a 1×1×1, perfectly sealed pocket with zero light—the nature can spark on its own, but each Unnatural parent you bring to the ritual surges the odds.
-
-There are over a dozen of these special, born natures to discover. Each requires a unique set of environmental conditions related to location, weather, time of day, or even the social situation of the birth. Experiment with different setups to see what origin stories you can create.
+There are many more rituals to uncover. Play with location, weather, time, and company to see which story sticks.
 
 ## What Natures Do
 
-A nature provides subtle shifts to a pet's stats and emotional tendencies. A Fierce pet might be quicker to anger, while a Frisky one might be more playful. These are not massive gameplay buffs but personality quirks that make each pet feel like an individual. Even two pets with the same nature will have slight variations, ensuring no two companions are ever truly identical.
+Natures nudge stats and emotions without rewriting your pet. A Fierce companion may flare up faster; a Frisky one stays playful. Even pets who share a nature land on slightly different numbers, so every partner keeps a personal spark.
 
-If you wish to know more about your pet's specific personality, you can craft and use the Pet Compendium to see its nature.
+Craft the Pet Compendium when you want the full readout.
