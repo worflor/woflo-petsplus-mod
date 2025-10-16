@@ -771,12 +771,24 @@ public class PetComponent {
         return harmonyState.moodMultiplier();
     }
 
+    @Nullable
+    public HarmonyCompatibility getHarmonyCompatibility(UUID entityId) {
+        return harmonyState.compatibility(entityId);
+    }
+
+    public Map<UUID, HarmonyCompatibility> getHarmonyCompatibilities() {
+        return harmonyState.compatibilities();
+    }
+
     public void applyHarmonyState(HarmonyState state) {
         HarmonyState sanitized = state == null ? HarmonyState.empty() : state;
         if (harmonyState.equals(sanitized)) {
             return;
         }
         harmonyState = sanitized;
+        if (relationshipModule != null) {
+            relationshipModule.applyHarmonyCompatibility(sanitized.compatibilities(), sanitized.lastUpdatedTick());
+        }
         markContextDirty(ContextSlice.SOCIAL, ContextSlice.MOOD, ContextSlice.EMOTIONS);
         publishStimulus(PerceptionStimulusType.HARMONY_STATE,
             EnumSet.of(ContextSlice.SOCIAL, ContextSlice.MOOD, ContextSlice.EMOTIONS), sanitized);
@@ -854,7 +866,10 @@ public class PetComponent {
         if (relationshipModule == null) {
             return SocialSnapshot.empty();
         }
-        return SocialSnapshot.fromRelationships(relationshipModule.getAllRelationships());
+        return SocialSnapshot.fromRelationships(
+            relationshipModule.getAllRelationships(),
+            relationshipModule.getHarmonyCompatibilities()
+        );
     }
 
     public boolean isDormant() {
@@ -2524,7 +2539,20 @@ public class PetComponent {
     public record EmotionDelta(Emotion emotion, float amount) {}
 
     public static final class HarmonyState {
-        private static final HarmonyState EMPTY = new HarmonyState(List.of(), List.of(), 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, Map.of(), 0L);
+        private static final HarmonyState EMPTY = new HarmonyState(
+            List.of(),
+            List.of(),
+            1.0f,
+            1.0f,
+            1.0f,
+            1.0f,
+            1.0f,
+            0.0f,
+            0.0f,
+            Map.of(),
+            Map.of(),
+            0L
+        );
         private final List<Identifier> harmonySetIds;
         private final List<Identifier> disharmonySetIds;
         private final float moodMultiplier;
@@ -2535,13 +2563,16 @@ public class PetComponent {
         private final float harmonyStrength;
         private final float disharmonyStrength;
         private final Map<Emotion, Float> emotionBiases;
+        private final Map<UUID, HarmonyCompatibility> compatibilities;
         private final long lastUpdatedTick;
 
         public HarmonyState(List<Identifier> harmonySetIds, List<Identifier> disharmonySetIds,
                            float moodMultiplier, float contagionMultiplier, float volatilityMultiplier,
                            float resilienceMultiplier, float guardMultiplier,
                            float harmonyStrength, float disharmonyStrength,
-                           Map<Emotion, Float> emotionBiases, long lastUpdatedTick) {
+                           Map<Emotion, Float> emotionBiases,
+                           Map<UUID, HarmonyCompatibility> compatibilities,
+                           long lastUpdatedTick) {
             this.harmonySetIds = harmonySetIds == null || harmonySetIds.isEmpty() ? List.of() : List.copyOf(harmonySetIds);
             this.disharmonySetIds = disharmonySetIds == null || disharmonySetIds.isEmpty() ? List.of() : List.copyOf(disharmonySetIds);
             this.moodMultiplier = moodMultiplier;
@@ -2567,6 +2598,20 @@ public class PetComponent {
                     copy.put(emotion, MathHelper.clamp(value, 0f, 1f));
                 }
                 this.emotionBiases = copy.isEmpty() ? Map.of() : Map.copyOf(copy);
+            }
+            if (compatibilities == null || compatibilities.isEmpty()) {
+                this.compatibilities = Map.of();
+            } else {
+                Map<UUID, HarmonyCompatibility> sanitized = new HashMap<>();
+                for (Map.Entry<UUID, HarmonyCompatibility> entry : compatibilities.entrySet()) {
+                    UUID uuid = entry.getKey();
+                    HarmonyCompatibility compatibility = entry.getValue();
+                    if (uuid == null || compatibility == null) {
+                        continue;
+                    }
+                    sanitized.put(uuid, compatibility);
+                }
+                this.compatibilities = sanitized.isEmpty() ? Map.of() : Map.copyOf(sanitized);
             }
             this.lastUpdatedTick = lastUpdatedTick;
         }
@@ -2615,12 +2660,28 @@ public class PetComponent {
             return emotionBiases;
         }
 
+        public Map<UUID, HarmonyCompatibility> compatibilities() {
+            return compatibilities;
+        }
+
+        @Nullable
+        public HarmonyCompatibility compatibility(UUID entityId) {
+            if (entityId == null || compatibilities.isEmpty()) {
+                return null;
+            }
+            return compatibilities.get(entityId);
+        }
+
         public long lastUpdatedTick() {
             return lastUpdatedTick;
         }
 
         public boolean isEmpty() {
-            return harmonySetIds.isEmpty() && disharmonySetIds.isEmpty() && harmonyStrength <= 0.0001f && disharmonyStrength <= 0.0001f;
+            return harmonySetIds.isEmpty()
+                && disharmonySetIds.isEmpty()
+                && harmonyStrength <= 0.0001f
+                && disharmonyStrength <= 0.0001f
+                && compatibilities.isEmpty();
         }
 
         @Override
@@ -2636,12 +2697,98 @@ public class PetComponent {
                 && Float.compare(other.disharmonyStrength, disharmonyStrength) == 0
                 && Objects.equals(harmonySetIds, other.harmonySetIds)
                 && Objects.equals(disharmonySetIds, other.disharmonySetIds)
-                && Objects.equals(emotionBiases, other.emotionBiases);
+                && Objects.equals(emotionBiases, other.emotionBiases)
+                && Objects.equals(compatibilities, other.compatibilities)
+                && lastUpdatedTick == other.lastUpdatedTick;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(harmonySetIds, disharmonySetIds, moodMultiplier, contagionMultiplier, volatilityMultiplier, resilienceMultiplier, guardMultiplier, harmonyStrength, disharmonyStrength, emotionBiases);
+            return Objects.hash(
+                harmonySetIds,
+                disharmonySetIds,
+                moodMultiplier,
+                contagionMultiplier,
+                volatilityMultiplier,
+                resilienceMultiplier,
+                guardMultiplier,
+                harmonyStrength,
+                disharmonyStrength,
+                emotionBiases,
+                compatibilities,
+                lastUpdatedTick
+            );
+        }
+    }
+
+    public static final class HarmonyCompatibility {
+        private final UUID targetId;
+        private final List<Identifier> harmonySetIds;
+        private final List<Identifier> disharmonySetIds;
+        private final float harmonyStrength;
+        private final float disharmonyStrength;
+        private final long lastUpdatedTick;
+
+        public HarmonyCompatibility(
+            UUID targetId,
+            List<Identifier> harmonySetIds,
+            List<Identifier> disharmonySetIds,
+            float harmonyStrength,
+            float disharmonyStrength,
+            long lastUpdatedTick
+        ) {
+            this.targetId = targetId;
+            this.harmonySetIds = harmonySetIds == null || harmonySetIds.isEmpty() ? List.of() : List.copyOf(harmonySetIds);
+            this.disharmonySetIds = disharmonySetIds == null || disharmonySetIds.isEmpty() ? List.of() : List.copyOf(disharmonySetIds);
+            this.harmonyStrength = MathHelper.clamp(harmonyStrength, 0.0f, 3.0f);
+            this.disharmonyStrength = MathHelper.clamp(disharmonyStrength, 0.0f, 3.0f);
+            this.lastUpdatedTick = lastUpdatedTick;
+        }
+
+        @Nullable
+        public UUID targetId() {
+            return targetId;
+        }
+
+        public List<Identifier> harmonySetIds() {
+            return harmonySetIds;
+        }
+
+        public List<Identifier> disharmonySetIds() {
+            return disharmonySetIds;
+        }
+
+        public float harmonyStrength() {
+            return harmonyStrength;
+        }
+
+        public float disharmonyStrength() {
+            return disharmonyStrength;
+        }
+
+        public float netHarmony() {
+            return harmonyStrength - disharmonyStrength;
+        }
+
+        public long lastUpdatedTick() {
+            return lastUpdatedTick;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof HarmonyCompatibility that)) return false;
+            return Float.compare(that.harmonyStrength, harmonyStrength) == 0
+                && Float.compare(that.disharmonyStrength, disharmonyStrength) == 0
+                && lastUpdatedTick == that.lastUpdatedTick
+                && Objects.equals(targetId, that.targetId)
+                && Objects.equals(harmonySetIds, that.harmonySetIds)
+                && Objects.equals(disharmonySetIds, that.disharmonySetIds);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(targetId, harmonySetIds, disharmonySetIds, harmonyStrength, disharmonyStrength, lastUpdatedTick);
         }
     }
 

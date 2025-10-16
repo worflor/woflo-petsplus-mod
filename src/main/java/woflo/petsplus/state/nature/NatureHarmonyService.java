@@ -221,6 +221,7 @@ public final class NatureHarmonyService implements PetSwarmIndex.SwarmListener {
         used.add(self);
         double totalDistance = 0.0d;
         int contributing = 0;
+        Map<UUID, Float> participantWeights = new LinkedHashMap<>();
 
         for (NatureHarmonySet.Member member : set.members()) {
             OwnerSnapshot chosen = selectCandidate(self, member,
@@ -232,19 +233,33 @@ public final class NatureHarmonyService implements PetSwarmIndex.SwarmListener {
             }
             if (!containsPet(used, chosen.pet())) {
                 double distSq = distanceSquared(self, chosen);
-                totalDistance += Math.sqrt(Math.max(0.0d, distSq));
+                double clamped = Math.max(0.0d, distSq);
+                totalDistance += Math.sqrt(clamped);
                 contributing++;
                 used.add(chosen);
+                float closeness = 1.0f;
+                if (set.radius() > 0.0d) {
+                    double dist = Math.sqrt(clamped);
+                    closeness = MathHelper.clamp((float) (1.0d - (dist / set.radius())), 0.0f, 1.0f);
+                }
+                MobEntity other = chosen.pet();
+                if (other != null) {
+                    UUID id = other.getUuid();
+                    if (id != null) {
+                        participantWeights.merge(id, closeness, NatureHarmonyService::maxFloat);
+                    }
+                }
             }
         }
 
         if (contributing == 0) {
-            return new ActiveSet(set, 1.0f);
+            return new ActiveSet(set, 1.0f, Map.of());
         }
         double average = totalDistance / Math.max(1, contributing);
         double normalized = 1.0d - (average / set.radius());
         float intensity = MathHelper.clamp((float) normalized, 0.0f, 1.0f);
-        return new ActiveSet(set, intensity);
+        Map<UUID, Float> weights = participantWeights.isEmpty() ? Map.of() : Map.copyOf(participantWeights);
+        return new ActiveSet(set, intensity, weights);
     }
 
     private Map<Identifier, List<OwnerSnapshot>> collectCrossOwnerSnapshots(OwnerSnapshot self, double radius) {
@@ -392,6 +407,7 @@ public final class NatureHarmonyService implements PetSwarmIndex.SwarmListener {
                 TimedSet timed = activeSets.computeIfAbsent(set.set().id(), key -> new TimedSet(set.set()));
                 timed.set = set.set();
                 timed.expiryTick = tick + set.set().lingerTicks();
+                timed.setParticipantWeights(set.participantWeights());
                 timed.step(set.intensity(), true);
             }
 
@@ -431,6 +447,7 @@ public final class NatureHarmonyService implements PetSwarmIndex.SwarmListener {
             List<Identifier> harmonyIds = new ArrayList<>();
             List<Identifier> disharmonyIds = new ArrayList<>();
             EnumMap<PetComponent.Emotion, Float> emotionBiases = new EnumMap<>(PetComponent.Emotion.class);
+            Map<UUID, CompatibilityAccumulator> compatibility = new LinkedHashMap<>();
 
             for (TimedSet timed : activeSets.values()) {
                 if (timed.intensity <= 0.01f) {
@@ -447,13 +464,19 @@ public final class NatureHarmonyService implements PetSwarmIndex.SwarmListener {
                 if (set.type() == NatureHarmonySet.Type.HARMONY) {
                     harmonyStrength += intensity;
                     harmonyIds.add(set.id());
+                    accumulateCompatibility(compatibility, set.id(), NatureHarmonySet.Type.HARMONY,
+                        timed.participantWeights, intensity);
                 } else {
                     disharmonyStrength += intensity;
                     disharmonyIds.add(set.id());
+                    accumulateCompatibility(compatibility, set.id(), NatureHarmonySet.Type.DISHARMONY,
+                        timed.participantWeights, intensity);
                 }
             }
 
             Map<PetComponent.Emotion, Float> biasSnapshot = snapshotBiases(emotionBiases);
+            Map<UUID, PetComponent.HarmonyCompatibility> compatibilitySnapshot =
+                snapshotCompatibilities(compatibility, tick);
 
             PetComponent.HarmonyState target = new PetComponent.HarmonyState(
                 List.copyOf(harmonyIds),
@@ -466,6 +489,7 @@ public final class NatureHarmonyService implements PetSwarmIndex.SwarmListener {
                 MathHelper.clamp(harmonyStrength, 0.0f, 3.0f),
                 MathHelper.clamp(disharmonyStrength, 0.0f, 3.0f),
                 biasSnapshot,
+                compatibilitySnapshot,
                 tick
             );
 
@@ -492,6 +516,8 @@ public final class NatureHarmonyService implements PetSwarmIndex.SwarmListener {
             float harmony = lerp(previous.harmonyStrength(), target.harmonyStrength());
             float disharmony = lerp(previous.disharmonyStrength(), target.disharmonyStrength());
             Map<PetComponent.Emotion, Float> biases = blendEmotionBiases(previous.emotionBiases(), target.emotionBiases());
+            Map<UUID, PetComponent.HarmonyCompatibility> compat = blendCompatibilities(
+                previous.compatibilities(), target.compatibilities(), target.lastUpdatedTick());
             return new PetComponent.HarmonyState(
                 target.harmonySetIds(),
                 target.disharmonySetIds(),
@@ -503,6 +529,7 @@ public final class NatureHarmonyService implements PetSwarmIndex.SwarmListener {
                 harmony,
                 disharmony,
                 biases,
+                compat,
                 target.lastUpdatedTick()
             );
         }
@@ -551,6 +578,147 @@ public final class NatureHarmonyService implements PetSwarmIndex.SwarmListener {
             return blended.isEmpty() ? Map.of() : Map.copyOf(blended);
         }
 
+        private static void accumulateCompatibility(Map<UUID, CompatibilityAccumulator> compatibility,
+                                                     Identifier setId,
+                                                     NatureHarmonySet.Type type,
+                                                     Map<UUID, Float> participants,
+                                                     float intensity) {
+            if (participants == null || participants.isEmpty() || setId == null) {
+                return;
+            }
+            float clampedIntensity = MathHelper.clamp(intensity, 0.0f, 1.0f);
+            if (clampedIntensity <= 0.0001f) {
+                return;
+            }
+            for (Map.Entry<UUID, Float> entry : participants.entrySet()) {
+                UUID uuid = entry.getKey();
+                Float weight = entry.getValue();
+                if (uuid == null || weight == null) {
+                    continue;
+                }
+                float closeness = MathHelper.clamp(weight, 0.0f, 1.0f) * clampedIntensity;
+                if (closeness <= 0.0001f) {
+                    continue;
+                }
+                CompatibilityAccumulator accumulator =
+                    compatibility.computeIfAbsent(uuid, key -> new CompatibilityAccumulator());
+                if (type == NatureHarmonySet.Type.HARMONY) {
+                    accumulator.addHarmony(setId, closeness);
+                } else {
+                    accumulator.addDisharmony(setId, closeness);
+                }
+            }
+        }
+
+        private static Map<UUID, PetComponent.HarmonyCompatibility> snapshotCompatibilities(
+            Map<UUID, CompatibilityAccumulator> raw,
+            long tick
+        ) {
+            if (raw == null || raw.isEmpty()) {
+                return Map.of();
+            }
+            Map<UUID, PetComponent.HarmonyCompatibility> snapshot = new LinkedHashMap<>();
+            for (Map.Entry<UUID, CompatibilityAccumulator> entry : raw.entrySet()) {
+                UUID uuid = entry.getKey();
+                CompatibilityAccumulator accumulator = entry.getValue();
+                if (uuid == null || accumulator == null) {
+                    continue;
+                }
+                PetComponent.HarmonyCompatibility compatibility = accumulator.toCompatibility(uuid, tick);
+                if (compatibility != null) {
+                    snapshot.put(uuid, compatibility);
+                }
+            }
+            if (snapshot.isEmpty()) {
+                return Map.of();
+            }
+            return Map.copyOf(snapshot);
+        }
+
+        private static Map<UUID, PetComponent.HarmonyCompatibility> blendCompatibilities(
+            Map<UUID, PetComponent.HarmonyCompatibility> previous,
+            Map<UUID, PetComponent.HarmonyCompatibility> target,
+            long tick
+        ) {
+            if ((previous == null || previous.isEmpty()) && (target == null || target.isEmpty())) {
+                return Map.of();
+            }
+            Map<UUID, PetComponent.HarmonyCompatibility> blended = new LinkedHashMap<>();
+            if (target != null) {
+                for (Map.Entry<UUID, PetComponent.HarmonyCompatibility> entry : target.entrySet()) {
+                    UUID uuid = entry.getKey();
+                    PetComponent.HarmonyCompatibility targetCompat = entry.getValue();
+                    if (uuid == null || targetCompat == null) {
+                        continue;
+                    }
+                    PetComponent.HarmonyCompatibility previousCompat = previous != null ? previous.get(uuid) : null;
+                    float harmony = previousCompat != null
+                        ? MathHelper.lerp(STATE_ALPHA, previousCompat.harmonyStrength(), targetCompat.harmonyStrength())
+                        : targetCompat.harmonyStrength();
+                    float disharmony = previousCompat != null
+                        ? MathHelper.lerp(STATE_ALPHA, previousCompat.disharmonyStrength(), targetCompat.disharmonyStrength())
+                        : targetCompat.disharmonyStrength();
+                    List<Identifier> harmonySets = mergeSets(
+                        previousCompat != null ? previousCompat.harmonySetIds() : List.of(),
+                        targetCompat.harmonySetIds());
+                    List<Identifier> disharmonySets = mergeSets(
+                        previousCompat != null ? previousCompat.disharmonySetIds() : List.of(),
+                        targetCompat.disharmonySetIds());
+                    blended.put(uuid, new PetComponent.HarmonyCompatibility(
+                        uuid,
+                        harmonySets,
+                        disharmonySets,
+                        harmony,
+                        disharmony,
+                        tick
+                    ));
+                }
+            }
+            if (previous != null) {
+                for (Map.Entry<UUID, PetComponent.HarmonyCompatibility> entry : previous.entrySet()) {
+                    UUID uuid = entry.getKey();
+                    if (uuid == null || blended.containsKey(uuid)) {
+                        continue;
+                    }
+                    PetComponent.HarmonyCompatibility previousCompat = entry.getValue();
+                    if (previousCompat == null) {
+                        continue;
+                    }
+                    float harmony = MathHelper.lerp(STATE_ALPHA, previousCompat.harmonyStrength(), 0.0f);
+                    float disharmony = MathHelper.lerp(STATE_ALPHA, previousCompat.disharmonyStrength(), 0.0f);
+                    if (harmony <= 0.0001f && disharmony <= 0.0001f) {
+                        continue;
+                    }
+                    blended.put(uuid, new PetComponent.HarmonyCompatibility(
+                        uuid,
+                        previousCompat.harmonySetIds(),
+                        previousCompat.disharmonySetIds(),
+                        harmony,
+                        disharmony,
+                        tick
+                    ));
+                }
+            }
+            if (blended.isEmpty()) {
+                return Map.of();
+            }
+            return Map.copyOf(blended);
+        }
+
+        private static List<Identifier> mergeSets(List<Identifier> previous, List<Identifier> target) {
+            if ((previous == null || previous.isEmpty()) && (target == null || target.isEmpty())) {
+                return List.of();
+            }
+            LinkedHashSet<Identifier> merged = new LinkedHashSet<>();
+            if (previous != null) {
+                merged.addAll(previous);
+            }
+            if (target != null) {
+                merged.addAll(target);
+            }
+            return merged.isEmpty() ? List.of() : List.copyOf(merged);
+        }
+
         private void pushState(PetComponent.HarmonyState state) {
             if (component == null) {
                 return;
@@ -563,6 +731,7 @@ public final class NatureHarmonyService implements PetSwarmIndex.SwarmListener {
         private NatureHarmonySet set;
         private float intensity;
         private long expiryTick;
+        private Map<UUID, Float> participantWeights = Map.of();
 
         private TimedSet(NatureHarmonySet set) {
             this.set = set;
@@ -575,12 +744,70 @@ public final class NatureHarmonyService implements PetSwarmIndex.SwarmListener {
             float clamped = MathHelper.clamp(target, 0.0f, 1.0f);
             intensity = MathHelper.clamp(MathHelper.lerp(alpha, intensity, clamped), 0.0f, 1.0f);
         }
+
+        private void setParticipantWeights(Map<UUID, Float> weights) {
+            if (weights == null || weights.isEmpty()) {
+                this.participantWeights = Map.of();
+                return;
+            }
+            Map<UUID, Float> sanitized = new LinkedHashMap<>();
+            for (Map.Entry<UUID, Float> entry : weights.entrySet()) {
+                UUID uuid = entry.getKey();
+                Float value = entry.getValue();
+                if (uuid == null || value == null) {
+                    continue;
+                }
+                float clamped = MathHelper.clamp(value, 0.0f, 1.0f);
+                if (clamped <= 0.0001f) {
+                    continue;
+                }
+                sanitized.merge(uuid, clamped, NatureHarmonyService::maxFloat);
+            }
+            this.participantWeights = sanitized.isEmpty() ? Map.of() : Map.copyOf(sanitized);
+        }
     }
 
     private record OwnerSnapshot(MobEntity pet, PetComponent component, Identifier nature, Identifier sign,
                                  double x, double y, double z) {
     }
 
-    private record ActiveSet(NatureHarmonySet set, float intensity) {
+    private record ActiveSet(NatureHarmonySet set, float intensity, Map<UUID, Float> participantWeights) {
+    }
+
+    private static float maxFloat(float a, float b) {
+        return Math.max(a, b);
+    }
+
+    private static final class CompatibilityAccumulator {
+        private float harmonyStrength;
+        private float disharmonyStrength;
+        private final List<Identifier> harmonySets = new ArrayList<>();
+        private final List<Identifier> disharmonySets = new ArrayList<>();
+
+        void addHarmony(Identifier setId, float contribution) {
+            harmonyStrength += contribution;
+            if (setId != null) {
+                harmonySets.add(setId);
+            }
+        }
+
+        void addDisharmony(Identifier setId, float contribution) {
+            disharmonyStrength += contribution;
+            if (setId != null) {
+                disharmonySets.add(setId);
+            }
+        }
+
+        @Nullable
+        PetComponent.HarmonyCompatibility toCompatibility(UUID targetId, long tick) {
+            float harmony = MathHelper.clamp(harmonyStrength, 0.0f, 3.0f);
+            float disharmony = MathHelper.clamp(disharmonyStrength, 0.0f, 3.0f);
+            if (harmony <= 0.0001f && disharmony <= 0.0001f) {
+                return null;
+            }
+            List<Identifier> harmonyList = harmonySets.isEmpty() ? List.of() : List.copyOf(harmonySets);
+            List<Identifier> disharmonyList = disharmonySets.isEmpty() ? List.of() : List.copyOf(disharmonySets);
+            return new PetComponent.HarmonyCompatibility(targetId, harmonyList, disharmonyList, harmony, disharmony, tick);
+        }
     }
 }

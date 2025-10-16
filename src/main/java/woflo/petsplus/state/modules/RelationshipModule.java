@@ -9,6 +9,7 @@ import woflo.petsplus.state.relationships.RelationshipProfile;
 import woflo.petsplus.state.relationships.RelationshipType;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -103,7 +104,7 @@ public interface RelationshipModule extends DataBackedModule<RelationshipModule.
      * Check if entity has any relationship (even minimal).
      */
     boolean hasRelationship(UUID entityId);
-    
+
     /**
      * Remove a specific relationship.
      */
@@ -113,11 +114,31 @@ public interface RelationshipModule extends DataBackedModule<RelationshipModule.
      * Clear all relationships.
      */
     void clearAllRelationships();
-    
+
     /**
      * Get last decay check time.
      */
     long getLastDecayTick();
+
+    /**
+     * Provide current harmony compatibility information for downstream systems.
+     */
+    default void applyHarmonyCompatibility(Map<UUID, woflo.petsplus.state.PetComponent.HarmonyCompatibility> compatibilities, long tick) {
+    }
+
+    /**
+     * Snapshot of known harmony compatibilities keyed by entity id.
+     */
+    default Map<UUID, woflo.petsplus.state.PetComponent.HarmonyCompatibility> getHarmonyCompatibilities() {
+        return Map.of();
+    }
+
+    /**
+     * Lookup harmony compatibility for a specific entity.
+     */
+    default woflo.petsplus.state.PetComponent.HarmonyCompatibility getHarmonyCompatibility(UUID entityId) {
+        return null;
+    }
     
     // ========== Species Memory Methods ==========
     
