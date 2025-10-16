@@ -51,6 +51,9 @@ final class HarmonyTagEffects {
             .harmony(PetComponent.Emotion.KEFI, 0.28f)
             .harmony(PetComponent.Emotion.RESTLESS, 0.18f)
             .disharmony(PetComponent.Emotion.STARTLE, 0.18f);
+        register("mixed_signals")
+            .disharmony(PetComponent.Emotion.RESTLESS, 0.26f)
+            .disharmony(PetComponent.Emotion.WORRIED, 0.18f);
         register("luminous")
             .harmony(PetComponent.Emotion.YUGEN, 0.28f)
             .harmony(PetComponent.Emotion.ARCANE_OVERFLOW, 0.22f)
@@ -181,6 +184,9 @@ final class HarmonyTagEffects {
         register("patina")
             .disharmony(PetComponent.Emotion.NOSTALGIA, 0.26f)
             .disharmony(PetComponent.Emotion.REGRET, 0.2f);
+        register("friction")
+            .disharmony(PetComponent.Emotion.FRUSTRATION, 0.26f)
+            .disharmony(PetComponent.Emotion.RESTLESS, 0.18f);
         register("drag")
             .disharmony(PetComponent.Emotion.RESTLESS, 0.28f)
             .disharmony(PetComponent.Emotion.FRUSTRATION, 0.2f);
@@ -211,6 +217,9 @@ final class HarmonyTagEffects {
         register("shadow_noise")
             .disharmony(PetComponent.Emotion.FOREBODING, 0.3f)
             .disharmony(PetComponent.Emotion.ANGST, 0.22f);
+        register("needling")
+            .disharmony(PetComponent.Emotion.FRUSTRATION, 0.24f)
+            .disharmony(PetComponent.Emotion.ANGST, 0.18f);
         register("ego")
             .disharmony(PetComponent.Emotion.PRIDE, 0.24f)
             .disharmony(PetComponent.Emotion.FRUSTRATION, 0.18f);
