@@ -14,6 +14,7 @@ public final class PerceptionStimulusType {
     public static final Identifier ENERGY_PROFILE = Identifier.of("petsplus", "perception/energy_profile");
     public static final Identifier GOAL_HISTORY = Identifier.of("petsplus", "perception/goal_history");
     public static final Identifier SOCIAL_GRAPH = Identifier.of("petsplus", "perception/social_graph");
+    public static final Identifier HARMONY_STATE = Identifier.of("petsplus", "perception/harmony_state");
     public static final Identifier STATE_DATA = Identifier.of("petsplus", "perception/state_data");
     public static final Identifier WORLD_TICK = Identifier.of("petsplus", "perception/world_tick");
 

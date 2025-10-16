@@ -37,6 +37,7 @@ import woflo.petsplus.ai.context.perception.OwnerPerceptionBridge;
 import woflo.petsplus.ai.context.perception.SwarmPerceptionBridge;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.coordination.PetWorkScheduler;
+import woflo.petsplus.state.nature.NatureHarmonyService;
 import woflo.petsplus.mood.EmotionStimulusBus;
 import woflo.petsplus.ui.CooldownParticleManager;
 import woflo.petsplus.util.EntityTagUtil;
@@ -111,6 +112,7 @@ public class StateManager {
     private final Map<PlayerEntity, OwnerCombatState> ownerStates = new WeakHashMap<>();
 
     private final PetSwarmIndex swarmIndex = new PetSwarmIndex();
+    private final NatureHarmonyService harmonyService = new NatureHarmonyService(swarmIndex);
     private final ArcaneAmbientCache arcaneAmbientCache = new ArcaneAmbientCache();
 
     private static final Object ARCANE_INVALIDATION_LOCK = new Object();
@@ -152,6 +154,7 @@ public class StateManager {
         registerOwnerEventListeners();
         registerEmotionStimulusBridge();
         swarmIndex.addListener(swarmPerceptionBridge);
+        swarmIndex.addListener(harmonyService);
     }
 
     public static StateManager forWorld(ServerWorld world) {
@@ -262,6 +265,7 @@ public class StateManager {
 
         component.ensureSpeciesDescriptorInitialized();
         swarmIndex.trackPet(pet, component);
+        harmonyService.track(pet, component);
         ownerProcessingManager.trackPet(component);
         return component;
     }
@@ -387,6 +391,7 @@ public class StateManager {
             MoodService.getInstance().untrackPet(pet);
         }
         swarmIndex.untrackPet(pet);
+        harmonyService.untrack(pet);
     }
 
     public void removeOwner(PlayerEntity owner) {
@@ -1472,6 +1477,7 @@ public class StateManager {
         component.markSchedulingUninitialized();
         component.invalidateSwarmTracking();
         swarmIndex.untrackPet(pet);
+        harmonyService.untrack(pet);
         ownerProcessingManager.onTasksCleared(component);
         ownerProcessingManager.untrackPet(component);
     }
@@ -2340,6 +2346,7 @@ public class StateManager {
 
             try {
                 swarmIndex.clear();
+                harmonyService.clear();
                 pendingSpatialResults.clear();
                 spatialJobStates.clear();
                 petComponents.clear();

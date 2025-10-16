@@ -117,6 +117,7 @@ public final class PetMoodEngine {
     private static final float CADENCE_ALPHA = 0.35f;
     private static final float VOLATILITY_ALPHA = 0.25f;
     private static final float PEAK_ALPHA = 0.18f;
+    private static final float HARMONY_BIAS_ALPHA = 0.35f;
     private static final float HABITUATION_BASE = 1200f;
     private static final float HALF_LIFE_MULTIPLIER = 1.35f;
     private static final float MIN_HALF_LIFE = 400f;
@@ -475,6 +476,7 @@ public final class PetMoodEngine {
         // Global intensity cap at 0.5f to prevent overwhelming
         float sample = MathHelper.clamp(amount, 0f, 0.5f);
         sample *= getNatureStimulusBias(emotion);
+        sample *= parent.getHarmonyMoodMultiplier();
         sample = MathHelper.clamp(sample, 0f, 1f);
         float volatilityMultiplier = parent.getNatureVolatilityMultiplier();
         float resilienceMultiplier = parent.getNatureResilienceMultiplier();
@@ -925,7 +927,9 @@ public final class PetMoodEngine {
 
         // Update behavioral momentum
         updateBehavioralMomentum(now);
-        
+
+        applyHarmonyBiases(now);
+
         // Decay + cleanup pass
         List<EmotionRecord> active = collectActiveRecords(now, epsilon);
 
@@ -1283,7 +1287,33 @@ public final class PetMoodEngine {
         energyProfileDirty = true;
         refreshEnergyProfile();
     }
-    
+
+    private void applyHarmonyBiases(long now) {
+        PetComponent.HarmonyState harmonyState = parent.getHarmonyState();
+        if (harmonyState == null) {
+            return;
+        }
+        Map<PetComponent.Emotion, Float> biases = harmonyState.emotionBiases();
+        if (biases == null || biases.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<PetComponent.Emotion, Float> entry : biases.entrySet()) {
+            PetComponent.Emotion emotion = entry.getKey();
+            float target = MathHelper.clamp(entry.getValue(), 0f, 0.7f);
+            if (emotion == null || target <= EPSILON) {
+                continue;
+            }
+            EmotionRecord record = emotionRecords.computeIfAbsent(emotion, e -> new EmotionRecord(emotion, now));
+            record.applyDecay(now, this);
+            float blended = MathHelper.lerp(HARMONY_BIAS_ALPHA, record.intensity, target);
+            record.intensity = MathHelper.clamp(blended, 0f, 1f);
+            record.weight = Math.max(record.weight, target * 0.6f);
+            record.impactBudget = Math.max(record.impactBudget, target * 0.5f);
+            record.lastEventTime = now;
+            record.lastUpdateTime = now;
+        }
+    }
+
     /**
      * Calculates personality-influenced momentum baseline.
      */

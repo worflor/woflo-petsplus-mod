@@ -69,6 +69,7 @@ import net.minecraft.util.math.ChunkSectionPos;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -118,6 +119,8 @@ public class PetComponent {
     private final StimulusTimeline stimulusTimeline;
     private final ExperienceLog experienceLog;
     private final PetAIState aiState = new PetAIState();
+
+    private HarmonyState harmonyState = HarmonyState.empty();
 
     private StateManager stateManager;
 
@@ -758,6 +761,25 @@ public class PetComponent {
     public void notifyEnergyProfileUpdated() {
         markContextDirty(ContextSlice.ENERGY);
         publishStimulus(PerceptionStimulusType.ENERGY_PROFILE, ContextSlice.ENERGY, null);
+    }
+
+    public HarmonyState getHarmonyState() {
+        return harmonyState;
+    }
+
+    public float getHarmonyMoodMultiplier() {
+        return harmonyState.moodMultiplier();
+    }
+
+    public void applyHarmonyState(HarmonyState state) {
+        HarmonyState sanitized = state == null ? HarmonyState.empty() : state;
+        if (harmonyState.equals(sanitized)) {
+            return;
+        }
+        harmonyState = sanitized;
+        markContextDirty(ContextSlice.SOCIAL, ContextSlice.MOOD, ContextSlice.EMOTIONS);
+        publishStimulus(PerceptionStimulusType.HARMONY_STATE,
+            EnumSet.of(ContextSlice.SOCIAL, ContextSlice.MOOD, ContextSlice.EMOTIONS), sanitized);
     }
 
     public void notifyEnvironmentUpdated(@Nullable EnvironmentPerceptionBridge.EnvironmentSnapshot snapshot) {
@@ -2336,19 +2358,19 @@ public class PetComponent {
     }
 
     public float getNatureVolatilityMultiplier() {
-        return characteristicsModule.getNatureVolatility();
+        return characteristicsModule.getNatureVolatility() * harmonyState.volatilityMultiplier();
     }
 
     public float getNatureResilienceMultiplier() {
-        return characteristicsModule.getNatureResilience();
+        return characteristicsModule.getNatureResilience() * harmonyState.resilienceMultiplier();
     }
 
     public float getNatureContagionModifier() {
-        return characteristicsModule.getNatureContagion();
+        return characteristicsModule.getNatureContagion() * harmonyState.contagionMultiplier();
     }
 
     public float getNatureGuardModifier() {
-        return characteristicsModule.getNatureGuardModifier();
+        return characteristicsModule.getNatureGuardModifier() * harmonyState.guardMultiplier();
     }
 
     public NatureGuardTelemetry getNatureGuardTelemetry() {
@@ -2500,6 +2522,128 @@ public class PetComponent {
     // ===== Emotions API =====
 
     public record EmotionDelta(Emotion emotion, float amount) {}
+
+    public static final class HarmonyState {
+        private static final HarmonyState EMPTY = new HarmonyState(List.of(), List.of(), 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, Map.of(), 0L);
+        private final List<Identifier> harmonySetIds;
+        private final List<Identifier> disharmonySetIds;
+        private final float moodMultiplier;
+        private final float contagionMultiplier;
+        private final float volatilityMultiplier;
+        private final float resilienceMultiplier;
+        private final float guardMultiplier;
+        private final float harmonyStrength;
+        private final float disharmonyStrength;
+        private final Map<Emotion, Float> emotionBiases;
+        private final long lastUpdatedTick;
+
+        public HarmonyState(List<Identifier> harmonySetIds, List<Identifier> disharmonySetIds,
+                           float moodMultiplier, float contagionMultiplier, float volatilityMultiplier,
+                           float resilienceMultiplier, float guardMultiplier,
+                           float harmonyStrength, float disharmonyStrength,
+                           Map<Emotion, Float> emotionBiases, long lastUpdatedTick) {
+            this.harmonySetIds = harmonySetIds == null || harmonySetIds.isEmpty() ? List.of() : List.copyOf(harmonySetIds);
+            this.disharmonySetIds = disharmonySetIds == null || disharmonySetIds.isEmpty() ? List.of() : List.copyOf(disharmonySetIds);
+            this.moodMultiplier = moodMultiplier;
+            this.contagionMultiplier = contagionMultiplier;
+            this.volatilityMultiplier = volatilityMultiplier;
+            this.resilienceMultiplier = resilienceMultiplier;
+            this.guardMultiplier = guardMultiplier;
+            this.harmonyStrength = harmonyStrength;
+            this.disharmonyStrength = disharmonyStrength;
+            if (emotionBiases == null || emotionBiases.isEmpty()) {
+                this.emotionBiases = Map.of();
+            } else {
+                EnumMap<Emotion, Float> copy = new EnumMap<>(Emotion.class);
+                for (Map.Entry<Emotion, Float> entry : emotionBiases.entrySet()) {
+                    Emotion emotion = entry.getKey();
+                    Float value = entry.getValue();
+                    if (emotion == null || value == null) {
+                        continue;
+                    }
+                    if (value <= 0f || Float.isNaN(value) || Float.isInfinite(value)) {
+                        continue;
+                    }
+                    copy.put(emotion, MathHelper.clamp(value, 0f, 1f));
+                }
+                this.emotionBiases = copy.isEmpty() ? Map.of() : Map.copyOf(copy);
+            }
+            this.lastUpdatedTick = lastUpdatedTick;
+        }
+
+        public static HarmonyState empty() {
+            return EMPTY;
+        }
+
+        public List<Identifier> harmonySetIds() {
+            return harmonySetIds;
+        }
+
+        public List<Identifier> disharmonySetIds() {
+            return disharmonySetIds;
+        }
+
+        public float moodMultiplier() {
+            return moodMultiplier;
+        }
+
+        public float contagionMultiplier() {
+            return contagionMultiplier;
+        }
+
+        public float volatilityMultiplier() {
+            return volatilityMultiplier;
+        }
+
+        public float resilienceMultiplier() {
+            return resilienceMultiplier;
+        }
+
+        public float guardMultiplier() {
+            return guardMultiplier;
+        }
+
+        public float harmonyStrength() {
+            return harmonyStrength;
+        }
+
+        public float disharmonyStrength() {
+            return disharmonyStrength;
+        }
+
+        public Map<Emotion, Float> emotionBiases() {
+            return emotionBiases;
+        }
+
+        public long lastUpdatedTick() {
+            return lastUpdatedTick;
+        }
+
+        public boolean isEmpty() {
+            return harmonySetIds.isEmpty() && disharmonySetIds.isEmpty() && harmonyStrength <= 0.0001f && disharmonyStrength <= 0.0001f;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (!(obj instanceof HarmonyState other)) return false;
+            return Float.compare(other.moodMultiplier, moodMultiplier) == 0
+                && Float.compare(other.contagionMultiplier, contagionMultiplier) == 0
+                && Float.compare(other.volatilityMultiplier, volatilityMultiplier) == 0
+                && Float.compare(other.resilienceMultiplier, resilienceMultiplier) == 0
+                && Float.compare(other.guardMultiplier, guardMultiplier) == 0
+                && Float.compare(other.harmonyStrength, harmonyStrength) == 0
+                && Float.compare(other.disharmonyStrength, disharmonyStrength) == 0
+                && Objects.equals(harmonySetIds, other.harmonySetIds)
+                && Objects.equals(disharmonySetIds, other.disharmonySetIds)
+                && Objects.equals(emotionBiases, other.emotionBiases);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(harmonySetIds, disharmonySetIds, moodMultiplier, contagionMultiplier, volatilityMultiplier, resilienceMultiplier, guardMultiplier, harmonyStrength, disharmonyStrength, emotionBiases);
+        }
+    }
 
     /** Push an emotion with additive weight; creates or refreshes a slot. */
     public void pushEmotion(Emotion emotion, float amount) {

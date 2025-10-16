@@ -12,8 +12,11 @@ import woflo.petsplus.events.EmotionContextCues;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.gossip.GossipTopics;
+import woflo.petsplus.state.gossip.HarmonyGossipBridge;
+import woflo.petsplus.state.gossip.HarmonyGossipBridge.HarmonyGossipProfile;
 import woflo.petsplus.state.gossip.PetGossipLedger;
 import woflo.petsplus.state.gossip.RumorEntry;
+import woflo.petsplus.state.gossip.RumorTone;
 
 /**
  * Handles intimate one-on-one rumor exchanges, typically when two pets cross
@@ -171,63 +174,103 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
         float knowledgeGap = Math.max(0f, whispererKnowledge - listenerKnowledge);
         boolean alreadyKnows = listenerLedger.hasRumor(rumor.topicId());
         boolean witnessed = alreadyKnows && listenerLedger.witnessedRecently(rumor.topicId(), context.currentTick());
+        boolean isAbstractTopic = GossipTopics.isAbstract(rumor.topicId());
+        HarmonyGossipProfile profile = HarmonyGossipBridge.evaluate(whisperer, listener);
+        RumorTone tone = RumorTone.classify(rumor, context.currentTick(), profile);
 
         boolean sharedAny = false;
         boolean newListener = false;
         boolean witnessedAny = false;
-        boolean isAbstractTopic = GossipTopics.isAbstract(rumor.topicId());
 
         if (witnessed) {
             listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), true);
-            float loyalty = GossipSocialHelper.loyaltyDelta(rumor, knowledgeGap, true);
-            context.pushEmotion(listener, PetComponent.Emotion.LOYALTY, loyalty);
-            float guardian = GossipSocialHelper.solidarityGuardianDelta(rumor, knowledgeGap, true);
+            float loyaltyBase = GossipSocialHelper.loyaltyDelta(rumor, knowledgeGap, true);
+            float loyalty = profile.adjustPositive(loyaltyBase);
+            if (loyalty > 0f) {
+                context.pushEmotion(listener, PetComponent.Emotion.LOYALTY, loyalty);
+            }
+            float guardianBase = GossipSocialHelper.solidarityGuardianDelta(rumor, knowledgeGap, true);
+            float guardian = profile.adjustPositive(guardianBase);
             if (guardian > 0f) {
                 context.pushEmotion(listener, PetComponent.Emotion.GUARDIAN_VIGIL, guardian);
             }
-            float warmth = GossipSocialHelper.solidarityWarmthDelta(rumor, knowledgeGap, isAbstractTopic);
+            float warmthBase = GossipSocialHelper.solidarityWarmthDelta(rumor, knowledgeGap, isAbstractTopic);
+            float warmth = profile.adjustPositive(warmthBase);
             if (warmth > 0f) {
                 context.pushEmotion(listener, PetComponent.Emotion.QUERECIA, warmth);
+            }
+            float irritation = profile.positiveToneIrritation(tone);
+            if (irritation > 0f) {
+                context.pushEmotion(listener, PetComponent.Emotion.FRUSTRATION, irritation);
             }
             sharedAny = true;
             witnessedAny = true;
         } else {
             if (listenerLedger.hasHeardRecently(rumor.topicId(), context.currentTick())) {
                 listenerLedger.registerDuplicateHeard(rumor.topicId(), context.currentTick());
-                context.pushEmotion(listener, PetComponent.Emotion.FRUSTRATION,
-                    GossipSocialHelper.frustrationDelta(rumor));
+                float frustration = profile.adjustFrustration(GossipSocialHelper.frustrationDelta(rumor));
+                if (frustration > 0f) {
+                    context.pushEmotion(listener, PetComponent.Emotion.FRUSTRATION, frustration);
+                }
+                float irritation = profile.positiveToneIrritation(tone);
+                if (irritation > 0f) {
+                    context.pushEmotion(listener, PetComponent.Emotion.FRUSTRATION, irritation);
+                }
                 listener.optOutOfGossip(context.currentTick());
                 return;
             }
 
-            boolean isAbstract = !whispererLedger.hasRumor(rumor.topicId())
-                && GossipTopics.isAbstract(rumor.topicId());
+            boolean isAbstract = !whispererLedger.hasRumor(rumor.topicId()) && isAbstractTopic;
             if (isAbstract) {
                 listenerLedger.registerAbstractHeard(rumor.topicId(), context.currentTick());
-                float curiosity = GossipSocialHelper.curiosityDelta(rumor, knowledgeGap, false, true);
-                context.pushEmotion(listener, PetComponent.Emotion.CURIOUS, curiosity);
-                float warmth = GossipSocialHelper.solidarityWarmthDelta(rumor, knowledgeGap, true);
+                float curiosityBase = GossipSocialHelper.curiosityDelta(rumor, knowledgeGap, false, true);
+                float curiosity = profile.adjustCuriosity(curiosityBase);
+                if (curiosity > 0f) {
+                    context.pushEmotion(listener, PetComponent.Emotion.CURIOUS, curiosity);
+                }
+                float warmthBase = GossipSocialHelper.solidarityWarmthDelta(rumor, knowledgeGap, true);
+                float warmth = profile.adjustPositive(warmthBase);
                 if (warmth > 0f) {
                     context.pushEmotion(listener, PetComponent.Emotion.QUERECIA, warmth * 0.6f);
+                }
+                float irritation = profile.positiveToneIrritation(tone);
+                if (irritation > 0f) {
+                    context.pushEmotion(listener, PetComponent.Emotion.FRUSTRATION, irritation);
                 }
                 newListener = true;
                 sharedAny = true;
             } else if (alreadyKnows) {
                 listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), true);
-                float loyalty = GossipSocialHelper.loyaltyDelta(rumor, knowledgeGap, false);
-                context.pushEmotion(listener, PetComponent.Emotion.LOYALTY, loyalty);
-                float warmth = GossipSocialHelper.solidarityWarmthDelta(rumor, knowledgeGap, isAbstractTopic);
+                float loyaltyBase = GossipSocialHelper.loyaltyDelta(rumor, knowledgeGap, false);
+                float loyalty = profile.adjustPositive(loyaltyBase);
+                if (loyalty > 0f) {
+                    context.pushEmotion(listener, PetComponent.Emotion.LOYALTY, loyalty);
+                }
+                float warmthBase = GossipSocialHelper.solidarityWarmthDelta(rumor, knowledgeGap, isAbstractTopic);
+                float warmth = profile.adjustPositive(warmthBase);
                 if (warmth > 0f) {
                     context.pushEmotion(listener, PetComponent.Emotion.QUERECIA, warmth * 0.8f);
+                }
+                float irritation = profile.positiveToneIrritation(tone);
+                if (irritation > 0f) {
+                    context.pushEmotion(listener, PetComponent.Emotion.FRUSTRATION, irritation);
                 }
                 sharedAny = true;
             } else {
                 listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), false);
-                float curiosity = GossipSocialHelper.curiosityDelta(rumor, knowledgeGap, false, false);
-                context.pushEmotion(listener, PetComponent.Emotion.CURIOUS, curiosity);
-                float warmth = GossipSocialHelper.solidarityWarmthDelta(rumor, knowledgeGap, isAbstractTopic);
+                float curiosityBase = GossipSocialHelper.curiosityDelta(rumor, knowledgeGap, false, false);
+                float curiosity = profile.adjustCuriosity(curiosityBase);
+                if (curiosity > 0f) {
+                    context.pushEmotion(listener, PetComponent.Emotion.CURIOUS, curiosity);
+                }
+                float warmthBase = GossipSocialHelper.solidarityWarmthDelta(rumor, knowledgeGap, isAbstractTopic);
+                float warmth = profile.adjustPositive(warmthBase);
                 if (warmth > 0f) {
                     context.pushEmotion(listener, PetComponent.Emotion.QUERECIA, warmth);
+                }
+                float irritation = profile.positiveToneIrritation(tone);
+                if (irritation > 0f) {
+                    context.pushEmotion(listener, PetComponent.Emotion.FRUSTRATION, irritation);
                 }
                 newListener = true;
                 sharedAny = true;
@@ -242,18 +285,30 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
             return;
         }
 
-        float ubuntu = GossipSocialHelper.ubuntuDelta(rumor, knowledgeGap, witnessedAny);
-        context.pushEmotion(whisperer, PetComponent.Emotion.UBUNTU, ubuntu);
-        float tellerWarmth = GossipSocialHelper.solidarityWarmthDelta(rumor, knowledgeGap * 0.6f, isAbstractTopic);
+        float ubuntuBase = GossipSocialHelper.ubuntuDelta(rumor, knowledgeGap, witnessedAny);
+        float ubuntu = profile.adjustStorytellerEcho(ubuntuBase);
+        if (ubuntu > 0f) {
+            context.pushEmotion(whisperer, PetComponent.Emotion.UBUNTU, ubuntu);
+        }
+        float tellerWarmthBase = GossipSocialHelper.solidarityWarmthDelta(rumor, knowledgeGap * 0.6f, isAbstractTopic);
+        float tellerWarmth = profile.adjustStorytellerEcho(tellerWarmthBase);
         if (tellerWarmth > 0f) {
             context.pushEmotion(whisperer, PetComponent.Emotion.SOBREMESA, tellerWarmth * 0.7f);
             context.pushEmotion(whisperer, PetComponent.Emotion.QUERECIA, tellerWarmth * 0.5f);
         }
-        float tellerLoyalty = GossipSocialHelper.loyaltyDelta(rumor, knowledgeGap * 0.5f, witnessedAny) * 0.6f;
-        context.pushEmotion(whisperer, PetComponent.Emotion.LOYALTY, tellerLoyalty);
-        float tellerGuardian = GossipSocialHelper.solidarityGuardianDelta(rumor, knowledgeGap * 0.7f, witnessedAny) * 0.5f;
+        float tellerLoyaltyBase = GossipSocialHelper.loyaltyDelta(rumor, knowledgeGap * 0.5f, witnessedAny);
+        float tellerLoyalty = profile.adjustStorytellerEcho(tellerLoyaltyBase) * 0.6f;
+        if (tellerLoyalty > 0f) {
+            context.pushEmotion(whisperer, PetComponent.Emotion.LOYALTY, tellerLoyalty);
+        }
+        float tellerGuardianBase = GossipSocialHelper.solidarityGuardianDelta(rumor, knowledgeGap * 0.7f, witnessedAny);
+        float tellerGuardian = profile.adjustStorytellerEcho(tellerGuardianBase) * 0.5f;
         if (tellerGuardian > 0f) {
             context.pushEmotion(whisperer, PetComponent.Emotion.GUARDIAN_VIGIL, tellerGuardian);
+        }
+        float admiration = profile.admirationBonus();
+        if (admiration > 0f) {
+            context.pushEmotion(whisperer, PetComponent.Emotion.PRIDE, admiration);
         }
 
         if (context.tryMarkBeat("gossip_whisper", 1800)) {
