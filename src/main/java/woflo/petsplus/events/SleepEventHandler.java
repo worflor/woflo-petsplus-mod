@@ -2,16 +2,22 @@ package woflo.petsplus.events;
 
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.minecraft.entity.attribute.EntityAttributes;
+import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.stats.nature.NatureFlavorHandler;
 import woflo.petsplus.stats.nature.NatureFlavorHandler.Trigger;
+import woflo.petsplus.stats.nature.NatureTabooHandler;
+import woflo.petsplus.stats.nature.NatureTabooHandler.TabooTrigger;
 import woflo.petsplus.state.StateManager;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -90,6 +96,50 @@ public class SleepEventHandler {
         payload.put("sleep_event_id", UUID.randomUUID());
         StateManager.forWorld(world).fireAbilityTrigger(player, "owner_sleep_complete", payload);
 
+        if (!viaAnchor) {
+            List<HostileEntity> nearbyHostiles = world.getEntitiesByClass(HostileEntity.class,
+                player.getBoundingBox().expand(24.0),
+                entity -> entity.isAlive() && !entity.isRemoved());
+            if (!nearbyHostiles.isEmpty()) {
+                float threatScore = 0f;
+                float closestDistance = Float.MAX_VALUE;
+                for (HostileEntity hostile : nearbyHostiles) {
+                    double distSq = hostile.squaredDistanceTo(player);
+                    double dist = Math.sqrt(Math.max(distSq, 0.0));
+                    closestDistance = (float) Math.min(closestDistance, dist);
+
+                    float distanceWeight = (float) MathHelper.clamp((24.0 - dist) / 12.0, 0.0, 1.6);
+                    float attackWeight = (float) MathHelper.clamp(
+                        hostile.getAttributeValue(EntityAttributes.ATTACK_DAMAGE) / 6.0,
+                        0.15f,
+                        1.4f);
+                    float healthWeight = (float) MathHelper.clamp(hostile.getMaxHealth() / 30.0f, 0.1f, 1.3f);
+                    float speedWeight = (float) MathHelper.clamp(
+                        hostile.getAttributeValue(EntityAttributes.MOVEMENT_SPEED) / 0.25f,
+                        0.2f,
+                        1.2f);
+
+                    float pressure = 0.35f
+                        + distanceWeight * 0.8f
+                        + attackWeight * 0.5f
+                        + healthWeight * 0.35f
+                        + speedWeight * 0.25f;
+                    threatScore += pressure;
+                }
+
+                float proximityBonus = closestDistance < Float.MAX_VALUE
+                    ? MathHelper.clamp((8.0f - closestDistance) / 4.0f, 0.0f, 1.5f)
+                    : 0.0f;
+                float clusterBonus = MathHelper.clamp((nearbyHostiles.size() - 1) / 2.0f, 0.0f, 1.8f);
+
+                float hostilesIntensity = 0.85f
+                    + MathHelper.clamp(threatScore * 0.75f + proximityBonus + clusterBonus * 0.4f,
+                    0.0f,
+                    4.5f);
+                NatureTabooHandler.triggerForOwner(player, 48, TabooTrigger.SLEEPING_DANGER, hostilesIntensity);
+            }
+        }
+
         // Push calming emotions to nearby owned pets
         world.getEntitiesByClass(net.minecraft.entity.mob.MobEntity.class,
             player.getBoundingBox().expand(32),
@@ -120,6 +170,7 @@ public class SleepEventHandler {
             Text.translatable("petsplus.emotion_cue.sleep.rested"),
             2400);
 
+        NatureTabooHandler.triggerForOwner(player, 64, TabooTrigger.OWNER_ABSENCE, 1.0f);
         NatureFlavorHandler.triggerForOwner(player, 32, Trigger.OWNER_SLEEP);
     }
 

@@ -879,6 +879,10 @@ public class PetComponent {
         publishStimulus(PerceptionStimulusType.GOAL_HISTORY, ContextSlice.HISTORY, key);
     }
 
+    public void setPanicking(boolean panicking) {
+        aiState.setPanicking(panicking);
+    }
+
     public void recordRumor(long topicId, float intensity, float confidence, long currentTick) {
         recordRumor(topicId, intensity, confidence, currentTick, null, null);
     }
@@ -1469,6 +1473,10 @@ public class PetComponent {
 
     public void scheduleNextMoodProviderTick(long nextTick) {
         submitScheduledTask(PetWorkScheduler.TaskType.MOOD_PROVIDER, nextTick);
+    }
+
+    public void scheduleTabooReview(long nextTick) {
+        submitScheduledTask(PetWorkScheduler.TaskType.TABOO_REVIEW, nextTick);
     }
 
     private void submitScheduledTask(PetWorkScheduler.TaskType type, long nextTick) {

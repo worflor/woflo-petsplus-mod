@@ -1,0 +1,18 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:cobblestone",
+    "minecraft:dirt",
+    "minecraft:gravel",
+    "minecraft:netherrack",
+    "minecraft:rotten_flesh",
+    "minecraft:spider_eye",
+    "minecraft:poisonous_potato",
+    "minecraft:granite",
+    "minecraft:diorite",
+    "minecraft:andesite",
+    "minecraft:mud",
+    "minecraft:sand",
+    "minecraft:dripstone_block"
+  ]
+}

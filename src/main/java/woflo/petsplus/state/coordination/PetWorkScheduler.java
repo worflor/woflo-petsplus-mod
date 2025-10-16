@@ -25,7 +25,8 @@ public final class PetWorkScheduler {
         PARTICLE,
         GOSSIP_DECAY,
         CONTAGION,
-        MOOD_PROVIDER
+        MOOD_PROVIDER,
+        TABOO_REVIEW
     }
 
     public static final class ScheduledTask {
