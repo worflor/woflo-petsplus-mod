@@ -53,6 +53,11 @@ public final class GoalIds {
     public static final Identifier ORBIT_SWIM = id("orbit_swim");
     public static final Identifier CROUCH_APPROACH_RESPONSE = id("crouch_approach_response");
     public static final Identifier HIDE_AND_SEEK = id("hide_and_seek");
+    public static final Identifier HIDE_AND_SEEK_DIRECTOR = id("hide_and_seek_director");
+    public static final Identifier HIDE_AND_SEEK_SEEKER = id("hide_and_seek_seeker");
+    public static final Identifier HIDE_AND_SEEK_HIDER = id("hide_and_seek_hider");
+    public static final Identifier HIDE_AND_SEEK_SUPPORT = id("hide_and_seek_support");
+    public static final Identifier HIDE_AND_SEEK_SPECTATOR = id("hide_and_seek_spectator");
     public static final Identifier INVESTIGATE_BLOCK = id("investigate_block");
     public static final Identifier STARGAZING = id("stargazing");
     public static final Identifier SKY_SURVEY = id("sky_survey");

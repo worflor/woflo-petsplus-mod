@@ -17,5 +17,5 @@
   },
   "idle_stamina_bias": "none",
   "marks_major_activity": true,
-  "goal_factory": "woflo.petsplus.ai.goals.special.HideAndSeekGoal"
+  "goal_factory": "woflo.petsplus.ai.goals.special.hideandseek.HideAndSeekParticipationGoal"
 }
