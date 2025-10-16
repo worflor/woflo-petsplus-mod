@@ -2,6 +2,8 @@ package woflo.petsplus.state.gossip;
 
 import java.util.List;
 
+import woflo.petsplus.state.gossip.HarmonyGossipBridge.HarmonyGossipProfile;
+
 /**
  * Represents lightweight tone buckets inferred from a rumor's current
  * intensity, confidence, share history, and recency. The tones map directly to
@@ -63,6 +65,60 @@ public enum RumorTone {
     }
 
     public static RumorTone classify(RumorEntry rumor, long currentTick) {
+        return classify(rumor, currentTick, HarmonyGossipProfile.NEUTRAL);
+    }
+
+    public static RumorTone classify(RumorEntry rumor, long currentTick, HarmonyGossipProfile profile) {
+        RumorTone tone = baseClassify(rumor, currentTick);
+        if (profile == null || profile.isNeutral()) {
+            return tone;
+        }
+        float positive = profile.positiveBias();
+        float negative = profile.negativeBias();
+        float playful = profile.playfulSarcasm();
+        float effectiveNegative = Math.max(0f, negative - (playful * 0.4f));
+        if (effectiveNegative >= 0.55f) {
+            switch (tone) {
+                case COZY, WONDER -> tone = SARCASM;
+                case BRAG -> tone = WARNING;
+                case WHISPER -> tone = WEARY;
+                default -> {
+                }
+            }
+        } else if (effectiveNegative >= 0.3f) {
+            switch (tone) {
+                case BRAG -> tone = SARCASM;
+                case COZY -> tone = WEARY;
+                default -> {
+                }
+            }
+        }
+        if (positive >= 0.55f && effectiveNegative < 0.45f) {
+            switch (tone) {
+                case WARNING, SPOOKY -> tone = COZY;
+                case WEARY -> tone = WONDER;
+                case SARCASM -> tone = BRAG;
+                default -> {
+                }
+            }
+        } else if (positive >= 0.35f && effectiveNegative < 0.3f) {
+            if (tone == WHISPER) {
+                tone = COZY;
+            }
+        }
+        if (tone == SARCASM && playful > 0f) {
+            if (playful >= 0.65f && positive >= effectiveNegative) {
+                tone = BRAG;
+            } else if (playful >= 0.45f && positive >= effectiveNegative * 0.8f) {
+                tone = COZY;
+            } else if (playful >= 0.35f && effectiveNegative <= 0.4f) {
+                tone = WONDER;
+            }
+        }
+        return tone;
+    }
+
+    private static RumorTone baseClassify(RumorEntry rumor, long currentTick) {
         float intensity = rumor.intensity();
         float confidence = rumor.confidence();
         int shares = rumor.shareCount();

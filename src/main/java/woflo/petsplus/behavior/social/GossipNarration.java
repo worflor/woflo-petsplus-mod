@@ -4,6 +4,8 @@ import net.minecraft.text.Text;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.gossip.GossipTopics;
+import woflo.petsplus.state.gossip.HarmonyGossipBridge;
+import woflo.petsplus.state.gossip.HarmonyGossipBridge.HarmonyGossipProfile;
 import woflo.petsplus.state.gossip.RumorEntry;
 import woflo.petsplus.state.gossip.RumorTone;
 
@@ -29,40 +31,44 @@ final class GossipNarration {
                 listener = sample.data().component();
             }
         }
-        return buildCue("petsplus.emotion_cue.social.gossip.circle", storyteller, listener, rumor, currentTick);
+        HarmonyGossipProfile profile = HarmonyGossipBridge.evaluate(storyteller, listener);
+        return buildCue("petsplus.emotion_cue.social.gossip.circle", storyteller, listener, rumor, currentTick, profile);
     }
 
     static Text buildWhisperCue(PetComponent storyteller, PetComponent listener,
                                RumorEntry rumor, long currentTick) {
-        return buildCue("petsplus.emotion_cue.social.gossip.whisper", storyteller, listener, rumor, currentTick);
+        HarmonyGossipProfile profile = HarmonyGossipBridge.evaluate(storyteller, listener);
+        return buildCue("petsplus.emotion_cue.social.gossip.whisper", storyteller, listener, rumor, currentTick, profile);
     }
 
     private static Text buildCue(String translationKey,
                                  @Nullable PetComponent storyteller,
                                  @Nullable PetComponent listener,
                                  RumorEntry rumor,
-                                 long currentTick) {
+                                 long currentTick,
+                                 HarmonyGossipProfile profile) {
         Text storytellerName = storyteller != null && storyteller.getPet() != null
             ? storyteller.getPet().getDisplayName()
             : Text.translatable("petsplus.gossip.unknown_pet");
         Text listenerName = listener != null && listener.getPet() != null
             ? listener.getPet().getDisplayName()
             : Text.translatable("petsplus.gossip.unknown_pet");
-        Text story = buildStoryText(rumor, currentTick);
+        Text story = buildStoryText(rumor, currentTick, profile);
         if (translationKey.endsWith("whisper")) {
             return Text.translatable(translationKey, storytellerName, listenerName, story);
         }
         return Text.translatable(translationKey, storytellerName, story);
     }
 
-    private static Text buildStoryText(RumorEntry rumor, long currentTick) {
+    private static Text buildStoryText(RumorEntry rumor, long currentTick, HarmonyGossipProfile profile) {
         Text base = rumor.paraphrasedCopy();
         if (base == null) {
             base = GossipTopics.findAbstract(rumor.topicId())
                 .map(topic -> Text.translatable(topic.translationKey()))
                 .orElseGet(() -> Text.translatable("petsplus.gossip.topic.generic"));
         }
-        RumorTone tone = RumorTone.classify(rumor, currentTick);
+        HarmonyGossipProfile resolvedProfile = profile == null ? HarmonyGossipProfile.NEUTRAL : profile;
+        RumorTone tone = RumorTone.classify(rumor, currentTick, resolvedProfile);
         Text toneDescriptor = Text.translatable("petsplus.gossip.tone." + tone.key());
         String templateKey = selectTemplateKey(tone, rumor, currentTick);
         return Text.translatable(templateKey, base, toneDescriptor);

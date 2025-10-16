@@ -341,7 +341,7 @@ public final class NatureFlavorHandler {
             if (emotion == null || strength <= 0f) {
                 continue;
             }
-            float amount = strength * hook.scale();
+            float amount = strength * hook.scale() * component.getHarmonyMoodMultiplier();
             if (Math.abs(amount) <= 0.001f) {
                 continue;
             }

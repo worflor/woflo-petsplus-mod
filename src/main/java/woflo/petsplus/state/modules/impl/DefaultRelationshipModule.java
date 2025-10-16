@@ -30,6 +30,7 @@ public class DefaultRelationshipModule implements RelationshipModule {
     private PetComponent parent;
     private final Map<UUID, RelationshipProfile> relationships = new HashMap<>();
     private final SpeciesMemory speciesMemory = new SpeciesMemory();
+    private final Map<UUID, PetComponent.HarmonyCompatibility> harmonyCompatibilities = new HashMap<>();
     private long lastDecayTick = 0;
     
     @Override
@@ -184,11 +185,13 @@ public class DefaultRelationshipModule implements RelationshipModule {
     @Override
     public void removeRelationship(UUID entityId) {
         relationships.remove(entityId);
+        harmonyCompatibilities.remove(entityId);
     }
-    
+
     @Override
     public void clearAllRelationships() {
         relationships.clear();
+        harmonyCompatibilities.clear();
     }
     
     @Override
@@ -201,14 +204,15 @@ public class DefaultRelationshipModule implements RelationshipModule {
         List<SerializedRelationship> serialized = relationships.values().stream()
             .map(SerializedRelationship::fromProfile)
             .collect(Collectors.toList());
-        
+
         return new Data(serialized, lastDecayTick, speciesMemory.toData());
     }
     
     @Override
     public void fromData(Data data) {
         relationships.clear();
-        
+        harmonyCompatibilities.clear();
+
         if (data.relationships() != null) {
             for (SerializedRelationship serialized : data.relationships()) {
                 RelationshipProfile profile = serialized.toProfile();
@@ -244,6 +248,31 @@ public class DefaultRelationshipModule implements RelationshipModule {
 
         speciesMemory.recordInteraction(species, interaction);
         notifySpeciesMemoryUpdated();
+    }
+
+    @Override
+    public void applyHarmonyCompatibility(Map<UUID, PetComponent.HarmonyCompatibility> compatibilities, long tick) {
+        harmonyCompatibilities.clear();
+        if (compatibilities == null || compatibilities.isEmpty()) {
+            return;
+        }
+        harmonyCompatibilities.putAll(compatibilities);
+        if (parent != null) {
+            parent.markContextDirty(ContextSlice.SOCIAL);
+        }
+    }
+
+    @Override
+    public Map<UUID, PetComponent.HarmonyCompatibility> getHarmonyCompatibilities() {
+        if (harmonyCompatibilities.isEmpty()) {
+            return Map.of();
+        }
+        return Map.copyOf(harmonyCompatibilities);
+    }
+
+    @Override
+    public PetComponent.HarmonyCompatibility getHarmonyCompatibility(UUID entityId) {
+        return harmonyCompatibilities.get(entityId);
     }
 
     @Override

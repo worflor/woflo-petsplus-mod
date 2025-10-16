@@ -1,5 +1,6 @@
 package woflo.petsplus.ai.context.social;
 
+import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.relationships.RelationshipProfile;
 import woflo.petsplus.state.relationships.RelationshipType;
 
@@ -54,6 +55,13 @@ public final class SocialSnapshot {
     }
 
     public static SocialSnapshot fromRelationships(List<RelationshipProfile> profiles) {
+        return fromRelationships(profiles, Map.of());
+    }
+
+    public static SocialSnapshot fromRelationships(
+        List<RelationshipProfile> profiles,
+        Map<UUID, PetComponent.HarmonyCompatibility> compatibilities
+    ) {
         if (profiles == null || profiles.isEmpty()) {
             return empty();
         }
@@ -62,12 +70,16 @@ public final class SocialSnapshot {
             if (profile == null || profile.entityId() == null) {
                 continue;
             }
+            PetComponent.HarmonyCompatibility compatibility = compatibilities != null
+                ? compatibilities.get(profile.entityId())
+                : null;
             edges.put(profile.entityId(), new Edge(
                 profile.trust(),
                 profile.affection(),
                 profile.respect(),
                 profile.getComfort(),
-                profile.getType()
+                profile.getType(),
+                compatibility
             ));
         }
         return new SocialSnapshot(edges);
@@ -78,7 +90,8 @@ public final class SocialSnapshot {
         float affection,
         float respect,
         float comfort,
-        RelationshipType type
+        RelationshipType type,
+        PetComponent.HarmonyCompatibility harmonyCompatibility
     ) {
         public Edge {
             if (type == null) {

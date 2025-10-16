@@ -146,7 +146,8 @@ public final class AffectiveContagionManager {
                 * speciesWeight
                 * crossOwnerFactor
                 * neighborWeight
-                * telemetryScale;
+                * telemetryScale
+                * self.getHarmonyState().contagionMultiplier();
 
             // Safety clamp (in case config is set extreme)
             amount = MathHelper.clamp(amount, -0.2f, 0.2f);
