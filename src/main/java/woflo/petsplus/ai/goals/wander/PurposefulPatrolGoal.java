@@ -92,10 +92,19 @@ public class PurposefulPatrolGoal extends AdaptiveGoal {
                 currentPointIndex = (currentPointIndex + 1) % patrolPoints.size();
             }
         } else {
+            double targetX = currentTarget.getX() + 0.5;
+            double targetY = currentTarget.getY() + 0.5;
+            double targetZ = currentTarget.getZ() + 0.5;
+
+            if (!orientTowards(targetX, targetY, targetZ, 35.0f, 28.0f, 18.0f)) {
+                mob.getNavigation().stop();
+                return;
+            }
+
             mob.getNavigation().startMovingTo(
-                currentTarget.getX(), 
-                currentTarget.getY(), 
-                currentTarget.getZ(), 
+                targetX,
+                targetY,
+                targetZ,
                 0.8
             );
         }

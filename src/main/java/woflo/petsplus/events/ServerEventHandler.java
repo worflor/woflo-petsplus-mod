@@ -24,16 +24,18 @@ public class ServerEventHandler {
     
     private static void onServerStarting(MinecraftServer server) {
         Petsplus.LOGGER.info("PetsPlus: Server starting - initializing state managers");
+        StateManager.onServerStarting();
         // State managers will be initialized lazily when worlds are accessed
         PlayerTickListeners.registerAll();
     }
-    
+
     private static void onServerStopping(MinecraftServer server) {
         Petsplus.LOGGER.info("PetsPlus: Server stopping - persisting all pet data");
-        
+        StateManager.beginServerStopping();
+
         // Ensure all pet data is saved before shutdown
         for (ServerWorld world : server.getWorlds()) {
-            StateManager stateManager = StateManager.forWorld(world);
+            StateManager stateManager = StateManager.getIfLoaded(world);
             if (stateManager != null) {
                 stateManager.onWorldSave();
             }
@@ -61,21 +63,21 @@ public class ServerEventHandler {
 
         Petsplus.LOGGER.info("PetsPlus: All pet data persisted successfully");
     }
-    
+
     private static void onWorldLoad(MinecraftServer server, ServerWorld world) {
         Petsplus.LOGGER.info("PetsPlus: World {} loaded - initializing state manager", world.getRegistryKey().getValue());
+        StateManager.onWorldLoaded(world);
         // State manager will be initialized when first accessed
     }
     
     private static void onWorldUnload(MinecraftServer server, ServerWorld world) {
         Petsplus.LOGGER.info("PetsPlus: World {} unloading - persisting pet data", world.getRegistryKey().getValue());
         
-        StateManager stateManager = StateManager.forWorld(world);
+        StateManager stateManager = StateManager.getIfLoaded(world);
         if (stateManager != null) {
             stateManager.onWorldSave();
+            // Properly shutdown the state manager to close async coordinators
+            StateManager.unloadWorld(world);
         }
-        
-        // Properly shutdown the state manager to close async coordinators
-        StateManager.unloadWorld(world);
     }
 }

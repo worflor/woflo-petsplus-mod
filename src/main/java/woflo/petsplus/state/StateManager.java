@@ -13,6 +13,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkSectionPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.registry.RegistryKey;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.TriggerContext;
@@ -92,12 +93,16 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Manages state for all pets and owners in the game using components for persistence.
  */
 public class StateManager {
     private static final Map<ServerWorld, StateManager> WORLD_MANAGERS = new WeakHashMap<>();
+    private static final Set<RegistryKey<net.minecraft.world.World>> TOMBSTONED_WORLDS = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private static final AtomicBoolean SERVER_STOPPING = new AtomicBoolean(false);
     private static final long INTERVAL_TICK_SPACING = 20L;
     private static final long SUPPORT_POTION_ACTIVE_RECHECK = 5L;
     private static final long SUPPORT_POTION_IDLE_RECHECK = 40L;
@@ -163,10 +168,56 @@ public class StateManager {
         }
     }
 
+    @Nullable
+    public static StateManager getIfLoaded(ServerWorld world) {
+        synchronized (WORLD_MANAGERS) {
+            return WORLD_MANAGERS.get(world);
+        }
+    }
+
+    public static void onServerStarting() {
+        SERVER_STOPPING.set(false);
+        TOMBSTONED_WORLDS.clear();
+    }
+
+    public static void beginServerStopping() {
+        SERVER_STOPPING.set(true);
+    }
+
+    public static boolean isServerStopping() {
+        return SERVER_STOPPING.get();
+    }
+
+    public static boolean isCreationAllowed(ServerWorld world) {
+        if (world == null) {
+            return false;
+        }
+        return !isServerStopping() && !isWorldTombstoned(world.getRegistryKey());
+    }
+
+    public static void onWorldLoaded(ServerWorld world) {
+        if (world == null) {
+            return;
+        }
+        TOMBSTONED_WORLDS.remove(world.getRegistryKey());
+    }
+
+    private static void markWorldDisposing(ServerWorld world) {
+        if (world == null) {
+            return;
+        }
+        TOMBSTONED_WORLDS.add(world.getRegistryKey());
+    }
+
+    private static boolean isWorldTombstoned(RegistryKey<net.minecraft.world.World> key) {
+        return key != null && TOMBSTONED_WORLDS.contains(key);
+    }
+
     public static void unloadWorld(ServerWorld world) {
         if (world == null) {
             return;
         }
+        markWorldDisposing(world);
         StateManager manager;
         synchronized (WORLD_MANAGERS) {
             manager = WORLD_MANAGERS.remove(world);
@@ -185,6 +236,10 @@ public class StateManager {
 
         if (managers.isEmpty()) {
             return;
+        }
+
+        for (StateManager manager : managers) {
+            markWorldDisposing(manager.world);
         }
 
         // Single manager - no need for parallel overhead
@@ -2291,8 +2346,31 @@ public class StateManager {
         int ownerCount = ownerStates.size();
 
         if (petCount > 0 || ownerCount > 0) {
-            woflo.petsplus.Petsplus.LOGGER.debug("PetsPlus: Preparing to save world {} with {} pets and {} owners",
+            Petsplus.LOGGER.debug("PetsPlus: Preparing to save world {} with {} pets and {} owners",
                     world.getRegistryKey().getValue(), petCount, ownerCount);
+        }
+
+        if (petCount > 0) {
+            int flushed = 0;
+            List<PetComponent> snapshot = new ArrayList<>(petComponents.values());
+            for (PetComponent component : snapshot) {
+                if (component == null) {
+                    continue;
+                }
+                try {
+                    MobEntity pet = component.getPet();
+                    if (pet == null || pet.isRemoved()) {
+                        continue;
+                    }
+                    component.saveToEntity();
+                    flushed++;
+                } catch (Exception e) {
+                    Petsplus.LOGGER.error("Failed to persist pet data during save for world {}", world.getRegistryKey().getValue(), e);
+                }
+            }
+            if (flushed > 0) {
+                Petsplus.LOGGER.debug("PetsPlus: Persisted {} pet component(s) for world {}", flushed, world.getRegistryKey().getValue());
+            }
         }
     }
 

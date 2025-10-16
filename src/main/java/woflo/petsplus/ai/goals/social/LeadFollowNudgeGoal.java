@@ -149,8 +149,11 @@ public class LeadFollowNudgeGoal extends AdaptiveGoal {
         //Vec3d target = mob.getPos().add(dir.multiply(1.2)); // small lead
         Vec3d origin = new Vec3d(mob.getX(), mob.getY(), mob.getZ());
         Vec3d target = origin.add(dir.multiply(1.2)); // small lead
-        if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
+        boolean facing = orientTowards(target.x, target.y, target.z, 28.0f, 24.0f, 15.0f);
+        if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld && facing) {
             mob.getNavigation().startMovingTo(target.x, target.y, target.z, 0.65);
+        } else if (!facing) {
+            mob.getNavigation().stop();
         }
     }
 
@@ -187,10 +190,11 @@ public class LeadFollowNudgeGoal extends AdaptiveGoal {
 //            Vec3d target = mob.getPos().add(dir.multiply(1.2));
             Vec3d origin2 = new Vec3d(mob.getX(), mob.getY(), mob.getZ());
             Vec3d target = origin2.add(dir.multiply(1.2));
-            if (mob.getNavigation().isIdle()) {
-                if (mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
-                    mob.getNavigation().startMovingTo(target.x, target.y, target.z, 0.65);
-                }
+            boolean facing = orientTowards(target.x, target.y, target.z, 28.0f, 24.0f, 15.0f);
+            if (!facing) {
+                mob.getNavigation().stop();
+            } else if (mob.getNavigation().isIdle() && mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld) {
+                mob.getNavigation().startMovingTo(target.x, target.y, target.z, 0.65);
             }
         }
 

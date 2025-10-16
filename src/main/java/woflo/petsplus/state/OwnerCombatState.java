@@ -60,30 +60,41 @@ public class OwnerCombatState {
     
     public static OwnerCombatState getOrCreate(PlayerEntity owner) {
         if (owner.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
-            return StateManager.forWorld(serverWorld).getOwnerState(owner);
+            StateManager manager = StateManager.getIfLoaded(serverWorld);
+            if (manager != null) {
+                return manager.getOwnerState(owner);
+            }
+            if (StateManager.isCreationAllowed(serverWorld)) {
+                return StateManager.forWorld(serverWorld).getOwnerState(owner);
+            }
         }
         return STATES.computeIfAbsent(owner, OwnerCombatState::new);
     }
-    
+
     @Nullable
     public static OwnerCombatState get(PlayerEntity owner) {
         if (owner.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
-            StateManager manager = StateManager.forWorld(serverWorld);
-            OwnerCombatState state = manager.getOwnerStateIfPresent(owner);
-            if (state != null) {
-                return state;
+            StateManager manager = StateManager.getIfLoaded(serverWorld);
+            if (manager != null) {
+                OwnerCombatState state = manager.getOwnerStateIfPresent(owner);
+                if (state != null) {
+                    return state;
+                }
             }
         }
         return STATES.get(owner);
     }
-    
+
     public static void set(PlayerEntity owner, OwnerCombatState state) {
         STATES.put(owner, state);
     }
-    
+
     public static void remove(PlayerEntity owner) {
         if (owner.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
-            StateManager.forWorld(serverWorld).removeOwner(owner);
+            StateManager manager = StateManager.getIfLoaded(serverWorld);
+            if (manager != null) {
+                manager.removeOwner(owner);
+            }
         }
         STATES.remove(owner);
     }

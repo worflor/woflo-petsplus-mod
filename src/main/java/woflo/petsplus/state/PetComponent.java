@@ -1043,33 +1043,87 @@ public class PetComponent {
     }
 
     public static PetComponent getOrCreate(MobEntity pet) {
-        if (pet.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
-            return StateManager.forWorld(serverWorld).getPetComponent(pet);
+        Objects.requireNonNull(pet, "pet");
+
+        PetComponent existing = COMPONENTS.get(pet);
+        if (existing != null) {
+            return existing;
         }
-        return COMPONENTS.computeIfAbsent(pet, PetComponent::new);
+
+        if (pet.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+            StateManager manager = StateManager.getIfLoaded(serverWorld);
+            if (manager != null) {
+                return manager.getPetComponent(pet);
+            }
+            if (StateManager.isCreationAllowed(serverWorld)) {
+                return StateManager.forWorld(serverWorld).getPetComponent(pet);
+            }
+        }
+
+        return getOrCreateStandalone(pet);
     }
-    
+
+    /**
+     * Lightweight helper for serialization paths that need a component without
+     * forcing a {@link StateManager} to spin up during shutdown or world save.
+     * Falls back to an unmanaged component if no manager is available.
+     */
+    public static PetComponent getOrCreateForPersistence(MobEntity pet) {
+        Objects.requireNonNull(pet, "pet");
+
+        PetComponent existing = COMPONENTS.get(pet);
+        if (existing != null) {
+            return existing;
+        }
+
+        if (pet.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+            StateManager manager = StateManager.getIfLoaded(serverWorld);
+            if (manager != null) {
+                return manager.getPetComponent(pet);
+            }
+        }
+
+        return getOrCreateStandalone(pet);
+    }
+
     @Nullable
     public static PetComponent get(MobEntity pet) {
-        if (pet == null) {
-            return null;
+        Objects.requireNonNull(pet, "pet");
+        PetComponent existing = COMPONENTS.get(pet);
+        if (existing != null) {
+            return existing;
         }
         if (pet.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
-            StateManager manager = StateManager.forWorld(serverWorld);
-            return manager.peekPetComponent(pet);
+            StateManager manager = StateManager.getIfLoaded(serverWorld);
+            if (manager != null) {
+                PetComponent managed = manager.peekPetComponent(pet);
+                if (managed != null) {
+                    return managed;
+                }
+            }
         }
-        return COMPONENTS.get(pet);
+        return null;
     }
-    
+
     public static void set(MobEntity pet, PetComponent component) {
         COMPONENTS.put(pet, component);
     }
-    
+
     public static void remove(MobEntity pet) {
+        if (pet == null) {
+            return;
+        }
         if (pet.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
-            StateManager.forWorld(serverWorld).removePet(pet);
+            StateManager manager = StateManager.getIfLoaded(serverWorld);
+            if (manager != null) {
+                manager.removePet(pet);
+            }
         }
         COMPONENTS.remove(pet);
+    }
+
+    private static PetComponent getOrCreateStandalone(MobEntity pet) {
+        return COMPONENTS.computeIfAbsent(Objects.requireNonNull(pet, "pet"), PetComponent::new);
     }
     
     public MobEntity getPet() {

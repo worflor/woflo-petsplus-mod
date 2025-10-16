@@ -25,7 +25,7 @@ public class MobEntityDataMixin {
     @Inject(method = "writeCustomData", at = @At("HEAD"))
     private void savePetsPlusData(WriteView view, CallbackInfo ci) {
         MobEntity entity = (MobEntity) (Object) this;
-        PetComponent component = PetComponent.getOrCreate(entity);
+        PetComponent component = PetComponent.getOrCreateForPersistence(entity);
 
         WriteView petsPlusData = view.get("PetsPlusData");
         if (petsPlusData != null) {
@@ -45,7 +45,7 @@ public class MobEntityDataMixin {
     private void loadPetsPlusData(ReadView view, CallbackInfo ci) {
         MobEntity entity = (MobEntity) (Object) this;
 
-        PetComponent component = PetComponent.getOrCreate(entity);
+        PetComponent component = PetComponent.getOrCreateForPersistence(entity);
         component.loadFromEntity();
 
         view.getOptionalReadView("PetsPlusData").ifPresent(data -> {

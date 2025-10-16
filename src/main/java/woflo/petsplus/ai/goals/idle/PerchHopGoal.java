@@ -55,6 +55,15 @@ public class PerchHopGoal extends AdaptiveGoal {
         }
         
         if (targetPerch != null) {
+            double targetX = targetPerch.getX() + 0.5;
+            double targetY = targetPerch.getY() + 0.2;
+            double targetZ = targetPerch.getZ() + 0.5;
+
+            if (!orientTowards(targetX, targetY, targetZ, 40.0f, 28.0f, 20.0f)) {
+                mob.getNavigation().stop();
+                return;
+            }
+
             mob.getNavigation().startMovingTo(targetPerch.getX(), targetPerch.getY(), targetPerch.getZ(), 1.0);
             if (mob.getRandom().nextFloat() < 0.1f) {
                 mob.playSound(net.minecraft.sound.SoundEvents.ENTITY_PARROT_FLY, 0.5f, 1.5f);

@@ -138,6 +138,10 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
 
             // Repath jitter to avoid sync-stepping in groups
             if ((leanTicks & 3) == 0 || mob.getNavigation().isIdle()) {
+                if (!orientTowards(moveTarget.x, moveTarget.y + 0.2, moveTarget.z, 32.0f, 26.0f, 18.0f)) {
+                    mob.getNavigation().stop();
+                    return;
+                }
                 mob.getNavigation().startMovingTo(moveTarget.x, moveTarget.y, moveTarget.z, speed);
             }
         } else {

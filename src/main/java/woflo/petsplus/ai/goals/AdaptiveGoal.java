@@ -1,8 +1,10 @@
 package woflo.petsplus.ai.goals;
 
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.ai.goal.Goal;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.PetMobInteractionProfile;
 import woflo.petsplus.ai.behavior.MomentumState;
 import woflo.petsplus.ai.context.NearbyMobAgeProfile;
@@ -56,6 +58,30 @@ public abstract class AdaptiveGoal extends Goal {
         this.goalDefinition = goalDefinition;
         this.goalId = goalDefinition.id();
         this.setControls(controls);
+    }
+
+    /**
+     * Steers the pet's look control toward a target and reports when the head is aligned closely
+     * enough that movement should commence. The tolerance is intentionally loose (default callers
+     * use 15°–20°) to avoid busy-waiting while still ensuring a "look before go" beat.
+     */
+    protected boolean orientTowards(double x, double y, double z,
+                                    float yawSpeed, float pitchSpeed, float maxYawDiffDegrees) {
+        mob.getLookControl().lookAt(x, y, z, yawSpeed, pitchSpeed);
+
+        double dx = x - mob.getX();
+        double dz = z - mob.getZ();
+        if (dx * dx + dz * dz < 1.0E-4D) {
+            return true;
+        }
+
+        float desiredYaw = (float) (MathHelper.atan2(dz, dx) * (180.0D / Math.PI)) - 90.0f;
+        float diff = Math.abs(MathHelper.wrapDegrees(desiredYaw - mob.getHeadYaw()));
+        return diff <= maxYawDiffDegrees;
+    }
+
+    protected boolean orientTowards(Entity target, float yawSpeed, float pitchSpeed, float maxYawDiffDegrees) {
+        return orientTowards(target.getX(), target.getBodyY(0.5), target.getZ(), yawSpeed, pitchSpeed, maxYawDiffDegrees);
     }
 
     protected int getActiveTicks() {

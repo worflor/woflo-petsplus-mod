@@ -126,8 +126,12 @@ public class FetchItemGoal extends AdaptiveGoal {
                 return;
             }
 
+            if (!orientTowards(targetItem, 34.0f, 28.0f, 20.0f)) {
+                mob.getNavigation().stop();
+                return;
+            }
+
             mob.getNavigation().startMovingTo(targetItem, 1.2);
-            mob.getLookControl().lookAt(targetItem);
 
             if (mob.squaredDistanceTo(targetItem) < 2.0) {
                 ItemStack stack = targetItem.getStack();
@@ -145,8 +149,12 @@ public class FetchItemGoal extends AdaptiveGoal {
             }
         } else if (fetchPhase == 1) {
             // Phase 1: Return to owner
+            if (!orientTowards(targetPlayer, 34.0f, 28.0f, 20.0f)) {
+                mob.getNavigation().stop();
+                return;
+            }
+
             mob.getNavigation().startMovingTo(targetPlayer, 1.0);
-            mob.getLookControl().lookAt(targetPlayer);
 
             if (mob.squaredDistanceTo(targetPlayer) < 3.0) {
                 fetchPhase = 2;

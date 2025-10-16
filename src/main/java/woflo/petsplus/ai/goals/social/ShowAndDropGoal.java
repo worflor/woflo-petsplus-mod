@@ -143,7 +143,11 @@ public class ShowAndDropGoal extends AdaptiveGoal {
         phase = Phase.TO_ITEM;
 
         if (targetItem != null) {
-            mob.getNavigation().startMovingTo(targetItem.getX(), targetItem.getY(), targetItem.getZ(), 0.8);
+            if (!orientTowards(targetItem, 32.0f, 26.0f, 18.0f)) {
+                mob.getNavigation().stop();
+            } else {
+                mob.getNavigation().startMovingTo(targetItem.getX(), targetItem.getY(), targetItem.getZ(), 0.8);
+            }
         }
     }
 
@@ -190,7 +194,9 @@ public class ShowAndDropGoal extends AdaptiveGoal {
 
         // Approach item
         if (mob.squaredDistanceTo(targetItem) > 1.2) {
-            if (mob.getNavigation().isIdle()) {
+            if (!orientTowards(targetItem, 32.0f, 26.0f, 18.0f)) {
+                mob.getNavigation().stop();
+            } else if (mob.getNavigation().isIdle()) {
                 mob.getNavigation().startMovingTo(targetItem.getX(), targetItem.getY(), targetItem.getZ(), 0.8);
             }
             return;
@@ -221,11 +227,11 @@ public class ShowAndDropGoal extends AdaptiveGoal {
 
         if (ownerPosSnapshot != null) {
             if (mob.squaredDistanceTo(ownerPosSnapshot) > 4.0) {
-                if (mob.getNavigation().isIdle()) {
+                if (!orientTowards(ownerPosSnapshot.x, ownerPosSnapshot.y + 0.5, ownerPosSnapshot.z, 32.0f, 26.0f, 18.0f)) {
+                    mob.getNavigation().stop();
+                } else if (mob.getNavigation().isIdle()) {
                     mob.getNavigation().startMovingTo(ownerPosSnapshot.x, ownerPosSnapshot.y, ownerPosSnapshot.z, 0.8);
                 }
-                // Look at owner occasionally
-                mob.getLookControl().lookAt(ownerPosSnapshot.x, ownerPosSnapshot.y + 0.5, ownerPosSnapshot.z, 18.0f, 18.0f);
                 return;
             }
         }
