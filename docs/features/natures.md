@@ -16,16 +16,37 @@ Taming a stray locks in a climate-taught personality. Cold, temperate, and hot b
 
 ### Born natures
 
-Breeding lets you stage set pieces. Weather, architecture, altitude, and even who is watching all weigh in on the final roll. Experiment with different cues and you will keep uncovering fresh combinations.
+Breeding lets you stage set pieces. Weather, architecture, altitude, storage, crowds, and even contraptions all weigh in on the roll.
 
-* **Radiant:** Daylight under an open sky.
-* **Lunaris:** Nighttime with the moon in view.
-* **Tempest:** Thunder rolling overhead.
-* **Hearth:** Indoors among cozy blocks.
-* **Infernal:** Deep in the Nether.
-* **Abstract:** Seal both parents inside a pitch black one block pocket. The nature can appear for any bloodline, but every Unnatural parent you bring multiplies the odds.
+* **Radiant:** Daylight under an open sky with clear weather.
+* **Lunaris:** Overworld nights with the moon overhead and the sky in view.
+* **Homestead:** Any build that shows clear homestead touches.
+* **Hearth:** Indoors while cozy blocks surround the egg.
+* **Tempest:** Rain or thunder crashing through the area.
+* **Solace:** No nearby players or pets sharing the room.
+* **Festival:** A lively audience of players or pets cheering nearby.
+* **Otherworldly:** Births that finish outside both the Overworld and the Nether.
+* **Infernal:** The molten pressure of the Nether itself.
+* **Echoed:** Deep Dark biomes steeped in sculk.
+* **Mycelial:** Mushroom fields with their gentle glow.
+* **Gilded:** Ores stacked around the nest.
+* **Gloom:** Indoors, nearly dark, and without rich ores to break the mood.
+* **Verdant:** Lush greenery within arm's reach.
+* **Summit:** High altitude perches with open sky.
+* **Tidal:** Fully submerged ocean births.
+* **Molten:** Lava or magma radiating heat nearby.
+* **Frosty:** Snowfall, powder snow, or frigid storms wrapping the scene.
+* **Mire:** Muddy mangrove or swamp surroundings.
+* **Relic:** Major structures watching over the cradle.
+* **Ceramic:** Active dig sites, decorated pots, or trial chambers with clear weather.
+* **Blossom:** Cherry blooms or lush meadows open to the sun.
+* **Clockwork:** Redstone networks humming inside a sheltered build.
+* **Sentinel:** Post-battle rooms stocked with organized gear and storage.
+* **Scrappy:** Post-battle chaos with messy or understocked storage.
+* **Unnatural:** Both parents arrive wild and unclaimed.
+* **Abstract:** Seal the egg inside a pitch black one block pocket with no water, witnesses, or light leaks. The nature can surface for any lineage, and every Unnatural parent sharply boosts the odds.
 
-These examples are only a starting point. Mix biomes, structures, light levels, crowd sizes, and redstone to see what else triggers.
+That lineup covers every nature bundled with PetsPlus. Mix biomes, structures, light levels, crowds, and redstone to see how the rules collide.
 
 ## What natures do
 
