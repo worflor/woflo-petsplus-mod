@@ -3,16 +3,20 @@ package woflo.petsplus.ai.goals;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.goal.Goal;
+import net.minecraft.entity.ai.pathing.LandPathNodeMaker;
 import net.minecraft.entity.ai.pathing.PathNodeType;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.WorldView;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -53,6 +57,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
     private static final double MIN_DYNAMIC_SPEED = 0.55d;
     private static final double MAX_DYNAMIC_SPEED = 1.9d;
     private static final String FOLLOW_PATH_COOLDOWN_KEY = "follow_path_blocked";
+    private static final BlockPos[] SAFE_TARGET_SEARCH_OFFSETS = buildSafeTargetSearchOffsets();
 
     private final MobEntity mob;
     private final PetsplusTameable tameable;
@@ -339,7 +344,12 @@ public class EnhancedFollowOwnerGoal extends Goal {
         Entity lookTarget = (!hesitating && this.spacingFocus != null) ? this.spacingFocus : owner;
         this.mob.getLookControl().lookAt(lookTarget, lookYaw, this.mob.getMaxLookPitchChange());
 
-        Vec3d moveTarget = followAnchor.add(offsetX, 0.0, offsetZ);
+        Vec3d moveTarget = resolveHazardAwareTarget(owner, followAnchor, offsetX, offsetZ);
+        if (moveTarget == null) {
+            this.mob.getNavigation().stop();
+            this.lastMoveTarget = null;
+            return;
+        }
         double distanceToOwnerSq = this.mob.squaredDistanceTo(owner);
         boolean worldsMatch = owner.getEntityWorld().getRegistryKey().equals(this.mob.getEntityWorld().getRegistryKey());
         if (!worldsMatch || Double.isInfinite(distanceToOwnerSq)) {
@@ -570,6 +580,146 @@ public class EnhancedFollowOwnerGoal extends Goal {
                 }
             }
         }
+    }
+
+    private Vec3d resolveHazardAwareTarget(PlayerEntity owner, Vec3d followAnchor, double offsetX, double offsetZ) {
+        Vec3d desiredTarget = followAnchor.add(offsetX, 0.0, offsetZ);
+        if (!isHazardous(desiredTarget)) {
+            return desiredTarget;
+        }
+
+        Vec3d safeTarget = findNearbySafeTarget(owner, desiredTarget);
+        if (safeTarget != null) {
+            return safeTarget;
+        }
+
+        return null;
+    }
+
+    private Vec3d findNearbySafeTarget(PlayerEntity owner, Vec3d desiredTarget) {
+        WorldView world = this.mob.getEntityWorld();
+        if (world == null) {
+            return null;
+        }
+
+        BlockPos desiredPos = BlockPos.ofFloored(desiredTarget);
+        Vec3d ownerPos = owner.getEntityPos();
+
+        Vec3d fallback = null;
+        double fallbackScore = Double.POSITIVE_INFINITY;
+
+        for (BlockPos offset : SAFE_TARGET_SEARCH_OFFSETS) {
+            BlockPos candidatePos = desiredPos.add(offset);
+            if (!isCandidateSafe(world, candidatePos)) {
+                continue;
+            }
+
+            Vec3d candidateTarget = Vec3d.ofBottomCenter(candidatePos);
+            if (!isSpaceNavigable(candidateTarget)) {
+                continue;
+            }
+
+            double offsetDistanceSq = candidateTarget.squaredDistanceTo(desiredTarget);
+            if (offsetDistanceSq < 0.51) {
+                return candidateTarget;
+            }
+
+            double ownerDistanceSq = candidateTarget.squaredDistanceTo(ownerPos);
+            double score = offsetDistanceSq + (ownerDistanceSq * 0.05);
+
+            if (fallback == null || score < fallbackScore) {
+                fallback = candidateTarget;
+                fallbackScore = score;
+            }
+        }
+
+        return fallback;
+    }
+
+    private boolean isHazardous(Vec3d target) {
+        WorldView world = this.mob.getEntityWorld();
+        if (world == null) {
+            return true;
+        }
+
+        BlockPos blockPos = BlockPos.ofFloored(target);
+        return !isCandidateSafe(world, blockPos);
+    }
+
+    private boolean isCandidateSafe(WorldView world, BlockPos pos) {
+        if (isNodeHazardous(world, pos)) {
+            return false;
+        }
+
+        BlockPos floorPos = pos.down();
+        if (isNodeHazardous(world, floorPos)) {
+            return false;
+        }
+
+        return !world.getBlockState(floorPos).getCollisionShape(world, floorPos).isEmpty();
+    }
+
+    private boolean isNodeHazardous(WorldView world, BlockPos pos) {
+        PathNodeType nodeType = LandPathNodeMaker.getLandNodeType(this.mob, pos);
+        if (nodeType == null) {
+            return true;
+        }
+
+        if (isDangerous(nodeType)) {
+            return true;
+        }
+
+        float penalty = this.mob.getPathfindingPenalty(nodeType);
+        if (penalty > 0.0f) {
+            return true;
+        }
+
+        return penalty < 0.0f && nodeType != PathNodeType.OPEN;
+    }
+
+    private static boolean isDangerous(PathNodeType type) {
+        return switch (type) {
+            case BLOCKED,
+                LAVA,
+                DAMAGE_FIRE,
+                DAMAGE_OTHER,
+                DANGER_FIRE,
+                DANGER_OTHER -> true;
+            default -> false;
+        };
+    }
+
+    private static BlockPos[] buildSafeTargetSearchOffsets() {
+        List<BlockPos> offsets = new ArrayList<>();
+        offsets.add(new BlockPos(0, 1, 0));
+        offsets.add(new BlockPos(0, -1, 0));
+
+        for (int radius = 1; radius <= 3; radius++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    int max = Math.max(Math.abs(dx), Math.abs(dz));
+                    if (max != radius) {
+                        continue;
+                    }
+
+                    offsets.add(new BlockPos(dx, 0, dz));
+                    if (radius <= 2) {
+                        offsets.add(new BlockPos(dx, 1, dz));
+                        offsets.add(new BlockPos(dx, -1, dz));
+                    }
+                }
+            }
+        }
+
+        offsets.sort(Comparator.comparingInt(pos -> pos.getX() * pos.getX() + pos.getY() * pos.getY() + pos.getZ() * pos.getZ()));
+        return offsets.toArray(BlockPos[]::new);
+    }
+
+    private boolean isSpaceNavigable(Vec3d target) {
+        Vec3d currentPos = this.mob.getEntityPos();
+        Vec3d offset = target.subtract(currentPos);
+        Box targetBox = this.mob.getBoundingBox().offset(offset);
+        return this.mob.getEntityWorld().isSpaceEmpty(this.mob, targetBox);
     }
 
     private static final class FollowSpacingResult {

@@ -79,7 +79,7 @@ import java.lang.ReflectiveOperationException;
  *       and contextual modulation for each active emotion (e.g., CHEERFUL, ANGST, SAUDADE)</li>
  *   <li><b>Mood Layer:</b> Weighted blends of emotions mapped to observable moods (e.g., HAPPY,
  *       PROTECTIVE, YUGEN) with smooth transitions and momentum-based stabilization</li>
- *   <li><b>Nature Integration:</b> Pet personality traits (from Natures like Timid, Bold, Calm)
+ *   <li><b>Nature Integration:</b> Pet personality traits (from Natures like Lunaris, Abstract, Solace)
  *       modulate stimulus response, decay rates, habituation, and emotional expression</li>
  *   <li><b>Context Awareness:</b> Bond strength, danger proximity, health status, and ongoing
  *       conditions dynamically adjust emotional weights for situational realism</li>
