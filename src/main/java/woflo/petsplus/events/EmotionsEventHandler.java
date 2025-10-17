@@ -4307,11 +4307,11 @@ private record WeatherState(boolean raining, boolean thundering) {}
             }
         } else if (pet instanceof FoxEntity) {
             // Foxes - clever and mischievous
-            pc.pushEmotion(PetComponent.Emotion.CURIOUS, 0.20f);
-            pc.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.15f);
+            collector.pushEmotion(PetComponent.Emotion.CURIOUS, 0.20f);
+            collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, 0.15f);
             // Foxes are nocturnal
             if (world.isNight()) {
-                pc.pushEmotion(PetComponent.Emotion.KEFI, 0.15f);  // More energetic at night
+                collector.pushEmotion(PetComponent.Emotion.KEFI, 0.15f);  // More energetic at night
             }
         }
         
