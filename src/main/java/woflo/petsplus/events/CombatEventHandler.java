@@ -47,6 +47,7 @@ import woflo.petsplus.abilities.AbilityManager;
 import woflo.petsplus.abilities.AbilityTriggerResult;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.mood.MoodService;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.state.emotions.PetMoodEngine;
@@ -726,42 +727,53 @@ public class CombatEventHandler {
 
                     float hazardSeverity = PetMoodEngine.computeStatusHazardSeverity(owner);
                     if (hazardSeverity > 0f) {
-                    pc.setStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_TICK, now);
-                    pc.setStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_SEVERITY, hazardSeverity);
-                }
-
-                float closeness = 0.35f + 0.65f * proximityFactor(owner, pet, 32.0);
-                float angstWeight = scaledAmount(0.16f, 0.50f, damageIntensity) * closeness;
-                float vigilWeight = scaledAmount(0.20f + (0.18f * ownerDangerFactor), 0.55f, damageIntensity) * closeness;
-                float startleWeight = scaledAmount(0.10f, 0.40f, damageIntensity);
-                float frustrationWeight = scaledAmount(0.04f, 0.30f, damageIntensity) * closeness;
-                float forebodingWeight = ownerDangerFactor > 0f
-                    ? scaledAmount(0.05f, 0.40f, Math.max(ownerDangerFactor, damageIntensity)) * closeness
-                    : 0f;
-                float protectiveWeight = scaledAmount(0.14f + (0.16f * ownerDangerFactor), 0.52f,
-                    Math.max(ownerDangerFactor, damageIntensity)) * closeness;
-
-                if (angstWeight > 0f) {
-                    if (lightHit) {
-                        pc.pushEmotion(PetComponent.Emotion.WORRIED, angstWeight);
-                    } else {
-                        pc.pushEmotion(PetComponent.Emotion.ANGST, angstWeight);
+                        pc.setStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_TICK, now);
+                        pc.setStateData(PetComponent.StateKeys.OWNER_LAST_STATUS_HAZARD_SEVERITY, hazardSeverity);
                     }
-                }
-                if (vigilWeight > 0f) {
-                    pc.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, vigilWeight);
-                }
-                if (startleWeight > 0f) {
-                    pc.pushEmotion(PetComponent.Emotion.STARTLE, startleWeight);
-                }
-                if (frustrationWeight > 0f) {
-                    pc.pushEmotion(PetComponent.Emotion.FRUSTRATION, frustrationWeight);
-                }
-                if (forebodingWeight > 0f) {
-                    pc.pushEmotion(PetComponent.Emotion.FOREBODING, forebodingWeight);
-                }
-                if (protectiveWeight > 0f) {
-                    pc.pushEmotion(PetComponent.Emotion.PROTECTIVE, protectiveWeight);
+
+                    float closeness = 0.35f + 0.65f * proximityFactor(owner, pet, 32.0);
+                    float angstWeight = scaledAmount(0.16f, 0.50f, damageIntensity) * closeness;
+                    float vigilWeight = scaledAmount(0.20f + (0.18f * ownerDangerFactor), 0.55f, damageIntensity) * closeness;
+                    float startleWeight = scaledAmount(0.10f, 0.40f, damageIntensity);
+                    float frustrationWeight = scaledAmount(0.04f, 0.30f, damageIntensity) * closeness;
+                    float forebodingWeight = ownerDangerFactor > 0f
+                        ? scaledAmount(0.05f, 0.40f, Math.max(ownerDangerFactor, damageIntensity)) * closeness
+                        : 0f;
+                    float protectiveWeight = scaledAmount(0.14f + (0.16f * ownerDangerFactor), 0.52f,
+                        Math.max(ownerDangerFactor, damageIntensity)) * closeness;
+
+                    final float angstWeightFinal = angstWeight;
+                    final float vigilWeightFinal = vigilWeight;
+                    final float startleWeightFinal = startleWeight;
+                    final float frustrationWeightFinal = frustrationWeight;
+                    final float forebodingWeightFinal = forebodingWeight;
+                    final float protectiveWeightFinal = protectiveWeight;
+                    final boolean wasLightHit = lightHit;
+
+                    MoodService.getInstance().getStimulusBus().queueSimpleStimulus(pet, collector -> {
+                        if (angstWeightFinal > 0f) {
+                            if (wasLightHit) {
+                                collector.pushEmotion(PetComponent.Emotion.WORRIED, angstWeightFinal);
+                            } else {
+                                collector.pushEmotion(PetComponent.Emotion.ANGST, angstWeightFinal);
+                            }
+                        }
+                        if (vigilWeightFinal > 0f) {
+                            collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, vigilWeightFinal);
+                        }
+                        if (startleWeightFinal > 0f) {
+                            collector.pushEmotion(PetComponent.Emotion.STARTLE, startleWeightFinal);
+                        }
+                        if (frustrationWeightFinal > 0f) {
+                            collector.pushEmotion(PetComponent.Emotion.FRUSTRATION, frustrationWeightFinal);
+                        }
+                        if (forebodingWeightFinal > 0f) {
+                            collector.pushEmotion(PetComponent.Emotion.FOREBODING, forebodingWeightFinal);
+                        }
+                        if (protectiveWeightFinal > 0f) {
+                            collector.pushEmotion(PetComponent.Emotion.PROTECTIVE, protectiveWeightFinal);
+                        }
+                    });
                 }
             }
         }
@@ -898,67 +910,101 @@ public class CombatEventHandler {
                         float uneasinessWeight = scaledAmount(0.08f, 0.25f, intensity) * closeness;
                         float forebodingWeight = scaledAmount(0.06f, 0.18f, intensity) * closeness;
 
-                        pc.pushEmotion(PetComponent.Emotion.ANGST, distressWeight);
-                        pc.pushEmotion(PetComponent.Emotion.ENNUI, uneasinessWeight);
-                        pc.pushEmotion(PetComponent.Emotion.FOREBODING, forebodingWeight);
+                        final float distressFinal = distressWeight;
+                        final float uneasinessFinal = uneasinessWeight;
+                        final float forebodingFinal = forebodingWeight;
+
+                        MoodService.getInstance().getStimulusBus().queueSimpleStimulus(pet, collector -> {
+                            if (distressFinal > 0f) {
+                                collector.pushEmotion(PetComponent.Emotion.ANGST, distressFinal);
+                            }
+                            if (uneasinessFinal > 0f) {
+                                collector.pushEmotion(PetComponent.Emotion.ENNUI, uneasinessFinal);
+                            }
+                            if (forebodingFinal > 0f) {
+                                collector.pushEmotion(PetComponent.Emotion.FOREBODING, forebodingFinal);
+                            }
+                        });
                     } else {
                         float vigilWeight = scaledAmount(0.18f, 0.45f, intensity) * closeness;
                         float hopefulWeight = 0f;
                         float protectiveWeight = 0f;
+                        float fervorWeight = 0f;
+                        float regretWeight = 0f;
+                        float wistfulWeight = 0f;
+                        float melancholyWeight = 0f;
+                        float sisuWeight = 0f;
+
                         if (victimIsHostile) {
                             float petHealthRatio = pet.getHealth() / pet.getMaxHealth();
                             if (petHealthRatio > 0.75f) {
-                                hopefulWeight = scaledAmount(0.06f, 0.20f, Math.max(intensity, finishFactor)) * (0.75f + 0.25f * closeness) * petHealthRatio;
+                                hopefulWeight = scaledAmount(0.06f, 0.20f, Math.max(intensity, finishFactor))
+                                    * (0.75f + 0.25f * closeness) * petHealthRatio;
                             }
                             protectiveWeight = scaledAmount(0.14f, 0.38f, Math.max(intensity, ownerPeril)) * closeness;
+                            fervorWeight = scaledAmount(0.08f, 0.30f, intensity) * closeness;
+
+                            if (victim instanceof LivingEntity livingVictim) {
+                                boolean petEngaged = pet.getTarget() == livingVictim || livingVictim.getAttacker() == pet;
+                                if (petEngaged && livingVictim.getMaxHealth() >= pet.getMaxHealth() * 2.0f) {
+                                    sisuWeight = scaledAmount(0.10f, 0.32f,
+                                        Math.max(intensity, finishFactor)) * (0.75f + 0.25f * closeness);
+                                }
+                            }
+                        } else {
+                            regretWeight = scaledAmount(0.08f, 0.30f, intensity);
+                            wistfulWeight = scaledAmount(0.04f, 0.22f, Math.max(intensity, finishFactor)) * (0.6f + 0.4f * closeness);
+                            melancholyWeight = scaledAmount(0.06f, 0.24f, Math.max(intensity, finishFactor)) * (0.7f + 0.3f * closeness);
                         }
+
                         float stoicWeight = finishFactor > 0f
                             ? scaledAmount(0.05f, 0.30f, finishFactor) * (0.65f + 0.35f * closeness)
                             : 0f;
 
-                        if (victimIsHostile) {
-                            float fervorWeight = scaledAmount(0.08f, 0.30f, intensity) * closeness;
-                            if (fervorWeight > 0f) {
-                                pc.pushEmotion(PetComponent.Emotion.KEFI, fervorWeight);
-                            }
-                        } else {
-                            float regretWeight = scaledAmount(0.08f, 0.30f, intensity);
-                            float wistfulWeight = scaledAmount(0.04f, 0.22f, Math.max(intensity, finishFactor)) * (0.6f + 0.4f * closeness);
-                            float melancholyWeight = scaledAmount(0.06f, 0.24f, Math.max(intensity, finishFactor)) * (0.7f + 0.3f * closeness);
-                            if (regretWeight > 0f) {
-                                pc.pushEmotion(PetComponent.Emotion.REGRET, regretWeight);
-                            }
-                            if (wistfulWeight > 0f) {
-                                pc.pushEmotion(PetComponent.Emotion.HIRAETH, wistfulWeight);
-                            }
-                            if (melancholyWeight > 0f) {
-                                pc.pushEmotion(PetComponent.Emotion.MELANCHOLY, melancholyWeight);
-                            }
-                        }
+                        final float vigilFinal = vigilWeight;
+                        final float hopefulFinal = hopefulWeight;
+                        final float protectiveFinal = protectiveWeight;
+                        final float stoicFinal = stoicWeight;
+                        final float fervorFinal = fervorWeight;
+                        final float regretFinal = regretWeight;
+                        final float wistfulFinal = wistfulWeight;
+                        final float melancholyFinal = melancholyWeight;
+                        final float sisuFinal = sisuWeight;
+                        final boolean hostileVictim = victimIsHostile;
 
-                        if (vigilWeight > 0f) {
-                            pc.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, vigilWeight);
-                        }
-                        if (protectiveWeight > 0f) {
-                            pc.pushEmotion(PetComponent.Emotion.PROTECTIVE, protectiveWeight);
-                        }
-                        if (hopefulWeight > 0f) {
-                            pc.pushEmotion(PetComponent.Emotion.HOPEFUL, hopefulWeight);
-                        }
-                        if (stoicWeight > 0f) {
-                            pc.pushEmotion(PetComponent.Emotion.STOIC, stoicWeight);
-                        }
-
-                        if (victimIsHostile && victim instanceof LivingEntity livingVictim) {
-                            boolean petEngaged = pet.getTarget() == livingVictim || livingVictim.getAttacker() == pet;
-                            if (petEngaged && livingVictim.getMaxHealth() >= pet.getMaxHealth() * 2.0f) {
-                                float sisuWeight = scaledAmount(0.10f, 0.32f,
-                                    Math.max(intensity, finishFactor)) * (0.75f + 0.25f * closeness);
-                                if (sisuWeight > 0f) {
-                                    pc.pushEmotion(PetComponent.Emotion.SISU, sisuWeight);
+                        MoodService.getInstance().getStimulusBus().queueSimpleStimulus(pet, collector -> {
+                            if (hostileVictim) {
+                                if (fervorFinal > 0f) {
+                                    collector.pushEmotion(PetComponent.Emotion.KEFI, fervorFinal);
+                                }
+                                if (sisuFinal > 0f) {
+                                    collector.pushEmotion(PetComponent.Emotion.SISU, sisuFinal);
+                                }
+                            } else {
+                                if (regretFinal > 0f) {
+                                    collector.pushEmotion(PetComponent.Emotion.REGRET, regretFinal);
+                                }
+                                if (wistfulFinal > 0f) {
+                                    collector.pushEmotion(PetComponent.Emotion.HIRAETH, wistfulFinal);
+                                }
+                                if (melancholyFinal > 0f) {
+                                    collector.pushEmotion(PetComponent.Emotion.MELANCHOLY, melancholyFinal);
                                 }
                             }
-                        }
+
+                            if (vigilFinal > 0f) {
+                                collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, vigilFinal);
+                            }
+                            if (protectiveFinal > 0f) {
+                                collector.pushEmotion(PetComponent.Emotion.PROTECTIVE, protectiveFinal);
+                            }
+                            if (hopefulFinal > 0f) {
+                                collector.pushEmotion(PetComponent.Emotion.HOPEFUL, hopefulFinal);
+                            }
+                            if (stoicFinal > 0f) {
+                                collector.pushEmotion(PetComponent.Emotion.STOIC, stoicFinal);
+                            }
+                        });
                     }
                 }
             }
@@ -1034,27 +1080,35 @@ public class CombatEventHandler {
 
             float petMaxHealth = Math.max(1f, pet.getMaxHealth());
             float petHealthRatio = MathHelper.clamp(pet.getHealth() / petMaxHealth, 0f, 1f);
+            float hopefulWeight = 0f;
             if (petHealthRatio > 0.8f) {
-                float hopefulWeight = scaledAmount(0.08f, 0.25f, intensity) * closeness * petHealthRatio;
-                if (hopefulWeight > 0f) {
-                    pc.pushEmotion(PetComponent.Emotion.HOPEFUL, hopefulWeight);
-                }
+                hopefulWeight = scaledAmount(0.08f, 0.25f, intensity) * closeness * petHealthRatio;
             }
 
             boolean formidable = bossVictim || targetMaxHealth >= petMaxHealth * 1.5f;
-            if (formidable) {
-                float prideWeight = scaledAmount(0.08f, 0.26f, intensity) * (0.7f + 0.3f * closeness);
-                if (prideWeight > 0f) {
-                    pc.pushEmotion(PetComponent.Emotion.PRIDE, prideWeight);
-                }
-            }
+            float prideWeight = formidable
+                ? scaledAmount(0.08f, 0.26f, intensity) * (0.7f + 0.3f * closeness)
+                : 0f;
 
-            if (cheerfulWeight > 0f) {
-                pc.pushEmotion(PetComponent.Emotion.CHEERFUL, cheerfulWeight);
-            }
-            if (vigilWeight > 0f) {
-                pc.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, vigilWeight);
-            }
+            final float cheerfulFinal = cheerfulWeight;
+            final float vigilFinal = vigilWeight;
+            final float hopefulFinal = hopefulWeight;
+            final float prideFinal = prideWeight;
+
+            MoodService.getInstance().getStimulusBus().queueSimpleStimulus(pet, collector -> {
+                if (hopefulFinal > 0f) {
+                    collector.pushEmotion(PetComponent.Emotion.HOPEFUL, hopefulFinal);
+                }
+                if (prideFinal > 0f) {
+                    collector.pushEmotion(PetComponent.Emotion.PRIDE, prideFinal);
+                }
+                if (cheerfulFinal > 0f) {
+                    collector.pushEmotion(PetComponent.Emotion.CHEERFUL, cheerfulFinal);
+                }
+                if (vigilFinal > 0f) {
+                    collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, vigilFinal);
+                }
+            });
         }
     }
 

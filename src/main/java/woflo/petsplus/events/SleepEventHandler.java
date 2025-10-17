@@ -10,6 +10,8 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.stats.nature.NatureFlavorHandler;
 import woflo.petsplus.stats.nature.NatureFlavorHandler.Trigger;
 import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.mood.MoodService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -94,24 +96,30 @@ public class SleepEventHandler {
         world.getEntitiesByClass(net.minecraft.entity.mob.MobEntity.class,
             player.getBoundingBox().expand(32),
             mob -> {
-                woflo.petsplus.state.PetComponent pc = woflo.petsplus.state.PetComponent.get(mob);
+                PetComponent pc = PetComponent.get(mob);
                 return pc != null && pc.isOwnedBy(player);
             }
         ).forEach(pet -> {
-            woflo.petsplus.state.PetComponent pc = woflo.petsplus.state.PetComponent.get(pet);
-            if (pc != null) {
-                pc.pushEmotion(woflo.petsplus.state.PetComponent.Emotion.CONTENT, 0.20f);
-                pc.pushEmotion(woflo.petsplus.state.PetComponent.Emotion.QUERECIA, 0.12f);
-                pc.pushEmotion(woflo.petsplus.state.PetComponent.Emotion.SOBREMESA, 0.20f);
-                pc.pushEmotion(woflo.petsplus.state.PetComponent.Emotion.RELIEF, 0.20f);
-                pc.updateMood();
-                if (pc.hasRole(PetRoleType.EEPY_EEPER)) {
-                    EmotionContextCues.sendCue(player,
-                        "role.eepy.dream." + pet.getUuidAsString(),
-                        pet,
-                        Text.translatable("petsplus.emotion_cue.role.eepy_dream", pet.getDisplayName()),
-                        2400);
-                }
+            PetComponent pc = PetComponent.get(pet);
+            if (pc == null) {
+                return;
+            }
+
+            final boolean isEepy = pc.hasRole(PetRoleType.EEPY_EEPER);
+
+            MoodService.getInstance().getStimulusBus().queueSimpleStimulus(pet, collector -> {
+                collector.pushEmotion(PetComponent.Emotion.CONTENT, 0.20f);
+                collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.12f);
+                collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.20f);
+                collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.20f);
+            });
+
+            if (isEepy) {
+                EmotionContextCues.sendCue(player,
+                    "role.eepy.dream." + pet.getUuidAsString(),
+                    pet,
+                    Text.translatable("petsplus.emotion_cue.role.eepy_dream", pet.getDisplayName()),
+                    2400);
             }
         });
 

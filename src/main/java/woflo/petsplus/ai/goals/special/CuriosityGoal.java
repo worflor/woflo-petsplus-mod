@@ -15,6 +15,7 @@ import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.tags.PetsplusBlockTags;
+import woflo.petsplus.mood.MoodService;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -226,17 +227,19 @@ public class CuriosityGoal extends AdaptiveGoal {
         if (pc == null) {
             return;
         }
-        
+
         // Trigger positive emotion stimulus for environmental interaction
         // This creates the feedback loop mentioned in the requirements
-        pc.pushEmotion(PetComponent.Emotion.CURIOUS, 0.15f);
-        pc.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.10f);
-        
-        // If owner is nearby, also trigger a social connection emotion
         PlayerEntity owner = pc.getOwner();
-        if (owner != null && mob.squaredDistanceTo(owner) < 100) { // 10 blocks
-            pc.pushEmotion(PetComponent.Emotion.LOYALTY, 0.05f);
-        }
+        final boolean boostLoyalty = owner != null && mob.squaredDistanceTo(owner) < 100;
+
+        MoodService.getInstance().getStimulusBus().queueSimpleStimulus(mob, collector -> {
+            collector.pushEmotion(PetComponent.Emotion.CURIOUS, 0.15f);
+            collector.pushEmotion(PetComponent.Emotion.CHEERFUL, 0.10f);
+            if (boostLoyalty) {
+                collector.pushEmotion(PetComponent.Emotion.LOYALTY, 0.05f);
+            }
+        });
     }
     
     private void performInteractionAnimation() {
