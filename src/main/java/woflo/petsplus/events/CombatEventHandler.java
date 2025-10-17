@@ -777,7 +777,6 @@ public class CombatEventHandler {
                 }
             }
         }
-        }
 
         maybeCommandIntercept(owner, combatState, damageSource, now);
     }
