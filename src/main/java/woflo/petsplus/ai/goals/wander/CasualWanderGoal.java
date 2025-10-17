@@ -12,22 +12,22 @@ import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.World;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.List;
-import java.util.Optional;
+import woflo.petsplus.ai.behaviors.AdaptableGoalBase;
+import woflo.petsplus.ai.behaviors.BehaviorData;
 import woflo.petsplus.ai.context.PetContext;
-import woflo.petsplus.ai.goals.AdaptiveGoal;
-import woflo.petsplus.ai.goals.GoalRegistry;
-import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.state.PetComponent;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * Casual meandering wander - slow, curved paths with pauses.
  */
-public class CasualWanderGoal extends AdaptiveGoal {
+public class CasualWanderGoal extends AdaptableGoalBase {
     private static final String LAST_WET_TICK_KEY = "last_wet_tick";
     private static final int MAX_DURATION_TICKS = 200;
     private static final int RECENT_TARGET_HISTORY = 6;
@@ -44,7 +44,14 @@ public class CasualWanderGoal extends AdaptiveGoal {
     private final Deque<BlockPos> recentTargets = new ArrayDeque<>(RECENT_TARGET_HISTORY);
     
     public CasualWanderGoal(MobEntity mob) {
-        super(mob, GoalRegistry.require(GoalIds.CASUAL_WANDER), EnumSet.of(Control.MOVE));
+        super(mob, woflo.petsplus.ai.goals.GoalRegistry.require(woflo.petsplus.ai.goals.GoalIds.CASUAL_WANDER));
+        this.setControls(EnumSet.of(Control.MOVE));
+    }
+    
+    public CasualWanderGoal(MobEntity mob, BehaviorData behaviorData) {
+        super(mob, woflo.petsplus.ai.goals.GoalRegistry.require(woflo.petsplus.ai.goals.GoalIds.CASUAL_WANDER));
+        this.setControls(EnumSet.of(Control.MOVE));
+        setBehaviorData(behaviorData);
     }
     
     @Override
@@ -76,6 +83,59 @@ public class CasualWanderGoal extends AdaptiveGoal {
     }
     
     @Override
+    public float calculateUrgency(MobEntity pet, PetComponent petComponent, Map<String, Float> contextValues) {
+        // Use behavior data if available
+        if (behaviorData != null && behaviorData.urgencyCalculation() != null) {
+            return behaviorData.urgencyCalculation().calculateUrgency(petComponent, contextValues);
+        }
+        
+        // Fallback urgency calculation
+        if (!mob.isOnGround() || mob.isSubmergedInWater() || !mob.getNavigation().isIdle()) {
+            return 0.0f;
+        }
+        
+        if (isShelterHoldActive()) {
+            return 0.0f;
+        }
+        
+        float urgency = 0.2f; // Base urgency
+        
+        // Mood-based urgency
+        if (petComponent.hasMoodAbove(PetComponent.Mood.CURIOUS, 0.3f)) {
+            urgency += 0.3f;
+        }
+        if (petComponent.hasMoodAbove(PetComponent.Mood.CONTENT, 0.2f)) {
+            urgency += 0.2f;
+        }
+        if (petComponent.hasMoodAbove(PetComponent.Mood.RESTLESS, 0.4f)) {
+            urgency += 0.4f;
+        }
+        if (petComponent.hasMoodAbove(PetComponent.Mood.ANGRY, 0.3f)) {
+            urgency -= 0.4f;
+        }
+        
+        // Context-based urgency
+        Float ownerDistant = contextValues.get("owner_distant");
+        if (ownerDistant != null && ownerDistant > 0.5f) {
+            urgency += 0.2f;
+        }
+        
+        Float sheltered = contextValues.get("sheltered");
+        if (sheltered != null && sheltered > 0.5f) {
+            urgency += 0.1f;
+        }
+        
+        // Energy-based urgency
+        if (petComponent.getEnergyLevel() == PetComponent.EnergyLevel.LOW) {
+            urgency += 0.1f;
+        } else if (petComponent.getEnergyLevel() == PetComponent.EnergyLevel.EXHAUSTED) {
+            urgency -= 0.3f;
+        }
+        
+        return Math.max(0.0f, Math.min(1.0f, urgency));
+    }
+    
+    @Override
     protected boolean shouldContinueGoal() {
         if (ticksActive >= MAX_DURATION_TICKS) {
             return false;
@@ -86,7 +146,7 @@ public class CasualWanderGoal extends AdaptiveGoal {
         if (mob.isSubmergedInWater()) {
             return false;
         }
-        // Stop wandering if we enter a shelter-hold (e.g., rain resumes and we’re drying)
+        // Stop wandering if we enter a shelter-hold (e.g., rain resumes and we're drying)
         if (isShelterHoldActive()) {
             return false;
         }

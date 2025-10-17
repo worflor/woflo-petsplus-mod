@@ -31,7 +31,6 @@ public final class BreezeThreatSignal implements DesirabilitySignal {
         GoalIds.PERCH_ON_SHOULDER,
         GoalIds.BEDTIME_COMPANION,
         GoalIds.CROUCH_APPROACH_RESPONSE,
-        GoalIds.LEAD_FOLLOW_NUDGE,
         GoalIds.PURPOSEFUL_PATROL,
         GoalIds.SCENT_TRAIL_FOLLOW
     );

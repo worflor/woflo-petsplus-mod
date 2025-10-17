@@ -1,0 +1,59 @@
+{
+  "goal_class": "woflo.petsplus.ai.goals.social.ParallelPlayGoal",
+  "mutex_flags": ["MOVEMENT", "INTERACTION"],
+  "parameters": {
+    "max_duration": 400,
+    "comfortable_distance": 5.0,
+    "play_tracking_interval": 100
+  },
+  "requirements": {
+    "allowed_moods": ["HAPPY", "PLAYFUL", "CONTENT"],
+    "min_energy_level": "NORMAL",
+    "capability_requirements": ["has_owner"],
+    "min_bond_level": 0.3
+  },
+  "triggers": {
+    "on_owner_idle": true,
+    "on_owner_nearby": true,
+    "on_playful_mood": true
+  },
+  "feedback": {
+    "on_success": "SOCIAL_BOND_REWARD",
+    "energy_cost": 15,
+    "emotion_rewards": {
+      "PLAYFUL": 0.4,
+      "HAPPY": 0.3,
+      "UBUNTU": 0.2,
+      "KEFI": 0.1
+    },
+    "contagion_emotion": "PLAYFUL",
+    "contagion_strength": 0.025
+  },
+  "associated_data": {
+    "owner_interaction_required": true,
+    "max_owner_distance": 12.0,
+    "look_threshold": 0.2
+  },
+  "urgency_calculation": {
+    "base_urgency": 0.5,
+    "mood_multipliers": {
+      "PLAYFUL": 1.8,
+      "HAPPY": 1.3,
+      "CONTENT": 0.9,
+      "ANGRY": 0.1,
+      "RESTLESS": 0.3
+    },
+    "energy_modifier": {
+      "EXHAUSTED": 0.1,
+      "LOW": 0.4,
+      "NORMAL": 1.0,
+      "HIGH": 1.3
+    },
+    "context_modifiers": {
+      "owner_engaged": 1.5,
+      "owner_nearby": 1.2,
+      "bond_strength": 1.5,
+      "other_pets_present": 1.1
+    }
+  }
+}

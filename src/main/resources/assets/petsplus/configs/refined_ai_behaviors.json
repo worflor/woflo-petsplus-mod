@@ -1,0 +1,45 @@
+{
+  "self_preservation": {
+    "fear_threshold": 0.6,
+    "retreat_distance": 12.0,
+    "owner_protection_radius": 6.0,
+    "max_duration_seconds": 10,
+    "enable_role_behaviors": true,
+    "debug_logging": false
+  },
+  "curiosity": {
+    "scan_radius_blocks": 8.0,
+    "interaction_radius_blocks": 2.0,
+    "interaction_duration_seconds": 3,
+    "max_duration_seconds": 15,
+    "min_cooldown_seconds": 10,
+    "max_cooldown_seconds": 30,
+    "enable_feedback_loop": true,
+    "debug_logging": false
+  },
+  "ambient_animations": {
+    "enable_nature_filtering": true,
+    "enable_mood_filtering": true,
+    "min_cooldown_seconds": 15,
+    "max_cooldown_seconds": 60,
+    "animation_speed_multiplier": 1.0,
+    "debug_logging": false
+  },
+  "simple_fetch": {
+    "max_item_distance": 12.0,
+    "max_owner_distance": 20.0,
+    "max_fetch_time_seconds": 15,
+    "min_cooldown_seconds": 20,
+    "max_cooldown_seconds": 40,
+    "enable_bond_influence": true,
+    "debug_logging": false
+  },
+  "emotional_feedback": {
+    "enable_contagion": true,
+    "contagion_range_blocks": 8.0,
+    "contagion_strength_multiplier": 1.0,
+    "mood_influence_multiplier": 1.0,
+    "nature_influence_multiplier": 1.0,
+    "debug_logging": false
+  }
+}

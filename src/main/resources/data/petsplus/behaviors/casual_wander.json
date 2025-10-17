@@ -1,0 +1,50 @@
+{
+  "goal_class": "woflo.petsplus.ai.goals.wander.CasualWanderGoal",
+  "mutex_flags": ["MOVEMENT"],
+  "parameters": {
+    "max_duration": 200,
+    "wander_radius": 8,
+    "pause_chance": 0.3
+  },
+  "requirements": {
+    "allowed_moods": ["CONTENT", "CALM", "CURIOUS"],
+    "min_energy_level": "LOW",
+    "capability_requirements": ["can_wander"]
+  },
+  "triggers": {
+    "on_idle": true,
+    "on_owner_distant": true
+  },
+  "feedback": {
+    "on_success": "EXPLORATION_REWARD",
+    "energy_cost": 5,
+    "emotion_rewards": {
+      "CONTENT": 0.2,
+      "CALM": 0.1
+    }
+  },
+  "associated_data": {
+    "interest_blocks": ["flowers", "decorative", "natural_features"]
+  },
+  "urgency_calculation": {
+    "base_urgency": 0.3,
+    "mood_multipliers": {
+      "CURIOUS": 1.3,
+      "CONTENT": 1.0,
+      "RESTLESS": 1.5,
+      "ANGRY": 0.2
+    },
+    "energy_modifier": {
+      "EXHAUSTED": 0.2,
+      "LOW": 0.7,
+      "NORMAL": 1.0,
+      "HIGH": 1.1
+    },
+    "context_modifiers": {
+      "owner_nearby": 0.8,
+      "owner_distant": 1.2,
+      "sheltered": 1.1,
+      "danger_nearby": 0.1
+    }
+  }
+}

@@ -26,6 +26,7 @@ import woflo.petsplus.Petsplus;
 import woflo.petsplus.advancement.BestFriendTracker;
 import woflo.petsplus.ai.PetAIEnhancements;
 import woflo.petsplus.ai.PetMobInteractionProfile;
+import woflo.petsplus.ai.behavior.MomentumState;
 import woflo.petsplus.ai.director.DirectorDecision;
 import woflo.petsplus.ai.context.CrowdScan;
 import woflo.petsplus.ai.context.NearbyMobAgeProfile;

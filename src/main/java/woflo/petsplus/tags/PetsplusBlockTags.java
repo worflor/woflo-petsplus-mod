@@ -24,6 +24,7 @@ public final class PetsplusBlockTags {
     public static final TagKey<Block> SAFETY_BEACONS = tag("safety/beacons");
 
     public static final TagKey<Block> SLIPPERY_SURFACES = tag("movement/slippery_surfaces");
+    public static final TagKey<Block> PET_INTEREST_POINTS = tag("pet_interest_points");
 
     private PetsplusBlockTags() {
     }

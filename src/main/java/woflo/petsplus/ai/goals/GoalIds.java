@@ -60,14 +60,14 @@ public final class GoalIds {
     public static final Identifier SUNBEAM_SPRAWL = id("sunbeam_sprawl");
     public static final Identifier SCENT_TRAIL_SNIFF = id("scent_trail_sniff");
     public static final Identifier PACK_GROOM = id("pack_groom");
-    public static final Identifier PACK_SENTINEL_WATCH = id("pack_sentinel_watch");
+    // PACK_SENTINEL_WATCH removed as part of AI simplification
     public static final Identifier LEAF_CHASE_WIND = id("leaf_chase_wind");
     // Subtle behavior: P1
     // Species tags: multi-tag gating
     public static final Identifier PUDDLE_PAW = id("puddle_paw");
     public static final Identifier BURROW_PEEK = id("burrow_peek");
     public static final Identifier HEARTH_SETTLE = id("hearth_settle");
-    public static final Identifier LEAD_FOLLOW_NUDGE = id("lead_follow_nudge");
+    // LEAD_FOLLOW_NUDGE removed as part of AI simplification
     public static final Identifier MIRRORED_YAWN = id("mirrored_yawn");
     public static final Identifier SHOW_AND_DROP = id("show_and_drop");
     public static final Identifier GIFT_BRINGING = id("gift_bringing");
@@ -76,4 +76,7 @@ public final class GoalIds {
     public static final Identifier SHAKE_DRY = id("shake_dry");
     public static final Identifier GO_TO_DRYING_BLOCK = id("go_to_drying_block");
     public static final Identifier WET_SHAKE = id("wet_shake");
+    public static final Identifier SELF_PRESERVATION = id("self_preservation");
+    public static final Identifier CURIOSITY = id("curiosity");
+    public static final Identifier PERFORM_AMBIENT_ANIMATION = id("perform_ambient_animation");
 }

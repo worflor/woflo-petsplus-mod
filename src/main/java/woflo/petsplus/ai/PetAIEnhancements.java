@@ -12,7 +12,7 @@ import woflo.petsplus.ai.goals.CrouchCuddleGoal;
 import woflo.petsplus.ai.goals.PetSnuggleGoal;
 import woflo.petsplus.ai.goals.EnhancedFollowOwnerGoal;
 import woflo.petsplus.ai.goals.OwnerAssistAttackGoal;
-import woflo.petsplus.ai.goals.special.OnFireScrambleGoal;
+// OnFireScrambleGoal removed as part of AI simplification
 import woflo.petsplus.api.entity.PetsplusTameable;
 
 /**
@@ -41,8 +41,7 @@ public class PetAIEnhancements {
             // Passive snuggle healing while cuddling (slow, gated, with cooldowns)
             addSnuggleGoal(pet, petComponent);
 
-            // Replace vanilla panic with nuanced on-fire retreat behaviour
-            addOnFireScrambleGoal(pet, petComponent);
+            // OnFireScrambleGoal removed - pets will use vanilla panic behavior
 
             // Improved pathfinding penalties
             adjustPathfindingPenalties(pet, petComponent);
@@ -53,7 +52,7 @@ public class PetAIEnhancements {
             // === NEW ADAPTIVE AI SYSTEM ===
             // Replaces old mood-based, MoodInfluenced, and MoodAdvanced systems
             // This single call adds ALL adaptive goals based on mob capabilities
-            AdaptiveAIManager.reinitializeAdaptiveAI(pet);
+            woflo.petsplus.ai.behaviors.AdaptiveAIManager.reinitializeAdaptiveAI(pet);
 
         } catch (Exception e) {
             Petsplus.LOGGER.warn("Failed to enhance AI for pet {}: {}", pet.getType(), e.getMessage());
@@ -109,24 +108,24 @@ public class PetAIEnhancements {
         accessor.getGoalSelector().add(4, new PetSnuggleGoal(pet, petComponent));
     }
 
-    private static void addOnFireScrambleGoal(MobEntity pet, PetComponent petComponent) {
-        MobEntityAccessor accessor = (MobEntityAccessor) pet;
-        accessor.getGoalSelector().getGoals().removeIf(entry ->
-            entry.getGoal() instanceof EscapeDangerGoal
-                || entry.getGoal() instanceof OnFireScrambleGoal);
-        accessor.getGoalSelector().add(1, new OnFireScrambleGoal(pet, petComponent));
-    }
+    // OnFireScrambleGoal removed - pets will use vanilla panic behavior
     
     /**
      * Adjust pathfinding penalties based on pet characteristics.
+     * Simplified to use vanilla pathfinding system for hazards.
      */
     private static void adjustPathfindingPenalties(MobEntity pet, PetComponent petComponent) {
         // Pets are more willing to walk through water to reach their owner
         pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.WATER, 0.0f);
         pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.WATER_BORDER, 0.0f);
         
-        // Reduce lava penalty slightly (but still dangerous)
-        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.LAVA, 12.0f);
+        // Apply high pathfinding costs to genuine hazards using vanilla system
+        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.LAVA, 20.0f);
+        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DAMAGE_FIRE, 15.0f);
+        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DANGER_FIRE, 12.0f);
+        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DAMAGE_OTHER, 10.0f);
+        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DAMAGE_OTHER, 8.0f);
+        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DANGER_OTHER, 6.0f);
         
         // Make pets less afraid of fence gates and doors when following
         pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.FENCE, -1.0f);
@@ -154,9 +153,9 @@ public class PetAIEnhancements {
     }
     
     private static void applyGuardianAI(MobEntity pet, PetComponent petComponent) {
-        // Guardians get enhanced defensive pathfinding
-        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DANGER_OTHER, 8.0f);
-        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DAMAGE_OTHER, 4.0f);
+        // Guardians get enhanced defensive pathfinding - simplified
+        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DANGER_OTHER, 6.0f);
+        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DAMAGE_OTHER, 3.0f);
     }
     
     private static void applyScoutAI(MobEntity pet, PetComponent petComponent) {
@@ -170,16 +169,15 @@ public class PetAIEnhancements {
     }
     
     private static void applyStrikerAI(MobEntity pet, PetComponent petComponent) {
-        // Strikers are more willing to take risks for combat positioning
-        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DANGER_OTHER, 2.0f);
-        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DAMAGE_OTHER, 1.0f);
+        // Strikers are more willing to take risks for combat positioning - simplified
+        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DANGER_OTHER, 4.0f);
+        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DAMAGE_OTHER, 2.0f);
     }
     
     private static void applySupportAI(MobEntity pet, PetComponent petComponent) {
-        // Support pets are extra cautious
-        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DANGER_OTHER, 16.0f);
-        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DAMAGE_OTHER, 12.0f);
-        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.LAVA, 20.0f);
+        // Support pets are extra cautious - simplified
+        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DANGER_OTHER, 8.0f);
+        pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DAMAGE_OTHER, 6.0f);
     }
     
     /**

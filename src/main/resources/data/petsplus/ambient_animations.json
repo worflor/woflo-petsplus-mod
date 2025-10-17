@@ -1,0 +1,124 @@
+{
+  "animations": [
+    {
+      "id": "stretch",
+      "name": "Stretch",
+      "description": "A full body stretch",
+      "duration_ticks": 40,
+      "natures": ["lazy", "relaxed"],
+      "moods": ["calm", "content"],
+      "weight": 0.8,
+      "animation_type": "STRETCH"
+    },
+    {
+      "id": "yawn",
+      "name": "Yawn",
+      "description": "A tired yawn",
+      "duration_ticks": 30,
+      "natures": ["lazy", "sleepy"],
+      "moods": ["calm", "tired"],
+      "weight": 0.7,
+      "animation_type": "YAWN"
+    },
+    {
+      "id": "shake",
+      "name": "Shake",
+      "description": "Shake body vigorously",
+      "duration_ticks": 25,
+      "natures": ["energetic", "playful"],
+      "moods": ["playful", "happy"],
+      "weight": 0.9,
+      "animation_type": "SHAKE"
+    },
+    {
+      "id": "tail_wag",
+      "name": "Tail Wag",
+      "description": "Wag tail excitedly",
+      "duration_ticks": 60,
+      "natures": ["friendly", "loyal"],
+      "moods": ["happy", "playful", "bonded"],
+      "weight": 0.8,
+      "animation_type": "TAIL_WAG"
+    },
+    {
+      "id": "ear_perk",
+      "name": "Perk Ears",
+      "description": "Perk ears up attentively",
+      "duration_ticks": 35,
+      "natures": ["curious", "alert"],
+      "moods": ["curious", "vigilant"],
+      "weight": 0.7,
+      "animation_type": "EAR_PERK"
+    },
+    {
+      "id": "pounce_prep",
+      "name": "Pounce Preparation",
+      "description": "Crouch in preparation to pounce",
+      "duration_ticks": 45,
+      "natures": ["playful", "hunter"],
+      "moods": ["playful", "focused"],
+      "weight": 0.6,
+      "animation_type": "CROUCH"
+    },
+    {
+      "id": "groom",
+      "name": "Self Groom",
+      "description": "Clean fur or feathers",
+      "duration_ticks": 80,
+      "natures": ["clean", "proud"],
+      "moods": ["calm", "content"],
+      "weight": 0.5,
+      "animation_type": "GROOM"
+    },
+    {
+      "id": "circle",
+      "name": "Circle",
+      "description": "Circle around before resting",
+      "duration_ticks": 50,
+      "natures": ["particular", "anxious"],
+      "moods": ["restless", "worried"],
+      "weight": 0.4,
+      "animation_type": "CIRCLE"
+    },
+    {
+      "id": "paw_ground",
+      "name": "Paw Ground",
+      "description": "Paw at the ground",
+      "duration_ticks": 30,
+      "natures": ["curious", "impatient"],
+      "moods": ["curious", "restless"],
+      "weight": 0.6,
+      "animation_type": "PAW"
+    },
+    {
+      "id": "sniff_air",
+      "name": "Sniff Air",
+      "description": "Sniff the air curiously",
+      "duration_ticks": 40,
+      "natures": ["curious", "cautious"],
+      "moods": ["curious", "vigilant"],
+      "weight": 0.7,
+      "animation_type": "SNIFF"
+    },
+    {
+      "id": "head_tilt",
+      "name": "Head Tilt",
+      "description": "Tilt head with curiosity",
+      "duration_ticks": 25,
+      "natures": ["curious", "friendly"],
+      "moods": ["curious", "playful"],
+      "weight": 0.8,
+      "animation_type": "HEAD_TILT"
+    },
+    {
+      "id": "roll_over",
+      "name": "Roll Over",
+      "description": "Playful roll on ground",
+      "duration_ticks": 60,
+      "natures": ["playful", "trusting"],
+      "moods": ["playful", "happy"],
+      "weight": 0.5,
+      "animation_type": "ROLL"
+    }
+  ]
+}

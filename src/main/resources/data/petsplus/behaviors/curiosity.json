@@ -1,0 +1,45 @@
+{
+  "goal_class": "woflo.petsplus.ai.goals.special.CuriosityGoal",
+  "mutex_flags": ["MOVEMENT", "INTERACTION"],
+  "parameters": {
+    "scan_radius": 8,
+    "cooldown": 1200,
+    "investigation_duration": 200
+  },
+  "requirements": {
+    "allowed_moods": ["HAPPY", "CURIOUS", "PLAYFUL"],
+    "min_energy_level": "NORMAL",
+    "capability_requirements": ["can_wander"]
+  },
+  "triggers": {
+    "on_stimulus": "PLAYER_IDLE_NEARBY",
+    "on_block_interest": true,
+    "on_entity_nearby": true
+  },
+  "feedback": {
+    "on_success": "ENVIRONMENTAL_REWARD",
+    "energy_cost": 10,
+    "emotion_rewards": {
+      "CURIOUS": 0.3,
+      "CONTENT": 0.1
+    }
+  },
+  "associated_data": {
+    "target_block_tag": "petsplus:pet_interest_points",
+    "target_entity_types": ["interesting_items", "decorative_blocks"]
+  },
+  "urgency_calculation": {
+    "base_urgency": 0.4,
+    "mood_multipliers": {
+      "CURIOUS": 1.5,
+      "PLAYFUL": 1.2,
+      "CONTENT": 0.8
+    },
+    "energy_modifier": {
+      "EXHAUSTED": 0.1,
+      "LOW": 0.5,
+      "NORMAL": 1.0,
+      "HIGH": 1.2
+    }
+  }
+}

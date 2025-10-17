@@ -14,6 +14,14 @@ import woflo.petsplus.ai.goals.wander.*;
 import woflo.petsplus.ai.goals.environmental.*;
 // Subtle behavior: P1 (world interactions)
 import woflo.petsplus.ai.goals.world.*;
+// Combat goals
+import woflo.petsplus.ai.goals.combat.SelfPreservationGoal;
+// Special goals
+import woflo.petsplus.ai.goals.special.CuriosityGoal;
+// Idle goals
+import woflo.petsplus.ai.goals.idle.PerformAmbientAnimationGoal;
+// Play goals
+import woflo.petsplus.ai.goals.play.SimpleFetchItemGoal;
 
 import java.util.*;
 
@@ -351,14 +359,13 @@ public final class GoalRegistry {
             secondsToTicks(20),
             secondsToTicks(40),
             MobCapabilities.CapabilityRequirement.allOf(List.of(
-                MobCapabilities.CapabilityRequirement.fromToken("can_pick_up_items"),
                 MobCapabilities.CapabilityRequirement.fromToken("has_owner")
             )),
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.NONE,
             false,
             true,
-            FetchItemGoal::new
+            SimpleFetchItemGoal::new
         ));
 
         registerBuiltIn(new GoalDefinition(
@@ -638,25 +645,7 @@ public final class GoalRegistry {
             false,
             PackGroomGoal::new
         ));
-        registerBuiltIn(new GoalDefinition(
-            GoalIds.PACK_SENTINEL_WATCH,
-            Category.SOCIAL,
-            16,
-            secondsToTicks(12),
-            secondsToTicks(24),
-            MobCapabilities.CapabilityRequirement.allOf(List.of(
-                MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
-                MobCapabilities.CapabilityRequirement.anyOf(List.of(
-                    MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
-                    MobCapabilities.CapabilityRequirement.fromToken("can_fly")
-                ))
-            )),
-            new Vec2f(0.35f, 0.9f),
-            IdleStaminaBias.NONE,
-            true,
-            true,
-            PackSentinelWatchGoal::new
-        ));
+        // PACK_SENTINEL_WATCH removed as part of AI simplification
         // Subtle behavior: P0 - Leaf chase wind (environmental playful dart)
         registerBuiltIn(new GoalDefinition(
             GoalIds.LEAF_CHASE_WIND,
@@ -716,20 +705,7 @@ public final class GoalRegistry {
             true,
             HearthSettleGoal::new
         ));
-        // Subtle behavior: P1 - Lead follow nudge (social)
-        registerBuiltIn(new GoalDefinition(
-            GoalIds.LEAD_FOLLOW_NUDGE,
-            Category.SOCIAL,
-            15,
-            0,
-            0,
-            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
-            new Vec2f(0.0f, 1.0f),
-            IdleStaminaBias.NONE,
-            false,
-            false,
-            LeadFollowNudgeGoal::new
-        ));
+        // LEAD_FOLLOW_NUDGE removed as part of AI simplification
         // Subtle behavior: P1 - Mirrored yawn (social)
         registerBuiltIn(new GoalDefinition(
             GoalIds.MIRRORED_YAWN,
@@ -841,6 +817,48 @@ public final class GoalRegistry {
             false,
             false,
             WetShakeGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.SELF_PRESERVATION,
+            Category.SPECIAL,
+            12, // High priority for combat response
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+            new Vec2f(0.3f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            true,
+            SelfPreservationGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.CURIOSITY,
+            Category.SPECIAL,
+            16, // Lower priority than self-preservation
+            secondsToTicks(10),
+            secondsToTicks(30),
+            MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
+            new Vec2f(0.4f, 0.9f),
+            IdleStaminaBias.CENTERED,
+            false,
+            true,
+            CuriosityGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.PERFORM_AMBIENT_ANIMATION,
+            Category.IDLE_QUIRK,
+            30, // Low priority for ambient animations
+            secondsToTicks(15),
+            secondsToTicks(60),
+            MobCapabilities.CapabilityRequirement.any(),
+            new Vec2f(0.0f, 0.8f),
+            IdleStaminaBias.LOW,
+            false,
+            false,
+            PerformAmbientAnimationGoal::new
         ));
     }
 

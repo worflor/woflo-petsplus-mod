@@ -57,7 +57,6 @@ public class EnhancedFollowOwnerGoal extends Goal {
     private static final double MIN_DYNAMIC_SPEED = 0.55d;
     private static final double MAX_DYNAMIC_SPEED = 1.9d;
     private static final String FOLLOW_PATH_COOLDOWN_KEY = "follow_path_blocked";
-    private static final BlockPos[] SAFE_TARGET_SEARCH_OFFSETS = buildSafeTargetSearchOffsets();
 
     private final MobEntity mob;
     private final PetsplusTameable tameable;
@@ -344,12 +343,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
         Entity lookTarget = (!hesitating && this.spacingFocus != null) ? this.spacingFocus : owner;
         this.mob.getLookControl().lookAt(lookTarget, lookYaw, this.mob.getMaxLookPitchChange());
 
-        Vec3d moveTarget = resolveHazardAwareTarget(owner, followAnchor, offsetX, offsetZ);
-        if (moveTarget == null) {
-            this.mob.getNavigation().stop();
-            this.lastMoveTarget = null;
-            return;
-        }
+        Vec3d moveTarget = followAnchor.add(offsetX, 0.0, offsetZ);
         double distanceToOwnerSq = this.mob.squaredDistanceTo(owner);
         boolean worldsMatch = owner.getEntityWorld().getRegistryKey().equals(this.mob.getEntityWorld().getRegistryKey());
         if (!worldsMatch || Double.isInfinite(distanceToOwnerSq)) {
@@ -582,173 +576,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
         }
     }
 
-    private Vec3d resolveHazardAwareTarget(PlayerEntity owner, Vec3d followAnchor, double offsetX, double offsetZ) {
-        Vec3d desiredTarget = followAnchor.add(offsetX, 0.0, offsetZ);
-        HazardLevel hazardLevel = evaluateHazard(desiredTarget);
-        if (hazardLevel == HazardLevel.SAFE) {
-            return desiredTarget;
-        }
-
-        Map<BlockPos, HazardLevel> hazardCache = null;
-        if (hazardLevel == HazardLevel.SOFT) {
-            // Soft hazards like shallow fluids or foliage shouldn't immediately abort navigation.
-            // Only search for a nearby alternative if the current spot is genuinely blocked.
-            if (isSpaceNavigable(desiredTarget)) {
-                return desiredTarget;
-            }
-            hazardCache = new HashMap<>();
-        } else {
-            hazardCache = new HashMap<>();
-        }
-
-        Vec3d safeTarget = findNearbySafeTarget(owner, desiredTarget, hazardCache);
-        if (safeTarget != null) {
-            return safeTarget;
-        }
-
-        return hazardLevel == HazardLevel.SOFT ? desiredTarget : null;
-    }
-
-    private Vec3d findNearbySafeTarget(PlayerEntity owner, Vec3d desiredTarget, Map<BlockPos, HazardLevel> hazardCache) {
-        WorldView world = this.mob.getEntityWorld();
-        if (world == null) {
-            return null;
-        }
-
-        BlockPos desiredPos = BlockPos.ofFloored(desiredTarget);
-        Vec3d ownerPos = owner.getEntityPos();
-
-        Vec3d fallback = null;
-        double fallbackScore = Double.POSITIVE_INFINITY;
-
-        for (BlockPos offset : SAFE_TARGET_SEARCH_OFFSETS) {
-            BlockPos candidatePos = desiredPos.add(offset);
-            HazardLevel candidateHazard = getHazardLevel(world, candidatePos, hazardCache);
-            if (candidateHazard != HazardLevel.SAFE) {
-                continue;
-            }
-
-            Vec3d candidateTarget = Vec3d.ofBottomCenter(candidatePos);
-            if (!isSpaceNavigable(candidateTarget)) {
-                continue;
-            }
-
-            double offsetDistanceSq = candidateTarget.squaredDistanceTo(desiredTarget);
-            if (offsetDistanceSq < 0.51) {
-                return candidateTarget;
-            }
-
-            double ownerDistanceSq = candidateTarget.squaredDistanceTo(ownerPos);
-            double score = offsetDistanceSq + (ownerDistanceSq * 0.05);
-
-            if (fallback == null || score < fallbackScore) {
-                fallback = candidateTarget;
-                fallbackScore = score;
-            }
-        }
-
-        return fallback;
-    }
-
-    private HazardLevel getHazardLevel(WorldView world, BlockPos pos, Map<BlockPos, HazardLevel> hazardCache) {
-        if (hazardCache == null) {
-            return evaluateHazard(world, pos);
-        }
-        return hazardCache.computeIfAbsent(pos, key -> evaluateHazard(world, key));
-    }
-
-    private HazardLevel evaluateHazard(Vec3d target) {
-        WorldView world = this.mob.getEntityWorld();
-        if (world == null) {
-            return HazardLevel.SEVERE;
-        }
-        return evaluateHazard(world, BlockPos.ofFloored(target));
-    }
-
-    private HazardLevel evaluateHazard(WorldView world, BlockPos pos) {
-        if (world == null) {
-            return HazardLevel.SEVERE;
-        }
-
-        PathNodeType spaceType = resolveNodeType(world, pos);
-        HazardLevel spaceHazard = classifyNodeType(spaceType);
-
-        BlockPos floorPos = pos.down();
-        PathNodeType floorType = resolveNodeType(world, floorPos);
-        HazardLevel floorHazard = classifyNodeType(floorType);
-
-        if (floorHazard != HazardLevel.SEVERE) {
-            boolean solidFloor = !world.getBlockState(floorPos).getCollisionShape(world, floorPos).isEmpty();
-            if (!solidFloor) {
-                floorHazard = HazardLevel.SEVERE;
-            }
-        }
-
-        return spaceHazard.ordinal() >= floorHazard.ordinal() ? spaceHazard : floorHazard;
-    }
-
-    protected PathNodeType resolveNodeType(WorldView world, BlockPos pos) {
-        return LandPathNodeMaker.getLandNodeType(this.mob, pos);
-    }
-
-    HazardLevel classifyNodeType(PathNodeType type) {
-        if (type == null) {
-            return HazardLevel.SEVERE;
-        }
-
-        return switch (type) {
-            case BLOCKED,
-                LAVA,
-                DAMAGE_FIRE,
-                DANGER_FIRE,
-                DAMAGE_OTHER,
-                DANGER_OTHER -> HazardLevel.SEVERE;
-            case WATER,
-                WATER_BORDER,
-                STICKY_HONEY,
-                COCOA -> HazardLevel.SOFT;
-            default -> HazardLevel.SAFE;
-        };
-    }
-
-    static enum HazardLevel {
-        SAFE,
-        SOFT,
-        SEVERE
-    }
-
-    private static BlockPos[] buildSafeTargetSearchOffsets() {
-        List<BlockPos> offsets = new ArrayList<>();
-        offsets.add(new BlockPos(0, 1, 0));
-        offsets.add(new BlockPos(0, -1, 0));
-
-        for (int radius = 1; radius <= 3; radius++) {
-            for (int dx = -radius; dx <= radius; dx++) {
-                for (int dz = -radius; dz <= radius; dz++) {
-                    int max = Math.max(Math.abs(dx), Math.abs(dz));
-                    if (max != radius) {
-                        continue;
-                    }
-
-                    offsets.add(new BlockPos(dx, 0, dz));
-                    if (radius <= 2) {
-                        offsets.add(new BlockPos(dx, 1, dz));
-                        offsets.add(new BlockPos(dx, -1, dz));
-                    }
-                }
-            }
-        }
-
-        offsets.sort(Comparator.comparingInt(pos -> pos.getX() * pos.getX() + pos.getY() * pos.getY() + pos.getZ() * pos.getZ()));
-        return offsets.toArray(BlockPos[]::new);
-    }
-
-    private boolean isSpaceNavigable(Vec3d target) {
-        Vec3d currentPos = this.mob.getEntityPos();
-        Vec3d offset = target.subtract(currentPos);
-        Box targetBox = this.mob.getBoundingBox().offset(offset);
-        return this.mob.getEntityWorld().isSpaceEmpty(this.mob, targetBox);
-    }
+    // Complex hazard detection removed - pets will use vanilla pathfinding penalties
 
     private static final class FollowSpacingResult {
         static FollowSpacingResult empty() {
