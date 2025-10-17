@@ -3,20 +3,16 @@ package woflo.petsplus.ai.goals;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.goal.Goal;
-import net.minecraft.entity.ai.pathing.LandPathNodeMaker;
 import net.minecraft.entity.ai.pathing.PathNodeType;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.WorldView;
 
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -29,6 +25,7 @@ import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.ai.goals.OwnerAssistAttackGoal;
 import woflo.petsplus.api.entity.PetsplusTameable;
+import woflo.petsplus.config.DebugSettings;
 import woflo.petsplus.behavior.social.PetSocialData;
 import woflo.petsplus.behavior.social.SocialContextSnapshot;
 import woflo.petsplus.state.PetComponent;
@@ -495,7 +492,7 @@ public class EnhancedFollowOwnerGoal extends Goal {
         Vec3d offset = forward.multiply(padding).add(lateral.multiply(lateralOffset));
         FollowSpacingResult result = new FollowSpacingResult(offset.x, offset.z, padding, focus);
 
-        if (Petsplus.DEBUG_MODE) {
+        if (DebugSettings.isDebugEnabled()) {
             debugSpacingSample(owner, neighbors, result, Math.sqrt(ownerDistanceSq), extension, lateralOffset);
         }
 

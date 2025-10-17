@@ -5,10 +5,10 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.EmotionFeedback;
-import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.state.PetComponent;
@@ -95,8 +95,9 @@ public class SimpleFetchItemGoal extends AdaptiveGoal {
 
     @Override
     protected void onStartGoal() {
-        Petsplus.LOGGER.debug("[SimpleFetchItemGoal] Pet {} starting fetch for item at {}", 
-            mob.getDisplayName().getString(), targetItem.getPos());
+        Vec3d itemPos = new Vec3d(targetItem.getX(), targetItem.getY(), targetItem.getZ());
+        Petsplus.LOGGER.debug("[SimpleFetchItemGoal] Pet {} starting fetch for item at {}",
+            mob.getDisplayName().getString(), itemPos);
     }
 
     @Override
@@ -210,7 +211,7 @@ public class SimpleFetchItemGoal extends AdaptiveGoal {
         if (!carriedItem.isEmpty()) {
             // Create an item entity at the pet's position
             ItemEntity droppedItem = new ItemEntity(
-                mob.getWorld(),
+                mob.getEntityWorld(),
                 mob.getX(),
                 mob.getY(),
                 mob.getZ(),
@@ -221,7 +222,7 @@ public class SimpleFetchItemGoal extends AdaptiveGoal {
             droppedItem.setPickupDelay(20);
             
             // Spawn the item in the world
-            mob.getWorld().spawnEntity(droppedItem);
+            mob.getEntityWorld().spawnEntity(droppedItem);
             
             // Clear the carried item
             carriedItem = ItemStack.EMPTY;
@@ -230,7 +231,7 @@ public class SimpleFetchItemGoal extends AdaptiveGoal {
     
     private ItemEntity findNearestItem() {
         // Search for items in a radius around the pet
-        List<ItemEntity> nearbyItems = mob.getWorld().getEntitiesByClass(
+        List<ItemEntity> nearbyItems = mob.getEntityWorld().getEntitiesByClass(
             ItemEntity.class,
             mob.getBoundingBox().expand(MAX_ITEM_DISTANCE),
             item -> item.isAlive() && !item.getStack().isEmpty()

@@ -6,21 +6,19 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
-import woflo.petsplus.ai.behaviors.AdaptableGoalBase;
-import woflo.petsplus.ai.behaviors.BehaviorData;
-import woflo.petsplus.ai.context.PetContext;
-import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalIds;
+import woflo.petsplus.ai.goals.GoalRegistry;
+import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.EnumSet;
-import java.util.Map;
 
 /**
  * Parallel play - stays near owner doing independent activities.
  * Creates companionable, comfortable togetherness.
  */
-public class ParallelPlayGoal extends AdaptableGoalBase {
+public class ParallelPlayGoal extends AdaptiveGoal {
     private static final int MAX_PARALLEL_TICKS = 400; // 20 seconds
     private static final double COMFORTABLE_DISTANCE = 5.0;
     private static final String COOLDOWN_KEY = "parallel_play";
@@ -36,14 +34,7 @@ public class ParallelPlayGoal extends AdaptableGoalBase {
     private int ownerFocusGrace = MAX_OWNER_FOCUS_GRACE;
     
     public ParallelPlayGoal(MobEntity mob) {
-        super(mob, GoalRegistry.require(GoalIds.PARALLEL_PLAY));
-        this.setControls(EnumSet.of(Control.MOVE));
-    }
-    
-    public ParallelPlayGoal(MobEntity mob, BehaviorData behaviorData) {
-        super(mob, GoalRegistry.require(GoalIds.PARALLEL_PLAY));
-        this.setControls(EnumSet.of(Control.MOVE));
-        setBehaviorData(behaviorData);
+        super(mob, GoalRegistry.require(GoalIds.PARALLEL_PLAY), EnumSet.of(Control.MOVE));
     }
     
     @Override
@@ -73,49 +64,6 @@ public class ParallelPlayGoal extends AdaptableGoalBase {
         }
 
         return isOwnerEngaged(owner);
-    }
-    
-    @Override
-    public float calculateUrgency(MobEntity pet, PetComponent petComponent, Map<String, Float> contextValues) {
-        // Use behavior data if available
-        if (behaviorData != null && behaviorData.urgencyCalculation() != null) {
-            return behaviorData.urgencyCalculation().calculateUrgency(petComponent, contextValues);
-        }
-        
-        // Fallback urgency calculation
-        PetContext ctx = getContext();
-        PlayerEntity owner = ctx.owner();
-        
-        if (owner == null || !ctx.ownerNearby()) {
-            return 0.0f;
-        }
-        
-        float urgency = 0.3f; // Base urgency
-        
-        // Mood-based urgency
-        if (petComponent.hasMoodAbove(PetComponent.Mood.PLAYFUL, 0.3f)) {
-            urgency += 0.4f;
-        }
-        if (petComponent.hasMoodAbove(PetComponent.Mood.HAPPY, 0.2f)) {
-            urgency += 0.2f;
-        }
-        if (petComponent.hasMoodAbove(PetComponent.Mood.ANGRY, 0.3f)) {
-            urgency -= 0.3f;
-        }
-        
-        // Context-based urgency
-        if (isOwnerEngaged(owner)) {
-            urgency += 0.3f;
-        }
-        
-        // Energy-based urgency
-        if (petComponent.getEnergyLevel() == PetComponent.EnergyLevel.HIGH) {
-            urgency += 0.1f;
-        } else if (petComponent.getEnergyLevel() == PetComponent.EnergyLevel.EXHAUSTED) {
-            urgency -= 0.4f;
-        }
-        
-        return Math.max(0.0f, Math.min(1.0f, urgency));
     }
     
     @Override

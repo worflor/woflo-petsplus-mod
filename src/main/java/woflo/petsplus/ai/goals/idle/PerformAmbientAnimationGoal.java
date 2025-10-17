@@ -12,7 +12,6 @@ import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.EmotionFeedback;
-import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.state.PetComponent;
@@ -118,7 +117,7 @@ public class PerformAmbientAnimationGoal extends AdaptiveGoal {
         List<AmbientAnimation> animations = new ArrayList<>();
         
         try {
-            ResourceManager resourceManager = mob.getWorld().getServer().getResourceManager();
+            ResourceManager resourceManager = mob.getEntityWorld().getServer().getResourceManager();
             Optional<Resource> resource = resourceManager.getResource(id);
             
             if (resource.isPresent()) {
@@ -252,9 +251,9 @@ public class PerformAmbientAnimationGoal extends AdaptiveGoal {
         
         // Extend body slightly
         if (progress < 0.5f) {
-            mob.getBodyYaw += 2f;
+            mob.setBodyYaw(mob.getBodyYaw() + 2f);
         } else {
-            mob.getBodyYaw -= 2f;
+            mob.setBodyYaw(mob.getBodyYaw() - 2f);
         }
     }
     
@@ -265,7 +264,7 @@ public class PerformAmbientAnimationGoal extends AdaptiveGoal {
         
         // Slight head shake
         if (progress > 0.3f && progress < 0.7f) {
-            mob.headYaw = mob.getBodyYaw + MathHelper.sin(animationTicks * 0.5f) * 5f;
+            mob.headYaw = mob.getBodyYaw() + MathHelper.sin(animationTicks * 0.5f) * 5f;
         }
     }
     
@@ -273,8 +272,9 @@ public class PerformAmbientAnimationGoal extends AdaptiveGoal {
         // Rapid body shaking
         if (progress < 0.8f) {
             float shakeAmount = MathHelper.sin(animationTicks * 0.8f) * 10f;
-            mob.bodyYaw = mob.getBodyYaw() + shakeAmount;
-            mob.headYaw = mob.getBodyYaw() + shakeAmount;
+            float currentBodyYaw = mob.getBodyYaw();
+            mob.bodyYaw = currentBodyYaw + shakeAmount;
+            mob.headYaw = currentBodyYaw + shakeAmount;
         }
     }
     
@@ -302,9 +302,9 @@ public class PerformAmbientAnimationGoal extends AdaptiveGoal {
         
         // Lower body slightly
         if (progress < 0.5f) {
-            mob.getBodyYaw() -= 1f;
+            mob.setBodyYaw(mob.getBodyYaw() - 1f);
         } else {
-            mob.getBodyYaw() += 1f;
+            mob.setBodyYaw(mob.getBodyYaw() + 1f);
         }
     }
     
@@ -318,7 +318,7 @@ public class PerformAmbientAnimationGoal extends AdaptiveGoal {
     private void performCircleAnimation(float progress) {
         // Circling motion
         float circleAmount = progress * 360f;
-        mob.getBodyYaw() += circleAmount / 10f; // Slow rotation
+        mob.setBodyYaw(mob.getBodyYaw() + circleAmount / 10f); // Slow rotation
     }
     
     private void performPawAnimation(float progress) {
@@ -346,7 +346,7 @@ public class PerformAmbientAnimationGoal extends AdaptiveGoal {
     private void performRollAnimation(float progress) {
         // Rolling motion (simplified as body rotation)
         float rollAmount = progress * 360f;
-        mob.getBodyYaw() += rollAmount / 15f; // Slow rotation
+        mob.setBodyYaw(mob.getBodyYaw() + rollAmount / 15f); // Slow rotation
         mob.setPitch(MathHelper.sin(progress * MathHelper.PI * 2) * 15f);
     }
 
