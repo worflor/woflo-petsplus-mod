@@ -660,21 +660,16 @@ public class EnhancedFollowOwnerGoal extends Goal {
     }
 
     private boolean isNodeHazardous(WorldView world, BlockPos pos) {
-        PathNodeType nodeType = LandPathNodeMaker.getLandNodeType(this.mob, pos);
+        PathNodeType nodeType = resolveNodeType(world, pos);
         if (nodeType == null) {
             return true;
         }
 
-        if (isDangerous(nodeType)) {
-            return true;
-        }
+        return isDangerous(nodeType);
+    }
 
-        float penalty = this.mob.getPathfindingPenalty(nodeType);
-        if (penalty > 0.0f) {
-            return true;
-        }
-
-        return penalty < 0.0f && nodeType != PathNodeType.OPEN;
+    protected PathNodeType resolveNodeType(WorldView world, BlockPos pos) {
+        return LandPathNodeMaker.getLandNodeType(this.mob, pos);
     }
 
     private static boolean isDangerous(PathNodeType type) {

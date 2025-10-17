@@ -2,13 +2,19 @@ package woflo.petsplus.events;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.network.ServerPlayNetworkHandler;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.state.tracking.PlayerTickDispatcher;
 import woflo.petsplus.state.tracking.PlayerTickListeners;
 import woflo.petsplus.ui.ActionBarCueManager;
+import woflo.petsplus.ui.BossBarManager;
+import woflo.petsplus.ui.PetInspectionManager;
 
 /**
  * Handles server-wide events and ticking for PetsPlus systems.
@@ -20,6 +26,7 @@ public class ServerEventHandler {
         ServerLifecycleEvents.SERVER_STOPPING.register(ServerEventHandler::onServerStopping);
         ServerWorldEvents.LOAD.register(ServerEventHandler::onWorldLoad);
         ServerWorldEvents.UNLOAD.register(ServerEventHandler::onWorldUnload);
+        ServerPlayConnectionEvents.JOIN.register(ServerEventHandler::onPlayerJoin);
     }
     
     private static void onServerStarting(MinecraftServer server) {
@@ -72,12 +79,36 @@ public class ServerEventHandler {
     
     private static void onWorldUnload(MinecraftServer server, ServerWorld world) {
         Petsplus.LOGGER.info("PetsPlus: World {} unloading - persisting pet data", world.getRegistryKey().getValue());
-        
+
         StateManager stateManager = StateManager.getIfLoaded(world);
         if (stateManager != null) {
             stateManager.onWorldSave();
             // Properly shutdown the state manager to close async coordinators
             StateManager.unloadWorld(world);
         }
+    }
+
+    private static void onPlayerJoin(ServerPlayNetworkHandler handler, PacketSender sender, MinecraftServer server) {
+        if (handler == null) {
+            return;
+        }
+
+        ServerPlayerEntity player = handler.player;
+        if (player == null) {
+            return;
+        }
+
+        if (!(player.getEntityWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+
+        StateManager stateManager = StateManager.getIfLoaded(serverWorld);
+        if (stateManager == null) {
+            return;
+        }
+
+        PetInspectionManager.onPlayerJoin(player);
+        BossBarManager.onPlayerJoin(player);
+        ActionBarCueManager.onPlayerJoin(player);
     }
 }

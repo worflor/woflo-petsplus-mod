@@ -442,6 +442,20 @@ public final class BossBarManager implements PlayerTickListener {
         }
     }
 
+    public static void onPlayerJoin(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+
+        BossBarInfo info = activeBossBars.remove(player.getUuid());
+        if (info != null) {
+            info.clearSchedule();
+            detachBossBar(info);
+        }
+
+        PlayerTickDispatcher.requestImmediateRun(player, INSTANCE);
+    }
+
     /**
      * Extend the current boss bar duration for a player (used for linger behavior).
      */

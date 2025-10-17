@@ -25,6 +25,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import woflo.petsplus.state.tracking.PlayerTickDispatcher;
 import woflo.petsplus.state.tracking.PlayerTickListener;
 
 /**
@@ -65,6 +66,22 @@ public final class PetInspectionManager {
         BossBarManager.removeBossBar(player);
         ActionBarCueManager.onPlayerDisconnect(player);
         clearEmotionScoreboard(player);
+    }
+
+    public static void onPlayerJoin(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+
+        UUID playerId = player.getUuid();
+        if (playerId == null) {
+            return;
+        }
+
+        inspecting.remove(playerId);
+        clearEmotionScoreboard(player);
+        PLAYER_TICKER.reset(player);
+        PlayerTickDispatcher.requestImmediateRun(player, PLAYER_TICKER);
     }
 
     /**
@@ -640,6 +657,12 @@ public final class PetInspectionManager {
         @Override
         public void onPlayerRemoved(ServerPlayerEntity player) {
             onPlayerDisconnect(player);
+            if (player != null) {
+                nextRunTicks.remove(player.getUuid());
+            }
+        }
+
+        void reset(ServerPlayerEntity player) {
             if (player != null) {
                 nextRunTicks.remove(player.getUuid());
             }

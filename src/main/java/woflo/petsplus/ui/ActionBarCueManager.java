@@ -3,6 +3,7 @@ package woflo.petsplus.ui;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.Vec3d;
@@ -319,6 +320,30 @@ public final class ActionBarCueManager implements PlayerTickListener {
                 state.clearSchedule();
             }
         }
+    }
+
+    public static void onPlayerJoin(ServerPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+
+        UUID playerId = player.getUuid();
+        if (playerId == null) {
+            return;
+        }
+
+        PlayerCueState previous = PLAYER_STATES.remove(playerId);
+        if (previous != null) {
+            previous.clearSchedule();
+        }
+
+        PlayerCueState freshState = new PlayerCueState();
+        ServerWorld world = player.getEntityWorld() instanceof ServerWorld serverWorld ? serverWorld : null;
+        MinecraftServer server = world != null ? world.getServer() : null;
+        long currentTick = server != null ? server.getTicks() : 0L;
+        freshState.scheduleAt(currentTick);
+        PLAYER_STATES.put(playerId, freshState);
+        PlayerTickDispatcher.requestImmediateRun(player, INSTANCE);
     }
 
     /**
