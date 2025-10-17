@@ -275,6 +275,7 @@ public final class OwnerProcessingManager {
         }
 
         int processed = 0;
+        List<OwnerProcessingGroup> requeue = null;
         while (processed < budget && !pendingQueue.isEmpty()) {
             OwnerProcessingGroup group = pendingQueue.pollFirst();
             if (group == null) {
@@ -307,7 +308,19 @@ public final class OwnerProcessingManager {
             if (group.isEmpty()) {
                 groups.remove(group.ownerId(), group);
             } else {
+                if (group.hasPendingTasks()) {
+                    if (requeue == null) {
+                        requeue = new ArrayList<>();
+                    }
+                    requeue.add(group);
+                }
                 scheduleEventGroup(group);
+            }
+        }
+
+        if (requeue != null && !requeue.isEmpty()) {
+            for (OwnerProcessingGroup group : requeue) {
+                queueGroup(group);
             }
         }
 
