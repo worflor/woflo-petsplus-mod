@@ -2002,7 +2002,7 @@ public final class PetMoodEngine {
         }
         long applied = lastAppliedTick;
         if (!asyncComputationInFlight) {
-            if (!dirty && applied >= thresholdTick) {
+            if (!dirty) {
                 callback.run();
                 return;
             }
