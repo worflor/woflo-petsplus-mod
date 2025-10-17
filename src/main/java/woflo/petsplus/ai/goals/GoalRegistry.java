@@ -6,6 +6,7 @@ import woflo.petsplus.ai.capability.MobCapabilities;
 import woflo.petsplus.ai.goals.GoalDefinition.Category;
 import woflo.petsplus.ai.goals.GoalDefinition.IdleStaminaBias;
 import woflo.petsplus.ai.goals.idle.*;
+import woflo.petsplus.ai.goals.follow.*;
 import woflo.petsplus.ai.goals.play.*;
 import woflo.petsplus.ai.goals.social.*;
 import woflo.petsplus.ai.goals.special.*;
@@ -39,6 +40,65 @@ public final class GoalRegistry {
     }
 
     static {
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.FOLLOW_OWNER,
+            Category.SPECIAL,
+            5,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.allOf(List.of(
+                MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+                MobCapabilities.CapabilityRequirement.fromToken("can_wander")
+            )),
+            new Vec2f(0.0f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            false,
+            FollowOwnerAdaptiveGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.MAINTAIN_PACK_SPACING,
+            Category.SOCIAL,
+            6,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+            new Vec2f(0.0f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            false,
+            MaintainPackSpacingGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.HESITATE_IN_COMBAT,
+            Category.SOCIAL,
+            5,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+            new Vec2f(0.0f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            false,
+            HesitateInCombatGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.SHELTER_FROM_RAIN,
+            Category.SPECIAL,
+            4,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+            new Vec2f(0.0f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            false,
+            ShelterFromRainGoal::new
+        ));
+
         registerBuiltIn(new GoalDefinition(
             GoalIds.STRETCH_AND_YAW,
             Category.IDLE_QUIRK,

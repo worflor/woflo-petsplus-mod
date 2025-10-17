@@ -38,6 +38,10 @@ public final class GoalIds {
     public static final Identifier SCENT_TRAIL_FOLLOW = id("scent_trail_follow");
     public static final Identifier PURPOSEFUL_PATROL = id("purposeful_patrol");
     public static final Identifier OWNER_ORBIT = id("owner_orbit");
+    public static final Identifier FOLLOW_OWNER = id("follow_owner");
+    public static final Identifier MAINTAIN_PACK_SPACING = id("maintain_pack_spacing");
+    public static final Identifier HESITATE_IN_COMBAT = id("hesitate_in_combat");
+    public static final Identifier SHELTER_FROM_RAIN = id("shelter_from_rain");
     public static final Identifier TOY_POUNCE = id("toy_pounce");
     public static final Identifier PARKOUR_CHALLENGE = id("parkour_challenge");
     public static final Identifier FETCH_ITEM = id("fetch_item");
