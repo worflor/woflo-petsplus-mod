@@ -35,6 +35,7 @@ public abstract class AdaptiveGoal extends Goal {
     private static final String COOLDOWN_PREFIX = "adaptive_goal:";
     private static final Identifier STIMULUS_KEY_GOAL_REWARD = Identifier.of(Petsplus.MOD_ID, "stimulus/adaptive_goal_reward");
     private static final Identifier STIMULUS_KEY_GOAL_CONTAGION = Identifier.of(Petsplus.MOD_ID, "stimulus/adaptive_goal_contagion");
+    private static final int SUGGESTION_GRACE_PERIOD_TICKS = 200;
 
     protected final MobEntity mob;
     protected final GoalDefinition goalDefinition;
@@ -117,13 +118,18 @@ public abstract class AdaptiveGoal extends Goal {
         if (!isCooldownExpired()) {
             return false;
         }
-        
+
         // 5. Energy compatibility check - gate based on behavioral momentum
         if (!isEnergyCompatible()) {
             return false;
         }
-        
-        // 6. Goal-specific conditions
+
+        // 6. Director suggestion alignment
+        if (!respectsDirectorSuggestion()) {
+            return false;
+        }
+
+        // 7. Goal-specific conditions
         return canStartGoal();
     }
     
@@ -224,6 +230,53 @@ public abstract class AdaptiveGoal extends Goal {
         onStopGoal();
         activeTicks = 0;
         lastActivitySampleTick = 0;
+    }
+
+    private boolean respectsDirectorSuggestion() {
+        PetComponent component = PetComponent.get(mob);
+        if (component == null) {
+            return true;
+        }
+
+        Identifier suggestedGoalId = component.getLastSuggestedGoalId();
+        long suggestionTick = component.getLastSuggestionTick();
+
+        var world = mob.getEntityWorld();
+        if (world == null) {
+            return suggestedGoalId == null || goalId.equals(suggestedGoalId);
+        }
+
+        long worldTime = world.getTime();
+        if (suggestionTick == Long.MIN_VALUE) {
+            return true;
+        }
+
+        long suggestionAge = Math.abs(worldTime - suggestionTick);
+
+        boolean suggestionFresh = suggestionAge <= SUGGESTION_GRACE_PERIOD_TICKS;
+
+        if (!suggestionFresh) {
+            return true;
+        }
+
+        if (suggestedGoalId == null) {
+            return true;
+        }
+
+        if (goalId.equals(suggestedGoalId)) {
+            return true;
+        }
+
+        if (Petsplus.LOGGER.isDebugEnabled()) {
+            Petsplus.LOGGER.debug(
+                "{} blocked starting {} due to director suggestion {}",
+                mob.getName().getString(),
+                goalId,
+                suggestedGoalId
+            );
+        }
+
+        return false;
     }
     
     @Override
