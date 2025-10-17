@@ -51,6 +51,7 @@ import woflo.petsplus.events.PetDetectionHandler;
 import woflo.petsplus.naming.AttributeKey;
 import woflo.petsplus.naming.NameParser;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.emotions.PetMoodEngine;
 import woflo.petsplus.stats.PetAttributeManager;
 import woflo.petsplus.stats.nature.PetNatureSelector;
 import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
@@ -1103,32 +1104,40 @@ public class PetsCommand {
             return 0;
         }
 
-        player.sendMessage(Text.literal("=== Pet Emotion & Mood Info ===").formatted(Formatting.GOLD), false);
+        Runnable respond = () -> {
+            player.sendMessage(Text.literal("=== Pet Emotion & Mood Info ===").formatted(Formatting.GOLD), false);
 
-        // Show current mood
-        player.sendMessage(Text.literal("Current Mood: ")
-            .formatted(Formatting.GRAY)
-            .append(petComp.getMoodTextWithDebug()), false);
-
-        // Show dominant emotion
-        PetComponent.Emotion dominantEmotion = petComp.getDominantEmotion();
-        if (dominantEmotion != null) {
-            player.sendMessage(Text.literal("Dominant Emotion: ")
+            player.sendMessage(Text.literal("Current Mood: ")
                 .formatted(Formatting.GRAY)
-                .append(Text.literal(dominantEmotion.name().toLowerCase()).formatted(Formatting.AQUA)), false);
-        } else {
-            player.sendMessage(Text.literal("Dominant Emotion: None").formatted(Formatting.GRAY), false);
-        }
+                .append(petComp.getMoodTextWithDebug()), false);
 
-        // Show mood blend
-        player.sendMessage(Text.literal("Mood Strengths:").formatted(Formatting.YELLOW), false);
-        for (PetComponent.Mood mood : PetComponent.Mood.values()) {
-            float strength = petComp.getMoodBlend().getOrDefault(mood, 0f);
-            if (strength > 0.1f) {
-                player.sendMessage(Text.literal("  " + mood.name().toLowerCase() + ": ")
+            PetComponent.Emotion dominantEmotion = petComp.getDominantEmotion();
+            if (dominantEmotion != null) {
+                player.sendMessage(Text.literal("Dominant Emotion: ")
                     .formatted(Formatting.GRAY)
-                    .append(Text.literal(String.format("%.2f", strength)).formatted(Formatting.WHITE)), false);
+                    .append(Text.literal(dominantEmotion.name().toLowerCase()).formatted(Formatting.AQUA)), false);
+            } else {
+                player.sendMessage(Text.literal("Dominant Emotion: None").formatted(Formatting.GRAY), false);
             }
+
+            player.sendMessage(Text.literal("Mood Strengths:").formatted(Formatting.YELLOW), false);
+            for (PetComponent.Mood mood : PetComponent.Mood.values()) {
+                float strength = petComp.getMoodBlend().getOrDefault(mood, 0f);
+                if (strength > 0.1f) {
+                    player.sendMessage(Text.literal("  " + mood.name().toLowerCase() + ": ")
+                        .formatted(Formatting.GRAY)
+                        .append(Text.literal(String.format("%.2f", strength)).formatted(Formatting.WHITE)), false);
+                }
+            }
+        };
+
+        petComp.updateMood();
+        PetMoodEngine engine = petComp.getMoodEngine();
+        if (engine != null) {
+            long threshold = player.getEntityWorld() instanceof ServerWorld sw ? Math.max(0L, sw.getTime()) : 0L;
+            engine.onNextResultApplied(threshold, respond);
+        } else {
+            respond.run();
         }
 
         return 1;

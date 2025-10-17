@@ -7,6 +7,7 @@ import woflo.petsplus.api.mood.MoodAPI;
 import woflo.petsplus.api.mood.MoodListener;
 import woflo.petsplus.api.mood.ReactiveEmotionProvider;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.emotions.PetMoodEngine;
 import woflo.petsplus.policy.AIPerfPolicy;
 
 import java.util.ArrayList;
@@ -36,7 +37,13 @@ public final class MoodService implements MoodAPI {
         comp.pushEmotion(emotion, amount);
         if (!isInStimulusDispatch()) {
             comp.updateMood();
-            snapshotAndNotify(pet, comp);
+            PetMoodEngine engine = comp.getMoodEngine();
+            if (engine != null) {
+                long threshold = pet.getEntityWorld() instanceof ServerWorld sw ? Math.max(0L, sw.getTime()) : 0L;
+                engine.onNextResultApplied(threshold, () -> snapshotAndNotify(pet, comp));
+            } else {
+                snapshotAndNotify(pet, comp);
+            }
         }
     }
 
@@ -128,12 +135,24 @@ public final class MoodService implements MoodAPI {
 
     void commitStimuli(MobEntity pet, PetComponent comp, long time) {
         comp.updateMood();
-        snapshotAndNotify(pet, comp);
+        PetMoodEngine engine = comp.getMoodEngine();
+        if (engine != null) {
+            long threshold = Math.max(0L, time);
+            engine.onNextResultApplied(threshold, () -> snapshotAndNotify(pet, comp));
+        } else {
+            snapshotAndNotify(pet, comp);
+        }
     }
 
     void ensureFresh(MobEntity pet, PetComponent comp, long time) {
         comp.updateMood();
-        snapshotAndNotify(pet, comp);
+        PetMoodEngine engine = comp.getMoodEngine();
+        if (engine != null) {
+            long threshold = Math.max(0L, time);
+            engine.onNextResultApplied(threshold, () -> snapshotAndNotify(pet, comp));
+        } else {
+            snapshotAndNotify(pet, comp);
+        }
     }
 
     public boolean isInStimulusDispatch() {
@@ -158,6 +177,7 @@ public final class MoodService implements MoodAPI {
     }
 
     private void snapshotAndNotify(MobEntity pet, PetComponent comp) {
+        EmotionBaselineTracker.updateBaseline(comp, comp.getMoodBlend());
         int moodOrd = comp.getCurrentMood().ordinal();
         int level = comp.getMoodLevel();
         int[] prev = petMoodSnapshot.get(pet);

@@ -476,6 +476,11 @@ public class PetComponent {
         this.stateManager = manager;
     }
 
+    @Nullable
+    public StateManager getStateManager() {
+        return stateManager;
+    }
+
     public MobEntity getPetEntity() {
         return pet;
     }
@@ -2892,7 +2897,8 @@ public class PetComponent {
         long now = pet.getEntityWorld() instanceof ServerWorld sw ? sw.getTime() : 0L;
         moodEngine.applyStimulus(new EmotionDelta(emotion, amount), now);
         if (!MoodService.getInstance().isInStimulusDispatch()) {
-            EmotionBaselineTracker.recordDirectChange(this);
+            long threshold = Math.max(0L, now);
+            moodEngine.onNextResultApplied(threshold, () -> EmotionBaselineTracker.recordDirectChange(this));
         }
     }
 

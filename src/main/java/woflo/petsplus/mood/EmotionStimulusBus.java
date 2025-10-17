@@ -5,6 +5,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.entity.mob.MobEntity;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.emotions.PetMoodEngine;
 import woflo.petsplus.state.processing.AsyncProcessingTelemetry;
 import woflo.petsplus.state.processing.AsyncWorkCoordinator;
 import java.util.ArrayDeque;
@@ -220,12 +221,11 @@ public final class EmotionStimulusBus {
         int tick = world != null ? (int) world.getTime() : 0;
         long petId = pet.getUuid().getLeastSignificantBits();
         int stimulusKey = keyHash(coalesceKey);
-        if (shouldCoalesce(petId, stimulusKey, tick)) {
-            return;
-        }
+        boolean coalesced = shouldCoalesce(petId, stimulusKey, tick);
         StimulusWork work = getOrCreateWork(pet);
         PetComponent component = work.ensureComponent(pet);
         collectorConsumer.accept(work);
+        work.markQueuedTick(tick, coalesced);
         notifyQueued(world, pet, work, tick);
         scheduleIdle(world, pet, work, tick + 1L);
     }
@@ -244,12 +244,11 @@ public final class EmotionStimulusBus {
         int tick = world != null ? (int) world.getTime() : 0;
         long petId = pet.getUuid().getLeastSignificantBits();
         int stimulusKey = keyHash(coalesceKey);
-        if (shouldCoalesce(petId, stimulusKey, tick)) {
-            return;
-        }
+        boolean coalesced = shouldCoalesce(petId, stimulusKey, tick);
         StimulusWork work = getOrCreateWork(pet);
         work.addComponentConsumer(componentConsumer);
         work.ensureComponent(pet);
+        work.markQueuedTick(tick, coalesced);
         notifyQueued(world, pet, work, tick);
         scheduleIdle(world, pet, work, tick + 1L);
     }
@@ -358,7 +357,7 @@ public final class EmotionStimulusBus {
     }
 
     private void scheduleIdle(ServerWorld world, MobEntity pet, StimulusWork work, long tick) {
-        if (work == null || work.idleScheduled) {
+        if (work == null || work.isIdleScheduled()) {
             return;
         }
         boolean accepted = false;
@@ -387,7 +386,7 @@ public final class EmotionStimulusBus {
             }, 50L, TimeUnit.MILLISECONDS);
             registerIdleTask(pet, future);
         }
-        work.idleScheduled = true;
+        work.markIdleScheduled();
     }
 
     private ScheduledExecutorService ensureIdleExecutor() {
@@ -431,27 +430,53 @@ public final class EmotionStimulusBus {
         long coalesceKey = pet.getUuid().getLeastSignificantBits();
         StimulusWork work;
         synchronized (lock) {
-            work = pendingStimuli.remove(pet);
+            work = pendingStimuli.get(pet);
             if (work == null) {
                 clearIdleTask(pet);
                 clearCoalesceWindow(coalesceKey);
                 return;
             }
+            work.clearIdleScheduledFlag();
+        }
+
+        PetComponent component = work.ensureComponent(pet);
+        if (component == null) {
+            synchronized (lock) {
+                StimulusWork removed = pendingStimuli.remove(pet);
+                if (removed != null && removed != work) {
+                    removed.reset();
+                    recycleWork(removed);
+                }
+            }
+            clearIdleTask(pet);
+            clearCoalesceWindow(coalesceKey);
+            work.reset();
+            recycleWork(work);
+            return;
+        }
+
+        ServerWorld world = component.getPet() != null && component.getPet().getEntityWorld() instanceof ServerWorld sw
+            ? sw
+            : pet.getEntityWorld() instanceof ServerWorld swPet ? swPet : null;
+        long time = world != null ? world.getTime() : 0L;
+
+        if (shouldDeferDrain(component, work, time)) {
+            long rescheduleTick = time >= Long.MAX_VALUE - 1L ? Long.MAX_VALUE : time + 1L;
+            scheduleIdle(world, pet, work, rescheduleTick);
+            return;
+        }
+
+        synchronized (lock) {
+            StimulusWork removed = pendingStimuli.remove(pet);
+            if (removed != null && removed != work) {
+                work.mergeFrom(removed);
+                removed.reset();
+                recycleWork(removed);
+            }
         }
 
         try {
             clearIdleTask(pet);
-            PetComponent component = work.ensureComponent(pet);
-            if (component == null) {
-                work.reset();
-                recycleWork(work);
-                return;
-            }
-            ServerWorld world = component.getPet() != null && component.getPet().getEntityWorld() instanceof ServerWorld sw
-                ? sw
-                : pet.getEntityWorld() instanceof ServerWorld swPet ? swPet : null;
-            long time = world != null ? world.getTime() : 0L;
-
             moodService.beginStimulusDispatch();
             try {
                 work.runComponentConsumers(component);
@@ -476,6 +501,28 @@ public final class EmotionStimulusBus {
         }
     }
 
+    private boolean shouldDeferDrain(PetComponent component, StimulusWork work, long time) {
+        int currentTick;
+        if (time <= 0L) {
+            currentTick = 0;
+        } else if (time >= Integer.MAX_VALUE) {
+            currentTick = Integer.MAX_VALUE;
+        } else {
+            currentTick = (int) time;
+        }
+        if (work.shouldDefer(currentTick)) {
+            return true;
+        }
+        PetMoodEngine engine = component.getMoodEngine();
+        if (engine != null && engine.shouldDeferStimulusDrain()) {
+            long nextTickLong = (long) currentTick + 1L;
+            int minTick = nextTickLong >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) nextTickLong;
+            work.extendDeferWindow(minTick);
+            return true;
+        }
+        return false;
+    }
+
     private static void clearCoalesceWindow(long petId) {
         synchronized (COALESCE_LOCK) {
             COALESCE_WINDOWS.remove(petId);
@@ -498,6 +545,9 @@ public final class EmotionStimulusBus {
         private boolean collectorUsed;
         private boolean queueNotified;
         private boolean idleScheduled;
+        private int lastQueuedTick = Integer.MIN_VALUE;
+        private int deferUntilTick = Integer.MIN_VALUE;
+        private int firstCoalesceTick = Integer.MIN_VALUE;
 
         @Override
         public void pushEmotion(PetComponent.Emotion emotion, float amount) {
@@ -559,11 +609,92 @@ public final class EmotionStimulusBus {
             collectorUsed = false;
             queueNotified = false;
             idleScheduled = false;
+            lastQueuedTick = Integer.MIN_VALUE;
+            deferUntilTick = Integer.MIN_VALUE;
+            firstCoalesceTick = Integer.MIN_VALUE;
             if (!componentConsumers.isEmpty()) {
                 componentConsumers.clear();
             }
             for (int i = 0; i < EMOTIONS.length; i++) {
                 emotionDeltas[i] = 0.0f;
+            }
+        }
+
+        void markQueuedTick(int tick, boolean coalesced) {
+            lastQueuedTick = tick;
+            if (coalesced) {
+                if (firstCoalesceTick == Integer.MIN_VALUE) {
+                    firstCoalesceTick = tick;
+                }
+                int window = Math.max(1, COALESCE_WINDOW_TICKS);
+                long flushAt = (long) firstCoalesceTick + window;
+                int windowEnd = flushAt >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) flushAt;
+                if (windowEnd > deferUntilTick) {
+                    deferUntilTick = windowEnd;
+                }
+            } else {
+                firstCoalesceTick = Integer.MIN_VALUE;
+            }
+        }
+
+        boolean shouldDefer(int currentTick) {
+            if (firstCoalesceTick != Integer.MIN_VALUE) {
+                int window = Math.max(1, COALESCE_WINDOW_TICKS);
+                long earliestFlush = (long) firstCoalesceTick + window;
+                int minimumTick = earliestFlush >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) earliestFlush;
+                if (currentTick < minimumTick) {
+                    return true;
+                }
+            }
+            return currentTick < deferUntilTick;
+        }
+
+        void extendDeferWindow(int minTick) {
+            if (minTick < 0) {
+                deferUntilTick = Integer.MAX_VALUE;
+            } else {
+                deferUntilTick = Math.max(deferUntilTick, minTick);
+            }
+        }
+
+        void clearIdleScheduledFlag() {
+            idleScheduled = false;
+        }
+
+        boolean isIdleScheduled() {
+            return idleScheduled;
+        }
+
+        void markIdleScheduled() {
+            idleScheduled = true;
+        }
+
+        void mergeFrom(StimulusWork other) {
+            if (other == null || other == this) {
+                return;
+            }
+            for (int i = 0; i < emotionDeltas.length && i < other.emotionDeltas.length; i++) {
+                emotionDeltas[i] += other.emotionDeltas[i];
+                other.emotionDeltas[i] = 0.0f;
+            }
+            while (!other.componentConsumers.isEmpty()) {
+                Consumer<PetComponent> consumer = other.componentConsumers.pollFirst();
+                if (consumer != null) {
+                    componentConsumers.addLast(consumer);
+                }
+            }
+            collectorUsed |= other.collectorUsed;
+            queueNotified |= other.queueNotified;
+            if (other.component != null) {
+                component = other.component;
+            }
+            if (other.deferUntilTick > deferUntilTick) {
+                deferUntilTick = other.deferUntilTick;
+            }
+            if (other.firstCoalesceTick != Integer.MIN_VALUE) {
+                if (firstCoalesceTick == Integer.MIN_VALUE || other.firstCoalesceTick < firstCoalesceTick) {
+                    firstCoalesceTick = other.firstCoalesceTick;
+                }
             }
         }
     }

@@ -200,9 +200,10 @@ final class OwnerProcessingGroup {
         return false;
     }
 
-    OwnerTaskBatch drain(long currentTick) {
+    OwnerTaskBatch drain(long currentTick, int moodBudget) {
         OwnerTaskBatch batch = OwnerTaskBatch.obtain(ownerId, currentTick, lastKnownOwner);
         var iterator = pendingTasks.entrySet().iterator();
+        int remainingMoodBudget = moodBudget < 0 ? Integer.MAX_VALUE : moodBudget;
         while (iterator.hasNext()) {
             Map.Entry<PetWorkScheduler.TaskType, List<PetWorkScheduler.ScheduledTask>> entry = iterator.next();
             List<PetWorkScheduler.ScheduledTask> tasks = entry.getValue();
@@ -213,6 +214,31 @@ final class OwnerProcessingGroup {
                 iterator.remove();
                 continue;
             }
+
+            if (entry.getKey() == PetWorkScheduler.TaskType.MOOD_PROVIDER) {
+                if (remainingMoodBudget <= 0) {
+                    continue;
+                }
+                int allowed = Math.min(remainingMoodBudget, tasks.size());
+                if (allowed <= 0) {
+                    continue;
+                }
+                List<PetWorkScheduler.ScheduledTask> dispatch = PooledTaskLists.borrow();
+                dispatch.addAll(tasks.subList(0, allowed));
+                tasks.subList(0, allowed).clear();
+                if (dispatch.isEmpty()) {
+                    PooledTaskLists.recycle(dispatch);
+                } else {
+                    batch.addBucket(entry.getKey(), dispatch);
+                    remainingMoodBudget -= allowed;
+                }
+                if (tasks.isEmpty()) {
+                    iterator.remove();
+                    PooledTaskLists.recycle(tasks);
+                }
+                continue;
+            }
+
             batch.addBucket(entry.getKey(), tasks);
             iterator.remove();
         }
