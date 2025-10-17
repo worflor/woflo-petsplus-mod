@@ -12,11 +12,10 @@ import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.state.PetAIState;
 import woflo.petsplus.state.PetComponent;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -55,40 +54,47 @@ class EnhancedFollowOwnerGoalTest {
     }
 
     @Test
-    void preferredFenceNodesAreNoLongerHazards() throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
+    void preferredFenceNodesAreNoLongerHazards() {
         PetComponent petComponent = mockPetComponent();
         PetsplusTameable tameable = null;
         TestableEnhancedFollowOwnerGoal goal = new TestableEnhancedFollowOwnerGoal(tameable, petComponent);
 
-        WorldView world = null;
-        BlockPos node = BlockPos.ORIGIN;
-
-        goal.setNodeType(node, PathNodeType.FENCE);
-
-        boolean hazardous = invokeIsNodeHazardous(goal, world, node);
-        assertFalse(hazardous, "Preferred structural nodes should not be treated as hazards");
+        EnhancedFollowOwnerGoal.HazardLevel hazard = goal.classifyNodeType(PathNodeType.FENCE);
+        assertEquals(EnhancedFollowOwnerGoal.HazardLevel.SAFE, hazard,
+            "Preferred structural nodes should not be treated as hazards");
     }
 
     @Test
-    void lavaNodesRemainHazardous() throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
+    void lavaNodesRemainHazardous() {
         PetComponent petComponent = mockPetComponent();
         PetsplusTameable tameable = null;
         TestableEnhancedFollowOwnerGoal goal = new TestableEnhancedFollowOwnerGoal(tameable, petComponent);
 
-        WorldView world = null;
-        BlockPos node = BlockPos.ORIGIN;
-
-        goal.setNodeType(node, PathNodeType.LAVA);
-
-        boolean hazardous = invokeIsNodeHazardous(goal, world, node);
-        assertTrue(hazardous, "Dangerous nodes like lava must still be rejected");
+        EnhancedFollowOwnerGoal.HazardLevel hazard = goal.classifyNodeType(PathNodeType.LAVA);
+        assertEquals(EnhancedFollowOwnerGoal.HazardLevel.SEVERE, hazard,
+            "Dangerous nodes like lava must still be rejected");
     }
 
-    private boolean invokeIsNodeHazardous(EnhancedFollowOwnerGoal goal, WorldView world, BlockPos pos)
-        throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
-        Method method = EnhancedFollowOwnerGoal.class.getDeclaredMethod("isNodeHazardous", WorldView.class, BlockPos.class);
-        method.setAccessible(true);
-        return (boolean) method.invoke(goal, world, pos);
+    @Test
+    void environmentalTrapsRemainHazardous() {
+        PetComponent petComponent = mockPetComponent();
+        PetsplusTameable tameable = null;
+        TestableEnhancedFollowOwnerGoal goal = new TestableEnhancedFollowOwnerGoal(tameable, petComponent);
+
+        EnhancedFollowOwnerGoal.HazardLevel hazard = goal.classifyNodeType(PathNodeType.DANGER_OTHER);
+        assertEquals(EnhancedFollowOwnerGoal.HazardLevel.SEVERE, hazard,
+            "Environmental traps should continue to be treated as severe hazards");
+    }
+
+    @Test
+    void stickyTerrainCountsAsSoftHazard() {
+        PetComponent petComponent = mockPetComponent();
+        PetsplusTameable tameable = null;
+        TestableEnhancedFollowOwnerGoal goal = new TestableEnhancedFollowOwnerGoal(tameable, petComponent);
+
+        EnhancedFollowOwnerGoal.HazardLevel hazard = goal.classifyNodeType(PathNodeType.STICKY_HONEY);
+        assertEquals(EnhancedFollowOwnerGoal.HazardLevel.SOFT, hazard,
+            "Sticky blocks should slow pets without fully blocking movement");
     }
 
     private EnhancedFollowOwnerGoal createGoal(PetAIState aiState) {

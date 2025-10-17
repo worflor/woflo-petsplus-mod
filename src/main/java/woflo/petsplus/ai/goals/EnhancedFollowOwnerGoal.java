@@ -584,19 +584,32 @@ public class EnhancedFollowOwnerGoal extends Goal {
 
     private Vec3d resolveHazardAwareTarget(PlayerEntity owner, Vec3d followAnchor, double offsetX, double offsetZ) {
         Vec3d desiredTarget = followAnchor.add(offsetX, 0.0, offsetZ);
-        if (!isHazardous(desiredTarget)) {
+        HazardLevel hazardLevel = evaluateHazard(desiredTarget);
+        if (hazardLevel == HazardLevel.SAFE) {
             return desiredTarget;
         }
 
-        Vec3d safeTarget = findNearbySafeTarget(owner, desiredTarget);
+        Map<BlockPos, HazardLevel> hazardCache = null;
+        if (hazardLevel == HazardLevel.SOFT) {
+            // Soft hazards like shallow fluids or foliage shouldn't immediately abort navigation.
+            // Only search for a nearby alternative if the current spot is genuinely blocked.
+            if (isSpaceNavigable(desiredTarget)) {
+                return desiredTarget;
+            }
+            hazardCache = new HashMap<>();
+        } else {
+            hazardCache = new HashMap<>();
+        }
+
+        Vec3d safeTarget = findNearbySafeTarget(owner, desiredTarget, hazardCache);
         if (safeTarget != null) {
             return safeTarget;
         }
 
-        return null;
+        return hazardLevel == HazardLevel.SOFT ? desiredTarget : null;
     }
 
-    private Vec3d findNearbySafeTarget(PlayerEntity owner, Vec3d desiredTarget) {
+    private Vec3d findNearbySafeTarget(PlayerEntity owner, Vec3d desiredTarget, Map<BlockPos, HazardLevel> hazardCache) {
         WorldView world = this.mob.getEntityWorld();
         if (world == null) {
             return null;
@@ -610,7 +623,8 @@ public class EnhancedFollowOwnerGoal extends Goal {
 
         for (BlockPos offset : SAFE_TARGET_SEARCH_OFFSETS) {
             BlockPos candidatePos = desiredPos.add(offset);
-            if (!isCandidateSafe(world, candidatePos)) {
+            HazardLevel candidateHazard = getHazardLevel(world, candidatePos, hazardCache);
+            if (candidateHazard != HazardLevel.SAFE) {
                 continue;
             }
 
@@ -636,52 +650,71 @@ public class EnhancedFollowOwnerGoal extends Goal {
         return fallback;
     }
 
-    private boolean isHazardous(Vec3d target) {
+    private HazardLevel getHazardLevel(WorldView world, BlockPos pos, Map<BlockPos, HazardLevel> hazardCache) {
+        if (hazardCache == null) {
+            return evaluateHazard(world, pos);
+        }
+        return hazardCache.computeIfAbsent(pos, key -> evaluateHazard(world, key));
+    }
+
+    private HazardLevel evaluateHazard(Vec3d target) {
         WorldView world = this.mob.getEntityWorld();
         if (world == null) {
-            return true;
+            return HazardLevel.SEVERE;
         }
-
-        BlockPos blockPos = BlockPos.ofFloored(target);
-        return !isCandidateSafe(world, blockPos);
+        return evaluateHazard(world, BlockPos.ofFloored(target));
     }
 
-    private boolean isCandidateSafe(WorldView world, BlockPos pos) {
-        if (isNodeHazardous(world, pos)) {
-            return false;
+    private HazardLevel evaluateHazard(WorldView world, BlockPos pos) {
+        if (world == null) {
+            return HazardLevel.SEVERE;
         }
+
+        PathNodeType spaceType = resolveNodeType(world, pos);
+        HazardLevel spaceHazard = classifyNodeType(spaceType);
 
         BlockPos floorPos = pos.down();
-        if (isNodeHazardous(world, floorPos)) {
-            return false;
+        PathNodeType floorType = resolveNodeType(world, floorPos);
+        HazardLevel floorHazard = classifyNodeType(floorType);
+
+        if (floorHazard != HazardLevel.SEVERE) {
+            boolean solidFloor = !world.getBlockState(floorPos).getCollisionShape(world, floorPos).isEmpty();
+            if (!solidFloor) {
+                floorHazard = HazardLevel.SEVERE;
+            }
         }
 
-        return !world.getBlockState(floorPos).getCollisionShape(world, floorPos).isEmpty();
-    }
-
-    private boolean isNodeHazardous(WorldView world, BlockPos pos) {
-        PathNodeType nodeType = resolveNodeType(world, pos);
-        if (nodeType == null) {
-            return true;
-        }
-
-        return isDangerous(nodeType);
+        return spaceHazard.ordinal() >= floorHazard.ordinal() ? spaceHazard : floorHazard;
     }
 
     protected PathNodeType resolveNodeType(WorldView world, BlockPos pos) {
         return LandPathNodeMaker.getLandNodeType(this.mob, pos);
     }
 
-    private static boolean isDangerous(PathNodeType type) {
+    HazardLevel classifyNodeType(PathNodeType type) {
+        if (type == null) {
+            return HazardLevel.SEVERE;
+        }
+
         return switch (type) {
             case BLOCKED,
                 LAVA,
                 DAMAGE_FIRE,
-                DAMAGE_OTHER,
                 DANGER_FIRE,
-                DANGER_OTHER -> true;
-            default -> false;
+                DAMAGE_OTHER,
+                DANGER_OTHER -> HazardLevel.SEVERE;
+            case WATER,
+                WATER_BORDER,
+                STICKY_HONEY,
+                COCOA -> HazardLevel.SOFT;
+            default -> HazardLevel.SAFE;
         };
+    }
+
+    static enum HazardLevel {
+        SAFE,
+        SOFT,
+        SEVERE
     }
 
     private static BlockPos[] buildSafeTargetSearchOffsets() {
