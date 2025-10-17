@@ -9,10 +9,8 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import woflo.petsplus.Petsplus;
-import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.EmotionFeedback;
-import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.state.PetComponent;
@@ -129,10 +127,8 @@ public class CuriosityGoal extends AdaptiveGoal {
             interactionTicks++;
             
             // Look at the block
-            mob.getLookControl().lookAt(
-                Vec3d.ofCenter(targetBlock).add(0, 0.5, 0),
-                30.0f, 30.0f
-            );
+            Vec3d lookTarget = Vec3d.ofCenter(targetBlock).add(0, 0.5, 0);
+            mob.getLookControl().lookAt(lookTarget.x, lookTarget.y, lookTarget.z, 30.0f, 30.0f);
             
             // Perform interaction animation
             performInteractionAnimation();
@@ -177,17 +173,17 @@ public class CuriosityGoal extends AdaptiveGoal {
     }
     
     private BlockPos findInterestingBlock() {
-        World world = mob.getWorld();
+        World world = mob.getEntityWorld();
         BlockPos centerPos = mob.getBlockPos();
         
         // Find all blocks of interest within scan radius
+        int radius = (int) Math.ceil(SCAN_RADIUS);
         List<BlockPos> candidateBlocks = BlockPos.stream(
-            centerPos.add(-SCAN_RADIUS, -SCAN_RADIUS, -SCAN_RADIUS),
-            centerPos.add(SCAN_RADIUS, SCAN_RADIUS, SCAN_RADIUS)
+            centerPos.add(-radius, -radius, -radius),
+            centerPos.add(radius, radius, radius)
         )
         .filter(pos -> world.isChunkLoaded(pos))
         .filter(this::isValidInterestBlock)
-        .filter(pos -> mob.canSee(Vec3d.ofCenter(pos)))
         .collect(Collectors.toList());
         
         if (candidateBlocks.isEmpty()) {
@@ -210,7 +206,7 @@ public class CuriosityGoal extends AdaptiveGoal {
     }
     
     private boolean isValidInterestBlock(BlockPos pos) {
-        World world = mob.getWorld();
+        World world = mob.getEntityWorld();
         BlockState state = world.getBlockState(pos);
         Block block = state.getBlock();
         
@@ -268,7 +264,7 @@ public class CuriosityGoal extends AdaptiveGoal {
         // Higher engagement for curious pets
         PetComponent pc = PetComponent.get(mob);
         if (pc != null && pc.getMoodEngine() != null) {
-            float curiosityLevel = pc.getMoodEngine().getEmotionWeight(PetComponent.Emotion.CURIOUS);
+            float curiosityLevel = pc.getActiveEmotions().getOrDefault(PetComponent.Emotion.CURIOUS, 0f);
             baseEngagement += curiosityLevel * 0.3f;
             
             // Higher engagement when closer to completing interaction

@@ -1,13 +1,13 @@
 package woflo.petsplus.ai;
 
-import net.minecraft.entity.ai.goal.*;
+import net.minecraft.entity.ai.goal.FollowOwnerGoal;
 import net.minecraft.entity.mob.MobEntity;
 import woflo.petsplus.ai.context.NearbyMobAgeProfile;
 import woflo.petsplus.ai.context.PetContextCrowdSummary;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.Petsplus;
+import woflo.petsplus.ai.AdaptiveAIManager;
 import woflo.petsplus.mixin.MobEntityAccessor;
-import net.minecraft.entity.ai.goal.EscapeDangerGoal;
 import woflo.petsplus.ai.goals.CrouchCuddleGoal;
 import woflo.petsplus.ai.goals.PetSnuggleGoal;
 import woflo.petsplus.ai.goals.EnhancedFollowOwnerGoal;
@@ -52,7 +52,7 @@ public class PetAIEnhancements {
             // === NEW ADAPTIVE AI SYSTEM ===
             // Replaces old mood-based, MoodInfluenced, and MoodAdvanced systems
             // This single call adds ALL adaptive goals based on mob capabilities
-            woflo.petsplus.ai.behaviors.AdaptiveAIManager.reinitializeAdaptiveAI(pet);
+            AdaptiveAIManager.reinitializeAdaptiveAI(pet);
 
         } catch (Exception e) {
             Petsplus.LOGGER.warn("Failed to enhance AI for pet {}: {}", pet.getType(), e.getMessage());

@@ -13,6 +13,7 @@ import woflo.petsplus.state.PetComponent;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.util.Formatting;
 import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.config.DebugSettings;
 import woflo.petsplus.config.PetsPlusConfig;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Item;
@@ -218,7 +219,7 @@ public final class PetInspectionManager {
         showFrame(player, activeFrame);
 
         // Debug mode: Show emotion pool in scoreboard
-        if (woflo.petsplus.Petsplus.DEBUG_MODE) {
+        if (DebugSettings.isDebugEnabled()) {
             showEmotionPoolScoreboard(player, comp, pet.getDisplayName().getString());
         }
     }
@@ -292,7 +293,7 @@ public final class PetInspectionManager {
         );
         
         // Add mood display to main text (with debug info if enabled)
-        Text moodText = woflo.petsplus.Petsplus.DEBUG_MODE ? comp.getMoodTextWithDebug() : comp.getMoodText();
+        Text moodText = DebugSettings.isDebugEnabled() ? comp.getMoodTextWithDebug() : comp.getMoodText();
 
         MutableText displayWithMood = Text.empty()
             .append(mainDisplay)

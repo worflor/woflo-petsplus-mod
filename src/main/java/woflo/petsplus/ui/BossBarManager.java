@@ -17,6 +17,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import woflo.petsplus.config.DebugSettings;
 import woflo.petsplus.state.tracking.PlayerTickDispatcher;
 import woflo.petsplus.state.tracking.PlayerTickListener;
 
@@ -140,7 +141,7 @@ public final class BossBarManager implements PlayerTickListener {
                 safeMessage = sanitizeBossBarTitle(message.copy());
             } catch (Exception e) {
                 // Fallback to plain text if formatting fails
-                if (woflo.petsplus.Petsplus.DEBUG_MODE) {
+                if (DebugSettings.isDebugEnabled()) {
                     woflo.petsplus.Petsplus.LOGGER.warn("Boss bar message formatting failed, using fallback: {}", e.getMessage());
                 }
                 safeMessage = sanitizeBossBarTitle(Text.literal(message.getString()));
@@ -184,7 +185,7 @@ public final class BossBarManager implements PlayerTickListener {
             try {
                 newMsg = sanitizeBossBarTitle(message.copy());
             } catch (Exception e) {
-                if (woflo.petsplus.Petsplus.DEBUG_MODE) {
+                if (DebugSettings.isDebugEnabled()) {
                     woflo.petsplus.Petsplus.LOGGER.warn("Boss bar message update formatting failed, using fallback: {}", e.getMessage());
                 }
                 newMsg = sanitizeBossBarTitle(Text.literal(message.getString()));

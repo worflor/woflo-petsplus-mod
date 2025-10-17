@@ -44,6 +44,7 @@ import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.commands.suggestions.PetsSuggestionProviders;
+import woflo.petsplus.config.DebugSettings;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.events.EmotionContextCues;
 import woflo.petsplus.events.PetDetectionHandler;
@@ -559,8 +560,11 @@ public class PetsCommand {
     private static int toggleDebug(CommandContext<ServerCommandSource> context, boolean enable) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
 
-        // Set debug mode flag
-        woflo.petsplus.Petsplus.DEBUG_MODE = enable;
+        if (enable) {
+            DebugSettings.enableDebug();
+        } else {
+            DebugSettings.disableDebug();
+        }
 
         player.sendMessage(Text.literal("Debug mode " + (enable ? "enabled" : "disabled") + " - mood power levels will " + (enable ? "show" : "be hidden"))
             .formatted(enable ? Formatting.GREEN : Formatting.RED), false);

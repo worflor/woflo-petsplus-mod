@@ -6,17 +6,17 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.Heightmap;
 import woflo.petsplus.Petsplus;
-import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.EmotionFeedback;
-import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.EnumSet;
+import java.util.List;
 
 /**
  * Self-preservation goal that triggers when Fear emotion exceeds threshold.
@@ -54,7 +54,7 @@ public class SelfPreservationGoal extends AdaptiveGoal {
             return false;
         }
         
-        float fearLevel = pc.getMoodEngine().getEmotionWeight(PetComponent.Emotion.STARTLE);
+        float fearLevel = pc.getActiveEmotions().getOrDefault(PetComponent.Emotion.STARTLE, 0f);
         if (fearLevel < FEAR_THRESHOLD) {
             return false;
         }
@@ -89,7 +89,7 @@ public class SelfPreservationGoal extends AdaptiveGoal {
             return false;
         }
         
-        float fearLevel = pc.getMoodEngine().getEmotionWeight(PetComponent.Emotion.STARTLE);
+        float fearLevel = pc.getActiveEmotions().getOrDefault(PetComponent.Emotion.STARTLE, 0f);
         if (fearLevel < FEAR_THRESHOLD * 0.8f) { // Hysteresis to prevent rapid toggling
             return false;
         }
@@ -156,9 +156,11 @@ public class SelfPreservationGoal extends AdaptiveGoal {
         
         // Slowly back away from threat while maintaining defensive stance
         if (threat != null) {
-            Vec3d awayFromThreat = mob.getPos().subtract(threat.getPos()).normalize();
-            Vec3d backupTarget = mob.getPos().add(awayFromThreat.multiply(2.0));
-            
+            Vec3d mobPos = new Vec3d(mob.getX(), mob.getY(), mob.getZ());
+            Vec3d threatPos = new Vec3d(threat.getX(), threat.getY(), threat.getZ());
+            Vec3d awayFromThreat = mobPos.subtract(threatPos).normalize();
+            Vec3d backupTarget = mobPos.add(awayFromThreat.multiply(2.0));
+
             // Move backward slowly
             mob.getNavigation().startMovingTo(backupTarget.x, backupTarget.y, backupTarget.z, 0.6);
         }
@@ -205,13 +207,13 @@ public class SelfPreservationGoal extends AdaptiveGoal {
             // This would integrate with the Guardian role system
             abilityUsed = true;
             Petsplus.LOGGER.debug("[SelfPreservation] Pet {} used defensive ability", mob.getDisplayName().getString());
-            
+
             // Trigger a defensive stance animation
             // This could be expanded to call actual ability methods
-            mob.getWorld().sendEntityStatus(mob, (byte) 30); // Generic status for defensive stance
+            mob.getEntityWorld().sendEntityStatus(mob, (byte) 30); // Generic status for defensive stance
         }
     }
-    
+
     private LivingEntity findThreat() {
         // Check current attacker or target
         if (mob.getAttacker() instanceof LivingEntity attacker && attacker.isAlive()) {
@@ -222,23 +224,33 @@ public class SelfPreservationGoal extends AdaptiveGoal {
             return target;
         }
         
-        // Find nearby hostile entities
         double detectionRadius = 16.0;
-        return mob.getWorld().getClosestEntity(
+        List<LivingEntity> candidates = mob.getEntityWorld().getEntitiesByClass(
             LivingEntity.class,
-            entity -> entity instanceof LivingEntity && 
-                     !(entity instanceof PlayerEntity) && 
-                     mob.canSee(entity) &&
-                     isHostileToPet(entity),
-            mob,
-            mob.getX(), mob.getY(), mob.getZ(),
-            mob.getBoundingBox().expand(detectionRadius)
+            mob.getBoundingBox().expand(detectionRadius),
+            entity -> !(entity instanceof PlayerEntity)
+                && entity != mob
+                && entity.isAlive()
+                && mob.canSee(entity)
+                && isHostileToPet(entity)
         );
+
+        LivingEntity closest = null;
+        double closestDistance = Double.MAX_VALUE;
+        for (LivingEntity candidate : candidates) {
+            double distanceSq = candidate.squaredDistanceTo(mob);
+            if (distanceSq < closestDistance) {
+                closestDistance = distanceSq;
+                closest = candidate;
+            }
+        }
+
+        return closest;
     }
-    
+
     private boolean isHostileToPet(Entity entity) {
         // Simple check - can be expanded with more sophisticated threat detection
-        return entity instanceof LivingEntity living && 
+        return entity instanceof LivingEntity living &&
                living.getAttacking() != null && 
                living.getAttacking().equals(mob);
     }
@@ -248,7 +260,7 @@ public class SelfPreservationGoal extends AdaptiveGoal {
         
         if (role.id().equals(PetRoleType.GUARDIAN_ID)) {
             return PreservationBehavior.DEFENSIVE;
-        } else if (role.id().equals(PetRoleType.SCAVENGER_ID)) {
+        } else if (role.id().equals(PetRoleType.SCOUT_ID)) {
             return PreservationBehavior.OWNER_RETURN;
         } else {
             return PreservationBehavior.RETREAT;
@@ -256,12 +268,12 @@ public class SelfPreservationGoal extends AdaptiveGoal {
     }
     
     private Vec3d calculateRetreatTarget() {
-        Vec3d currentPos = mob.getPos();
-        Vec3d threatPos = threat != null ? threat.getPos() : currentPos;
-        
+        Vec3d currentPos = new Vec3d(mob.getX(), mob.getY(), mob.getZ());
+        Vec3d threatPos = threat != null ? new Vec3d(threat.getX(), threat.getY(), threat.getZ()) : currentPos;
+
         // Calculate direction away from threat
         Vec3d awayFromThreat = currentPos.subtract(threatPos).normalize();
-        
+
         if (awayFromThreat.lengthSquared() < 0.01) {
             // If too close to threat, pick a random direction
             awayFromThreat = new Vec3d(
@@ -275,8 +287,10 @@ public class SelfPreservationGoal extends AdaptiveGoal {
         Vec3d retreatPos = currentPos.add(awayFromThreat.multiply(RETREAT_DISTANCE));
         
         // Try to find a safe y-level
-        int groundY = mob.getWorld().getTopY();
-        retreatPos = new Vec3d(retreatPos.x, MathHelper.clamp(retreatPos.y, mob.getWorld().getBottomY(), groundY), retreatPos.z);
+        int sampleX = MathHelper.floor(retreatPos.x);
+        int sampleZ = MathHelper.floor(retreatPos.z);
+        int groundY = mob.getEntityWorld().getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, sampleX, sampleZ);
+        retreatPos = new Vec3d(retreatPos.x, MathHelper.clamp(retreatPos.y, mob.getEntityWorld().getBottomY(), groundY), retreatPos.z);
         
         return retreatPos;
     }
@@ -289,7 +303,7 @@ public class SelfPreservationGoal extends AdaptiveGoal {
             return 0.5f;
         }
         
-        float fearLevel = pc.getMoodEngine().getEmotionWeight(PetComponent.Emotion.STARTLE);
+        float fearLevel = pc.getActiveEmotions().getOrDefault(PetComponent.Emotion.STARTLE, 0f);
         float baseEngagement = MathHelper.clamp(fearLevel, 0.3f, 1.0f);
         
         // Increase engagement if owner is nearby (protective instinct)
