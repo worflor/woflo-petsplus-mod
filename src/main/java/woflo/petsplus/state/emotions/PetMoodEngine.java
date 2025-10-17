@@ -424,8 +424,8 @@ public final class PetMoodEngine {
             return;
         }
 
-        lastMoodUpdate = now;
         if (scheduleAsyncComputation(now)) {
+            lastMoodUpdate = now;
             dirty = false;
             return;
         }
