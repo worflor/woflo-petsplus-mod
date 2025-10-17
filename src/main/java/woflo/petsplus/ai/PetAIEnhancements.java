@@ -189,10 +189,10 @@ public class PetAIEnhancements {
         String roleId = petComponent.getRoleId().getPath();
         
         return switch (roleId) {
-            case "guardian" -> 8.0f;  // Close for protection
-            case "scout" -> 15.0f;   // Further for exploration
-            case "support" -> 7.0f;  // Close for assistance
-            default -> 12.0f;         // Baseline 
+            case "guardian" -> 5.5f;  // stay tight while shielding
+            case "scout" -> 9.0f;    // little extra leash for recon
+            case "support" -> 4.5f;  // hug the player for buffs/heals
+            default -> 6.0f;          // comfortable default bubble
         };
     }
     
@@ -203,9 +203,9 @@ public class PetAIEnhancements {
         String roleId = petComponent.getRoleId().getPath();
 
         return switch (roleId) {
-            case "scout" -> 20.0f;   // Scouts can range further before teleporting
-            case "support" -> 12.0f; // Support pets teleport sooner to stay close
-            default -> 16.0f;
+            case "scout" -> 16.0f;   // scouts can still range further
+            case "support" -> 9.5f;  // snap back quickly for utility roles
+            default -> 12.0f;
         };
     }
 

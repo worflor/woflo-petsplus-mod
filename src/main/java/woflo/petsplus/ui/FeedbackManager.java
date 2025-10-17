@@ -685,8 +685,6 @@ public class FeedbackManager {
      * Useful for immediate cleanup without full shutdown.
      */
     public static void cancelFeedbackTasks() {
-        IS_SHUTTING_DOWN.set(true);
-        
         // Cancel all pending tasks
         for (Map.Entry<String, ScheduledFuture<?>> entry : PENDING_TASKS.entrySet()) {
             ScheduledFuture<?> future = entry.getValue();
@@ -704,28 +702,26 @@ public class FeedbackManager {
      * Should be called during server shutdown to prevent watchdog timeouts.
      */
     public static void cleanup() {
-        if (IS_SHUTTING_DOWN.compareAndSet(false, true)) {
-            // Cancel all pending tasks first
-            cancelFeedbackTasks();
-            
-            // Shutdown executor gracefully
-            try { FEEDBACK_EXECUTOR.shutdown(); } catch (Throwable ignored) {}
-            try {
-                // Wait for tasks to complete with timeout
-                if (!FEEDBACK_EXECUTOR.awaitTermination(5, TimeUnit.SECONDS)) {
-                    // Force shutdown if tasks don't complete in time
-                    try { FEEDBACK_EXECUTOR.shutdownNow(); } catch (Throwable ignored) {}
-                    // Wait a bit more for forceful shutdown
-                    if (!FEEDBACK_EXECUTOR.awaitTermination(2, TimeUnit.SECONDS)) {
-                        // silently ignore; best-effort
-                    }
-                }
-            } catch (InterruptedException e) {
-                // Restore interrupted status
-                Thread.currentThread().interrupt();
-                // Force shutdown on interruption
-                try { FEEDBACK_EXECUTOR.shutdownNow(); } catch (Throwable ignored) {}
-            }
+        boolean alreadyShuttingDown = IS_SHUTTING_DOWN.getAndSet(true);
+
+        // Always cancel outstanding tasks to avoid scheduling new work during shutdown.
+        cancelFeedbackTasks();
+
+        // Halt the executor immediately instead of waiting on the server thread.
+        // This prevents deadlocks where queued tasks attempt to reschedule onto the
+        // main server thread while we are waiting for termination.
+        try { FEEDBACK_EXECUTOR.shutdownNow(); } catch (Throwable ignored) {}
+
+        // If another shutdown path already handled termination we are done.
+        if (alreadyShuttingDown) {
+            return;
+        }
+
+        // Best-effort drain without blocking for an extended period.
+        try {
+            FEEDBACK_EXECUTOR.awaitTermination(100, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 }

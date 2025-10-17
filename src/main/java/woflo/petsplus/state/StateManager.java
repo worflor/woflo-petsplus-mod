@@ -1145,7 +1145,8 @@ public class StateManager {
 
             long delayBase = consumedItem != null ? SUPPORT_POTION_ACTIVE_RECHECK : SUPPORT_POTION_IDLE_RECHECK;
             long delay = scaleIntervalForDistance(delayBase, pet, request.owner());
-            component.scheduleNextSupportPotionScan(currentTick + delay);
+            long baseTick = component.stripSchedulingPhase(currentTick);
+            component.scheduleNextSupportPotionScan(baseTick + delay);
             ownerProcessingManager.onTaskExecuted(component, PetWorkScheduler.TaskType.SUPPORT_POTION, currentTick);
 
             if (consumedItem != null) {
@@ -1626,7 +1627,8 @@ public class StateManager {
         }
 
         long delay = scaleIntervalForDistance(INTERVAL_TICK_SPACING, pet, owner);
-        component.scheduleNextIntervalTick(currentTick + delay);
+        long baseTick = component.stripSchedulingPhase(currentTick);
+        component.scheduleNextIntervalTick(baseTick + delay);
     }
 
     private void applySuggestionNudge(MobEntity pet,
@@ -1702,11 +1704,13 @@ public class StateManager {
                 baseDelay = Math.max(1L, scheduledTick - currentTick);
             }
             long delay = scaleIntervalForDistance(baseDelay, pet, owner);
-            component.scheduleNextAuraCheck(currentTick + delay);
+            long baseTick = component.stripSchedulingPhase(currentTick);
+            component.scheduleNextAuraCheck(baseTick + delay);
         } catch (Exception e) {
             Petsplus.LOGGER.warn("Failed to apply aura effects for pet {}", pet.getUuid(), e);
             long delay = scaleIntervalForDistance(DEFAULT_AURA_RECHECK, pet, owner);
-            component.scheduleNextAuraCheck(currentTick + delay);
+            long baseTick = component.stripSchedulingPhase(currentTick);
+            component.scheduleNextAuraCheck(baseTick + delay);
         }
     }
 
@@ -1715,7 +1719,8 @@ public class StateManager {
                                      @Nullable ServerPlayerEntity owner,
                                      long currentTick) {
         if (!(world instanceof ServerWorld serverWorld)) {
-            component.scheduleNextMoodProviderTick(currentTick + MoodService.providerBaseTicksMid());
+            long baseTick = component.stripSchedulingPhase(currentTick);
+            component.scheduleNextMoodProviderTick(baseTick + MoodService.providerBaseTicksMid());
             return;
         }
 
@@ -1738,7 +1743,8 @@ public class StateManager {
         int lodMod = MoodService.lodTickModForDistance(distance);
         long delay = Math.max(1L, (long) baseInterval * lodMod);
         delay = scaleIntervalForDistance(delay, pet, owner);
-        component.scheduleNextMoodProviderTick(currentTick + delay);
+        long baseTick = component.stripSchedulingPhase(currentTick);
+        component.scheduleNextMoodProviderTick(baseTick + delay);
     }
 
     private List<PetSwarmIndex.SwarmEntry> gatherSwarmFromSpatial(@Nullable UUID ownerId,
@@ -1772,7 +1778,8 @@ public class StateManager {
         boolean processed = pickupNearbyPotionsForSupport(pet, owner, component, behavior);
         long delay = processed ? SUPPORT_POTION_ACTIVE_RECHECK : SUPPORT_POTION_IDLE_RECHECK;
         delay = scaleIntervalForDistance(delay, pet, owner);
-        component.scheduleNextSupportPotionScan(currentTick + delay);
+        long baseTick = component.stripSchedulingPhase(currentTick);
+        component.scheduleNextSupportPotionScan(baseTick + delay);
     }
 
     private void runParticlePass(MobEntity pet, PetComponent component, ServerPlayerEntity owner, long currentTick) {
@@ -1791,7 +1798,8 @@ public class StateManager {
         component.updateCooldowns();
         long delay = emitted ? PARTICLE_RECHECK_INTERVAL : PARTICLE_RECHECK_INTERVAL * 2;
         delay = scaleIntervalForDistance(delay, pet, owner);
-        component.scheduleNextParticleCheck(currentTick + delay);
+        long baseTick = component.stripSchedulingPhase(currentTick);
+        component.scheduleNextParticleCheck(baseTick + delay);
     }
 
     @Nullable

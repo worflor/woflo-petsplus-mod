@@ -37,10 +37,21 @@ public class AdaptiveAIManager {
         try {
             MobEntityAccessor accessor = (MobEntityAccessor) mob;
             var goalSelector = accessor.getGoalSelector();
-            
-            // Remove all AdaptiveGoal instances
-            goalSelector.getGoals().removeIf(goal -> goal.getGoal() instanceof AdaptiveGoal);
-            
+
+            // Collect adaptive goals so we can stop them before removal.
+            java.util.List<Object> toRemove = new java.util.ArrayList<>();
+
+            for (var entry : goalSelector.getGoals()) {
+                if (entry.getGoal() instanceof AdaptiveGoal) {
+                    if (entry.isRunning()) {
+                        entry.stop();
+                    }
+                    toRemove.add(entry);
+                }
+            }
+
+            goalSelector.getGoals().removeAll(toRemove);
+
         } catch (Exception e) {
             // Silently fail if mob doesn't support goal removal
         }

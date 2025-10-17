@@ -95,6 +95,8 @@ public class PetComponent {
         "context_species", "context_type", "tag_species", "tag_type", "context_entity"
     };
     private static final long MIN_GOSSIP_DECAY_DELAY = 40L;
+    private static final long SCHEDULING_PHASE_MODULUS = 20L;
+    private static final long CONTEXT_CACHE_IDLE_TICKS = 40L;
     private static final int GOSSIP_OPT_OUT_MIN_DURATION = 120;
     private static final int GOSSIP_OPT_OUT_MAX_DURATION = 220;
 
@@ -127,6 +129,7 @@ public class PetComponent {
     private final PerceptionBus perceptionBus;
     private final PetContextCache contextCache;
     private final ContextSliceState contextSliceState;
+    private final long schedulingPhaseOffset;
 
     // Swarm spatial tracking
     private boolean swarmTrackingInitialized;
@@ -145,6 +148,16 @@ public class PetComponent {
     // UI state
     private long xpFlashStartTick = -1;
     private static final int XP_FLASH_DURATION = 7; // 0.35 seconds
+
+    private static long computeSchedulingPhaseOffset(@Nullable MobEntity pet) {
+        if (pet == null) {
+            return 0L;
+        }
+        UUID uuid = pet.getUuid();
+        long seed = uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits();
+        long modulus = Math.max(1L, SCHEDULING_PHASE_MODULUS);
+        return Math.floorMod(seed, modulus);
+    }
 
     
     /**
@@ -427,6 +440,8 @@ public class PetComponent {
         this.perceptionBus.subscribe(PerceptionStimulusType.ENVIRONMENTAL_SNAPSHOT, contextSliceState);
         this.perceptionBus.subscribe(PerceptionStimulusType.WORLD_TICK, contextSliceState);
         this.contextCache.markAllDirty();
+        this.contextCache.setMaxIdleTicks(CONTEXT_CACHE_IDLE_TICKS);
+        this.schedulingPhaseOffset = computeSchedulingPhaseOffset(pet);
         this.experienceLog = new ExperienceLog();
         this.aiState.reset();
 
@@ -928,7 +943,8 @@ public class PetComponent {
     public void recordRumor(long topicId, float intensity, float confidence, long currentTick,
                             @Nullable UUID sourceUuid, @Nullable Text paraphrased, boolean witnessed) {
         gossipLedger.recordRumor(topicId, intensity, confidence, currentTick, sourceUuid, paraphrased, witnessed);
-        scheduleNextGossipDecay(currentTick + Math.max(MIN_GOSSIP_DECAY_DELAY, gossipLedger.scheduleNextDecayDelay()));
+        long baseTick = stripSchedulingPhase(currentTick);
+        scheduleNextGossipDecay(baseTick + Math.max(MIN_GOSSIP_DECAY_DELAY, gossipLedger.scheduleNextDecayDelay()));
     }
 
     public boolean isGossipOptedOut(long currentTick) {
@@ -1526,7 +1542,8 @@ public class PetComponent {
         scheduleNextAuraCheck(currentTick);
         scheduleNextSupportPotionScan(currentTick);
         scheduleNextParticleCheck(currentTick);
-        scheduleNextGossipDecay(currentTick + Math.max(MIN_GOSSIP_DECAY_DELAY, gossipLedger.scheduleNextDecayDelay()));
+        long baseTick = stripSchedulingPhase(currentTick);
+        scheduleNextGossipDecay(baseTick + Math.max(MIN_GOSSIP_DECAY_DELAY, gossipLedger.scheduleNextDecayDelay()));
         scheduleNextMoodProviderTick(currentTick);
     }
 
@@ -1539,27 +1556,49 @@ public class PetComponent {
     }
 
     public void scheduleNextIntervalTick(long nextTick) {
-        submitScheduledTask(PetWorkScheduler.TaskType.INTERVAL, nextTick);
+        submitScheduledTask(PetWorkScheduler.TaskType.INTERVAL, applySchedulingPhase(nextTick));
     }
 
     public void scheduleNextAuraCheck(long nextTick) {
-        submitScheduledTask(PetWorkScheduler.TaskType.AURA, nextTick);
+        submitScheduledTask(PetWorkScheduler.TaskType.AURA, applySchedulingPhase(nextTick));
     }
 
     public void scheduleNextSupportPotionScan(long nextTick) {
-        submitScheduledTask(PetWorkScheduler.TaskType.SUPPORT_POTION, nextTick);
+        submitScheduledTask(PetWorkScheduler.TaskType.SUPPORT_POTION, applySchedulingPhase(nextTick));
     }
 
     public void scheduleNextParticleCheck(long nextTick) {
-        submitScheduledTask(PetWorkScheduler.TaskType.PARTICLE, nextTick);
+        submitScheduledTask(PetWorkScheduler.TaskType.PARTICLE, applySchedulingPhase(nextTick));
     }
 
     public void scheduleNextGossipDecay(long nextTick) {
-        submitScheduledTask(PetWorkScheduler.TaskType.GOSSIP_DECAY, nextTick);
+        submitScheduledTask(PetWorkScheduler.TaskType.GOSSIP_DECAY, applySchedulingPhase(nextTick));
     }
 
     public void scheduleNextMoodProviderTick(long nextTick) {
-        submitScheduledTask(PetWorkScheduler.TaskType.MOOD_PROVIDER, nextTick);
+        submitScheduledTask(PetWorkScheduler.TaskType.MOOD_PROVIDER, applySchedulingPhase(nextTick));
+    }
+
+    public long stripSchedulingPhase(long absoluteTick) {
+        if (absoluteTick == Long.MAX_VALUE) {
+            return Long.MAX_VALUE;
+        }
+        long sanitized = Math.max(0L, absoluteTick);
+        long stripped = sanitized - schedulingPhaseOffset;
+        return stripped < 0L ? 0L : stripped;
+    }
+
+    private long applySchedulingPhase(long baselineTick) {
+        if (baselineTick == Long.MAX_VALUE) {
+            return Long.MAX_VALUE;
+        }
+        long sanitized = Math.max(0L, baselineTick);
+        long maxWithoutOverflow = Long.MAX_VALUE - schedulingPhaseOffset;
+        if (sanitized >= maxWithoutOverflow) {
+            return Long.MAX_VALUE;
+        }
+        long adjusted = sanitized + schedulingPhaseOffset;
+        return Math.max(0L, adjusted);
     }
 
     private void submitScheduledTask(PetWorkScheduler.TaskType type, long nextTick) {
@@ -1584,7 +1623,8 @@ public class PetComponent {
         if (stateManager != null) {
             nextDelay = stateManager.scaleInterval(nextDelay);
         }
-        scheduleNextGossipDecay(currentTick + nextDelay);
+        long baseTick = stripSchedulingPhase(currentTick);
+        scheduleNextGossipDecay(baseTick + nextDelay);
     }
 
 
