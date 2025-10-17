@@ -251,7 +251,7 @@ public abstract class AdaptiveGoal extends Goal {
             return true;
         }
 
-        long suggestionAge = worldTime - suggestionTick;
+        long suggestionAge = Math.abs(worldTime - suggestionTick);
 
         boolean suggestionFresh = suggestionAge <= SUGGESTION_GRACE_PERIOD_TICKS;
 
