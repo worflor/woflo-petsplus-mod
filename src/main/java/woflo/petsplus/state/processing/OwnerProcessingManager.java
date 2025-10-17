@@ -264,7 +264,10 @@ public final class OwnerProcessingManager {
         queueGroup(group);
     }
 
-    public void flushBatches(BiConsumer<UUID, OwnerTaskBatch> consumer, long currentTick, int budget) {
+    public void flushBatches(BiConsumer<UUID, OwnerTaskBatch> consumer,
+                             long currentTick,
+                             int budget,
+                             int moodBudget) {
         this.currentTick = currentTick;
         if (budget <= 0) {
             processOrphanTasks(consumer, currentTick);
@@ -294,7 +297,7 @@ public final class OwnerProcessingManager {
                 continue;
             }
 
-            OwnerTaskBatch batch = group.drain(currentTick);
+            OwnerTaskBatch batch = group.drain(currentTick, moodBudget);
             if (batch == null) {
                 continue;
             }
@@ -309,6 +312,16 @@ public final class OwnerProcessingManager {
         }
 
         processOrphanTasks(consumer, currentTick);
+    }
+
+    public int deriveMoodTaskBudget(int ownerBudget) {
+        if (ownerBudget <= 1) {
+            return 1;
+        }
+        if (ownerBudget <= 3) {
+            return 2;
+        }
+        return 3;
     }
 
     public void markOwnerEventExecuted(@Nullable UUID ownerId, OwnerEventType type, long tick) {

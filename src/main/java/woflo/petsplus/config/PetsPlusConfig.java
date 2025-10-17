@@ -179,8 +179,16 @@ public class PetsPlusConfig {
             changed = true;
         }
         if (!core.has("pets") || !core.get("pets").isJsonObject()) {
-            core.add("pets", new JsonObject());
+            JsonObject pets = new JsonObject();
+            pets.addProperty("async_mood_pipeline", false);
+            core.add("pets", pets);
             changed = true;
+        } else {
+            JsonObject pets = core.getAsJsonObject("pets");
+            if (!pets.has("async_mood_pipeline")) {
+                pets.addProperty("async_mood_pipeline", false);
+                changed = true;
+            }
         }
         if (!core.has("visuals") || !core.get("visuals").isJsonObject()) {
             core.add("visuals", createVisualDefaults());
@@ -236,7 +244,9 @@ public class PetsPlusConfig {
         root.add("petting", createPettingDefaults());
         root.add("pet_leveling", createPetLevelingDefaults());
         root.add("tribute_items", createDefaultTributeJson());
-        root.add("pets", new JsonObject());
+        JsonObject pets = new JsonObject();
+        pets.addProperty("async_mood_pipeline", false);
+        root.add("pets", pets);
         root.add("visuals", createVisualDefaults());
         root.add("emotion_cues", createEmotionCueDefaults());
         root.add("action_bar", createActionBarDefaults());
@@ -718,6 +728,10 @@ public class PetsPlusConfig {
     public JsonObject getSection(String key) {
         JsonObject section = getObject(config, key);
         return section != null ? section : EMPTY_OBJECT;
+    }
+
+    public boolean isAsyncMoodPipelineEnabled() {
+        return readBoolean(getSection("pets"), "async_mood_pipeline", false);
     }
 
     public int getConfigGeneration() {

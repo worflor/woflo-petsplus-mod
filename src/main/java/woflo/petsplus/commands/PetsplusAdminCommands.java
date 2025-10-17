@@ -16,6 +16,7 @@ import net.minecraft.item.Items;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -35,6 +36,7 @@ import woflo.petsplus.config.DebugSettings;
 import woflo.petsplus.data.DataMaintenance;
 import woflo.petsplus.mood.EmotionStimulusBus;
 import woflo.petsplus.state.processing.AsyncProcessingTelemetry;
+import woflo.petsplus.state.emotions.PetMoodEngine;
 
 import java.util.Locale;
 
@@ -877,55 +879,63 @@ public class PetsplusAdminCommands {
             return 0;
         }
         
-        player.sendMessage(Text.literal("=== Pet Emotion & Mood Info ===").formatted(Formatting.GOLD), false);
-        
-        // Show current mood
-        player.sendMessage(Text.literal("Current Mood: ")
-            .formatted(Formatting.GRAY)
-            .append(petComp.getMoodTextWithDebug()), false);
-        
-        // Show dominant emotion
-        PetComponent.Emotion dominantEmotion = petComp.getDominantEmotion();
-        if (dominantEmotion != null) {
-            player.sendMessage(Text.literal("Dominant Emotion: ")
+        Runnable respond = () -> {
+            player.sendMessage(Text.literal("=== Pet Emotion & Mood Info ===").formatted(Formatting.GOLD), false);
+
+            player.sendMessage(Text.literal("Current Mood: ")
                 .formatted(Formatting.GRAY)
-                .append(Text.literal(dominantEmotion.name().toLowerCase()).formatted(Formatting.AQUA)), false);
-        } else {
-            player.sendMessage(Text.literal("Dominant Emotion: None").formatted(Formatting.GRAY), false);
-        }
-        
-        // Show mood blend
-        player.sendMessage(Text.literal("Mood Strengths:").formatted(Formatting.YELLOW), false);
-        for (PetComponent.Mood mood : PetComponent.Mood.values()) {
-            float strength = petComp.getMoodBlend().getOrDefault(mood, 0f);
-            if (strength > 0.1f) {
-                player.sendMessage(Text.literal("  " + mood.name().toLowerCase() + ": ")
+                .append(petComp.getMoodTextWithDebug()), false);
+
+            PetComponent.Emotion dominantEmotion = petComp.getDominantEmotion();
+            if (dominantEmotion != null) {
+                player.sendMessage(Text.literal("Dominant Emotion: ")
                     .formatted(Formatting.GRAY)
-                    .append(Text.literal(String.format("%.2f", strength)).formatted(Formatting.WHITE)), false);
+                    .append(Text.literal(dominantEmotion.name().toLowerCase()).formatted(Formatting.AQUA)), false);
+            } else {
+                player.sendMessage(Text.literal("Dominant Emotion: None").formatted(Formatting.GRAY), false);
             }
+
+            player.sendMessage(Text.literal("Mood Strengths:").formatted(Formatting.YELLOW), false);
+            for (PetComponent.Mood mood : PetComponent.Mood.values()) {
+                float strength = petComp.getMoodBlend().getOrDefault(mood, 0f);
+                if (strength > 0.1f) {
+                    player.sendMessage(Text.literal("  " + mood.name().toLowerCase() + ": ")
+                        .formatted(Formatting.GRAY)
+                        .append(Text.literal(String.format("%.2f", strength)).formatted(Formatting.WHITE)), false);
+                }
+            }
+
+            player.sendMessage(Text.literal(String.format(Locale.ROOT,
+                    "Nature tuning: volatility ×%.2f, resilience ×%.2f, contagion ×%.2f, guard ×%.2f",
+                    petComp.getNatureVolatilityMultiplier(),
+                    petComp.getNatureResilienceMultiplier(),
+                    petComp.getNatureContagionModifier(),
+                    petComp.getNatureGuardModifier()))
+                .formatted(Formatting.DARK_AQUA), false);
+
+            PetComponent.NatureEmotionProfile profile = petComp.getNatureEmotionProfile();
+            if (profile != null && !profile.isEmpty()) {
+                player.sendMessage(Text.literal(formatNatureEmotionProfile(profile))
+                    .formatted(Formatting.AQUA), false);
+            }
+
+            PetComponent.NatureGuardTelemetry guardTelemetry = petComp.getNatureGuardTelemetry();
+            player.sendMessage(Text.literal(String.format(Locale.ROOT,
+                    "Guard telemetry ➜ relationship %.2f, danger %.2f, contagion cap %.2f",
+                    guardTelemetry.relationshipGuard(),
+                    guardTelemetry.dangerWindow(),
+                    guardTelemetry.contagionCap()))
+                .formatted(Formatting.DARK_PURPLE), false);
+        };
+
+        petComp.updateMood();
+        PetMoodEngine engine = petComp.getMoodEngine();
+        if (engine != null) {
+            long threshold = player.getEntityWorld() instanceof ServerWorld sw ? Math.max(0L, sw.getTime()) : 0L;
+            engine.onNextResultApplied(threshold, respond);
+        } else {
+            respond.run();
         }
-
-        player.sendMessage(Text.literal(String.format(Locale.ROOT,
-                "Nature tuning: volatility ×%.2f, resilience ×%.2f, contagion ×%.2f, guard ×%.2f",
-                petComp.getNatureVolatilityMultiplier(),
-                petComp.getNatureResilienceMultiplier(),
-                petComp.getNatureContagionModifier(),
-                petComp.getNatureGuardModifier()))
-            .formatted(Formatting.DARK_AQUA), false);
-
-        PetComponent.NatureEmotionProfile profile = petComp.getNatureEmotionProfile();
-        if (profile != null && !profile.isEmpty()) {
-            player.sendMessage(Text.literal(formatNatureEmotionProfile(profile))
-                .formatted(Formatting.AQUA), false);
-        }
-
-        PetComponent.NatureGuardTelemetry guardTelemetry = petComp.getNatureGuardTelemetry();
-        player.sendMessage(Text.literal(String.format(Locale.ROOT,
-                "Guard telemetry ➜ relationship %.2f, danger %.2f, contagion cap %.2f",
-                guardTelemetry.relationshipGuard(),
-                guardTelemetry.dangerWindow(),
-                guardTelemetry.contagionCap()))
-            .formatted(Formatting.DARK_PURPLE), false);
 
         return 1;
     }

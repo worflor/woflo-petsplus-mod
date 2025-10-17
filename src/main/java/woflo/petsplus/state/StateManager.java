@@ -38,6 +38,7 @@ import woflo.petsplus.ai.context.perception.OwnerPerceptionBridge;
 import woflo.petsplus.ai.context.perception.SwarmPerceptionBridge;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.coordination.PetWorkScheduler;
+import woflo.petsplus.state.emotions.PetMoodEngine;
 import woflo.petsplus.state.nature.NatureHarmonyService;
 import woflo.petsplus.mood.EmotionStimulusBus;
 import woflo.petsplus.ui.CooldownParticleManager;
@@ -95,6 +96,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Manages state for all pets and owners in the game using components for persistence.
@@ -545,9 +547,10 @@ public class StateManager {
         workScheduler.processDue(currentTick, ownerProcessingManager::enqueueTask);
         int pendingGroups = ownerProcessingManager.preparePendingGroups(currentTick);
         int budget = adaptiveTickScaler.ownerBatchBudget(pendingGroups);
+        int moodBudget = ownerProcessingManager.deriveMoodTaskBudget(budget);
         ownerProcessingManager.flushBatches((ownerId, batch) ->
             ownerBatchProcessor.processBatch(batch, currentTick)
-        , currentTick, budget);
+        , currentTick, budget, moodBudget);
         maybeLogAsyncTelemetry(currentTick);
     }
 
@@ -2139,7 +2142,13 @@ public class StateManager {
                 context.ensurePetsPrimed(currentTick);
             }
 
-            dispatchOwnerEvents(context, activeEvents, currentTick, markEvents, requiresSwarm);
+            EnumSet<OwnerEventType> eventsToFire = EnumSet.copyOf(activeEvents);
+            final boolean dispatchRequiresSwarm = requiresSwarm;
+            Runnable dispatchAction = () -> dispatchOwnerEvents(context, eventsToFire, currentTick, markEvents, dispatchRequiresSwarm);
+            if (context.deferOwnerEventDispatch(currentTick, dispatchAction)) {
+                return;
+            }
+            dispatchAction.run();
         }
 
         private void dispatchOwnerEvents(OwnerBatchContext context,
@@ -2339,6 +2348,43 @@ public class StateManager {
         @Nullable
         Object payload(OwnerEventType type) {
             return payloads.get(type);
+        }
+
+        boolean deferOwnerEventDispatch(long thresholdTick, Runnable callback) {
+            if (callback == null) {
+                return false;
+            }
+            List<PetComponent> pets = pets();
+            if (pets.isEmpty()) {
+                return false;
+            }
+            List<PetMoodEngine> engines = new ArrayList<>();
+            for (PetComponent component : pets) {
+                if (component == null) {
+                    continue;
+                }
+                PetMoodEngine engine = component.getMoodEngine();
+                if (engine != null && engine.isAsyncComputationInFlight()) {
+                    engines.add(engine);
+                }
+            }
+            if (engines.isEmpty()) {
+                return false;
+            }
+            AtomicInteger remaining = new AtomicInteger(engines.size());
+            AtomicBoolean dispatched = new AtomicBoolean(false);
+            Runnable gate = () -> {
+                if (remaining.decrementAndGet() <= 0 && dispatched.compareAndSet(false, true)) {
+                    callback.run();
+                }
+            };
+            for (PetMoodEngine engine : engines) {
+                engine.onNextResultApplied(thresholdTick, gate);
+            }
+            if (remaining.get() <= 0 && dispatched.compareAndSet(false, true)) {
+                callback.run();
+            }
+            return true;
         }
     }
 

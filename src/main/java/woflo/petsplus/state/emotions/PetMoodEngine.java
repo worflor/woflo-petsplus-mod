@@ -40,14 +40,17 @@ import net.minecraft.world.World;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeKeys;
 import org.jetbrains.annotations.Nullable;
+import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
+import woflo.petsplus.config.DebugSettings;
 import woflo.petsplus.config.MoodEngineConfig;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
+import woflo.petsplus.state.processing.AsyncWorkCoordinator;
 import woflo.petsplus.ui.UIStyle;
 
 import java.util.ArrayDeque;
@@ -58,12 +61,18 @@ import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -205,17 +214,8 @@ public final class PetMoodEngine {
     private float lastDangerWindowObserved = DANGER_BASE;
     private float lastContagionCap = MathHelper.clamp(DEFAULT_IMPACT_CAP * 0.1f, 0.05f, 0.6f);
 
-    private float[] scratchCadences = new float[16];
-    private int scratchCadenceCount = 0;
-    private float[] scratchIntensities = new float[16];
-    private int scratchIntensityCount = 0;
-    private float[] scratchSignals = new float[16];
-    private int scratchSignalCount = 0;
-    private float[] scratchFrequencies = new float[16];
-    private int scratchFrequencyCount = 0;
     private float[] scratchBudgets = new float[16];
     private int scratchBudgetCount = 0;
-    private final ArrayList<Candidate> scratchSurvivors = new ArrayList<>();
 
     private PetComponent.Mood currentMood = PetComponent.Mood.CALM;
     private int moodLevel = 0;
@@ -223,6 +223,12 @@ public final class PetMoodEngine {
     @SuppressWarnings("unused") // Reserved for future stimulus timing optimization
     private long lastStimulusTime = 0L;
     private boolean dirty = false;
+    private boolean asyncComputationInFlight = false;
+    private boolean asyncRecomputeRequested = false;
+    private long asyncRecomputeTimestamp = -1L;
+    private boolean discardNextAsyncResult = false;
+    private long lastAppliedTick = -1L;
+    private final ArrayDeque<PendingApplyCallback> postApplyCallbacks = new ArrayDeque<>();
     
     // Behavioral Momentum - tracks activity level for AI regulation
     private float behavioralMomentum = 0.5f;           // 0=still, 1=hyperactive
@@ -395,10 +401,37 @@ public final class PetMoodEngine {
     }
 
     public void ensureFresh(long now) {
-        if (dirty || now - lastMoodUpdate >= 20) {
+        if (!dirty && now - lastMoodUpdate < 20) {
+            return;
+        }
+
+        if (!isAsyncPipelineEnabled()) {
+            if (asyncComputationInFlight) {
+                discardNextAsyncResult = true;
+                asyncComputationInFlight = false;
+                asyncRecomputeRequested = false;
+                asyncRecomputeTimestamp = -1L;
+            }
             updateEmotionStateAndMood(now);
             dirty = false;
+            return;
         }
+
+        if (asyncComputationInFlight) {
+            asyncRecomputeRequested = true;
+            asyncRecomputeTimestamp = Math.max(asyncRecomputeTimestamp, now);
+            dirty = false;
+            return;
+        }
+
+        lastMoodUpdate = now;
+        if (scheduleAsyncComputation(now)) {
+            dirty = false;
+            return;
+        }
+
+        updateEmotionStateAndMood(now);
+        dirty = false;
     }
 
     public long estimateNextWakeUp(long now) {
@@ -912,12 +945,138 @@ public final class PetMoodEngine {
     // Core interpretation pipeline
     // --------------------------------------------------------------------------------------------
 
+
     private void updateEmotionStateAndMood(long now) {
         if (now - lastMoodUpdate < 20) {
             return;
         }
         lastMoodUpdate = now;
 
+        ComputationSnapshot snapshot = computeSnapshot(now);
+        ComputationResult result = computeResult(snapshot);
+        applyResult(snapshot, result);
+    }
+
+    private boolean isAsyncPipelineEnabled() {
+        return PetsPlusConfig.getInstance().isAsyncMoodPipelineEnabled() || DebugSettings.isPipelineEnabled();
+    }
+
+    private boolean scheduleAsyncComputation(long now) {
+        StateManager manager = parent.getStateManager();
+        if (manager == null) {
+            return false;
+        }
+        AsyncWorkCoordinator coordinator = manager.getAsyncWorkCoordinator();
+        if (coordinator == null) {
+            return false;
+        }
+
+        long captureStart = System.nanoTime();
+        ComputationSnapshot snapshot = computeSnapshot(now);
+        long captureDuration = System.nanoTime() - captureStart;
+        if (captureDuration > 0) {
+            coordinator.telemetry().recordCaptureDuration(captureDuration);
+        }
+
+        if (snapshot.activeRecords().isEmpty()) {
+            asyncComputationInFlight = false;
+            asyncRecomputeRequested = false;
+            asyncRecomputeTimestamp = -1L;
+            discardNextAsyncResult = false;
+            applyResult(snapshot, computeResult(snapshot));
+            return true;
+        }
+
+        String descriptor = "pet_mood/" + parent.getPet().getUuidAsString();
+        asyncComputationInFlight = true;
+        asyncRecomputeRequested = false;
+        asyncRecomputeTimestamp = -1L;
+        discardNextAsyncResult = false;
+
+        CompletableFuture<ComputationResult> future = coordinator.submitStandalone(
+            descriptor,
+            () -> computeResult(snapshot),
+            result -> applyAsyncResult(snapshot, result)
+        );
+
+        if (future.isCompletedExceptionally()) {
+            asyncComputationInFlight = false;
+            if (DebugSettings.isDebugEnabled()) {
+                Petsplus.LOGGER.debug("Async mood job {} rejected immediately; running synchronously", descriptor);
+            }
+            return false;
+        }
+
+        future.exceptionally(throwable -> handleAsyncFailure(descriptor, snapshot, throwable));
+        return true;
+    }
+
+    private void applyAsyncResult(ComputationSnapshot snapshot, ComputationResult result) {
+        asyncComputationInFlight = false;
+        if (discardNextAsyncResult) {
+            discardNextAsyncResult = false;
+            asyncRecomputeRequested = false;
+            asyncRecomputeTimestamp = -1L;
+            return;
+        }
+
+        applyResult(snapshot, result);
+
+        long followUpNow = asyncRecomputeTimestamp > 0L
+                ? asyncRecomputeTimestamp
+                : resolveWorldTime(snapshot.timestamp());
+        boolean needsFollowUp = asyncRecomputeRequested || dirty;
+        asyncRecomputeRequested = false;
+        asyncRecomputeTimestamp = -1L;
+
+        if (!needsFollowUp) {
+            return;
+        }
+
+        if (isAsyncPipelineEnabled()) {
+            ensureFresh(followUpNow);
+        } else {
+            runSynchronousFallback(followUpNow);
+        }
+    }
+
+    private ComputationResult handleAsyncFailure(String descriptor,
+                                                 ComputationSnapshot snapshot,
+                                                 Throwable throwable) {
+        asyncComputationInFlight = false;
+        asyncRecomputeRequested = false;
+        asyncRecomputeTimestamp = -1L;
+        discardNextAsyncResult = false;
+
+        Throwable cause = throwable != null && throwable.getCause() != null ? throwable.getCause() : throwable;
+        if (DebugSettings.isDebugEnabled()) {
+            Petsplus.LOGGER.debug("Async mood job {} failed: {}", descriptor, cause != null ? cause.getMessage() : "unknown", cause);
+        }
+
+        if (cause instanceof RejectedExecutionException || cause instanceof CancellationException) {
+            runSynchronousFallback(resolveWorldTime(snapshot.timestamp()));
+            return null;
+        }
+
+        Petsplus.LOGGER.error("Async mood job {} encountered an unexpected failure; falling back to synchronous update", descriptor, cause);
+        runSynchronousFallback(resolveWorldTime(snapshot.timestamp()));
+        return null;
+    }
+
+    private void runSynchronousFallback(long now) {
+        updateEmotionStateAndMood(now);
+        dirty = false;
+    }
+
+    private long resolveWorldTime(long fallback) {
+        World world = parent.getPet().getEntityWorld();
+        if (world instanceof ServerWorld serverWorld) {
+            return serverWorld.getTime();
+        }
+        return Math.max(fallback, lastMoodUpdate);
+    }
+
+    private ComputationSnapshot computeSnapshot(long now) {
         ensureConfigCache();
         float epsilon = Math.max(EPSILON, cachedEpsilon);
         float guardModifier = MathHelper.clamp(parent.getNatureGuardModifier(), 0.1f, 3.0f);
@@ -929,170 +1088,361 @@ public final class PetMoodEngine {
         float maxCap = 0.6f * Math.max(1f, contagionModifier);
         lastContagionCap = MathHelper.clamp(baseCap, minCap, maxCap);
 
-        // Update behavioral momentum
-        updateBehavioralMomentum(now);
-
-        applyHarmonyBiases(now);
-
-        // Decay + cleanup pass
-        List<EmotionRecord> active = collectActiveRecords(now, epsilon);
-
-        if (active.isEmpty()) {
-            resetToCalmBaseline();
-            return;
+        EnumMap<PetComponent.Mood, Float> baselineBlend = new EnumMap<>(PetComponent.Mood.class);
+        for (PetComponent.Mood mood : PetComponent.Mood.values()) {
+            baselineBlend.put(mood, moodBlend.getOrDefault(mood, 0f));
         }
 
-        int activeSize = active.size();
+        BehaviorSnapshot behaviorSnapshot = captureBehaviorSnapshot(now, baselineBlend);
+        Map<PetComponent.Emotion, Float> harmonyBiases = captureHarmonyBiases();
 
-        scratchCadences = ensureCapacity(scratchCadences, activeSize);
-        scratchCadenceCount = activeSize;
+        List<SnapshotEmotionRecord> snapshots = new ArrayList<>(emotionRecords.size());
+        for (EmotionRecord record : new ArrayList<>(emotionRecords.values())) {
+            long delta = Math.max(1L, now - record.lastUpdateTime);
+            refreshContextGuards(record, now, delta);
+            boolean ongoingCondition = hasOngoingCondition(record.emotion, now);
+            float contextModulation = MathHelper.clamp(
+                    computeEmotionSpecificContextModulation(record, now),
+                    -1.0f,
+                    1.0f
+            );
+            float profileWeightBias = MathHelper.clamp(getNatureWeightBias(record.emotion), 0.0f, 2.0f);
+            float recencyModifier = MathHelper.clamp(getNatureRecencyBoostModifier(record.emotion), 0.5f, 1.5f);
+            float persistenceModifier = MathHelper.clamp(getNaturePersistenceModifier(record.emotion), 0.5f, 2.0f);
+
+            snapshots.add(new SnapshotEmotionRecord(
+                    record.emotion,
+                    MathHelper.clamp(record.intensity, 0f, 1f),
+                    Math.max(0f, record.impactBudget),
+                    Math.max(0f, record.cadenceEMA),
+                    Math.max(0f, record.volatilityEMA),
+                    Math.max(0f, record.peakEMA),
+                    MathHelper.clamp(record.homeostasisBias, 0.5f, 1.5f),
+                    MathHelper.clamp(record.sensitisationGain, 0.25f, 2.0f),
+                    Math.max(0f, record.habituationSlope),
+                    MathHelper.clamp(record.contagionShare, -DEFAULT_IMPACT_CAP, DEFAULT_IMPACT_CAP),
+                    Math.max(0f, record.relationshipGuard),
+                    Math.max(0f, record.dangerWindow),
+                    MathHelper.clamp(record.appraisalConfidence, 0f, 1f),
+                    record.startTime,
+                    record.lastEventTime,
+                    record.lastUpdateTime,
+                    ongoingCondition,
+                    contextModulation,
+                    profileWeightBias,
+                    recencyModifier,
+                    persistenceModifier
+            ));
+        }
+
+        PetComponent.Mood previousMood = currentMood;
+        float previousStrength = moodBlend.getOrDefault(previousMood, 0f);
+
+        if (snapshots.isEmpty()) {
+            return new ComputationSnapshot(
+                    now,
+                    epsilon,
+                    List.of(),
+                    baselineBlend,
+                    previousMood,
+                    previousStrength,
+                    cachedMomentum,
+                    cachedSwitchMargin,
+                    DEFAULT_IMPACT_CAP,
+                    MathHelper.clamp(parent.getNatureVolatilityMultiplier(), 0.1f, 3.0f),
+                    MathHelper.clamp(parent.getNatureResilienceMultiplier(), 0.1f, 3.0f),
+                    cachedOpponentTransferMax,
+                    cachedReboundGain,
+                    harmonyBiases,
+                    behaviorSnapshot,
+                    cachedHabituationBase,
+                    cachedHalfLifeMultiplier,
+                    cachedMinHalfLife,
+                    cachedMaxHalfLife,
+                    cachedNegativePersistence,
+                    cachedConditionPresentMultiplier,
+                    cachedHomeostasisRecoveryHalf,
+                    new HashMap<>(cachedEmotionDecayMultipliers),
+                    new HashSet<>(cachedNegativeEmotions),
+                    cachedLonelySocialGraceTicks,
+                    cachedLonelyPackGraceTicks,
+                    cachedLonelyPackStrengthThreshold
+            );
+        }
+
+        float impactCap = computeImpactCapFromSnapshots(snapshots);
+        float volatility = MathHelper.clamp(parent.getNatureVolatilityMultiplier(), 0.1f, 3.0f);
+        float resilience = MathHelper.clamp(parent.getNatureResilienceMultiplier(), 0.1f, 3.0f);
+
+        return new ComputationSnapshot(
+                now,
+                epsilon,
+                List.copyOf(snapshots),
+                baselineBlend,
+                previousMood,
+                previousStrength,
+                cachedMomentum,
+                cachedSwitchMargin,
+                impactCap,
+                volatility,
+                resilience,
+                cachedOpponentTransferMax,
+                cachedReboundGain,
+                harmonyBiases,
+                behaviorSnapshot,
+                cachedHabituationBase,
+                cachedHalfLifeMultiplier,
+                cachedMinHalfLife,
+                cachedMaxHalfLife,
+                cachedNegativePersistence,
+                cachedConditionPresentMultiplier,
+                cachedHomeostasisRecoveryHalf,
+                new HashMap<>(cachedEmotionDecayMultipliers),
+                new HashSet<>(cachedNegativeEmotions),
+                cachedLonelySocialGraceTicks,
+                cachedLonelyPackGraceTicks,
+                cachedLonelyPackStrengthThreshold
+        );
+    }
+
+    private BehaviorSnapshot captureBehaviorSnapshot(long now, EnumMap<PetComponent.Mood, Float> baselineBlend) {
+        MobEntity petEntity = parent.getPetEntity();
+        boolean petIsBaby = petEntity != null && petEntity.isBaby();
+        long timeOfDay = 0L;
+        float healthRatio = 1f;
+        if (petEntity != null) {
+            World world = petEntity.getEntityWorld();
+            if (world instanceof ServerWorld serverWorld) {
+                timeOfDay = serverWorld.getTimeOfDay() % 24000L;
+            }
+            if (petEntity instanceof LivingEntity living) {
+                float maxHealth = Math.max(1f, living.getMaxHealth());
+                healthRatio = MathHelper.clamp(living.getHealth() / maxHealth, 0f, 1f);
+            }
+        }
+
+        PlayerEntity owner = parent.getOwner();
+        boolean ownerPresent = false;
+        double ownerDistanceSq = Double.POSITIVE_INFINITY;
+        if (owner != null && petEntity != null && owner.isAlive() && owner.getEntityWorld() == petEntity.getEntityWorld()) {
+            ownerPresent = true;
+            ownerDistanceSq = owner.squaredDistanceTo(petEntity);
+        }
+
+        long lastSocialTick = parent.getStateData(PetComponent.StateKeys.LAST_SOCIAL_BUFFER_TICK, Long.class, 0L);
+        long lastPackTick = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_TICK, Long.class, 0L);
+        float lastPackStrength = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_STRENGTH, Float.class, 0f);
+        float lastPackWeighted = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_WEIGHTED_STRENGTH, Float.class, 0f);
+        int lastPackAllies = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_ALLIES, Integer.class, 0);
+
+        EnumMap<PetComponent.Mood, Float> moodSnapshot = new EnumMap<>(PetComponent.Mood.class);
+        moodSnapshot.putAll(baselineBlend);
+
+        return new BehaviorSnapshot(
+                now,
+                lastMomentumUpdate,
+                behavioralMomentum,
+                momentumInertia,
+                physicalActivity,
+                mentalActivity,
+                socialActivity,
+                restActivity,
+                recentPhysicalBurst,
+                physicalStamina,
+                mentalFocus,
+                socialCharge,
+                energyProfileDirty,
+                MathHelper.clamp(parent.getNatureResilienceMultiplier(), 0.1f, 3.0f),
+                MathHelper.clamp(parent.getNatureVolatilityMultiplier(), 0.1f, 3.0f),
+                petIsBaby,
+                timeOfDay,
+                healthRatio,
+                normalizedBondStrength(),
+                parent.getStablePerPetSeed(),
+                lastSocialTick,
+                lastPackTick,
+                lastPackStrength,
+                lastPackWeighted,
+                lastPackAllies,
+                ownerPresent,
+                ownerDistanceSq,
+                moodSnapshot
+        );
+    }
+
+    private Map<PetComponent.Emotion, Float> captureHarmonyBiases() {
+        PetComponent.HarmonyState harmonyState = parent.getHarmonyState();
+        if (harmonyState == null) {
+            return Map.of();
+        }
+        Map<PetComponent.Emotion, Float> biases = harmonyState.emotionBiases();
+        if (biases == null || biases.isEmpty()) {
+            return Map.of();
+        }
+        EnumMap<PetComponent.Emotion, Float> copy = new EnumMap<>(PetComponent.Emotion.class);
+        for (Map.Entry<PetComponent.Emotion, Float> entry : biases.entrySet()) {
+            PetComponent.Emotion emotion = entry.getKey();
+            Float value = entry.getValue();
+            if (emotion == null || value == null || Float.isNaN(value) || Float.isInfinite(value)) {
+                continue;
+            }
+            copy.put(emotion, MathHelper.clamp(value, 0f, 1f));
+        }
+        return copy.isEmpty() ? Map.of() : copy;
+    }
+
+    private ComputationResult computeResult(ComputationSnapshot snapshot) {
+        BehaviorResult behaviorResult = computeBehaviorResult(snapshot);
+        ProcessedEmotionResult processed = processEmotionRecords(snapshot);
+        List<ProcessedEmotionRecord> records = processed.records();
+
+        if (records.isEmpty()) {
+            EnumMap<PetComponent.Mood, Float> emptyBlend = new EnumMap<>(PetComponent.Mood.class);
+            for (PetComponent.Mood mood : PetComponent.Mood.values()) {
+                emptyBlend.put(mood, 0f);
+            }
+            return new ComputationResult(
+                    true,
+                    emptyBlend,
+                    emptyBlend,
+                    new EnumMap<>(PetComponent.Emotion.class),
+                    Collections.emptyList(),
+                    processed.updates(),
+                    processed.removals(),
+                    behaviorResult
+            );
+        }
+
+        int activeSize = records.size();
+        float[] cadences = new float[activeSize];
         for (int i = 0; i < activeSize; i++) {
-            EmotionRecord record = active.get(i);
-            scratchCadences[i] = record.cadenceEMA > 0f ? record.cadenceEMA : HABITUATION_BASE;
+            ProcessedEmotionRecord record = records.get(i);
+            float cadence = record.cadenceEMA() > 0f ? record.cadenceEMA() : snapshot.habituationBase();
+            cadences[i] = cadence;
         }
-        float cadenceMedian = selectQuantile(scratchCadences, scratchCadenceCount, 0.5f, HABITUATION_BASE);
+        float cadenceMedian = selectQuantile(cadences, cadences.length, 0.5f, snapshot.habituationBase());
 
-        scratchIntensities = ensureCapacity(scratchIntensities, activeSize);
-        scratchIntensityCount = activeSize;
-        for (int i = 0; i < activeSize; i++) {
-            scratchIntensities[i] = active.get(i).intensity;
-        }
-        // Quantile analysis for mood calibration (reserved for advanced mood detection)
-        // float quietFloor = selectQuantile(scratchIntensities, scratchIntensityCount, 0.2f, 0.12f);
-        // float quietCeil = selectQuantile(scratchIntensities, scratchIntensityCount, 0.65f, 0.6f);
-
+        float[] signalScratch = new float[activeSize];
         ArrayList<Candidate> candidates = new ArrayList<>(activeSize);
-        scratchSignals = ensureCapacity(scratchSignals, activeSize);
-        scratchSignalCount = activeSize;
         for (int i = 0; i < activeSize; i++) {
-            EmotionRecord record = active.get(i);
-            float freshness = computeFreshness(record, now);
-            float freq = record.cadenceEMA > 0f ? MathHelper.clamp(cadenceMedian / record.cadenceEMA, 0f, 3.5f) : 0f;
-            // Validate frequency is in reasonable range
-            freq = MathHelper.clamp(freq, 0.0f, 5.0f);
-            float signal = (record.intensity * (0.35f + 0.65f * freshness))
-                    + (0.3f * (float) Math.sqrt(Math.max(0f, freq * record.impactBudget)));
-            scratchSignals[i] = signal;
+            ProcessedEmotionRecord record = records.get(i);
+            float freshness = computeFreshness(record, snapshot.timestamp(), snapshot.habituationBase());
+            float freq = record.cadenceEMA() > 0f
+                    ? MathHelper.clamp(cadenceMedian / record.cadenceEMA(), 0f, 3.5f)
+                    : 0f;
+            if (!Float.isFinite(freq) || freq <= 0f) {
+                freq = 0.25f;
+            }
+
+            float signal = computeSignal(record, freshness, freq);
+            if (!Float.isFinite(signal)) {
+                signal = 0f;
+            }
+
+            signalScratch[i] = signal;
             candidates.add(new Candidate(record, freshness, freq, signal));
         }
 
-        float medianSignal = selectQuantile(scratchSignals, scratchSignalCount, 0.5f, 0f);
+        if (candidates.isEmpty()) {
+            EnumMap<PetComponent.Mood, Float> emptyBlend = new EnumMap<>(PetComponent.Mood.class);
+            for (PetComponent.Mood mood : PetComponent.Mood.values()) {
+                emptyBlend.put(mood, 0f);
+            }
+            return new ComputationResult(
+                    true,
+                    emptyBlend,
+                    emptyBlend,
+                    new EnumMap<>(PetComponent.Emotion.class),
+                    Collections.emptyList(),
+                    processed.updates(),
+                    processed.removals(),
+                    behaviorResult
+            );
+        }
+
+        float medianSignal = selectQuantile(signalScratch, signalScratch.length, 0.5f, 0f);
         float threshold = medianSignal * 0.6f;
-        ArrayList<Candidate> survivors = scratchSurvivors;
-        survivors.clear();
+        List<Candidate> survivors = new ArrayList<>(candidates.size());
         for (Candidate candidate : candidates) {
             if (candidate.signal >= threshold) {
                 survivors.add(candidate);
             }
         }
-        if (survivors.isEmpty() && !candidates.isEmpty()) {
+        if (survivors.isEmpty()) {
             Candidate best = Collections.max(candidates, Comparator.comparingDouble(c -> c.signal));
             survivors.add(best);
         }
 
-        // Copy survivors to avoid concurrent modifications during downstream weighting
-        List<Candidate> survivorsSnapshot = List.copyOf(survivors);
-
-        // Derived stats for weighting
-        scratchFrequencies = ensureCapacity(scratchFrequencies, survivorsSnapshot.size());
-        scratchFrequencyCount = survivorsSnapshot.size();
-        for (int i = 0; i < scratchFrequencyCount; i++) {
-            scratchFrequencies[i] = survivorsSnapshot.get(i).frequency;
-        }
-        float freqMedian = selectQuantile(scratchFrequencies, scratchFrequencyCount, 0.5f, 1f);
-        // Reserved for future frequency-based mood adjustments
-        @SuppressWarnings("unused")
-        float unused = freqMedian;
-        // Frequency and recency analysis reserved for future temporal patterns
-        float impactCap = computeImpactCap(active);
+        float impactCap = snapshot.impactCap() > 0f ? snapshot.impactCap() : DEFAULT_IMPACT_CAP;
         float weightCap = Math.max(impactCap * 1.5f, DEFAULT_WEIGHT_CAP);
 
-        // Weight synthesis - Simplified additive model based on psychological realism
-        List<Candidate> weighted = new ArrayList<>();
-        for (Candidate candidate : survivorsSnapshot) {
-            EmotionRecord record = candidate.record;
-            float intensity = MathHelper.clamp(record.intensity, 0f, 1f);
-            // Double-check intensity bounds
-            intensity = MathHelper.clamp(intensity, 0.0f, 1.0f);
+        List<Candidate> weighted = new ArrayList<>(survivors.size());
+        for (Candidate candidate : survivors) {
+            ProcessedEmotionRecord record = candidate.record;
+            float intensity = MathHelper.clamp(record.intensity(), 0f, 1f);
 
-            // Base weight: intensity scaled by accumulated impact
-            float baseWeight = intensity * (1.0f + MathHelper.clamp(record.impactBudget / impactCap, 0f, 1.5f));
+            float baseWeight = intensity * (1.0f + MathHelper.clamp(record.impactBudget() / impactCap, 0f, 1.5f));
 
-            // Recency boost: Fresh emotions get a spike, then decay naturally
-            // Nature-modified: aligned emotions spike harder, misaligned spike less
-            float lastAge = Math.max(0f, (float) (now - record.lastEventTime));
+            float lastAge = Math.max(0f, snapshot.timestamp() - record.lastEventTime());
             float recencyBoost = 0f;
             if (lastAge < 60f) {
-                // Strong boost for very fresh emotions (< 3 seconds)
                 float baseBoost = 0.4f * (1.0f - lastAge / 60f);
-                float natureRecencyMod = getNatureRecencyBoostModifier(record.emotion);
-                recencyBoost = baseBoost * natureRecencyMod;
+                recencyBoost = baseBoost * record.recencyModifier();
             }
-            // Validate recencyBoost is in reasonable range
             recencyBoost = MathHelper.clamp(recencyBoost, 0.0f, 1.0f);
 
-            // Persistence bonus: Ongoing conditions maintain weight
-            // Nature-modified: aligned emotions persist longer
             float persistenceBonus = 0f;
-            if (hasOngoingCondition(record.emotion, now)) {
-                // Condition still present, add sustained weight
+            if (record.hasOngoingCondition()) {
                 float basePersistence = 0.3f * intensity;
-                float naturePersistenceMod = getNaturePersistenceModifier(record.emotion);
-                persistenceBonus = basePersistence * naturePersistenceMod;
+                persistenceBonus = basePersistence * record.persistenceModifier();
             }
-            // Validate persistenceBonus is in reasonable range
             persistenceBonus = MathHelper.clamp(persistenceBonus, 0.0f, 1.5f);
 
-            // Habituation penalty: Reduce weight if stimuli are too frequent
             float habituationPenalty = 0f;
-            if (record.cadenceEMA > 0f && record.cadenceEMA < 80f) { // Phase 2 tuning
-                // Very frequent stimuli (< 4 seconds) cause habituation
-                habituationPenalty = -0.35f * (1.0f - record.cadenceEMA / 80f); // Phase 2 tuning
+            if (record.cadenceEMA() > 0f && record.cadenceEMA() < 80f) {
+                habituationPenalty = -0.35f * (1.0f - record.cadenceEMA() / 80f);
             }
-            // Validate habituationPenalty is in reasonable range
             habituationPenalty = MathHelper.clamp(habituationPenalty, -1.0f, 0.0f);
 
-            // Context modulation: Emotion-specific boosts/penalties based on bond, danger, etc.
-            refreshContextGuards(record, now, Math.max(1L, now - record.lastUpdateTime));
-            float contextModulation = computeEmotionSpecificContextModulation(record, now);
-            // Validate contextModulation is in reasonable range
-            contextModulation = MathHelper.clamp(contextModulation, -1.0f, 1.0f);
-
-            // Nature profile weighting
-            float profileWeightBias = getNatureWeightBias(record.emotion);
-            // Validate profileWeightBias is in reasonable range
-            profileWeightBias = MathHelper.clamp(profileWeightBias, 0.0f, 2.0f);
-
-            // Additive formula: sum components, then scale by profile
-            float rawWeight = (baseWeight + recencyBoost + persistenceBonus + habituationPenalty + contextModulation + record.contagionShare) * profileWeightBias;
+            float rawWeight = (baseWeight + recencyBoost + persistenceBonus + habituationPenalty
+                    + record.contextModulation() + record.contagionShare()) * record.profileWeightBias();
             rawWeight = MathHelper.clamp(rawWeight, 0f, weightCap);
 
-            record.weight = rawWeight;
-            weighted.add(new Candidate(record, candidate.freshness, candidate.frequency, rawWeight));
+            candidate.signal = rawWeight;
+            weighted.add(candidate);
         }
 
         if (weighted.isEmpty()) {
-            resetToCalmBaseline();
-            return;
+            EnumMap<PetComponent.Mood, Float> emptyBlend = new EnumMap<>(PetComponent.Mood.class);
+            for (PetComponent.Mood mood : PetComponent.Mood.values()) {
+                emptyBlend.put(mood, 0f);
+            }
+            return new ComputationResult(
+                    true,
+                    emptyBlend,
+                    emptyBlend,
+                    new EnumMap<>(PetComponent.Emotion.class),
+                    Collections.emptyList(),
+                    processed.updates(),
+                    processed.removals(),
+                    behaviorResult
+            );
         }
 
-        // Opponent transfer
-        applyOpponentTransfers(weighted, weightCap);
+        applyOpponentTransfers(weighted, weightCap, snapshot.natureVolatility(), snapshot.natureResilience(),
+                snapshot.opponentTransferMax(), snapshot.reboundGain());
 
-        // Sync the record weights with any transfer-adjusted signals so downstream
-        // consumers (dominant mood queries, persistence, debugging) reflect the
-        // post-transfer values.
+        EnumMap<PetComponent.Emotion, Float> recordWeights = new EnumMap<>(PetComponent.Emotion.class);
         for (Candidate candidate : weighted) {
-            candidate.record.weight = candidate.signal;
+            recordWeights.put(candidate.record.emotion(), candidate.signal);
         }
 
-        // Build mood vector
         EnumMap<PetComponent.Mood, Float> targetBlend = new EnumMap<>(PetComponent.Mood.class);
         for (PetComponent.Mood mood : PetComponent.Mood.values()) {
             targetBlend.put(mood, 0f);
         }
         for (Candidate candidate : weighted) {
-            Map<PetComponent.Mood, Float> mapping = getEmotionToMoodWeights(candidate.record.emotion);
+            Map<PetComponent.Mood, Float> mapping = getEmotionToMoodWeights(candidate.record.emotion());
             for (Map.Entry<PetComponent.Mood, Float> entry : mapping.entrySet()) {
                 float contribution = candidate.signal * entry.getValue();
                 targetBlend.merge(entry.getKey(), Math.max(0f, contribution), Float::sum);
@@ -1103,67 +1453,476 @@ public final class PetMoodEngine {
         for (float value : targetBlend.values()) {
             total += Math.max(0f, value);
         }
-        if (total <= epsilon) {
-            resetToCalmBaseline();
-            return;
+        if (total <= snapshot.epsilon()) {
+            EnumMap<PetComponent.Mood, Float> emptyBlend = new EnumMap<>(PetComponent.Mood.class);
+            for (PetComponent.Mood mood : PetComponent.Mood.values()) {
+                emptyBlend.put(mood, 0f);
+            }
+            return new ComputationResult(
+                    true,
+                    emptyBlend,
+                    emptyBlend,
+                    new EnumMap<>(PetComponent.Emotion.class),
+                    Collections.emptyList(),
+                    processed.updates(),
+                    processed.removals(),
+                    behaviorResult
+            );
         }
         for (Map.Entry<PetComponent.Mood, Float> entry : targetBlend.entrySet()) {
             entry.setValue(Math.max(0f, entry.getValue()) / total);
         }
 
-        lastNormalizedWeights.clear();
-        lastNormalizedWeights.putAll(targetBlend);
+        EnumMap<PetComponent.Mood, Float> normalizedTarget = new EnumMap<>(targetBlend);
 
-        // Dual-timescale blending: fast for fresh spikes, slow for persistent drifts
-        // Strong recent emotions should switch quickly, weak persistent ones should drift slowly
         float maxEmotionFreshness = 0f;
         float maxEmotionWeight = 0f;
-        for (Candidate c : weighted) {
-            maxEmotionFreshness = Math.max(maxEmotionFreshness, c.freshness);
-            maxEmotionWeight = Math.max(maxEmotionWeight, c.signal);
+        for (Candidate candidate : weighted) {
+            maxEmotionFreshness = Math.max(maxEmotionFreshness, candidate.freshness);
+            maxEmotionWeight = Math.max(maxEmotionWeight, candidate.signal);
         }
-        
-        // Adaptive momentum system: balances responsiveness vs stability
-        // - Fresh strong spikes: low momentum (fast switch, responsive)
-        // - Persistent weak emotions: high momentum (slow drift, stable)
-        // - Smooth interpolation between states prevents oscillation
-        float baseMomentum = (float) MathHelper.clamp(cachedMomentum, 0.0, 1.0) * 0.85f; // Phase 2 tuning
-        
-        // Calculate freshness and weight factors (0-1 normalized)
+
+        float baseMomentum = (float) MathHelper.clamp(snapshot.cachedMomentum(), 0.0, 1.0) * 0.85f;
         float freshnessFactor = MathHelper.clamp(maxEmotionFreshness, 0f, 1f);
-        float weightFactor = MathHelper.clamp(maxEmotionWeight / 4.0f, 0f, 1f); // Normalize assuming max ~4
-        
-        // Combine factors: high fresh+weight = low momentum (fast), low = high momentum (slow)
+        float weightFactor = MathHelper.clamp(maxEmotionWeight / 4.0f, 0f, 1f);
         float combined = (freshnessFactor + weightFactor) / 2f;
-        float adaptiveMomentum = baseMomentum * (1.35f - combined * 0.9f); // Phase 2 tuning
-        
-        // Clamp to safe range: fast enough to feel responsive, slow enough to avoid jitter
+        float adaptiveMomentum = baseMomentum * (1.35f - combined * 0.9f);
         adaptiveMomentum = MathHelper.clamp(adaptiveMomentum, 0.15f, 0.85f);
-        
+
+        EnumMap<PetComponent.Mood, Float> finalBlend = new EnumMap<>(PetComponent.Mood.class);
         for (PetComponent.Mood mood : PetComponent.Mood.values()) {
-            float cur = moodBlend.getOrDefault(mood, 0f);
-            float tar = targetBlend.getOrDefault(mood, 0f);
+            float cur = snapshot.baselineBlend().getOrDefault(mood, 0f);
+            float tar = normalizedTarget.getOrDefault(mood, 0f);
             float blended = cur + (tar - cur) * adaptiveMomentum;
-            moodBlend.put(mood, MathHelper.clamp(blended, 0f, 1f));
+            finalBlend.put(mood, MathHelper.clamp(blended, 0f, 1f));
         }
 
-        // Apply behavioral momentum influence before normalization
-        applyBehavioralMomentumInfluence();
-        
-        normalizeBlend(moodBlend);
+        float momentumForBlend = behaviorResult != null ? behaviorResult.behavioralMomentum() : snapshot.behaviorSnapshot().behavioralMomentum();
+        applyBehavioralMomentumInfluence(finalBlend, momentumForBlend);
+        normalizeBlend(finalBlend);
 
-        updateEmotionPalette(weighted);
-        updateAnimationIntensity(weighted);
+        List<WeightedCandidate> presentation = weighted.stream()
+                .map(c -> new WeightedCandidate(c.record.emotion(), Math.max(0f, c.signal), c.record.intensity()))
+                .collect(Collectors.toList());
 
-        PetComponent.Mood previousMood = currentMood;
-        float previousStrength = moodBlend.getOrDefault(previousMood, 0f);
+        return new ComputationResult(false, normalizedTarget, finalBlend, recordWeights, presentation,
+                processed.updates(), processed.removals(), behaviorResult);
+    }
+
+    @Nullable
+    private BehaviorResult computeBehaviorResult(ComputationSnapshot snapshot) {
+        BehaviorSnapshot behavior = snapshot.behaviorSnapshot();
+        if (behavior == null) {
+            return null;
+        }
+
+        long delta = Math.max(0L, behavior.now() - behavior.lastMomentumUpdate());
+        if (delta < 20L) {
+            BehaviouralEnergyProfile profile = behavior.energyProfileDirty()
+                    ? buildEnergyProfile(
+                            behavior.behavioralMomentum(),
+                            behavior.physicalActivity(),
+                            behavior.mentalActivity(),
+                            behavior.socialActivity(),
+                            behavior.physicalStamina(),
+                            behavior.mentalFocus(),
+                            behavior.socialCharge())
+                    : null;
+            return new BehaviorResult(
+                    behavior.lastMomentumUpdate(),
+                    behavior.behavioralMomentum(),
+                    behavior.momentumInertia(),
+                    behavior.physicalActivity(),
+                    behavior.mentalActivity(),
+                    behavior.socialActivity(),
+                    behavior.restActivity(),
+                    behavior.recentPhysicalBurst(),
+                    behavior.physicalStamina(),
+                    behavior.mentalFocus(),
+                    behavior.socialCharge(),
+                    behavior.energyProfileDirty(),
+                    profile
+            );
+        }
+
+        float baseline = computeMomentumBaseline(behavior);
+        float activityLevel = computeActivityLevel(behavior);
+        float activityBoost = activityLevel * 0.4f;
+        float restCalm = MathHelper.clamp(behavior.restActivity() * 0.3f, 0f, 0.35f);
+        float targetMomentum = MathHelper.clamp(baseline + activityBoost - restCalm, 0f, 1f);
+
+        float momentumGap = Math.abs(targetMomentum - behavior.behavioralMomentum());
+        float inertiaFactor = computeInertiaFactor(delta, momentumGap, behavior);
+        float momentumDelta = (targetMomentum - behavior.behavioralMomentum()) * inertiaFactor;
+        float momentum = MathHelper.clamp(behavior.behavioralMomentum() + momentumDelta, 0f, 1f);
+        float momentumInertia = MathHelper.lerp(0.1f, behavior.momentumInertia(), Math.abs(momentumDelta));
+        momentum += generateOrganicVariation(behavior);
+        momentum = MathHelper.clamp(momentum, 0f, 1f);
+
+        float dt = MathHelper.clamp(delta / 20f, 0.05f, 5f);
+
+        float physicalActivity = behavior.physicalActivity();
+        float mentalActivity = behavior.mentalActivity();
+        float socialActivity = behavior.socialActivity();
+        float restActivity = behavior.restActivity();
+
+        float recentPhysicalBurst = behavior.recentPhysicalBurst();
+        float physicalStamina = behavior.physicalStamina();
+        float mentalFocus = behavior.mentalFocus();
+        float socialCharge = behavior.socialCharge();
+
+        float normalizedPhysical = Math.min(1f, physicalActivity * 0.4f);
+        float normalizedMental = Math.min(1f, mentalActivity * 0.3f);
+        float normalizedSocial = Math.min(1f, socialActivity * 0.3f);
+        float normalizedRest = Math.min(1f, restActivity * 0.5f);
+
+        float ambientSocial = computeAmbientSocialComfort(behavior, snapshot);
+        float bondFactor = behavior.bondStrengthNormalized();
+
+        float physicalLoad = Math.max(normalizedPhysical, recentPhysicalBurst);
+        float physicalDrain = physicalLoad * (0.45f + physicalLoad * 0.25f) * dt;
+        float recoveryBase = 0.03f + (1f - physicalLoad) * 0.08f + socialCharge * 0.01f;
+        float physicalRecovery = (recoveryBase + (0.04f + (1f - physicalStamina) * 0.12f) * normalizedRest) * dt;
+        physicalStamina = MathHelper.clamp(physicalStamina + physicalRecovery - physicalDrain, 0.05f, 1f);
+        recentPhysicalBurst = Math.max(0f, recentPhysicalBurst - dt * 0.6f);
+
+        float calmMood = behavior.moodBlendSnapshot().getOrDefault(PetComponent.Mood.CALM, 0f);
+        float focusMood = behavior.moodBlendSnapshot().getOrDefault(PetComponent.Mood.CURIOUS, 0f);
+        float mentalDrain = normalizedMental * (0.5f + normalizedMental * 0.2f) * dt;
+        float mentalRecovery = (0.025f + (1f - normalizedMental) * 0.05f + calmMood * 0.04f + focusMood * 0.02f) * dt;
+        mentalFocus = MathHelper.clamp(mentalFocus + mentalRecovery - mentalDrain, 0.05f, 1f);
+
+        float familiarityPenalty = MathHelper.clamp(0.25f - ambientSocial * 0.18f, 0.05f, 0.25f);
+        float socialGain = (normalizedSocial * (0.55f + bondFactor * 0.25f)) * dt;
+        float ambientBoost = ambientSocial * 0.05f * dt;
+        float socialDecay = (0.02f + familiarityPenalty * normalizedSocial + (1f - ambientSocial) * 0.02f) * dt;
+        socialCharge = MathHelper.clamp(socialCharge + socialGain + ambientBoost - socialDecay, 0.1f, 1f);
+
+        float decayFactor = Math.max(0f, 1f - delta * 0.005f);
+        physicalActivity = (float) (physicalActivity * Math.pow(decayFactor, 1.2));
+        mentalActivity = (float) (mentalActivity * Math.pow(decayFactor, 0.8));
+        socialActivity = (float) (socialActivity * Math.pow(decayFactor, 1.0));
+        restActivity = (float) (restActivity * Math.pow(decayFactor, 0.5));
+
+        if (physicalActivity < 0.001f) physicalActivity = 0f;
+        if (mentalActivity < 0.001f) mentalActivity = 0f;
+        if (socialActivity < 0.001f) socialActivity = 0f;
+        if (restActivity < 0.001f) restActivity = 0f;
+
+        BehaviouralEnergyProfile energyProfile = buildEnergyProfile(
+                momentum,
+                physicalActivity,
+                mentalActivity,
+                socialActivity,
+                physicalStamina,
+                mentalFocus,
+                socialCharge
+        );
+
+        return new BehaviorResult(
+                behavior.now(),
+                momentum,
+                momentumInertia,
+                physicalActivity,
+                mentalActivity,
+                socialActivity,
+                restActivity,
+                recentPhysicalBurst,
+                physicalStamina,
+                mentalFocus,
+                socialCharge,
+                true,
+                energyProfile
+        );
+    }
+
+    private ProcessedEmotionResult processEmotionRecords(ComputationSnapshot snapshot) {
+        List<SnapshotEmotionRecord> snapshots = snapshot.activeRecords();
+        EnumMap<PetComponent.Emotion, EmotionRecordUpdate> updates = new EnumMap<>(PetComponent.Emotion.class);
+        List<ProcessedEmotionRecord> processed = new ArrayList<>(snapshots.size());
+        Set<PetComponent.Emotion> removals = EnumSet.noneOf(PetComponent.Emotion.class);
+
+        Map<PetComponent.Emotion, Float> harmonyBiases = snapshot.harmonyBiases();
+        for (SnapshotEmotionRecord record : snapshots) {
+            ProcessedEmotionRecord processedRecord = processEmotionRecord(snapshot, record, harmonyBiases);
+
+            EmotionRecordUpdate update = new EmotionRecordUpdate(
+                    processedRecord.emotion(),
+                    processedRecord.intensity(),
+                    processedRecord.impactBudget(),
+                    processedRecord.cadenceEMA(),
+                    processedRecord.volatilityEMA(),
+                    processedRecord.peakEMA(),
+                    processedRecord.homeostasisBias(),
+                    processedRecord.sensitisationGain(),
+                    processedRecord.habituationSlope(),
+                    processedRecord.contagionShare(),
+                    processedRecord.relationshipGuard(),
+                    processedRecord.dangerWindow(),
+                    processedRecord.appraisalConfidence(),
+                    processedRecord.lastEventTime(),
+                    processedRecord.lastUpdateTime()
+            );
+            updates.put(processedRecord.emotion(), update);
+
+            float epsilon = snapshot.epsilon();
+            if (processedRecord.intensity() <= epsilon
+                    && processedRecord.impactBudget() <= epsilon
+                    && Math.abs(processedRecord.contagionShare()) <= epsilon) {
+                removals.add(processedRecord.emotion());
+                continue;
+            }
+
+            processed.add(processedRecord);
+        }
+
+        return new ProcessedEmotionResult(List.copyOf(processed), updates, removals);
+    }
+
+    private ProcessedEmotionRecord processEmotionRecord(ComputationSnapshot snapshot,
+                                                        SnapshotEmotionRecord record,
+                                                        Map<PetComponent.Emotion, Float> harmonyBiases) {
+        long now = snapshot.timestamp();
+
+        float intensity = MathHelper.clamp(record.intensity(), 0f, 1f);
+        float impactBudget = Math.max(0f, record.impactBudget());
+        float cadenceEMA = Math.max(0f, record.cadenceEMA());
+        float volatilityEMA = Math.max(0f, record.volatilityEMA());
+        float peakEMA = Math.max(0f, record.peakEMA());
+        float homeostasisBias = MathHelper.clamp(record.homeostasisBias(), 0.5f, 1.5f);
+        float sensitisationGain = MathHelper.clamp(record.sensitisationGain(), 0.25f, 2.0f);
+        float habituationSlope = Math.max(0f, record.habituationSlope());
+        float contagionShare = MathHelper.clamp(record.contagionShare(), -DEFAULT_IMPACT_CAP, DEFAULT_IMPACT_CAP);
+        float relationshipGuard = Math.max(0f, record.relationshipGuard());
+        float dangerWindow = Math.max(0f, record.dangerWindow());
+        float appraisalConfidence = MathHelper.clamp(record.appraisalConfidence(), 0f, 1f);
+        long lastEventTime = record.lastEventTime();
+        long lastUpdateTime = record.lastUpdateTime();
+
+        long delta = Math.max(0L, now - lastUpdateTime);
+        if (delta > 0L) {
+            float cadence = cadenceEMA > 0f ? cadenceEMA : snapshot.habituationBase();
+            float adaptiveHalf = MathHelper.clamp(cadence * snapshot.halfLifeMultiplier(),
+                    snapshot.minHalfLife(), snapshot.maxHalfLife());
+            String emotionKey = record.emotion().name().toLowerCase(Locale.ROOT);
+            float emotionMultiplier = snapshot.emotionDecayMultipliers().getOrDefault(emotionKey, 1.0f);
+            adaptiveHalf *= emotionMultiplier;
+            if (snapshot.negativeEmotions().contains(emotionKey)) {
+                adaptiveHalf *= snapshot.negativePersistence();
+            }
+            if (record.hasOngoingCondition()) {
+                adaptiveHalf *= snapshot.conditionPresentMultiplier();
+            }
+            float decayRate = (float) (Math.log(2) / adaptiveHalf);
+            float decay = (float) Math.exp(-decayRate * delta);
+            intensity *= decay;
+            impactBudget *= decay;
+            homeostasisBias = MathHelper.lerp((float) Math.exp(-delta / snapshot.homeostasisRecoveryHalf()),
+                    homeostasisBias, 1.1f);
+            contagionShare *= Math.exp(-delta / 400f);
+            lastUpdateTime = now;
+        }
+
+        Float bias = harmonyBiases.get(record.emotion());
+        if (bias != null && bias > 0f) {
+            float target = MathHelper.clamp(bias, 0f, 0.7f);
+            intensity = MathHelper.clamp(MathHelper.lerp(HARMONY_BIAS_ALPHA, intensity, target), 0f, 1f);
+            impactBudget = Math.max(impactBudget, target * 0.5f);
+            lastEventTime = now;
+            lastUpdateTime = now;
+        }
+
+        return new ProcessedEmotionRecord(
+                record.emotion(),
+                MathHelper.clamp(intensity, 0f, 1f),
+                Math.max(0f, impactBudget),
+                Math.max(0f, cadenceEMA),
+                Math.max(0f, volatilityEMA),
+                Math.max(0f, peakEMA),
+                MathHelper.clamp(homeostasisBias, 0.5f, 1.5f),
+                MathHelper.clamp(sensitisationGain, 0.25f, 2.0f),
+                Math.max(0f, habituationSlope),
+                MathHelper.clamp(contagionShare, -DEFAULT_IMPACT_CAP, DEFAULT_IMPACT_CAP),
+                Math.max(0f, relationshipGuard),
+                Math.max(0f, dangerWindow),
+                MathHelper.clamp(appraisalConfidence, 0f, 1f),
+                record.startTime(),
+                lastEventTime,
+                lastUpdateTime,
+                record.hasOngoingCondition(),
+                record.contextModulation(),
+                record.profileWeightBias(),
+                record.recencyModifier(),
+                record.persistenceModifier()
+        );
+    }
+
+    private float computeMomentumBaseline(BehaviorSnapshot behavior) {
+        float baseline = 0.5f;
+        baseline += behavior.moodBlendSnapshot().getOrDefault(PetComponent.Mood.PLAYFUL, 0f) * 0.2f;
+        baseline += behavior.moodBlendSnapshot().getOrDefault(PetComponent.Mood.RESTLESS, 0f) * 0.25f;
+        baseline += behavior.moodBlendSnapshot().getOrDefault(PetComponent.Mood.CURIOUS, 0f) * 0.15f;
+        baseline -= behavior.moodBlendSnapshot().getOrDefault(PetComponent.Mood.CALM, 0f) * 0.3f;
+        baseline -= behavior.moodBlendSnapshot().getOrDefault(PetComponent.Mood.SAUDADE, 0f) * 0.2f;
+
+        if (behavior.petIsBaby()) {
+            baseline += 0.2f;
+        }
+
+        baseline += (behavior.volatilityMultiplier() - 1.0f) * 0.15f;
+
+        long timeOfDay = behavior.timeOfDay();
+        if (timeOfDay >= 6000 && timeOfDay <= 18000) {
+            baseline += 0.05f;
+        } else {
+            baseline -= 0.05f;
+        }
+
+        if (behavior.healthRatio() < 0.5f) {
+            baseline -= (0.5f - behavior.healthRatio()) * 0.4f;
+        }
+
+        return MathHelper.clamp(baseline, 0.15f, 0.85f);
+    }
+
+    private float computeActivityLevel(BehaviorSnapshot behavior) {
+        float physical = Math.min(1f, behavior.physicalActivity() * 0.4f);
+        float mental = Math.min(1f, behavior.mentalActivity() * 0.3f);
+        float social = Math.min(1f, behavior.socialActivity() * 0.3f);
+        float total = physical + mental + social;
+        return MathHelper.clamp(total / (1f + total * 0.3f), 0f, 1f);
+    }
+
+    private float computeInertiaFactor(long deltaTicks, float momentumGap, BehaviorSnapshot behavior) {
+        float resilience = Math.max(0.1f, behavior.resilienceMultiplier());
+        float baseInertia = 0.05f / resilience;
+        float timeFactor = MathHelper.clamp(deltaTicks / 20f, 0.5f, 6f);
+        float gapUrgency = MathHelper.clamp(momentumGap * 3.5f, 0f, 3.5f);
+        float inertiaPulse = MathHelper.clamp(behavior.momentumInertia() * 12f, 0f, 3f);
+        float urgency = 1f + gapUrgency + inertiaPulse;
+        return MathHelper.clamp(baseInertia * timeFactor * urgency, 0.001f, 0.5f);
+    }
+
+    private float generateOrganicVariation(BehaviorSnapshot behavior) {
+        double timeSeconds = behavior.now() * 0.001;
+        double microPhase = timeSeconds * 60 + normalizedPhaseFromSeed(behavior.stableSeed(), 0);
+        double mesoPhase = timeSeconds * 12 + normalizedPhaseFromSeed(behavior.stableSeed(), 21);
+        double macroPhase = timeSeconds * 3 + normalizedPhaseFromSeed(behavior.stableSeed(), 42);
+
+        float microVariation = (float) Math.sin(microPhase) * 0.015f;
+        float mesoVariation = (float) Math.sin(mesoPhase) * 0.025f;
+        float macroVariation = (float) Math.sin(macroPhase) * 0.035f;
+
+        float variationScale = 0.5f + behavior.volatilityMultiplier() * 0.5f;
+        return (microVariation + mesoVariation + macroVariation) * variationScale;
+    }
+
+    private float computeAmbientSocialComfort(BehaviorSnapshot behavior, ComputationSnapshot snapshot) {
+        float comfort = 0f;
+        if (hasRecentSocialComfort(behavior.lastSocialTick(), behavior.now(), snapshot.lonelySocialGraceTicks())) {
+            comfort = Math.max(comfort, 0.4f);
+        }
+
+        if (hasRecentPackComfort(behavior.now(), behavior.lastPackTick(), behavior.lastPackStrength(),
+                behavior.lastPackWeightedStrength(), behavior.lastPackAllies(), snapshot.lonelyPackGraceTicks(),
+                snapshot.lonelyPackStrengthThreshold())) {
+            float familiarity = Math.max(behavior.lastPackStrength(), behavior.lastPackWeightedStrength());
+            comfort = Math.max(comfort, 0.55f + MathHelper.clamp(familiarity, 0f, 1f) * 0.35f);
+        }
+
+        if (behavior.ownerPresent() && behavior.ownerDistanceSquared() <= 144.0) {
+            float proximityScale = (float) (1.0 - Math.min(1.0, behavior.ownerDistanceSquared() / 144.0));
+            comfort = Math.max(comfort, (0.25f + behavior.bondStrengthNormalized() * 0.25f) * proximityScale);
+        }
+
+        return MathHelper.clamp(comfort, 0f, 1f);
+    }
+
+    private boolean hasRecentSocialComfort(long lastSocialTick, long now, long grace) {
+        return lastSocialTick > 0L && (now - lastSocialTick) <= grace;
+    }
+
+    private boolean hasRecentPackComfort(long now,
+                                         long lastPackTick,
+                                         float lastPackStrength,
+                                         float lastPackWeighted,
+                                         int lastPackAllies,
+                                         long graceTicks,
+                                         float strengthThreshold) {
+        if (lastPackTick <= 0L) {
+            return false;
+        }
+        if ((now - lastPackTick) > graceTicks) {
+            return false;
+        }
+        if (lastPackAllies > 0
+                && (lastPackStrength >= strengthThreshold || lastPackWeighted >= strengthThreshold)) {
+            return true;
+        }
+        return lastPackStrength >= strengthThreshold || lastPackWeighted >= strengthThreshold;
+    }
+
+    private BehaviouralEnergyProfile buildEnergyProfile(float momentum,
+                                                        float physicalActivity,
+                                                        float mentalActivity,
+                                                        float socialActivity,
+                                                        float physicalStamina,
+                                                        float mentalFocus,
+                                                        float socialCharge) {
+        float normalizedPhysical = Math.min(1f, physicalActivity * 0.4f);
+        float normalizedMental = Math.min(1f, mentalActivity * 0.3f);
+        float normalizedSocial = Math.min(1f, socialActivity * 0.3f);
+        return new BehaviouralEnergyProfile(
+                momentum,
+                physicalActivity,
+                mentalActivity,
+                socialActivity,
+                normalizedPhysical,
+                normalizedMental,
+                normalizedSocial,
+                physicalStamina,
+                mentalFocus,
+                socialCharge
+        );
+    }
+
+    private void applyResult(ComputationSnapshot snapshot, ComputationResult result) {
+        if (result.resetToCalm()) {
+            resetToCalmBaseline();
+            applyBehaviorResult(result.behaviorResult());
+            applyRecordUpdates(snapshot, result);
+            lastAppliedTick = resolveWorldTime(snapshot.timestamp());
+            runPostApplyCallbacks();
+            return;
+        }
+
+        lastNormalizedWeights.clear();
+        lastNormalizedWeights.putAll(result.normalizedTargetBlend());
+
+        moodBlend.clear();
+        moodBlend.putAll(result.finalBlend());
+
+        for (Map.Entry<PetComponent.Emotion, Float> entry : result.recordWeights().entrySet()) {
+            EmotionRecord record = emotionRecords.get(entry.getKey());
+            if (record != null) {
+                record.weight = entry.getValue();
+            }
+        }
+
+        updateEmotionPalette(result.weightedCandidates());
+        updateAnimationIntensity(result.weightedCandidates());
+
+        applyRecordUpdates(snapshot, result);
+
+        PetComponent.Mood previousMood = snapshot.previousMood();
+        float previousStrength = snapshot.previousStrength();
         PetComponent.Mood bestMood = moodBlend.entrySet().stream()
                 .max(Map.Entry.comparingByValue())
                 .map(Map.Entry::getKey)
                 .orElse(PetComponent.Mood.CALM);
         float bestStrength = moodBlend.getOrDefault(bestMood, 0f);
 
-        float momentumBand = Math.max((float) cachedSwitchMargin, computeMomentumBand(previousStrength));
+        float momentumBand = Math.max((float) snapshot.cachedSwitchMargin(), computeMomentumBand(previousStrength));
         if (bestMood != previousMood && (bestStrength - previousStrength) < momentumBand) {
             currentMood = previousMood;
         } else {
@@ -1175,22 +1934,114 @@ public final class PetMoodEngine {
         updateMoodLevel(currentStrength);
         parent.notifyMoodBlendUpdated();
         parent.notifyEmotionSampleUpdated();
+        applyBehaviorResult(result.behaviorResult());
+        lastAppliedTick = resolveWorldTime(snapshot.timestamp());
+        runPostApplyCallbacks();
     }
 
-    private List<EmotionRecord> collectActiveRecords(long now, float epsilon) {
-        List<EmotionRecord> active = new ArrayList<>();
-        for (EmotionRecord record : new ArrayList<>(emotionRecords.values())) {
-            record.applyDecay(now, this);
-            float contagionMagnitude = Math.abs(record.contagionShare);
-            if (record.intensity <= epsilon && record.impactBudget <= epsilon
-                    && contagionMagnitude <= epsilon) {
-                emotionRecords.remove(record.emotion);
-                continue;
+    private void applyRecordUpdates(ComputationSnapshot snapshot, ComputationResult result) {
+        if (result.recordUpdates() != null && !result.recordUpdates().isEmpty()) {
+            for (Map.Entry<PetComponent.Emotion, EmotionRecordUpdate> entry : result.recordUpdates().entrySet()) {
+                EmotionRecordUpdate update = entry.getValue();
+                EmotionRecord record = emotionRecords.computeIfAbsent(entry.getKey(),
+                        key -> new EmotionRecord(key, snapshot.timestamp()));
+                record.intensity = update.intensity();
+                record.impactBudget = update.impactBudget();
+                record.cadenceEMA = update.cadenceEMA();
+                record.volatilityEMA = update.volatilityEMA();
+                record.peakEMA = update.peakEMA();
+                record.homeostasisBias = update.homeostasisBias();
+                record.sensitisationGain = update.sensitisationGain();
+                record.habituationSlope = update.habituationSlope();
+                record.contagionShare = update.contagionShare();
+                record.relationshipGuard = update.relationshipGuard();
+                record.dangerWindow = update.dangerWindow();
+                record.appraisalConfidence = update.appraisalConfidence();
+                record.lastEventTime = update.lastEventTime();
+                record.lastUpdateTime = update.lastUpdateTime();
             }
-            active.add(record);
         }
-        return active;
+
+        if (result.recordsToRemove() != null && !result.recordsToRemove().isEmpty()) {
+            for (PetComponent.Emotion emotion : result.recordsToRemove()) {
+                emotionRecords.remove(emotion);
+            }
+        }
     }
+
+    private void applyBehaviorResult(@Nullable BehaviorResult behavior) {
+        if (behavior == null) {
+            return;
+        }
+        lastMomentumUpdate = behavior.lastMomentumUpdate();
+        behavioralMomentum = behavior.behavioralMomentum();
+        momentumInertia = behavior.momentumInertia();
+        physicalActivity = behavior.physicalActivity();
+        mentalActivity = behavior.mentalActivity();
+        socialActivity = behavior.socialActivity();
+        restActivity = behavior.restActivity();
+        recentPhysicalBurst = behavior.recentPhysicalBurst();
+        physicalStamina = behavior.physicalStamina();
+        mentalFocus = behavior.mentalFocus();
+        socialCharge = behavior.socialCharge();
+        energyProfileDirty = behavior.energyProfileDirty();
+        if (behavior.energyProfile() != null) {
+            cachedEnergyProfile = behavior.energyProfile();
+            energyProfileDirty = false;
+            parent.notifyEnergyProfileUpdated();
+        }
+    }
+
+    public boolean isAsyncComputationInFlight() {
+        return asyncComputationInFlight;
+    }
+
+    public void onNextResultApplied(long thresholdTick, Runnable callback) {
+        if (callback == null) {
+            return;
+        }
+        long applied = lastAppliedTick;
+        if (!asyncComputationInFlight) {
+            if (!dirty && applied >= thresholdTick) {
+                callback.run();
+                return;
+            }
+            long clampedThreshold = Math.max(0L, thresholdTick);
+            postApplyCallbacks.addLast(new PendingApplyCallback(clampedThreshold, callback));
+            return;
+        }
+        if (applied >= thresholdTick) {
+            callback.run();
+            return;
+        }
+        long clampedThreshold = Math.max(0L, thresholdTick);
+        postApplyCallbacks.addLast(new PendingApplyCallback(clampedThreshold, callback));
+    }
+
+    public boolean shouldDeferStimulusDrain() {
+        return isAsyncPipelineEnabled() && asyncComputationInFlight;
+    }
+
+    private void runPostApplyCallbacks() {
+        if (postApplyCallbacks.isEmpty()) {
+            return;
+        }
+        long applied = lastAppliedTick;
+        Iterator<PendingApplyCallback> iterator = postApplyCallbacks.iterator();
+        while (iterator.hasNext()) {
+            PendingApplyCallback pending = iterator.next();
+            if (applied >= pending.thresholdTick()) {
+                try {
+                    pending.callback().run();
+                } finally {
+                    iterator.remove();
+                }
+            }
+        }
+    }
+
+    private record PendingApplyCallback(long thresholdTick, Runnable callback) {}
+
 
     private void resetToCalmBaseline() {
         for (PetComponent.Mood mood : PetComponent.Mood.values()) {
@@ -1255,192 +2106,6 @@ public final class PetMoodEngine {
         dominantHistory.add(MathHelper.clamp(strength, 0f, 1f));
     }
 
-    /**
-     * Updates behavioral momentum based on accumulated activity and natural decay.
-     */
-    private void updateBehavioralMomentum(long now) {
-        long delta = now - lastMomentumUpdate;
-        if (delta < 20) return; // Update every second
-        
-        lastMomentumUpdate = now;
-
-        // Calculate personality-influenced baseline from mood and nature
-        float baseline = calculateMomentumBaseline();
-
-        // Calculate target momentum from activities while keeping idle at baseline
-        float activityLevel = MathHelper.clamp(calculateActivityLevel(), 0f, 1f);
-        float activityBoost = activityLevel * 0.4f;
-        float restCalm = MathHelper.clamp(restActivity * 0.3f, 0f, 0.35f);
-        float targetMomentum = MathHelper.clamp(baseline + activityBoost - restCalm, 0f, 1f);
-
-        // Apply inertia for smooth transitions
-        float momentumGap = Math.abs(targetMomentum - behavioralMomentum);
-        float inertiaFactor = calculateInertiaFactor(delta, momentumGap);
-        float momentumDelta = (targetMomentum - behavioralMomentum) * inertiaFactor;
-
-        // Update momentum with smoothing
-        behavioralMomentum += momentumDelta;
-        momentumInertia = MathHelper.lerp(0.1f, momentumInertia, Math.abs(momentumDelta));
-
-        // Add organic variation for lifelike behavior
-        behavioralMomentum += generateOrganicVariation(now);
-
-        behavioralMomentum = MathHelper.clamp(behavioralMomentum, 0f, 1f);
-
-        updateEnergyBatteries(now, delta);
-
-        // Decay activity accumulators after they've fed the batteries
-        decayActivities(delta);
-        energyProfileDirty = true;
-        refreshEnergyProfile();
-    }
-
-    private void applyHarmonyBiases(long now) {
-        PetComponent.HarmonyState harmonyState = parent.getHarmonyState();
-        if (harmonyState == null) {
-            return;
-        }
-        Map<PetComponent.Emotion, Float> biases = harmonyState.emotionBiases();
-        if (biases == null || biases.isEmpty()) {
-            return;
-        }
-        for (Map.Entry<PetComponent.Emotion, Float> entry : biases.entrySet()) {
-            PetComponent.Emotion emotion = entry.getKey();
-            float target = MathHelper.clamp(entry.getValue(), 0f, 0.7f);
-            if (emotion == null || target <= EPSILON) {
-                continue;
-            }
-            EmotionRecord record = emotionRecords.computeIfAbsent(emotion, e -> new EmotionRecord(emotion, now));
-            record.applyDecay(now, this);
-            float blended = MathHelper.lerp(HARMONY_BIAS_ALPHA, record.intensity, target);
-            record.intensity = MathHelper.clamp(blended, 0f, 1f);
-            record.weight = Math.max(record.weight, target * 0.6f);
-            record.impactBudget = Math.max(record.impactBudget, target * 0.5f);
-            record.lastEventTime = now;
-            record.lastUpdateTime = now;
-        }
-    }
-
-    /**
-     * Calculates personality-influenced momentum baseline.
-     */
-    private float calculateMomentumBaseline() {
-        float baseline = 0.5f;
-        
-        // Mood influences
-        baseline += moodBlend.getOrDefault(PetComponent.Mood.PLAYFUL, 0f) * 0.2f;
-        baseline += moodBlend.getOrDefault(PetComponent.Mood.RESTLESS, 0f) * 0.25f;
-        baseline += moodBlend.getOrDefault(PetComponent.Mood.CURIOUS, 0f) * 0.15f;
-        baseline -= moodBlend.getOrDefault(PetComponent.Mood.CALM, 0f) * 0.3f;
-        baseline -= moodBlend.getOrDefault(PetComponent.Mood.SAUDADE, 0f) * 0.2f;
-        
-        // Age influences
-        if (parent.getPet().isBaby()) {
-            baseline += 0.2f; // Young pets are more energetic
-        }
-        
-        // Nature influences (volatile pets have higher baseline)
-        float volatility = parent.getNatureVolatilityMultiplier();
-        baseline += (volatility - 1.0f) * 0.15f;
-        
-        // Time of day influence (subtle circadian rhythm)
-        long timeOfDay = parent.getPet().getEntityWorld().getTimeOfDay() % 24000;
-        if (timeOfDay >= 6000 && timeOfDay <= 18000) {
-            baseline += 0.05f; // Slightly more active during day
-        } else {
-            baseline -= 0.05f; // Slightly less active at night
-        }
-        
-        // Health influence - injured pets have less energy
-        float healthRatio = parent.getPet().getHealth() / parent.getPet().getMaxHealth();
-        if (healthRatio < 0.5f) {
-            float healthPenalty = (0.5f - healthRatio) * 0.4f; // Up to -0.2 at critical health
-            baseline -= healthPenalty;
-        }
-        
-        return MathHelper.clamp(baseline, 0.15f, 0.85f);
-    }
-    
-    /**
-     * Calculates current activity level from multi-dimensional tracking.
-     */
-    private float calculateActivityLevel() {
-        // Weighted combination of activity types
-        float physical = Math.min(1f, physicalActivity * 0.4f);
-        float mental = Math.min(1f, mentalActivity * 0.3f);
-        float social = Math.min(1f, socialActivity * 0.3f);
-
-        // Combined with diminishing returns to prevent hyperactivity
-        float total = physical + mental + social;
-        return MathHelper.clamp(total / (1f + total * 0.3f), 0f, 1f);
-    }
-
-    private void updateEnergyBatteries(long now, long deltaTicks) {
-        float dt = MathHelper.clamp(deltaTicks / 20f, 0.05f, 5f);
-
-        float normalizedPhysical = Math.min(1f, physicalActivity * 0.4f);
-        float normalizedMental = Math.min(1f, mentalActivity * 0.3f);
-        float normalizedSocial = Math.min(1f, socialActivity * 0.3f);
-        float normalizedRest = Math.min(1f, restActivity * 0.5f);
-
-        float ambientSocial = sampleAmbientSocialComfort(now);
-        float bondFactor = normalizedBondStrength();
-
-        float physicalLoad = Math.max(normalizedPhysical, recentPhysicalBurst);
-        float physicalDrain = physicalLoad * (0.45f + physicalLoad * 0.25f) * dt;
-        float recoveryBase = 0.03f + (1f - physicalLoad) * 0.08f + socialCharge * 0.01f;
-        float physicalRecovery = recoveryBase * dt;
-        float restBias = (0.04f + (1f - physicalStamina) * 0.12f) * normalizedRest * dt;
-        physicalRecovery += restBias;
-        physicalStamina = MathHelper.clamp(physicalStamina + physicalRecovery - physicalDrain, 0.05f, 1f);
-        recentPhysicalBurst = Math.max(0f, recentPhysicalBurst - dt * 0.6f);
-
-        float calmMood = moodBlend.getOrDefault(PetComponent.Mood.CALM, 0f);
-        float focusMood = moodBlend.getOrDefault(PetComponent.Mood.CURIOUS, 0f);
-        float mentalDrain = normalizedMental * (0.5f + normalizedMental * 0.2f) * dt;
-        float mentalRecovery = (0.025f + (1f - normalizedMental) * 0.05f + calmMood * 0.04f + focusMood * 0.02f) * dt;
-        mentalFocus = MathHelper.clamp(mentalFocus + mentalRecovery - mentalDrain, 0.05f, 1f);
-
-        float familiarityPenalty = MathHelper.clamp(0.25f - ambientSocial * 0.18f, 0.05f, 0.25f);
-        float socialGain = (normalizedSocial * (0.55f + bondFactor * 0.25f)) * dt;
-        float ambientBoost = ambientSocial * 0.05f * dt;
-        float socialDecay = (0.02f + familiarityPenalty * normalizedSocial + (1f - ambientSocial) * 0.02f) * dt;
-        socialCharge = MathHelper.clamp(socialCharge + socialGain + ambientBoost - socialDecay, 0.1f, 1f);
-
-        energyProfileDirty = true;
-    }
-
-    private float sampleAmbientSocialComfort(long now) {
-        float comfort = 0f;
-
-        long lastSocialTick = parent.getStateData(PetComponent.StateKeys.LAST_SOCIAL_BUFFER_TICK, Long.class, 0L);
-        if (hasRecentSocialComfort(lastSocialTick, now)) {
-            comfort = Math.max(comfort, 0.4f);
-        }
-
-        long lastPackTick = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_TICK, Long.class, 0L);
-        float lastPackStrength = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_STRENGTH, Float.class, 0f);
-        float lastPackWeighted = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_WEIGHTED_STRENGTH, Float.class, 0f);
-        int lastPackAllies = parent.getStateData(PetComponent.StateKeys.PACK_LAST_NEARBY_ALLIES, Integer.class, 0);
-        if (hasRecentPackComfort(now, lastPackTick, lastPackStrength, lastPackWeighted, lastPackAllies)) {
-            float familiarity = Math.max(lastPackStrength, lastPackWeighted);
-            comfort = Math.max(comfort, 0.55f + MathHelper.clamp(familiarity, 0f, 1f) * 0.35f);
-        }
-
-        PlayerEntity owner = parent.getOwner();
-        MobEntity petEntity = parent.getPetEntity();
-        if (owner != null && petEntity != null && owner.isAlive() && owner.getEntityWorld() == petEntity.getEntityWorld()) {
-            double distSq = owner.squaredDistanceTo(petEntity);
-            if (distSq <= 144.0) { // Within 12 blocks
-                float bondFactor = normalizedBondStrength();
-                float proximityScale = (float) (1.0 - Math.min(1.0, distSq / 144.0));
-                comfort = Math.max(comfort, (0.25f + bondFactor * 0.25f) * proximityScale);
-            }
-        }
-
-        return MathHelper.clamp(comfort, 0f, 1f);
-    }
-
     private void refreshEnergyProfile() {
         float normalizedPhysical = Math.min(1f, physicalActivity * 0.4f);
         float normalizedMental = Math.min(1f, mentalActivity * 0.3f);
@@ -1469,47 +2134,6 @@ public final class PetMoodEngine {
     /**
      * Calculates inertia factor for smooth momentum transitions.
      */
-    private float calculateInertiaFactor(long deltaTicks, float momentumGap) {
-        // Base inertia from nature (resilient pets change energy slower)
-        float resilience = Math.max(0.1f, parent.getNatureResilienceMultiplier());
-        float baseInertia = 0.05f / resilience;
-
-        // Scale by time delta for frame-independent behavior (wider window for multi-second bursts)
-        float timeFactor = MathHelper.clamp(deltaTicks / 20f, 0.5f, 6f);
-
-        // Accelerate transitions when momentum is far from target or has been moving recently
-        float gapUrgency = MathHelper.clamp(momentumGap * 3.5f, 0f, 3.5f);
-        float inertiaPulse = MathHelper.clamp(momentumInertia * 12f, 0f, 3f);
-        float urgency = 1f + gapUrgency + inertiaPulse;
-
-        return MathHelper.clamp(baseInertia * timeFactor * urgency, 0.001f, 0.5f);
-    }
-    
-    /**
-     * Generates organic variation for lifelike momentum fluctuations.
-     * Uses multiple frequency sine waves for natural-looking "breathing" behavior.
-     */
-    private float generateOrganicVariation(long now) {
-        long petSeed = parent.getStablePerPetSeed();
-
-        // Multiple sine waves at different frequencies for organic movement
-        double timeSeconds = now * 0.001; // Scale down for smoother variation
-
-        double microPhase = timeSeconds * 60 + normalizedPhaseFromSeed(petSeed, 0);
-        double mesoPhase = timeSeconds * 12 + normalizedPhaseFromSeed(petSeed, 21);
-        double macroPhase = timeSeconds * 3 + normalizedPhaseFromSeed(petSeed, 42);
-
-        float microVariation = (float)Math.sin(microPhase) * 0.015f;
-        float mesoVariation = (float)Math.sin(mesoPhase) * 0.025f;
-        float macroVariation = (float)Math.sin(macroPhase) * 0.035f;
-
-        // Personality-based variation intensity
-        float volatility = parent.getNatureVolatilityMultiplier();
-        float variationScale = 0.5f + volatility * 0.5f;
-
-        return (microVariation + mesoVariation + macroVariation) * variationScale;
-    }
-
     private static double normalizedPhaseFromSeed(long seed, int rotation) {
         long rotated = Long.rotateLeft(seed, rotation);
         long mask = (1L << 53) - 1;
@@ -1519,42 +2143,30 @@ public final class PetMoodEngine {
     }
     
     /**
-     * Decays activity accumulators over time.
-     */
-    private void decayActivities(long deltaTicks) {
-        float decayFactor = Math.max(0f, 1f - deltaTicks * 0.005f);
-        
-        // Different decay rates for different activities
-        physicalActivity *= Math.pow(decayFactor, 1.2);  // Physical decays faster
-        mentalActivity *= Math.pow(decayFactor, 0.8);    // Mental decays slower
-        socialActivity *= Math.pow(decayFactor, 1.0);    // Social decays normally
-        restActivity *= Math.pow(decayFactor, 0.5);      // Rest lingers to keep recovery bias for a bit
-
-        // Clear near-zero values to prevent float drift
-        if (physicalActivity < 0.001f) physicalActivity = 0f;
-        if (mentalActivity < 0.001f) mentalActivity = 0f;
-        if (socialActivity < 0.001f) socialActivity = 0f;
-        if (restActivity < 0.001f) restActivity = 0f;
-    }
-    
-    /**
      * Applies behavioral momentum influence to mood blend.
      */
     private void applyBehavioralMomentumInfluence() {
+        applyBehavioralMomentumInfluence(moodBlend, behavioralMomentum);
+    }
+
+    private void applyBehavioralMomentumInfluence(EnumMap<PetComponent.Mood, Float> blend, float momentum) {
+        if (blend == null) {
+            return;
+        }
         // High momentum (hyperactive)
-        if (behavioralMomentum > 0.65f) {
-            float hyperFactor = (behavioralMomentum - 0.65f) / 0.35f;
-            moodBlend.compute(PetComponent.Mood.CALM, (k, v) -> 
+        if (momentum > 0.65f) {
+            float hyperFactor = (momentum - 0.65f) / 0.35f;
+            blend.compute(PetComponent.Mood.CALM, (k, v) ->
                 v == null ? 0f : v * (1f - hyperFactor * 0.4f));
-            moodBlend.compute(PetComponent.Mood.RESTLESS, (k, v) -> 
+            blend.compute(PetComponent.Mood.RESTLESS, (k, v) ->
                 (v == null ? 0f : v) + hyperFactor * 0.2f);
         }
         // Low momentum (tired)
-        else if (behavioralMomentum < 0.35f) {
-            float tiredFactor = (0.35f - behavioralMomentum) / 0.35f;
-            moodBlend.compute(PetComponent.Mood.CALM, (k, v) -> 
+        else if (momentum < 0.35f) {
+            float tiredFactor = (0.35f - momentum) / 0.35f;
+            blend.compute(PetComponent.Mood.CALM, (k, v) ->
                 (v == null ? 0f : v) + tiredFactor * 0.3f);
-            moodBlend.compute(PetComponent.Mood.PLAYFUL, (k, v) -> 
+            blend.compute(PetComponent.Mood.PLAYFUL, (k, v) ->
                 v == null ? 0f : v * (1f - tiredFactor * 0.5f));
         }
     }
@@ -1635,7 +2247,7 @@ public final class PetMoodEngine {
         return delta;
     }
 
-    private void updateEmotionPalette(List<Candidate> weighted) {
+    private void updateEmotionPalette(List<WeightedCandidate> weighted) {
         if (weighted == null || weighted.isEmpty()) {
             if (!paletteBlend.isEmpty()) {
                 paletteBlend.clear();
@@ -1646,12 +2258,12 @@ public final class PetMoodEngine {
 
         EnumMap<PetComponent.Emotion, Float> target = new EnumMap<>(PetComponent.Emotion.class);
         float total = 0f;
-        for (Candidate candidate : weighted) {
-            float weight = Math.max(0f, candidate.signal);
+        for (WeightedCandidate candidate : weighted) {
+            float weight = Math.max(0f, candidate.signal());
             if (weight <= EPSILON) {
                 continue;
             }
-            target.merge(candidate.record.emotion, weight, Float::sum);
+            target.merge(candidate.emotion(), weight, Float::sum);
             total += weight;
         }
 
@@ -1775,16 +2387,16 @@ public final class PetMoodEngine {
         lastPaletteCommitTime = currentTime;
     }
 
-    private void updateAnimationIntensity(List<Candidate> weighted) {
+    private void updateAnimationIntensity(List<WeightedCandidate> weighted) {
         float total = 0f;
         float accum = 0f;
-        for (Candidate candidate : weighted) {
-            float weight = Math.max(0f, candidate.signal);
+        for (WeightedCandidate candidate : weighted) {
+            float weight = Math.max(0f, candidate.signal());
             if (weight <= EPSILON) {
                 continue;
             }
             total += weight;
-            accum += weight * MathHelper.clamp(candidate.record.intensity, 0f, 1f);
+            accum += weight * MathHelper.clamp(candidate.intensity(), 0f, 1f);
         }
         float target = total > EPSILON ? accum / total : 0f;
         target = MathHelper.clamp(target, 0f, 1f);
@@ -1823,21 +2435,26 @@ public final class PetMoodEngine {
         return Math.max(40, scaled);
     }
 
-    private void applyOpponentTransfers(List<Candidate> weighted, float weightCap) {
+    private void applyOpponentTransfers(List<Candidate> weighted,
+                                        float weightCap,
+                                        float natureVolatility,
+                                        float natureResilience,
+                                        float opponentTransferMax,
+                                        float reboundGain) {
         if (weighted.size() < 2) {
             return;
         }
 
         Map<PetComponent.Emotion, Candidate> lookup = weighted.stream()
-                .collect(Collectors.toMap(c -> c.record.emotion, c -> c));
+                .collect(Collectors.toMap(c -> c.record.emotion(), c -> c));
 
         List<OpponentConflict> conflicts = new ArrayList<>();
         for (Candidate candidate : weighted) {
-            EnumSet<PetComponent.Emotion> opponents = opponentPairs.get(candidate.record.emotion);
+            EnumSet<PetComponent.Emotion> opponents = opponentPairs.get(candidate.record.emotion());
             if (opponents == null || opponents.isEmpty()) continue;
             for (PetComponent.Emotion opponent : opponents) {
                 if (!lookup.containsKey(opponent)) continue;
-                if (candidate.record.emotion.ordinal() >= opponent.ordinal()) continue;
+                if (candidate.record.emotion().ordinal() >= opponent.ordinal()) continue;
                 Candidate other = lookup.get(opponent);
                 float combined = candidate.signal + other.signal;
                 conflicts.add(new OpponentConflict(candidate, other, combined));
@@ -1845,11 +2462,10 @@ public final class PetMoodEngine {
         }
 
         conflicts.sort(Comparator.comparingDouble((OpponentConflict c) -> c.combinedWeight).reversed());
-        
-        // Nature modifiers affect conflict resolution
-        float volatilityMod = parent.getNatureVolatilityMultiplier();  // 0.5-1.5
-        float resilienceMod = parent.getNatureResilienceMultiplier();  // 0.5-1.5
-        
+
+        float safeResilience = MathHelper.clamp(natureResilience, 0.1f, 3.0f);
+        float safeVolatility = MathHelper.clamp(natureVolatility, 0.1f, 3.0f);
+
         for (OpponentConflict conflict : conflicts) {
             Candidate first = conflict.a;
             Candidate second = conflict.b;
@@ -1868,23 +2484,41 @@ public final class PetMoodEngine {
                 receiver = first;
             }
 
-            float baseTransfer = Math.min(cachedOpponentTransferMax, 0.15f + 0.1f * difference);
-            float natureScale = (volatilityMod / resilienceMod);
+            float baseTransfer = Math.min(opponentTransferMax, 0.15f + 0.1f * difference);
+            float natureScale = MathHelper.clamp(safeVolatility / safeResilience, 0.70f, 1.30f);
             float transferFactor = baseTransfer * MathHelper.clamp(natureScale, 0.70f, 1.30f); // Phase 2 tuning
             transferFactor = MathHelper.clamp(transferFactor, 0.05f, 0.45f);
-            
+
             float transfer = donor.signal * transferFactor;
             if (transfer <= EPSILON) continue;
 
-            float avgConfidence = (first.record.appraisalConfidence + second.record.appraisalConfidence) * 0.5f;
-            float reboundBase = 0.2f + cachedReboundGain * avgConfidence;
-            float reboundGain = reboundBase * resilienceMod;
-            float rebound = transfer * MathHelper.clamp(reboundGain, 0.1f, 0.5f);
+            float avgConfidence = (first.record.appraisalConfidence() + second.record.appraisalConfidence()) * 0.5f;
+            float reboundBase = 0.2f + reboundGain * avgConfidence;
+            float tunedRebound = reboundBase * safeResilience;
+            float rebound = transfer * MathHelper.clamp(tunedRebound, 0.1f, 0.5f);
 
             donor.signal = Math.max(0f, donor.signal - transfer);
             receiver.signal = Math.min(weightCap, receiver.signal + transfer * 0.85f);
             donor.signal = Math.max(0f, donor.signal + rebound * 0.2f);
         }
+    }
+
+    private float computeFreshness(SnapshotEmotionRecord record, long now) {
+        if (record.lastEventTime() <= 0L) {
+            return 0f;
+        }
+        float cadence = record.cadenceEMA() > 0f ? record.cadenceEMA() : cachedHabituationBase;
+        float age = Math.max(0f, now - record.lastEventTime());
+        return (float) Math.exp(-age / Math.max(1f, cadence));
+    }
+
+    private float computeFreshness(ProcessedEmotionRecord record, long now, float fallbackCadence) {
+        if (record.lastEventTime() <= 0L) {
+            return 0f;
+        }
+        float cadence = record.cadenceEMA() > 0f ? record.cadenceEMA() : fallbackCadence;
+        float age = Math.max(0f, now - record.lastEventTime());
+        return (float) Math.exp(-age / Math.max(1f, cadence));
     }
 
     private float computeFreshness(EmotionRecord record, long now) {
@@ -1894,6 +2528,22 @@ public final class PetMoodEngine {
         float cadence = record.cadenceEMA > 0f ? record.cadenceEMA : cachedHabituationBase;
         float age = Math.max(0f, now - record.lastEventTime);
         return (float) Math.exp(-age / Math.max(1f, cadence));
+    }
+
+    private float computeSignal(SnapshotEmotionRecord record, float freshness, float frequency) {
+        float intensity = MathHelper.clamp(record.intensity(), 0f, 1f);
+        float base = intensity * (0.35f + 0.65f * MathHelper.clamp(freshness, 0f, 1f));
+        float budget = Math.max(0f, record.impactBudget());
+        float freqComponent = 0.3f * (float) Math.sqrt(Math.max(0f, frequency * budget));
+        return base + freqComponent;
+    }
+
+    private float computeSignal(ProcessedEmotionRecord record, float freshness, float frequency) {
+        float intensity = MathHelper.clamp(record.intensity(), 0f, 1f);
+        float base = intensity * (0.35f + 0.65f * MathHelper.clamp(freshness, 0f, 1f));
+        float budget = Math.max(0f, record.impactBudget());
+        float freqComponent = 0.3f * (float) Math.sqrt(Math.max(0f, frequency * budget));
+        return base + freqComponent;
     }
 
     private void refreshContextGuards(EmotionRecord record, long now, long delta) {
@@ -2044,6 +2694,18 @@ public final class PetMoodEngine {
             scratchBudgets[i] = active.get(i).impactBudget;
         }
         float dynamic = selectQuantile(scratchBudgets, scratchBudgetCount, 0.95f, DEFAULT_IMPACT_CAP);
+        return Math.max(DEFAULT_IMPACT_CAP, dynamic);
+    }
+
+    private float computeImpactCapFromSnapshots(List<SnapshotEmotionRecord> records) {
+        if (records == null || records.isEmpty()) {
+            return DEFAULT_IMPACT_CAP;
+        }
+        float[] budgets = new float[records.size()];
+        for (int i = 0; i < records.size(); i++) {
+            budgets[i] = records.get(i).impactBudget();
+        }
+        float dynamic = selectQuantile(budgets, budgets.length, 0.95f, DEFAULT_IMPACT_CAP);
         return Math.max(DEFAULT_IMPACT_CAP, dynamic);
     }
 
@@ -4597,13 +5259,68 @@ public final class PetMoodEngine {
         return 0f;
     }
 
+    private record ComputationSnapshot(
+            long timestamp,
+            float epsilon,
+            List<SnapshotEmotionRecord> activeRecords,
+            EnumMap<PetComponent.Mood, Float> baselineBlend,
+            PetComponent.Mood previousMood,
+            float previousStrength,
+            double cachedMomentum,
+            double cachedSwitchMargin,
+            float impactCap,
+            float natureVolatility,
+            float natureResilience,
+            float opponentTransferMax,
+            float reboundGain,
+            Map<PetComponent.Emotion, Float> harmonyBiases,
+            BehaviorSnapshot behaviorSnapshot,
+            float habituationBase,
+            float halfLifeMultiplier,
+            float minHalfLife,
+            float maxHalfLife,
+            float negativePersistence,
+            float conditionPresentMultiplier,
+            float homeostasisRecoveryHalf,
+            Map<String, Float> emotionDecayMultipliers,
+            Set<String> negativeEmotions,
+            long lonelySocialGraceTicks,
+            long lonelyPackGraceTicks,
+            float lonelyPackStrengthThreshold
+    ) {
+    }
+
+    private record ComputationResult(
+            boolean resetToCalm,
+            EnumMap<PetComponent.Mood, Float> normalizedTargetBlend,
+            EnumMap<PetComponent.Mood, Float> finalBlend,
+            EnumMap<PetComponent.Emotion, Float> recordWeights,
+            List<WeightedCandidate> weightedCandidates,
+            EnumMap<PetComponent.Emotion, EmotionRecordUpdate> recordUpdates,
+            Set<PetComponent.Emotion> recordsToRemove,
+            BehaviorResult behaviorResult
+    ) {
+        static ComputationResult reset() {
+            return new ComputationResult(
+                    true,
+                    new EnumMap<>(PetComponent.Mood.class),
+                    new EnumMap<>(PetComponent.Mood.class),
+                    new EnumMap<>(PetComponent.Emotion.class),
+                    Collections.emptyList(),
+                    new EnumMap<>(PetComponent.Emotion.class),
+                    EnumSet.noneOf(PetComponent.Emotion.class),
+                    null
+            );
+        }
+    }
+
     private static final class Candidate {
-        final EmotionRecord record;
+        final ProcessedEmotionRecord record;
         final float freshness;
         final float frequency;
         float signal;
 
-        Candidate(EmotionRecord record, float freshness, float frequency, float signal) {
+        Candidate(ProcessedEmotionRecord record, float freshness, float frequency, float signal) {
             this.record = record;
             this.freshness = freshness;
             this.frequency = frequency;
@@ -4612,6 +5329,134 @@ public final class PetMoodEngine {
     }
 
     private record OpponentConflict(Candidate a, Candidate b, float combinedWeight) {
+    }
+
+    private record BehaviorSnapshot(
+            long now,
+            long lastMomentumUpdate,
+            float behavioralMomentum,
+            float momentumInertia,
+            float physicalActivity,
+            float mentalActivity,
+            float socialActivity,
+            float restActivity,
+            float recentPhysicalBurst,
+            float physicalStamina,
+            float mentalFocus,
+            float socialCharge,
+            boolean energyProfileDirty,
+            float resilienceMultiplier,
+            float volatilityMultiplier,
+            boolean petIsBaby,
+            long timeOfDay,
+            float healthRatio,
+            float bondStrengthNormalized,
+            long stableSeed,
+            long lastSocialTick,
+            long lastPackTick,
+            float lastPackStrength,
+            float lastPackWeightedStrength,
+            int lastPackAllies,
+            boolean ownerPresent,
+            double ownerDistanceSquared,
+            EnumMap<PetComponent.Mood, Float> moodBlendSnapshot
+    ) {
+    }
+
+    private record BehaviorResult(
+            long lastMomentumUpdate,
+            float behavioralMomentum,
+            float momentumInertia,
+            float physicalActivity,
+            float mentalActivity,
+            float socialActivity,
+            float restActivity,
+            float recentPhysicalBurst,
+            float physicalStamina,
+            float mentalFocus,
+            float socialCharge,
+            boolean energyProfileDirty,
+            BehaviouralEnergyProfile energyProfile
+    ) {
+    }
+
+    private record SnapshotEmotionRecord(
+            PetComponent.Emotion emotion,
+            float intensity,
+            float impactBudget,
+            float cadenceEMA,
+            float volatilityEMA,
+            float peakEMA,
+            float homeostasisBias,
+            float sensitisationGain,
+            float habituationSlope,
+            float contagionShare,
+            float relationshipGuard,
+            float dangerWindow,
+            float appraisalConfidence,
+            long startTime,
+            long lastEventTime,
+            long lastUpdateTime,
+            boolean hasOngoingCondition,
+            float contextModulation,
+            float profileWeightBias,
+            float recencyModifier,
+            float persistenceModifier
+    ) {
+    }
+
+    private record EmotionRecordUpdate(
+            PetComponent.Emotion emotion,
+            float intensity,
+            float impactBudget,
+            float cadenceEMA,
+            float volatilityEMA,
+            float peakEMA,
+            float homeostasisBias,
+            float sensitisationGain,
+            float habituationSlope,
+            float contagionShare,
+            float relationshipGuard,
+            float dangerWindow,
+            float appraisalConfidence,
+            long lastEventTime,
+            long lastUpdateTime
+    ) {
+    }
+
+    private record ProcessedEmotionRecord(
+            PetComponent.Emotion emotion,
+            float intensity,
+            float impactBudget,
+            float cadenceEMA,
+            float volatilityEMA,
+            float peakEMA,
+            float homeostasisBias,
+            float sensitisationGain,
+            float habituationSlope,
+            float contagionShare,
+            float relationshipGuard,
+            float dangerWindow,
+            float appraisalConfidence,
+            long startTime,
+            long lastEventTime,
+            long lastUpdateTime,
+            boolean hasOngoingCondition,
+            float contextModulation,
+            float profileWeightBias,
+            float recencyModifier,
+            float persistenceModifier
+    ) {
+    }
+
+    private record ProcessedEmotionResult(
+            List<ProcessedEmotionRecord> records,
+            EnumMap<PetComponent.Emotion, EmotionRecordUpdate> updates,
+            Set<PetComponent.Emotion> removals
+    ) {
+    }
+
+    private record WeightedCandidate(PetComponent.Emotion emotion, float signal, float intensity) {
     }
 }
 
