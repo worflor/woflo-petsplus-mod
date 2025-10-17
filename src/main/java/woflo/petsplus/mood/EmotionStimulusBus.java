@@ -547,6 +547,7 @@ public final class EmotionStimulusBus {
         private boolean idleScheduled;
         private int lastQueuedTick = Integer.MIN_VALUE;
         private int deferUntilTick = Integer.MIN_VALUE;
+        private int firstCoalesceTick = Integer.MIN_VALUE;
 
         @Override
         public void pushEmotion(PetComponent.Emotion emotion, float amount) {
@@ -610,6 +611,7 @@ public final class EmotionStimulusBus {
             idleScheduled = false;
             lastQueuedTick = Integer.MIN_VALUE;
             deferUntilTick = Integer.MIN_VALUE;
+            firstCoalesceTick = Integer.MIN_VALUE;
             if (!componentConsumers.isEmpty()) {
                 componentConsumers.clear();
             }
@@ -621,15 +623,29 @@ public final class EmotionStimulusBus {
         void markQueuedTick(int tick, boolean coalesced) {
             lastQueuedTick = tick;
             if (coalesced) {
-                int windowEnd = tick + Math.max(1, COALESCE_WINDOW_TICKS);
-                if (windowEnd < 0) {
-                    windowEnd = Integer.MAX_VALUE;
+                if (firstCoalesceTick == Integer.MIN_VALUE) {
+                    firstCoalesceTick = tick;
                 }
-                deferUntilTick = Math.max(deferUntilTick, windowEnd);
+                int window = Math.max(1, COALESCE_WINDOW_TICKS);
+                long flushAt = (long) firstCoalesceTick + window;
+                int windowEnd = flushAt >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) flushAt;
+                if (windowEnd > deferUntilTick) {
+                    deferUntilTick = windowEnd;
+                }
+            } else {
+                firstCoalesceTick = Integer.MIN_VALUE;
             }
         }
 
         boolean shouldDefer(int currentTick) {
+            if (firstCoalesceTick != Integer.MIN_VALUE) {
+                int window = Math.max(1, COALESCE_WINDOW_TICKS);
+                long earliestFlush = (long) firstCoalesceTick + window;
+                int minimumTick = earliestFlush >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) earliestFlush;
+                if (currentTick < minimumTick) {
+                    return true;
+                }
+            }
             return currentTick < deferUntilTick;
         }
 
@@ -674,6 +690,11 @@ public final class EmotionStimulusBus {
             }
             if (other.deferUntilTick > deferUntilTick) {
                 deferUntilTick = other.deferUntilTick;
+            }
+            if (other.firstCoalesceTick != Integer.MIN_VALUE) {
+                if (firstCoalesceTick == Integer.MIN_VALUE || other.firstCoalesceTick < firstCoalesceTick) {
+                    firstCoalesceTick = other.firstCoalesceTick;
+                }
             }
         }
     }
