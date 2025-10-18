@@ -1,4 +1,5 @@
 package woflo.petsplus.state;
+import net.minecraft.component.ComponentHolder;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.boss.BossBar;
@@ -4260,7 +4261,13 @@ public class PetComponent {
         }
 
         try {
-            PetsplusComponents.PetData stored = EntityComponentAccessor.petsplus$castComponentValue(PetsplusComponents.PET_DATA, currentPet);
+            Object componentValue = currentPet instanceof ComponentHolder componentHolder
+                ? componentHolder.getOrDefault(PetsplusComponents.PET_DATA, null)
+                : null;
+            PetsplusComponents.PetData stored = EntityComponentAccessor.petsplus$castComponentValue(
+                PetsplusComponents.PET_DATA,
+                componentValue
+            );
             if (stored != null) {
                 fromComponentData(stored);
             }
