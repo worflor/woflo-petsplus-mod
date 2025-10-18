@@ -9,6 +9,7 @@ import net.minecraft.util.math.Vec2f;
 import woflo.petsplus.ai.capability.MobCapabilities;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalDefinition;
+import woflo.petsplus.ai.goals.GoalMovementConfig;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
@@ -17,10 +18,13 @@ import java.util.Locale;
 
 final class GoalDataParser {
 
+    static record ParsedGoal(GoalDefinition definition, GoalMovementConfig movementConfig) {
+    }
+
     private GoalDataParser() {
     }
 
-    static GoalDefinition parse(Identifier id, JsonObject json) {
+    static ParsedGoal parse(Identifier id, JsonObject json) {
         if (json == null) {
             throw new JsonSyntaxException("Goal definition for " + id + " must be an object");
         }
@@ -46,7 +50,7 @@ final class GoalDataParser {
         String factoryClass = getString(json, "goal_factory");
         GoalDefinition.GoalFactory factory = createFactory(factoryClass);
 
-        return new GoalDefinition(
+        GoalDefinition definition = new GoalDefinition(
             id,
             category,
             priority,
@@ -59,6 +63,32 @@ final class GoalDataParser {
             marksMajorActivity,
             factory
         );
+
+        GoalMovementConfig movementConfig = parseMovementConfig(json, priority);
+
+        return new ParsedGoal(definition, movementConfig);
+    }
+
+    private static GoalMovementConfig parseMovementConfig(JsonObject json, int defaultPriority) {
+        if (!json.has("movement_role")) {
+            return null;
+        }
+
+        String role = getString(json, "movement_role").toUpperCase(Locale.ROOT);
+        switch (role) {
+            case "NONE" -> {
+                return GoalMovementConfig.none();
+            }
+            case "INFLUENCER" -> {
+                float weight = getOptionalFloat(json, "movement_influencer_weight", 1.0f);
+                return GoalMovementConfig.influencer(weight);
+            }
+            case "ACTOR" -> {
+                int actorPriority = getOptionalInt(json, "movement_actor_priority", defaultPriority);
+                return GoalMovementConfig.actor(actorPriority);
+            }
+            default -> throw new JsonSyntaxException("Unknown movement role: " + role);
+        }
     }
 
     private static String getString(JsonObject json, String key) {
@@ -75,6 +105,28 @@ final class GoalDataParser {
             throw new JsonSyntaxException("Missing integer field '" + key + "'");
         }
         return element.getAsInt();
+    }
+
+    private static int getOptionalInt(JsonObject json, String key, int fallback) {
+        JsonElement element = json.get(key);
+        if (element == null) {
+            return fallback;
+        }
+        if (!element.isJsonPrimitive()) {
+            throw new JsonSyntaxException("Optional integer field '" + key + "' must be a number");
+        }
+        return element.getAsInt();
+    }
+
+    private static float getOptionalFloat(JsonObject json, String key, float fallback) {
+        JsonElement element = json.get(key);
+        if (element == null) {
+            return fallback;
+        }
+        if (!element.isJsonPrimitive()) {
+            throw new JsonSyntaxException("Optional float field '" + key + "' must be a number");
+        }
+        return element.getAsFloat();
     }
 
     private static JsonObject getObject(JsonObject json, String key) {
