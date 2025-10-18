@@ -551,6 +551,23 @@ public final class GoalRegistry {
         ));
 
         registerBuiltIn(new GoalDefinition(
+            GoalIds.TRUSTED_ALLY_CHECK_IN,
+            Category.SOCIAL,
+            15,
+            secondsToTicks(70),
+            secondsToTicks(120),
+            MobCapabilities.CapabilityRequirement.allOf(List.of(
+                MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+                MobCapabilities.CapabilityRequirement.fromToken("can_wander")
+            )),
+            new Vec2f(0.15f, 0.85f),
+            IdleStaminaBias.LOW,
+            false,
+            false,
+            TrustedAllyCheckInGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
             GoalIds.NURSE_BABY,
             Category.SOCIAL,
             15,
@@ -1007,6 +1024,14 @@ public final class GoalRegistry {
         assignInfluencer(remaining, 0.65f, GoalIds.MAINTAIN_PACK_SPACING);
         assignInfluencer(remaining, 1.0f, GoalIds.HESITATE_IN_COMBAT);
 
+        GoalDefinition followDefinition = DEFINITIONS.get(GoalIds.FOLLOW_OWNER);
+        if (followDefinition != null && remaining.remove(GoalIds.FOLLOW_OWNER)) {
+            configureMovement(
+                GoalIds.FOLLOW_OWNER,
+                GoalMovementConfig.baselineActor(followDefinition.priority())
+            );
+        }
+
         Iterator<Identifier> iterator = remaining.iterator();
         while (iterator.hasNext()) {
             Identifier id = iterator.next();
@@ -1113,7 +1138,8 @@ public final class GoalRegistry {
                     config = new GoalMovementConfig(
                         GoalMovementConfig.MovementRole.ACTOR,
                         definition.priority(),
-                        builtInConfig.influencerWeight()
+                        builtInConfig.influencerWeight(),
+                        builtInConfig.baselineActor()
                     );
                 } else {
                     config = builtInConfig;

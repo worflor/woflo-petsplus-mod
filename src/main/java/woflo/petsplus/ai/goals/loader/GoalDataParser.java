@@ -85,7 +85,8 @@ final class GoalDataParser {
             }
             case "ACTOR" -> {
                 int actorPriority = getOptionalInt(json, "movement_actor_priority", defaultPriority);
-                return GoalMovementConfig.actor(actorPriority);
+                boolean baseline = getOptionalBoolean(json, "movement_baseline_actor", false);
+                return baseline ? GoalMovementConfig.baselineActor(actorPriority) : GoalMovementConfig.actor(actorPriority);
             }
             default -> throw new JsonSyntaxException("Unknown movement role: " + role);
         }
@@ -127,6 +128,17 @@ final class GoalDataParser {
             throw new JsonSyntaxException("Optional float field '" + key + "' must be a number");
         }
         return element.getAsFloat();
+    }
+
+    private static boolean getOptionalBoolean(JsonObject json, String key, boolean fallback) {
+        JsonElement element = json.get(key);
+        if (element == null) {
+            return fallback;
+        }
+        if (!element.isJsonPrimitive()) {
+            throw new JsonSyntaxException("Optional boolean field '" + key + "' must be a boolean");
+        }
+        return element.getAsBoolean();
     }
 
     private static JsonObject getObject(JsonObject json, String key) {

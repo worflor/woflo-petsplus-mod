@@ -54,6 +54,7 @@ public final class GoalIds {
     public static final Identifier WATER_SPLASH = id("water_splash");
     public static final Identifier LEAN_AGAINST_OWNER = id("lean_against_owner");
     public static final Identifier PARALLEL_PLAY = id("parallel_play");
+    public static final Identifier TRUSTED_ALLY_CHECK_IN = id("trusted_ally_check_in");
     public static final Identifier NURSE_BABY = id("nurse_baby");
     public static final Identifier SHOW_OFF_TRICK = id("show_off_trick");
     public static final Identifier BEDTIME_COMPANION = id("bedtime_companion");

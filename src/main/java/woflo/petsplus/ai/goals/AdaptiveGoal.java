@@ -263,6 +263,9 @@ public abstract class AdaptiveGoal extends Goal {
             return true;
         }
 
+        GoalMovementConfig movementConfig = getMovementConfig();
+        boolean baselineActor = movementConfig.baselineActor();
+
         MobEntity mobEntity = this.mob;
         if (mobEntity == null) {
             return true;
@@ -273,6 +276,10 @@ public abstract class AdaptiveGoal extends Goal {
 
         var world = mobEntity.getEntityWorld();
         if (world == null) {
+            if (baselineActor && suggestedGoalId != null && !goalId.equals(suggestedGoalId)) {
+                component.invalidateDirectorSuggestion(null, suggestionTick == Long.MIN_VALUE ? 0L : suggestionTick);
+                return true;
+            }
             return suggestedGoalId == null || goalId.equals(suggestedGoalId);
         }
 
@@ -294,6 +301,19 @@ public abstract class AdaptiveGoal extends Goal {
         }
 
         if (goalId.equals(suggestedGoalId)) {
+            return true;
+        }
+
+        if (baselineActor) {
+            component.invalidateDirectorSuggestion("baseline_reclaim:" + goalId, worldTime);
+            if (Petsplus.LOGGER.isDebugEnabled()) {
+                Petsplus.LOGGER.debug(
+                    "{} reclaimed baseline actor {} by expiring director suggestion {}",
+                    mobEntity.getName().getString(),
+                    goalId,
+                    suggestedGoalId
+                );
+            }
             return true;
         }
 
@@ -388,6 +408,7 @@ public abstract class AdaptiveGoal extends Goal {
             : getMovementConfig();
         if (movementConfig.role() == GoalMovementConfig.MovementRole.ACTOR) {
             movementDirector.deactivateActor(goalId);
+            movementDirector.setActorBaseline(goalId, false);
         }
         appliedMovementConfig = null;
     }
@@ -442,6 +463,7 @@ public abstract class AdaptiveGoal extends Goal {
         if (oldRole == GoalMovementConfig.MovementRole.ACTOR && newRole != GoalMovementConfig.MovementRole.ACTOR) {
             movementDirector.clearSource(goalId);
             movementDirector.deactivateActor(goalId);
+            movementDirector.setActorBaseline(goalId, false);
         }
 
         if (newRole == GoalMovementConfig.MovementRole.ACTOR) {
@@ -450,6 +472,9 @@ public abstract class AdaptiveGoal extends Goal {
                 movementDirector.deactivateActor(goalId);
             }
             movementDirector.activateActor(goalId, newConfig.actorPriority());
+            movementDirector.setActorBaseline(goalId, newConfig.baselineActor());
+        } else if (oldRole == GoalMovementConfig.MovementRole.ACTOR) {
+            movementDirector.setActorBaseline(goalId, false);
         }
 
         this.appliedMovementConfig = newConfig;

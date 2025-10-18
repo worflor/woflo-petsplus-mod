@@ -188,6 +188,18 @@ public final class PetAIState {
         pushSuggestionSnapshot(new SuggestionSnapshot(goalId, lastSuggestionScore, tick, null, null));
     }
 
+    public void invalidateDirectorSuggestion(@Nullable String reason, long tick) {
+        if (lastSuggestedGoalId == null) {
+            return;
+        }
+        this.lastSuggestedGoalId = null;
+        this.lastSuggestionScore = 0f;
+        this.lastSuggestionTick = tick;
+        this.lastSuggestionReason = reason;
+        this.lastPlanSummary = null;
+        pushSuggestionSnapshot(new SuggestionSnapshot(null, 0f, tick, reason, null));
+    }
+
     public @Nullable Identifier getLastSuggestedGoalId() {
         return lastSuggestedGoalId;
     }

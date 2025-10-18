@@ -1,6 +1,6 @@
 {
   "values": [
-    "minecraft:bed",
+    "#minecraft:beds",
     "minecraft:chest",
     "minecraft:jukebox",
     "minecraft:note_block",

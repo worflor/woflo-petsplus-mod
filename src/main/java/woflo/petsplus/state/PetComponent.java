@@ -76,12 +76,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Deque;
+import java.util.Set;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.stream.Stream;
@@ -1676,6 +1678,10 @@ public class PetComponent {
 
     public void recordGoalSuggestion(@Nullable Identifier goalId, float score, long tick) {
         aiState.recordGoalSuggestion(goalId, score, tick);
+    }
+
+    public void invalidateDirectorSuggestion(@Nullable String reason, long tick) {
+        aiState.invalidateDirectorSuggestion(reason, tick);
     }
 
     @Nullable
@@ -4033,6 +4039,7 @@ public class PetComponent {
         private final Map<Identifier, TargetDistanceModifier> distanceModifiers = new HashMap<>();
         private final Map<Identifier, SpeedModifier> speedModifiers = new HashMap<>();
         private final Map<Identifier, ActorSlot> activeActors = new HashMap<>();
+        private final Set<Identifier> baselineActors = new HashSet<>();
         private Identifier leadingActorId = null;
         private int leadingActorPriority = Integer.MAX_VALUE;
         private long actorClaimCounter = 0L;
@@ -4069,6 +4076,7 @@ public class PetComponent {
             offsetModifiers.remove(source);
             distanceModifiers.remove(source);
             speedModifiers.remove(source);
+            baselineActors.remove(source);
         }
 
         public boolean canActivateActor(Identifier source, int priority) {
@@ -4093,6 +4101,7 @@ public class PetComponent {
 
         public void deactivateActor(Identifier source) {
             if (activeActors.remove(source) != null) {
+                baselineActors.remove(source);
                 recomputeLeadership();
             }
         }
@@ -4110,6 +4119,18 @@ public class PetComponent {
                 return MovementCommand.of(mob.getEntityPos(), 0.0, 0.0);
             }
             return blendMovement(baseTarget, baseDistance, baseSpeed);
+        }
+
+        public void setActorBaseline(Identifier source, boolean baseline) {
+            if (baseline) {
+                baselineActors.add(source);
+            } else {
+                baselineActors.remove(source);
+            }
+        }
+
+        public boolean isBaselineActor(Identifier source) {
+            return baselineActors.contains(source);
         }
 
         private MovementCommand blendMovement(Vec3d baseTarget, double baseDistance, double baseSpeed) {
@@ -4231,13 +4252,9 @@ public class PetComponent {
      */
     public void loadFromEntity() {
         try {
-            if (!(pet instanceof EntityComponentAccessor accessor)) {
-                Petsplus.LOGGER.warn("Entity " + pet.getUuidAsString() + " is missing component accessor mixin");
-                return;
-            }
             PetsplusComponents.PetData stored = null;
             try {
-                stored = accessor.petsplus$castComponentValue(PetsplusComponents.PET_DATA, null);
+                stored = EntityComponentAccessor.petsplus$castComponentValue(PetsplusComponents.PET_DATA, null);
             } catch (ClassCastException castError) {
                 Petsplus.LOGGER.warn("Failed to cast pet component data for " + pet.getUuidAsString(), castError);
             }

@@ -143,8 +143,25 @@ public final class PetsplusEffectManager {
             return List.of();
         }
 
+        // Apply with per-owner per-tick budget to prevent frame spikes
+        int applied = 0;
+        int limitPerTick = woflo.petsplus.policy.AIBudgetPolicy.auraTokensPerOwnerPerTick();
+        java.util.UUID ownerId = owner.getUuid();
+        long tick = world.getTime();
+        woflo.petsplus.state.coordination.AuraBudgetManager budget = woflo.petsplus.state.coordination.AuraBudgetManager.get(world);
         for (LivingEntity target : targets) {
+            if (!budget.tryConsume(ownerId, tick, limitPerTick)) {
+                break;
+            }
             target.addStatusEffect(new StatusEffectInstance(entry, effect.durationTicks(), effect.amplifier(), false, true, true));
+            applied++;
+        }
+        if (applied <= 0) {
+            return java.util.List.of();
+        }
+        if (applied < targets.size()) {
+            // Not all targets were processed; return only applied subset to avoid extra work by callers
+            return new java.util.ArrayList<>(targets.subList(0, applied));
         }
         return targets;
     }
@@ -157,10 +174,17 @@ public final class PetsplusEffectManager {
         if (resolver != null) {
             List<LivingEntity> resolved = resolver.resolveTargets(world, pet, petComp, owner, radius, target, swarmSnapshot, spatialResult);
             if (!resolved.isEmpty()) {
+                if (woflo.petsplus.config.DebugSettings.isDebugEnabled()) {
+                    woflo.petsplus.debug.DebugSnapshotAggregator.recordAuraResolve(world.getServer(), owner.getUuid(), world.getTime(), true);
+                }
                 return resolved;
             }
         }
-        return resolveTargetsFallback(world, pet, owner, radius, target);
+        List<LivingEntity> fallback = resolveTargetsFallback(world, pet, owner, radius, target);
+        if (woflo.petsplus.config.DebugSettings.isDebugEnabled()) {
+            woflo.petsplus.debug.DebugSnapshotAggregator.recordAuraResolve(world.getServer(), owner.getUuid(), world.getTime(), false);
+        }
+        return fallback;
     }
 
     private static List<LivingEntity> resolveTargetsFallback(ServerWorld world, MobEntity pet, ServerPlayerEntity owner,

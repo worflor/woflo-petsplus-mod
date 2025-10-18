@@ -355,7 +355,15 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
         AtomicInteger bufferSize = bufferSizes[bufferToDrain];
         int drained = 0;
         Runnable task;
-        while ((task = queue.poll()) != null) {
+
+        // Time- and count-bounded draining to avoid long stalls on the main thread
+        double load = loadFactorSupplier != null ? loadFactorSupplier.getAsDouble() : 1.0D;
+        if (load <= 0.0D) load = 1.0D;
+        int maxTasks = Math.max(8, (int) Math.round(64 / Math.min(2.0D, load))); // 64 @ normal, 32 @ 2x load
+        long budgetNanos = (long) Math.max(500_000L, Math.round(2_000_000L / Math.min(2.0D, load))); // ~2ms budget
+        long start = System.nanoTime();
+
+        while (drained < maxTasks && (System.nanoTime() - start) < budgetNanos && (task = queue.poll()) != null) {
             try {
                 task.run();
             } catch (Throwable throwable) {

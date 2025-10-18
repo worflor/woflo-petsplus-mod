@@ -12,5 +12,7 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 public interface EntityComponentAccessor {
 
     @Invoker("castComponentValue")
-    <T> T petsplus$castComponentValue(ComponentType<T> type, Object fallback);
+    static <T> T petsplus$castComponentValue(ComponentType<T> type, Object fallback) {
+        throw new AssertionError();
+    }
 }

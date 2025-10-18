@@ -10,14 +10,17 @@ public final class FollowTuning {
     private FollowTuning() {
     }
 
+    public static final float DEFAULT_BASELINE_DISTANCE = 4.2f;
+    public static final float DEFAULT_TELEPORT_DISTANCE = 16.0f;
+
     public static float resolveFollowDistance(PetComponent component) {
         Identifier roleId = component.getRoleId();
         String role = roleId != null ? roleId.getPath() : "";
         return switch (role) {
-            case "guardian" -> 5.5f;
-            case "scout" -> 9.0f;
-            case "support" -> 4.5f;
-            default -> 6.0f;
+            case "guardian" -> 3.8f;
+            case "scout" -> 5.5f;
+            case "support" -> 3.2f;
+            default -> DEFAULT_BASELINE_DISTANCE;
         };
     }
 
@@ -25,9 +28,9 @@ public final class FollowTuning {
         Identifier roleId = component.getRoleId();
         String role = roleId != null ? roleId.getPath() : "";
         return switch (role) {
-            case "scout" -> 16.0f;
-            case "support" -> 9.5f;
-            default -> 12.0f;
+            case "scout" -> 18.0f;
+            case "support" -> 14.0f;
+            default -> DEFAULT_TELEPORT_DISTANCE;
         };
     }
 

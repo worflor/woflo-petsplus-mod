@@ -2298,6 +2298,12 @@ public final class PetMoodEngine {
         }
 
         List<Map.Entry<PetComponent.Emotion, Float>> entries = new ArrayList<>(paletteBlend.entrySet());
+        // Defensive guard: EnumMap entry snapshots can surface null placeholders during async mood updates.
+        entries.removeIf(entry -> entry == null || entry.getKey() == null || entry.getValue() == null);
+        if (entries.isEmpty()) {
+            stagePalette(Collections.emptyList());
+            return;
+        }
         entries.sort((a, b) -> Float.compare(b.getValue(), a.getValue()));
         int limit = Math.min(entries.size(), 4);
         List<PetComponent.WeightedEmotionColor> stops = new ArrayList<>(limit);
