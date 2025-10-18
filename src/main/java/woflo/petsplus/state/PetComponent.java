@@ -4032,6 +4032,10 @@ public class PetComponent {
         private final Map<Identifier, PositionalOffsetModifier> offsetModifiers = new HashMap<>();
         private final Map<Identifier, TargetDistanceModifier> distanceModifiers = new HashMap<>();
         private final Map<Identifier, SpeedModifier> speedModifiers = new HashMap<>();
+        private final Map<Identifier, ActorSlot> activeActors = new HashMap<>();
+        private Identifier leadingActorId = null;
+        private int leadingActorPriority = Integer.MAX_VALUE;
+        private long actorClaimCounter = 0L;
 
         public MovementDirector(MobEntity mob) {
             this.mob = mob;
@@ -4067,7 +4071,48 @@ public class PetComponent {
             speedModifiers.remove(source);
         }
 
-        public MovementCommand resolveMovement(Vec3d baseTarget, double baseDistance, double baseSpeed) {
+        public boolean canActivateActor(Identifier source, int priority) {
+            ActorSlot slot = activeActors.get(source);
+            if (slot != null) {
+                return priority <= slot.priority;
+            }
+
+            if (activeActors.isEmpty()) {
+                return true;
+            }
+
+            int minPriority = leadingActorPriority;
+            return priority <= minPriority;
+        }
+
+        public void activateActor(Identifier source, int priority) {
+            ActorSlot slot = new ActorSlot(priority, ++actorClaimCounter);
+            activeActors.put(source, slot);
+            recomputeLeadership();
+        }
+
+        public void deactivateActor(Identifier source) {
+            if (activeActors.remove(source) != null) {
+                recomputeLeadership();
+            }
+        }
+
+        public boolean isActorLeading(Identifier source) {
+            return leadingActorId != null && leadingActorId.equals(source);
+        }
+
+        public MovementCommand previewMovement(Vec3d baseTarget, double baseDistance, double baseSpeed) {
+            return blendMovement(baseTarget, baseDistance, baseSpeed);
+        }
+
+        public MovementCommand resolveMovement(Identifier actorId, Vec3d baseTarget, double baseDistance, double baseSpeed) {
+            if (actorId != null && !isActorLeading(actorId)) {
+                return MovementCommand.of(mob.getEntityPos(), 0.0, 0.0);
+            }
+            return blendMovement(baseTarget, baseDistance, baseSpeed);
+        }
+
+        private MovementCommand blendMovement(Vec3d baseTarget, double baseDistance, double baseSpeed) {
             Vec3d offset = Vec3d.ZERO;
             double offsetWeight = 0.0;
 
@@ -4126,6 +4171,24 @@ public class PetComponent {
             }
 
             return MovementCommand.of(target, desiredDistance, speed);
+        }
+
+        private void recomputeLeadership() {
+            leadingActorId = null;
+            leadingActorPriority = Integer.MAX_VALUE;
+            long bestOrder = Long.MAX_VALUE;
+
+            for (Map.Entry<Identifier, ActorSlot> entry : activeActors.entrySet()) {
+                ActorSlot slot = entry.getValue();
+                if (slot.priority < leadingActorPriority || (slot.priority == leadingActorPriority && slot.claimOrder < bestOrder)) {
+                    leadingActorPriority = slot.priority;
+                    bestOrder = slot.claimOrder;
+                    leadingActorId = entry.getKey();
+                }
+            }
+        }
+
+        private record ActorSlot(int priority, long claimOrder) {
         }
     }
 

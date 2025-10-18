@@ -16,7 +16,6 @@ import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.ai.goals.OwnerAssistAttackGoal;
 import woflo.petsplus.ai.movement.MovementCommand;
 import woflo.petsplus.api.entity.PetsplusTameable;
-import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
 import woflo.petsplus.state.emotions.PetMoodEngine;
 
@@ -35,8 +34,6 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
     private static final double HESITATION_CLEAR_DISTANCE = 2.5d;
 
     private final PetsplusTameable tameable;
-    private final PetComponent petComponent;
-    private final PetComponent.MovementDirector movementDirector;
     private final double baseSpeed;
 
     private float baseFollowDistance;
@@ -51,12 +48,10 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
     public FollowOwnerAdaptiveGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.FOLLOW_OWNER), EnumSet.of(Control.MOVE, Control.LOOK));
         this.tameable = mob instanceof PetsplusTameable petsplus ? petsplus : null;
-        this.petComponent = PetComponent.get(mob);
-        this.movementDirector = petComponent != null ? petComponent.getMovementDirector() : null;
         this.baseSpeed = 1.0d;
-        if (petComponent != null) {
-            this.baseFollowDistance = FollowTuning.resolveFollowDistance(petComponent);
-            this.teleportDistance = FollowTuning.resolveTeleportDistance(petComponent);
+        if (this.petComponent != null) {
+            this.baseFollowDistance = FollowTuning.resolveFollowDistance(this.petComponent);
+            this.teleportDistance = FollowTuning.resolveTeleportDistance(this.petComponent);
         } else {
             this.baseFollowDistance = 6.0f;
             this.teleportDistance = 12.0f;
@@ -105,7 +100,7 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
         boolean moodHoldActive = petComponent.isMoodFollowHoldActive(now);
         float moodDistanceBonus = moodHoldActive ? petComponent.getMoodFollowDistanceBonus(now) : 0.0f;
         double baseDistance = baseFollowDistance + moodDistanceBonus;
-        MovementCommand command = movementDirector.resolveMovement(owner.getEntityPos(), baseDistance, baseSpeed);
+        MovementCommand command = movementDirector.previewMovement(owner.getEntityPos(), baseDistance, baseSpeed);
         double thresholdSq = command.desiredDistance() * command.desiredDistance();
 
         if (hesitating) {
@@ -156,7 +151,7 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
         boolean moodHoldActive = petComponent.isMoodFollowHoldActive(now);
         float moodDistanceBonus = moodHoldActive ? petComponent.getMoodFollowDistanceBonus(now) : 0.0f;
         double baseDistance = baseFollowDistance + moodDistanceBonus;
-        MovementCommand command = movementDirector.resolveMovement(owner.getEntityPos(), baseDistance, baseSpeed);
+        MovementCommand command = movementDirector.previewMovement(owner.getEntityPos(), baseDistance, baseSpeed);
         double thresholdSq = command.desiredDistance() * command.desiredDistance();
         if (moodHoldActive && distanceSq <= thresholdSq) {
             return false;
@@ -223,7 +218,7 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
 
         double distanceToOwnerSq = mob.squaredDistanceTo(owner);
         double baseSpeed = resolveDynamicSpeed(distanceToOwnerSq, baseDistance);
-        MovementCommand command = movementDirector.resolveMovement(owner.getEntityPos(), baseDistance, baseSpeed);
+        MovementCommand command = movementDirector.resolveMovement(goalId, owner.getEntityPos(), baseDistance, baseSpeed);
         this.activeFollowDistance = (float) command.desiredDistance();
         Vec3d moveTarget = command.targetPosition();
         double adjustedSpeed = command.speed();

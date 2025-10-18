@@ -8,7 +8,6 @@ import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.ai.goals.OwnerAssistAttackGoal;
 import woflo.petsplus.ai.movement.SpeedModifier;
 import woflo.petsplus.ai.movement.TargetDistanceModifier;
-import woflo.petsplus.state.PetComponent;
 
 import java.util.EnumSet;
 
@@ -20,13 +19,8 @@ public class HesitateInCombatGoal extends AdaptiveGoal {
     private static final double HESITATION_CLEAR_DISTANCE = 2.5d;
     private static final double HESITATION_SPEED_BOOST = 0.2d;
 
-    private final PetComponent petComponent;
-    private final PetComponent.MovementDirector movementDirector;
-
     public HesitateInCombatGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.HESITATE_IN_COMBAT), EnumSet.noneOf(Control.class));
-        this.petComponent = PetComponent.get(mob);
-        this.movementDirector = petComponent != null ? petComponent.getMovementDirector() : null;
     }
 
     @Override
@@ -78,11 +72,16 @@ public class HesitateInCombatGoal extends AdaptiveGoal {
         if (petComponent == null) {
             return;
         }
+        double weight = Math.max(0.0, movementConfig.influencerWeight());
+        if (weight <= 0.0) {
+            movementDirector.clearSource(goalId);
+            return;
+        }
         double baseFollow = FollowTuning.resolveFollowDistance(petComponent);
         double desired = Math.max(HESITATION_CLEAR_DISTANCE, baseFollow * HESITATION_DISTANCE_FACTOR);
         double delta = desired - baseFollow;
         movementDirector.setTargetDistance(goalId,
-            new TargetDistanceModifier(HESITATION_CLEAR_DISTANCE, delta, 1.0));
+            new TargetDistanceModifier(HESITATION_CLEAR_DISTANCE, delta, weight));
         movementDirector.setSpeedModifier(goalId, new SpeedModifier(1.0, HESITATION_SPEED_BOOST, 0.0, Double.POSITIVE_INFINITY));
     }
 }

@@ -6,8 +6,6 @@ import net.minecraft.util.math.BlockPos;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.goals.GoalRegistry;
-import woflo.petsplus.state.PetComponent;
-
 import java.util.EnumSet;
 
 /**
@@ -17,12 +15,10 @@ public class ShelterFromRainGoal extends AdaptiveGoal {
     private static final String LAST_WET_TICK_KEY = "last_wet_tick";
     private static final long RECENT_WET_THRESHOLD = 2400L;
 
-    private final PetComponent petComponent;
     private BlockPos holdPosition = BlockPos.ORIGIN;
 
     public ShelterFromRainGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.SHELTER_FROM_RAIN), EnumSet.of(Control.MOVE));
-        this.petComponent = PetComponent.get(mob);
     }
 
     @Override

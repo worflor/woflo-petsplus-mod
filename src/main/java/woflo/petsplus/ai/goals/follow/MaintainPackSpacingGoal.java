@@ -1,6 +1,5 @@
 package woflo.petsplus.ai.goals.follow;
 
-import net.minecraft.entity.ai.goal.Goal;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -14,7 +13,6 @@ import woflo.petsplus.ai.movement.TargetDistanceModifier;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.behavior.social.PetSocialData;
 import woflo.petsplus.behavior.social.SocialContextSnapshot;
-import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 
@@ -33,15 +31,11 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
     private static final long FOLLOW_SAMPLE_INTERVAL = 5L;
     private static final long SWARM_CHECK_INTERVAL = 20L;
 
-    private final PetComponent petComponent;
-    private final PetComponent.MovementDirector movementDirector;
     private long lastSwarmCheckTick = Long.MIN_VALUE;
     private int lastObservedSwarmSize = 1;
 
     public MaintainPackSpacingGoal(MobEntity mob) {
-        super(mob, GoalRegistry.require(GoalIds.MAINTAIN_PACK_SPACING), EnumSet.noneOf(Goal.Control.class));
-        this.petComponent = PetComponent.get(mob);
-        this.movementDirector = petComponent != null ? petComponent.getMovementDirector() : null;
+        super(mob, GoalRegistry.require(GoalIds.MAINTAIN_PACK_SPACING), EnumSet.noneOf(Control.class));
     }
 
     @Override
@@ -77,7 +71,9 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
 
     @Override
     protected void onStopGoal() {
-        movementDirector.clearSource(goalId);
+        if (movementDirector != null) {
+            movementDirector.clearSource(goalId);
+        }
         petComponent.setFollowSpacingFocus(null, Long.MIN_VALUE);
         lastSwarmCheckTick = Long.MIN_VALUE;
         lastObservedSwarmSize = 1;
@@ -94,6 +90,10 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
     }
 
     private void updateSpacing() {
+        if (movementDirector == null) {
+            return;
+        }
+
         PlayerEntity owner = petComponent.getOwner() instanceof PlayerEntity player ? player : null;
         if (owner == null) {
             movementDirector.clearSource(goalId);
@@ -125,10 +125,17 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
             }
         }
 
+        double weight = Math.max(0.0, movementConfig.influencerWeight());
+        if (weight <= 0.0) {
+            movementDirector.clearSource(goalId);
+            petComponent.setFollowSpacingFocus(null, Long.MIN_VALUE);
+            return;
+        }
+
         movementDirector.setPositionalOffset(goalId,
-            new PositionalOffsetModifier(result.offsetX, 0.0, result.offsetZ, 1.0));
+            new PositionalOffsetModifier(result.offsetX, 0.0, result.offsetZ, weight));
         movementDirector.setTargetDistance(goalId,
-            new TargetDistanceModifier(0.0, result.padding, 1.0));
+            new TargetDistanceModifier(0.0, result.padding, weight));
         petComponent.setFollowSpacingSample(result.offsetX, result.offsetZ, result.padding, now);
         if (result.focus != null) {
             petComponent.setFollowSpacingFocus(result.focus, now + FOLLOW_SAMPLE_INTERVAL);

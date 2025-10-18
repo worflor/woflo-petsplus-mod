@@ -7,8 +7,6 @@ import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.ai.AdaptiveAIManager;
 import woflo.petsplus.mixin.MobEntityAccessor;
-import woflo.petsplus.ai.goals.CrouchCuddleGoal;
-import woflo.petsplus.ai.goals.PetSnuggleGoal;
 import woflo.petsplus.ai.goals.OwnerAssistAttackGoal;
 // OnFireScrambleGoal removed as part of AI simplification
 
@@ -30,15 +28,6 @@ public class PetAIEnhancements {
             OwnerAssistAttackGoal.clearAssistRegroup(petComponent);
             // Remove vanilla follow goal - adaptive system handles following now
             removeVanillaFollowGoal(pet);
-
-            // Owner assist targeting to mirror vanilla wolf combat
-            addOwnerAssistGoal(pet, petComponent);
-
-            // Crouch cuddle handshake keeps pets cozy near crouching owners
-            addCrouchCuddleGoal(pet, petComponent);
-
-            // Passive snuggle healing while cuddling (slow, gated, with cooldowns)
-            addSnuggleGoal(pet, petComponent);
 
             // OnFireScrambleGoal removed - pets will use vanilla panic behavior
 
@@ -64,25 +53,6 @@ public class PetAIEnhancements {
     private static void removeVanillaFollowGoal(MobEntity pet) {
         MobEntityAccessor accessor = (MobEntityAccessor) pet;
         accessor.getGoalSelector().getGoals().removeIf(goal -> goal.getGoal() instanceof net.minecraft.entity.ai.goal.FollowOwnerGoal);
-    }
-
-    private static void addOwnerAssistGoal(MobEntity pet, PetComponent petComponent) {
-        MobEntityAccessor accessor = (MobEntityAccessor) pet;
-        accessor.getTargetSelector().getGoals().removeIf(entry -> entry.getGoal() instanceof OwnerAssistAttackGoal);
-        accessor.getTargetSelector().add(2, new OwnerAssistAttackGoal(pet, petComponent));
-    }
-
-    private static void addCrouchCuddleGoal(MobEntity pet, PetComponent petComponent) {
-        MobEntityAccessor accessor = (MobEntityAccessor) pet;
-        accessor.getGoalSelector().getGoals().removeIf(entry -> entry.getGoal() instanceof CrouchCuddleGoal);
-        accessor.getGoalSelector().add(4, new CrouchCuddleGoal(pet, petComponent));
-    }
-
-    private static void addSnuggleGoal(MobEntity pet, PetComponent petComponent) {
-        MobEntityAccessor accessor = (MobEntityAccessor) pet;
-        accessor.getGoalSelector().getGoals().removeIf(entry -> entry.getGoal() instanceof PetSnuggleGoal);
-        // Place alongside cuddle; it declares no controls, so it won't fight movement logic
-        accessor.getGoalSelector().add(4, new PetSnuggleGoal(pet, petComponent));
     }
 
     // OnFireScrambleGoal removed - pets will use vanilla panic behavior
