@@ -4251,18 +4251,27 @@ public class PetComponent {
      * Loads component data from entity using the component system.
      */
     public void loadFromEntity() {
+        MobEntity currentPet = this.pet;
+        String petId = currentPet != null ? currentPet.getUuidAsString() : "unknown";
+
+        if (currentPet == null) {
+            Petsplus.LOGGER.warn("Pet component accessor unavailable; pet reference missing for " + petId);
+            return;
+        }
+        if (!(currentPet instanceof EntityComponentAccessor accessor)) {
+            Petsplus.LOGGER.warn("Pet component accessor unavailable; mixin missing for " + petId);
+            return;
+        }
+
         try {
-            PetsplusComponents.PetData stored = null;
-            try {
-                stored = EntityComponentAccessor.petsplus$castComponentValue(PetsplusComponents.PET_DATA, null);
-            } catch (ClassCastException castError) {
-                Petsplus.LOGGER.warn("Failed to cast pet component data for " + pet.getUuidAsString(), castError);
-            }
+            PetsplusComponents.PetData stored = accessor.petsplus$castComponentValue(PetsplusComponents.PET_DATA, null);
             if (stored != null) {
                 fromComponentData(stored);
             }
+        } catch (ClassCastException castError) {
+            Petsplus.LOGGER.warn("Failed to cast pet component data for " + petId, castError);
         } catch (Throwable error) {
-            Petsplus.LOGGER.warn("Failed to load pet component data for " + pet.getUuidAsString(), error);
+            Petsplus.LOGGER.warn("Failed to load pet component data for " + petId, error);
         }
     }
     
