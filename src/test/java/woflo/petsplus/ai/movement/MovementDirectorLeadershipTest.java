@@ -41,4 +41,33 @@ class MovementDirectorLeadershipTest {
         director.deactivateActor(GoalIds.OWNER_ASSIST_ATTACK);
         assertTrue(director.canActivateActor(GoalIds.SHELTER_FROM_RAIN, shelterConfig.actorPriority()));
     }
+
+    @Test
+    void selfPreservationOverridesFollowAndShelter() {
+        GoalMovementConfig followConfig = GoalRegistry.movementConfig(GoalIds.FOLLOW_OWNER);
+        GoalMovementConfig shelterConfig = GoalRegistry.movementConfig(GoalIds.SHELTER_FROM_RAIN);
+        GoalMovementConfig fearConfig = GoalRegistry.movementConfig(GoalIds.SELF_PRESERVATION);
+
+        assertNotNull(followConfig, "Follow owner movement config should be registered");
+        assertNotNull(shelterConfig, "Shelter movement config should be registered");
+        assertNotNull(fearConfig, "Self-preservation movement config should be registered");
+
+        assertTrue(fearConfig.actorPriority() <= followConfig.actorPriority(), "Fear priority must outrank follow");
+        assertTrue(fearConfig.actorPriority() <= shelterConfig.actorPriority(), "Fear priority must outrank shelter");
+
+        PetComponent.MovementDirector director = new PetComponent.MovementDirector(null);
+
+        director.activateActor(GoalIds.FOLLOW_OWNER, followConfig.actorPriority());
+        assertTrue(director.isActorLeading(GoalIds.FOLLOW_OWNER));
+
+        assertTrue(director.canActivateActor(GoalIds.SELF_PRESERVATION, fearConfig.actorPriority()), "Fear should activate over follow");
+        director.activateActor(GoalIds.SELF_PRESERVATION, fearConfig.actorPriority());
+        assertTrue(director.isActorLeading(GoalIds.SELF_PRESERVATION));
+
+        director.deactivateActor(GoalIds.SELF_PRESERVATION);
+        director.activateActor(GoalIds.SHELTER_FROM_RAIN, shelterConfig.actorPriority());
+        assertTrue(director.isActorLeading(GoalIds.SHELTER_FROM_RAIN));
+
+        assertTrue(director.canActivateActor(GoalIds.SELF_PRESERVATION, fearConfig.actorPriority()), "Fear should activate over shelter");
+    }
 }
