@@ -24,6 +24,8 @@ import woflo.petsplus.ai.goals.idle.PerformAmbientAnimationGoal;
 // Play goals
 import woflo.petsplus.ai.goals.play.SimpleFetchItemGoal;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.util.*;
 
 /**
@@ -35,6 +37,7 @@ public final class GoalRegistry {
     private static final Map<Identifier, GoalDefinition> BUILT_IN_DEFAULTS = new LinkedHashMap<>();
     private static final Set<Identifier> DATA_DRIVEN = new HashSet<>();
     private static final Map<Identifier, GoalMovementConfig> MOVEMENT_CONFIGS = new HashMap<>();
+    private static final Map<Identifier, GoalMovementConfig> BUILT_IN_MOVEMENT_CONFIGS = new HashMap<>();
 
     private static int secondsToTicks(int seconds) {
         return Math.max(0, seconds) * 20;
@@ -982,6 +985,7 @@ public final class GoalRegistry {
 
     private static void initializeMovementConfigs() {
         Set<Identifier> remaining = new HashSet<>(DEFINITIONS.keySet());
+        BUILT_IN_MOVEMENT_CONFIGS.clear();
 
         assignNone(remaining,
             GoalIds.BUBBLE_PLAY,
@@ -992,6 +996,7 @@ public final class GoalRegistry {
             GoalIds.PERK_EARS_SCAN,
             GoalIds.PET_SNUGGLE,
             GoalIds.PREEN_FEATHERS,
+            GoalIds.SHAKE_DRY,
             GoalIds.SIT_SPHINX_POSE,
             GoalIds.SNIFF_GROUND,
             GoalIds.STRETCH_AND_YAW,
@@ -1020,7 +1025,11 @@ public final class GoalRegistry {
     }
 
     private static void configureMovement(Identifier id, GoalMovementConfig config) {
-        MOVEMENT_CONFIGS.put(id, config == null ? GoalMovementConfig.none() : config);
+        GoalMovementConfig normalized = config == null ? GoalMovementConfig.none() : config;
+        MOVEMENT_CONFIGS.put(id, normalized);
+        if (!BUILT_IN_MOVEMENT_CONFIGS.containsKey(id) && BUILT_IN_DEFAULTS.containsKey(id)) {
+            BUILT_IN_MOVEMENT_CONFIGS.put(id, normalized);
+        }
     }
 
     private static void assignNone(Set<Identifier> remaining, Identifier... ids) {
@@ -1046,6 +1055,10 @@ public final class GoalRegistry {
     }
 
     public static GoalDefinition register(GoalDefinition definition) {
+        return register(definition, null);
+    }
+
+    public static GoalDefinition register(GoalDefinition definition, @Nullable GoalMovementConfig movementOverride) {
         Identifier id = definition.id();
         if (DEFINITIONS.containsKey(id)) {
             throw new IllegalStateException("Duplicate goal id registered: " + id);
@@ -1053,13 +1066,19 @@ public final class GoalRegistry {
         DEFINITIONS.put(id, definition);
         BUILT_IN_DEFAULTS.putIfAbsent(id, definition);
         DATA_DRIVEN.remove(id);
+        assignMovementForDefinition(id, definition, movementOverride);
         return definition;
     }
 
     public static GoalDefinition registerDataDriven(GoalDefinition definition) {
+        return registerDataDriven(definition, null);
+    }
+
+    public static GoalDefinition registerDataDriven(GoalDefinition definition, @Nullable GoalMovementConfig movementOverride) {
         Identifier id = definition.id();
         DEFINITIONS.put(id, definition);
         DATA_DRIVEN.add(id);
+        assignMovementForDefinition(id, definition, movementOverride);
         return definition;
     }
 
@@ -1071,11 +1090,31 @@ public final class GoalRegistry {
             GoalDefinition fallback = BUILT_IN_DEFAULTS.get(id);
             if (fallback != null) {
                 DEFINITIONS.put(id, fallback);
+                GoalMovementConfig builtInConfig = BUILT_IN_MOVEMENT_CONFIGS.get(id);
+                if (builtInConfig != null) {
+                    configureMovement(id, builtInConfig);
+                } else {
+                    MOVEMENT_CONFIGS.remove(id);
+                }
             } else {
                 DEFINITIONS.remove(id);
+                MOVEMENT_CONFIGS.remove(id);
             }
         }
         DATA_DRIVEN.clear();
+    }
+
+    private static void assignMovementForDefinition(Identifier id, GoalDefinition definition, @Nullable GoalMovementConfig movementOverride) {
+        GoalMovementConfig config = movementOverride;
+        if (config == null) {
+            GoalMovementConfig builtInConfig = BUILT_IN_MOVEMENT_CONFIGS.get(id);
+            if (builtInConfig != null) {
+                config = builtInConfig;
+            } else {
+                config = GoalMovementConfig.actor(definition.priority());
+            }
+        }
+        configureMovement(id, config);
     }
 
     public static Collection<GoalDefinition> all() {
