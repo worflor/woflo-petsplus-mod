@@ -695,7 +695,7 @@ public final class GoalRegistry {
         registerBuiltIn(new GoalDefinition(
             GoalIds.SKY_SURVEY,
             Category.SPECIAL,
-            21,
+            16,
             secondsToTicks(40),
             secondsToTicks(90),
             MobCapabilities.CapabilityRequirement.allOf(List.of(
