@@ -6,8 +6,6 @@ import java.util.EnumSet;
 import java.util.List;
 
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.ai.goal.Goal;
-import net.minecraft.entity.attribute.EntityAttribute;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.passive.TameableEntity;
@@ -17,6 +15,8 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import org.jetbrains.annotations.Nullable;
+import woflo.petsplus.ai.goals.GoalIds;
+import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.OwnerCombatState.AggroSnapshot;
@@ -26,7 +26,7 @@ import woflo.petsplus.state.PetComponent;
  * Mirrors the vanilla wolf "assist owner" behaviour but layers in light mood checks
  * so pets still feel individual without thrashing their navigation.
  */
-public class OwnerAssistAttackGoal extends Goal {
+public class OwnerAssistAttackGoal extends AdaptiveGoal {
     private static final int SNAPSHOT_REFRESH_TICKS = 20;
     private static final int PATH_RECALC_MIN = 4;
     private static final int PATH_RECALC_MAX = 12;
@@ -43,10 +43,6 @@ public class OwnerAssistAttackGoal extends Goal {
     private static final double PACK_OWNER_RADIUS = 8.0d;
     private static final double PACK_DESIRED_SPACING = 2.4d;
     private static final double PACK_MAX_SPACING = 6.5d;
-
-    private final MobEntity mob;
-    private final PetComponent petComponent;
-
     private @Nullable PlayerEntity owner;
     private @Nullable LivingEntity assistTarget;
     private float assistDesire;
@@ -56,15 +52,14 @@ public class OwnerAssistAttackGoal extends Goal {
     private MoodSample moodSample = MoodSample.EMPTY;
     private PackSample packSample = PackSample.EMPTY;
 
-    public OwnerAssistAttackGoal(MobEntity mob, PetComponent petComponent) {
-        this.mob = mob;
-        this.petComponent = petComponent;
-        this.setControls(EnumSet.of(Control.MOVE, Control.LOOK, Control.TARGET));
+    public OwnerAssistAttackGoal(MobEntity mob) {
+        super(mob, GoalRegistry.require(GoalIds.OWNER_ASSIST_ATTACK), EnumSet.of(Control.MOVE, Control.LOOK, Control.TARGET));
     }
 
     @Override
-    public boolean canStart() {
-        if (mob.getEntityWorld().isClient() || !mob.isAlive()) {
+    
+    protected boolean canStartGoal() {
+        if (petComponent == null || mob.getEntityWorld().isClient() || !mob.isAlive()) {
             return false;
         }
 
@@ -125,7 +120,11 @@ public class OwnerAssistAttackGoal extends Goal {
     }
 
     @Override
-    public boolean shouldContinue() {
+    
+    protected boolean shouldContinueGoal() {
+        if (petComponent == null) {
+            return false;
+        }
         if (assistTarget == null || !assistTarget.isAlive() || assistTarget.isRemoved()) {
             return false;
         }
@@ -206,7 +205,8 @@ public class OwnerAssistAttackGoal extends Goal {
     }
 
     @Override
-    public void start() {
+    
+    protected void onStartGoal() {
         if (assistTarget != null) {
             mob.setTarget(assistTarget);
         }
@@ -225,7 +225,8 @@ public class OwnerAssistAttackGoal extends Goal {
     }
 
     @Override
-    public void stop() {
+    
+    protected void onStopGoal() {
         if (assistTarget != null && mob.getTarget() == assistTarget) {
             mob.setTarget(null);
         }
@@ -240,7 +241,8 @@ public class OwnerAssistAttackGoal extends Goal {
     }
 
     @Override
-    public void tick() {
+    
+    protected void onTickGoal() {
         if (assistTarget == null) {
             return;
         }
@@ -379,6 +381,11 @@ public class OwnerAssistAttackGoal extends Goal {
         }
         double speed = computeApproachSpeed();
         mob.getNavigation().startMovingTo(owner, speed);
+    }
+
+    @Override
+    protected float calculateEngagement() {
+        return MathHelper.clamp(assistDesire, 0.25f, 1.0f);
     }
 
     private void updatePackContext(@Nullable LivingEntity target) {

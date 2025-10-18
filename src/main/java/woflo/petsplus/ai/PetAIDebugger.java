@@ -77,9 +77,9 @@ public class PetAIDebugger {
             Petsplus.LOGGER.info("Target Goal Count: {}", targetCount);
             
             // Log enhanced follow goal status
-            boolean hasEnhancedFollow = accessor.getGoalSelector().getGoals().stream()
-                .anyMatch(goal -> goal.getGoal() instanceof woflo.petsplus.ai.goals.EnhancedFollowOwnerGoal);
-            Petsplus.LOGGER.info("Has Enhanced Follow Goal: {}", hasEnhancedFollow);
+            boolean hasAdaptiveFollow = accessor.getGoalSelector().getGoals().stream()
+                .anyMatch(goal -> goal.getGoal() instanceof woflo.petsplus.ai.goals.follow.FollowOwnerAdaptiveGoal);
+            Petsplus.LOGGER.info("Has Adaptive Follow Goal: {}", hasAdaptiveFollow);
             
         } catch (Exception e) {
             Petsplus.LOGGER.warn("Failed to access goal selectors: {}", e.getMessage());

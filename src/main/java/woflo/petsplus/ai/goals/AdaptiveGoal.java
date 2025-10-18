@@ -40,6 +40,9 @@ public abstract class AdaptiveGoal extends Goal {
     protected final MobEntity mob;
     protected final GoalDefinition goalDefinition;
     protected final Identifier goalId;
+    protected final PetComponent petComponent;
+    protected final PetComponent.MovementDirector movementDirector;
+    protected final GoalMovementConfig movementConfig;
     
     private int activeTicks = 0;
     private int lastActivitySampleTick = 0;
@@ -58,6 +61,9 @@ public abstract class AdaptiveGoal extends Goal {
         this.mob = mob;
         this.goalDefinition = goalDefinition;
         this.goalId = goalDefinition.id();
+        this.petComponent = PetComponent.get(mob);
+        this.movementDirector = petComponent != null ? petComponent.getMovementDirector() : null;
+        this.movementConfig = GoalRegistry.movementConfig(this.goalId);
         this.setControls(controls);
     }
 
@@ -129,6 +135,10 @@ public abstract class AdaptiveGoal extends Goal {
             return false;
         }
 
+        if (!movementRoleAllowsStart()) {
+            return false;
+        }
+
         // 7. Goal-specific conditions
         return canStartGoal();
     }
@@ -149,6 +159,10 @@ public abstract class AdaptiveGoal extends Goal {
         
         // Stop if higher priority goal needs to run
         if (hasActiveHigherPriorityGoals()) {
+            return false;
+        }
+
+        if (!maintainMovementLeadership()) {
             return false;
         }
         
@@ -176,7 +190,7 @@ public abstract class AdaptiveGoal extends Goal {
         onStartGoal();
 
         // Record activity start for behavioral momentum
-        PetComponent pc = PetComponent.get(mob);
+        PetComponent pc = petComponent;
         if (pc != null) {
             long worldTime = 0L;
             var world = mob.getEntityWorld();
@@ -188,6 +202,7 @@ public abstract class AdaptiveGoal extends Goal {
                 pc.getAIState().setActiveMajorGoal(goalId);
             }
         }
+        registerMovementRole();
         recordActivityStart();
         trackGoalStart();
     }
@@ -195,6 +210,7 @@ public abstract class AdaptiveGoal extends Goal {
     @Override
     public void stop() {
         pendingStop = false;
+        clearMovementRole();
         // Record satisfaction/enjoyment for memory system
         float finalSatisfaction = calculateFinalSatisfaction();
         recordGoalExperience(finalSatisfaction);
@@ -309,6 +325,50 @@ public abstract class AdaptiveGoal extends Goal {
 
     protected void requestStop() {
         this.pendingStop = true;
+    }
+
+    private boolean movementRoleAllowsStart() {
+        if (movementDirector == null) {
+            return true;
+        }
+
+        return switch (movementConfig.role()) {
+            case NONE, INFLUENCER -> true;
+            case ACTOR -> movementDirector.canActivateActor(goalId, movementConfig.actorPriority());
+        };
+    }
+
+    private boolean maintainMovementLeadership() {
+        if (movementDirector == null) {
+            return true;
+        }
+
+        return switch (movementConfig.role()) {
+            case NONE, INFLUENCER -> true;
+            case ACTOR -> movementDirector.isActorLeading(goalId);
+        };
+    }
+
+    private void registerMovementRole() {
+        if (movementDirector == null) {
+            return;
+        }
+
+        if (movementConfig.role() == GoalMovementConfig.MovementRole.ACTOR) {
+            movementDirector.activateActor(goalId, movementConfig.actorPriority());
+        }
+    }
+
+    private void clearMovementRole() {
+        if (movementDirector == null) {
+            return;
+        }
+
+        movementDirector.clearSource(goalId);
+
+        if (movementConfig.role() == GoalMovementConfig.MovementRole.ACTOR) {
+            movementDirector.deactivateActor(goalId);
+        }
     }
     
     // === ABSTRACT METHODS - Implement in subclasses ===

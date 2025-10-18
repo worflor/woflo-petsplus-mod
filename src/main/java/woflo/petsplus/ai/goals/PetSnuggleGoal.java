@@ -10,8 +10,9 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
+import woflo.petsplus.ai.goals.GoalIds;
+import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.events.EmotionContextCues;
-import net.minecraft.entity.ai.goal.Goal;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
@@ -28,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * together out of combat. Balanced by strict preconditions, pair locking and cooldowns so it feels
  * like a camp-side comfort, not a combat heal.
  */
-public class PetSnuggleGoal extends Goal {
+public class PetSnuggleGoal extends AdaptiveGoal {
     // Tuning
     private static final double MAX_DISTANCE_SQ = 2.5 * 2.5; // must be very close once paired
     private static final double SEARCH_RADIUS = 6.0; // look for snuggle friends nearby
@@ -58,16 +59,16 @@ public class PetSnuggleGoal extends Goal {
     private long lastPulseTick;
     private long startTick;
 
-    public PetSnuggleGoal(MobEntity pet, PetComponent component) {
+    public PetSnuggleGoal(MobEntity pet) {
+        super(pet, GoalRegistry.require(GoalIds.PET_SNUGGLE), EnumSet.noneOf(Control.class));
         this.pet = pet;
-        this.component = component;
-        // Intentionally do not claim any controls so this goal can run alongside the hover goal
-        this.setControls(EnumSet.noneOf(Control.class));
+        this.component = PetComponent.get(pet);
     }
 
     @Override
-    public boolean canStart() {
-        if (!(pet.getEntityWorld() instanceof ServerWorld world)) {
+    
+    protected boolean canStartGoal() {
+        if (component == null || !(pet.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
 
@@ -107,8 +108,9 @@ public class PetSnuggleGoal extends Goal {
     }
 
     @Override
-    public boolean shouldContinue() {
-        if (!(pet.getEntityWorld() instanceof ServerWorld world)) {
+    
+    protected boolean shouldContinueGoal() {
+        if (component == null || !(pet.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
         MobEntity partner = this.partner;
@@ -163,7 +165,8 @@ public class PetSnuggleGoal extends Goal {
     }
 
     @Override
-    public void start() {
+    
+    protected void onStartGoal() {
         if (!(pet.getEntityWorld() instanceof ServerWorld world)) {
             return;
         }
@@ -206,7 +209,8 @@ public class PetSnuggleGoal extends Goal {
     }
 
     @Override
-    public void stop() {
+    
+    protected void onStopGoal() {
         if (pet.getEntityWorld() instanceof ServerWorld world) {
             long now = world.getTime();
             long until = now + SESSION_COOLDOWN_TICKS;
@@ -228,7 +232,8 @@ public class PetSnuggleGoal extends Goal {
     }
 
     @Override
-    public void tick() {
+    
+    protected void onTickGoal() {
         if (!(pet.getEntityWorld() instanceof ServerWorld world)) {
             return;
         }
@@ -501,6 +506,11 @@ public class PetSnuggleGoal extends Goal {
                 removePairingEntries(id, ACTIVE_PAIRINGS.get(id));
             }
         });
+    }
+
+    @Override
+    protected float calculateEngagement() {
+        return 0.58f;
     }
 
     private boolean isPaired(UUID id, ServerWorld world, long now) {
