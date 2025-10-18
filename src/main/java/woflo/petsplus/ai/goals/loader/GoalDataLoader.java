@@ -5,7 +5,6 @@ import com.google.gson.JsonObject;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.Petsplus;
-import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.data.BaseJsonDataLoader;
 
@@ -38,8 +37,8 @@ public final class GoalDataLoader extends BaseJsonDataLoader<Void> {
                 continue;
             }
             try {
-                GoalDefinition definition = GoalDataParser.parse(id, (JsonObject) element);
-                GoalRegistry.registerDataDriven(definition);
+                GoalDataParser.ParsedGoal parsed = GoalDataParser.parse(id, (JsonObject) element);
+                GoalRegistry.registerDataDriven(parsed.definition(), parsed.movementConfig());
             } catch (Exception e) {
                 Petsplus.LOGGER.error("Failed to parse adaptive goal {}", describeSource(id), e);
             }

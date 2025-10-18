@@ -39,7 +39,11 @@ public abstract class AdaptiveGoal extends Goal {
 
     protected final MobEntity mob;
     protected final GoalDefinition goalDefinition;
+    private GoalDefinition lastResolvedDefinition;
     protected final Identifier goalId;
+    protected final PetComponent petComponent;
+    protected final PetComponent.MovementDirector movementDirector;
+    private GoalMovementConfig appliedMovementConfig;
     
     private int activeTicks = 0;
     private int lastActivitySampleTick = 0;
@@ -58,7 +62,10 @@ public abstract class AdaptiveGoal extends Goal {
         this.mob = mob;
         this.goalDefinition = goalDefinition;
         this.goalId = goalDefinition.id();
+        this.petComponent = PetComponent.get(mob);
+        this.movementDirector = petComponent != null ? petComponent.getMovementDirector() : null;
         this.setControls(controls);
+        this.lastResolvedDefinition = goalDefinition;
     }
 
     /**
@@ -129,6 +136,10 @@ public abstract class AdaptiveGoal extends Goal {
             return false;
         }
 
+        if (!movementRoleAllowsStart()) {
+            return false;
+        }
+
         // 7. Goal-specific conditions
         return canStartGoal();
     }
@@ -149,6 +160,10 @@ public abstract class AdaptiveGoal extends Goal {
         
         // Stop if higher priority goal needs to run
         if (hasActiveHigherPriorityGoals()) {
+            return false;
+        }
+
+        if (!maintainMovementLeadership()) {
             return false;
         }
         
@@ -176,18 +191,23 @@ public abstract class AdaptiveGoal extends Goal {
         onStartGoal();
 
         // Record activity start for behavioral momentum
-        PetComponent pc = PetComponent.get(mob);
+        PetComponent pc = resolvePetComponent();
         if (pc != null) {
             long worldTime = 0L;
-            var world = mob.getEntityWorld();
-            if (world != null) {
-                worldTime = world.getTime();
+            MobEntity mobEntity = this.mob;
+            if (mobEntity != null) {
+                var world = mobEntity.getEntityWorld();
+                if (world != null) {
+                    worldTime = world.getTime();
+                }
             }
             pc.beginAdaptiveGoal(goalId, worldTime);
-            if (goalDefinition.marksMajorActivity()) {
+            GoalDefinition definition = currentDefinition();
+            if (definition.marksMajorActivity() && pc.getAIState() != null) {
                 pc.getAIState().setActiveMajorGoal(goalId);
             }
         }
+        registerMovementRole();
         recordActivityStart();
         trackGoalStart();
     }
@@ -195,6 +215,7 @@ public abstract class AdaptiveGoal extends Goal {
     @Override
     public void stop() {
         pendingStop = false;
+        clearMovementRole();
         // Record satisfaction/enjoyment for memory system
         float finalSatisfaction = calculateFinalSatisfaction();
         recordGoalExperience(finalSatisfaction);
@@ -209,18 +230,22 @@ public abstract class AdaptiveGoal extends Goal {
         // Trigger emotion feedback (Phase 2)
         triggerEmotionFeedback();
 
-        PetComponent pc = PetComponent.get(mob);
+        PetComponent pc = resolvePetComponent();
         if (pc != null) {
             long worldTime = 0L;
-            var world = mob.getEntityWorld();
-            if (world != null) {
-                worldTime = world.getTime();
+            MobEntity mobEntity = this.mob;
+            if (mobEntity != null) {
+                var world = mobEntity.getEntityWorld();
+                if (world != null) {
+                    worldTime = world.getTime();
+                }
             }
             Identifier activeGoal = pc.getActiveAdaptiveGoalId();
             if (goalId.equals(activeGoal)) {
                 pc.endAdaptiveGoal(goalId, worldTime);
             }
-            if (goalDefinition.marksMajorActivity()) {
+            GoalDefinition definition = currentDefinition();
+            if (definition.marksMajorActivity() && pc.getAIState() != null) {
                 if (goalId.equals(pc.getAIState().getActiveMajorGoal())) {
                     pc.getAIState().setActiveMajorGoal(null);
                 }
@@ -233,15 +258,20 @@ public abstract class AdaptiveGoal extends Goal {
     }
 
     private boolean respectsDirectorSuggestion() {
-        PetComponent component = PetComponent.get(mob);
+        PetComponent component = resolvePetComponent();
         if (component == null) {
+            return true;
+        }
+
+        MobEntity mobEntity = this.mob;
+        if (mobEntity == null) {
             return true;
         }
 
         Identifier suggestedGoalId = component.getLastSuggestedGoalId();
         long suggestionTick = component.getLastSuggestionTick();
 
-        var world = mob.getEntityWorld();
+        var world = mobEntity.getEntityWorld();
         if (world == null) {
             return suggestedGoalId == null || goalId.equals(suggestedGoalId);
         }
@@ -270,7 +300,7 @@ public abstract class AdaptiveGoal extends Goal {
         if (Petsplus.LOGGER.isDebugEnabled()) {
             Petsplus.LOGGER.debug(
                 "{} blocked starting {} due to director suggestion {}",
-                mob.getName().getString(),
+                mobEntity.getName().getString(),
                 goalId,
                 suggestedGoalId
             );
@@ -289,7 +319,7 @@ public abstract class AdaptiveGoal extends Goal {
         // Stream behavioral activity while the goal runs
         int deltaSinceSample = activeTicks - lastActivitySampleTick;
         if (deltaSinceSample > 0) {
-            PetComponent pc = PetComponent.get(mob);
+            PetComponent pc = resolvePetComponent();
             if (pc != null) {
                 var moodEngine = pc.getMoodEngine();
                 if (moodEngine != null) {
@@ -309,6 +339,144 @@ public abstract class AdaptiveGoal extends Goal {
 
     protected void requestStop() {
         this.pendingStop = true;
+    }
+
+    private boolean movementRoleAllowsStart() {
+        if (movementDirector == null) {
+            return true;
+        }
+
+        GoalMovementConfig movementConfig = getMovementConfig();
+        return switch (movementConfig.role()) {
+            case NONE, INFLUENCER -> true;
+            case ACTOR -> movementDirector.canActivateActor(goalId, movementConfig.actorPriority());
+        };
+    }
+
+    private boolean maintainMovementLeadership() {
+        if (movementDirector == null) {
+            return true;
+        }
+
+        GoalMovementConfig movementConfig = getMovementConfig();
+        applyMovementConfig(movementConfig);
+        return switch (movementConfig.role()) {
+            case NONE, INFLUENCER -> true;
+            case ACTOR -> movementDirector.isActorLeading(goalId);
+        };
+    }
+
+    private void registerMovementRole() {
+        if (movementDirector == null) {
+            appliedMovementConfig = getMovementConfig();
+            return;
+        }
+
+        applyMovementConfig(getMovementConfig());
+    }
+
+    private void clearMovementRole() {
+        if (movementDirector == null) {
+            appliedMovementConfig = null;
+            return;
+        }
+
+        movementDirector.clearSource(goalId);
+
+        GoalMovementConfig movementConfig = appliedMovementConfig != null
+            ? appliedMovementConfig
+            : getMovementConfig();
+        if (movementConfig.role() == GoalMovementConfig.MovementRole.ACTOR) {
+            movementDirector.deactivateActor(goalId);
+        }
+        appliedMovementConfig = null;
+    }
+
+    private PetComponent resolvePetComponent() {
+        PetComponent cached = this.petComponent;
+        if (cached != null) {
+            return cached;
+        }
+
+        MobEntity mobEntity = this.mob;
+        if (mobEntity != null) {
+            return PetComponent.get(mobEntity);
+        }
+
+        return null;
+    }
+
+    protected GoalDefinition currentDefinition() {
+        GoalDefinition latest = GoalRegistry.get(goalId).orElse(goalDefinition);
+        GoalDefinition previous = this.lastResolvedDefinition;
+
+        if (previous == null || !previous.equals(latest)) {
+            onDefinitionChanged(previous, latest);
+            this.lastResolvedDefinition = latest;
+        }
+
+        return latest;
+    }
+
+    protected GoalMovementConfig getMovementConfig() {
+        return GoalRegistry.movementConfig(this.goalId);
+    }
+
+    private void applyMovementConfig(GoalMovementConfig newConfig) {
+        GoalMovementConfig previous = this.appliedMovementConfig;
+
+        if (movementDirector == null) {
+            this.appliedMovementConfig = newConfig;
+            return;
+        }
+
+        if (previous != null && previous.equals(newConfig)) {
+            return;
+        }
+
+        GoalMovementConfig.MovementRole newRole = newConfig.role();
+        GoalMovementConfig.MovementRole oldRole = previous != null
+            ? previous.role()
+            : GoalMovementConfig.MovementRole.NONE;
+
+        if (oldRole == GoalMovementConfig.MovementRole.ACTOR && newRole != GoalMovementConfig.MovementRole.ACTOR) {
+            movementDirector.clearSource(goalId);
+            movementDirector.deactivateActor(goalId);
+        }
+
+        if (newRole == GoalMovementConfig.MovementRole.ACTOR) {
+            if (oldRole == GoalMovementConfig.MovementRole.ACTOR && previous != null
+                && previous.actorPriority() != newConfig.actorPriority()) {
+                movementDirector.deactivateActor(goalId);
+            }
+            movementDirector.activateActor(goalId, newConfig.actorPriority());
+        }
+
+        this.appliedMovementConfig = newConfig;
+    }
+
+    private void onDefinitionChanged(GoalDefinition previous, GoalDefinition current) {
+        if (previous == null || !previous.equals(current)) {
+            cachedFeedback = null;
+        }
+
+        if (previous != null
+            && (previous.minCooldownTicks() != current.minCooldownTicks()
+            || previous.maxCooldownTicks() != current.maxCooldownTicks())) {
+            clearFallbackCooldownEntry();
+        }
+    }
+
+    private void clearFallbackCooldownEntry() {
+        synchronized (FALLBACK_COOLDOWNS) {
+            Map<Identifier, Long> cooldowns = FALLBACK_COOLDOWNS.get(mob);
+            if (cooldowns != null) {
+                cooldowns.remove(goalId);
+                if (cooldowns.isEmpty()) {
+                    FALLBACK_COOLDOWNS.remove(mob);
+                }
+            }
+        }
     }
     
     // === ABSTRACT METHODS - Implement in subclasses ===
@@ -360,7 +528,8 @@ public abstract class AdaptiveGoal extends Goal {
      */
     protected woflo.petsplus.state.emotions.PetMoodEngine.ActivityType getActivityType() {
         // Default mapping based on goal type
-        return switch (goalDefinition.category()) {
+        GoalDefinition definition = currentDefinition();
+        return switch (definition.category()) {
             case PLAY -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.PHYSICAL;
             case WANDER -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.PHYSICAL;
             case IDLE_QUIRK -> woflo.petsplus.state.emotions.PetMoodEngine.ActivityType.REST;
@@ -375,7 +544,8 @@ public abstract class AdaptiveGoal extends Goal {
      */
     protected float getActivityIntensity() {
         // Base intensity on engagement and goal type
-        float baseIntensity = switch (goalDefinition.category()) {
+        GoalDefinition definition = currentDefinition();
+        float baseIntensity = switch (definition.category()) {
             case PLAY -> 0.7f;
             case WANDER -> 0.5f;
             case SPECIAL -> 0.6f;
@@ -394,7 +564,7 @@ public abstract class AdaptiveGoal extends Goal {
      */
     protected boolean meetsCapabilityRequirements() {
         var capabilities = woflo.petsplus.ai.capability.MobCapabilities.analyze(mob);
-        return goalDefinition.isCompatible(capabilities);
+        return currentDefinition().isCompatible(capabilities);
     }
     
     /**
@@ -403,7 +573,7 @@ public abstract class AdaptiveGoal extends Goal {
     protected boolean hasActiveHigherPriorityGoals() {
         try {
             MobEntityAccessor accessor = (MobEntityAccessor) mob;
-            int ourPriority = goalDefinition.priority();
+            int ourPriority = currentDefinition().priority();
             EnumSet<Control> ourControls = getControls();
             boolean requireExclusive = requiresExclusiveAccess();
 
@@ -469,20 +639,33 @@ public abstract class AdaptiveGoal extends Goal {
      * Check if cooldown has expired.
      */
     protected boolean isCooldownExpired() {
-        int min = goalDefinition.minCooldownTicks();
-        int max = goalDefinition.maxCooldownTicks();
+        GoalDefinition definition = currentDefinition();
+        int min = definition.minCooldownTicks();
+        int max = definition.maxCooldownTicks();
         if (min <= 0 && max <= 0) {
             return true;
         }
 
-        long currentTime = mob.getEntityWorld().getTime();
-        PetComponent pc = PetComponent.get(mob);
+        MobEntity mobEntity = this.mob;
+        long currentTime = 0L;
+        if (mobEntity != null) {
+            var world = mobEntity.getEntityWorld();
+            if (world != null) {
+                currentTime = world.getTime();
+            }
+        }
+
+        PetComponent pc = resolvePetComponent();
         if (pc != null) {
             return !pc.isOnCooldown(getCooldownKey());
         }
 
+        if (mobEntity == null) {
+            return true;
+        }
+
         synchronized (FALLBACK_COOLDOWNS) {
-            Map<Identifier, Long> cooldowns = FALLBACK_COOLDOWNS.get(mob);
+            Map<Identifier, Long> cooldowns = FALLBACK_COOLDOWNS.get(mobEntity);
             if (cooldowns == null) {
                 return true;
             }
@@ -497,7 +680,7 @@ public abstract class AdaptiveGoal extends Goal {
      */
     protected boolean isEnergyCompatible() {
         MomentumState momentum = MomentumState.capture(mob);
-        return goalDefinition.isEnergyCompatible(momentum.energyProfile());
+        return currentDefinition().isEnergyCompatible(momentum.energyProfile());
     }
     
     /**
@@ -507,9 +690,10 @@ public abstract class AdaptiveGoal extends Goal {
         int base = (BASE_MIN_DURATION + BASE_MAX_DURATION) / 2;
         
         // Adjust for age (young = shorter attention span)
-        PetComponent pc = PetComponent.get(mob);
-        if (pc != null) {
-            PetContext ctx = PetContext.capture(mob, pc);
+        PetComponent pc = resolvePetComponent();
+        MobEntity mobEntity = this.mob;
+        if (pc != null && mobEntity != null) {
+            PetContext ctx = PetContext.capture(mobEntity, pc);
             if (ctx.getAgeCategory() == PetContext.AgeCategory.YOUNG) {
                 base = (int) (base * 0.7);
             }
@@ -532,8 +716,9 @@ public abstract class AdaptiveGoal extends Goal {
     }
 
     private void applyGoalCooldown() {
-        int min = goalDefinition.minCooldownTicks();
-        int max = goalDefinition.maxCooldownTicks();
+        GoalDefinition definition = currentDefinition();
+        int min = definition.minCooldownTicks();
+        int max = definition.maxCooldownTicks();
         if (min <= 0 && max <= 0) {
             return;
         }
@@ -542,23 +727,39 @@ public abstract class AdaptiveGoal extends Goal {
         if (max <= min) {
             cooldownTicks = min;
         } else {
-            cooldownTicks = min + mob.getRandom().nextInt((max - min) + 1);
+            MobEntity mobEntity = this.mob;
+            if (mobEntity != null) {
+                cooldownTicks = min + mobEntity.getRandom().nextInt((max - min) + 1);
+            } else {
+                cooldownTicks = min;
+            }
         }
 
         if (cooldownTicks <= 0) {
             return;
         }
 
-        PetComponent pc = PetComponent.get(mob);
+        PetComponent pc = resolvePetComponent();
         if (pc != null) {
             pc.setCooldown(getCooldownKey(), cooldownTicks);
             return;
         }
 
-        long endTick = mob.getEntityWorld().getTime() + cooldownTicks;
+        MobEntity mobEntity = this.mob;
+        if (mobEntity == null) {
+            return;
+        }
+
+        long baseTime = 0L;
+        var world = mobEntity.getEntityWorld();
+        if (world != null) {
+            baseTime = world.getTime();
+        }
+
+        long endTick = baseTime + cooldownTicks;
         synchronized (FALLBACK_COOLDOWNS) {
             FALLBACK_COOLDOWNS
-                .computeIfAbsent(mob, ignored -> new HashMap<>())
+                .computeIfAbsent(mobEntity, ignored -> new HashMap<>())
                 .put(goalId, endTick);
         }
     }
@@ -568,14 +769,19 @@ public abstract class AdaptiveGoal extends Goal {
     }
 
     private void trackGoalStart() {
-        PetComponent pc = PetComponent.get(mob);
+        PetComponent pc = resolvePetComponent();
         if (pc != null) {
             pc.recordGoalStart(goalId);
             return;
         }
 
+        MobEntity mobEntity = this.mob;
+        if (mobEntity == null) {
+            return;
+        }
+
         synchronized (FALLBACK_RECENT_GOALS) {
-            ArrayDeque<Identifier> history = FALLBACK_RECENT_GOALS.computeIfAbsent(mob, ignored -> new ArrayDeque<>());
+            ArrayDeque<Identifier> history = FALLBACK_RECENT_GOALS.computeIfAbsent(mobEntity, ignored -> new ArrayDeque<>());
             history.remove(goalId);
             history.addFirst(goalId);
             while (history.size() > HISTORY_LIMIT) {
@@ -585,15 +791,26 @@ public abstract class AdaptiveGoal extends Goal {
     }
 
     private void trackGoalCompletion() {
-        long worldTime = mob.getEntityWorld() != null ? mob.getEntityWorld().getTime() : 0L;
-        PetComponent pc = PetComponent.get(mob);
+        MobEntity mobEntity = this.mob;
+        long worldTime = 0L;
+        if (mobEntity != null) {
+            var world = mobEntity.getEntityWorld();
+            if (world != null) {
+                worldTime = world.getTime();
+            }
+        }
+        PetComponent pc = resolvePetComponent();
         if (pc != null) {
             pc.recordGoalCompletion(goalId, worldTime);
             return;
         }
 
+        if (mobEntity == null) {
+            return;
+        }
+
         synchronized (FALLBACK_LAST_EXECUTED) {
-            Map<Identifier, Long> executions = FALLBACK_LAST_EXECUTED.computeIfAbsent(mob, ignored -> new HashMap<>());
+            Map<Identifier, Long> executions = FALLBACK_LAST_EXECUTED.computeIfAbsent(mobEntity, ignored -> new HashMap<>());
             executions.put(goalId, Math.max(0L, worldTime));
         }
     }
@@ -625,19 +842,33 @@ public abstract class AdaptiveGoal extends Goal {
      * Record experience for memory/learning system.
      */
     protected void recordGoalExperience(float satisfaction) {
-        PetComponent pc = PetComponent.get(mob);
+        PetComponent pc = resolvePetComponent();
         if (pc != null) {
-            long tick = mob.getEntityWorld() != null ? mob.getEntityWorld().getTime() : 0L;
+            long tick = 0L;
+            MobEntity mobEntity = this.mob;
+            if (mobEntity != null) {
+                var world = mobEntity.getEntityWorld();
+                if (world != null) {
+                    tick = world.getTime();
+                }
+            }
             pc.recordExperience(goalId, satisfaction, tick);
         }
     }
-    
+
     /**
      * Get current pet context.
      */
     protected PetContext getContext() {
-        PetComponent pc = PetComponent.get(mob);
-        return pc != null ? PetContext.capture(mob, pc) : PetContext.captureVanilla(mob);
+        PetComponent pc = resolvePetComponent();
+        MobEntity mobEntity = this.mob;
+        if (pc != null && mobEntity != null) {
+            return PetContext.capture(mobEntity, pc);
+        }
+        if (mobEntity != null) {
+            return PetContext.captureVanilla(mobEntity);
+        }
+        return null;
     }
 
     protected NearbyMobAgeProfile getNearbyMobAgeProfile() {
@@ -671,7 +902,7 @@ public abstract class AdaptiveGoal extends Goal {
      * Record activity start for behavioral momentum tracking.
      */
     protected void recordActivityStart() {
-        PetComponent pc = PetComponent.get(mob);
+        PetComponent pc = resolvePetComponent();
         if (pc != null && pc.getMoodEngine() != null) {
             // Record a pulse of activity when starting
             float intensity = getActivityIntensity();
@@ -684,7 +915,7 @@ public abstract class AdaptiveGoal extends Goal {
      * Record activity completion for behavioral momentum tracking.
      */
     protected void recordActivityCompletion() {
-        PetComponent pc = PetComponent.get(mob);
+        PetComponent pc = resolvePetComponent();
         if (pc != null && pc.getMoodEngine() != null) {
             int remainingTicks = activeTicks - lastActivitySampleTick;
             if (remainingTicks > 0) {
@@ -703,11 +934,16 @@ public abstract class AdaptiveGoal extends Goal {
      * Only triggers for PetsPlus pets (vanilla mobs unaffected).
      */
     protected void triggerEmotionFeedback() {
-        PetComponent pc = PetComponent.get(mob);
+        PetComponent pc = resolvePetComponent();
         if (pc == null) {
             return; // Vanilla mob, no emotion system
         }
-        
+
+        MobEntity mobEntity = this.mob;
+        if (mobEntity == null) {
+            return;
+        }
+
         // Lazy-load and cache feedback definition
         if (cachedFeedback == null) {
             cachedFeedback = defineEmotionFeedback();
@@ -717,40 +953,40 @@ public abstract class AdaptiveGoal extends Goal {
         if (cachedFeedback.isEmpty()) {
             return;
         }
-        
+
         // Queue emotions via stimulus bus (async-safe)
         var stimulusBus = woflo.petsplus.mood.MoodService.getInstance().getStimulusBus();
-        stimulusBus.queueSimpleStimulus(mob, STIMULUS_KEY_GOAL_REWARD, collector -> {
+        stimulusBus.queueSimpleStimulus(mobEntity, STIMULUS_KEY_GOAL_REWARD, collector -> {
             // Push all defined emotions
             for (var entry : cachedFeedback.emotions().entrySet()) {
                 collector.pushEmotion(entry.getKey(), entry.getValue());
             }
         });
-        
+
         // Dispatch immediately for responsive feedback
-        stimulusBus.dispatchStimuli(mob);
-        
+        stimulusBus.dispatchStimuli(mobEntity);
+
         // Handle contagion if enabled
-        if (cachedFeedback.triggersContagion() && mob.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
-            triggerEmotionContagion(serverWorld, cachedFeedback);
+        if (cachedFeedback.triggersContagion() && mobEntity.getEntityWorld() instanceof net.minecraft.server.world.ServerWorld serverWorld) {
+            triggerEmotionContagion(mobEntity, serverWorld, cachedFeedback);
         }
     }
-    
+
     /**
      * Trigger emotional contagion to nearby pets.
      * Performance-optimized: only scans when contagion is enabled.
      */
-    private void triggerEmotionContagion(net.minecraft.server.world.ServerWorld world, EmotionFeedback feedback) {
+    private void triggerEmotionContagion(MobEntity sourceMob, net.minecraft.server.world.ServerWorld world, EmotionFeedback feedback) {
         if (!feedback.triggersContagion() || feedback.contagionEmotion() == null) {
             return;
         }
-        
+
         // Find nearby owned pets (within 8 blocks)
         var nearbyPets = world.getEntitiesByClass(
             MobEntity.class,
-            mob.getBoundingBox().expand(8.0),
+            sourceMob.getBoundingBox().expand(8.0),
             entity -> {
-                if (entity == mob) return false; // Not self
+                if (entity == sourceMob) return false; // Not self
                 PetComponent pc = PetComponent.get(entity);
                 return pc != null && pc.getOwner() != null;
             }
@@ -768,12 +1004,12 @@ public abstract class AdaptiveGoal extends Goal {
             });
             stimulusBus.dispatchStimuli(nearbyPet);
         }
-        
+
         // Visual feedback for contagion (optional)
-        PetComponent sourcePc = PetComponent.get(mob);
+        PetComponent sourcePc = resolvePetComponent();
         if (sourcePc != null) {
             woflo.petsplus.ui.FeedbackManager.emitContagionFeedback(
-                mob, world, feedback.contagionEmotion()
+                sourceMob, world, feedback.contagionEmotion()
             );
         }
     }
