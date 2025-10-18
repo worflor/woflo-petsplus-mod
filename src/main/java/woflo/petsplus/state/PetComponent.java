@@ -1,4 +1,5 @@
 package woflo.petsplus.state;
+import net.minecraft.component.ComponentHolder;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.boss.BossBar;
@@ -4251,18 +4252,31 @@ public class PetComponent {
      * Loads component data from entity using the component system.
      */
     public void loadFromEntity() {
+        MobEntity currentPet = this.pet;
+        String petId = currentPet != null ? currentPet.getUuidAsString() : "unknown";
+
+        if (currentPet == null) {
+            Petsplus.LOGGER.warn("Pet component accessor unavailable; pet reference missing for " + petId);
+            return;
+        }
+
         try {
-            PetsplusComponents.PetData stored = null;
-            try {
-                stored = EntityComponentAccessor.petsplus$castComponentValue(PetsplusComponents.PET_DATA, null);
-            } catch (ClassCastException castError) {
-                Petsplus.LOGGER.warn("Failed to cast pet component data for " + pet.getUuidAsString(), castError);
-            }
+            Object componentValue = currentPet instanceof ComponentHolder componentHolder
+                ? componentHolder.getOrDefault(PetsplusComponents.PET_DATA, null)
+                : null;
+            PetsplusComponents.PetData stored = EntityComponentAccessor.petsplus$castComponentValue(
+                PetsplusComponents.PET_DATA,
+                componentValue
+            );
             if (stored != null) {
                 fromComponentData(stored);
             }
+        } catch (AssertionError | AbstractMethodError | NoSuchMethodError missingAccessor) {
+            Petsplus.LOGGER.warn("Pet component accessor unavailable; mixin missing for " + petId);
+        } catch (ClassCastException castError) {
+            Petsplus.LOGGER.warn("Failed to cast pet component data for " + petId, castError);
         } catch (Throwable error) {
-            Petsplus.LOGGER.warn("Failed to load pet component data for " + pet.getUuidAsString(), error);
+            Petsplus.LOGGER.warn("Failed to load pet component data for " + petId, error);
         }
     }
     
