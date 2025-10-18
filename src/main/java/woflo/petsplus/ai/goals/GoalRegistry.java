@@ -10,6 +10,7 @@ import woflo.petsplus.ai.goals.follow.*;
 import woflo.petsplus.ai.goals.play.*;
 import woflo.petsplus.ai.goals.social.*;
 import woflo.petsplus.ai.goals.special.*;
+import woflo.petsplus.ai.goals.special.hideandseek.*;
 import woflo.petsplus.ai.goals.wander.*;
 // Species tags: multi-tag gating (new environmental goals)
 import woflo.petsplus.ai.goals.environmental.*;
@@ -677,9 +678,94 @@ public final class GoalRegistry {
             )),
             new Vec2f(0.6f, 1.0f),
             IdleStaminaBias.NONE,
-            false,
             true,
-            HideAndSeekGoal::new
+            true,
+            HideAndSeekParticipationGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.HIDE_AND_SEEK_DIRECTOR,
+            Category.SPECIAL,
+            16,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.allOf(List.of(
+                MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+                MobCapabilities.CapabilityRequirement.fromToken("can_wander")
+            )),
+            new Vec2f(0.6f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            false,
+            HideAndSeekDirectorGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.HIDE_AND_SEEK_SEEKER,
+            Category.SPECIAL,
+            16,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.allOf(List.of(
+                MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+                MobCapabilities.CapabilityRequirement.fromToken("can_wander")
+            )),
+            new Vec2f(0.6f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            false,
+            HideAndSeekSeekerGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.HIDE_AND_SEEK_HIDER,
+            Category.SPECIAL,
+            16,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.allOf(List.of(
+                MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+                MobCapabilities.CapabilityRequirement.fromToken("can_wander")
+            )),
+            new Vec2f(0.6f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            false,
+            HideAndSeekHiderGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.HIDE_AND_SEEK_SUPPORT,
+            Category.SPECIAL,
+            16,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.allOf(List.of(
+                MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+                MobCapabilities.CapabilityRequirement.fromToken("can_wander")
+            )),
+            new Vec2f(0.6f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            false,
+            HideAndSeekSupportGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.HIDE_AND_SEEK_SPECTATOR,
+            Category.SPECIAL,
+            16,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.allOf(List.of(
+                MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+                MobCapabilities.CapabilityRequirement.fromToken("can_wander")
+            )),
+            new Vec2f(0.6f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            false,
+            HideAndSeekSpectatorGoal::new
         ));
 
         registerBuiltIn(new GoalDefinition(
