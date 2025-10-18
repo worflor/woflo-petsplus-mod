@@ -28,6 +28,10 @@ import woflo.petsplus.ai.PetAIEnhancements;
 import woflo.petsplus.ai.PetMobInteractionProfile;
 import woflo.petsplus.ai.behavior.MomentumState;
 import woflo.petsplus.ai.director.DirectorDecision;
+import woflo.petsplus.ai.movement.MovementCommand;
+import woflo.petsplus.ai.movement.PositionalOffsetModifier;
+import woflo.petsplus.ai.movement.SpeedModifier;
+import woflo.petsplus.ai.movement.TargetDistanceModifier;
 import woflo.petsplus.ai.context.CrowdScan;
 import woflo.petsplus.ai.context.NearbyMobAgeProfile;
 import woflo.petsplus.ai.context.PetContextCrowdSummary;
@@ -121,6 +125,7 @@ public class PetComponent {
     private final RelationshipModule relationshipModule;
     private final StimulusTimeline stimulusTimeline;
     private final ExperienceLog experienceLog;
+    private final MovementDirector movementDirector;
     private final PetAIState aiState = new PetAIState();
 
     private HarmonyState harmonyState = HarmonyState.empty();
@@ -144,6 +149,8 @@ public class PetComponent {
     private double followSpacingOffsetZ;
     private float followSpacingPadding;
     private long followSpacingSampleTick = Long.MIN_VALUE;
+    private @Nullable MobEntity followSpacingFocus;
+    private long followSpacingFocusExpiryTick = Long.MIN_VALUE;
     private long moodFollowHoldUntilTick = Long.MIN_VALUE;
     private float moodFollowDistanceBonus = 0.0f;
     // UI state
@@ -444,6 +451,7 @@ public class PetComponent {
         this.contextCache.setMaxIdleTicks(CONTEXT_CACHE_IDLE_TICKS);
         this.schedulingPhaseOffset = computeSchedulingPhaseOffset(pet);
         this.experienceLog = new ExperienceLog();
+        this.movementDirector = new MovementDirector(pet);
         this.aiState.reset();
 
         // Initialize modules
@@ -516,6 +524,10 @@ public class PetComponent {
     
     public RelationshipModule getRelationshipModule() {
         return relationshipModule;
+    }
+
+    public MovementDirector getMovementDirector() {
+        return movementDirector;
     }
 
     public PetGossipLedger getGossipLedger() {
@@ -1835,6 +1847,23 @@ public class PetComponent {
 
     public long getFollowSpacingSampleTick() {
         return followSpacingSampleTick;
+    }
+
+    public void setFollowSpacingFocus(@Nullable MobEntity focus, long expiryTick) {
+        this.followSpacingFocus = focus;
+        this.followSpacingFocusExpiryTick = expiryTick;
+    }
+
+    public @Nullable MobEntity getFollowSpacingFocus(long now) {
+        if (followSpacingFocus == null) {
+            return null;
+        }
+        if (followSpacingFocus.isRemoved() || now > followSpacingFocusExpiryTick) {
+            followSpacingFocus = null;
+            followSpacingFocusExpiryTick = Long.MIN_VALUE;
+            return null;
+        }
+        return followSpacingFocus;
     }
 
     public void requestMoodFollowHold(long now, int holdTicks, float distanceBonus) {
@@ -3996,6 +4025,193 @@ public class PetComponent {
             && !speciesMemory.memories().isEmpty();
         boolean hasDecayState = data.lastDecayTick() > 0L;
         return !hasRelationships && !hasSpeciesMemory && !hasDecayState;
+    }
+
+    public static final class MovementDirector {
+        private final MobEntity mob;
+        private final Map<Identifier, PositionalOffsetModifier> offsetModifiers = new HashMap<>();
+        private final Map<Identifier, TargetDistanceModifier> distanceModifiers = new HashMap<>();
+        private final Map<Identifier, SpeedModifier> speedModifiers = new HashMap<>();
+        private final Map<Identifier, ActorSlot> activeActors = new HashMap<>();
+        private Identifier leadingActorId = null;
+        private int leadingActorPriority = Integer.MAX_VALUE;
+        private long actorClaimCounter = 0L;
+
+        public MovementDirector(MobEntity mob) {
+            this.mob = mob;
+        }
+
+        public void setPositionalOffset(Identifier source, @Nullable PositionalOffsetModifier modifier) {
+            if (modifier == null) {
+                offsetModifiers.remove(source);
+            } else {
+                offsetModifiers.put(source, modifier);
+            }
+        }
+
+        public void setTargetDistance(Identifier source, @Nullable TargetDistanceModifier modifier) {
+            if (modifier == null) {
+                distanceModifiers.remove(source);
+            } else {
+                distanceModifiers.put(source, modifier);
+            }
+        }
+
+        public void setSpeedModifier(Identifier source, @Nullable SpeedModifier modifier) {
+            if (modifier == null) {
+                speedModifiers.remove(source);
+            } else {
+                speedModifiers.put(source, modifier);
+            }
+        }
+
+        public void clearSource(Identifier source) {
+            offsetModifiers.remove(source);
+            distanceModifiers.remove(source);
+            speedModifiers.remove(source);
+        }
+
+        public boolean canActivateActor(Identifier source, int priority) {
+            ActorSlot slot = activeActors.get(source);
+            if (slot != null) {
+                return priority <= slot.priority;
+            }
+
+            if (activeActors.isEmpty()) {
+                return true;
+            }
+
+            int minPriority = leadingActorPriority;
+            return priority <= minPriority;
+        }
+
+        public void activateActor(Identifier source, int priority) {
+            ActorSlot slot = new ActorSlot(priority, ++actorClaimCounter);
+            activeActors.put(source, slot);
+            recomputeLeadership();
+        }
+
+        public void deactivateActor(Identifier source) {
+            if (activeActors.remove(source) != null) {
+                recomputeLeadership();
+            }
+        }
+
+        public boolean isActorLeading(Identifier source) {
+            return leadingActorId != null && leadingActorId.equals(source);
+        }
+
+        public MovementCommand previewMovement(Vec3d baseTarget, double baseDistance, double baseSpeed) {
+            return blendMovement(baseTarget, baseDistance, baseSpeed);
+        }
+
+        public MovementCommand resolveMovement(Identifier actorId, Vec3d baseTarget, double baseDistance, double baseSpeed) {
+            if (actorId != null && !isActorLeading(actorId)) {
+                return MovementCommand.of(mob.getEntityPos(), 0.0, 0.0);
+            }
+            return blendMovement(baseTarget, baseDistance, baseSpeed);
+        }
+
+        private MovementCommand blendMovement(Vec3d baseTarget, double baseDistance, double baseSpeed) {
+            Vec3d offset = Vec3d.ZERO;
+            double offsetWeight = 0.0;
+
+            for (PositionalOffsetModifier modifier : offsetModifiers.values()) {
+                double weight = Math.max(0.0, modifier.weight());
+                if (weight <= 0.0) {
+                    continue;
+                }
+                offset = offset.add(modifier.asVector().multiply(weight));
+                offsetWeight += weight;
+            }
+
+            if (offsetWeight > 0.0) {
+                offset = offset.multiply(1.0 / offsetWeight);
+            }
+
+            double desiredDistance = baseDistance;
+            double minDistance = 0.0;
+            double distanceWeight = 0.0;
+            double distanceContribution = 0.0;
+
+            for (TargetDistanceModifier modifier : distanceModifiers.values()) {
+                minDistance = Math.max(minDistance, modifier.minimumDistance());
+                double weight = Math.max(0.0, modifier.weight());
+                if (weight <= 0.0) {
+                    continue;
+                }
+                distanceContribution += modifier.distanceOffset() * weight;
+                distanceWeight += weight;
+            }
+
+            if (distanceWeight > 0.0) {
+                desiredDistance += distanceContribution / distanceWeight;
+            }
+
+            desiredDistance = Math.max(desiredDistance, minDistance);
+            if (!Double.isFinite(desiredDistance)) {
+                desiredDistance = baseDistance;
+            }
+            desiredDistance = Math.max(0.0, desiredDistance);
+
+            double speedMultiplier = 1.0;
+            double speedAdditive = 0.0;
+            double minSpeed = 0.0;
+            double maxSpeed = Double.POSITIVE_INFINITY;
+
+            for (SpeedModifier modifier : speedModifiers.values()) {
+                speedMultiplier *= modifier.multiplier();
+                speedAdditive += modifier.additive();
+                minSpeed = Math.max(minSpeed, modifier.minSpeed());
+                maxSpeed = Math.min(maxSpeed, modifier.maxSpeed());
+            }
+
+            double speed = baseSpeed * speedMultiplier + speedAdditive;
+            if (!Double.isFinite(speed)) {
+                speed = baseSpeed;
+            }
+
+            if (!speedModifiers.isEmpty()) {
+                minSpeed = Math.max(0.0, Double.isFinite(minSpeed) ? minSpeed : 0.0);
+                maxSpeed = Double.isFinite(maxSpeed) ? maxSpeed : Double.POSITIVE_INFINITY;
+                if (maxSpeed < minSpeed) {
+                    speed = minSpeed;
+                } else {
+                    speed = Math.max(speed, minSpeed);
+                    speed = Math.min(speed, maxSpeed);
+                }
+            }
+
+            if (!Double.isFinite(speed)) {
+                speed = baseSpeed;
+            }
+            speed = Math.max(0.0, speed);
+
+            Vec3d target = baseTarget.add(offset);
+            if (!Double.isFinite(target.x) || !Double.isFinite(target.y) || !Double.isFinite(target.z)) {
+                target = mob.getEntityPos();
+            }
+
+            return MovementCommand.of(target, desiredDistance, speed);
+        }
+
+        private void recomputeLeadership() {
+            leadingActorId = null;
+            leadingActorPriority = Integer.MAX_VALUE;
+            long bestOrder = Long.MAX_VALUE;
+
+            for (Map.Entry<Identifier, ActorSlot> entry : activeActors.entrySet()) {
+                ActorSlot slot = entry.getValue();
+                if (slot.priority < leadingActorPriority || (slot.priority == leadingActorPriority && slot.claimOrder < bestOrder)) {
+                    leadingActorPriority = slot.priority;
+                    bestOrder = slot.claimOrder;
+                    leadingActorId = entry.getKey();
+                }
+            }
+        }
+
+        private record ActorSlot(int priority, long claimOrder) {
+        }
     }
 
     /**

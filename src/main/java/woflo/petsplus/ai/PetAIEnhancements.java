@@ -1,6 +1,5 @@
 package woflo.petsplus.ai;
 
-import net.minecraft.entity.ai.goal.FollowOwnerGoal;
 import net.minecraft.entity.mob.MobEntity;
 import woflo.petsplus.ai.context.NearbyMobAgeProfile;
 import woflo.petsplus.ai.context.PetContextCrowdSummary;
@@ -8,12 +7,8 @@ import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.ai.AdaptiveAIManager;
 import woflo.petsplus.mixin.MobEntityAccessor;
-import woflo.petsplus.ai.goals.CrouchCuddleGoal;
-import woflo.petsplus.ai.goals.PetSnuggleGoal;
-import woflo.petsplus.ai.goals.EnhancedFollowOwnerGoal;
 import woflo.petsplus.ai.goals.OwnerAssistAttackGoal;
 // OnFireScrambleGoal removed as part of AI simplification
-import woflo.petsplus.api.entity.PetsplusTameable;
 
 /**
  * Modular AI enhancements for pets in the PetsPlus system.
@@ -29,17 +24,10 @@ public class PetAIEnhancements {
         if (pet.getEntityWorld().isClient()) return;
         
         try {
-            // Enhanced follow behavior for all pets
-            addEnhancedFollowGoal(pet, petComponent);
-
-            // Owner assist targeting to mirror vanilla wolf combat
-            addOwnerAssistGoal(pet, petComponent);
-
-            // Crouch cuddle handshake keeps pets cozy near crouching owners
-            addCrouchCuddleGoal(pet, petComponent);
-
-            // Passive snuggle healing while cuddling (slow, gated, with cooldowns)
-            addSnuggleGoal(pet, petComponent);
+            OwnerAssistAttackGoal.clearAssistHesitation(petComponent);
+            OwnerAssistAttackGoal.clearAssistRegroup(petComponent);
+            // Remove vanilla follow goal - adaptive system handles following now
+            removeVanillaFollowGoal(pet);
 
             // OnFireScrambleGoal removed - pets will use vanilla panic behavior
 
@@ -62,50 +50,9 @@ public class PetAIEnhancements {
     /**
      * Add enhanced follow goal that's smarter about distances and obstacles.
      */
-    private static void addEnhancedFollowGoal(MobEntity pet, PetComponent petComponent) {
-        if (!(pet instanceof PetsplusTameable tameable)) return;
-
+    private static void removeVanillaFollowGoal(MobEntity pet) {
         MobEntityAccessor accessor = (MobEntityAccessor) pet;
-        
-        // Reset temporary assist flags each time AI is re-applied
-        OwnerAssistAttackGoal.clearAssistHesitation(petComponent);
-        OwnerAssistAttackGoal.clearAssistRegroup(petComponent);
-
-        // Remove existing follow goals to replace with enhanced version
-        accessor.getGoalSelector().getGoals().removeIf(goal ->
-            goal.getGoal() instanceof FollowOwnerGoal);
-
-        // Add enhanced follow goal with role-based parameters
-        float followDistance = getFollowDistance(petComponent);
-        float teleportDistance = getTeleportDistance(petComponent);
-
-        accessor.getGoalSelector().add(5, new EnhancedFollowOwnerGoal(
-            pet,
-            tameable,
-            petComponent,
-            1.0,
-            followDistance,
-            teleportDistance
-        ));
-    }
-
-    private static void addOwnerAssistGoal(MobEntity pet, PetComponent petComponent) {
-        MobEntityAccessor accessor = (MobEntityAccessor) pet;
-        accessor.getTargetSelector().getGoals().removeIf(entry -> entry.getGoal() instanceof OwnerAssistAttackGoal);
-        accessor.getTargetSelector().add(2, new OwnerAssistAttackGoal(pet, petComponent));
-    }
-
-    private static void addCrouchCuddleGoal(MobEntity pet, PetComponent petComponent) {
-        MobEntityAccessor accessor = (MobEntityAccessor) pet;
-        accessor.getGoalSelector().getGoals().removeIf(entry -> entry.getGoal() instanceof CrouchCuddleGoal);
-        accessor.getGoalSelector().add(4, new CrouchCuddleGoal(pet, petComponent));
-    }
-
-    private static void addSnuggleGoal(MobEntity pet, PetComponent petComponent) {
-        MobEntityAccessor accessor = (MobEntityAccessor) pet;
-        accessor.getGoalSelector().getGoals().removeIf(entry -> entry.getGoal() instanceof PetSnuggleGoal);
-        // Place alongside cuddle; it declares no controls, so it won't fight movement logic
-        accessor.getGoalSelector().add(4, new PetSnuggleGoal(pet, petComponent));
+        accessor.getGoalSelector().getGoals().removeIf(goal -> goal.getGoal() instanceof net.minecraft.entity.ai.goal.FollowOwnerGoal);
     }
 
     // OnFireScrambleGoal removed - pets will use vanilla panic behavior
@@ -160,12 +107,7 @@ public class PetAIEnhancements {
     
     private static void applyScoutAI(MobEntity pet, PetComponent petComponent) {
         // Scouts are more mobile and explore further
-        MobEntityAccessor accessor = (MobEntityAccessor) pet;
-        
-        // Enable scout mode on enhanced follow goal
-        accessor.getGoalSelector().getGoals().stream()
-            .filter(goal -> goal.getGoal() instanceof EnhancedFollowOwnerGoal)
-            .forEach(goal -> ((EnhancedFollowOwnerGoal) goal.getGoal()).setScoutMode(true));
+        // Scout pets rely on adaptive follow tuning; no extra wiring required here.
     }
     
     private static void applyStrikerAI(MobEntity pet, PetComponent petComponent) {
@@ -180,33 +122,6 @@ public class PetAIEnhancements {
         pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DAMAGE_OTHER, 6.0f);
     }
     
-    /**
-     * Calculate follow distance based on pet role and characteristics.
-     */
-    private static float getFollowDistance(PetComponent petComponent) {
-        String roleId = petComponent.getRoleId().getPath();
-        
-        return switch (roleId) {
-            case "guardian" -> 5.5f;  // stay tight while shielding
-            case "scout" -> 9.0f;    // little extra leash for recon
-            case "support" -> 4.5f;  // hug the player for buffs/heals
-            default -> 6.0f;          // comfortable default bubble
-        };
-    }
-    
-    /**
-     * Calculate teleport distance based on pet role.
-     */
-    private static float getTeleportDistance(PetComponent petComponent) {
-        String roleId = petComponent.getRoleId().getPath();
-
-        return switch (roleId) {
-            case "scout" -> 16.0f;   // scouts can still range further
-            case "support" -> 9.5f;  // snap back quickly for utility roles
-            default -> 12.0f;
-        };
-    }
-
     public static PetMobInteractionProfile createMobInteractionProfile(
         MobEntity pet,
         PetComponent petComponent,

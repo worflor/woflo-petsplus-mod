@@ -6,6 +6,7 @@ import woflo.petsplus.ai.capability.MobCapabilities;
 import woflo.petsplus.ai.goals.GoalDefinition.Category;
 import woflo.petsplus.ai.goals.GoalDefinition.IdleStaminaBias;
 import woflo.petsplus.ai.goals.idle.*;
+import woflo.petsplus.ai.goals.follow.*;
 import woflo.petsplus.ai.goals.play.*;
 import woflo.petsplus.ai.goals.social.*;
 import woflo.petsplus.ai.goals.special.*;
@@ -23,6 +24,8 @@ import woflo.petsplus.ai.goals.idle.PerformAmbientAnimationGoal;
 // Play goals
 import woflo.petsplus.ai.goals.play.SimpleFetchItemGoal;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.util.*;
 
 /**
@@ -33,12 +36,87 @@ public final class GoalRegistry {
     private static final Map<Identifier, GoalDefinition> DEFINITIONS = new LinkedHashMap<>();
     private static final Map<Identifier, GoalDefinition> BUILT_IN_DEFAULTS = new LinkedHashMap<>();
     private static final Set<Identifier> DATA_DRIVEN = new HashSet<>();
+    private static final Map<Identifier, GoalMovementConfig> MOVEMENT_CONFIGS = new HashMap<>();
+    private static final Map<Identifier, GoalMovementConfig> BUILT_IN_MOVEMENT_CONFIGS = new HashMap<>();
 
     private static int secondsToTicks(int seconds) {
         return Math.max(0, seconds) * 20;
     }
 
     static {
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.FOLLOW_OWNER,
+            Category.SPECIAL,
+            5,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.allOf(List.of(
+                MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+                MobCapabilities.CapabilityRequirement.fromToken("can_wander")
+            )),
+            new Vec2f(0.0f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            false,
+            FollowOwnerAdaptiveGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.MAINTAIN_PACK_SPACING,
+            Category.SOCIAL,
+            6,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+            new Vec2f(0.0f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            false,
+            MaintainPackSpacingGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.HESITATE_IN_COMBAT,
+            Category.SOCIAL,
+            5,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+            new Vec2f(0.0f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            false,
+            HesitateInCombatGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.SHELTER_FROM_RAIN,
+            Category.SPECIAL,
+            4,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+            new Vec2f(0.0f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            false,
+            ShelterFromRainGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.OWNER_ASSIST_ATTACK,
+            Category.SPECIAL,
+            3,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+            new Vec2f(0.0f, 1.0f),
+            IdleStaminaBias.NONE,
+            false,
+            true,
+            OwnerAssistAttackGoal::new
+        ));
+
         registerBuiltIn(new GoalDefinition(
             GoalIds.STRETCH_AND_YAW,
             Category.IDLE_QUIRK,
@@ -411,6 +489,34 @@ public final class GoalRegistry {
             false,
             false,
             WaterSplashGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.CROUCH_CUDDLE,
+            Category.SOCIAL,
+            12,
+            0,
+            0,
+            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+            new Vec2f(0.0f, 0.7f),
+            IdleStaminaBias.NONE,
+            false,
+            false,
+            CrouchCuddleGoal::new
+        ));
+
+        registerBuiltIn(new GoalDefinition(
+            GoalIds.PET_SNUGGLE,
+            Category.SOCIAL,
+            14,
+            secondsToTicks(90),
+            secondsToTicks(150),
+            MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
+            new Vec2f(0.2f, 0.8f),
+            IdleStaminaBias.LOW,
+            true,
+            false,
+            PetSnuggleGoal::new
         ));
 
         registerBuiltIn(new GoalDefinition(
@@ -860,6 +966,8 @@ public final class GoalRegistry {
             false,
             PerformAmbientAnimationGoal::new
         ));
+
+        initializeMovementConfigs();
     }
 
     private GoalRegistry() {
@@ -875,7 +983,82 @@ public final class GoalRegistry {
         DATA_DRIVEN.remove(id);
     }
 
+    private static void initializeMovementConfigs() {
+        Set<Identifier> remaining = new HashSet<>(DEFINITIONS.keySet());
+        BUILT_IN_MOVEMENT_CONFIGS.clear();
+
+        assignNone(remaining,
+            GoalIds.BUBBLE_PLAY,
+            GoalIds.FLOAT_IDLE,
+            GoalIds.MIRRORED_YAWN,
+            GoalIds.NIGHT_SKY_LISTEN,
+            GoalIds.PERFORM_AMBIENT_ANIMATION,
+            GoalIds.PERK_EARS_SCAN,
+            GoalIds.PET_SNUGGLE,
+            GoalIds.PREEN_FEATHERS,
+            GoalIds.SHAKE_DRY,
+            GoalIds.SIT_SPHINX_POSE,
+            GoalIds.SNIFF_GROUND,
+            GoalIds.STRETCH_AND_YAW,
+            GoalIds.WET_SHAKE,
+            GoalIds.WING_FLUTTER
+        );
+
+        assignInfluencer(remaining, 0.65f, GoalIds.MAINTAIN_PACK_SPACING);
+        assignInfluencer(remaining, 1.0f, GoalIds.HESITATE_IN_COMBAT);
+
+        Iterator<Identifier> iterator = remaining.iterator();
+        while (iterator.hasNext()) {
+            Identifier id = iterator.next();
+            GoalDefinition definition = DEFINITIONS.get(id);
+            if (definition == null) {
+                iterator.remove();
+                continue;
+            }
+            configureMovement(id, GoalMovementConfig.actor(definition.priority()));
+            iterator.remove();
+        }
+
+        if (!remaining.isEmpty()) {
+            throw new IllegalStateException("Missing movement role assignments for: " + remaining);
+        }
+    }
+
+    private static void configureMovement(Identifier id, GoalMovementConfig config) {
+        GoalMovementConfig normalized = config == null ? GoalMovementConfig.none() : config;
+        MOVEMENT_CONFIGS.put(id, normalized);
+        if (!BUILT_IN_MOVEMENT_CONFIGS.containsKey(id) && BUILT_IN_DEFAULTS.containsKey(id)) {
+            BUILT_IN_MOVEMENT_CONFIGS.put(id, normalized);
+        }
+    }
+
+    private static void assignNone(Set<Identifier> remaining, Identifier... ids) {
+        for (Identifier id : ids) {
+            GoalDefinition definition = DEFINITIONS.get(id);
+            if (definition == null) {
+                continue;
+            }
+            configureMovement(id, GoalMovementConfig.none());
+            remaining.remove(id);
+        }
+    }
+
+    private static void assignInfluencer(Set<Identifier> remaining, float weight, Identifier... ids) {
+        for (Identifier id : ids) {
+            GoalDefinition definition = DEFINITIONS.get(id);
+            if (definition == null) {
+                continue;
+            }
+            configureMovement(id, GoalMovementConfig.influencer(weight));
+            remaining.remove(id);
+        }
+    }
+
     public static GoalDefinition register(GoalDefinition definition) {
+        return register(definition, null);
+    }
+
+    public static GoalDefinition register(GoalDefinition definition, @Nullable GoalMovementConfig movementOverride) {
         Identifier id = definition.id();
         if (DEFINITIONS.containsKey(id)) {
             throw new IllegalStateException("Duplicate goal id registered: " + id);
@@ -883,13 +1066,19 @@ public final class GoalRegistry {
         DEFINITIONS.put(id, definition);
         BUILT_IN_DEFAULTS.putIfAbsent(id, definition);
         DATA_DRIVEN.remove(id);
+        assignMovementForDefinition(id, definition, movementOverride);
         return definition;
     }
 
     public static GoalDefinition registerDataDriven(GoalDefinition definition) {
+        return registerDataDriven(definition, null);
+    }
+
+    public static GoalDefinition registerDataDriven(GoalDefinition definition, @Nullable GoalMovementConfig movementOverride) {
         Identifier id = definition.id();
         DEFINITIONS.put(id, definition);
         DATA_DRIVEN.add(id);
+        assignMovementForDefinition(id, definition, movementOverride);
         return definition;
     }
 
@@ -901,11 +1090,39 @@ public final class GoalRegistry {
             GoalDefinition fallback = BUILT_IN_DEFAULTS.get(id);
             if (fallback != null) {
                 DEFINITIONS.put(id, fallback);
+                GoalMovementConfig builtInConfig = BUILT_IN_MOVEMENT_CONFIGS.get(id);
+                if (builtInConfig != null) {
+                    configureMovement(id, builtInConfig);
+                } else {
+                    MOVEMENT_CONFIGS.remove(id);
+                }
             } else {
                 DEFINITIONS.remove(id);
+                MOVEMENT_CONFIGS.remove(id);
             }
         }
         DATA_DRIVEN.clear();
+    }
+
+    private static void assignMovementForDefinition(Identifier id, GoalDefinition definition, @Nullable GoalMovementConfig movementOverride) {
+        GoalMovementConfig config = movementOverride;
+        if (config == null) {
+            GoalMovementConfig builtInConfig = BUILT_IN_MOVEMENT_CONFIGS.get(id);
+            if (builtInConfig != null) {
+                if (builtInConfig.role() == GoalMovementConfig.MovementRole.ACTOR) {
+                    config = new GoalMovementConfig(
+                        GoalMovementConfig.MovementRole.ACTOR,
+                        definition.priority(),
+                        builtInConfig.influencerWeight()
+                    );
+                } else {
+                    config = builtInConfig;
+                }
+            } else {
+                config = GoalMovementConfig.actor(definition.priority());
+            }
+        }
+        configureMovement(id, config);
     }
 
     public static Collection<GoalDefinition> all() {
@@ -914,6 +1131,10 @@ public final class GoalRegistry {
 
     public static Optional<GoalDefinition> get(Identifier id) {
         return Optional.ofNullable(DEFINITIONS.get(id));
+    }
+
+    public static GoalMovementConfig movementConfig(Identifier id) {
+        return MOVEMENT_CONFIGS.getOrDefault(id, GoalMovementConfig.none());
     }
 
     public static GoalDefinition require(Identifier id) {
