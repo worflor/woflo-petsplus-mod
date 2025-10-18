@@ -4154,12 +4154,34 @@ public class PetComponent {
             }
             desiredDistance = Math.max(0.0, desiredDistance);
 
-            double speed = baseSpeed;
+            double speedMultiplier = 1.0;
+            double speedAdditive = 0.0;
+            double minSpeed = 0.0;
+            double maxSpeed = Double.POSITIVE_INFINITY;
+
             for (SpeedModifier modifier : speedModifiers.values()) {
-                speed = speed * modifier.multiplier() + modifier.additive();
-                speed = Math.max(speed, modifier.minSpeed());
-                speed = Math.min(speed, modifier.maxSpeed());
+                speedMultiplier *= modifier.multiplier();
+                speedAdditive += modifier.additive();
+                minSpeed = Math.max(minSpeed, modifier.minSpeed());
+                maxSpeed = Math.min(maxSpeed, modifier.maxSpeed());
             }
+
+            double speed = baseSpeed * speedMultiplier + speedAdditive;
+            if (!Double.isFinite(speed)) {
+                speed = baseSpeed;
+            }
+
+            if (!speedModifiers.isEmpty()) {
+                minSpeed = Math.max(0.0, Double.isFinite(minSpeed) ? minSpeed : 0.0);
+                maxSpeed = Double.isFinite(maxSpeed) ? maxSpeed : Double.POSITIVE_INFINITY;
+                if (maxSpeed < minSpeed) {
+                    speed = minSpeed;
+                } else {
+                    speed = Math.max(speed, minSpeed);
+                    speed = Math.min(speed, maxSpeed);
+                }
+            }
+
             if (!Double.isFinite(speed)) {
                 speed = baseSpeed;
             }
