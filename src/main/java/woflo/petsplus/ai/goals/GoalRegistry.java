@@ -928,7 +928,7 @@ public final class GoalRegistry {
         registerBuiltIn(new GoalDefinition(
             GoalIds.SELF_PRESERVATION,
             Category.SPECIAL,
-            12, // High priority for combat response
+            2, // Match top actor priorities so fear overrides movement
             0,
             0,
             MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
