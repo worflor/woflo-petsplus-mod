@@ -4258,13 +4258,13 @@ public class PetComponent {
             Petsplus.LOGGER.warn("Pet component accessor unavailable; pet reference missing for " + petId);
             return;
         }
-        if (!(currentPet instanceof EntityComponentAccessor accessor)) {
+        if (!(currentPet instanceof EntityComponentAccessor)) {
             Petsplus.LOGGER.warn("Pet component accessor unavailable; mixin missing for " + petId);
             return;
         }
 
         try {
-            PetsplusComponents.PetData stored = accessor.petsplus$castComponentValue(PetsplusComponents.PET_DATA, null);
+            PetsplusComponents.PetData stored = EntityComponentAccessor.petsplus$castComponentValue(PetsplusComponents.PET_DATA, null);
             if (stored != null) {
                 fromComponentData(stored);
             }
