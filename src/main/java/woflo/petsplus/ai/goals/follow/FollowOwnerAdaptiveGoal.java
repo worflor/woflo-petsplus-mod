@@ -37,14 +37,8 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
     private static final double MIN_DYNAMIC_SPEED = 0.6d;
     private static final double MAX_DYNAMIC_SPEED = 1.95d;
     private static final double HESITATION_CLEAR_DISTANCE = 2.5d;
-    private static final double START_DISTANCE_SLACK = 0.45d;
-    private static final double STOP_DISTANCE_SLACK = 0.75d;
-    private static final double MAX_START_SLACK_RATIO = 0.45d;
-    private static final double MAX_STOP_SLACK_RATIO = 0.55d;
     private static final double OWNER_SPEED_DAMPING_THRESHOLD = 0.035d;
-    private static final double OWNER_MOVING_SLACK_SCALE = 0.6d;
     private static final double THRESHOLD_SMOOTHING_ALPHA = 0.3d;
-    private static final double MIN_THRESHOLD_DISTANCE = 1.75d;
 
     private final PetsplusTameable tameable;
     private final double baseSpeed;
@@ -67,6 +61,7 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
     private double debugLastStartDistance = Double.NaN;
     private double debugLastStopDistance = Double.NaN;
     private long lastPathStartTick = Long.MIN_VALUE;
+    private int consecutiveBudgetDenials = 0;
 
     public FollowOwnerAdaptiveGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.FOLLOW_OWNER), EnumSet.of(Control.MOVE, Control.LOOK));
@@ -92,20 +87,6 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
         if (mob.isSleeping()) {
             return false;
         }
-        long now = mob.getEntityWorld().getTime();
-        if (pathBlockedUntilTick != Long.MIN_VALUE && now < pathBlockedUntilTick) {
-            return false;
-        }
-        if (petComponent.isOnCooldown(FOLLOW_PATH_COOLDOWN_KEY)) {
-            return false;
-        }
-        if (petComponent.getAIState().isPanicking()) {
-            return false;
-        }
-        if (isMajorActivityActive()) {
-            return false;
-        }
-
         LivingEntity livingOwner = tameable.petsplus$getOwner();
         if (!(livingOwner instanceof PlayerEntity owner) || owner.isSpectator()) {
             return false;
@@ -115,7 +96,27 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
         if (Double.isNaN(distanceSq)) {
             return false;
         }
-        if (distanceSq > teleportDistance * teleportDistance) {
+
+        long now = mob.getEntityWorld().getTime();
+        boolean requiresImmediateReturn = distanceSq > teleportDistance * teleportDistance;
+
+        if (!requiresImmediateReturn) {
+            if (pathBlockedUntilTick != Long.MIN_VALUE && now < pathBlockedUntilTick) {
+                return false;
+            }
+            if (petComponent.isOnCooldown(FOLLOW_PATH_COOLDOWN_KEY)) {
+                return false;
+            }
+        }
+
+        if (petComponent.getAIState().isPanicking()) {
+            return false;
+        }
+        if (isMajorActivityActive()) {
+            return false;
+        }
+
+        if (requiresImmediateReturn) {
             return true;
         }
 
@@ -154,24 +155,30 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
         if (mob.isSleeping() || tameable.petsplus$isSitting()) {
             return false;
         }
-        if (petComponent.isOnCooldown(FOLLOW_PATH_COOLDOWN_KEY)) {
-            return false;
-        }
         long now = mob.getEntityWorld().getTime();
-        if (pathBlockedUntilTick != Long.MIN_VALUE && now < pathBlockedUntilTick) {
+        double distanceSq = mob.squaredDistanceTo(owner);
+        if (Double.isNaN(distanceSq)) {
             return false;
         }
+        boolean requiresImmediateReturn = distanceSq > teleportDistance * teleportDistance;
+
+        if (!requiresImmediateReturn) {
+            if (petComponent.isOnCooldown(FOLLOW_PATH_COOLDOWN_KEY)) {
+                return false;
+            }
+            if (pathBlockedUntilTick != Long.MIN_VALUE && now < pathBlockedUntilTick) {
+                return false;
+            }
+        }
+
         if (petComponent.getAIState().isPanicking()) {
             return false;
         }
         if (isMajorActivityActive()) {
             return false;
         }
-        double distanceSq = mob.squaredDistanceTo(owner);
-        if (Double.isNaN(distanceSq)) {
-            return false;
-        }
-        if (distanceSq > teleportDistance * teleportDistance) {
+
+        if (requiresImmediateReturn) {
             return true;
         }
         boolean ownerIsMoving = owner.getVelocity().horizontalLengthSquared() > OWNER_SPEED_DAMPING_THRESHOLD;
@@ -201,6 +208,7 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
     protected void onStartGoal() {
         stuckCounter = 0;
         failedPathTicks = 0;
+        consecutiveBudgetDenials = 0;
         pathBlockedUntilTick = Long.MIN_VALUE;
         lastMoveTarget = null;
         long now = mob.getEntityWorld().getTime();
@@ -221,6 +229,7 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
         mob.getNavigation().stop();
         lastMoveTarget = null;
         failedPathTicks = 0;
+        consecutiveBudgetDenials = 0;
         lastMomentumSampleTick = Long.MIN_VALUE;
         smoothedStartDistance = Double.NaN;
         smoothedStopDistance = Double.NaN;
@@ -244,11 +253,6 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
             return;
         }
         long now = owner.getEntityWorld().getTime();
-        if (petComponent.isOnCooldown(FOLLOW_PATH_COOLDOWN_KEY)
-            || (pathBlockedUntilTick != Long.MIN_VALUE && now < pathBlockedUntilTick)) {
-            mob.getNavigation().stop();
-            return;
-        }
 
         long debugStartNano = 0L;
         boolean debugStartedPath = false;
@@ -261,6 +265,21 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
             this.baseFollowDistance = FollowTuning.resolveFollowDistance(petComponent);
             this.teleportDistance = FollowTuning.resolveTeleportDistance(petComponent);
 
+            double distanceToOwnerSq = mob.squaredDistanceTo(owner);
+            if (Double.isNaN(distanceToOwnerSq)) {
+                mob.getNavigation().stop();
+                lastMoveTarget = null;
+                return;
+            }
+
+            boolean teleportOverride = distanceToOwnerSq > (teleportDistance * teleportDistance);
+            if (!teleportOverride
+                && (petComponent.isOnCooldown(FOLLOW_PATH_COOLDOWN_KEY)
+                    || (pathBlockedUntilTick != Long.MIN_VALUE && now < pathBlockedUntilTick))) {
+                mob.getNavigation().stop();
+                return;
+            }
+
             Vec3d ownerVelocity = owner.getVelocity();
             boolean ownerIsMoving = ownerVelocity.horizontalLengthSquared() > OWNER_SPEED_DAMPING_THRESHOLD;
             boolean hesitating = OwnerAssistAttackGoal.isPetHesitating(petComponent, now);
@@ -269,7 +288,7 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
             double baseDistance = baseFollowDistance + moodDistanceBonus;
             double baselineStartDistance = computeStartThresholdDistance(baseDistance, ownerIsMoving);
 
-            double distanceToOwnerSq = mob.squaredDistanceTo(owner);
+            distanceToOwnerSq = mob.squaredDistanceTo(owner);
             double baseSpeed = resolveDynamicSpeed(distanceToOwnerSq, baseDistance);
             MovementCommand command = movementDirector.resolveMovement(goalId, owner.getEntityPos(), baseDistance, baseSpeed);
             this.activeFollowDistance = (float) command.desiredDistance();
@@ -316,25 +335,29 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
             boolean navigationIdle = mob.getNavigation().isIdle();
             boolean targetChanged = lastMoveTarget == null
                 || lastMoveTarget.squaredDistanceTo(moveTarget) > MOVE_TARGET_REFRESH_EPSILON;
+            boolean budgetDenied = false;
+            boolean attemptedPathStart = false;
 
             if (navigationIdle || targetChanged) {
                 boolean started = false;
                 // Restart cooldown to prevent thrash
                 if (now == Long.MIN_VALUE || lastPathStartTick == Long.MIN_VALUE || (now - lastPathStartTick) >= 8) {
-                    // Owner-scoped per-tick budget for fresh path computations
                     if (mob.getEntityWorld() instanceof ServerWorld sw) {
                         java.util.UUID ownerId = owner.getUuid();
-                        // Conservative per-tick path start limit; centralized policy
                         int perTickLimit = woflo.petsplus.policy.AIBudgetPolicy.pathStartsPerOwnerPerTick(ownerIsMoving);
                         boolean allowed = woflo.petsplus.state.coordination.PathBudgetManager.get(sw)
                             .tryConsume(ownerId, now, perTickLimit);
                         if (allowed) {
+                            attemptedPathStart = true;
                             started = mob.getNavigation().startMovingTo(moveTarget.x, moveTarget.y, moveTarget.z, adjustedSpeed);
                             if (started) {
                                 lastPathStartTick = now;
                             }
+                        } else {
+                            budgetDenied = true;
                         }
                     } else {
+                        attemptedPathStart = true;
                         started = mob.getNavigation().startMovingTo(moveTarget.x, moveTarget.y, moveTarget.z, adjustedSpeed);
                         if (started) {
                             lastPathStartTick = now;
@@ -352,10 +375,30 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
             }
             lastMoveTarget = moveTarget;
 
+            if (budgetDenied) {
+                consecutiveBudgetDenials = Math.min(consecutiveBudgetDenials + 1, PATH_FAILURE_TIMEOUT);
+            } else if (!navigationIdle || attemptedPathStart) {
+                consecutiveBudgetDenials = 0;
+            }
+
+            if (budgetDenied && consecutiveBudgetDenials >= 5) {
+                double teleportGuard = teleportDistance * 0.9d;
+                double teleportGuardSq = teleportGuard * teleportGuard;
+                if (distanceToOwnerSq >= teleportGuardSq) {
+                    if (tryEmergencyTeleport(owner)) {
+                        lastMoveTarget = null;
+                        consecutiveBudgetDenials = 0;
+                        return;
+                    }
+                }
+            }
+
             boolean followingPath = mob.getNavigation().isFollowingPath();
             if (!followingPath) {
                 stuckCounter++;
-                if (distanceToOwnerSq > (this.activeFollowDistance * this.activeFollowDistance)) {
+                if (budgetDenied) {
+                    failedPathTicks = Math.max(0, failedPathTicks - 1);
+                } else if (distanceToOwnerSq > (this.activeFollowDistance * this.activeFollowDistance)) {
                     failedPathTicks = Math.min(PATH_FAILURE_TIMEOUT + 20, failedPathTicks + 1);
                 }
                 if (stuckCounter > 60) {
@@ -365,6 +408,7 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
             } else {
                 stuckCounter = 0;
                 failedPathTicks = 0;
+                consecutiveBudgetDenials = 0;
             }
 
             if (failedPathTicks > PATH_FAILURE_TIMEOUT) {
@@ -414,20 +458,12 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
     }
 
     private double computeStartThresholdDistance(double baselineDistance, boolean ownerIsMoving) {
-        double slack = Math.min(START_DISTANCE_SLACK, baselineDistance * MAX_START_SLACK_RATIO);
-        if (ownerIsMoving) {
-            slack *= OWNER_MOVING_SLACK_SCALE;
-        }
-        double threshold = Math.max(MIN_THRESHOLD_DISTANCE, Math.min(baselineDistance, baselineDistance - slack));
+        double threshold = FollowDistanceHeuristics.computeStartThreshold(baselineDistance, ownerIsMoving);
         return updateSmoothedStartDistance(threshold);
     }
 
     private double computeStopThresholdDistance(double baselineDistance, boolean ownerIsMoving) {
-        double slack = Math.min(STOP_DISTANCE_SLACK, baselineDistance * MAX_STOP_SLACK_RATIO);
-        if (ownerIsMoving) {
-            slack *= OWNER_MOVING_SLACK_SCALE;
-        }
-        double threshold = Math.max(MIN_THRESHOLD_DISTANCE, Math.min(baselineDistance, baselineDistance - slack));
+        double threshold = FollowDistanceHeuristics.computeStopThreshold(baselineDistance, ownerIsMoving);
         return updateSmoothedStopDistance(threshold);
     }
 

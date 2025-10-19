@@ -4,9 +4,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.MathHelper;
 
 import woflo.petsplus.events.EmotionContextCues;
 import woflo.petsplus.state.PetComponent;
@@ -37,6 +39,9 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
         if (context.component().isGossipOptedOut(context.currentTick())) {
             return false;
         }
+        if (context.component().isGossipSessionCooling(context.currentTick())) {
+            return false;
+        }
         if (!GossipSocialHelper.isDowntime(context, context.component(), context.pet())) {
             return false;
         }
@@ -62,6 +67,23 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
             context.setGossipNeighbors(Collections.emptyList());
             return;
         }
+
+        PetComponent component = context.component();
+        List<RumorEntry> eligible = new ArrayList<>(toShare.size());
+        for (RumorEntry rumor : toShare) {
+            component.ensureGossipSession(rumor.topicId(), currentTick, rumor);
+            if (component.hasGossipSessionBudget(rumor.topicId(), currentTick)) {
+                eligible.add(rumor);
+            } else {
+                component.concludeGossipSession(rumor.topicId(), currentTick, computeSessionCooldown(rumor), false);
+            }
+        }
+        if (eligible.isEmpty()) {
+            context.setSharedRumors(Collections.emptyList());
+            context.setGossipNeighbors(Collections.emptyList());
+            return;
+        }
+        toShare = eligible;
 
         List<SocialContextSnapshot.NeighborSample> potential = new ArrayList<>();
         swarm.forEachNeighbor(context.pet(), context.component(), WHISPER_RADIUS, (entry, distanceSq) -> {
@@ -155,6 +177,14 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
             return;
         }
 
+        whisperer.ensureGossipSession(rumor.topicId(), context.currentTick(), rumor);
+        if (!whisperer.hasGossipSessionBudget(rumor.topicId(), context.currentTick())) {
+            whisperer.concludeGossipSession(rumor.topicId(), context.currentTick(), computeSessionCooldown(rumor), false);
+            return;
+        }
+
+        UUID listenerId = otherPet.getUuid();
+
         if (listener.isGossipOptedOut(context.currentTick())) {
             return;
         }
@@ -205,6 +235,9 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
             }
             sharedAny = true;
             witnessedAny = true;
+            if (whisperer.registerGossipListener(rumor.topicId(), listenerId)) {
+                newListener = true;
+            }
         } else {
             if (listenerLedger.hasHeardRecently(rumor.topicId(), context.currentTick())) {
                 listenerLedger.registerDuplicateHeard(rumor.topicId(), context.currentTick());
@@ -237,10 +270,13 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
                 if (irritation > 0f) {
                     context.pushEmotion(listener, PetComponent.Emotion.FRUSTRATION, irritation);
                 }
-                newListener = true;
+                if (whisperer.registerGossipListener(rumor.topicId(), listenerId)) {
+                    newListener = true;
+                }
                 sharedAny = true;
             } else if (alreadyKnows) {
                 listenerLedger.ingestRumorFromPeer(rumor, context.currentTick(), true);
+                whisperer.registerGossipListener(rumor.topicId(), listenerId);
                 float loyaltyBase = GossipSocialHelper.loyaltyDelta(rumor, knowledgeGap, false);
                 float loyalty = profile.adjustPositive(loyaltyBase);
                 if (loyalty > 0f) {
@@ -272,7 +308,9 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
                 if (irritation > 0f) {
                     context.pushEmotion(listener, PetComponent.Emotion.FRUSTRATION, irritation);
                 }
-                newListener = true;
+                if (whisperer.registerGossipListener(rumor.topicId(), listenerId)) {
+                    newListener = true;
+                }
                 sharedAny = true;
             }
 
@@ -311,6 +349,12 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
             context.pushEmotion(whisperer, PetComponent.Emotion.PRIDE, admiration);
         }
 
+        float cost = computeWhisperCost(rumor, newListener, witnessedAny);
+        boolean depleted = whisperer.consumeGossipBudget(rumor.topicId(), cost, context.currentTick());
+        if (depleted) {
+            whisperer.concludeGossipSession(rumor.topicId(), context.currentTick(), computeSessionCooldown(rumor), true);
+        }
+
         if (context.tryMarkBeat("gossip_whisper", 1800)) {
             Text cueText = GossipNarration.buildWhisperCue(whisperer, listener, rumor, context.currentTick());
             EmotionContextCues.sendCue(context.owner(),
@@ -319,5 +363,23 @@ public class GossipWhisperRoutine implements SocialBehaviorRoutine {
                 cueText,
                 1800);
         }
+    }
+
+    private float computeWhisperCost(RumorEntry rumor, boolean newListener, boolean witnessed) {
+        float intensity = MathHelper.clamp(rumor.intensity(), 0f, 1f);
+        float base = 0.8f + intensity * 0.5f;
+        if (newListener) {
+            base += 0.5f;
+        }
+        if (witnessed) {
+            base += 0.25f;
+        }
+        return MathHelper.clamp(base, 0.45f, 2.5f);
+    }
+
+    private long computeSessionCooldown(RumorEntry rumor) {
+        float intensity = MathHelper.clamp(rumor.intensity(), 0f, 1f);
+        float confidence = MathHelper.clamp(rumor.confidence(), 0f, 1f);
+        return 140L + Math.round((intensity + confidence) * 70f);
     }
 }

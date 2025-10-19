@@ -757,9 +757,8 @@ public final class PetMoodEngine {
      * Returns 0.7-1.3 range for natural speed variation.
      */
     public float getMomentumSpeedMultiplier() {
-        update();
+        // Use last-applied behavioralMomentum to avoid forcing a mood recompute every tick
         // Map 0.0-1.0 momentum to 0.7-1.3 speed multiplier
-        // Low momentum = slower movement, high momentum = faster movement
         return 0.7f + (behavioralMomentum * 0.6f);
     }
     
@@ -768,8 +767,7 @@ public final class PetMoodEngine {
      * Returns 0.8-1.4 range for visible but not jarring animation changes.
      */
     public float getMomentumAnimationSpeed() {
-        update();
-        // Tired pets animate slower, energetic pets faster
+        // Use last-applied behavioralMomentum to avoid forcing a mood recompute on client render ticks
         // Slightly more dramatic range than movement for visual feedback
         return 0.8f + (behavioralMomentum * 0.6f);
     }

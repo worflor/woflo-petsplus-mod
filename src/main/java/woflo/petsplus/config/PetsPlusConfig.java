@@ -180,13 +180,13 @@ public class PetsPlusConfig {
         }
         if (!core.has("pets") || !core.get("pets").isJsonObject()) {
             JsonObject pets = new JsonObject();
-            pets.addProperty("async_mood_pipeline", false);
+            pets.addProperty("async_mood_pipeline", true);
             core.add("pets", pets);
             changed = true;
         } else {
             JsonObject pets = core.getAsJsonObject("pets");
             if (!pets.has("async_mood_pipeline")) {
-                pets.addProperty("async_mood_pipeline", false);
+                pets.addProperty("async_mood_pipeline", true);
                 changed = true;
             }
         }
@@ -245,7 +245,7 @@ public class PetsPlusConfig {
         root.add("pet_leveling", createPetLevelingDefaults());
         root.add("tribute_items", createDefaultTributeJson());
         JsonObject pets = new JsonObject();
-        pets.addProperty("async_mood_pipeline", false);
+        pets.addProperty("async_mood_pipeline", true);
         root.add("pets", pets);
         root.add("visuals", createVisualDefaults());
         root.add("emotion_cues", createEmotionCueDefaults());
@@ -731,7 +731,8 @@ public class PetsPlusConfig {
     }
 
     public boolean isAsyncMoodPipelineEnabled() {
-        return readBoolean(getSection("pets"), "async_mood_pipeline", false);
+        // Default to enabled: async pipeline significantly reduces server tick load
+        return readBoolean(getSection("pets"), "async_mood_pipeline", true);
     }
 
     public int getConfigGeneration() {

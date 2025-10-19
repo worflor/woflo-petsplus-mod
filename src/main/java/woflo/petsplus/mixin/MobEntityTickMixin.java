@@ -20,6 +20,8 @@ import woflo.petsplus.state.emotions.PetMoodEngine;
 import woflo.petsplus.ui.AfterimageManager;
 
 import java.lang.reflect.Field;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 @Mixin(MobEntity.class)
 public abstract class MobEntityTickMixin {
@@ -27,6 +29,8 @@ public abstract class MobEntityTickMixin {
     private static final Field LIMB_ANIMATOR_FIELD;
     private static final Field LIMB_SPEED_FIELD;
     private static final Field LIMB_LAST_SPEED_FIELD;
+    private static final Map<MobEntity, Long> LAST_SERVER_UPDATE = new WeakHashMap<>();
+    private static final Map<MobEntity, Integer> LAST_CLIENT_UPDATE = new WeakHashMap<>();
 
     static {
         Field animator = null;
@@ -79,11 +83,23 @@ public abstract class MobEntityTickMixin {
         }
 
         if (world instanceof ServerWorld) {
-            double multiplier = moodEngine.getMomentumSpeedMultiplier();
-            SpeedModifierHelper.applyMovementSpeedMultiplier(mob, MOMENTUM_SPEED_MODIFIER_ID, multiplier);
+            ServerWorld sw = (ServerWorld) world;
+            long now = sw.getTime();
+            Long last = LAST_SERVER_UPDATE.get(mob);
+            if (last == null || now - last >= 5) {
+                LAST_SERVER_UPDATE.put(mob, now);
+                float multiplier = moodEngine.getMomentumSpeedMultiplier();
+                SpeedModifierHelper.applyMovementSpeedMultiplier(mob, MOMENTUM_SPEED_MODIFIER_ID, multiplier);
+            }
         } else if (world.isClient()) {
-            float animationMultiplier = MathHelper.clamp(moodEngine.getMomentumAnimationSpeed(), 0.6f, 1.6f);
-            applyClientAnimationScaling(mob, animationMultiplier);
+            // Recompute client animation speed at most every 2 ticks per mob
+            int age = mob.age;
+            Integer last = LAST_CLIENT_UPDATE.get(mob);
+            if (last == null || age - last >= 2) {
+                LAST_CLIENT_UPDATE.put(mob, age);
+                float animationMultiplier = MathHelper.clamp(moodEngine.getMomentumAnimationSpeed(), 0.6f, 1.6f);
+                applyClientAnimationScaling(mob, animationMultiplier);
+            }
         }
     }
 

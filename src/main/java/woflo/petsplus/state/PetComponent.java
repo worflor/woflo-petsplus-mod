@@ -156,6 +156,8 @@ public class PetComponent {
     private long followSpacingFocusExpiryTick = Long.MIN_VALUE;
     private long moodFollowHoldUntilTick = Long.MIN_VALUE;
     private float moodFollowDistanceBonus = 0.0f;
+    private final Map<Long, GossipSession> gossipSessions = new HashMap<>();
+    private long gossipSessionCooldownUntilTick = Long.MIN_VALUE;
     // UI state
     private long xpFlashStartTick = -1;
     private static final int XP_FLASH_DURATION = 7; // 0.35 seconds
@@ -368,6 +370,7 @@ public class PetComponent {
         public static final String SOCIAL_JITTER_SEED = "social_jitter_seed";
         public static final String GOSSIP_OPT_OUT_UNTIL = "gossip_opt_out_until";
         public static final String GOSSIP_CLUSTER_CURSOR = "gossip_cluster_cursor";
+        public static final String GOSSIP_STALL_COUNT = "gossip_stall_count";
         public static final String THREAT_LAST_TICK = "threat_last_tick";
         public static final String THREAT_SAFE_STREAK = "threat_safe_streak";
         public static final String THREAT_SENSITIZED_STREAK = "threat_sensitized_streak";
@@ -385,6 +388,7 @@ public class PetComponent {
         public static final String OWNER_LAST_SEEN_TICK = "owner_last_seen_tick";
         public static final String OWNER_LAST_SEEN_DISTANCE = "owner_last_seen_distance";
         public static final String OWNER_LAST_SEEN_DIMENSION = "owner_last_seen_dimension";
+        public static final String GOSSIP_LAST_WANDER_TICK = "gossip_last_wander_tick";
         public static final String SURVEY_LAST_TARGET_POS = "survey_last_target_pos";
         public static final String SURVEY_LAST_TARGET_ID = "survey_last_target_id";
         public static final String SURVEY_LAST_TARGET_KIND = "survey_last_target_kind";
@@ -968,6 +972,65 @@ public class PetComponent {
         scheduleNextGossipDecay(baseTick + Math.max(MIN_GOSSIP_DECAY_DELAY, gossipLedger.scheduleNextDecayDelay()));
     }
 
+    public GossipSession ensureGossipSession(long topicId, long currentTick, @Nullable RumorEntry rumor) {
+        purgeStaleGossipSessions(currentTick);
+        GossipSession session = gossipSessions.get(topicId);
+        if (session == null) {
+            float budget = computeInitialGossipBudget(rumor, currentTick);
+            session = new GossipSession(topicId, currentTick, budget);
+            gossipSessions.put(topicId, session);
+        }
+        return session;
+    }
+
+    public boolean hasGossipSessionBudget(long topicId, long currentTick) {
+        GossipSession session = gossipSessions.get(topicId);
+        if (session == null) {
+            return true;
+        }
+        if (!session.hasBudget()) {
+            if (currentTick - session.lastShareTick > 40L) {
+                gossipSessions.remove(topicId);
+            }
+            return false;
+        }
+        return true;
+    }
+
+    public boolean registerGossipListener(long topicId, @Nullable UUID listenerId) {
+        GossipSession session = gossipSessions.get(topicId);
+        return session != null && listenerId != null && session.registerListener(listenerId);
+    }
+
+    public boolean hasGossipListener(long topicId, @Nullable UUID listenerId) {
+        GossipSession session = gossipSessions.get(topicId);
+        return session != null && listenerId != null && session.hasHeard(listenerId);
+    }
+
+    public boolean consumeGossipBudget(long topicId, float cost, long tick) {
+        GossipSession session = gossipSessions.get(topicId);
+        if (session == null) {
+            return true;
+        }
+        return session.consume(cost, tick);
+    }
+
+    public void concludeGossipSession(long topicId, long currentTick, long cooldownTicks, boolean triggerWander) {
+        gossipSessions.remove(topicId);
+        long base = currentTick + Math.max(0L, cooldownTicks);
+        int jitter = pet != null ? pet.getRandom().nextInt(61) - 30 : 0;
+        long until = Math.max(currentTick + 20L, base + jitter);
+        markGossipOptOut(until);
+        gossipSessionCooldownUntilTick = Math.max(gossipSessionCooldownUntilTick, until);
+        if (triggerWander) {
+            maybeTriggerGossipWander(currentTick, false);
+        }
+    }
+
+    public boolean isGossipSessionCooling(long currentTick) {
+        return currentTick < gossipSessionCooldownUntilTick;
+    }
+
     public boolean isGossipOptedOut(long currentTick) {
         Long until = getStateData(StateKeys.GOSSIP_OPT_OUT_UNTIL, Long.class);
         if (until == null) {
@@ -991,13 +1054,111 @@ public class PetComponent {
         if (existing != null && existing > until) {
             until = existing;
         }
-        markGossipOptOut(until);
-        requestGossipOptOutWander();
+        int jitter = pet != null ? pet.getRandom().nextInt(61) - 30 : 0;
+        long jittered = Math.max(currentTick + 20L, until + jitter);
+        markGossipOptOut(jittered);
+        gossipSessionCooldownUntilTick = Math.max(gossipSessionCooldownUntilTick, jittered);
+        gossipSessions.clear();
+        maybeTriggerGossipWander(currentTick, true);
     }
 
     private int pickOptOutDuration() {
         return GOSSIP_OPT_OUT_MIN_DURATION
             + pet.getRandom().nextInt(Math.max(1, GOSSIP_OPT_OUT_MAX_DURATION - GOSSIP_OPT_OUT_MIN_DURATION + 1));
+    }
+
+    private void maybeTriggerGossipWander(long currentTick, boolean force) {
+        if (pet == null) {
+            return;
+        }
+        Long lastTick = getStateData(StateKeys.GOSSIP_LAST_WANDER_TICK, Long.class);
+        if (lastTick != null && currentTick - lastTick < 60L) {
+            return;
+        }
+        var navigation = pet.getNavigation();
+        if (!force) {
+            if (navigation != null && !navigation.isIdle()) {
+                return;
+            }
+            if (pet.getVelocity().horizontalLengthSquared() > 0.01d) {
+                return;
+            }
+        }
+        requestGossipOptOutWander();
+        setStateData(StateKeys.GOSSIP_LAST_WANDER_TICK, currentTick);
+    }
+
+    private void purgeStaleGossipSessions(long currentTick) {
+        if (gossipSessions.isEmpty()) {
+            return;
+        }
+        java.util.Iterator<Map.Entry<Long, GossipSession>> iterator = gossipSessions.entrySet().iterator();
+        while (iterator.hasNext()) {
+            GossipSession session = iterator.next().getValue();
+            if (session == null) {
+                iterator.remove();
+                continue;
+            }
+            long age = currentTick - session.lastShareTick;
+            if (age > 2400L) {
+                iterator.remove();
+            }
+        }
+    }
+
+    private float computeInitialGossipBudget(@Nullable RumorEntry rumor, long currentTick) {
+        float intensity = rumor != null ? MathHelper.clamp(rumor.intensity(), 0f, 1f) : 0.45f;
+        float confidence = rumor != null ? MathHelper.clamp(rumor.confidence(), 0f, 1f) : 0.5f;
+        float base = 1.8f + (intensity * 3.0f) + (confidence * 2.0f);
+        if (rumor != null) {
+            int shares = Math.max(0, rumor.shareCount());
+            base -= Math.min(1.5f, shares * 0.15f);
+            long lastWitness = rumor.lastWitnessTick();
+            if (lastWitness > 0L && currentTick - lastWitness <= 400L) {
+                base += 1.2f;
+            }
+        }
+        return MathHelper.clamp(base, 1.2f, 8.0f);
+    }
+
+    private static final class GossipSession {
+        private static final float MIN_BUDGET = 0.05f;
+        private final long topicId;
+        private final long startedTick;
+        private float remainingBudget;
+        private int segmentsShared;
+        private long lastShareTick;
+        private final Set<UUID> listeners = new HashSet<>();
+
+        private GossipSession(long topicId, long startedTick, float budget) {
+            this.topicId = topicId;
+            this.startedTick = startedTick;
+            this.remainingBudget = Math.max(0.5f, budget);
+            this.lastShareTick = startedTick;
+        }
+
+        private boolean hasBudget() {
+            return remainingBudget > MIN_BUDGET;
+        }
+
+        private boolean consume(float amount, long tick) {
+            float cost = Math.max(0.01f, amount);
+            remainingBudget = Math.max(0f, remainingBudget - cost);
+            segmentsShared++;
+            lastShareTick = Math.max(lastShareTick, tick);
+            return remainingBudget <= MIN_BUDGET;
+        }
+
+        private boolean registerListener(UUID listenerId) {
+            if (listenerId == null) {
+                return false;
+            }
+            return listeners.add(listenerId);
+        }
+
+        private boolean hasHeard(UUID listenerId) {
+            return listenerId != null && listeners.contains(listenerId);
+        }
     }
 
     public void requestGossipOptOutWander() {

@@ -157,6 +157,11 @@ public final class PetGossipLedger {
         return rumors.values().stream().map(RumorEntry::copy);
     }
 
+    public @Nullable RumorEntry getRumor(long topicId) {
+        RumorEntry entry = rumors.get(topicId);
+        return entry != null ? entry.copy() : null;
+    }
+
     public long scheduleNextDecayDelay() {
         return isEmpty() ? IDLE_DECAY_INTERVAL : ACTIVE_DECAY_INTERVAL;
     }

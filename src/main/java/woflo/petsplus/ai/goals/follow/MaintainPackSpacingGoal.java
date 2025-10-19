@@ -46,6 +46,7 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
     private long lastSwarmCheckTick = Long.MIN_VALUE;
     private int lastObservedSwarmSize = 1;
     private final Map<MobEntity, PetSocialData> socialScratch = new HashMap<>();
+    private long lastSpacingUpdateTick = Long.MIN_VALUE;
     private long debugSpacingLastReportTick = Long.MIN_VALUE; // preserved for compatibility; unused after aggregation
     private int debugSpacingCacheHits = 0; // preserved (no-op)
     private int debugSpacingCacheMisses = 0; // preserved (no-op)
@@ -120,6 +121,12 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
         }
         long now = owner.getEntityWorld().getTime();
         refreshSwarmSize(owner, now);
+        // Throttle compute frequency based on pack size
+        int interval = lastObservedSwarmSize >= 10 ? 5 : 2; // ticks
+        if (lastSpacingUpdateTick != Long.MIN_VALUE && now - lastSpacingUpdateTick < interval) {
+            return;
+        }
+        lastSpacingUpdateTick = now;
         if (lastObservedSwarmSize <= 1) {
             movementDirector.clearSource(goalId);
             petComponent.setFollowSpacingFocus(null, Long.MIN_VALUE);

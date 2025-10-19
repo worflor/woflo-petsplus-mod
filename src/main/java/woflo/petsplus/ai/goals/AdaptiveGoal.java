@@ -9,6 +9,8 @@ import woflo.petsplus.ai.PetMobInteractionProfile;
 import woflo.petsplus.ai.behavior.MomentumState;
 import woflo.petsplus.ai.context.NearbyMobAgeProfile;
 import woflo.petsplus.ai.context.PetContext;
+import woflo.petsplus.ai.goals.follow.FollowDistanceHeuristics;
+import woflo.petsplus.ai.goals.follow.FollowTuning;
 import woflo.petsplus.mixin.MobEntityAccessor;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.Petsplus;
@@ -140,6 +142,10 @@ public abstract class AdaptiveGoal extends Goal {
             return false;
         }
 
+        if (shouldDeferForOwnerDistance()) {
+            return false;
+        }
+
         // 7. Goal-specific conditions
         return canStartGoal();
     }
@@ -176,7 +182,11 @@ public abstract class AdaptiveGoal extends Goal {
         if (activeTicks > committedDuration * 2) {
             return false;
         }
-        
+
+        if (shouldDeferForOwnerDistance()) {
+            return false;
+        }
+
         // Goal-specific continuation logic
         return shouldContinueGoal();
     }
@@ -636,6 +646,49 @@ public abstract class AdaptiveGoal extends Goal {
      */
     protected boolean requiresExclusiveAccess() {
         return false;
+    }
+
+    protected boolean deferWhenOwnerFar() {
+        GoalDefinition definition = currentDefinition();
+        if (definition == null) {
+            return false;
+        }
+        GoalDefinition.Category category = definition.category();
+        return category == GoalDefinition.Category.IDLE_QUIRK
+            || category == GoalDefinition.Category.WANDER;
+    }
+
+    private boolean shouldDeferForOwnerDistance() {
+        if (!deferWhenOwnerFar()) {
+            return false;
+        }
+        PetContext ctx = getContext();
+        if (ctx == null) {
+            return false;
+        }
+        var owner = ctx.getOwner();
+        if (owner == null) {
+            return false;
+        }
+        float distance = ctx.distanceToOwner();
+        if (!Float.isFinite(distance)) {
+            return false;
+        }
+        PetComponent component = resolvePetComponent();
+        double followBaseline = component != null
+            ? FollowTuning.resolveFollowDistance(component)
+            : FollowTuning.DEFAULT_BASELINE_DISTANCE;
+        double teleportDistance = component != null
+            ? FollowTuning.resolveTeleportDistance(component)
+            : FollowTuning.DEFAULT_TELEPORT_DISTANCE;
+
+        double startThreshold = FollowDistanceHeuristics.computeStartThreshold(followBaseline, false);
+        double guardDistance = Math.max(startThreshold + 0.35d, followBaseline * 0.92d);
+
+        if (distance >= guardDistance) {
+            return true;
+        }
+        return distance >= teleportDistance * 0.9d;
     }
     
     /**

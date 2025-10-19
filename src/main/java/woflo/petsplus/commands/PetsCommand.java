@@ -43,6 +43,7 @@ import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
+import woflo.petsplus.commands.PetsplusAdminCommands;
 import woflo.petsplus.commands.suggestions.PetsSuggestionProviders;
 import woflo.petsplus.config.DebugSettings;
 import woflo.petsplus.config.PetsPlusConfig;
@@ -97,6 +98,9 @@ public class PetsCommand {
     private static final List<EntityType<? extends MobEntity>> PETTEST_SPECIES_POOL = List.of(
         EntityType.WOLF,
         EntityType.CAT,
+        EntityType.OCELOT,
+        EntityType.FOX,
+        EntityType.HORSE,
         EntityType.PARROT,
         EntityType.RABBIT,
         EntityType.FROG,
@@ -104,16 +108,19 @@ public class PetsCommand {
     );
 
     private static final List<String> PETTEST_NAME_POOL = List.of(
-        // Generic cute pet names
         "Buddy",
         "Bella",
         "Charlie",
         "Luna",
         "Max",
         "Daisy",
+        "Rex",
+        "Milo",
+        "Daisy",
         "Rocky",
         "Milo",
         "Lucy",
+        "Sue Storm",
         "Cooper",
         "Sadie",
         "Bailey",
@@ -124,13 +131,14 @@ public class PetsCommand {
         "Lily",
         "Teddy",
         "Penny",
+        "Peni",
         "Willow",
         "Jasper",
         "Ellie",
         "Pepper",
         "Henry",
         "Chloe",
-        // Pixar/Disney and video game inspired names
+        "Emma",
         "Nala",
         "Simba",
         "Olaf",
@@ -142,6 +150,7 @@ public class PetsCommand {
         "Nemo",
         "Sulley",
         "Boo",
+        "Mike",
         "Remy",
         "Dug",
         "Bolt",
@@ -154,6 +163,7 @@ public class PetsCommand {
         "Yoshi",
         "Zelda",
         "Link",
+        "Toad",
         "Pikachu",
         "Isabelle"
     );

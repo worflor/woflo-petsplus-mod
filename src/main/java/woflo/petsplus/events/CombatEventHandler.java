@@ -6,6 +6,7 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.CampfireBlock;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.attribute.EntityAttributes;
@@ -2122,6 +2123,11 @@ public class CombatEventHandler {
             }
         }
 
+        if (pet.getTarget() != null) {
+            pet.setTarget(null);
+        }
+        pet.getNavigation().stop();
+
         if (petComponent != null) {
             float closeness = owner != null ? 0.35f + 0.65f * proximityFactor(owner, pet, 16.0) : 0.7f;
             float reliefBase = scaledAmount(0.08f, 0.24f, closeness);
@@ -2148,7 +2154,12 @@ public class CombatEventHandler {
             double distSq = pet.squaredDistanceTo(owner);
             if (distSq > 3.5d) {
                 pet.getNavigation().startMovingTo(owner, 1.1d);
+            } else if (distSq > 1.0d && pet.getNavigation().isIdle()) {
+                pet.getNavigation().startMovingTo(owner, 1.05d);
             }
+            pet.setSprinting(false);
+            pet.setSneaking(false);
+            pet.setPose(net.minecraft.entity.EntityPose.STANDING);
         }
     }
 

@@ -55,7 +55,7 @@ public final class EmotionStimulusBus {
     // Coalescing policy configuration
 
     /** Coalescing window policy (in ticks). */
-    private static final int COALESCE_WINDOW_TICKS = 4;
+    private static final int COALESCE_WINDOW_TICKS = 8;
 
     /** Returns the configured coalescing window length. */
     public static int coalesceWindowTicks() {
