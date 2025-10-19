@@ -103,6 +103,61 @@ public class PetsCommand {
         EntityType.TURTLE
     );
 
+    private static final List<String> PETTEST_NAME_POOL = List.of(
+        // Generic cute pet names
+        "Buddy",
+        "Bella",
+        "Charlie",
+        "Luna",
+        "Max",
+        "Daisy",
+        "Rocky",
+        "Milo",
+        "Lucy",
+        "Cooper",
+        "Sadie",
+        "Bailey",
+        "Finn",
+        "Zoe",
+        "Rosie",
+        "Tucker",
+        "Lily",
+        "Teddy",
+        "Penny",
+        "Willow",
+        "Jasper",
+        "Ellie",
+        "Pepper",
+        "Henry",
+        "Chloe",
+        // Pixar/Disney and video game inspired names
+        "Nala",
+        "Simba",
+        "Olaf",
+        "Elsa",
+        "Stitch",
+        "Moana",
+        "Pascal",
+        "Dory",
+        "Nemo",
+        "Sulley",
+        "Boo",
+        "Remy",
+        "Dug",
+        "Bolt",
+        "Tiana",
+        "Ariel",
+        "Mushu",
+        "Bambi",
+        "Baymax",
+        "Kirby",
+        "Yoshi",
+        "Zelda",
+        "Link",
+        "Pikachu",
+        "Isabelle"
+    );
+
     private static final double PETTEST_SPAWN_RADIUS = 5.0D;
     private static final double PETTEST_RADIUS_STEP = 1.5D;
     private static final int PETTEST_MIN_ATTEMPTS = 6;
@@ -591,6 +646,7 @@ public class PetsCommand {
         }
 
         Random random = world.getRandom();
+        List<String> availableNames = new ArrayList<>(PETTEST_NAME_POOL);
         List<MutableText> summaryLines = new ArrayList<>();
         int spawned = 0;
         int failures = 0;
@@ -620,6 +676,13 @@ public class PetsCommand {
 
             PetComponent component = PetComponent.getOrCreate(mob);
             component.ensureImprint();
+
+            if (availableNames.isEmpty()) {
+                availableNames.addAll(PETTEST_NAME_POOL);
+            }
+            String selectedName = availableNames.remove(random.nextInt(availableNames.size()));
+            mob.setCustomName(Text.literal(selectedName));
+            mob.setCustomNameVisible(true);
 
             Identifier natureId = naturePool.get(random.nextInt(naturePool.size()));
             component.setNatureId(natureId);
