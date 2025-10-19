@@ -192,8 +192,14 @@ public class CombatEventHandler {
         PlayerEntity attackingOwner = damageSource.getAttacker() instanceof PlayerEntity
             ? (PlayerEntity) damageSource.getAttacker()
             : null;
+        boolean ownerFriendlyHit = false;
 
-        if (attackingOwner != null) {
+        if (attackingOwner != null && isSameOwnerAlly(attackingOwner, entity)) {
+            ownerFriendlyHit = true;
+            handleOwnerFriendlyStrike(attackingOwner, entity);
+        }
+
+        if (attackingOwner != null && !ownerFriendlyHit) {
             DamageProcessingOutcome outgoingOutcome = processOwnerOutgoingDamage(attackingOwner, entity, damageSource, appliedDamage);
             if (outgoingOutcome.cancelled()) {
                 targetCancelled = true;
@@ -225,21 +231,28 @@ public class CombatEventHandler {
 
         // Check if the damage was dealt by a player
         if (attackingOwner instanceof ServerPlayerEntity serverOwner
-            && !targetCancelled && appliedDamage > 0.0F
+            && !targetCancelled && appliedDamage > 0.0F && !ownerFriendlyHit
             && damageSource.isOf(DamageTypes.PLAYER_ATTACK)
             && damageSource.getSource() == attackingOwner
             && isCriticalMeleeHit(serverOwner)) {
             broadcastOwnerCriticalHit(serverOwner, entity, appliedDamage);
         }
 
-        if (attackingOwner != null && !targetCancelled && appliedDamage > 0.0F) {
+        if (attackingOwner != null && !targetCancelled && appliedDamage > 0.0F && !ownerFriendlyHit) {
             handleOwnerDealtDamage(attackingOwner, entity, appliedDamage);
         }
 
         // Check if damage was from a projectile shot by a player
         if (damageSource.getSource() instanceof PersistentProjectileEntity projectile) {
             if (projectile.getOwner() instanceof PlayerEntity shooter && !targetCancelled) {
-                handleProjectileDamage(shooter, entity, appliedDamage, projectile);
+                if (isSameOwnerAlly(shooter, entity)) {
+                    if (!ownerFriendlyHit) {
+                        handleOwnerFriendlyStrike(shooter, entity);
+                    }
+                    ownerFriendlyHit = true;
+                } else {
+                    handleProjectileDamage(shooter, entity, appliedDamage, projectile);
+                }
             }
         }
 
@@ -783,6 +796,11 @@ public class CombatEventHandler {
     }
     
     private static void handleOwnerDealtDamage(PlayerEntity owner, LivingEntity victim, float damage) {
+        if (isSameOwnerAlly(owner, victim)) {
+            handleOwnerFriendlyStrike(owner, victim);
+            return;
+        }
+
         if (damage > 0.0F && owner instanceof ServerPlayerEntity serverOwner
             && owner.getEntityWorld() instanceof ServerWorld) {
             XpEventHandler.trackPlayerCombat(serverOwner);
@@ -1015,8 +1033,145 @@ public class CombatEventHandler {
         Petsplus.LOGGER.debug("Owner {} dealt {} damage to {}, victim at {}% health",
             owner.getName().getString(), modifiedDamage, victimTypeName, victimHealthPct * 100);
     }
+
+    private static void handleOwnerFriendlyStrike(PlayerEntity owner, LivingEntity ally) {
+        if (owner == null || ally == null) {
+            return;
+        }
+
+        resetOwnerCombatState(owner);
+        disengagePetsFromAlly(owner, ally);
+    }
+
+    private static void resetOwnerCombatState(PlayerEntity owner) {
+        if (owner == null) {
+            return;
+        }
+
+        OwnerCombatState combatState = OwnerCombatState.getOrCreate(owner);
+        if (combatState == null) {
+            return;
+        }
+
+        long now = owner.getEntityWorld().getTime();
+        combatState.clearAggroTarget();
+        combatState.markOwnerInterference(now);
+        combatState.clearAllNextAttackRiders();
+        combatState.clearTempState(STATE_COMBAT_START_TICK);
+        combatState.clearTempState(STATE_COMBAT_RELIEF_TICK);
+    }
+
+    private static void disengagePetsFromAlly(PlayerEntity owner, LivingEntity ally) {
+        if (owner == null || ally == null) {
+            return;
+        }
+
+        if (!(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+
+        List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(owner);
+        if (swarm.isEmpty()) {
+            return;
+        }
+
+        long now = serverWorld.getTime();
+
+        for (PetSwarmIndex.SwarmEntry entry : swarm) {
+            MobEntity pet = entry.pet();
+            PetComponent pc = entry.component();
+            if (pet == null || pc == null || pet.isRemoved() || !pet.isAlive()) {
+                continue;
+            }
+
+            if (pet.equals(ally)) {
+                pet.setTarget(null);
+                pet.getNavigation().stop();
+                OwnerAssistAttackGoal.clearAssistHesitation(pc);
+                OwnerAssistAttackGoal.clearAssistRegroup(pc);
+                continue;
+            }
+
+            LivingEntity target = pet.getTarget();
+            if (target != null && target.equals(ally)) {
+                pet.setTarget(null);
+                pet.getNavigation().stop();
+                OwnerAssistAttackGoal.clearAssistHesitation(pc);
+                OwnerAssistAttackGoal.markAssistRegroup(pc, now);
+            }
+        }
+
+        if (ally instanceof MobEntity allyMob) {
+            PetComponent allyComponent = PetComponent.get(allyMob);
+            if (allyComponent != null) {
+                if (allyComponent.isOwnedBy(owner)) {
+                    allyMob.setTarget(null);
+                    OwnerAssistAttackGoal.clearAssistHesitation(allyComponent);
+                    OwnerAssistAttackGoal.clearAssistRegroup(allyComponent);
+                }
+            } else if (allyMob instanceof TameableEntity tame) {
+                LivingEntity tameOwner = tame.getOwner();
+                if (tameOwner != null && tameOwner.equals(owner)) {
+                    allyMob.setTarget(null);
+                }
+            }
+        }
+
+        COORDINATED_ATTACKS.remove(ally.getUuid());
+    }
+
+    private static boolean isSameOwnerAlly(@Nullable PlayerEntity owner, @Nullable LivingEntity target) {
+        if (owner == null || target == null) {
+            return false;
+        }
+
+        if (target.equals(owner)) {
+            return true;
+        }
+
+        if (owner.isTeammate(target)) {
+            return true;
+        }
+
+        if (target instanceof PlayerEntity playerTarget && playerTarget.isTeammate(owner)) {
+            return true;
+        }
+
+        if (target instanceof MobEntity mobTarget) {
+            PetComponent targetComponent = PetComponent.get(mobTarget);
+            if (targetComponent != null) {
+                if (targetComponent.isOwnedBy(owner)) {
+                    return true;
+                }
+
+                PlayerEntity petOwner = targetComponent.getOwner();
+                if (petOwner != null && owner.isTeammate(petOwner)) {
+                    return true;
+                }
+            }
+
+            if (mobTarget instanceof TameableEntity tameable) {
+                LivingEntity tameOwner = tameable.getOwner();
+                if (tameOwner != null) {
+                    if (tameOwner.equals(owner)) {
+                        return true;
+                    }
+                    if (tameOwner instanceof PlayerEntity tamePlayer && owner.isTeammate(tamePlayer)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
     
     private static void handleProjectileDamage(PlayerEntity shooter, LivingEntity target, float damage, PersistentProjectileEntity projectile) {
+        if (isSameOwnerAlly(shooter, target)) {
+            handleOwnerFriendlyStrike(shooter, target);
+            return;
+        }
+
         Map<String, Object> payload = new HashMap<>();
         Identifier projectileId = null;
         String rawType = null;
