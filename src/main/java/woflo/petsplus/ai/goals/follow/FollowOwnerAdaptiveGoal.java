@@ -1,9 +1,12 @@
 package woflo.petsplus.ai.goals.follow;
 
+import net.minecraft.block.BlockState;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.pathing.PathNodeType;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.fluid.FluidState;
+import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
@@ -18,6 +21,7 @@ import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.ai.goals.OwnerAssistAttackGoal;
 import woflo.petsplus.ai.movement.MovementCommand;
+import woflo.petsplus.ai.capability.MobCapabilities;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
 import woflo.petsplus.state.emotions.PetMoodEngine;
@@ -549,6 +553,9 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
         WorldView world = mob.getEntityWorld();
         BlockPos ownerPos = owner.getBlockPos();
 
+        boolean canFly = MobCapabilities.canFly(mob);
+        boolean isAquatic = MobCapabilities.prefersWater(mob);
+
         double distanceToOwnerSq = mob.squaredDistanceTo(owner);
         if (Double.isInfinite(distanceToOwnerSq)) {
             return false;
@@ -560,7 +567,7 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
             int y = ownerPos.getY();
 
             BlockPos teleportPos = new BlockPos(x, y, z);
-            if (isSafeTeleportLocation(world, teleportPos)) {
+            if (isSafeTeleportLocation(world, teleportPos, canFly, isAquatic)) {
                 mob.teleport(x + 0.5, y, z + 0.5, false);
                 mob.getNavigation().stop();
                 return true;
@@ -570,11 +577,38 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
         return false;
     }
 
-    private boolean isSafeTeleportLocation(WorldView world, BlockPos pos) {
-        return world.getBlockState(pos.down()).isSolidBlock(world, pos.down())
-            && world.getBlockState(pos).isAir()
-            && world.getBlockState(pos.up()).isAir()
-            && world.getFluidState(pos).isEmpty();
+    private boolean isSafeTeleportLocation(WorldView world, BlockPos pos, boolean canFly, boolean isAquatic) {
+        BlockPos belowPos = pos.down();
+        BlockState belowState = world.getBlockState(belowPos);
+        BlockState bodyState = world.getBlockState(pos);
+        BlockState headState = world.getBlockState(pos.up());
+        FluidState bodyFluid = world.getFluidState(pos);
+        FluidState headFluid = world.getFluidState(pos.up());
+
+        if (isAquatic) {
+            boolean waterAtBody = bodyFluid.isIn(FluidTags.WATER);
+            boolean headClear = headState.isAir() || headFluid.isIn(FluidTags.WATER);
+            if (waterAtBody && headClear) {
+                boolean support = belowState.isSolidBlock(world, belowPos)
+                    || world.getFluidState(belowPos).isIn(FluidTags.WATER);
+                if (support) {
+                    return true;
+                }
+            }
+        }
+
+        if (!bodyState.isAir() || !headState.isAir()) {
+            return false;
+        }
+        if (!bodyFluid.isEmpty() || !headFluid.isEmpty()) {
+            return false;
+        }
+
+        if (!canFly) {
+            return belowState.isSolidBlock(world, belowPos);
+        }
+
+        return belowState.isSolidBlock(world, belowPos);
     }
 
     private void sampleMomentum(long worldTime, boolean hesitating, double distanceToOwnerSq) {

@@ -156,6 +156,9 @@ public final class PetsplusEffectManager {
             target.addStatusEffect(new StatusEffectInstance(entry, effect.durationTicks(), effect.amplifier(), false, true, true));
             applied++;
         }
+        if (applied > 0 && woflo.petsplus.config.DebugSettings.isDebugEnabled()) {
+            woflo.petsplus.debug.DebugSnapshotAggregator.recordAuraApplied(world.getServer(), ownerId, tick, applied);
+        }
         if (applied <= 0) {
             return java.util.List.of();
         }

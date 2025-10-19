@@ -52,7 +52,11 @@ public final class GoalRegistry {
             0,
             MobCapabilities.CapabilityRequirement.allOf(List.of(
                 MobCapabilities.CapabilityRequirement.fromToken("has_owner"),
-                MobCapabilities.CapabilityRequirement.fromToken("can_wander")
+                MobCapabilities.CapabilityRequirement.anyOf(List.of(
+                    MobCapabilities.CapabilityRequirement.fromToken("can_wander"),
+                    MobCapabilities.CapabilityRequirement.fromToken("can_fly"),
+                    MobCapabilities.CapabilityRequirement.fromToken("can_swim")
+                ))
             )),
             new Vec2f(0.0f, 1.0f),
             IdleStaminaBias.NONE,
