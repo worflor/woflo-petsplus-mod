@@ -4536,17 +4536,30 @@ public class PetComponent {
     }
 
     private void scheduleDeferredComponentSync(ServerWorld serverWorld, long targetTick) {
+        StateManager manager = this.stateManager;
+        if (manager == null) {
+            manager = StateManager.getIfLoaded(serverWorld);
+            if (manager != null) {
+                attachStateManager(manager);
+            }
+        }
+
+        if (manager == null) {
+            long currentTick = serverWorld.getTime();
+            syncComponentToEntity(serverWorld, currentTick, true);
+            return;
+        }
+
         if (componentSyncScheduled && deferredComponentSyncTick >= targetTick) {
             return;
         }
 
         componentSyncScheduled = true;
         deferredComponentSyncTick = targetTick;
-
-        serverWorld.getServer().execute(() -> handleDeferredComponentSync(targetTick));
+        manager.enqueueDeferredComponentSync(this, targetTick);
     }
 
-    private void handleDeferredComponentSync(long targetTick) {
+    void handleDeferredComponentSync(long targetTick) {
         componentSyncScheduled = false;
 
         if (!needsComponentSync) {
