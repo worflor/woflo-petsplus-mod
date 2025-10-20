@@ -2385,12 +2385,15 @@ public class PetComponent {
     private void setStateDataInternal(String key, Object value, boolean invalidateCaches, boolean markDirty) {
         boolean hadKey = stateData.containsKey(key);
         Object previous = hadKey ? stateData.get(key) : null;
+        boolean sameReference = hadKey && previous == value;
         boolean changed = !hadKey || !Objects.equals(previous, value);
-        if (!changed) {
+        if (!changed && !sameReference) {
             return;
         }
 
-        stateData.put(key, value);
+        if (changed) {
+            stateData.put(key, value);
+        }
 
         if (markDirty) {
             markEntityDirty();
