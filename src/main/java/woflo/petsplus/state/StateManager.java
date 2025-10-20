@@ -81,9 +81,11 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
@@ -117,6 +119,7 @@ public class StateManager {
     private final ServerWorld world;
     private final Map<MobEntity, PetComponent> petComponents = new WeakHashMap<>();
     private final Map<PlayerEntity, OwnerCombatState> ownerStates = new WeakHashMap<>();
+    private final Map<PetComponent, Long> deferredComponentSyncs = new IdentityHashMap<>();
 
     private final PetSwarmIndex swarmIndex = new PetSwarmIndex();
     private final NatureHarmonyService harmonyService = new NatureHarmonyService(swarmIndex);
@@ -439,6 +442,7 @@ public class StateManager {
     public void removePet(MobEntity pet) {
         PetComponent component = petComponents.remove(pet);
         if (component != null) {
+            cancelDeferredComponentSync(component);
             workScheduler.unscheduleAll(component);
             component.markSchedulingUninitialized();
             ownerProcessingManager.onTasksCleared(component);
@@ -533,6 +537,28 @@ public class StateManager {
         ownerProcessingManager.onTaskScheduled(component, type, tick);
     }
 
+    void enqueueDeferredComponentSync(PetComponent component, long targetTick) {
+        if (component == null) {
+            return;
+        }
+        synchronized (deferredComponentSyncs) {
+            Long existing = deferredComponentSyncs.get(component);
+            if (existing != null && existing <= targetTick) {
+                return;
+            }
+            deferredComponentSyncs.put(component, targetTick);
+        }
+    }
+
+    void cancelDeferredComponentSync(PetComponent component) {
+        if (component == null) {
+            return;
+        }
+        synchronized (deferredComponentSyncs) {
+            deferredComponentSyncs.remove(component);
+        }
+    }
+
     public void unscheduleAllTasks(PetComponent component) {
         workScheduler.unscheduleAll(component);
         ownerProcessingManager.onTasksCleared(component);
@@ -543,6 +569,55 @@ public class StateManager {
         AsyncMigrationProgressTracker.markComplete(AsyncMigrationProgressTracker.Phase.ADVANCED_SYSTEMS);
         asyncWorkCoordinator.drainMainThreadTasks();
         adaptiveTickScaler.recordTick();
+
+        List<PetComponent> dueComponentSyncs = null;
+        List<Long> dueComponentSyncTicks = null;
+        synchronized (deferredComponentSyncs) {
+            if (!deferredComponentSyncs.isEmpty()) {
+                Iterator<Map.Entry<PetComponent, Long>> iterator = deferredComponentSyncs.entrySet().iterator();
+                while (iterator.hasNext()) {
+                    Map.Entry<PetComponent, Long> entry = iterator.next();
+                    PetComponent component = entry.getKey();
+                    if (component == null) {
+                        iterator.remove();
+                        continue;
+                    }
+
+                    long targetTick = entry.getValue() != null ? entry.getValue() : Long.MIN_VALUE;
+                    MobEntity pet = component.getPet();
+                    if (pet == null || pet.isRemoved()) {
+                        iterator.remove();
+                        continue;
+                    }
+
+                    if (currentTick >= targetTick) {
+                        iterator.remove();
+                        if (dueComponentSyncs == null) {
+                            dueComponentSyncs = new ArrayList<>();
+                            dueComponentSyncTicks = new ArrayList<>();
+                        }
+                        dueComponentSyncs.add(component);
+                        dueComponentSyncTicks.add(targetTick);
+                    }
+                }
+            }
+        }
+
+        if (dueComponentSyncs != null) {
+            for (int i = 0; i < dueComponentSyncs.size(); i++) {
+                PetComponent component = dueComponentSyncs.get(i);
+                long targetTick = dueComponentSyncTicks.get(i);
+                try {
+                    component.handleDeferredComponentSync(targetTick);
+                } catch (Exception ex) {
+                    String petId = Optional.ofNullable(component.getPet())
+                        .map(entity -> entity.getUuidAsString())
+                        .orElse("unknown");
+                    Petsplus.LOGGER.warn("Failed to process deferred component sync for pet {}", petId, ex);
+                }
+            }
+        }
+
         ownerProcessingManager.prepareForTick(currentTick);
         workScheduler.processDue(currentTick, ownerProcessingManager::enqueueTask);
         int pendingGroups = ownerProcessingManager.preparePendingGroups(currentTick);
@@ -2485,6 +2560,9 @@ public class StateManager {
                 harmonyService.clear();
                 pendingSpatialResults.clear();
                 spatialJobStates.clear();
+                synchronized (deferredComponentSyncs) {
+                    deferredComponentSyncs.clear();
+                }
                 petComponents.clear();
                 ownerStates.clear();
             } catch (Exception e) {

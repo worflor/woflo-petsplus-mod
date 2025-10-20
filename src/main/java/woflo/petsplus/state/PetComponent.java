@@ -135,6 +135,12 @@ public class PetComponent {
 
     private StateManager stateManager;
 
+    // Component sync bookkeeping
+    private boolean needsComponentSync;
+    private long lastComponentSyncTick = Long.MIN_VALUE;
+    private long deferredComponentSyncTick = Long.MIN_VALUE;
+    private boolean componentSyncScheduled;
+
     private final PerceptionBus perceptionBus;
     private final PetContextCache contextCache;
     private final ContextSliceState contextSliceState;
@@ -1617,8 +1623,13 @@ public class PetComponent {
 
     public void setRoleId(@Nullable Identifier id) {
         Identifier newId = id != null ? id : DEFAULT_ROLE_ID;
+        if (Objects.equals(this.roleId, newId)) {
+            return;
+        }
+
         this.roleId = newId;
         speciesMetadataModule.markFlightDirty();
+        markEntityDirty();
 
         // Apply attribute modifiers when role changes
         try {
@@ -1639,7 +1650,7 @@ public class PetComponent {
         if (this.pet.getEntityWorld() instanceof ServerWorld serverWorld) {
             resetTickScheduling(serverWorld.getTime());
         }
-        
+
     }
 
     public void setRoleType(@Nullable PetRoleType type) {
@@ -1705,11 +1716,21 @@ public class PetComponent {
     }
 
     public void setOwner(@Nullable PlayerEntity owner) {
+        UUID previousOwnerUuid = ownerModule.getOwnerUuid();
         ownerModule.setOwner(owner);
+        UUID currentOwnerUuid = ownerModule.getOwnerUuid();
+        if (!Objects.equals(previousOwnerUuid, currentOwnerUuid)) {
+            markEntityDirty();
+        }
     }
 
     public void setOwnerUuid(@Nullable UUID ownerUuid) {
+        UUID previousOwnerUuid = ownerModule.getOwnerUuid();
         ownerModule.setOwnerUuid(ownerUuid);
+        UUID currentOwnerUuid = ownerModule.getOwnerUuid();
+        if (!Objects.equals(previousOwnerUuid, currentOwnerUuid)) {
+            markEntityDirty();
+        }
     }
 
     public void ensureSchedulingInitialized(long currentTick) {
@@ -2114,7 +2135,7 @@ public class PetComponent {
     }
     
     public void setStateData(String key, Object value) {
-        setStateDataInternal(key, value, true);
+        setStateDataInternal(key, value, true, true);
     }
 
     public void clearStateData(String key) {
@@ -2123,6 +2144,7 @@ public class PetComponent {
         }
 
         stateData.remove(key);
+        markEntityDirty();
 
         if (shouldInvalidateSpeciesDescriptor(key)) {
             refreshSpeciesDescriptor();
@@ -2135,7 +2157,7 @@ public class PetComponent {
     }
 
     private void setStateDataSilently(String key, Object value) {
-        setStateDataInternal(key, value, false);
+        setStateDataInternal(key, value, false, false);
     }
 
     private Optional<NbtCompound> serializeStateDataCompound() {
@@ -2360,8 +2382,23 @@ public class PetComponent {
         return Optional.of(decoded);
     }
 
-    private void setStateDataInternal(String key, Object value, boolean invalidateCaches) {
-        stateData.put(key, value);
+    private void setStateDataInternal(String key, Object value, boolean invalidateCaches, boolean markDirty) {
+        boolean hadKey = stateData.containsKey(key);
+        Object previous = hadKey ? stateData.get(key) : null;
+        boolean sameReference = hadKey && previous == value;
+        boolean changed = !hadKey || !Objects.equals(previous, value);
+        if (!changed && !sameReference) {
+            return;
+        }
+
+        if (changed) {
+            stateData.put(key, value);
+        }
+
+        if (markDirty) {
+            markEntityDirty();
+        }
+
         if (!invalidateCaches) {
             return;
         }
@@ -3981,7 +4018,7 @@ public class PetComponent {
         
         // Clear all state data and restore preserved items
         stateData.clear();
-        preservedData.forEach((key, value) -> setStateDataInternal(key, value, false));
+        preservedData.forEach((key, value) -> setStateDataInternal(key, value, false, true));
         refreshSpeciesDescriptor();
         
         // Reset attributes to base values
@@ -4401,12 +4438,15 @@ public class PetComponent {
      * Save component data to entity using component system.
      */
     public void saveToEntity() {
-        PetsplusComponents.PetData data = toComponentData();
-        try {
-            pet.setComponent(PetsplusComponents.PET_DATA, data);
-        } catch (Throwable error) {
-            Petsplus.LOGGER.warn("Failed to save pet component data for " + pet.getUuidAsString(), error);
+        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
+            return;
         }
+        if (pet.isRemoved()) {
+            return;
+        }
+
+        long currentTick = serverWorld.getTime();
+        syncComponentToEntity(serverWorld, currentTick, true);
     }
 
     /**
@@ -4439,6 +4479,11 @@ public class PetComponent {
         } catch (Throwable error) {
             Petsplus.LOGGER.warn("Failed to load pet component data for " + petId, error);
         }
+
+        this.needsComponentSync = false;
+        this.componentSyncScheduled = false;
+        this.deferredComponentSyncTick = Long.MIN_VALUE;
+        this.lastComponentSyncTick = currentWorldTime();
     }
     
     /**
@@ -4451,7 +4496,94 @@ public class PetComponent {
      * the component system, so this is now a no-op.
      */
     private void markEntityDirty() {
-        // Chunk dirty marking is handled automatically by the component system
+        if (pet.isRemoved()) {
+            return;
+        }
+
+        needsComponentSync = true;
+
+        if (!(pet.getEntityWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+
+        long currentTick = serverWorld.getTime();
+        if (!syncComponentToEntity(serverWorld, currentTick, false) && needsComponentSync) {
+            scheduleDeferredComponentSync(serverWorld, currentTick + 1);
+        }
+    }
+
+    private boolean syncComponentToEntity(ServerWorld serverWorld, long currentTick, boolean forceWrite) {
+        if (!needsComponentSync) {
+            return false;
+        }
+        if (!forceWrite && lastComponentSyncTick == currentTick) {
+            return false;
+        }
+
+        PetsplusComponents.PetData data = toComponentData();
+        try {
+            pet.setComponent(PetsplusComponents.PET_DATA, data);
+            needsComponentSync = false;
+            deferredComponentSyncTick = Long.MIN_VALUE;
+            return true;
+        } catch (Throwable error) {
+            Petsplus.LOGGER.warn("Failed to save pet component data for " + pet.getUuidAsString(), error);
+        } finally {
+            lastComponentSyncTick = currentTick;
+        }
+
+        return false;
+    }
+
+    private void scheduleDeferredComponentSync(ServerWorld serverWorld, long targetTick) {
+        StateManager manager = this.stateManager;
+        if (manager == null) {
+            manager = StateManager.getIfLoaded(serverWorld);
+            if (manager != null) {
+                attachStateManager(manager);
+            }
+        }
+
+        if (manager == null) {
+            long currentTick = serverWorld.getTime();
+            syncComponentToEntity(serverWorld, currentTick, true);
+            return;
+        }
+
+        if (componentSyncScheduled && deferredComponentSyncTick >= targetTick) {
+            return;
+        }
+
+        componentSyncScheduled = true;
+        deferredComponentSyncTick = targetTick;
+        manager.enqueueDeferredComponentSync(this, targetTick);
+    }
+
+    void handleDeferredComponentSync(long targetTick) {
+        componentSyncScheduled = false;
+
+        if (!needsComponentSync) {
+            deferredComponentSyncTick = Long.MIN_VALUE;
+            return;
+        }
+
+        if (!(pet.getEntityWorld() instanceof ServerWorld currentWorld)) {
+            deferredComponentSyncTick = Long.MIN_VALUE;
+            return;
+        }
+
+        long currentTick = currentWorld.getTime();
+        if (currentTick < targetTick) {
+            scheduleDeferredComponentSync(currentWorld, targetTick);
+            return;
+        }
+
+        if (!syncComponentToEntity(currentWorld, currentTick, true) && needsComponentSync) {
+            scheduleDeferredComponentSync(currentWorld, currentTick + 1);
+            return;
+        }
+
+        deferredComponentSyncTick = Long.MIN_VALUE;
     }
 }
 
