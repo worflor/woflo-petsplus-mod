@@ -261,9 +261,11 @@ public class PuddlePawGoal extends AdaptiveGoal {
         var world = mob.getEntityWorld();
 
         // Scan a small, shallow grid around the mob
+        int rangeSq = range * range;
         for (int dx = -range; dx <= range; dx++) {
             for (int dz = -range; dz <= range; dz++) {
-                if (MathHelper.sqrt((float) (dx * dx + dz * dz)) > range) continue;
+                int distSq = dx * dx + dz * dz;
+                if (distSq > rangeSq) continue;
 
                 BlockPos waterPos = origin.add(dx, 0, dz);
                 // Probe up to +-1Y to catch slight height differences
@@ -328,10 +330,12 @@ public class PuddlePawGoal extends AdaptiveGoal {
         var world = mob.getEntityWorld();
         BlockPos origin = mob.getBlockPos();
 
+        int rangeSq = range * range;
         for (int tries = 0; tries < 10; tries++) {
             int dx = mob.getRandom().nextBetween(-range, range);
             int dz = mob.getRandom().nextBetween(-range, range);
-            if (MathHelper.sqrt((float) (dx * dx + dz * dz)) > range) continue;
+            int distSq = dx * dx + dz * dz;
+            if (distSq > rangeSq) continue;
 
             BlockPos base = origin.add(dx, 0, dz);
             BlockPos ground = base.down();

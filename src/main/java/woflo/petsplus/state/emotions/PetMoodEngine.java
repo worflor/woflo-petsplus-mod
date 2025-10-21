@@ -1597,10 +1597,11 @@ public final class PetMoodEngine {
         socialCharge = MathHelper.clamp(socialCharge + socialGain + ambientBoost - socialDecay, 0.1f, 1f);
 
         float decayFactor = Math.max(0f, 1f - delta * 0.005f);
+        float sqrtDecay = (float) Math.sqrt(decayFactor);
         physicalActivity = (float) (physicalActivity * Math.pow(decayFactor, 1.2));
         mentalActivity = (float) (mentalActivity * Math.pow(decayFactor, 0.8));
-        socialActivity = (float) (socialActivity * Math.pow(decayFactor, 1.0));
-        restActivity = (float) (restActivity * Math.pow(decayFactor, 0.5));
+        socialActivity *= decayFactor;
+        restActivity *= sqrtDecay;
 
         if (physicalActivity < 0.001f) physicalActivity = 0f;
         if (mentalActivity < 0.001f) mentalActivity = 0f;

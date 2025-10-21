@@ -179,9 +179,11 @@ public class BurrowPeekGoal extends AdaptiveGoal {
         BlockPos origin = mob.getBlockPos();
         var world = mob.getEntityWorld();
 
+        int rangeSq = range * range;
         for (int dx = -range; dx <= range; dx++) {
             for (int dz = -range; dz <= range; dz++) {
-                if (MathHelper.sqrt((float) (dx * dx + dz * dz)) > range) continue;
+                int distSq = dx * dx + dz * dz;
+                if (distSq > rangeSq) continue;
 
                 BlockPos base = origin.add(dx, -1, dz); // ground level just beneath feet
                 // probe small vertical band to handle uneven terrain

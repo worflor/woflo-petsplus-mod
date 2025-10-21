@@ -204,7 +204,10 @@ public class CombatThreatProvider implements EmotionProvider, ReactiveEmotionPro
         double totalDistance = 0;
         for (LivingEntity hostile : hostiles) {
             net.minecraft.util.math.Vec3d pos = hostile.getEntityPos();
-            double dist = Math.sqrt(Math.pow(pos.x - centerX, 2) + Math.pow(pos.y - centerY, 2) + Math.pow(pos.z - centerZ, 2));
+            double dx = pos.x - centerX;
+            double dy = pos.y - centerY;
+            double dz = pos.z - centerZ;
+            double dist = Math.sqrt((dx * dx) + (dy * dy) + (dz * dz));
             totalDistance += dist;
         }
         avgDistanceToCenter = totalDistance / hostiles.size();

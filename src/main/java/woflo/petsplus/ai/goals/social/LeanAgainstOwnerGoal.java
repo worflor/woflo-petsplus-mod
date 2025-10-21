@@ -163,7 +163,7 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
     
     private boolean isOwnerLookingAtPet(PlayerEntity owner) {
         Vec3d ownerEye = owner.getCameraPosVec(1.0f);
-        Vec3d ownerLook = owner.getRotationVec(1.0f).normalize();
+        Vec3d ownerLook = owner.getRotationVec(1.0f);
         Vec3d petEye = mob.getEntityPos().add(0.0, mob.getStandingEyeHeight(), 0.0);
         Vec3d toPet = petEye.subtract(ownerEye).normalize();
         double dot = ownerLook.dotProduct(toPet);

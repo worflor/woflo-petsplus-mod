@@ -196,11 +196,10 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
         double baselineStartDistance = computeStartThresholdDistance(baseDistance, ownerIsMoving);
         movementDirector.previewMovement(owner.getEntityPos(), baseDistance, baseSpeed);
         double continueThresholdSq = computeStopThresholdSqFromBaseline(baseDistance, ownerIsMoving);
-        double continueThresholdDistance = Math.sqrt(continueThresholdSq);
         // Threshold changes are tracked via aggregated snapshots; suppress direct chat spam.
         if (isDebugLoggingEnabled()) {
             debugLastStartDistance = baselineStartDistance;
-            debugLastStopDistance = continueThresholdDistance;
+            debugLastStopDistance = Math.sqrt(continueThresholdSq);
         }
         if (moodHoldActive && distanceSq <= continueThresholdSq) {
             return false;

@@ -279,9 +279,11 @@ public class LeafChaseWindGoal extends AdaptiveGoal {
         BlockPos origin = mob.getBlockPos();
         var world = mob.getEntityWorld();
 
+        int rangeSq = range * range;
         for (int dx = -range; dx <= range; dx++) {
             for (int dz = -range; dz <= range; dz++) {
-                if (MathHelper.sqrt((float)(dx * dx + dz * dz)) > range) continue;
+                int distSq = dx * dx + dz * dz;
+                if (distSq > rangeSq) continue;
                 // Scan up to 2 blocks vertically to catch low foliage
                 for (int dy = -1; dy <= 2; dy++) {
                     BlockPos pos = origin.add(dx, dy, dz);
@@ -299,10 +301,12 @@ public class LeafChaseWindGoal extends AdaptiveGoal {
         BlockPos origin = mob.getBlockPos();
         var rnd = mob.getRandom();
         var world = mob.getEntityWorld();
+        int rangeSq = range * range;
         for (int tries = 0; tries < 10; tries++) {
             int dx = rnd.nextBetween(-range, range);
             int dz = rnd.nextBetween(-range, range);
-            if (MathHelper.sqrt((float)(dx * dx + dz * dz)) > range) continue;
+            int distSq = dx * dx + dz * dz;
+            if (distSq > rangeSq) continue;
             BlockPos pos = origin.add(dx, 0, dz);
             BlockPos groundPos = pos.down();
             // Require solid ground beneath with clear air column for the pet at head height

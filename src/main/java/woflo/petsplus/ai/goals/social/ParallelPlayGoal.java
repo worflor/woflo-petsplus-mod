@@ -21,6 +21,7 @@ import java.util.EnumSet;
 public class ParallelPlayGoal extends AdaptiveGoal {
     private static final int MAX_PARALLEL_TICKS = 400; // 20 seconds
     private static final double COMFORTABLE_DISTANCE = 5.0;
+    private static final double RESELECT_DISTANCE_SQ = (COMFORTABLE_DISTANCE + 2.5d) * (COMFORTABLE_DISTANCE + 2.5d);
     private static final String COOLDOWN_KEY = "parallel_play";
     private static final double LOOK_THRESHOLD = 0.2d;
     private static final int MAX_OWNER_FOCUS_GRACE = 40;
@@ -193,7 +194,7 @@ public class ParallelPlayGoal extends AdaptiveGoal {
             }
         }
 
-        if (playSpot != null && owner.squaredDistanceTo(playSpot.x, playSpot.y, playSpot.z) > Math.pow(COMFORTABLE_DISTANCE + 2.5d, 2)) {
+        if (playSpot != null && owner.squaredDistanceTo(playSpot.x, playSpot.y, playSpot.z) > RESELECT_DISTANCE_SQ) {
             playSpot = selectPlaySpot(owner);
             performingPlay = false;
         }
@@ -300,7 +301,7 @@ public class ParallelPlayGoal extends AdaptiveGoal {
 
     private boolean isOwnerEngaged(PlayerEntity owner) {
         Vec3d ownerEye = owner.getCameraPosVec(1.0f);
-        Vec3d ownerLook = owner.getRotationVec(1.0f).normalize();
+        Vec3d ownerLook = owner.getRotationVec(1.0f);
         Vec3d toPet = mob.getEntityPos().add(0.0, mob.getStandingEyeHeight(), 0.0).subtract(ownerEye).normalize();
         double dot = ownerLook.dotProduct(toPet);
         if (!Double.isFinite(dot)) {

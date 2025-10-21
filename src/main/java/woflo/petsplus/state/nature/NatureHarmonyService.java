@@ -234,13 +234,13 @@ public final class NatureHarmonyService implements PetSwarmIndex.SwarmListener {
             if (!containsPet(used, chosen.pet())) {
                 double distSq = distanceSquared(self, chosen);
                 double clamped = Math.max(0.0d, distSq);
-                totalDistance += Math.sqrt(clamped);
+                double distance = Math.sqrt(clamped);
+                totalDistance += distance;
                 contributing++;
                 used.add(chosen);
                 float closeness = 1.0f;
                 if (set.radius() > 0.0d) {
-                    double dist = Math.sqrt(clamped);
-                    closeness = MathHelper.clamp((float) (1.0d - (dist / set.radius())), 0.0f, 1.0f);
+                    closeness = MathHelper.clamp((float) (1.0d - (distance / set.radius())), 0.0f, 1.0f);
                 }
                 MobEntity other = chosen.pet();
                 if (other != null) {
