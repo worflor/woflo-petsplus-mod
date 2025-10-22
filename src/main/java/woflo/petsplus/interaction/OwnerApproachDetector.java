@@ -81,11 +81,11 @@ public final class OwnerApproachDetector {
         Vec3d playerPos = player.getEntityPos();
         Vec3d petPos = pet.getEntityPos();
         Vec3d toPet = petPos.subtract(playerPos).normalize();
-        
+
         // Check if movement vector aligns with direction to pet
-        Vec3d velocityNorm = velocity.normalize();
+        Vec3d velocityNorm = velocity.multiply(1.0 / speed);
         double alignment = velocityNorm.dotProduct(toPet);
-        
+
         return alignment >= APPROACH_ANGLE_THRESHOLD;
     }
     

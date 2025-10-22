@@ -3617,25 +3617,29 @@ private record WeatherState(boolean raining, boolean thundering) {}
             long leashNow = world.getTime();
             long lastLeashTick = pc.getStateData(STATE_LAST_LEASH_SOCIAL_TICK, Long.class, Long.MIN_VALUE);
             long sinceLastLeashCue = lastLeashTick == Long.MIN_VALUE ? Long.MAX_VALUE : leashNow - lastLeashTick;
-            double leashDistance = Math.sqrt(Math.max(distanceToOwner, 0.0d));
+            double leashDistanceSq = Math.max(distanceToOwner, 0.0d);
+            double leashDistance = Math.sqrt(leashDistanceSq);
             Vec3d ownerVelocity = owner.getVelocity();
             Vec3d petVelocity = pet.getVelocity();
             Vec3d leashVector = pet.getEntityPos().subtract(owner.getEntityPos());
-            Vec3d leashDir = leashVector.lengthSquared() > 1.0E-6 ? leashVector.normalize() : Vec3d.ZERO;
-            Vec3d leashDirHorizontal = new Vec3d(leashDir.x, 0.0d, leashDir.z);
-            if (leashDirHorizontal.lengthSquared() > 1.0E-6) {
-                leashDirHorizontal = leashDirHorizontal.normalize();
+            Vec3d leashDir = leashDistanceSq > 1.0E-6 ? leashVector.multiply(1.0 / leashDistance) : Vec3d.ZERO;
+            double horizontalLenSq = leashDir.x * leashDir.x + leashDir.z * leashDir.z;
+            double horizNormX = 0.0d;
+            double horizNormZ = 0.0d;
+            if (horizontalLenSq > 1.0E-6) {
+                double invHorizontal = 1.0 / Math.sqrt(horizontalLenSq);
+                horizNormX = leashDir.x * invHorizontal;
+                horizNormZ = leashDir.z * invHorizontal;
             }
-            Vec3d ownerHorizontalVelocity = new Vec3d(ownerVelocity.x, 0.0d, ownerVelocity.z);
-            Vec3d petHorizontalVelocity = new Vec3d(petVelocity.x, 0.0d, petVelocity.z);
-            double ownerForwardSpeed = leashDirHorizontal.lengthSquared() > 1.0E-6
-                ? ownerHorizontalVelocity.dotProduct(leashDirHorizontal)
+            boolean hasHorizontalDir = horizontalLenSq > 1.0E-6;
+            double ownerForwardSpeed = hasHorizontalDir
+                ? ownerVelocity.x * horizNormX + ownerVelocity.z * horizNormZ
                 : 0.0d;
-            double petForwardSpeed = leashDirHorizontal.lengthSquared() > 1.0E-6
-                ? petHorizontalVelocity.dotProduct(leashDirHorizontal)
+            double petForwardSpeed = hasHorizontalDir
+                ? petVelocity.x * horizNormX + petVelocity.z * horizNormZ
                 : 0.0d;
-            double ownerSpeedSq = ownerHorizontalVelocity.lengthSquared();
-            double petSpeedSq = petHorizontalVelocity.lengthSquared();
+            double ownerSpeedSq = ownerVelocity.x * ownerVelocity.x + ownerVelocity.z * ownerVelocity.z;
+            double petSpeedSq = petVelocity.x * petVelocity.x + petVelocity.z * petVelocity.z;
             LeashMood lastMood = LeashMood.fromStoredName(pc.getStateData(STATE_LAST_LEASH_MODE, String.class, ""));
             LeashMood pendingMood = LeashMood.fromStoredName(pc.getStateData(STATE_LEASH_PENDING_MODE, String.class, ""));
             long pendingSince = pc.getStateData(STATE_LEASH_PENDING_SINCE, Long.class, Long.MIN_VALUE);
