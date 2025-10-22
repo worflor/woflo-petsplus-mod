@@ -42,7 +42,11 @@ public class MobCapabilities {
      */
     public static boolean canSwim(MobEntity mob) {
         EntityNavigation nav = mob.getNavigation();
-        return nav instanceof SwimNavigation;
+        return usesWaterNavigation(nav);
+    }
+
+    private static boolean usesWaterNavigation(EntityNavigation navigation) {
+        return navigation instanceof SwimNavigation || navigation instanceof AmphibiousPathNavigation;
     }
     
     /**
