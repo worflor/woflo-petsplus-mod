@@ -80,7 +80,7 @@ public class SniffGroundGoal extends AdaptiveGoal {
             Vec3d to = targetVec.subtract(mob.getEntityPos());
             double len = to.length();
             if (len > 0.001 && len < 2.5) {
-                Vec3d step = to.normalize().multiply(0.02);
+                Vec3d step = to.multiply(0.02 / len);
                 mob.addVelocity(step.x, 0.0, step.z);
                 mob.velocityModified = true;
             }

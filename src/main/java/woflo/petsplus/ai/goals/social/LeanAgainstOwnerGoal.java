@@ -21,6 +21,7 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
     private static final int LEAN_DURATION = 60;
     private static final String COOLDOWN_KEY = "lean_against_owner";
     private static final double LOOK_DOT_THRESHOLD = 0.35d;
+    private static final double LOOK_DOT_THRESHOLD_SQ = LOOK_DOT_THRESHOLD * LOOK_DOT_THRESHOLD;
     private static final int MAX_GAZE_GRACE = 20;
     private static final double GOLDEN_ANGLE = MathHelper.TAU * 0.38196601125d; // ~137.5°
     private static final double OCC_MARGIN = 0.18d;
@@ -123,9 +124,10 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
                 double width = Math.max(0.3d, mob.getWidth());
                 double laneMag = Math.min(0.35d, 0.25d * width);
                 Vec3d toTarget = baseTarget.subtract(mob.getEntityPos());
-                double lenSq = toTarget.lengthSquared();
-                if (lenSq > 1.0e-4d) {
-                    Vec3d perp = new Vec3d(-toTarget.z, 0.0, toTarget.x).normalize().multiply(laneMag * laneSign);
+                double horizontalSq = (toTarget.x * toTarget.x) + (toTarget.z * toTarget.z);
+                if (horizontalSq > 1.0e-4d) {
+                    double laneScale = laneMag * laneSign / Math.sqrt(horizontalSq);
+                    Vec3d perp = new Vec3d(-toTarget.z * laneScale, 0.0, toTarget.x * laneScale);
                     moveTarget = moveTarget.add(perp);
                 }
             }
@@ -154,23 +156,29 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
             Vec3d fromOwner = mob.getEntityPos().subtract(owner.getEntityPos());
             double lengthSq = fromOwner.lengthSquared();
             if (lengthSq > 1.0e-4d) {
-                Vec3d push = fromOwner.normalize().multiply(-nudgeStrength);
+                double invLength = 1.0 / Math.sqrt(lengthSq);
+                Vec3d push = fromOwner.multiply(-nudgeStrength * invLength);
                 mob.addVelocity(push.x, 0.0, push.z);
                 mob.velocityModified = true;
             }
         }
     }
-    
+
     private boolean isOwnerLookingAtPet(PlayerEntity owner) {
         Vec3d ownerEye = owner.getCameraPosVec(1.0f);
         Vec3d ownerLook = owner.getRotationVec(1.0f);
         Vec3d petEye = mob.getEntityPos().add(0.0, mob.getStandingEyeHeight(), 0.0);
-        Vec3d toPet = petEye.subtract(ownerEye).normalize();
-        double dot = ownerLook.dotProduct(toPet);
-        if (Double.isNaN(dot)) {
+        Vec3d toPet = petEye.subtract(ownerEye);
+        double lengthSq = toPet.lengthSquared();
+        if (lengthSq < 1.0e-6d) {
             return false;
         }
-        return dot >= LOOK_DOT_THRESHOLD;
+        double dot = ownerLook.dotProduct(toPet);
+        if (Double.isNaN(dot) || dot <= 0.0d) {
+            return false;
+        }
+        double alignmentSq = dot * dot;
+        return alignmentSq >= LOOK_DOT_THRESHOLD_SQ * lengthSq;
     }
 
     private Vec3d computeLeanOffset(PlayerEntity owner) {

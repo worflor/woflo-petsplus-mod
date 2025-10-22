@@ -244,7 +244,13 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
         Vec3d petPos = mob.getEntityPos();
         Vec3d ownerToPet = petPos.subtract(ownerPos);
         double ownerDistanceSq = ownerToPet.lengthSquared();
-        Vec3d forward = ownerDistanceSq < 0.0001 ? new Vec3d(1.0, 0.0, 0.0) : ownerToPet.normalize();
+        Vec3d forward;
+        if (ownerDistanceSq < 0.0001) {
+            forward = new Vec3d(1.0, 0.0, 0.0);
+        } else {
+            double invDistance = 1.0 / Math.sqrt(ownerDistanceSq);
+            forward = ownerToPet.multiply(invDistance);
+        }
         Vec3d lateral = new Vec3d(-forward.z, 0.0, forward.x);
         double ownerSpeedSq = owner.getVelocity().horizontalLengthSquared();
         boolean ownerIsMoving = ownerSpeedSq > OWNER_MOVEMENT_DAMPING_THRESHOLD;
