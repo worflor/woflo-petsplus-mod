@@ -158,7 +158,12 @@ public class SelfPreservationGoal extends AdaptiveGoal {
         if (threat != null) {
             Vec3d mobPos = new Vec3d(mob.getX(), mob.getY(), mob.getZ());
             Vec3d threatPos = new Vec3d(threat.getX(), threat.getY(), threat.getZ());
-            Vec3d awayFromThreat = mobPos.subtract(threatPos).normalize();
+            Vec3d delta = mobPos.subtract(threatPos);
+            double lengthSq = delta.lengthSquared();
+            if (lengthSq < 1.0E-6d) {
+                return;
+            }
+            Vec3d awayFromThreat = delta.multiply(1.0d / Math.sqrt(lengthSq));
             Vec3d backupTarget = mobPos.add(awayFromThreat.multiply(2.0));
 
             // Move backward slowly

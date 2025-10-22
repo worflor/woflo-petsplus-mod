@@ -24,6 +24,7 @@ public class ParallelPlayGoal extends AdaptiveGoal {
     private static final double RESELECT_DISTANCE_SQ = (COMFORTABLE_DISTANCE + 2.5d) * (COMFORTABLE_DISTANCE + 2.5d);
     private static final String COOLDOWN_KEY = "parallel_play";
     private static final double LOOK_THRESHOLD = 0.2d;
+    private static final double LOOK_THRESHOLD_SQ = LOOK_THRESHOLD * LOOK_THRESHOLD;
     private static final int MAX_OWNER_FOCUS_GRACE = 40;
     private static final int PLAY_TRACKING_INTERVAL = 100; // Track every 5 seconds
 
@@ -302,12 +303,19 @@ public class ParallelPlayGoal extends AdaptiveGoal {
     private boolean isOwnerEngaged(PlayerEntity owner) {
         Vec3d ownerEye = owner.getCameraPosVec(1.0f);
         Vec3d ownerLook = owner.getRotationVec(1.0f);
-        Vec3d toPet = mob.getEntityPos().add(0.0, mob.getStandingEyeHeight(), 0.0).subtract(ownerEye).normalize();
-        double dot = ownerLook.dotProduct(toPet);
-        if (!Double.isFinite(dot)) {
-            return false;
+        Vec3d toPet = mob.getEntityPos().add(0.0, mob.getStandingEyeHeight(), 0.0).subtract(ownerEye);
+        double distanceSq = toPet.lengthSquared();
+        double proximitySq = mob.squaredDistanceTo(owner);
+        if (!Double.isFinite(distanceSq) || distanceSq < 1.0e-6d) {
+            return proximitySq < 6.0d;
         }
-        return dot >= LOOK_THRESHOLD || mob.squaredDistanceTo(owner) < 6.0d;
+
+        double dot = ownerLook.dotProduct(toPet);
+        if (!Double.isFinite(dot) || dot <= 0.0d) {
+            return proximitySq < 6.0d;
+        }
+
+        return (dot * dot) >= (LOOK_THRESHOLD_SQ * distanceSq) || proximitySq < 6.0d;
     }
     
     @Override

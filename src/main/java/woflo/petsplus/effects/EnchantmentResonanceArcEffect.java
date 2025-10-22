@@ -183,8 +183,8 @@ public final class EnchantmentResonanceArcEffect implements Effect {
             return;
         }
 
-        Vec3d step = direction.normalize().multiply(distance / arcParticleCount);
-        
+        Vec3d step = direction.multiply(1.0d / arcParticleCount);
+
         for (int i = 0; i < arcParticleCount; i++) {
             Vec3d pos = from.add(step.multiply(i));
             world.spawnParticles(

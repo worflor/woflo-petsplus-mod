@@ -2449,7 +2449,8 @@ public class CombatEventHandler {
             return ownerPos;
         }
         double step = MathHelper.clamp(distance * 0.5d, 1.5d, 3.5d);
-        return ownerPos.add(direction.normalize().multiply(step));
+        double scale = step / distance;
+        return ownerPos.add(direction.multiply(scale));
     }
 
     private static boolean isChainTargetViable(MobEntity pet, MobEntity candidate, PetComponent petComponent,
