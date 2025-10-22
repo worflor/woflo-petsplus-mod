@@ -308,7 +308,7 @@ public class AttributeRegistry {
 
             PlayerEntity owner = comp.getOwner();
             if (owner instanceof ServerPlayerEntity serverPlayer && !serverPlayer.getEntityWorld().isClient()) {
-                serverPlayer.sendMessage(Text.literal("✨ Your pet has been blessed with the developer's crown! ✨"), false);
+                serverPlayer.sendMessage(Text.literal("Your pet has been blessed with the developer's crown!"), false);
             }
         });
 

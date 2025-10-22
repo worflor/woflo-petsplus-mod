@@ -69,7 +69,7 @@ public final class UIStyle {
     }
 
     public static MutableText sepDot() {
-        return secondary(" • ");
+        return secondary(" - ");
     }
 
     public static MutableText spacer() {
@@ -206,7 +206,7 @@ public final class UIStyle {
             
             return secondary("Lv.").append(valueHex(String.valueOf(level), levelColor))
                 .append(secondary(" ")).append(progressBar)
-                .append(secondary(" ")).append(pulsingTextHex("◆", LEVEL_TRIBUTE_READY, LEVEL_NEAR_TRIBUTE, currentTick, 15));
+                .append(secondary(" ")).append(pulsingTextHex("*", LEVEL_TRIBUTE_READY, LEVEL_NEAR_TRIBUTE, currentTick, 15));
         } else if (xpProgress > 0.85f) {
             // Close to leveling - subtle anticipation glow
             return secondary("Lv.").append(valueHex(String.valueOf(level), LEVEL_NEAR_TRIBUTE))
@@ -236,13 +236,13 @@ public final class UIStyle {
         
         if (percent <= 0.15f) {
             color = Formatting.RED;
-            indicator = inCombat ? " ⚠" : " ✗"; // Warning in combat, X when safe
+            indicator = inCombat ? " WARN" : " X";
         } else if (percent <= 0.35f) {
             color = Formatting.YELLOW;
             indicator = inCombat ? " !" : "";
         } else if (percent >= 0.95f) {
             color = Formatting.GREEN;
-            indicator = " ✓";
+            indicator = " OK";
         } else {
             color = Formatting.WHITE;
         }
@@ -331,7 +331,7 @@ public final class UIStyle {
     }
 
     /**
-     * Create clean pet display: "Name • Lv.X" where level color shows XP progress
+     * Create clean pet display: "Name - Lv.X" where level color shows XP progress
      * Name blinks health color every 5s (3s with double blink for low health)
      */
     public static MutableText cleanPetDisplay(String name, float healthPercent, int level, float xpProgress, boolean canLevelUp, boolean recentXpGain, long currentTick, long xpFlashStartTick) {
@@ -353,7 +353,7 @@ public final class UIStyle {
     public static MutableText dynamicXP(float percent, boolean recentGain) {
         String progressBar = createProgressBar(percent, 8);
         Formatting color = recentGain ? Formatting.YELLOW : Formatting.GREEN;
-        String indicator = recentGain ? " ↗" : "";
+        String indicator = recentGain ? " +" : "";
         
         return secondary("XP ").append(value(progressBar, color))
             .append(secondary(" ")).append(value(String.format("%.0f%%", percent * 100), color))
@@ -375,18 +375,18 @@ public final class UIStyle {
         if (sec <= 3) {
             // Almost ready - pulsing green
             color = Formatting.GREEN;
-            prefix = "⚡ ";
+            prefix = "READY ";
             return pulsingText(prefix, Formatting.GREEN, Formatting.DARK_GREEN, currentTick, 8)
                 .append(primary(name))
                 .append(secondary(" ")).append(pulsingText(timeStr, Formatting.GREEN, Formatting.DARK_GREEN, currentTick, 8));
         } else if (sec <= 10) {
             color = Formatting.YELLOW;
-            prefix = "⏳ ";
+            prefix = "SOON ";
         } else {
             color = Formatting.RED;
-            prefix = "⏸ ";
+            prefix = "WAIT ";
         }
-        
+
         return value(prefix, color).append(primary(name))
             .append(secondary(" ")).append(value(timeStr, color));
     }
@@ -403,13 +403,13 @@ public final class UIStyle {
      */
     public static MutableText dynamicAura(String effects, boolean isPulsing, long currentTick) {
         if (isPulsing) {
-            // Active pulsing aura with sparkle effect
-            String sparkle = pulsingText("✨", Formatting.YELLOW, Formatting.GOLD, currentTick, 6).getString();
-            return value(sparkle + " ", Formatting.YELLOW).append(secondary("Aura "))
-                .append(pulsingText(effects, Formatting.LIGHT_PURPLE, Formatting.AQUA, currentTick, 12));
+            // Active pulsing aura with simple text emphasis
+            MutableText prefix = pulsingText("active ", Formatting.YELLOW, Formatting.GOLD, currentTick, 6)
+                .append(secondary("Aura "));
+            return prefix.append(pulsingText(effects, Formatting.LIGHT_PURPLE, Formatting.AQUA, currentTick, 12));
         } else {
             // Static aura
-            return value("🌟 ", Formatting.LIGHT_PURPLE).append(secondary("Aura "))
+            return value("[Aura] ", Formatting.LIGHT_PURPLE)
                 .append(value(effects, Formatting.LIGHT_PURPLE));
         }
     }
@@ -427,18 +427,18 @@ public final class UIStyle {
     public static MutableText roleStatus(String roleName, boolean isActive, boolean onCooldown) {
         String icon;
         Formatting color;
-        
+
         if (onCooldown) {
-            icon = "⏸";
+            icon = "[paused]";
             color = Formatting.DARK_GRAY;
         } else if (isActive) {
-            icon = "⚡";
+            icon = "[active]";
             color = Formatting.YELLOW;
         } else {
-            icon = "●";
+            icon = "[idle]";
             color = Formatting.GREEN;
         }
-        
+
         return value(icon + " ", color).append(primary(roleName));
     }
 
@@ -451,9 +451,9 @@ public final class UIStyle {
         
         for (int i = 0; i < length; i++) {
             if (i < filled) {
-                bar.append("█");
+                bar.append('#');
             } else {
-                bar.append("░");
+                bar.append('.');
             }
         }
         
@@ -477,9 +477,9 @@ public final class UIStyle {
 
         for (int i = 0; i < length; i++) {
             if (i < filled) {
-                bar.append("▰"); // Simpler filled character
+                bar.append('#');
             } else {
-                bar.append("▱"); // Simpler empty character
+                bar.append('.');
             }
         }
 
@@ -497,9 +497,9 @@ public final class UIStyle {
 
         for (int i = 0; i < length; i++) {
             if (i < filled) {
-                bar.append("▰");
+                bar.append('#');
             } else {
-                bar.append("▱");
+                bar.append('.');
             }
         }
 
@@ -530,13 +530,13 @@ public final class UIStyle {
      * Context bar display for cooldowns/auras with light gray base and colored accents
      */
     public static MutableText contextBar(String context, String details, Formatting accentColor, boolean hasActivity, long currentTick) {
-        MutableText base = secondary("■").append(primary(" " + context + " "));
-        
+        MutableText base = primary(context + ": ");
+
         if (hasActivity) {
             // Brief green flash for activity
             boolean flash = (currentTick % 40) < 5; // Flash for 5 ticks every 40 ticks (2 seconds)
             if (flash) {
-                base = base.append(value("●", Formatting.GREEN));
+                base = base.append(value("active", Formatting.GREEN));
             } else {
                 base = base.append(value(details, accentColor));
             }
@@ -552,14 +552,14 @@ public final class UIStyle {
      */
     public static MutableText statusIndicator(String status) {
         return switch (status.toLowerCase()) {
-            case "combat" -> value("⚔ ", Formatting.RED);
-            case "following" -> value("👁 ", Formatting.GREEN);
-            case "sitting" -> value("💤 ", Formatting.GRAY);
-            case "mounted" -> value("🏇 ", Formatting.AQUA);
-            case "injured" -> value("💔 ", Formatting.RED);
-            case "hungry" -> value("🍖 ", Formatting.YELLOW);
-            case "happy" -> value("😊 ", Formatting.GREEN);
-            default -> value("● ", Formatting.WHITE);
+            case "combat" -> value("[combat] ", Formatting.RED);
+            case "following" -> value("[following] ", Formatting.GREEN);
+            case "sitting" -> value("[sitting] ", Formatting.GRAY);
+            case "mounted" -> value("[mounted] ", Formatting.AQUA);
+            case "injured" -> value("[injured] ", Formatting.RED);
+            case "hungry" -> value("[hungry] ", Formatting.YELLOW);
+            case "happy" -> value("[happy] ", Formatting.GREEN);
+            default -> value("[status] ", Formatting.WHITE);
         };
     }
 

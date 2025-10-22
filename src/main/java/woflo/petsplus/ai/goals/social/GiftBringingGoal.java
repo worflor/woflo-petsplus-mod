@@ -695,7 +695,7 @@ public class GiftBringingGoal extends AdaptiveGoal {
                         petName + " gifts you " + itemName + ", a tiny reminder you're their favourite human.");
             };
 
-            MutableText base = Text.literal("🐾 ").formatted(Formatting.LIGHT_PURPLE)
+            MutableText base = Text.literal("[Pet Gift] ").formatted(Formatting.LIGHT_PURPLE)
                 .append(Text.literal(line).formatted(Formatting.LIGHT_PURPLE));
 
             if (context.repeat() >= 3) {

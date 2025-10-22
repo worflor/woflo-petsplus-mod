@@ -286,7 +286,7 @@ public class EclipsedVoidRescueEffect implements Effect {
             SoundEvents.ENTITY_SHULKER_TELEPORT, SoundCategory.PLAYERS, 1.0F, 0.6F);
 
         owner.sendMessage(Text.of("§8" + petName + " §5pulled you from the void through shadow magic!"), false);
-        ActionBarUtils.sendActionBar(owner, Text.of("§8✦ §5Saved from the void §8✦"));
+        ActionBarUtils.sendActionBar(owner, Text.of("§8[Rescue] §5Saved from the void"));
         owner.sendMessage(Text.of("§8Teleported to safety at: §7" + safeLocation.getX() + ", " + safeLocation.getY() + ", " + safeLocation.getZ()), false);
     }
 }

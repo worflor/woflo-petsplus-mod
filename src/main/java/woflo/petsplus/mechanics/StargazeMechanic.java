@@ -332,7 +332,7 @@ public final class StargazeMechanic implements PlayerTickListener {
         cancelScheduledRuns(player);
 
         // Success feedback
-        player.sendMessage(Text.of("§5✦ §d" + petName + " gazes at you with pure love... You know they've got your back. §5✦"), false);
+        player.sendMessage(Text.of("§5[Bond] §d" + petName + " gazes at you with pure love... You know they've got your back."), false);
 
         // Particle effects (heart particles)
         Vec3d petPos = pet.getEntityPos();

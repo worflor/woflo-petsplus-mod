@@ -278,7 +278,7 @@ public final class PetInspectionManager {
             return frames;
         }
         
-        // Clean, simple display: "Name • Lv.X" with mood indicator
+        // Clean, simple display: "Name - Lv.X" with mood indicator
         // Bar color based on health, level color based on XP progress, name color responds to combat
         Text mainDisplay = UIStyle.cleanPetDisplay(
             name,
@@ -344,7 +344,7 @@ public final class PetInspectionManager {
         }
 
         String textStr = frame.text.getString();
-        if (textStr.contains("💭") || textStr.contains("Lv.")) {
+        if (textStr.contains("Lv.")) {
             return true;
         }
 

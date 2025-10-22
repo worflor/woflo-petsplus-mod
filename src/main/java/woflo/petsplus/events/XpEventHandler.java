@@ -439,7 +439,7 @@ public class XpEventHandler {
             
             // Send chat message for major milestones
             owner.sendMessage(
-                Text.of("§6✦ §e" + petName + " §6has unlocked new " + roleDisplayName + " abilities at level " + newLevel + "! §6✦"),
+                Text.of("§6[Milestone] §e" + petName + " §6has unlocked new " + roleDisplayName + " abilities at level " + newLevel + "!"),
                 false // Chat message
             );
 
@@ -610,9 +610,9 @@ public class XpEventHandler {
         for (woflo.petsplus.api.LevelReward reward : rewards) {
             try {
                 reward.apply(pet, petComp, owner, level);
-                Petsplus.LOGGER.debug("  ✓ {}", reward.getDescription());
+                Petsplus.LOGGER.debug("  - {}", reward.getDescription());
             } catch (Exception e) {
-                Petsplus.LOGGER.error("  ✗ Failed to apply {}: {}", reward.getDescription(), e.getMessage(), e);
+                Petsplus.LOGGER.error("  - Failed to apply {}: {}", reward.getDescription(), e.getMessage(), e);
             }
         }
     }

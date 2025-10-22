@@ -20,7 +20,7 @@ public final class PetUIHelper {
     public static List<Text> buildInspectionLines(MobEntity pet, PetComponent comp) {
         List<Text> lines = new ArrayList<>();
 
-        // Line 1: Name • Role • Level
+        // Line 1: Name - Role - Level
         String name = pet.getDisplayName().getString();
         Identifier roleId = comp != null ? comp.getRoleId() : null;
         PetRoleType roleType = roleId != null ? PetsPlusRegistries.petRoleTypeRegistry().get(roleId) : null;
@@ -136,7 +136,7 @@ public final class PetUIHelper {
                 if (shown >= 2) break;
             }
             String dur = auraDuration != null ? (auraDuration / 20) + "s" : "";
-            Text auraText = UIStyle.secondary(line3 == null ? "Aura: " : " • Aura: ")
+            Text auraText = UIStyle.secondary(line3 == null ? "Aura: " : " - Aura: ")
                 .append(UIStyle.value(effSb.toString(), Formatting.LIGHT_PURPLE))
                 .append(dur.isEmpty() ? Text.empty() : UIStyle.secondary(" (" + dur + ")"));
             if (chargesRemaining != null) {

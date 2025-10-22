@@ -68,7 +68,7 @@ public class PetCompendiumHandler {
 
         if (lastPetUuid == null) {
             player.sendMessage(
-                Text.literal("⚠ ").formatted(Formatting.DARK_GRAY)
+                Text.literal("Notice: ").formatted(Formatting.DARK_GRAY)
                     .append(Text.literal("No pet has been viewed yet.").formatted(Formatting.GRAY))
                     .append(Text.literal(" Right-click a pet to start tracking.").formatted(Formatting.DARK_GRAY)),
                 true // Action bar
@@ -89,7 +89,7 @@ public class PetCompendiumHandler {
         if (entity == null) {
             // Pet not in current world (different dimension, unloaded, or dead)
             player.sendMessage(
-                Text.literal("⚠ ").formatted(Formatting.GOLD)
+                Text.literal("Warning: ").formatted(Formatting.GOLD)
                     .append(Text.literal("Last viewed pet is not accessible.").formatted(Formatting.YELLOW))
                     .append(Text.literal(" (Different dimension or unloaded)").formatted(Formatting.DARK_GRAY)),
                 true
@@ -101,7 +101,7 @@ public class PetCompendiumHandler {
             // Edge case: UUID collision or entity type changed somehow
             LAST_VIEWED_PET.remove(player.getUuid());
             player.sendMessage(
-                Text.literal("⚠ ").formatted(Formatting.RED)
+                Text.literal("Warning: ").formatted(Formatting.RED)
                     .append(Text.literal("Last viewed pet is no longer valid.").formatted(Formatting.GRAY)),
                 true
             );
@@ -113,7 +113,7 @@ public class PetCompendiumHandler {
             // Pet component was removed or entity is no longer a pet
             LAST_VIEWED_PET.remove(player.getUuid());
             player.sendMessage(
-                Text.literal("⚠ ").formatted(Formatting.RED)
+                Text.literal("Warning: ").formatted(Formatting.RED)
                     .append(Text.literal("Entity is no longer a pet.").formatted(Formatting.GRAY)),
                 true
             );
@@ -124,7 +124,7 @@ public class PetCompendiumHandler {
             // Pet is dead
             LAST_VIEWED_PET.remove(player.getUuid());
             player.sendMessage(
-                Text.literal("✝ ").formatted(Formatting.DARK_GRAY)
+                Text.literal("Memorial: ").formatted(Formatting.DARK_GRAY)
                     .append(Text.literal("Your pet has passed away.").formatted(Formatting.GRAY)),
                 true
             );
