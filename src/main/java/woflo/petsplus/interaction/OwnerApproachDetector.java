@@ -71,22 +71,29 @@ public final class OwnerApproachDetector {
         // Get player's current velocity
         Vec3d velocity = history.getAverageVelocity();
         double speed = velocity.length();
-        
+
         // Must be moving (not standing still)
         if (speed < MIN_APPROACH_SPEED) {
             return false;
         }
-        
+
         // Calculate direction from player to pet
         Vec3d playerPos = player.getEntityPos();
         Vec3d petPos = pet.getEntityPos();
-        Vec3d toPet = petPos.subtract(playerPos).normalize();
+        Vec3d toPet = petPos.subtract(playerPos);
+        double distanceSq = toPet.lengthSquared();
+        if (distanceSq < 1.0e-6) {
+            return false;
+        }
 
-        // Check if movement vector aligns with direction to pet
-        Vec3d velocityNorm = velocity.multiply(1.0 / speed);
-        double alignment = velocityNorm.dotProduct(toPet);
+        double dot = velocity.dotProduct(toPet);
+        if (dot <= 0.0) {
+            return false;
+        }
 
-        return alignment >= APPROACH_ANGLE_THRESHOLD;
+        double alignmentThresholdSq = APPROACH_ANGLE_THRESHOLD * APPROACH_ANGLE_THRESHOLD;
+        double speedSq = speed * speed;
+        return dot * dot >= alignmentThresholdSq * speedSq * distanceSq;
     }
     
     /**
@@ -135,13 +142,14 @@ public final class OwnerApproachDetector {
         Vec3d petPos = pet.getEntityPos();
         
         Vec3d direction = petPos.subtract(playerPos);
-        double length = direction.length();
-        
-        if (length < 0.001) {
+        double lengthSq = direction.lengthSquared();
+
+        if (lengthSq < 0.001 * 0.001) {
             return Vec3d.ZERO;
         }
-        
-        return direction.normalize();
+
+        double invLength = 1.0 / Math.sqrt(lengthSq);
+        return direction.multiply(invLength);
     }
     
     /**
