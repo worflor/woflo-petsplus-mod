@@ -380,6 +380,7 @@ public final class EmotionStimulusBus {
         }
         if (!accepted) {
             ScheduledExecutorService executor = ensureIdleExecutor();
+            final ScheduledFuture<?>[] futureHolder = new ScheduledFuture<?>[1];
             ScheduledFuture<?> future = executor.schedule(() -> {
                 MinecraftServer server = world != null ? world.getServer()
                     : pet.getEntityWorld() instanceof ServerWorld petWorld ? petWorld.getServer() : null;
@@ -388,8 +389,9 @@ public final class EmotionStimulusBus {
                 } else {
                     drainStimuli(pet);
                 }
-                clearIdleTask(pet);
+                clearIdleTask(pet, futureHolder[0]);
             }, 50L, TimeUnit.MILLISECONDS);
+            futureHolder[0] = future;
             registerIdleTask(pet, tick, future);
         }
         work.markIdleScheduled();
@@ -412,11 +414,6 @@ public final class EmotionStimulusBus {
 
     private void registerIdleTask(MobEntity pet, long tick, ScheduledFuture<?> future) {
         synchronized (lock) {
-            IdleDrainHandle existing = idleTasks.get(pet);
-            if (existing != null && existing.scheduledTick() <= tick && !existing.future().isDone()) {
-                future.cancel(false);
-                return;
-            }
             IdleDrainHandle prior = idleTasks.put(pet, new IdleDrainHandle(tick, future));
             if (prior != null) {
                 prior.cancel();
@@ -425,11 +422,20 @@ public final class EmotionStimulusBus {
     }
 
     private void clearIdleTask(MobEntity pet) {
+        clearIdleTask(pet, null);
+    }
+
+    private void clearIdleTask(MobEntity pet, @Nullable ScheduledFuture<?> expected) {
         synchronized (lock) {
-            IdleDrainHandle prior = idleTasks.remove(pet);
-            if (prior != null) {
-                prior.cancel();
+            IdleDrainHandle handle = idleTasks.get(pet);
+            if (handle == null) {
+                return;
             }
+            if (expected != null && handle.future() != expected) {
+                return;
+            }
+            idleTasks.remove(pet);
+            handle.cancel();
         }
     }
 
