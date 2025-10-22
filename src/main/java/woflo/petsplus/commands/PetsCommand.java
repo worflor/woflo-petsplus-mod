@@ -317,14 +317,14 @@ public class PetsCommand {
         
         // Show pending pets first
         if (!pendingPets.isEmpty()) {
-            player.sendMessage(Text.literal("🔄 Pets awaiting role assignment:")
+            player.sendMessage(Text.literal("Pending pets awaiting role assignment:")
                 .formatted(Formatting.YELLOW), false);
             
             for (MobEntity pet : pendingPets) {
                 String petName = pet.hasCustomName() ? pet.getCustomName().getString() : 
                     pet.getType().getName().getString();
                 
-                player.sendMessage(Text.literal("  • " + petName)
+                player.sendMessage(Text.literal("  - " + petName)
                     .formatted(Formatting.WHITE), false);
             }
             
@@ -335,7 +335,7 @@ public class PetsCommand {
         
         // Show existing pets
         if (!nearbyPets.isEmpty()) {
-            player.sendMessage(Text.literal("🐾 Your nearby pets:")
+            player.sendMessage(Text.literal("Nearby pets:")
                 .formatted(Formatting.GREEN), false);
             
             for (MobEntity pet : nearbyPets) {
@@ -349,7 +349,7 @@ public class PetsCommand {
                     Text roleLabel = resolveRoleLabel(roleId, roleType);
                     int level = petComp.getLevel();
 
-                    player.sendMessage(Text.literal("  • " + petName + " (")
+                    player.sendMessage(Text.literal("  - " + petName + " (")
                         .append(roleLabel.copy())
                         .append(Text.literal(", Level " + level + ")"))
                         .formatted(Formatting.WHITE), false);
@@ -406,16 +406,16 @@ public class PetsCommand {
             String petName = pet.hasCustomName() ? pet.getCustomName().getString() :
                 pet.getType().getName().getString();
 
-            player.sendMessage(Text.literal("✓ Assigned ")
+            player.sendMessage(Text.literal("Assigned ")
                 .formatted(Formatting.GREEN)
                 .append(resolveRoleLabel(roleId, roleType).copy().formatted(Formatting.AQUA))
                 .append(Text.literal(" role to ").formatted(Formatting.GREEN))
                 .append(Text.literal(petName).formatted(Formatting.YELLOW))
                 .append(Text.literal("!").formatted(Formatting.GREEN)), false);
-            
+
             // Show remaining pending pets
             if (pendingPets.size() > 1) {
-                player.sendMessage(Text.literal("📋 You have " + (pendingPets.size() - 1) + " more pet(s) waiting for assignment.")
+                player.sendMessage(Text.literal("You have " + (pendingPets.size() - 1) + " more pet(s) waiting for assignment.")
                     .formatted(Formatting.GRAY), false);
                 showRoleButtons(player);
             }
@@ -454,7 +454,7 @@ public class PetsCommand {
 
         petComp.setRoleId(roleId);
 
-        player.sendMessage(Text.literal("✓ Assigned ")
+        player.sendMessage(Text.literal("Assigned ")
             .formatted(Formatting.GREEN)
             .append(resolveRoleLabel(roleId, roleType).copy().formatted(Formatting.AQUA))
             .append(Text.literal(" role to ").formatted(Formatting.GREEN))
@@ -527,7 +527,7 @@ public class PetsCommand {
 
     private static MutableText formatTributeLine(int level, Identifier itemId) {
         Formatting itemColor = tributeFormattingForLevel(level);
-        MutableText line = Text.literal("  • Level " + level + " → ").formatted(Formatting.WHITE);
+        MutableText line = Text.literal("  - Level " + level + " -> ").formatted(Formatting.WHITE);
         Item item = Registries.ITEM.get(itemId);
         if (Registries.ITEM.getId(item).equals(itemId)) {
             line.append(Text.translatable(item.getTranslationKey()).copy().formatted(itemColor));
@@ -712,7 +712,7 @@ public class PetsCommand {
 
             PetAttributeManager.applyAttributeModifiers(mob, component);
 
-            MutableText line = Text.literal("• ").formatted(Formatting.DARK_AQUA)
+            MutableText line = Text.literal("- ").formatted(Formatting.DARK_AQUA)
                 .append(mob.getDisplayName().copy().formatted(Formatting.YELLOW))
                 .append(Text.literal("  Type: ").formatted(Formatting.GRAY))
                 .append(mob.getType().getName().copy().formatted(Formatting.GREEN))
@@ -879,7 +879,7 @@ public class PetsCommand {
             List<AttributeKey> attributes = NameParser.parse(name);
 
             // Send result to player
-            player.sendMessage(Text.literal("📝 Testing name parsing for: \"")
+            player.sendMessage(Text.literal("Testing name parsing for: \"")
                 .formatted(Formatting.YELLOW)
                 .append(Text.literal(name).formatted(Formatting.WHITE))
                 .append(Text.literal("\"").formatted(Formatting.YELLOW)), false);
@@ -969,7 +969,7 @@ public class PetsCommand {
             Identifier id = type.id();
             Text label = resolveRoleLabel(id, type);
             String description = getRoleDescription(id, type);
-            player.sendMessage(Text.literal("• ")
+            player.sendMessage(Text.literal("- ")
                 .formatted(Formatting.DARK_GRAY)
                 .append(label.copy().formatted(Formatting.AQUA))
                 .append(Text.literal(" - " + description).formatted(Formatting.WHITE)), false);
@@ -1082,7 +1082,7 @@ public class PetsCommand {
             .append(resolveRoleLabel(roleId, roleType).copy().formatted(Formatting.AQUA))
             .append(Text.literal(")"));
 
-        player.sendMessage(Text.literal("• " + petName)
+        player.sendMessage(Text.literal("- " + petName)
             .formatted(Formatting.YELLOW)
             .append(roleText), false);
         

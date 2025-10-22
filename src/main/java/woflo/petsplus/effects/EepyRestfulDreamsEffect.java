@@ -117,7 +117,7 @@ public class EepyRestfulDreamsEffect implements Effect {
                     String petName = pet.hasCustomName()
                         ? pet.getCustomName().getString()
                         : pet.getType().getName().getString();
-                    owner.sendMessage(Text.of("§6✨ " + petName + " §egained a level while dreaming! Sweet dreams grant wisdom. §6✨"), false);
+                    owner.sendMessage(Text.of("§6[Dream] §e" + petName + " §egained a level while dreaming! Sweet dreams grant wisdom."), false);
                     world.playSound(null, pet.getX(), pet.getY(), pet.getZ(), SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, SoundCategory.NEUTRAL, 0.8F, 1.5F);
                     world.spawnParticles(net.minecraft.particle.ParticleTypes.HAPPY_VILLAGER,
                         pet.getX(), pet.getY() + pet.getHeight() * 0.8, pet.getZ(),

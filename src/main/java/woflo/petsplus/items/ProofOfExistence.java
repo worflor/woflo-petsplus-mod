@@ -632,7 +632,7 @@ public class ProofOfExistence {
         // Achievement section (only for OR_NOT - ultra-rare, once-per-player tragedy)
         if (history.hasOrNot) {
             lore.add(Text.literal("§cAchievement:"));
-            lore.add(Text.literal("§8  ✦ §c\"Best friends foreverer... or not.\"§r"));
+            lore.add(Text.literal("§8  - §c\"Best friends foreverer... or not.\"§r"));
             lore.add(Text.empty());
         }
 
@@ -676,16 +676,16 @@ public class ProofOfExistence {
                 String symbol;
                 String color;
                 if (isRareAchievement) {
-                    symbol = "✦";
+                    symbol = "!";
                     color = "§e";
                 } else if (isNotableAchievement) {
-                    symbol = "✓";
+                    symbol = "+";
                     color = "§e";
                 } else {
-                    symbol = "•";
+                    symbol = "-";
                     color = "§f";
                 }
-                
+
                 lore.add(Text.literal("§8  " + symbol + " " + color + moment + "§r"));
             }
         }
@@ -697,10 +697,10 @@ public class ProofOfExistence {
             
             // Show nature (personality)
             String natureText = "§8  Nature: §f" + formatEmotionName(emotion.natureMajor);
-            
+
             // Add minor nature if significantly different
             if (emotion.natureMinor != null && emotion.natureMinor != emotion.natureMajor) {
-                natureText += " §8• §f" + formatEmotionName(emotion.natureMinor);
+                natureText += " §8- §f" + formatEmotionName(emotion.natureMinor);
             }
             
             lore.add(Text.literal(natureText));
@@ -743,7 +743,7 @@ public class ProofOfExistence {
             lore.add(Text.literal("§7Bonds:"));
             for (int milestone : unlockedMilestones) {
                 String achievementName = getMilestoneAchievementName(milestone, roleId);
-                lore.add(Text.literal("§8  ✓ §e" + achievementName + "§r"));
+                lore.add(Text.literal("§8  - §e" + achievementName + "§r"));
             }
         }
 

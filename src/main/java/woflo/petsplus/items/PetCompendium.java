@@ -30,12 +30,12 @@ public class PetCompendium extends Item {
         tooltip.accept(Text.literal("Right-click a pet to view their").formatted(Formatting.GRAY));
         tooltip.accept(Text.literal("journey, stats, and history.").formatted(Formatting.GRAY));
         tooltip.accept(Text.empty());
-        tooltip.accept(Text.literal("✦ Life Statistics").formatted(Formatting.AQUA));
-        tooltip.accept(Text.literal("✦ Role & Nature").formatted(Formatting.AQUA));
-        tooltip.accept(Text.literal("✦ Combat Record").formatted(Formatting.AQUA));
-        tooltip.accept(Text.literal("✦ Recent Journal").formatted(Formatting.AQUA));
+        tooltip.accept(Text.literal("- Life Statistics").formatted(Formatting.AQUA));
+        tooltip.accept(Text.literal("- Role & Nature").formatted(Formatting.AQUA));
+        tooltip.accept(Text.literal("- Combat Record").formatted(Formatting.AQUA));
+        tooltip.accept(Text.literal("- Recent Journal").formatted(Formatting.AQUA));
         tooltip.accept(Text.empty());
-        tooltip.accept(Text.literal("⬤ ").formatted(Formatting.DARK_GRAY)
+        tooltip.accept(Text.literal("Tip: ").formatted(Formatting.DARK_GRAY)
             .append(Text.literal("Right-click in air to reopen").formatted(Formatting.DARK_GRAY)));
         tooltip.accept(Text.literal("  last viewed pet").formatted(Formatting.DARK_GRAY));
     }

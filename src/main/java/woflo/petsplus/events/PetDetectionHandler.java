@@ -193,7 +193,8 @@ public class PetDetectionHandler {
         pendingRoleSelection.put(mob, owner);
         
         // Send interactive message header
-        owner.sendMessage(Text.literal("🐾 ").formatted(Formatting.GOLD)
+        owner.sendMessage(Text.literal("New pet ready for a role. ")
+            .formatted(Formatting.GOLD)
             .append(Text.literal("Choose a role for your new pet ").formatted(Formatting.GRAY))
             .append(Text.literal(mob.getType().getName().getString()).formatted(Formatting.AQUA, Formatting.BOLD))
             .append(Text.literal("!").formatted(Formatting.DARK_GRAY)), false);
@@ -290,10 +291,10 @@ public class PetDetectionHandler {
             // Confirm to player
             PetRoleType type = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
             Text label = type != null ? resolveRoleLabel(roleId, type) : Text.literal(roleId.toString());
-            player.sendMessage(Text.literal("✓ ").formatted(Formatting.GREEN)
-                .append(Text.literal("Assigned role ").formatted(Formatting.WHITE))
+            player.sendMessage(Text.literal("Assigned role ")
+                .formatted(Formatting.GREEN)
                 .append(label.copy().formatted(Formatting.AQUA))
-                .append(Text.literal(" to your pet!").formatted(Formatting.WHITE)), false);
+                .append(Text.literal(" to your pet!").formatted(Formatting.GREEN)), false);
             if (player instanceof net.minecraft.server.network.ServerPlayerEntity sp) {
                 woflo.petsplus.ui.ChatLinks.sendSuggestRow(sp, new woflo.petsplus.ui.ChatLinks.Suggest[] {
                     new woflo.petsplus.ui.ChatLinks.Suggest("[XP Info]", "/petsplus xp info", "See your pet's level & progress", "yellow", true),

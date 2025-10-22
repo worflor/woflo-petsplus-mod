@@ -374,8 +374,8 @@ public class PetCompendiumDataExtractor {
                 }
             }
             if (totalDamage > 0) {
-                stats.add(Text.literal("  §8✓ §fProtected owner §e" + protectionCount + "§f times"));
-                stats.add(Text.literal("  §8✓ §fRedirected §e" + String.format("%.1f", totalDamage) + "§f damage"));
+                stats.add(Text.literal("  §8- §fProtected owner §e" + protectionCount + "§f times"));
+                stats.add(Text.literal("  §8- §fRedirected §e" + String.format("%.1f", totalDamage) + "§f damage"));
             }
         }
         
@@ -390,7 +390,7 @@ public class PetCompendiumDataExtractor {
                 }
             }
             if (healingEvents > 0) {
-                stats.add(Text.literal("  §8✓ §fHealed allies §e" + healingEvents + "§f times"));
+                stats.add(Text.literal("  §8- §fHealed allies §e" + healingEvents + "§f times"));
             }
         }
         
@@ -403,7 +403,7 @@ public class PetCompendiumDataExtractor {
             if (pc.isMilestoneUnlocked(30)) milestones.add("30");
             
             if (!milestones.isEmpty()) {
-                stats.add(Text.literal("  §8✓ §fMilestones: §e" + String.join(", ", milestones)));
+                stats.add(Text.literal("  §8- §fMilestones: §e" + String.join(", ", milestones)));
             }
         }
         
@@ -452,26 +452,26 @@ public class PetCompendiumDataExtractor {
                 if (level == 0) {
                     level = extractIntValue(data, "new_level");
                 }
-                yield "§f• Reached Level " + level;
+                yield "§f- Reached Level " + level;
             }
             case HistoryEvent.EventType.ROLE_CHANGE -> {
                 String data = event.eventData();
                 String toRole = extractStringValue(data, "to");
-                yield "§f• Became " + formatRoleName(toRole);
+                yield "§f- Became " + formatRoleName(toRole);
             }
             case HistoryEvent.EventType.ACHIEVEMENT -> {
                 String achievementName = extractAchievementName(event.eventData());
-                yield "§e✦ " + achievementName;
+                yield "§e- " + achievementName;
             }
             case HistoryEvent.EventType.TRADE -> {
                 String toName = extractStringValue(event.eventData(), "to_name");
-                yield "§f• Traded to " + toName;
+                yield "§f- Traded to " + toName;
             }
             case HistoryEvent.EventType.COMBAT -> {
                 boolean victory = event.eventData().contains("\"result\":\"victory\"");
                 String opponent = extractStringValue(event.eventData(), "opponent");
                 String result = victory ? "Defeated" : "Lost to";
-                yield "§8• " + result + " " + formatCombatOpponent(opponent);
+                yield "§8- " + result + " " + formatCombatOpponent(opponent);
             }
             case HistoryEvent.EventType.MOOD_MILESTONE -> {
                 String mood = extractStringValue(event.eventData(), "mood");
@@ -479,11 +479,11 @@ public class PetCompendiumDataExtractor {
                 String moodLabel = formatMoodName(mood);
                 if (intensity > 0f) {
                     int percent = Math.round(Math.max(0f, Math.min(1f, intensity)) * 100);
-                    yield "§f• Felt " + moodLabel + " (§7" + percent + "%§f)";
+                    yield "§f- Felt " + moodLabel + " (§7" + percent + "%§f)";
                 }
-                yield "§f• Felt " + moodLabel;
+                yield "§f- Felt " + moodLabel;
             }
-            default -> "§8• " + event.eventType();
+            default -> "§8- " + event.eventType();
         };
         
         lines.add(Text.literal("  " + eventDesc));
@@ -758,7 +758,7 @@ public class PetCompendiumDataExtractor {
             }
             
             // Add entry with nature-themed formatting
-            currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "• ")
+            currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "- ")
                 .append(Text.literal(CompendiumColorTheme.LIGHT_GRAY).append(cue)));
             linesOnPage++;
             count++;
@@ -837,8 +837,8 @@ public class PetCompendiumDataExtractor {
             String status = witnessed ? "seen" : "heard";
             
             // Main entry line
-            currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "• " + 
-                CompendiumColorTheme.LIGHT_GRAY + topicName + 
+            currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "- " +
+                CompendiumColorTheme.LIGHT_GRAY + topicName +
                 CompendiumColorTheme.DARK_GRAY + " §8(" + status + ")"));
             
             // Confidence bar

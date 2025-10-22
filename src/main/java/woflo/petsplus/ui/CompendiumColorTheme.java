@@ -180,11 +180,11 @@ public class CompendiumColorTheme {
     }
     
     /**
-     * Format a label with nature theming: "§8[§b⬥§8] §7Label"
+     * Format a label with nature theming using simple ASCII markers.
      */
     public static String formatSectionHeader(String label, @Nullable Identifier natureId) {
         String accent = getNatureAccentCode(natureId);
-        return DARK_GRAY + "[" + accent + "⬥" + DARK_GRAY + "] " + LIGHT_GRAY + label;
+        return accent + label + RESET;
     }
     
     /**

@@ -188,7 +188,7 @@ public class CursedOneResurrection {
                 );
                 
                 petComp.getOwner().sendMessage(
-                    Text.of("§8✦ §5Reanimation Complete §8✦"),
+                    Text.of("§8[Ritual] §5Reanimation Complete"),
                     true
                 );
             }
@@ -861,7 +861,7 @@ public class CursedOneResurrection {
                     );
 
                     petComp.getOwner().sendMessage(
-                        Text.of("§8✦ §5Reanimating... §8✦"),
+                        Text.of("§8[Ritual] §5Reanimating..."),
                         true
                     );
 
@@ -1214,7 +1214,7 @@ public class CursedOneResurrection {
         
         // Action bar message
         owner.sendMessage(
-            Text.of("§8✦ §cResurrected by cursed magic §8✦"),
+            Text.of("§8[Ritual] §cResurrected by cursed magic"),
             true // Action bar
         );
     }

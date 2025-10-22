@@ -27,24 +27,24 @@ import java.util.function.Consumer;
  * 
  * New Tree Structure:
  * - Root: first_pet (bonding with first pet)
- *   ├─ 🌱 bonding_basics (Intermediate)
+ *   ├─ [Bonding Basics] bonding_basics (Intermediate)
  *   │   ├─ gentle_touch
  *   │   ├─ devoted_companion
  *   │   └─ trial_ready
  *   │       └─ bestest_friends_forevererer (Challenge)
  *   │           ├─ or_not
  *   │           └─ is_this_designer
- *   ├─ 🎭 emotional_journey (Intermediate)
+ *   ├─ [Emotional Journey] emotional_journey (Intermediate)
  *   │   ├─ mood_explorer
  *   │   ├─ emotional_mastery
  *   │   ├─ bond_voyage
  *   │   └─ mood_categories (12 mood advancements)
- *   ├─ ✨ mystical_connections (Intermediate)
+ *   ├─ [Mystical Connections] mystical_connections (Intermediate)
  *   │   ├─ i_love_you_and_me
  *   │   └─ noo_luna
  *   │       ├─ at_what_cost
  *   │       └─ heartless_but_alive
- *   ├─ 🛡️ role_specialization (Intermediate)
+ *   ├─ [Role Specialization] role_specialization (Intermediate)
  *   │   ├─ guardian_path
  *   │   ├─ support_path
  *   │   ├─ skyrider_path
@@ -80,7 +80,7 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
             .build(consumer, Petsplus.MOD_ID + ":first_pet");
 
         // ========================================
-        // 🌱 BONDING BASICS BRANCH
+        // [BONDING BASICS] BRANCH
         // ========================================
         AdvancementEntry bondingBasics = Advancement.Builder.create()
             .parent(firstPet)
@@ -190,7 +190,7 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
             .build(consumer, Petsplus.MOD_ID + ":bestest_friends_forevererer");
 
         // ========================================
-        // 🎭 EMOTIONAL JOURNEY BRANCH
+        // [EMOTIONAL JOURNEY] BRANCH
         // ========================================
         AdvancementEntry emotionalJourney = Advancement.Builder.create()
             .parent(firstPet)
@@ -583,7 +583,7 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
             .build(consumer, Petsplus.MOD_ID + ":are_you_mad_at_me");
 
         // ========================================
-        // ✨ MYSTICAL CONNECTIONS BRANCH
+        // [MYSTICAL CONNECTIONS] BRANCH
         // ========================================
         AdvancementEntry mysticalConnections = Advancement.Builder.create()
             .parent(firstPet)
@@ -697,7 +697,7 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
             .build(consumer, Petsplus.MOD_ID + ":heartless_but_alive");
 
         // ========================================
-        // 🛡️ ROLE SPECIALIZATION BRANCH
+        // [ROLE SPECIALIZATION] BRANCH
         // ========================================
         AdvancementEntry roleSpecialization = Advancement.Builder.create()
             .parent(firstPet)
@@ -871,7 +871,7 @@ public class PetsplusAdvancementProvider extends FabricAdvancementProvider {
             .build(consumer, Petsplus.MOD_ID + ":edgewalker");
 
         // ========================================
-        // 💔 "OR NOT." BRANCH
+        // ["OR NOT."] BRANCH
         // ========================================
         AdvancementEntry orNot = Advancement.Builder.create()
             .parent(bestestFriends)

@@ -178,7 +178,7 @@ public class CompendiumBookBuilder {
         MutableText page = Text.literal("");
         
         // Title with nature accent
-        page.append(Text.literal(accentCode + "§l⬥ ").append(Text.literal("§f§lPet Compendium§r\n")));
+        page.append(Text.literal(accentCode + "§l> ").append(Text.literal("§f§lPet Compendium§r\n")));
         page.append(Text.literal(CompendiumColorTheme.DARK_GRAY + "─────────────────\n\n"));
         
         // Pet name with length validation
@@ -247,10 +247,10 @@ public class CompendiumBookBuilder {
         page.append(Text.literal(CompendiumColorTheme.formatSectionHeader("Table of Contents", natureId) + "\n\n"));
         
         // Add clickable links to each section with page validation
-        page.append(createPageLink("⚔ Combat Record", pageMap.get("combat"), natureId, totalPages));
-        page.append(createPageLink("📜 History Journal", pageMap.get("history"), natureId, totalPages));
-        page.append(createPageLink("💭 Emotion Cues", pageMap.get("emotions"), natureId, totalPages));
-        page.append(createPageLink("🗨 Gossip & Rumors", pageMap.get("gossip"), natureId, totalPages));
+        page.append(createPageLink("Combat Record", pageMap.get("combat"), natureId, totalPages));
+        page.append(createPageLink("History Journal", pageMap.get("history"), natureId, totalPages));
+        page.append(createPageLink("Emotion Cues", pageMap.get("emotions"), natureId, totalPages));
+        page.append(createPageLink("Gossip & Rumors", pageMap.get("gossip"), natureId, totalPages));
         
         page.append(Text.literal("\n\n" + CompendiumColorTheme.DARK_GRAY + "(Click to jump)"));
         
@@ -263,7 +263,7 @@ public class CompendiumBookBuilder {
         
         String accentCode = CompendiumColorTheme.getNatureAccentCode(natureId);
         
-        return Text.literal(CompendiumColorTheme.DARK_GRAY + "▸ " + accentCode + label + "\n")
+        return Text.literal(CompendiumColorTheme.DARK_GRAY + "- " + accentCode + label + "\n")
             .styled(style -> style
                 .withClickEvent(new ClickEvent.ChangePage(finalPageNum))
                 .withHoverEvent(new HoverEvent.ShowText(
@@ -582,9 +582,9 @@ public class CompendiumBookBuilder {
         StringBuilder bar = new StringBuilder();
         for (int i = 0; i < 10; i++) {
             if (i < filled) {
-                bar.append(heartColor).append("♥");
+                bar.append(heartColor).append("#");
             } else {
-                bar.append(CompendiumColorTheme.DARK_GRAY).append("♡");
+                bar.append(CompendiumColorTheme.DARK_GRAY).append("-");
             }
         }
         
