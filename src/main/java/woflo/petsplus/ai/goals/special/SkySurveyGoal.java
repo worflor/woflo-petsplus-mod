@@ -216,9 +216,15 @@ public class SkySurveyGoal extends AdaptiveGoal {
             mob.playAmbientSound();
         }
 
-        double horizontal = horizontalDistance(anchor, focus);
+        double dx = focus.x - anchor.x;
+        double dz = focus.z - anchor.z;
+        double horizontalSq = (dx * dx) + (dz * dz);
         SurveyTarget target = activeCandidate.target();
-        if (horizontal < target.minDistance() * 0.5 || horizontal > target.maxDistance() * 1.25) {
+        double minRange = target.minDistance() * 0.5;
+        double maxRange = target.maxDistance() * 1.25;
+        double minRangeSq = minRange * minRange;
+        double maxRangeSq = maxRange * maxRange;
+        if (horizontalSq < minRangeSq || horizontalSq > maxRangeSq) {
             switchPhase(Phase.DESCEND);
             return;
         }
@@ -275,9 +281,17 @@ public class SkySurveyGoal extends AdaptiveGoal {
         }
         Vec3d focus = activeCandidate.focus();
         Vec3d delta = new Vec3d(focus.x - anchor.x, 0.0, focus.z - anchor.z);
-        double distance = Math.sqrt(delta.lengthSquared());
+        double distanceSquared = delta.lengthSquared();
+        double distance = Math.sqrt(distanceSquared);
         double forwardMag = MathHelper.clamp(distance * 0.18 + 2.2, 2.6, 11.0);
-        Vec3d forward = distance > 0.0001 ? delta.normalize().multiply(Math.min(forwardMag, distance * 0.45)) : Vec3d.ZERO;
+        Vec3d forward;
+        if (distance > 0.0001) {
+            double maxForward = Math.min(forwardMag, distance * 0.45);
+            double scale = maxForward / distance;
+            forward = delta.multiply(scale);
+        } else {
+            forward = Vec3d.ZERO;
+        }
 
         double orbitRadius = MathHelper.clamp(distance * ORBIT_RADIUS_SCALE + ORBIT_RADIUS_MIN, ORBIT_RADIUS_MIN, ORBIT_RADIUS_MAX);
         double orbitAngle = orbitSeed + totalTicks * ORBIT_SPEED;
@@ -354,12 +368,6 @@ public class SkySurveyGoal extends AdaptiveGoal {
         if (next == Phase.DESCEND) {
             landingTarget = computeLandingTarget();
         }
-    }
-
-    private double horizontalDistance(Vec3d from, Vec3d to) {
-        double dx = to.x - from.x;
-        double dz = to.z - from.z;
-        return Math.sqrt(dx * dx + dz * dz);
     }
 
     @Override
@@ -447,8 +455,14 @@ public class SkySurveyGoal extends AdaptiveGoal {
             if (!world.isChunkLoaded(cachedPos)) {
                 return Optional.empty();
             }
-            double horizontal = horizontalDistance(centerXZ(origin), centerXZ(cachedPos));
-            if (horizontal < target.minDistance() || horizontal > target.maxDistance()) {
+            Vec3d originCenter = centerXZ(origin);
+            Vec3d cachedCenter = centerXZ(cachedPos);
+            double dx = cachedCenter.x - originCenter.x;
+            double dz = cachedCenter.z - originCenter.z;
+            double horizontalSq = (dx * dx) + (dz * dz);
+            double minSq = target.minDistance() * target.minDistance();
+            double maxSq = target.maxDistance() * target.maxDistance();
+            if (horizontalSq < minSq || horizontalSq > maxSq) {
                 return Optional.empty();
             }
             Vec3d focus = Vec3d.ofCenter(cachedPos);
@@ -543,8 +557,14 @@ public class SkySurveyGoal extends AdaptiveGoal {
             }
             BlockPos pos = located.get();
             Vec3d focus = Vec3d.ofCenter(pos);
-            double horizontal = Math.sqrt(Math.pow(focus.x - mobPos.x, 2) + Math.pow(focus.z - mobPos.z, 2));
-            if (horizontal < target.minDistance() || horizontal > target.maxDistance()) {
+            double dx = focus.x - mobPos.x;
+            double dz = focus.z - mobPos.z;
+            double horizontalSq = dx * dx + dz * dz;
+            double min = target.minDistance();
+            double max = target.maxDistance();
+            double minSq = min * min;
+            double maxSq = max * max;
+            if (horizontalSq < minSq || horizontalSq > maxSq) {
                 return Optional.empty();
             }
             return Optional.of(new SurveyCandidate(target, pos, focus));
@@ -578,12 +598,6 @@ public class SkySurveyGoal extends AdaptiveGoal {
                 }
             }
             return null;
-        }
-
-        private static double horizontalDistance(Vec3d from, Vec3d to) {
-            double dx = to.x - from.x;
-            double dz = to.z - from.z;
-            return Math.sqrt(dx * dx + dz * dz);
         }
 
         private static Vec3d centerXZ(BlockPos pos) {

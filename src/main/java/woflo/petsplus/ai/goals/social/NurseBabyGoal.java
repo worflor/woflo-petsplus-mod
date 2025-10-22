@@ -308,7 +308,8 @@ public class NurseBabyGoal extends AdaptiveGoal {
         }
         double clamped = MathHelper.clamp(distanceSq, 0.0d, BRAKE_DISTANCE_SQ);
         double strength = 0.015d + (1.0d - (clamped / BRAKE_DISTANCE_SQ)) * 0.02d;
-        Vec3d push = fromBaby.normalize().multiply(strength);
+        double invLength = 1.0d / Math.sqrt(lengthSq);
+        Vec3d push = fromBaby.multiply(invLength * strength);
         mob.addVelocity(push.x, 0.0d, push.z);
         mob.velocityModified = true;
     }

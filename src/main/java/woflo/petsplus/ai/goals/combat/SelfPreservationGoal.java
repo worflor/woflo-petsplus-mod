@@ -158,7 +158,12 @@ public class SelfPreservationGoal extends AdaptiveGoal {
         if (threat != null) {
             Vec3d mobPos = new Vec3d(mob.getX(), mob.getY(), mob.getZ());
             Vec3d threatPos = new Vec3d(threat.getX(), threat.getY(), threat.getZ());
-            Vec3d awayFromThreat = mobPos.subtract(threatPos).normalize();
+            Vec3d delta = mobPos.subtract(threatPos);
+            double lengthSq = delta.lengthSquared();
+            if (lengthSq < 1.0E-6d) {
+                return;
+            }
+            Vec3d awayFromThreat = delta.multiply(1.0d / Math.sqrt(lengthSq));
             Vec3d backupTarget = mobPos.add(awayFromThreat.multiply(2.0));
 
             // Move backward slowly
@@ -272,15 +277,21 @@ public class SelfPreservationGoal extends AdaptiveGoal {
         Vec3d threatPos = threat != null ? new Vec3d(threat.getX(), threat.getY(), threat.getZ()) : currentPos;
 
         // Calculate direction away from threat
-        Vec3d awayFromThreat = currentPos.subtract(threatPos).normalize();
-
-        if (awayFromThreat.lengthSquared() < 0.01) {
+        Vec3d awayFromThreat = currentPos.subtract(threatPos);
+        double awayLengthSq = awayFromThreat.lengthSquared();
+        if (awayLengthSq >= 1.0E-4d) {
+            awayFromThreat = awayFromThreat.multiply(1.0d / Math.sqrt(awayLengthSq));
+        } else {
             // If too close to threat, pick a random direction
-            awayFromThreat = new Vec3d(
+            Vec3d randomDirection = new Vec3d(
                 mob.getRandom().nextDouble() * 2 - 1,
                 0,
                 mob.getRandom().nextDouble() * 2 - 1
-            ).normalize();
+            );
+            double randomLengthSq = randomDirection.lengthSquared();
+            awayFromThreat = randomLengthSq >= 1.0E-4d
+                ? randomDirection.multiply(1.0d / Math.sqrt(randomLengthSq))
+                : Vec3d.ZERO;
         }
         
         // Find a safe position at retreat distance

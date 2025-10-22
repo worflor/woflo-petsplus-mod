@@ -2449,7 +2449,8 @@ public class CombatEventHandler {
             return ownerPos;
         }
         double step = MathHelper.clamp(distance * 0.5d, 1.5d, 3.5d);
-        return ownerPos.add(direction.normalize().multiply(step));
+        double scale = step / distance;
+        return ownerPos.add(direction.multiply(scale));
     }
 
     private static boolean isChainTargetViable(MobEntity pet, MobEntity candidate, PetComponent petComponent,
@@ -2820,8 +2821,9 @@ public class CombatEventHandler {
             Vec3d hazardCenter = damageSource.getPosition();
             if (hazardCenter != null) {
                 Vec3d away = new Vec3d(pet.getX() - hazardCenter.x, 0.0d, pet.getZ() - hazardCenter.z);
-                if (away.lengthSquared() > 1.0E-4d) {
-                    return away.normalize();
+                double awayLengthSq = away.lengthSquared();
+                if (awayLengthSq > 1.0E-4d) {
+                    return away.multiply(1.0d / Math.sqrt(awayLengthSq));
                 }
             }
         }
@@ -2856,8 +2858,9 @@ public class CombatEventHandler {
 
         if (closestHazard != null) {
             Vec3d away = new Vec3d(pet.getX() - closestHazard.x, 0.0d, pet.getZ() - closestHazard.z);
-            if (away.lengthSquared() > 1.0E-4d) {
-                return away.normalize();
+            double awayLengthSq = away.lengthSquared();
+            if (awayLengthSq > 1.0E-4d) {
+                return away.multiply(1.0d / Math.sqrt(awayLengthSq));
             }
         }
 
@@ -3044,9 +3047,11 @@ public class CombatEventHandler {
             double lengthSq = retreatVector.lengthSquared();
             if (lengthSq < 1.0E-4d) {
                 retreatVector = new Vec3d(1.0d, 0.0d, 0.0d);
+                lengthSq = retreatVector.lengthSquared();
             }
 
-            Vec3d normalized = retreatVector.normalize();
+            double invLength = 1.0 / Math.sqrt(lengthSq);
+            Vec3d normalized = retreatVector.multiply(invLength);
             if (Math.abs(variance.lateralBias()) > 0.01f) {
                 Vec3d lateral = new Vec3d(-normalized.z, 0.0d, normalized.x);
                 double lateralMix = variance.lateralBias() * MathHelper.lerp(retreatVariance, 0.05f, 0.4f);

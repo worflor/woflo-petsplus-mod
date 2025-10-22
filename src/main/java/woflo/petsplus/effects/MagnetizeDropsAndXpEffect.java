@@ -184,29 +184,35 @@ public class MagnetizeDropsAndXpEffect implements Effect {
 
     private static void magnetizeToPlayer(ItemEntity item, PlayerEntity player) {
         Vec3d toPlayer = player.getEntityPos().subtract(item.getEntityPos());
-        if (toPlayer.lengthSquared() == 0) {
+        double lengthSq = toPlayer.lengthSquared();
+        if (lengthSq < 1.0e-8d) {
             return;
         }
-        Vec3d velocity = toPlayer.normalize().multiply(0.1); // Gentle pull
+        double invLength = 1.0d / Math.sqrt(lengthSq);
+        Vec3d velocity = toPlayer.multiply(invLength * 0.1d); // Gentle pull
         item.setVelocity(velocity);
     }
 
     private static void magnetizeToEntity(ItemEntity item, MobEntity entity) {
         Vec3d target = entity.getEntityPos().add(0.0, entity.getStandingEyeHeight() * 0.3, 0.0);
         Vec3d toEntity = target.subtract(item.getEntityPos());
-        if (toEntity.lengthSquared() == 0) {
+        double lengthSq = toEntity.lengthSquared();
+        if (lengthSq < 1.0e-8d) {
             return;
         }
-        Vec3d velocity = toEntity.normalize().multiply(0.1);
+        double invLength = 1.0d / Math.sqrt(lengthSq);
+        Vec3d velocity = toEntity.multiply(invLength * 0.1d);
         item.setVelocity(velocity);
     }
 
     private static void magnetizeToPlayer(ExperienceOrbEntity orb, PlayerEntity player) {
         Vec3d toPlayer = player.getEntityPos().subtract(orb.getEntityPos());
-        if (toPlayer.lengthSquared() == 0) {
+        double lengthSq = toPlayer.lengthSquared();
+        if (lengthSq < 1.0e-8d) {
             return;
         }
-        Vec3d velocity = toPlayer.normalize().multiply(0.15); // Slightly faster pull for XP
+        double invLength = 1.0d / Math.sqrt(lengthSq);
+        Vec3d velocity = toPlayer.multiply(invLength * 0.15d); // Slightly faster pull for XP
         orb.setVelocity(velocity);
     }
 

@@ -193,7 +193,8 @@ public class SkyriderGustUpwardsEffect implements Effect {
             return Vec3d.ZERO;
         }
 
-        horizontal = horizontal.normalize();
+        double invLength = 1.0 / Math.sqrt(lengthSq);
+        horizontal = horizontal.multiply(invLength);
         if (addExtraDrift) {
             magnitude *= 1.2;
         }

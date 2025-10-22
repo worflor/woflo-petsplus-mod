@@ -22,6 +22,7 @@ public final class PetTargetingUtil {
     // Configuration constants
     private static final double COMMAND_RAYCAST_DISTANCE = 16.0;
     private static final double COMMAND_RAYCAST_THRESHOLD = 0.85; // Dot product threshold for alignment
+    private static final double COMMAND_RAYCAST_THRESHOLD_SQ = COMMAND_RAYCAST_THRESHOLD * COMMAND_RAYCAST_THRESHOLD;
     private static final double PROXIMITY_FALLBACK_DISTANCE = 10.0;
     
     private PetTargetingUtil() {
@@ -109,8 +110,13 @@ public final class PetTargetingUtil {
                 continue; // Too close to calculate direction
             }
             
-            double alignment = toEntity.normalize().dotProduct(lookVec);
-            if (alignment < COMMAND_RAYCAST_THRESHOLD) {
+            double dot = toEntity.dotProduct(lookVec);
+            if (dot <= 0.0) {
+                continue;
+            }
+
+            double alignmentSq = dot * dot;
+            if (alignmentSq < COMMAND_RAYCAST_THRESHOLD_SQ * lengthSq) {
                 continue; // Not looking at this pet
             }
             

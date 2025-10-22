@@ -207,6 +207,8 @@ public final class EmotionsEventHandler {
     private static final double LEASH_FORWARD_DELTA_THRESHOLD = 0.045d;
     private static final double LEASH_STILL_SPEED_SQ = 0.0025d;
     private static final double LEASH_STILL_FORWARD = 0.02d;
+    private static final double OWNER_LOOK_ALIGNMENT_THRESHOLD_SQ = 0.64d;
+    private static final double OWNER_LOOK_ALIGNMENT_EPSILON = 1.0E-8d;
 
     private static final Set<Block> WABI_SABI_BLOCKS = Set.of(
         Blocks.MOSSY_COBBLESTONE,
@@ -3553,8 +3555,11 @@ private record WeatherState(boolean raining, boolean thundering) {}
                                                    EmotionStimulusBus.SimpleStimulusCollector collector) {
         double distanceToOwner = pet.squaredDistanceTo(owner);
         Vec3d ownerLookDir = owner.getRotationVec(1.0f);
-        Vec3d petToPet = pet.getEntityPos().subtract(owner.getEntityPos()).normalize();
-        double lookAlignment = ownerLookDir.dotProduct(petToPet);
+        Vec3d toPet = pet.getEntityPos().subtract(owner.getEntityPos());
+        double dotToPet = ownerLookDir.dotProduct(toPet);
+        boolean ownerLookingAtPet = distanceToOwner >= OWNER_LOOK_ALIGNMENT_EPSILON
+            && dotToPet > 0.0d
+            && (dotToPet * dotToPet) > OWNER_LOOK_ALIGNMENT_THRESHOLD_SQ * distanceToOwner;
         long now = world.getTime();
         boolean currentlyFar = distanceToOwner > 50 * 50;
         if (currentlyFar) {
@@ -3562,7 +3567,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
         }
 
         // Owner looking directly at pet - awareness and attention
-        if (distanceToOwner < 64 && lookAlignment > 0.8) { // Owner looking at pet
+        if (distanceToOwner < 64 && ownerLookingAtPet) { // Owner looking at pet
             collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.30f); // Increased cozy attention
             collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.18f); // Warm eye contact
             collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.14f); // Shared moment with owner
@@ -3617,25 +3622,29 @@ private record WeatherState(boolean raining, boolean thundering) {}
             long leashNow = world.getTime();
             long lastLeashTick = pc.getStateData(STATE_LAST_LEASH_SOCIAL_TICK, Long.class, Long.MIN_VALUE);
             long sinceLastLeashCue = lastLeashTick == Long.MIN_VALUE ? Long.MAX_VALUE : leashNow - lastLeashTick;
-            double leashDistance = Math.sqrt(Math.max(distanceToOwner, 0.0d));
+            double leashDistanceSq = Math.max(distanceToOwner, 0.0d);
+            double leashDistance = Math.sqrt(leashDistanceSq);
             Vec3d ownerVelocity = owner.getVelocity();
             Vec3d petVelocity = pet.getVelocity();
             Vec3d leashVector = pet.getEntityPos().subtract(owner.getEntityPos());
-            Vec3d leashDir = leashVector.lengthSquared() > 1.0E-6 ? leashVector.normalize() : Vec3d.ZERO;
-            Vec3d leashDirHorizontal = new Vec3d(leashDir.x, 0.0d, leashDir.z);
-            if (leashDirHorizontal.lengthSquared() > 1.0E-6) {
-                leashDirHorizontal = leashDirHorizontal.normalize();
+            Vec3d leashDir = leashDistanceSq > 1.0E-6 ? leashVector.multiply(1.0 / leashDistance) : Vec3d.ZERO;
+            double horizontalLenSq = leashDir.x * leashDir.x + leashDir.z * leashDir.z;
+            double horizNormX = 0.0d;
+            double horizNormZ = 0.0d;
+            if (horizontalLenSq > 1.0E-6) {
+                double invHorizontal = 1.0 / Math.sqrt(horizontalLenSq);
+                horizNormX = leashDir.x * invHorizontal;
+                horizNormZ = leashDir.z * invHorizontal;
             }
-            Vec3d ownerHorizontalVelocity = new Vec3d(ownerVelocity.x, 0.0d, ownerVelocity.z);
-            Vec3d petHorizontalVelocity = new Vec3d(petVelocity.x, 0.0d, petVelocity.z);
-            double ownerForwardSpeed = leashDirHorizontal.lengthSquared() > 1.0E-6
-                ? ownerHorizontalVelocity.dotProduct(leashDirHorizontal)
+            boolean hasHorizontalDir = horizontalLenSq > 1.0E-6;
+            double ownerForwardSpeed = hasHorizontalDir
+                ? ownerVelocity.x * horizNormX + ownerVelocity.z * horizNormZ
                 : 0.0d;
-            double petForwardSpeed = leashDirHorizontal.lengthSquared() > 1.0E-6
-                ? petHorizontalVelocity.dotProduct(leashDirHorizontal)
+            double petForwardSpeed = hasHorizontalDir
+                ? petVelocity.x * horizNormX + petVelocity.z * horizNormZ
                 : 0.0d;
-            double ownerSpeedSq = ownerHorizontalVelocity.lengthSquared();
-            double petSpeedSq = petHorizontalVelocity.lengthSquared();
+            double ownerSpeedSq = ownerVelocity.x * ownerVelocity.x + ownerVelocity.z * ownerVelocity.z;
+            double petSpeedSq = petVelocity.x * petVelocity.x + petVelocity.z * petVelocity.z;
             LeashMood lastMood = LeashMood.fromStoredName(pc.getStateData(STATE_LAST_LEASH_MODE, String.class, ""));
             LeashMood pendingMood = LeashMood.fromStoredName(pc.getStateData(STATE_LEASH_PENDING_MODE, String.class, ""));
             long pendingSince = pc.getStateData(STATE_LEASH_PENDING_SINCE, Long.class, Long.MIN_VALUE);
@@ -4269,8 +4278,8 @@ private record WeatherState(boolean raining, boolean thundering) {}
             // This is handled in combat emotions
         } else if (pet instanceof AbstractHorseEntity horse) {
             // Horses - love to roam and explore
-            Vec3d velocity = horse.getVelocity();
-            if (velocity.length() > 0.3) {  // Galloping
+            double speedSq = horse.getVelocity().lengthSquared();
+            if (speedSq > 0.09d) {  // Galloping
                 collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.20f);  // Love of far places
                 collector.pushEmotion(PetComponent.Emotion.KEFI, 0.15f);  // Joy of movement
             }

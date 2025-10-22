@@ -76,7 +76,7 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
         }
 
         // Must be idle and not moving
-        if (!mob.getNavigation().isIdle() || mob.getVelocity().horizontalLength() > 0.1) {
+        if (!mob.getNavigation().isIdle() || mob.getVelocity().horizontalLengthSquared() > 0.01) {
             return false;
         }
         
@@ -279,12 +279,14 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
     private Vec3d findNearbySunlightAround(net.minecraft.util.math.BlockPos origin, int range, boolean allowOrigin) {
         var world = mob.getEntityWorld();
 
+        int rangeSq = range * range;
         for (int x = -range; x <= range; x++) {
             for (int z = -range; z <= range; z++) {
                 if (!allowOrigin && x == 0 && z == 0) {
                     continue;
                 }
-                if (MathHelper.sqrt((float) (x * x + z * z)) > range) continue;
+                int distSq = x * x + z * z;
+                if (distSq > rangeSq) continue;
                 net.minecraft.util.math.BlockPos groundPos = origin.add(x, 0, z);
                 net.minecraft.util.math.BlockPos airPos = groundPos.up();
 

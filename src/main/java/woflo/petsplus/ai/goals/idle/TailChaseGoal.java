@@ -36,7 +36,7 @@ public class TailChaseGoal extends AdaptiveGoal {
             return false;
         }
         // Only start when truly idle (not moving, not in combat)
-        return mob.getNavigation().isIdle() && mob.getVelocity().horizontalLength() < 0.1;
+        return mob.getNavigation().isIdle() && mob.getVelocity().horizontalLengthSquared() < 0.01;
     }
     
     @Override

@@ -21,8 +21,10 @@ import java.util.EnumSet;
 public class ParallelPlayGoal extends AdaptiveGoal {
     private static final int MAX_PARALLEL_TICKS = 400; // 20 seconds
     private static final double COMFORTABLE_DISTANCE = 5.0;
+    private static final double RESELECT_DISTANCE_SQ = (COMFORTABLE_DISTANCE + 2.5d) * (COMFORTABLE_DISTANCE + 2.5d);
     private static final String COOLDOWN_KEY = "parallel_play";
     private static final double LOOK_THRESHOLD = 0.2d;
+    private static final double LOOK_THRESHOLD_SQ = LOOK_THRESHOLD * LOOK_THRESHOLD;
     private static final int MAX_OWNER_FOCUS_GRACE = 40;
     private static final int PLAY_TRACKING_INTERVAL = 100; // Track every 5 seconds
 
@@ -158,9 +160,11 @@ public class ParallelPlayGoal extends AdaptiveGoal {
                         double width = Math.max(0.3d, mob.getWidth());
                         double laneMag = Math.min(0.35d, 0.25d * width);
                         Vec3d toTarget = playSpot.subtract(mob.getEntityPos());
-                        double lenSq = toTarget.lengthSquared();
-                        if (lenSq > 1.0e-4d) {
-                            Vec3d perp = new Vec3d(-toTarget.z, 0.0, toTarget.x).normalize().multiply(laneMag * laneSign);
+                        double horizontalSq = toTarget.x * toTarget.x + toTarget.z * toTarget.z;
+                        if (horizontalSq > 1.0e-8d) {
+                            double invHorizontal = 1.0d / Math.sqrt(horizontalSq);
+                            Vec3d perp = new Vec3d(-toTarget.z * invHorizontal, 0.0, toTarget.x * invHorizontal)
+                                .multiply(laneMag * laneSign);
                             moveTarget = moveTarget.add(perp);
                         }
                     }
@@ -193,7 +197,7 @@ public class ParallelPlayGoal extends AdaptiveGoal {
             }
         }
 
-        if (playSpot != null && owner.squaredDistanceTo(playSpot.x, playSpot.y, playSpot.z) > Math.pow(COMFORTABLE_DISTANCE + 2.5d, 2)) {
+        if (playSpot != null && owner.squaredDistanceTo(playSpot.x, playSpot.y, playSpot.z) > RESELECT_DISTANCE_SQ) {
             playSpot = selectPlaySpot(owner);
             performingPlay = false;
         }
@@ -300,13 +304,20 @@ public class ParallelPlayGoal extends AdaptiveGoal {
 
     private boolean isOwnerEngaged(PlayerEntity owner) {
         Vec3d ownerEye = owner.getCameraPosVec(1.0f);
-        Vec3d ownerLook = owner.getRotationVec(1.0f).normalize();
-        Vec3d toPet = mob.getEntityPos().add(0.0, mob.getStandingEyeHeight(), 0.0).subtract(ownerEye).normalize();
-        double dot = ownerLook.dotProduct(toPet);
-        if (!Double.isFinite(dot)) {
-            return false;
+        Vec3d ownerLook = owner.getRotationVec(1.0f);
+        Vec3d toPet = mob.getEntityPos().add(0.0, mob.getStandingEyeHeight(), 0.0).subtract(ownerEye);
+        double distanceSq = toPet.lengthSquared();
+        double proximitySq = mob.squaredDistanceTo(owner);
+        if (!Double.isFinite(distanceSq) || distanceSq < 1.0e-6d) {
+            return proximitySq < 6.0d;
         }
-        return dot >= LOOK_THRESHOLD || mob.squaredDistanceTo(owner) < 6.0d;
+
+        double dot = ownerLook.dotProduct(toPet);
+        if (!Double.isFinite(dot) || dot <= 0.0d) {
+            return proximitySq < 6.0d;
+        }
+
+        return (dot * dot) >= (LOOK_THRESHOLD_SQ * distanceSq) || proximitySq < 6.0d;
     }
     
     @Override

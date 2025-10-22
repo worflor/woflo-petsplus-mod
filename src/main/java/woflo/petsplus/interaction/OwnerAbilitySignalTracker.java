@@ -26,6 +26,7 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
     private static final long DOUBLE_CROUCH_WINDOW_TICKS = 12;
     private static final double DOUBLE_CROUCH_MAX_DISTANCE = 16.0;
     private static final double DOUBLE_CROUCH_ALIGNMENT_THRESHOLD = 0.97;
+    private static final double DOUBLE_CROUCH_ALIGNMENT_THRESHOLD_SQ = DOUBLE_CROUCH_ALIGNMENT_THRESHOLD * DOUBLE_CROUCH_ALIGNMENT_THRESHOLD;
     private static final double PROXIMITY_RANGE = 3.0;
     private static final double PROXIMITY_RANGE_SQ = PROXIMITY_RANGE * PROXIMITY_RANGE;
     private static final int PROXIMITY_DURATION_TICKS = 30;
@@ -131,8 +132,13 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
                 continue;
             }
 
-            double alignment = toEntity.normalize().dotProduct(lookVec);
-            if (alignment < DOUBLE_CROUCH_ALIGNMENT_THRESHOLD) {
+            double dot = toEntity.dotProduct(lookVec);
+            if (dot <= 0.0) {
+                continue;
+            }
+
+            double alignmentSq = dot * dot;
+            if (alignmentSq < DOUBLE_CROUCH_ALIGNMENT_THRESHOLD_SQ * lengthSq) {
                 continue;
             }
 
@@ -480,8 +486,13 @@ public final class OwnerAbilitySignalTracker implements PlayerTickListener {
             return true;
         }
 
-        double alignment = toEntity.normalize().dotProduct(lookVec);
-        if (alignment < DOUBLE_CROUCH_ALIGNMENT_THRESHOLD) {
+        double dot = toEntity.dotProduct(lookVec);
+        if (dot <= 0.0) {
+            return false;
+        }
+
+        double alignmentSq = dot * dot;
+        if (alignmentSq < DOUBLE_CROUCH_ALIGNMENT_THRESHOLD_SQ * lengthSq) {
             return false;
         }
 
