@@ -257,11 +257,7 @@ public class StateManager {
         // Use a dedicated executor with daemon threads that won't block JVM shutdown
         java.util.concurrent.ExecutorService shutdownExecutor = java.util.concurrent.Executors.newFixedThreadPool(
                 Math.min(managers.size(), Runtime.getRuntime().availableProcessors()),
-                runnable -> {
-                    Thread thread = new Thread(runnable, "PetsPlus-StateManager-Shutdown");
-                    thread.setDaemon(true);
-                    return thread;
-                }
+                Thread.ofVirtual().name("PetsPlus-StateManager-Shutdown-", 1).factory()
         );
 
         try {

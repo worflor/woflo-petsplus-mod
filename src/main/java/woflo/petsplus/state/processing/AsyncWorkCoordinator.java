@@ -33,7 +33,6 @@ import woflo.petsplus.state.processing.AsyncProcessingTelemetry;
  */
 public final class AsyncWorkCoordinator implements AutoCloseable {
     private static final int MAX_IDLE_SECONDS = 30;
-    private static final AtomicLong THREAD_COUNTER = new AtomicLong();
     private static final AtomicLong TASK_SEQUENCE = new AtomicLong();
 
     private final DoubleSupplier loadFactorSupplier;
@@ -85,13 +84,7 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
     }
 
     private ExecutorService createExecutor(int threads) {
-        ThreadFactory factory = runnable -> {
-            Thread thread = new Thread(runnable);
-            thread.setName("PetsPlus-Async-" + THREAD_COUNTER.incrementAndGet());
-            thread.setDaemon(true);
-            thread.setPriority(Thread.NORM_PRIORITY - 1);
-            return thread;
-        };
+        ThreadFactory factory = Thread.ofVirtual().name("PetsPlus-Async-", 1).factory();
         ThreadPoolExecutor pool = new ThreadPoolExecutor(
             threads,
             threads,
@@ -159,7 +152,8 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
                              Runnable delegate,
                              SlotReservation reservation,
                              CompletableFuture<?> completion) {
-        return new TrackedTask(priority == null ? AsyncJobPriority.NORMAL : priority,
+        return new TrackedTask(this,
+            priority == null ? AsyncJobPriority.NORMAL : priority,
             TASK_SEQUENCE.incrementAndGet(), delegate, reservation, completion);
     }
 
@@ -496,7 +490,7 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
     }
 
     private static final class SlotReservation implements AutoCloseable {
-        private final AsyncWorkerBudget.Registration registration;
+        private final @Nullable AsyncWorkerBudget.Registration registration;
         private final AtomicBoolean released = new AtomicBoolean();
 
         private SlotReservation(@Nullable AsyncWorkerBudget.Registration registration) {
@@ -516,24 +510,28 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
         T run(OwnerBatchSnapshot snapshot) throws Exception;
     }
 
-    private final class TrackedTask implements Runnable, Comparable<TrackedTask> {
+    private static final class TrackedTask implements Runnable, Comparable<TrackedTask> {
+        private final AsyncWorkCoordinator owner;
         private final AsyncJobPriority priority;
         private final long sequence;
         private final Runnable delegate;
         private final SlotReservation reservation;
         private final CompletableFuture<?> completion;
-        private final AtomicBoolean cancelled = new AtomicBoolean();
+        private final AtomicBoolean cancelled;
 
-        private TrackedTask(AsyncJobPriority priority,
+        private TrackedTask(AsyncWorkCoordinator owner,
+                            @Nullable AsyncJobPriority priority,
                             long sequence,
                             Runnable delegate,
                             SlotReservation reservation,
                             CompletableFuture<?> completion) {
+            this.owner = Objects.requireNonNull(owner, "owner");
             this.priority = priority == null ? AsyncJobPriority.NORMAL : priority;
             this.sequence = sequence;
-            this.delegate = delegate;
-            this.reservation = reservation;
-            this.completion = completion;
+            this.delegate = Objects.requireNonNull(delegate, "delegate");
+            this.reservation = Objects.requireNonNull(reservation, "reservation");
+            this.completion = Objects.requireNonNull(completion, "completion");
+            this.cancelled = new AtomicBoolean();
         }
 
         @Override
@@ -553,16 +551,16 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
             return Long.compare(this.sequence, other.sequence);
         }
 
-        private void cancel(Throwable cause) {
+        private void cancel(@Nullable Throwable cause) {
             if (!cancelled.compareAndSet(false, true)) {
                 return;
             }
             try {
                 reservation.close();
             } finally {
-                activeJobs.decrementAndGet();
-                telemetry.recordActiveJobs(activeJobs.get());
-                telemetry.recordRejectedSubmission();
+                owner.activeJobs.decrementAndGet();
+                owner.telemetry.recordActiveJobs(owner.activeJobs.get());
+                owner.telemetry.recordRejectedSubmission();
                 AsyncProcessingTelemetry.TASKS_DROPPED.incrementAndGet();
                 if (cause == null) {
                     cause = new RejectedExecutionException("Async task cancelled");
