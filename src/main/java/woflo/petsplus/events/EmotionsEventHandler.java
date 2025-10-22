@@ -207,6 +207,8 @@ public final class EmotionsEventHandler {
     private static final double LEASH_FORWARD_DELTA_THRESHOLD = 0.045d;
     private static final double LEASH_STILL_SPEED_SQ = 0.0025d;
     private static final double LEASH_STILL_FORWARD = 0.02d;
+    private static final double OWNER_LOOK_ALIGNMENT_THRESHOLD_SQ = 0.64d;
+    private static final double OWNER_LOOK_ALIGNMENT_EPSILON = 1.0E-8d;
 
     private static final Set<Block> WABI_SABI_BLOCKS = Set.of(
         Blocks.MOSSY_COBBLESTONE,
@@ -3553,8 +3555,11 @@ private record WeatherState(boolean raining, boolean thundering) {}
                                                    EmotionStimulusBus.SimpleStimulusCollector collector) {
         double distanceToOwner = pet.squaredDistanceTo(owner);
         Vec3d ownerLookDir = owner.getRotationVec(1.0f);
-        Vec3d petToPet = pet.getEntityPos().subtract(owner.getEntityPos()).normalize();
-        double lookAlignment = ownerLookDir.dotProduct(petToPet);
+        Vec3d toPet = pet.getEntityPos().subtract(owner.getEntityPos());
+        double dotToPet = ownerLookDir.dotProduct(toPet);
+        boolean ownerLookingAtPet = distanceToOwner >= OWNER_LOOK_ALIGNMENT_EPSILON
+            && dotToPet > 0.0d
+            && (dotToPet * dotToPet) > OWNER_LOOK_ALIGNMENT_THRESHOLD_SQ * distanceToOwner;
         long now = world.getTime();
         boolean currentlyFar = distanceToOwner > 50 * 50;
         if (currentlyFar) {
@@ -3562,7 +3567,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
         }
 
         // Owner looking directly at pet - awareness and attention
-        if (distanceToOwner < 64 && lookAlignment > 0.8) { // Owner looking at pet
+        if (distanceToOwner < 64 && ownerLookingAtPet) { // Owner looking at pet
             collector.pushEmotion(PetComponent.Emotion.SOBREMESA, 0.30f); // Increased cozy attention
             collector.pushEmotion(PetComponent.Emotion.QUERECIA, 0.18f); // Warm eye contact
             collector.pushEmotion(PetComponent.Emotion.UBUNTU, 0.14f); // Shared moment with owner

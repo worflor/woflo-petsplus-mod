@@ -2821,8 +2821,9 @@ public class CombatEventHandler {
             Vec3d hazardCenter = damageSource.getPosition();
             if (hazardCenter != null) {
                 Vec3d away = new Vec3d(pet.getX() - hazardCenter.x, 0.0d, pet.getZ() - hazardCenter.z);
-                if (away.lengthSquared() > 1.0E-4d) {
-                    return away.normalize();
+                double awayLengthSq = away.lengthSquared();
+                if (awayLengthSq > 1.0E-4d) {
+                    return away.multiply(1.0d / Math.sqrt(awayLengthSq));
                 }
             }
         }
@@ -2857,8 +2858,9 @@ public class CombatEventHandler {
 
         if (closestHazard != null) {
             Vec3d away = new Vec3d(pet.getX() - closestHazard.x, 0.0d, pet.getZ() - closestHazard.z);
-            if (away.lengthSquared() > 1.0E-4d) {
-                return away.normalize();
+            double awayLengthSq = away.lengthSquared();
+            if (awayLengthSq > 1.0E-4d) {
+                return away.multiply(1.0d / Math.sqrt(awayLengthSq));
             }
         }
 
