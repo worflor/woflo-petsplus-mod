@@ -46,7 +46,7 @@ public class MobCapabilities {
     }
 
     private static boolean usesWaterNavigation(EntityNavigation navigation) {
-        return navigation instanceof SwimNavigation || navigation instanceof AmphibiousPathNavigation;
+        return navigation instanceof SwimNavigation || navigation instanceof AmphibiousSwimNavigation;
     }
     
     /**
