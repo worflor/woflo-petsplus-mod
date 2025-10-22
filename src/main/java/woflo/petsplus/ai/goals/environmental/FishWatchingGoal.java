@@ -206,9 +206,11 @@ public class FishWatchingGoal extends AdaptiveGoal {
             Vec3d fishPos = new Vec3d(targetFish.getX(), targetFish.getY(), targetFish.getZ());
             Vec3d mobPos = new Vec3d(mob.getX(), mob.getY(), mob.getZ());
             Vec3d toFish = fishPos.subtract(mobPos);
-            Vec3d dir = new Vec3d(toFish.x, 0, toFish.z).normalize();
-            if (dir.lengthSquared() > 1.0e-4) {
-                Vec3d step = new Vec3d(mob.getX(), mob.getY(), mob.getZ()).add(dir.multiply(0.5));
+            double horizontalSq = toFish.x * toFish.x + toFish.z * toFish.z;
+            if (horizontalSq > 1.0e-8d) {
+                double invHorizontal = 1.0d / Math.sqrt(horizontalSq);
+                Vec3d dir = new Vec3d(toFish.x * invHorizontal, 0.0, toFish.z * invHorizontal);
+                Vec3d step = mobPos.add(dir.multiply(0.5));
                 // Navigation/pathing should be server-side only
                 if (mob.getEntityWorld() instanceof ServerWorld && mob.getNavigation().isIdle()) {
                     mob.getNavigation().startMovingTo(step.x, step.y, step.z, 0.6);

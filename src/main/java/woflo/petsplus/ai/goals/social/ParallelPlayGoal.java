@@ -160,9 +160,11 @@ public class ParallelPlayGoal extends AdaptiveGoal {
                         double width = Math.max(0.3d, mob.getWidth());
                         double laneMag = Math.min(0.35d, 0.25d * width);
                         Vec3d toTarget = playSpot.subtract(mob.getEntityPos());
-                        double lenSq = toTarget.lengthSquared();
-                        if (lenSq > 1.0e-4d) {
-                            Vec3d perp = new Vec3d(-toTarget.z, 0.0, toTarget.x).normalize().multiply(laneMag * laneSign);
+                        double horizontalSq = toTarget.x * toTarget.x + toTarget.z * toTarget.z;
+                        if (horizontalSq > 1.0e-8d) {
+                            double invHorizontal = 1.0d / Math.sqrt(horizontalSq);
+                            Vec3d perp = new Vec3d(-toTarget.z * invHorizontal, 0.0, toTarget.x * invHorizontal)
+                                .multiply(laneMag * laneSign);
                             moveTarget = moveTarget.add(perp);
                         }
                     }
