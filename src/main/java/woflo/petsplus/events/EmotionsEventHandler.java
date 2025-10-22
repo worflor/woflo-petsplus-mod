@@ -4278,8 +4278,8 @@ private record WeatherState(boolean raining, boolean thundering) {}
             // This is handled in combat emotions
         } else if (pet instanceof AbstractHorseEntity horse) {
             // Horses - love to roam and explore
-            Vec3d velocity = horse.getVelocity();
-            if (velocity.length() > 0.3) {  // Galloping
+            double speedSq = horse.getVelocity().lengthSquared();
+            if (speedSq > 0.09d) {  // Galloping
                 collector.pushEmotion(PetComponent.Emotion.FERNWEH, 0.20f);  // Love of far places
                 collector.pushEmotion(PetComponent.Emotion.KEFI, 0.15f);  // Joy of movement
             }

@@ -178,8 +178,8 @@ public final class EnchantmentResonanceArcEffect implements Effect {
 
     private void spawnArcParticles(ServerWorld world, Vec3d from, Vec3d to) {
         Vec3d direction = to.subtract(from);
-        double distance = direction.length();
-        if (distance < 0.1) {
+        double distanceSq = direction.lengthSquared();
+        if (distanceSq < 0.01d) {
             return;
         }
 

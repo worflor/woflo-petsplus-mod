@@ -76,7 +76,7 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
         }
 
         // Must be idle and not moving
-        if (!mob.getNavigation().isIdle() || mob.getVelocity().horizontalLength() > 0.1) {
+        if (!mob.getNavigation().isIdle() || mob.getVelocity().horizontalLengthSquared() > 0.01) {
             return false;
         }
         
