@@ -8,13 +8,14 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.world.World;
 import woflo.petsplus.ai.context.PetContext;
+import woflo.petsplus.ai.context.perception.ContextSlice;
 import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.suggester.signal.DesirabilitySignal;
 import woflo.petsplus.ai.suggester.signal.SignalResult;
 
-import java.util.Map;
 import java.util.Set;
+import java.util.EnumSet;
 
 /**
  * Bogged threat proximity probe.
@@ -95,14 +96,16 @@ public final class BoggedThreatSignal implements DesirabilitySignal {
             }
             if (e.getType() == boggedType) {
                 float v = 1.32f; // within 1.25–1.35; slightly defensive bias
-                return new SignalResult(v, v, Map.of(
-                    "matched", boggedId.toString(),
-                    "pos", e.getBlockPos().toShortString()
-                ));
+                return new SignalResult(v, v, "bogged_threat_nearby");
             }
         }
 
         return SignalResult.identity();
+    }
+
+    @Override
+    public EnumSet<ContextSlice> observedSlices(GoalDefinition goal) {
+        return EnumSet.of(ContextSlice.ENVIRONMENT, ContextSlice.CROWD, ContextSlice.HISTORY);
     }
 
     private static boolean isDefensiveGoal(GoalDefinition goal) {

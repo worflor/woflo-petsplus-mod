@@ -8,13 +8,14 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import woflo.petsplus.ai.context.PetContext;
+import woflo.petsplus.ai.context.perception.ContextSlice;
 import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.suggester.signal.DesirabilitySignal;
 import woflo.petsplus.ai.suggester.signal.SignalResult;
 
-import java.util.Map;
 import java.util.Set;
+import java.util.EnumSet;
 
 /**
  * Breeze threat proximity probe.
@@ -106,14 +107,16 @@ public final class BreezeThreatSignal implements DesirabilitySignal {
             }
             if (e.getType() == breezeType) {
                 float v = 1.30f; // modest boost within 1.25x–1.35x
-                return new SignalResult(v, v, Map.of(
-                    "matched", breezeId.toString(),
-                    "pos", e.getBlockPos().toShortString()
-                ));
+                return new SignalResult(v, v, "breeze_threat_nearby");
             }
         }
 
         return SignalResult.identity();
+    }
+
+    @Override
+    public EnumSet<ContextSlice> observedSlices(GoalDefinition goal) {
+        return EnumSet.of(ContextSlice.ENVIRONMENT, ContextSlice.CROWD, ContextSlice.HISTORY);
     }
 
     private static boolean isDefensiveGoal(GoalDefinition goal) {

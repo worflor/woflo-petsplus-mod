@@ -9,6 +9,7 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.ai.context.PetContext;
+import woflo.petsplus.ai.context.perception.ContextSlice;
 import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.goals.social.BedtimeCompanionGoal;
@@ -17,8 +18,8 @@ import woflo.petsplus.ai.suggester.signal.SignalResult;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.EnumSet;
+
 
 public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
     private static final Identifier ID = Identifier.of("petsplus", "desirability/environment");
@@ -33,7 +34,6 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
     @Override
     public SignalResult evaluate(GoalDefinition goal, PetContext ctx) {
         float modifier = 1.0f;
-        Map<String, Object> trace = new HashMap<>();
         MobEntity mob = ctx.mob();
         PetComponent component = ctx.component();
 
@@ -47,7 +47,6 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
                 if (goal.category() == GoalDefinition.Category.WANDER || goal.category() == GoalDefinition.Category.PLAY) {
                     if (mobShelteredDry) {
                         modifier *= 3.0f; // ZOOM!
-                        trace.put("zoomies_boost", 3.0f);
                     }
                 }
             } else if (zoomiesUntil != null) {
@@ -79,15 +78,11 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
                 }
                 float boost = MathHelper.clamp(bondWeight * socialWeight, 0.35f, 3.85f);
                 modifier *= boost;
-                trace.put("owner_sleeping_companion", boost);
-                trace.put("snuggle_affinity", affinity);
             } else {
                 if (goal.category() == GoalDefinition.Category.PLAY) {
                     modifier *= 0.55f;
-                    trace.put("owner_sleeping_play", 0.55f);
                 } else if (goal.category() == GoalDefinition.Category.WANDER) {
                     modifier *= 0.7f;
-                    trace.put("owner_sleeping_wander", 0.7f);
                 }
             }
         }
@@ -96,7 +91,7 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
             if (isNight) {
                 modifier *= 3.0f;
             } else {
-                return new SignalResult(0.0f, 0.0f, Map.of("reason", "daytime"));
+                return new SignalResult(0.0f, 0.0f, "daytime");
             }
         }
 
@@ -168,7 +163,6 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
                 }
                 wanderMultiplier = MathHelper.clamp(wanderMultiplier, 0.2f, 1.25f);
                 modifier *= wanderMultiplier;
-                trace.put("rain_wander", wanderMultiplier);
             }
 
             if (goal.category() == GoalDefinition.Category.PLAY) {
@@ -186,7 +180,6 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
                 }
                 playMultiplier = MathHelper.clamp(playMultiplier, 0.25f, 1.4f);
                 modifier *= playMultiplier;
-                trace.put("rain_play", playMultiplier);
             }
 
             if (isGoal(goal, GoalIds.LEAN_AGAINST_OWNER)
@@ -204,7 +197,6 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
                 }
                 closenessMultiplier = MathHelper.clamp(closenessMultiplier, 0.45f, 2.2f);
                 modifier *= closenessMultiplier;
-                trace.put("rain_closeness", closenessMultiplier);
             }
 
             if (isGoal(goal, GoalIds.WATER_SPLASH) || isGoal(goal, GoalIds.BUBBLE_PLAY) || isGoal(goal, GoalIds.PUDDLE_PAW)) {
@@ -219,7 +211,6 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
                 }
                 splashMultiplier = MathHelper.clamp(splashMultiplier, 0.3f, 1.8f);
                 modifier *= splashMultiplier;
-                trace.put("rain_splash", splashMultiplier);
             }
 
             if (isGoal(goal, GoalIds.SIT_SPHINX_POSE) || isGoal(goal, GoalIds.CIRCLE_SPOT) || isGoal(goal, GoalIds.HEARTH_SETTLE)) {
@@ -235,37 +226,25 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
                 }
                 shelterMultiplier = MathHelper.clamp(shelterMultiplier, 0.6f, 1.95f);
                 modifier *= shelterMultiplier;
-                trace.put("rain_shelter", shelterMultiplier);
             }
 
             if (shelterWatcher && isGoal(goal, GoalIds.PERK_EARS_SCAN)) {
                 float watchMultiplier = 1.25f + 0.2f * (1.0f - socialCharge);
                 watchMultiplier = MathHelper.clamp(watchMultiplier, 0.75f, 1.8f);
                 modifier *= watchMultiplier;
-                trace.put("rain_watch_owner", watchMultiplier);
             }
             
             if (isFeline && mobShelteredDry && isGoal(goal, GoalIds.PUDDLE_PAW) && isNearPuddle(mob)) {
                 if (mob.getRandom().nextFloat() < 0.15f) { // 15% chance
                     modifier *= 2.0f; // High desire when it triggers
-                    trace.put("curious_cat_puddle", 2.0f);
                 }
             }
 
-            trace.put("ownerWet", ownerWet);
-            trace.put("ownerExposed", ownerExposed);
-            trace.put("ownerSubmerged", ownerSubmerged);
-            trace.put("petWet", mobWet);
-            trace.put("petShelteredDry", mobShelteredDry);
-            trace.put("relaxDryFocus", relaxDryFocus);
-            trace.put("reinforceDryFocus", reinforceDryFocus);
-            trace.put("shelterWatcher", shelterWatcher);
         }
 
         if (wasRecentlyWet(ctx) && mobShelteredDry) {
             if (isGoal(goal, GoalIds.HEARTH_SETTLE) || isGoal(goal, GoalIds.LEAN_AGAINST_OWNER)) {
                 modifier *= 1.8f; // Strong desire for warmth
-                trace.put("seeking_warmth", 1.8f);
             }
         }
 
@@ -348,8 +327,20 @@ public class EnvironmentDesirabilitySignal implements DesirabilitySignal {
             }
         }
 
-        trace.put("finalMultiplier", modifier);
-        return new SignalResult(modifier, modifier, trace);
+        return new SignalResult(modifier, modifier, null);
+    }
+
+    @Override
+    public EnumSet<ContextSlice> observedSlices(GoalDefinition goal) {
+        return EnumSet.of(
+            ContextSlice.ENVIRONMENT,
+            ContextSlice.WORLD,
+            ContextSlice.OWNER,
+            ContextSlice.ENERGY,
+            ContextSlice.MOOD,
+            ContextSlice.EMOTIONS,
+            ContextSlice.STATE_DATA
+        );
     }
 
     private boolean wasRecentlyWet(PetContext ctx) {

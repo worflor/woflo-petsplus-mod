@@ -3,11 +3,12 @@ package woflo.petsplus.ai.suggester.signal.feasibility;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.ai.context.PetContext;
+import woflo.petsplus.ai.context.perception.ContextSlice;
 import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.suggester.signal.FeasibilitySignal;
 import woflo.petsplus.ai.suggester.signal.SignalResult;
 
-import java.util.Map;
+import java.util.EnumSet;
 
 public class MobStateFeasibilitySignal implements FeasibilitySignal {
     private static final Identifier ID = Identifier.of("petsplus", "feasibility/mob_state");
@@ -29,6 +30,11 @@ public class MobStateFeasibilitySignal implements FeasibilitySignal {
             modifier *= 0.3f;
         }
 
-        return new SignalResult(modifier, modifier, Map.of());
+        return new SignalResult(modifier, modifier, null);
+    }
+
+    @Override
+    public EnumSet<ContextSlice> observedSlices(GoalDefinition goal) {
+        return EnumSet.of(ContextSlice.STATE_DATA, ContextSlice.LOD);
     }
 }
