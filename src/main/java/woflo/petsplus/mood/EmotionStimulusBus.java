@@ -1,5 +1,6 @@
 package woflo.petsplus.mood;
 
+import woflo.petsplus.Petsplus;
 import woflo.petsplus.config.DebugSettings;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
@@ -19,7 +20,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import net.minecraft.util.Identifier;
@@ -43,6 +43,8 @@ public final class EmotionStimulusBus {
     private final List<QueueListener> queueListeners = new CopyOnWriteArrayList<>();
     private final List<IdleListener> idleListeners = new CopyOnWriteArrayList<>();
     private ScheduledExecutorService idleExecutor;
+    private static final Thread.UncaughtExceptionHandler IDLE_EXECUTOR_EXCEPTION_HANDLER = (thread, throwable) ->
+        Petsplus.LOGGER.error("Uncaught exception in mood idle executor thread {}", thread.getName(), throwable);
 
     private EmotionStimulusBus() {
         this.moodService = MoodService.getInstance();
@@ -402,8 +404,12 @@ public final class EmotionStimulusBus {
             if (idleExecutor instanceof ScheduledThreadPoolExecutor executor && !executor.isShutdown()) {
                 return executor;
             }
-            ThreadFactory factory = Thread.ofVirtual().name("PetsPlus-MoodIdle-", 1).factory();
-            ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, factory);
+            ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1,
+                Thread.ofPlatform()
+                    .daemon(true)
+                    .name("PetsPlus-MoodIdle-", 1)
+                    .uncaughtExceptionHandler(IDLE_EXECUTOR_EXCEPTION_HANDLER)
+                    .factory());
             executor.setRemoveOnCancelPolicy(true);
             executor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
             executor.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);

@@ -15,6 +15,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
+import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.state.PetComponent;
@@ -27,7 +28,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.jetbrains.annotations.Nullable;
@@ -45,15 +45,21 @@ public class FeedbackManager {
     private static final AtomicBoolean IS_SHUTTING_DOWN = new AtomicBoolean(false);
     private static final Object EXECUTOR_LOCK = new Object();
     private static ScheduledThreadPoolExecutor feedbackExecutor = createExecutor();
+    private static final Thread.UncaughtExceptionHandler FEEDBACK_EXCEPTION_HANDLER = (thread, throwable) ->
+        Petsplus.LOGGER.error("Uncaught exception in feedback executor thread {}", thread.getName(), throwable);
 
     // Static initialization block with shutdown hook registration
     static {
-        Runtime.getRuntime().addShutdownHook(Thread.ofVirtual().name("PetsPlus-FeedbackShutdownHook").unstarted(FeedbackManager::cleanup));
+        Runtime.getRuntime().addShutdownHook(Thread.ofPlatform().name("PetsPlus-FeedbackShutdownHook").unstarted(FeedbackManager::cleanup));
     }
 
     private static ScheduledThreadPoolExecutor createExecutor() {
-        ThreadFactory factory = Thread.ofVirtual().name("PetsPlus-Feedback-", 1).factory();
-        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, factory);
+        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1,
+            Thread.ofPlatform()
+                .daemon(true)
+                .name("PetsPlus-Feedback-", 1)
+                .uncaughtExceptionHandler(FEEDBACK_EXCEPTION_HANDLER)
+                .factory());
         executor.setRemoveOnCancelPolicy(true);
         executor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         executor.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
