@@ -78,11 +78,8 @@ final class OwnerProcessingGroup {
                     continue;
                 }
 
-                tasks.removeIf(task -> task == null || task.component() == component);
-                if (entry.getKey() == PetWorkScheduler.TaskType.MOOD_PROVIDER) {
-                    moodTaskOffset = Math.min(moodTaskOffset, tasks.size());
-                }
-                if (tasks.isEmpty()) {
+                boolean emptied = pruneTasksForComponent(tasks, entry.getKey(), component);
+                if (emptied) {
                     PooledTaskLists.recycle(tasks);
                     iterator.remove();
                     if (entry.getKey() == PetWorkScheduler.TaskType.MOOD_PROVIDER) {
@@ -91,6 +88,37 @@ final class OwnerProcessingGroup {
                 }
             }
         }
+    }
+
+    private boolean pruneTasksForComponent(List<PetWorkScheduler.ScheduledTask> tasks,
+                                           PetWorkScheduler.TaskType type,
+                                           PetComponent component) {
+        if (tasks == null || tasks.isEmpty()) {
+            return true;
+        }
+        if (type == PetWorkScheduler.TaskType.MOOD_PROVIDER) {
+            int removedBeforeOffset = 0;
+            for (int i = 0; i < tasks.size();) {
+                PetWorkScheduler.ScheduledTask task = tasks.get(i);
+                if (task == null || task.component() == component) {
+                    if (i < moodTaskOffset) {
+                        removedBeforeOffset++;
+                    }
+                    tasks.remove(i);
+                    continue;
+                }
+                i++;
+            }
+            if (removedBeforeOffset > 0) {
+                moodTaskOffset = Math.max(0, moodTaskOffset - removedBeforeOffset);
+            }
+            if (moodTaskOffset > tasks.size()) {
+                moodTaskOffset = tasks.size();
+            }
+            return tasks.isEmpty();
+        }
+        tasks.removeIf(task -> task == null || task.component() == component);
+        return tasks.isEmpty();
     }
 
     boolean isEmpty() {
