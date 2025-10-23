@@ -383,6 +383,13 @@ public class GoalSuggester {
                 onEntryInvalidated(entry);
                 return;
             }
+            if (entry == bestEntry) {
+                if (entry.score() < entry.previousScore()) {
+                    bestEntry = null;
+                    bestEntry();
+                }
+                return;
+            }
             if (bestEntry == null || entry.score() >= bestEntry.score()) {
                 bestEntry = entry;
             }
@@ -432,6 +439,7 @@ public class GoalSuggester {
             private int cadenceJitter;
             private Suggestion suggestion;
             private float score;
+            private float previousScore;
             private long expiresAtTick;
             private long nextEvaluationTick;
             private long lastEvaluatedTick;
@@ -451,6 +459,7 @@ public class GoalSuggester {
                 this.cadenceJitter = cadence.jitterOffset(entrySeed);
                 this.suggestion = null;
                 this.score = 0.0f;
+                this.previousScore = 0.0f;
                 this.expiresAtTick = Long.MIN_VALUE;
                 this.nextEvaluationTick = Long.MIN_VALUE;
                 this.lastEvaluatedTick = Long.MIN_VALUE;
@@ -499,6 +508,7 @@ public class GoalSuggester {
 
             void update(Suggestion suggestion, long tick) {
                 this.suggestion = suggestion;
+                this.previousScore = this.score;
                 this.score = suggestion.score();
                 this.lastEvaluatedTick = tick;
                 this.expiresAtTick = cadence.expiryTick(tick);
@@ -509,6 +519,7 @@ public class GoalSuggester {
 
             void invalidate(long tick) {
                 this.suggestion = null;
+                this.previousScore = this.score;
                 this.score = 0.0f;
                 this.lastEvaluatedTick = tick;
                 this.expiresAtTick = cadence.expiryTick(tick);
@@ -547,6 +558,10 @@ public class GoalSuggester {
 
             float score() {
                 return score;
+            }
+
+            float previousScore() {
+                return previousScore;
             }
 
             private static long computeEntrySeed(GoalDefinition definition, long jitterSeed) {
