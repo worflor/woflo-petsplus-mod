@@ -18,12 +18,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
+import java.util.Objects;
 
 /**
  * Central dispatcher that batches emotion stimuli per pet and commits them on the
@@ -37,7 +38,7 @@ public final class EmotionStimulusBus {
     private final Object lock = new Object();
     private final Map<MobEntity, StimulusWork> pendingStimuli = new IdentityHashMap<>();
     private final ArrayDeque<StimulusWork> workPool = new ArrayDeque<>();
-    private final Map<MobEntity, ScheduledFuture<?>> idleTasks = new IdentityHashMap<>();
+    private final Map<MobEntity, IdleDrainHandle> idleTasks = new IdentityHashMap<>();
     private final List<DispatchListener> dispatchListeners = new CopyOnWriteArrayList<>();
     private final List<QueueListener> queueListeners = new CopyOnWriteArrayList<>();
     private final List<IdleListener> idleListeners = new CopyOnWriteArrayList<>();
@@ -279,17 +280,17 @@ public final class EmotionStimulusBus {
     }
 
     public void cancelPendingIdleTasks() {
-        List<ScheduledFuture<?>> futures;
+        List<IdleDrainHandle> handles;
         synchronized (lock) {
             if (idleTasks.isEmpty()) {
                 return;
             }
-            futures = new ArrayList<>(idleTasks.values());
+            handles = new ArrayList<>(idleTasks.values());
             idleTasks.clear();
         }
-        for (ScheduledFuture<?> future : futures) {
-            if (future != null) {
-                future.cancel(false);
+        for (IdleDrainHandle handle : handles) {
+            if (handle != null) {
+                handle.cancel();
             }
         }
     }
@@ -308,6 +309,11 @@ public final class EmotionStimulusBus {
         }
         if (executor != null) {
             executor.shutdownNow();
+            try {
+                executor.awaitTermination(100, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -374,6 +380,7 @@ public final class EmotionStimulusBus {
         }
         if (!accepted) {
             ScheduledExecutorService executor = ensureIdleExecutor();
+            final ScheduledFuture<?>[] futureHolder = new ScheduledFuture<?>[1];
             ScheduledFuture<?> future = executor.schedule(() -> {
                 MinecraftServer server = world != null ? world.getServer()
                     : pet.getEntityWorld() instanceof ServerWorld petWorld ? petWorld.getServer() : null;
@@ -382,44 +389,53 @@ public final class EmotionStimulusBus {
                 } else {
                     drainStimuli(pet);
                 }
-                clearIdleTask(pet);
+                clearIdleTask(pet, futureHolder[0]);
             }, 50L, TimeUnit.MILLISECONDS);
-            registerIdleTask(pet, future);
+            futureHolder[0] = future;
+            registerIdleTask(pet, tick, future);
         }
         work.markIdleScheduled();
     }
 
     private ScheduledExecutorService ensureIdleExecutor() {
         synchronized (lock) {
-            if (idleExecutor != null && !idleExecutor.isShutdown()) {
-                return idleExecutor;
+            if (idleExecutor instanceof ScheduledThreadPoolExecutor executor && !executor.isShutdown()) {
+                return executor;
             }
-            ThreadFactory factory = runnable -> {
-                Thread thread = new Thread(runnable, "PetsPlus-MoodIdle");
-                thread.setDaemon(true);
-                thread.setPriority(Thread.NORM_PRIORITY - 1);
-                return thread;
-            };
-            idleExecutor = Executors.newSingleThreadScheduledExecutor(factory);
-            return idleExecutor;
+            ThreadFactory factory = Thread.ofVirtual().name("PetsPlus-MoodIdle-", 1).factory();
+            ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, factory);
+            executor.setRemoveOnCancelPolicy(true);
+            executor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+            executor.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+            idleExecutor = executor;
+            return executor;
         }
     }
 
-    private void registerIdleTask(MobEntity pet, ScheduledFuture<?> future) {
+    private void registerIdleTask(MobEntity pet, long tick, ScheduledFuture<?> future) {
         synchronized (lock) {
-            ScheduledFuture<?> prior = idleTasks.put(pet, future);
+            IdleDrainHandle prior = idleTasks.put(pet, new IdleDrainHandle(tick, future));
             if (prior != null) {
-                prior.cancel(false);
+                prior.cancel();
             }
         }
     }
 
     private void clearIdleTask(MobEntity pet) {
+        clearIdleTask(pet, null);
+    }
+
+    private void clearIdleTask(MobEntity pet, @Nullable ScheduledFuture<?> expected) {
         synchronized (lock) {
-            ScheduledFuture<?> prior = idleTasks.remove(pet);
-            if (prior != null) {
-                prior.cancel(false);
+            IdleDrainHandle handle = idleTasks.get(pet);
+            if (handle == null) {
+                return;
             }
+            if (expected != null && handle.future() != expected) {
+                return;
+            }
+            idleTasks.remove(pet);
+            handle.cancel();
         }
     }
 
@@ -535,6 +551,30 @@ public final class EmotionStimulusBus {
         }
         synchronized (lock) {
             workPool.addLast(work);
+        }
+    }
+
+    private static final class IdleDrainHandle {
+        private final long scheduledTick;
+        private final ScheduledFuture<?> future;
+
+        private IdleDrainHandle(long scheduledTick, ScheduledFuture<?> future) {
+            this.scheduledTick = scheduledTick;
+            this.future = Objects.requireNonNull(future, "future");
+        }
+
+        private long scheduledTick() {
+            return scheduledTick;
+        }
+
+        private ScheduledFuture<?> future() {
+            return future;
+        }
+
+        private void cancel() {
+            if (!future.isDone()) {
+                future.cancel(false);
+            }
         }
     }
 

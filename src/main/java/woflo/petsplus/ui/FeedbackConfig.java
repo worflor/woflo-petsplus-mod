@@ -6,7 +6,6 @@ import net.minecraft.particle.ParticleTypes;
 import net.minecraft.sound.SoundEvent;
 import net.minecraft.sound.SoundEvents;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -18,91 +17,35 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class FeedbackConfig {
 
-    public static class FeedbackEffect {
-        public final List<ParticleConfig> particles;
-        public final AudioConfig audio;
-        public final int delayTicks;
-        public final boolean serverSide;
-
-        public FeedbackEffect(List<ParticleConfig> particles, AudioConfig audio, int delayTicks, boolean serverSide) {
-            this.particles = particles;
-            this.audio = audio;
-            this.delayTicks = delayTicks;
-            this.serverSide = serverSide;
+    public record FeedbackEffect(List<ParticleConfig> particles,
+                                 AudioConfig audio,
+                                 int delayTicks,
+                                 boolean serverSide) {
+        public FeedbackEffect {
+            particles = particles == null ? List.of() : List.copyOf(particles);
         }
     }
 
-    public static class ParticleConfig {
-        public final ParticleEffect type;
-        public final int count;
-        public final double offsetX, offsetY, offsetZ;
-        public final double speed;
-        public final String pattern; // "circle", "line", "burst", "area", "spiral"
-        public final double radius;
-        public final boolean adaptToEntitySize;
-        public final boolean performanceScaled; // New field for adaptive particle counts
+    public record ParticleConfig(ParticleEffect type,
+                                 int count,
+                                 double offsetX,
+                                 double offsetY,
+                                 double offsetZ,
+                                 double speed,
+                                 String pattern,
+                                 double radius,
+                                 boolean adaptToEntitySize) { }
 
-        public ParticleConfig(ParticleEffect type, int count, double offsetX, double offsetY, double offsetZ,
-                            double speed, String pattern, double radius, boolean adaptToEntitySize) {
-            this(type, count, offsetX, offsetY, offsetZ, speed, pattern, radius, adaptToEntitySize, true);
-        }
-        
-        public ParticleConfig(ParticleEffect type, int count, double offsetX, double offsetY, double offsetZ,
-                            double speed, String pattern, double radius, boolean adaptToEntitySize, boolean performanceScaled) {
-            this.type = type;
-            this.count = count;
-            this.offsetX = offsetX;
-            this.offsetY = offsetY;
-            this.offsetZ = offsetZ;
-            this.speed = speed;
-            this.pattern = pattern;
-            this.radius = radius;
-            this.adaptToEntitySize = adaptToEntitySize;
-            this.performanceScaled = performanceScaled;
-        }
-        
-        /**
-         * Gets the performance-adjusted particle count based on system performance
-         */
-        public int getAdjustedCount() {
-            if (!performanceScaled) return count;
-            
-            // Simple performance scaling - could be enhanced with actual performance metrics
-            float performanceFactor = getPerformanceFactor();
-            return Math.max(1, Math.round(count * performanceFactor));
-        }
-        
-        private float getPerformanceFactor() {
-            // Default implementation - could be enhanced to monitor actual performance
-            // Returns a value between 0.5f and 1.0f based on system load
-            return 0.8f; // Conservative default
-        }
-    }
-
-    public static class AudioConfig {
-        public final SoundEvent sound;
-        public final float volume;
-        public final float pitch;
-        public final double radius;
-
-        public AudioConfig(SoundEvent sound, float volume, float pitch, double radius) {
-            this.sound = sound;
-            this.volume = volume;
-            this.pitch = pitch;
-            this.radius = radius;
-        }
-    }
+    public record AudioConfig(SoundEvent sound,
+                              float volume,
+                              float pitch,
+                              double radius) { }
 
     // Performance and memory optimization fields
     private static volatile boolean initialized = false;
     private static volatile boolean initializing = false;
     private static final ReentrantLock initLock = new ReentrantLock();
     private static final Map<String, FeedbackEffect> FEEDBACK_REGISTRY = new ConcurrentHashMap<>();
-    private static final Map<String, List<ParticleConfig>> PATTERN_CACHE = new ConcurrentHashMap<>();
-    
-    // Performance scaling configuration
-    private static volatile float globalPerformanceFactor = 1.0f;
-    private static volatile boolean performanceModeEnabled = true;
 
     /**
      * Ensures the configuration is initialized using double-checked locking pattern
@@ -133,7 +76,6 @@ public class FeedbackConfig {
         initLock.lock();
         try {
             FEEDBACK_REGISTRY.clear();
-            PATTERN_CACHE.clear();
             initialized = false;
         } finally {
             initLock.unlock();
@@ -148,38 +90,6 @@ public class FeedbackConfig {
         ensureInitialized();
     }
     
-    /**
-     * Sets the global performance factor for particle scaling
-     */
-    public static void setGlobalPerformanceFactor(float factor) {
-        globalPerformanceFactor = Math.max(0.1f, Math.min(1.0f, factor));
-    }
-    
-    /**
-     * Gets the current global performance factor
-     */
-    public static float getGlobalPerformanceFactor() {
-        return globalPerformanceFactor;
-    }
-    
-    /**
-     * Enables or disables performance mode
-     */
-    public static void setPerformanceModeEnabled(boolean enabled) {
-        performanceModeEnabled = enabled;
-    }
-    
-    /**
-     * Gets the cached particle pattern or creates a new one
-     */
-    private static List<ParticleConfig> getCachedPattern(String patternKey) {
-        return PATTERN_CACHE.computeIfAbsent(patternKey, k -> {
-            // Pattern creation logic would go here
-            // For now, return an empty list as placeholder
-            return List.of();
-        });
-    }
-
     private static void initializeDefaultEffects() {
         // Role identification particles (passive)
         registerRoleParticles();
