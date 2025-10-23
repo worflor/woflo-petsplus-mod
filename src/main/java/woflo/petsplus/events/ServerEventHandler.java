@@ -37,7 +37,7 @@ public class ServerEventHandler {
         Petsplus.LOGGER.info("PetsPlus: Server starting - initializing state managers");
         StateManager.onServerStarting();
         // State managers will be initialized lazily when worlds are accessed
-        PlayerTickListeners.registerAll();
+        // Player tick listeners are registered once during mod init
     }
 
     private static void onServerStopping(MinecraftServer server) {
@@ -67,8 +67,7 @@ public class ServerEventHandler {
 
         // Ensure all dispatcher-managed listeners release their per-player state.
         server.getPlayerManager().getPlayerList().forEach(PlayerTickDispatcher::clearPlayer);
-        PlayerTickDispatcher.clearAll();
-        
+
         // Properly shutdown all state managers to close async coordinators
         StateManager.unloadAll();
 

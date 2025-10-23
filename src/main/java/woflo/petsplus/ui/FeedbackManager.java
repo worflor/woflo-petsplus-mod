@@ -44,22 +44,33 @@ public class FeedbackManager {
     private static final Set<ScheduledFuture<?>> PENDING_TASKS = ConcurrentHashMap.newKeySet();
     private static final AtomicBoolean IS_SHUTTING_DOWN = new AtomicBoolean(false);
     private static final Object EXECUTOR_LOCK = new Object();
-    private static ScheduledThreadPoolExecutor feedbackExecutor = createExecutor();
+    // Define handler first to avoid any static-init ordering surprises
     private static final Thread.UncaughtExceptionHandler FEEDBACK_EXCEPTION_HANDLER = (thread, throwable) ->
         Petsplus.LOGGER.error("Uncaught exception in feedback executor thread {}", thread.getName(), throwable);
+    private static ScheduledThreadPoolExecutor feedbackExecutor = null; // initialized lazily
 
     // Static initialization block with shutdown hook registration
     static {
-        Runtime.getRuntime().addShutdownHook(Thread.ofPlatform().name("PetsPlus-FeedbackShutdownHook").unstarted(FeedbackManager::cleanup));
+        try {
+            // Avoid preview Thread Builders to prevent NPEs during class init on server thread
+            Thread shutdown = new Thread(FeedbackManager::cleanup, "PetsPlus-FeedbackShutdownHook");
+            shutdown.setDaemon(true);
+            Runtime.getRuntime().addShutdownHook(shutdown);
+        } catch (Throwable t) {
+            // Last-resort fallback: log and continue without hook
+            Petsplus.LOGGER.warn("Failed to register feedback shutdown hook", t);
+        }
     }
 
     private static ScheduledThreadPoolExecutor createExecutor() {
-        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1,
-            Thread.ofPlatform()
-                .daemon(true)
-                .name("PetsPlus-Feedback-", 1)
-                .uncaughtExceptionHandler(FEEDBACK_EXCEPTION_HANDLER)
-                .factory());
+        // Use basic ThreadFactory to avoid PlatformThreadBuilder initialization issues on some JVMs/contexts
+        java.util.concurrent.ThreadFactory factory = r -> {
+            Thread t = new Thread(r, "PetsPlus-Feedback-1");
+            t.setDaemon(true);
+            t.setUncaughtExceptionHandler(FEEDBACK_EXCEPTION_HANDLER);
+            return t;
+        };
+        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, factory);
         executor.setRemoveOnCancelPolicy(true);
         executor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         executor.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
