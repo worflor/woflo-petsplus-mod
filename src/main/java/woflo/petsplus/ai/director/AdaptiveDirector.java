@@ -6,7 +6,7 @@ import woflo.petsplus.ai.planner.DeterministicPlanner;
 import woflo.petsplus.ai.planner.PlanResolution;
 import woflo.petsplus.ai.suggester.GoalSuggester;
 
-import java.util.List;
+import java.util.Optional;
 
 /**
  * Lightweight director that picks the top suggestion and resolves a plan for it.
@@ -23,13 +23,13 @@ public final class AdaptiveDirector {
     }
 
     public DirectorDecision decide(MobEntity mob, PetContext context) {
-        List<GoalSuggester.Suggestion> suggestions = suggester.suggest(context);
-        if (suggestions.isEmpty()) {
+        Optional<GoalSuggester.Suggestion> suggestion = suggester.suggestBest(context);
+        if (suggestion.isEmpty()) {
             lastDecision = new DirectorDecision(null, null, context.worldTime());
             return lastDecision;
         }
 
-        GoalSuggester.Suggestion best = suggestions.get(0);
+        GoalSuggester.Suggestion best = suggestion.get();
         PlanResolution resolution = planner.resolvePlanWithContext(best.definition(), context).orElse(null);
         lastDecision = new DirectorDecision(best, resolution, context.worldTime());
         return lastDecision;

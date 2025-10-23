@@ -4,12 +4,13 @@ import net.minecraft.util.Identifier;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.context.NearbyMobAgeProfile;
 import woflo.petsplus.ai.context.PetContextCrowdSummary;
+import woflo.petsplus.ai.context.perception.ContextSlice;
 import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.suggester.signal.FeasibilitySignal;
 import woflo.petsplus.ai.suggester.signal.SignalResult;
 
-import java.util.Map;
+import java.util.EnumSet;
 import java.util.Set;
 
 /**
@@ -47,28 +48,25 @@ public class SocialProximityFeasibilitySignal implements FeasibilitySignal {
                 hostileDistance = ageProfile.nearestBabyDistance();
             }
             if (Double.isFinite(hostileDistance) && hostileDistance <= 4.0d) {
-                return new SignalResult(0.0f, 0.0f, Map.of(
-                    "reason", "hostile_baby",
-                    "distance", hostileDistance
-                ));
+                return new SignalResult(0.0f, 0.0f, "hostile_baby_nearby");
             }
         }
 
         if (isOwnerCentric(goal)) {
             if (!ctx.ownerNearby()) {
-                return new SignalResult(0.0f, 0.0f, Map.of("reason", "owner_absent"));
+                return new SignalResult(0.0f, 0.0f, "owner_absent");
             }
 
             float distance = ctx.distanceToOwner();
             float applied = Math.max(0.2f, 1.0f - (distance / 16.0f));
-            return new SignalResult(applied, applied, Map.of("distance", distance));
+            return new SignalResult(applied, applied, null);
         }
 
         PetContextCrowdSummary summary = ctx.crowdSummary();
         int friendlyCount = summary != null ? summary.friendlyCount() : 0;
 
         if (friendlyCount <= 0) {
-            return new SignalResult(0.0f, 0.0f, Map.of("reason", "no_packmates"));
+            return new SignalResult(0.0f, 0.0f, "no_packmates");
         }
 
         double nearestFriendlyDistance = summary.nearestFriendlyDistance();
@@ -88,19 +86,15 @@ public class SocialProximityFeasibilitySignal implements FeasibilitySignal {
             safetyPenalty = 0.85f;
         }
 
-        return new SignalResult(
-            applied,
-            energy * safetyPenalty,
-            Map.of(
-                "friendly_count", friendlyCount,
-                "nearest_friendly_distance", distance,
-                "owner_present", ctx.ownerNearby(),
-                "baby_safety", safetyPenalty
-            )
-        );
+        return new SignalResult(applied, energy * safetyPenalty, null);
     }
 
     private static boolean isOwnerCentric(GoalDefinition goal) {
         return OWNER_CENTRIC_GOALS.contains(goal.id());
+    }
+
+    @Override
+    public EnumSet<ContextSlice> observedSlices(GoalDefinition goal) {
+        return EnumSet.of(ContextSlice.OWNER, ContextSlice.CROWD, ContextSlice.ENVIRONMENT);
     }
 }

@@ -3,14 +3,14 @@ package woflo.petsplus.ai.suggester.signal.desirability;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.ai.context.PetContext;
+import woflo.petsplus.ai.context.perception.ContextSlice;
 import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.suggester.signal.DesirabilitySignal;
 import woflo.petsplus.ai.suggester.signal.SignalResult;
 import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.EnumSet;
 
 public class EnergyDesirabilitySignal implements DesirabilitySignal {
     private static final Identifier ID = Identifier.of("petsplus", "desirability/energy");
@@ -28,7 +28,7 @@ public class EnergyDesirabilitySignal implements DesirabilitySignal {
         }
 
         if (!goal.isEnergyCompatible(profile)) {
-            return new SignalResult(0.0f, 0.0f, Map.of("reason", "energy_incompatible"));
+            return new SignalResult(0.0f, 0.0f, "energy_incompatible");
         }
 
         float momentum = profile.momentum();
@@ -98,13 +98,12 @@ public class EnergyDesirabilitySignal implements DesirabilitySignal {
             }
         }
 
-        Map<String, Object> trace = new HashMap<>();
-        trace.put("momentum", momentum);
-        trace.put("socialCharge", socialCharge);
-        trace.put("physicalStamina", physicalStamina);
-        trace.put("mentalFocus", mentalFocus);
-        trace.put("finalMultiplier", modifier);
-        return new SignalResult(modifier, modifier, trace);
+        return new SignalResult(modifier, modifier, null);
+    }
+
+    @Override
+    public EnumSet<ContextSlice> observedSlices(GoalDefinition goal) {
+        return EnumSet.of(ContextSlice.ENERGY);
     }
 
     private static boolean isGoal(GoalDefinition goal, Identifier id) {

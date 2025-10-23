@@ -7,13 +7,14 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import woflo.petsplus.ai.context.PetContext;
+import woflo.petsplus.ai.context.perception.ContextSlice;
 import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.suggester.signal.DesirabilitySignal;
 import woflo.petsplus.ai.suggester.signal.SignalResult;
 
-import java.util.Map;
 import java.util.Set;
+import java.util.EnumSet;
 
 /**
  * Minimal proximity probe around the pet for Trial Chamber feature blocks.
@@ -83,16 +84,18 @@ public final class TrialSpawnerAwarenessSignal implements DesirabilitySignal {
                     if (state.isIn(TRIAL_FEATURES)) {
                         // modest positive exploration desirability; respect stabilizers elsewhere
                         float v = 1.25f; // 0.20–0.35 additive ~ 1.2–1.35 multiplicative; use 1.25
-                        return new SignalResult(v, v, Map.of(
-                            "matched", "petsplus:natures/trial_chamber_features",
-                            "pos", mutable.toShortString()
-                        ));
+                        return new SignalResult(v, v, "trial_feature_nearby");
                     }
                 }
             }
         }
 
         return SignalResult.identity();
+    }
+
+    @Override
+    public EnumSet<ContextSlice> observedSlices(GoalDefinition goal) {
+        return EnumSet.of(ContextSlice.ENVIRONMENT, ContextSlice.HISTORY);
     }
 
     private static boolean isExplorationGoal(GoalDefinition goal) {

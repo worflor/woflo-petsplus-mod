@@ -2,12 +2,12 @@ package woflo.petsplus.ai.suggester.signal.desirability;
 
 import net.minecraft.util.Identifier;
 import woflo.petsplus.ai.context.PetContext;
+import woflo.petsplus.ai.context.perception.ContextSlice;
 import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.suggester.signal.DesirabilitySignal;
 import woflo.petsplus.ai.suggester.signal.SignalResult;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.EnumSet;
 
 public class VarietyDesirabilitySignal implements DesirabilitySignal {
     private static final Identifier ID = Identifier.of("petsplus", "desirability/variety");
@@ -49,10 +49,11 @@ public class VarietyDesirabilitySignal implements DesirabilitySignal {
             }
         }
 
-        Map<String, Object> trace = new HashMap<>();
-        trace.put("ticksSince", ticksSince);
-        trace.put("recent", ctx.recentGoals());
-        trace.put("finalMultiplier", modifier);
-        return new SignalResult(modifier, modifier, trace);
+        return new SignalResult(modifier, modifier, null);
+    }
+
+    @Override
+    public EnumSet<ContextSlice> observedSlices(GoalDefinition goal) {
+        return EnumSet.of(ContextSlice.HISTORY);
     }
 }
