@@ -37,6 +37,7 @@ final class OwnerProcessingGroup {
     private @Nullable ServerPlayerEntity lastKnownOwner;
     private long nextEventTick = Long.MAX_VALUE;
     private boolean pending;
+    private int moodTaskOffset;
 
     OwnerProcessingGroup(UUID ownerId) {
         this.ownerId = ownerId;
@@ -78,9 +79,15 @@ final class OwnerProcessingGroup {
                 }
 
                 tasks.removeIf(task -> task == null || task.component() == component);
+                if (entry.getKey() == PetWorkScheduler.TaskType.MOOD_PROVIDER) {
+                    moodTaskOffset = Math.min(moodTaskOffset, tasks.size());
+                }
                 if (tasks.isEmpty()) {
                     PooledTaskLists.recycle(tasks);
                     iterator.remove();
+                    if (entry.getKey() == PetWorkScheduler.TaskType.MOOD_PROVIDER) {
+                        moodTaskOffset = 0;
+                    }
                 }
             }
         }
@@ -109,6 +116,7 @@ final class OwnerProcessingGroup {
         lastPetRefreshTick = Long.MIN_VALUE;
         nextEventTick = Long.MAX_VALUE;
         pending = false;
+        moodTaskOffset = 0;
     }
 
     void beginTick(long currentTick) {
@@ -178,6 +186,9 @@ final class OwnerProcessingGroup {
         if (list == null) {
             list = PooledTaskLists.borrow();
             pendingTasks.put(task.type(), list);
+            if (task.type() == PetWorkScheduler.TaskType.MOOD_PROVIDER) {
+                moodTaskOffset = 0;
+            }
         }
         list.add(task);
     }
@@ -219,22 +230,36 @@ final class OwnerProcessingGroup {
                 if (remainingMoodBudget <= 0) {
                     continue;
                 }
-                int allowed = Math.min(remainingMoodBudget, tasks.size());
+                int size = tasks.size();
+                if (size <= moodTaskOffset) {
+                    moodTaskOffset = 0;
+                    iterator.remove();
+                    PooledTaskLists.recycle(tasks);
+                    continue;
+                }
+                int available = size - moodTaskOffset;
+                int allowed = Math.min(remainingMoodBudget, available);
                 if (allowed <= 0) {
                     continue;
                 }
                 List<PetWorkScheduler.ScheduledTask> dispatch = PooledTaskLists.borrow();
-                dispatch.addAll(tasks.subList(0, allowed));
-                tasks.subList(0, allowed).clear();
+                for (int i = 0; i < allowed; i++) {
+                    dispatch.add(tasks.get(moodTaskOffset + i));
+                }
+                moodTaskOffset += allowed;
                 if (dispatch.isEmpty()) {
                     PooledTaskLists.recycle(dispatch);
                 } else {
                     batch.addBucket(entry.getKey(), dispatch);
                     remainingMoodBudget -= allowed;
                 }
-                if (tasks.isEmpty()) {
+                if (moodTaskOffset >= size) {
                     iterator.remove();
                     PooledTaskLists.recycle(tasks);
+                    moodTaskOffset = 0;
+                } else if (moodTaskOffset >= 32 && moodTaskOffset >= size / 2) {
+                    tasks.subList(0, moodTaskOffset).clear();
+                    moodTaskOffset = 0;
                 }
                 continue;
             }

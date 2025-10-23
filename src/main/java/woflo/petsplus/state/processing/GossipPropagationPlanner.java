@@ -138,11 +138,15 @@ public final class GossipPropagationPlanner {
             return List.of();
         }
 
-        List<UUID> neighbors = new ArrayList<>();
+        NeighborBuffer neighbors = new NeighborBuffer(MAX_NEIGHBORS);
         double radiusSq = DEFAULT_RADIUS * DEFAULT_RADIUS;
 
         for (OwnerBatchSnapshot.PetSummary candidate : summariesById.values()) {
             if (candidate == storyteller || candidate.gossipOptedOut()) {
+                continue;
+            }
+            UUID candidateId = candidate.petUuid();
+            if (candidateId == null) {
                 continue;
             }
             double x = candidate.x();
@@ -158,35 +162,73 @@ public final class GossipPropagationPlanner {
             if (distanceSq > radiusSq) {
                 continue;
             }
-            neighbors.add(candidate.petUuid());
+            neighbors.insert(candidateId, distanceSq);
         }
 
-        if (neighbors.isEmpty()) {
-            return neighbors;
+        return neighbors.toList();
+    }
+
+    private static final class NeighborBuffer {
+        private final UUID[] ids;
+        private final double[] distances;
+        private int size;
+
+        NeighborBuffer(int capacity) {
+            if (capacity <= 0) {
+                this.ids = new UUID[0];
+                this.distances = new double[0];
+                return;
+            }
+            this.ids = new UUID[capacity];
+            this.distances = new double[capacity];
         }
 
-        neighbors.sort((a, b) -> compareDistance(a, b, summariesById, originX, originY, originZ));
-        return neighbors.size() > MAX_NEIGHBORS ? neighbors.subList(0, MAX_NEIGHBORS) : neighbors;
-    }
+        void insert(UUID id, double distanceSq) {
+            if (ids.length == 0) {
+                return;
+            }
 
-    private static int compareDistance(UUID leftId, UUID rightId,
-                                       Map<UUID, OwnerBatchSnapshot.PetSummary> summaries,
-                                       double originX, double originY, double originZ) {
-        OwnerBatchSnapshot.PetSummary left = summaries.get(leftId);
-        OwnerBatchSnapshot.PetSummary right = summaries.get(rightId);
-        double leftDistance = left == null ? Double.MAX_VALUE : distanceSquared(left, originX, originY, originZ);
-        double rightDistance = right == null ? Double.MAX_VALUE : distanceSquared(right, originX, originY, originZ);
-        return Double.compare(leftDistance, rightDistance);
-    }
+            int insertAt = size;
+            while (insertAt > 0 && distanceSq < distances[insertAt - 1]) {
+                insertAt--;
+            }
 
-    private static double distanceSquared(OwnerBatchSnapshot.PetSummary entry,
-                                           double originX,
-                                           double originY,
-                                           double originZ) {
-        double dx = entry.x() - originX;
-        double dy = entry.y() - originY;
-        double dz = entry.z() - originZ;
-        return (dx * dx) + (dy * dy) + (dz * dz);
+            if (size < ids.length) {
+                if (insertAt < size) {
+                    System.arraycopy(ids, insertAt, ids, insertAt + 1, size - insertAt);
+                    System.arraycopy(distances, insertAt, distances, insertAt + 1, size - insertAt);
+                }
+                ids[insertAt] = id;
+                distances[insertAt] = distanceSq;
+                size++;
+                return;
+            }
+
+            if (insertAt >= size) {
+                return;
+            }
+
+            if (insertAt < ids.length - 1) {
+                System.arraycopy(ids, insertAt, ids, insertAt + 1, (ids.length - insertAt - 1));
+                System.arraycopy(distances, insertAt, distances, insertAt + 1, (distances.length - insertAt - 1));
+            }
+            ids[insertAt] = id;
+            distances[insertAt] = distanceSq;
+        }
+
+        List<UUID> toList() {
+            if (size == 0) {
+                return List.of();
+            }
+            List<UUID> ordered = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                UUID id = ids[i];
+                if (id != null) {
+                    ordered.add(id);
+                }
+            }
+            return ordered.isEmpty() ? List.of() : List.copyOf(ordered);
+        }
     }
 
     private static List<Share> buildShares(List<UUID> neighbors,
@@ -221,9 +263,27 @@ public final class GossipPropagationPlanner {
         private final Map<UUID, List<Share>> transmissions;
 
         GossipPropagationPlan(Map<UUID, List<Share>> transmissions) {
-            this.transmissions = transmissions == null || transmissions.isEmpty()
+            if (transmissions == null || transmissions.isEmpty()) {
+                this.transmissions = Map.of();
+                return;
+            }
+
+            Map<UUID, List<Share>> immutableTransmissions = new HashMap<>(transmissions.size());
+            for (Map.Entry<UUID, List<Share>> entry : transmissions.entrySet()) {
+                UUID storytellerId = entry.getKey();
+                if (storytellerId == null) {
+                    continue;
+                }
+                List<Share> shares = entry.getValue();
+                if (shares == null || shares.isEmpty()) {
+                    continue;
+                }
+                immutableTransmissions.put(storytellerId, List.copyOf(shares));
+            }
+
+            this.transmissions = immutableTransmissions.isEmpty()
                 ? Map.of()
-                : Map.copyOf(transmissions);
+                : Map.copyOf(immutableTransmissions);
         }
 
         public static GossipPropagationPlan empty() {

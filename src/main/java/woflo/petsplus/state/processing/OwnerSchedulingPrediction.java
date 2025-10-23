@@ -14,12 +14,13 @@ import woflo.petsplus.state.coordination.PetWorkScheduler;
  * can be computed safely on a background worker.
  */
 public final class OwnerSchedulingPrediction {
-    private static final OwnerSchedulingPrediction EMPTY = new OwnerSchedulingPrediction(new EnumMap<>(OwnerEventType.class));
+    private static final OwnerSchedulingPrediction EMPTY = new OwnerSchedulingPrediction(Map.of());
 
-    private final EnumMap<OwnerEventType, Long> nextEventTicks;
+    private final Map<OwnerEventType, Long> nextEventTicks;
 
-    private OwnerSchedulingPrediction(EnumMap<OwnerEventType, Long> nextEventTicks) {
-        this.nextEventTicks = nextEventTicks;
+    private OwnerSchedulingPrediction(Map<OwnerEventType, Long> nextEventTicks) {
+        Objects.requireNonNull(nextEventTicks, "nextEventTicks");
+        this.nextEventTicks = nextEventTicks.isEmpty() ? Map.of() : Map.copyOf(nextEventTicks);
     }
 
     public boolean isEmpty() {
@@ -91,7 +92,7 @@ public final class OwnerSchedulingPrediction {
             return empty();
         }
 
-        return new OwnerSchedulingPrediction(new EnumMap<>(ticks));
+        return new OwnerSchedulingPrediction(ticks);
     }
 
     private static long clampFutureTick(long candidate, long baseline) {
