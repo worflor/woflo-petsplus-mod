@@ -255,9 +255,14 @@ public class StateManager {
 
         // Multiple managers - shut down in parallel to avoid sequential async waits
         // Use a dedicated executor with daemon threads that won't block JVM shutdown
-        java.util.concurrent.ExecutorService shutdownExecutor = java.util.concurrent.Executors.newFixedThreadPool(
+        ExecutorService shutdownExecutor = Executors.newFixedThreadPool(
                 Math.min(managers.size(), Runtime.getRuntime().availableProcessors()),
-                Thread.ofVirtual().name("PetsPlus-StateManager-Shutdown-", 1).factory()
+                Thread.ofPlatform()
+                    .daemon(true)
+                    .name("PetsPlus-StateManager-Shutdown-", 1)
+                    .uncaughtExceptionHandler((thread, throwable) ->
+                        Petsplus.LOGGER.error("Uncaught exception in state shutdown thread {}", thread.getName(), throwable))
+                    .factory()
         );
 
         try {

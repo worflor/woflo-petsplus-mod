@@ -9,7 +9,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -34,6 +33,8 @@ import woflo.petsplus.state.processing.AsyncProcessingTelemetry;
 public final class AsyncWorkCoordinator implements AutoCloseable {
     private static final int MAX_IDLE_SECONDS = 30;
     private static final AtomicLong TASK_SEQUENCE = new AtomicLong();
+    private static final Thread.UncaughtExceptionHandler ASYNC_EXCEPTION_HANDLER = (thread, throwable) ->
+        Petsplus.LOGGER.error("Uncaught exception in async work thread {}", thread.getName(), throwable);
 
     private final DoubleSupplier loadFactorSupplier;
     private final ExecutorService executor;
@@ -84,14 +85,17 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
     }
 
     private ExecutorService createExecutor(int threads) {
-        ThreadFactory factory = Thread.ofVirtual().name("PetsPlus-Async-", 1).factory();
         ThreadPoolExecutor pool = new ThreadPoolExecutor(
             threads,
             threads,
             MAX_IDLE_SECONDS,
             TimeUnit.SECONDS,
             new PriorityBlockingQueue<>(),
-            factory
+            Thread.ofPlatform()
+                .daemon(true)
+                .name("PetsPlus-Async-", 1)
+                .uncaughtExceptionHandler(ASYNC_EXCEPTION_HANDLER)
+                .factory()
         );
         pool.allowCoreThreadTimeOut(true);
         return pool;
