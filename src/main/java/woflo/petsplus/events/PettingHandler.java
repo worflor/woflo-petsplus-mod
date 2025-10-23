@@ -12,9 +12,9 @@ import net.minecraft.util.hit.EntityHitResult;
 import woflo.petsplus.Petsplus;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.Language;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
+import woflo.petsplus.api.registry.RoleIdentifierUtil;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.ui.FeedbackManager;
@@ -185,7 +185,7 @@ public class PettingHandler {
             FeedbackManager.emitFeedback(petting.feedbackEvent(), pet, world);
         }
 
-        Text message = resolveMessage(petting.message(), "Your companion seems content.");
+        Text message = RoleIdentifierUtil.resolveMessageText(petting.message(), "Your companion seems content.");
         if (!message.getString().isBlank()) {
             String cueId = "petting.role." + (roleId != null ? roleId.toString() : "default") + "." + pet.getUuidAsString();
             EmotionContextCues.sendCue(player, cueId, pet, message, 100);
@@ -262,26 +262,6 @@ public class PettingHandler {
         } else {
             return baseMessages[petCount % baseMessages.length];
         }
-    }
-
-    private static Text resolveMessage(PetRoleType.Message message, String fallback) {
-        if (message != null) {
-            String key = message.translationKey();
-            String fallbackText = message.fallback();
-            if (key != null && !key.isBlank()) {
-                if (Language.getInstance().hasTranslation(key)) {
-                    return Text.translatable(key);
-                }
-                if (fallbackText != null && !fallbackText.isBlank()) {
-                    return Text.literal(fallbackText);
-                }
-                return Text.translatable(key);
-            }
-            if (fallbackText != null && !fallbackText.isBlank()) {
-                return Text.literal(fallbackText);
-            }
-        }
-        return (fallback == null || fallback.isBlank()) ? Text.empty() : Text.literal(fallback);
     }
 
     /**

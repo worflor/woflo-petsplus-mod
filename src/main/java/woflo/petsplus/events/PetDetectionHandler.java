@@ -224,8 +224,8 @@ public class PetDetectionHandler {
 
         for (PetRoleType type : PetsPlusRegistries.petRoleTypeRegistry()) {
             Identifier id = type.id();
-            Text label = resolveRoleLabel(id, type);
-            String hover = getRoleDescription(id, type);
+            Text label = RoleIdentifierUtil.roleLabel(id, type);
+            String hover = RoleIdentifierUtil.roleDescription(id, type);
             suggests.add(new woflo.petsplus.ui.ChatLinks.Suggest(
                 "[" + label.getString() + "]",
                 "/petsplus role " + id,
@@ -245,23 +245,6 @@ public class PetDetectionHandler {
             3
         );
     }
-
-
-    /**
-     * Get a short description for a pet role.
-     */
-    private static String getRoleDescription(Identifier roleId, PetRoleType type) {
-        return type != null ? Text.translatable(type.translationKey()).getString() : RoleIdentifierUtil.formatName(roleId);
-    }
-
-    private static Text resolveRoleLabel(Identifier roleId, PetRoleType type) {
-        Text translated = Text.translatable(type.translationKey());
-        if (!translated.getString().equals(type.translationKey())) {
-            return translated;
-        }
-        return Text.literal(RoleIdentifierUtil.formatName(roleId));
-    }
-
     /**
      * Assign a role to a pending pet.
      */
@@ -290,7 +273,7 @@ public class PetDetectionHandler {
 
             // Confirm to player
             PetRoleType type = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
-            Text label = type != null ? resolveRoleLabel(roleId, type) : Text.literal(roleId.toString());
+            Text label = type != null ? RoleIdentifierUtil.roleLabel(roleId, type) : Text.literal(roleId.toString());
             player.sendMessage(Text.literal("Assigned role ")
                 .formatted(Formatting.GREEN)
                 .append(label.copy().formatted(Formatting.AQUA))

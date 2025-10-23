@@ -21,7 +21,6 @@ import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
-import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.commands.arguments.PetRoleArgumentType;
@@ -293,7 +292,7 @@ public class PetsplusAdminCommands {
         petComp.setRoleId(roleId);
 
         PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
-        Text label = resolveRoleLabel(roleId, roleType);
+        Text label = RoleIdentifierUtil.roleLabel(roleId, roleType);
 
         player.sendMessage(Text.literal("Pet role set to ")
             .formatted(Formatting.GREEN)
@@ -364,14 +363,13 @@ public class PetsplusAdminCommands {
         Identifier roleId = petComp.getRoleId();
         PetRoleType roleType = petComp.getRoleType(false);
         String roleLabel;
-        if (roleType != null) {
-            Text translated = Text.translatable(roleType.translationKey());
-            String translatedString = translated.getString();
-            roleLabel = translatedString.equals(roleType.translationKey())
-                ? RoleIdentifierUtil.formatName(roleId)
-                : translatedString;
+        if (roleId != null) {
+            roleLabel = RoleIdentifierUtil.roleLabel(roleId, roleType).getString();
+            if (roleLabel.isBlank()) {
+                roleLabel = roleId.toString();
+            }
         } else {
-            roleLabel = roleId.toString();
+            roleLabel = "Unknown";
         }
         player.sendMessage(Text.literal("Role: " + roleLabel), false);
         player.sendMessage(Text.literal("Level: " + petComp.getLevel() + " (" + petComp.getExperience() + " XP)"), false);
@@ -1079,14 +1077,4 @@ public class PetsplusAdminCommands {
         return PetTargetingUtil.findTargetPet(player);
     }
 
-    private static Text resolveRoleLabel(Identifier roleId, @Nullable PetRoleType roleType) {
-        if (roleType != null) {
-            Text translated = Text.translatable(roleType.translationKey());
-            if (!translated.getString().equals(roleType.translationKey())) {
-                return translated;
-            }
-        }
-
-        return Text.literal(RoleIdentifierUtil.formatName(roleId));
-    }
 }

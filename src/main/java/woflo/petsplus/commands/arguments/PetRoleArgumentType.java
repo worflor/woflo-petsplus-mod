@@ -15,6 +15,7 @@ import net.minecraft.util.Identifier;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
+import woflo.petsplus.api.registry.RoleIdentifierUtil;
 
 import java.util.Collection;
 import java.util.List;
@@ -36,14 +37,7 @@ public class PetRoleArgumentType implements ArgumentType<Identifier> {
 
         Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
 
-        // Try parsing as-is first
-        Identifier identifier = Identifier.tryParse(input);
-        if (identifier != null && registry.get(identifier) != null) {
-            return identifier;
-        }
-        
-        // Try with mod namespace if not specified
-        identifier = Identifier.tryParse(Petsplus.MOD_ID + ":" + input);
+        Identifier identifier = RoleIdentifierUtil.parse(input);
         if (identifier != null && registry.get(identifier) != null) {
             return identifier;
         }
@@ -58,7 +52,7 @@ public class PetRoleArgumentType implements ArgumentType<Identifier> {
 
         for (PetRoleType type : registry) {
             Identifier id = type.id();
-            Text tooltip = Text.translatable(type.translationKey());
+            Text tooltip = RoleIdentifierUtil.roleLabel(id, type);
             // Only suggest the path part (e.g., "guardian") to avoid duplicates
             builder.suggest(id.getPath(), tooltip);
         }

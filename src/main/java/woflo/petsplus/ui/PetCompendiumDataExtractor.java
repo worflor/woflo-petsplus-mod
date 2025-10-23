@@ -6,7 +6,6 @@ import net.minecraft.entity.EntityType;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.api.registry.PetRoleType;
@@ -14,7 +13,6 @@ import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.history.HistoryEvent;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.stats.PetImprint;
-import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -117,7 +115,7 @@ public class PetCompendiumDataExtractor {
         Identifier natureId = pc.getNatureId();
         if (natureId != null) {
             try {
-                String natureName = formatNatureName(pc);
+                String natureName = NatureDisplayUtil.formatNatureName(pc, natureId);
                 lines.add(Text.literal("§7Nature: §b" + natureName));
             } catch (Exception e) {
                 System.err.println("Error formatting nature name for ID " + natureId + ": " + e.getMessage());
@@ -259,26 +257,15 @@ public class PetCompendiumDataExtractor {
     // === HELPER METHODS ===
     
     public static String getRoleDisplayName(Identifier roleId, @Nullable PetRoleType roleType) {
-        if (roleType != null) {
-            String translated = Text.translatable(roleType.translationKey()).getString();
-            if (!translated.equals(roleType.translationKey())) {
-                return translated;
-            }
+        if (roleId == null) {
+            return "";
         }
-        return RoleIdentifierUtil.formatName(roleId);
-    }
-    
-    private static String formatNatureName(PetComponent pc) {
-        // Extract path from identifier and format it nicely
-        Identifier natureId = pc.getNatureId();
-        if (natureId == null) {
-            return "None";
+
+        String label = RoleIdentifierUtil.roleLabel(roleId, roleType).getString();
+        if (label.isBlank()) {
+            return RoleIdentifierUtil.formatName(roleId);
         }
-        if (natureId.equals(AstrologyRegistry.LUNARIS_NATURE_ID)) {
-            return AstrologyRegistry.getDisplayTitle(pc.getAstrologySignId());
-        }
-        String path = natureId.getPath();
-        return path.substring(0, 1).toUpperCase() + path.substring(1).toLowerCase().replace('_', ' ');
+        return label;
     }
     
     private static String getHealthColor(float healthPercent) {

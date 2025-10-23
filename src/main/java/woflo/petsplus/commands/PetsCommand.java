@@ -346,7 +346,7 @@ public class PetsCommand {
                     
                     Identifier roleId = petComp.getRoleId();
                     PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
-                    Text roleLabel = resolveRoleLabel(roleId, roleType);
+                    Text roleLabel = RoleIdentifierUtil.roleLabel(roleId, roleType);
                     int level = petComp.getLevel();
 
                     player.sendMessage(Text.literal("  - " + petName + " (")
@@ -385,7 +385,7 @@ public class PetsCommand {
         Identifier roleId = roleType != null ? roleType.id() : null;
 
         if (roleType == null) {
-            player.sendMessage(Text.literal("Unknown pet role: " + roleInput + ". Available roles: guardian, striker, support, scout, skyrider, enchantment_bound, cursed_one, eepy_eeper, eclipsed").formatted(Formatting.RED), false);
+            player.sendMessage(unknownRoleError(roleInput), false);
             return 0;
         }
 
@@ -408,7 +408,7 @@ public class PetsCommand {
 
             player.sendMessage(Text.literal("Assigned ")
                 .formatted(Formatting.GREEN)
-                .append(resolveRoleLabel(roleId, roleType).copy().formatted(Formatting.AQUA))
+                .append(RoleIdentifierUtil.roleLabel(roleId, roleType).copy().formatted(Formatting.AQUA))
                 .append(Text.literal(" role to ").formatted(Formatting.GREEN))
                 .append(Text.literal(petName).formatted(Formatting.YELLOW))
                 .append(Text.literal("!").formatted(Formatting.GREEN)), false);
@@ -435,7 +435,7 @@ public class PetsCommand {
 
         PetRoleType roleType = getBuiltinRoleByName(roleInput);
         if (roleType == null) {
-            player.sendMessage(Text.literal("Unknown pet role: " + roleInput).formatted(Formatting.RED), false);
+            player.sendMessage(unknownRoleError(roleInput), false);
             return 0;
         }
         Identifier roleId = roleType.id();
@@ -456,7 +456,7 @@ public class PetsCommand {
 
         player.sendMessage(Text.literal("Assigned ")
             .formatted(Formatting.GREEN)
-            .append(resolveRoleLabel(roleId, roleType).copy().formatted(Formatting.AQUA))
+            .append(RoleIdentifierUtil.roleLabel(roleId, roleType).copy().formatted(Formatting.AQUA))
             .append(Text.literal(" role to ").formatted(Formatting.GREEN))
             .append(Text.literal(pet.getName().getString()).formatted(Formatting.YELLOW))
             .append(Text.literal("!").formatted(Formatting.GREEN)), false);
@@ -610,7 +610,7 @@ public class PetsCommand {
         // Direct role validation using static constants
         PetRoleType roleType = getBuiltinRoleByName(roleInput);
         if (roleType == null) {
-            context.getSource().sendError(Text.literal("Unknown pet role: " + roleInput).formatted(Formatting.RED));
+            context.getSource().sendError(unknownRoleError(roleInput));
             return 0;
         }
 
@@ -967,8 +967,8 @@ public class PetsCommand {
         Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
         for (PetRoleType type : registry) {
             Identifier id = type.id();
-            Text label = resolveRoleLabel(id, type);
-            String description = getRoleDescription(id, type);
+            Text label = RoleIdentifierUtil.roleLabel(id, type);
+            String description = RoleIdentifierUtil.roleDescription(id, type);
             player.sendMessage(Text.literal("- ")
                 .formatted(Formatting.DARK_GRAY)
                 .append(label.copy().formatted(Formatting.AQUA))
@@ -988,21 +988,36 @@ public class PetsCommand {
      * Get builtin role by name using static constants to avoid registry sync issues
      */
     private static PetRoleType getBuiltinRoleByName(String input) {
-        if (input == null) return null;
+        if (input == null) {
+            return null;
+        }
 
-        String normalized = input.toLowerCase().trim();
-        return switch (normalized) {
-            case "guardian" -> PetRoleType.GUARDIAN;
-            case "striker" -> PetRoleType.STRIKER;
-            case "support" -> PetRoleType.SUPPORT;
-            case "scout" -> PetRoleType.SCOUT;
-            case "skyrider" -> PetRoleType.SKYRIDER;
-            case "enchantment_bound", "enchantmentbound" -> PetRoleType.ENCHANTMENT_BOUND;
-            case "cursed_one", "cursedone" -> PetRoleType.CURSED_ONE;
-            case "eepy_eeper", "eepyeeper" -> PetRoleType.EEPY_EEPER;
-            case "eclipsed" -> PetRoleType.ECLIPSED;
-            default -> null;
-        };
+        Identifier identifier = RoleIdentifierUtil.parse(input);
+        if (identifier == null) {
+            return null;
+        }
+
+        Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
+        return registry.get(identifier);
+    }
+
+    private static Text unknownRoleError(String roleInput) {
+        String availableRoles = buildAvailableRoleList();
+        String displayInput = roleInput == null ? "<empty>" : roleInput;
+        String message = "Unknown pet role: " + displayInput;
+        if (!availableRoles.isEmpty()) {
+            message += ". Available roles: " + availableRoles;
+        }
+        return Text.literal(message).formatted(Formatting.RED);
+    }
+
+    private static String buildAvailableRoleList() {
+        Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
+        return PetRoleType.BUILTIN_ORDER.stream()
+            .map(registry::get)
+            .filter(role -> role != null)
+            .map(role -> role.id().getPath())
+            .collect(Collectors.joining(", "));
     }
 
     private static List<MobEntity> findNearbyOwnedPets(ServerPlayerEntity player) {
@@ -1016,29 +1031,14 @@ public class PetsCommand {
         );
     }
 
-    private static Text resolveRoleLabel(Identifier roleId, @Nullable PetRoleType roleType) {
-        if (roleType != null) {
-            Text translated = Text.translatable(roleType.translationKey());
-            if (!translated.getString().equals(roleType.translationKey())) {
-                return translated;
-            }
-        }
-
-        return Text.literal(RoleIdentifierUtil.formatName(roleId));
-    }
-
-    private static String getRoleDescription(Identifier roleId, @Nullable PetRoleType roleType) {
-        return roleType != null ? Text.translatable(roleType.translationKey()).getString() : RoleIdentifierUtil.formatName(roleId);
-    }
-    
     private static void showRoleButtons(ServerPlayerEntity player) {
         Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
         List<ChatLinks.Suggest> commands = new ArrayList<>();
 
         for (PetRoleType type : registry) {
             Identifier id = type.id();
-            Text label = resolveRoleLabel(id, type);
-            String hover = getRoleDescription(id, type);
+            Text label = RoleIdentifierUtil.roleLabel(id, type);
+            String hover = RoleIdentifierUtil.roleDescription(id, type);
             commands.add(new ChatLinks.Suggest(
                 "[" + label.getString() + "]",
                 "/petsplus role " + id.getPath(),
@@ -1079,7 +1079,7 @@ public class PetsCommand {
         float progress = petComp.getXpProgress();
 
         Text roleText = Text.literal(" (")
-            .append(resolveRoleLabel(roleId, roleType).copy().formatted(Formatting.AQUA))
+            .append(RoleIdentifierUtil.roleLabel(roleId, roleType).copy().formatted(Formatting.AQUA))
             .append(Text.literal(")"));
 
         player.sendMessage(Text.literal("- " + petName)

@@ -84,7 +84,7 @@ public class AbilityFactory {
             return DataResult.error(() -> "Missing trigger event for ability " + abilityId);
         }
 
-        Identifier typeId = resolveIdentifier(eventType);
+        Identifier typeId = RegistryJsonHelper.resolvePetsplusIdentifier(eventType);
         TriggerSerializer<?> serializer = PetsPlusRegistries.triggerSerializerRegistry().get(typeId);
         if (serializer == null) {
             return DataResult.error(() -> "Unknown trigger serializer " + typeId);
@@ -101,7 +101,7 @@ public class AbilityFactory {
             return DataResult.error(() -> "Missing effect type at " + pointer);
         }
 
-        Identifier typeId = resolveIdentifier(typeValue);
+        Identifier typeId = RegistryJsonHelper.resolvePetsplusIdentifier(typeValue);
         EffectSerializer<?> serializer = PetsPlusRegistries.effectSerializerRegistry().get(typeId);
         if (serializer == null) {
             return DataResult.error(() -> "Unknown effect serializer " + typeId + " at " + pointer);
@@ -110,13 +110,6 @@ public class AbilityFactory {
         JsonObject config = effectJson.deepCopy();
         config.remove("type");
         return serializer.read(abilityId, config, new NestedEffectContext(abilityId, pointer));
-    }
-
-    private static Identifier resolveIdentifier(String value) {
-        if (value.contains(":")) {
-            return Identifier.of(value);
-        }
-        return Identifier.of("petsplus", value);
     }
 
     private static final class NestedEffectContext implements EffectSerializer.Context {

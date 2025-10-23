@@ -27,8 +27,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
-
 /**
  * Builds and displays the Pet Compendium as an interactive written book.
  * Features nature-themed coloring, clickable table of contents, and hover tooltips.
@@ -223,10 +221,10 @@ public class CompendiumBookBuilder {
         
         // Nature
         if (natureId != null) {
-            String natureName = formatNatureName(pc, natureId);
+            String natureName = NatureDisplayUtil.formatNatureName(pc, natureId, MAX_NATURE_NAME_LENGTH);
             page.append(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Nature:\n"));
             page.append(Text.literal(accentCode + "  " + natureName + "\n\n"));
-            
+
             page.append(Text.literal(CompendiumColorTheme.DARK_GRAY + "\n\n"));
         }
         
@@ -607,24 +605,6 @@ public class CompendiumBookBuilder {
             .append(CompendiumColorTheme.WHITE).append(maxStr);
         
         return bar.toString();
-    }
-    
-    private static String formatNatureName(PetComponent pc, Identifier natureId) {
-        String natureName;
-        
-        if (natureId.equals(AstrologyRegistry.LUNARIS_NATURE_ID)) {
-            natureName = AstrologyRegistry.getDisplayTitle(pc.getAstrologySignId());
-        } else {
-            String path = natureId.getPath();
-            natureName = path.substring(0, 1).toUpperCase() + path.substring(1).toLowerCase().replace('_', ' ');
-        }
-        
-        // Validate and truncate nature name if too long
-        if (natureName.length() > MAX_NATURE_NAME_LENGTH) {
-            natureName = natureName.substring(0, MAX_NATURE_NAME_LENGTH - 3) + "...";
-        }
-        
-        return natureName;
     }
 }
 

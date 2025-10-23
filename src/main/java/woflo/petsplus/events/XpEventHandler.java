@@ -18,6 +18,7 @@ import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.api.event.PetLevelUpEvent;
 import woflo.petsplus.api.event.XpAwardEvent;
 import woflo.petsplus.api.registry.PetRoleType;
+import woflo.petsplus.api.registry.RoleIdentifierUtil;
 import woflo.petsplus.advancement.AdvancementCriteriaRegistry;
 import woflo.petsplus.advancement.BestFriendTracker;
 import woflo.petsplus.Petsplus;
@@ -409,7 +410,13 @@ public class XpEventHandler {
         
         // Send level up message to owner
         String petName = pet.hasCustomName() ? pet.getCustomName().getString() : pet.getType().getName().getString();
-        String roleDisplayName = getRoleDisplayName(petComp);
+        Identifier roleId = petComp.getRoleId();
+        String roleDisplayName = roleId != null
+            ? RoleIdentifierUtil.roleLabel(roleId, roleType).getString()
+            : "Unknown";
+        if (roleDisplayName == null || roleDisplayName.isBlank()) {
+            roleDisplayName = "Unknown";
+        }
         
         if (petComp.isFeatureLevel()) {
             // Special message for feature levels that unlock new abilities
@@ -451,19 +458,6 @@ public class XpEventHandler {
         }
     }
 
-    private static String getRoleDisplayName(PetComponent petComp) {
-        PetRoleType roleType = petComp.getRoleType(false);
-        if (roleType != null) {
-            String translated = Text.translatable(roleType.translationKey()).getString();
-            if (!translated.equals(roleType.translationKey())) {
-                return translated;
-            }
-        }
-
-        Identifier roleId = petComp.getRoleId();
-        return roleId != null ? roleId.toString() : "Unknown";
-    }
-
     private static void sendMilestoneMessage(ServerPlayerEntity owner, MobEntity pet, PetRoleType.MilestoneAdvancement advancement) {
         PetRoleType.Message message = advancement.message();
         if (message == null || !message.isPresent()) {
@@ -476,20 +470,7 @@ public class XpEventHandler {
     }
 
     private static Text buildMilestoneText(PetRoleType.Message message, MobEntity pet, int level) {
-        String translationKey = message.translationKey();
-        if (translationKey != null && !translationKey.isBlank()) {
-            return Text.translatable(translationKey, pet.getDisplayName(), level);
-        }
-        String fallback = message.fallback();
-        if (fallback != null && !fallback.isBlank()) {
-            String formatted = fallback;
-            try {
-                formatted = String.format(fallback, pet.hasCustomName() ? pet.getCustomName().getString() : pet.getName().getString(), level);
-            } catch (IllegalArgumentException ignored) {
-            }
-            return Text.literal(formatted);
-        }
-        return null;
+        return RoleIdentifierUtil.resolveMessageText(message, null, pet.getDisplayName(), level);
     }
 
     private static void playMilestoneSound(ServerPlayerEntity owner, MobEntity pet, PetRoleType.SoundCue cue) {

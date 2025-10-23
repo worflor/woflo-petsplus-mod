@@ -19,6 +19,7 @@ import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
+import woflo.petsplus.api.registry.RoleIdentifierUtil;
 import woflo.petsplus.abilities.AbilityTriggerPayload;
 import woflo.petsplus.abilities.AbilityTriggerResult;
 import woflo.petsplus.abilities.OwnerAbilityEventBridge;
@@ -379,12 +380,7 @@ public class StateManager {
             return false;
         }
 
-        // Try parsing as-is first
-        Identifier roleId = Identifier.tryParse(roleName);
-        if (roleId == null) {
-            // Try with mod namespace
-            roleId = Identifier.tryParse(Petsplus.MOD_ID + ":" + roleName);
-        }
+        Identifier roleId = RoleIdentifierUtil.parse(roleName);
         if (roleId == null) {
             Petsplus.LOGGER.warn("Attempted to assign invalid role '{}' to pet {}", roleName, pet.getUuid());
             return false;
