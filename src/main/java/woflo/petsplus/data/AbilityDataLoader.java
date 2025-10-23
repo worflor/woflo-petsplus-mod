@@ -73,7 +73,7 @@ public class AbilityDataLoader extends BaseJsonDataLoader<Ability> {
                 continue;
             }
 
-            Identifier triggerId = resolveIdentifier(event);
+            Identifier triggerId = RegistryJsonHelper.resolvePetsplusIdentifier(event);
             if (PetsPlusRegistries.triggerSerializerRegistry().get(triggerId) == null) {
                 Petsplus.LOGGER.error("Ability {} in {} references unknown trigger {}", abilityId, source, triggerId);
                 continue;
@@ -102,7 +102,7 @@ public class AbilityDataLoader extends BaseJsonDataLoader<Ability> {
                     continue;
                 }
 
-                Identifier effectId = resolveIdentifier(typeValue);
+                Identifier effectId = RegistryJsonHelper.resolvePetsplusIdentifier(typeValue);
                 if (PetsPlusRegistries.effectSerializerRegistry().get(effectId) == null) {
                     Petsplus.LOGGER.error("Ability {} in {} references unknown effect {} at index {}", abilityId, source, effectId, i);
                     hasInvalidEffect = true;
@@ -168,13 +168,6 @@ public class AbilityDataLoader extends BaseJsonDataLoader<Ability> {
             return null;
         }
         return id;
-    }
-
-    private static Identifier resolveIdentifier(String value) {
-        if (value.contains(":")) {
-            return Identifier.of(value);
-        }
-        return Identifier.of(Petsplus.MOD_ID, value);
     }
 
     private static Ability duplicateAbility(Ability template) {

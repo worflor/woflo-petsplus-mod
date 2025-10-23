@@ -2,11 +2,13 @@ package woflo.petsplus.stats.nature.harmony;
 
 import net.minecraft.util.Identifier;
 import woflo.petsplus.Petsplus;
+import woflo.petsplus.stats.nature.PetNatureSelector;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -21,49 +23,22 @@ public final class NatureHarmonyRegistry {
     private static final Map<Identifier, NatureHarmonySet> DEFAULTS = new LinkedHashMap<>();
     private static final Map<Identifier, NatureHarmonySet> REGISTRY = new LinkedHashMap<>();
     private static final Map<Identifier, List<NatureHarmonySet>> BY_NATURE = new HashMap<>();
-    private static final Set<Identifier> KNOWN_NATURES = Set.of(
-        id("frisky"),
-        id("feral"),
-        id("fierce"),
-        id("radiant"),
-        id("lunaris"),
-        id("festival"),
-        id("infernal"),
-        id("otherworldly"),
-        id("hearth"),
-        id("tempest"),
-        id("solace"),
-        id("echoed"),
-        id("mycelial"),
-        id("gilded"),
-        id("gloom"),
-        id("verdant"),
-        id("summit"),
-        id("tidal"),
-        id("molten"),
-        id("frosty"),
-        id("mire"),
-        id("relic"),
-        id("ceramic"),
-        id("clockwork"),
-        id("unnatural"),
-        id("homestead"),
-        id("blossom"),
-        id("sentinel"),
-        id("scrappy")
-    );
+    private static final Set<Identifier> KNOWN_NATURES;
 
     static {
         registerDefaults();
         REGISTRY.putAll(DEFAULTS);
+        KNOWN_NATURES = buildKnownNatureSet();
         rebuildIndex();
     }
 
     private NatureHarmonyRegistry() {
     }
 
-    private static Identifier id(String path) {
-        return Identifier.of("petsplus", path);
+    private static Set<Identifier> buildKnownNatureSet() {
+        Set<Identifier> registered = new LinkedHashSet<>(PetNatureSelector.getRegisteredNatureIds());
+        registered.remove(Petsplus.id("abstract"));
+        return Set.copyOf(registered);
     }
 
     private static void registerDefaults() {
@@ -117,14 +92,14 @@ public final class NatureHarmonyRegistry {
         registerDefault("harmony/lunaris_aries_tempest", NatureHarmonySet.Type.HARMONY,
             5.5d, 1.09f, 1.06f, 0.94f, 1.06f, 1.09f, 120,
             List.of("moonlit_bravery", "charge"),
-            new NatureHarmonySet.Member(id("lunaris"), Set.of(id("lunaris/aries"))),
-            new NatureHarmonySet.Member(id("tempest"), Set.of()));
+            new NatureHarmonySet.Member(Petsplus.id("lunaris"), Set.of(Petsplus.id("lunaris/aries"))),
+            new NatureHarmonySet.Member(Petsplus.id("tempest"), Set.of()));
 
         registerDefault("harmony/lunaris_cancer_hearth", NatureHarmonySet.Type.HARMONY,
             5.5d, 1.10f, 1.08f, 0.86f, 1.16f, 1.08f, 140,
             List.of("moonlit_haven", "care"),
-            new NatureHarmonySet.Member(id("lunaris"), Set.of(id("lunaris/cancer"))),
-            new NatureHarmonySet.Member(id("hearth"), Set.of()));
+            new NatureHarmonySet.Member(Petsplus.id("lunaris"), Set.of(Petsplus.id("lunaris/cancer"))),
+            new NatureHarmonySet.Member(Petsplus.id("hearth"), Set.of()));
 
         // Disharmony combinations
         registerDefault("disharmony/radiant_gloom", NatureHarmonySet.Type.DISHARMONY,
@@ -179,14 +154,14 @@ public final class NatureHarmonyRegistry {
         registerDefault("disharmony/lunaris_leo_frosty", NatureHarmonySet.Type.DISHARMONY,
             5.5d, 0.87f, 0.92f, 1.10f, 0.90f, 0.95f, 120,
             List.of("pride_chill", "ego"),
-            new NatureHarmonySet.Member(id("lunaris"), Set.of(id("lunaris/leo"))),
-            new NatureHarmonySet.Member(id("frosty"), Set.of()));
+            new NatureHarmonySet.Member(Petsplus.id("lunaris"), Set.of(Petsplus.id("lunaris/leo"))),
+            new NatureHarmonySet.Member(Petsplus.id("frosty"), Set.of()));
 
         registerDefault("disharmony/lunaris_scorpio_festival", NatureHarmonySet.Type.DISHARMONY,
             5.5d, 0.86f, 0.90f, 1.14f, 0.89f, 0.94f, 120,
             List.of("shadow_noise", "needling"),
-            new NatureHarmonySet.Member(id("lunaris"), Set.of(id("lunaris/scorpio"))),
-            new NatureHarmonySet.Member(id("festival"), Set.of()));
+            new NatureHarmonySet.Member(Petsplus.id("lunaris"), Set.of(Petsplus.id("lunaris/scorpio"))),
+            new NatureHarmonySet.Member(Petsplus.id("festival"), Set.of()));
     }
 
     private static void registerDefault(String id, NatureHarmonySet.Type type,

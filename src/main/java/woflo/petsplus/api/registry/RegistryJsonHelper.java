@@ -34,6 +34,20 @@ public final class RegistryJsonHelper {
     private RegistryJsonHelper() {
     }
 
+    public static Identifier resolveIdentifier(String value, String defaultNamespace) {
+        if (value == null) {
+            throw new IllegalArgumentException("Identifier string cannot be null");
+        }
+        if (value.contains(":")) {
+            return Identifier.of(value);
+        }
+        return Identifier.of(defaultNamespace, value);
+    }
+
+    public static Identifier resolvePetsplusIdentifier(String value) {
+        return resolveIdentifier(value, Petsplus.MOD_ID);
+    }
+
     public static int getInt(JsonObject json, String key, int defaultValue) {
         if (json == null || !json.has(key)) {
             return defaultValue;

@@ -6,6 +6,7 @@ import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
+import woflo.petsplus.api.registry.RoleIdentifierUtil;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.ArrayList;
@@ -26,38 +27,13 @@ public final class PetUIHelper {
         PetRoleType roleType = roleId != null ? PetsPlusRegistries.petRoleTypeRegistry().get(roleId) : null;
         int level = comp.getLevel();
         String roleName;
-        if (roleType != null) {
-            String translated = Text.translatable(roleType.translationKey()).getString();
-            // Use translation if available, otherwise format the ID path
-            if (!translated.equals(roleType.translationKey())) {
-                roleName = translated;
-            } else {
-                // Fallback: format ID path as "Title Case"
-                String path = roleId != null ? roleId.getPath() : "unknown";
-                String[] parts = path.split("_");
-                StringBuilder sb = new StringBuilder();
-                for (String part : parts) {
-                    if (!part.isEmpty()) {
-                        if (sb.length() > 0) sb.append(' ');
-                        sb.append(Character.toUpperCase(part.charAt(0)));
-                        if (part.length() > 1) sb.append(part.substring(1));
-                    }
-                }
-                roleName = sb.toString();
+        if (roleId != null) {
+            roleName = RoleIdentifierUtil.roleLabel(roleId, roleType).getString();
+            if (roleName.isBlank()) {
+                roleName = RoleIdentifierUtil.formatName(roleId);
             }
         } else {
-            // Format ID path as "Title Case"
-            String path = roleId != null ? roleId.getPath() : "unknown";
-            String[] parts = path.split("_");
-            StringBuilder sb = new StringBuilder();
-            for (String part : parts) {
-                if (!part.isEmpty()) {
-                    if (sb.length() > 0) sb.append(' ');
-                    sb.append(Character.toUpperCase(part.charAt(0)));
-                    if (part.length() > 1) sb.append(part.substring(1));
-                }
-            }
-            roleName = sb.toString();
+            roleName = "Unknown";
         }
 
         Text line1 = UIStyle.bold(Text.literal(name).formatted(Formatting.AQUA))

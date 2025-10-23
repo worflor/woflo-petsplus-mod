@@ -20,6 +20,7 @@ import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.config.PetsPlusConfig;
+import woflo.petsplus.api.registry.RoleIdentifierUtil;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.processing.OwnerSpatialResult;
@@ -311,31 +312,11 @@ public final class PetsplusEffectManager {
         if (message == null || !message.isPresent() || owner == null) {
             return;
         }
-        Text text = resolveMessage(message, pet);
+        Text text = RoleIdentifierUtil.resolveMessageText(message, pet.getDisplayName());
         if (text == null) {
             return;
         }
         notifyOwner(owner, pet.getUuidAsString() + ':' + keySuffix, text);
-    }
-
-    private static Text resolveMessage(PetRoleType.Message message, MobEntity pet) {
-        if (message == null || !message.isPresent()) {
-            return null;
-        }
-        String translationKey = message.translationKey();
-        if (translationKey != null && !translationKey.isBlank()) {
-            return Text.translatable(translationKey, pet.getDisplayName());
-        }
-        String fallback = message.fallback();
-        if (fallback != null && !fallback.isBlank()) {
-            String formatted = fallback;
-            try {
-                formatted = String.format(fallback, getPetName(pet));
-            } catch (IllegalArgumentException ignored) {
-            }
-            return Text.literal(formatted);
-        }
-        return null;
     }
 
     private static void playSound(ServerWorld world, MobEntity pet, PetRoleType.SoundCue sound) {

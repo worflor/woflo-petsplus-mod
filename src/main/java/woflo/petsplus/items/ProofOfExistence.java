@@ -11,7 +11,6 @@ import net.minecraft.entity.ItemEntity;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.Language;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.api.registry.PetRoleType;
@@ -443,7 +442,7 @@ public class ProofOfExistence {
             List<PetRoleType.Message> epithets = roleType.presentation().memorialEpithets();
             long seed = pet.getUuid().getLeastSignificantBits() ^ pet.getUuid().getMostSignificantBits();
             int index = Math.floorMod((int) seed, epithets.size());
-            return resolveMessageString(epithets.get(index), RoleIdentifierUtil.formatName(roleId));
+            return RoleIdentifierUtil.resolveMessageString(epithets.get(index), RoleIdentifierUtil.formatName(roleId));
         }
         return RoleIdentifierUtil.formatName(roleId);
     }
@@ -577,12 +576,12 @@ public class ProofOfExistence {
         if (roleType != null) {
             for (PetRoleType.MilestoneAdvancement advancement : roleType.milestoneAdvancements()) {
                 if (advancement.level() == milestone && advancement.message().isPresent()) {
-                    return resolveMessageString(advancement.message(), baseName);
+                    return RoleIdentifierUtil.resolveMessageString(advancement.message(), baseName);
                 }
             }
 
             if (milestone >= LEVEL_EXPERIENCED_MAX) {
-                String summary = resolveMessageString(
+                String summary = RoleIdentifierUtil.resolveMessageString(
                     roleType.presentation().adminSummary(),
                     RoleIdentifierUtil.formatName(roleId)
                 );
@@ -638,7 +637,13 @@ public class ProofOfExistence {
 
         // Life summary (always show)
         String levelDescriptor = generateLevelDescriptor(petComp.getLevel());
-        lore.add(Text.literal("§7Role: §f" + getRoleDisplayName(roleId, roleType)));
+        String roleDisplayName = roleId != null
+            ? RoleIdentifierUtil.roleLabel(roleId, roleType).getString()
+            : "Unknown";
+        if (roleDisplayName == null || roleDisplayName.isBlank()) {
+            roleDisplayName = "Unknown";
+        }
+        lore.add(Text.literal("§7Role: §f" + roleDisplayName));
         
         // Add gold color for legendary level (30)
         String levelText = petComp.getLevel() == 30 ? "§6" + levelDescriptor + "§r" : "§f" + levelDescriptor;
@@ -805,36 +810,6 @@ public class ProofOfExistence {
         if (!isProofOfExistence(stack)) return null;
         PetsplusComponents.PoeData poeData = stack.get(PetsplusComponents.POE_MEMORIAL);
         return poeData != null ? poeData.petName() : null;
-    }
-    
-    private static String getRoleDisplayName(Identifier roleId, @Nullable PetRoleType roleType) {
-        if (roleType != null) {
-            String translated = Text.translatable(roleType.translationKey()).getString();
-            if (!translated.equals(roleType.translationKey())) {
-                return translated;
-            }
-        }
-        return RoleIdentifierUtil.formatName(roleId);
-    }
-
-    private static String resolveMessageString(PetRoleType.Message message, String fallback) {
-        if (message != null) {
-            String key = message.translationKey();
-            String fallbackText = message.fallback();
-            if (key != null && !key.isBlank()) {
-                if (Language.getInstance().hasTranslation(key)) {
-                    return Text.translatable(key).getString();
-                }
-                if (fallbackText != null && !fallbackText.isBlank()) {
-                    return fallbackText;
-                }
-                return Text.translatable(key).getString();
-            }
-            if (fallbackText != null && !fallbackText.isBlank()) {
-                return fallbackText;
-            }
-        }
-        return fallback == null ? "" : fallback;
     }
     
     private static String formatModifier(float modifier) {

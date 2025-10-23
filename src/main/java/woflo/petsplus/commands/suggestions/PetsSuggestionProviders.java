@@ -135,11 +135,7 @@ public class PetsSuggestionProviders {
     
     private static CompletableFuture<Suggestions> suggestAllRolesWithDescriptions(SuggestionsBuilder builder) {
         for (PetRoleType type : PetsPlusRegistries.petRoleTypeRegistry()) {
-            String displayName = Text.translatable(type.translationKey()).getString();
-            if (displayName.equals(type.translationKey())) {
-                displayName = RoleIdentifierUtil.formatName(type.id());
-            }
-            Text tooltip = Text.literal(displayName);
+            Text tooltip = RoleIdentifierUtil.roleLabel(type.id(), type);
             // Only suggest the path part (e.g., "guardian") to avoid duplicates
             builder.suggest(type.id().getPath(), tooltip);
         }
