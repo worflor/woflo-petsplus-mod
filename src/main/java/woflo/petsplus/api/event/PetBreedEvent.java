@@ -230,6 +230,7 @@ public final class PetBreedEvent {
             private final net.minecraft.util.math.BlockPos position;
             private final Identifier biomeId;
             private final float biomeTemperature;
+            private final float biomeMoisture;
             private final boolean deepDarkBiome;
             private final boolean mushroomFieldsBiome;
             private final boolean oceanBiome;
@@ -262,6 +263,7 @@ public final class PetBreedEvent {
             public Environment(net.minecraft.util.math.BlockPos position,
                                Identifier biomeId,
                                float biomeTemperature,
+                               float biomeMoisture,
                                boolean deepDarkBiome,
                                boolean mushroomFieldsBiome,
                                boolean oceanBiome,
@@ -293,6 +295,7 @@ public final class PetBreedEvent {
                 this.position = position;
                 this.biomeId = biomeId;
                 this.biomeTemperature = biomeTemperature;
+                this.biomeMoisture = biomeMoisture;
                 this.deepDarkBiome = deepDarkBiome;
                 this.mushroomFieldsBiome = mushroomFieldsBiome;
                 this.oceanBiome = oceanBiome;
@@ -333,6 +336,10 @@ public final class PetBreedEvent {
 
             public float getBiomeTemperature() {
                 return biomeTemperature;
+            }
+
+            public float getBiomeMoisture() {
+                return biomeMoisture;
             }
 
             public boolean isDeepDarkBiome() {
