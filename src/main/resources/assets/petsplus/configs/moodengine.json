@@ -2,11 +2,11 @@
   "_schema": "petsplus:moodengine",
   "_version": 1,
   "contagion": {
-    "base_influence": 0.009,
+    "base_influence": 0.004,
     "cross_owner_multiplier": 0.25,
     "gossip_min": 0.002,
     "gossip_max": 0.006,
-    "max_neighbors": 6,
+    "max_neighbors": 3,
     "cadence_ticks": 80,
     "default_cross_species_weight": 0.8
   },
@@ -15,7 +15,7 @@
     "decayTickInterval": 60,
     "defaultDecayRate": 0.9931,
     "epsilon": 0.002,
-    "momentum": 0.65,
+    "momentum": 0.5,
     "switchMargin": 0.08,
     "hysteresisTicks": 200,
     "levelThresholds": [
@@ -32,8 +32,8 @@
         "disgust": 3.5,
         "angst": 6.0,
         "foreboding": 6.5,
-        "kefi": 2.8,
-        "cheerful": 2.8,
+        "kefi": 2.0,
+        "cheerful": 2.0,
         "querecia": 5.5,
         "ubuntu": 7.5,
         "frustration": 4.5,

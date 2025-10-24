@@ -2,12 +2,12 @@
   "category": "wander",
   "priority": 20,
   "cooldown": {
-    "min": 20,
-    "max": 60
+    "min": 160,
+    "max": 300
   },
   "requirement": "can_wander",
   "energy_range": {
-    "min": 0.3,
+    "min": 0.5,
     "max": 0.7
   },
   "idle_stamina_bias": "none",
