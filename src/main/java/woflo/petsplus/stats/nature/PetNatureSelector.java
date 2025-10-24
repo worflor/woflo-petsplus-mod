@@ -374,6 +374,10 @@ public final class PetNatureSelector {
         if (env.getBiomeMoisture() < 0.75f) {
             return false;
         }
+        boolean warmCanopy = env.getBiomeTemperature() >= 0.8f;
+        if (!warmCanopy && !context.isRaining()) {
+            return false;
+        }
         if (!env.hasLushFoliage() && !env.hasCherryBloom()) {
             return false;
         }
