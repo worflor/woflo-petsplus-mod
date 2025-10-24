@@ -572,8 +572,8 @@ public class FeedbackManager {
         for (int i = 0; i < config.count(); i++) {
             // Positions around the circumference with slight randomization
             double baseAngle = (i / (double) config.count()) * Math.PI * 2;
-            double angle = baseAngle + (world.getRandom().nextDouble() - 0.5) * 0.3; // ±0.15 radians variance
-            double r = radius + (world.getRandom().nextDouble() - 0.5) * 0.5; // ±0.25 block variance
+            double angle = baseAngle + (world.getRandom().nextDouble() - 0.5) * 0.3; // +/-0.15 radians variance
+            double r = radius + (world.getRandom().nextDouble() - 0.5) * 0.5; // +/-0.25 block variance
 
             double x = pos.x + Math.cos(angle) * r;
             double z = pos.z + Math.sin(angle) * r;

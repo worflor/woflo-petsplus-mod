@@ -11,14 +11,13 @@ import net.minecraft.command.CommandSource;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Box;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.util.PetValidationUtil;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -144,18 +143,18 @@ public class PetsSuggestionProviders {
     
     private static List<String> getSuggestionsForRoleCommand(ServerPlayerEntity player) {
         // For role commands, prioritize pets without roles or need role changes
-        return findNearbyOwnedPets(player, 16.0).stream()
+        return PetValidationUtil.findOwnedPets(player, 16.0).stream()
             .filter(pet -> {
                 PetComponent petComp = PetComponent.get(pet);
                 return petComp != null; // Show all pets for role assignment
             })
-            .map(PetsSuggestionProviders::getPetDisplayName)
+            .map(PetValidationUtil::getDisplayName)
             .collect(Collectors.toList());
     }
     
     private static List<String> getSuggestionsForTributeCommand(ServerPlayerEntity player) {
         // For tribute commands, prioritize pets that can accept tributes
-        return findNearbyOwnedPets(player, 16.0).stream()
+        return PetValidationUtil.findOwnedPets(player, 16.0).stream()
             .filter(pet -> {
                 PetComponent petComp = PetComponent.get(pet);
                 if (petComp == null) {
@@ -165,7 +164,7 @@ public class PetsSuggestionProviders {
                 return PetsPlusRegistries.petRoleTypeRegistry().get(roleId) != null
                     && petComp.getLevel() < 100;
             })
-            .map(PetsSuggestionProviders::getPetDisplayName)
+            .map(PetValidationUtil::getDisplayName)
             .collect(Collectors.toList());
     }
     
@@ -175,8 +174,8 @@ public class PetsSuggestionProviders {
     }
     
     private static List<String> getAllPetSuggestions(ServerPlayerEntity player) {
-        return findNearbyOwnedPets(player, 16.0).stream()
-            .map(PetsSuggestionProviders::getPetDisplayName)
+        return PetValidationUtil.findOwnedPets(player, 16.0).stream()
+            .map(PetValidationUtil::getDisplayName)
             .collect(Collectors.toList());
     }
     
@@ -236,31 +235,8 @@ public class PetsSuggestionProviders {
         return builder.buildFuture();
     }
     
-    private static String getPetDisplayName(MobEntity pet) {
-        if (pet.hasCustomName()) {
-            return pet.getCustomName().getString();
-        }
-        return pet.getType().getName().getString();
-    }
-    
-    private static List<MobEntity> findNearbyOwnedPets(ServerPlayerEntity owner, double radius) {
-        ServerWorld world = owner.getEntityWorld();
-        Box searchArea = owner.getBoundingBox().expand(radius);
-        
-        return world.getEntitiesByClass(MobEntity.class, searchArea, entity -> {
-            PetComponent petComp = PetComponent.get(entity);
-            return petComp != null && petComp.isOwnedBy(owner) && entity.isAlive();
-        });
-    }
-    
     private static MobEntity findPetByName(ServerPlayerEntity owner, String name) {
-        return findNearbyOwnedPets(owner, 16.0).stream()
-            .filter(pet -> {
-                String petName = getPetDisplayName(pet);
-                return petName.equalsIgnoreCase(name);
-            })
-            .findFirst()
-            .orElse(null);
+        return PetValidationUtil.findOwnedPetByName(owner, name, 16.0);
     }
     
     private static String getOptionalArgument(CommandContext<ServerCommandSource> context, String name) {

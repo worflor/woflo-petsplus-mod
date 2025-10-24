@@ -129,12 +129,12 @@ public class PetCompendiumDataExtractor {
         if (imprint != null) {
             try {
                 float vitality = imprint.getVitalityMultiplier() - 1.0f; // Convert 1.08x → 0.08
-                float attack = imprint.getAttackMultiplier() - 1.0f;
-                float defense = imprint.getDefenseMultiplier() - 1.0f;
+                float might = imprint.getMightMultiplier() - 1.0f;
+                float guard = imprint.getGuardMultiplier() - 1.0f;
                 
                 boolean hasNotableTraits = Math.abs(vitality) > MODIFIER_THRESHOLD ||
-                                          Math.abs(attack) > MODIFIER_THRESHOLD ||
-                                          Math.abs(defense) > MODIFIER_THRESHOLD;
+                                          Math.abs(might) > MODIFIER_THRESHOLD ||
+                                          Math.abs(guard) > MODIFIER_THRESHOLD;
                 
                 if (hasNotableTraits) {
                     lines.add(Text.literal("§7Traits:"));
@@ -143,13 +143,13 @@ public class PetCompendiumDataExtractor {
                         String desc = vitality > 0 ? "Vigorous" : "Delicate";
                         lines.add(Text.literal("  §8" + desc + ": §f" + formatModifier(vitality)));
                     }
-                    if (Math.abs(attack) > MODIFIER_THRESHOLD) {
-                        String desc = attack > 0 ? "Fierce" : "Gentle";
-                        lines.add(Text.literal("  §8" + desc + ": §f" + formatModifier(attack)));
+                    if (Math.abs(might) > MODIFIER_THRESHOLD) {
+                        String desc = might > 0 ? "Fierce" : "Gentle";
+                        lines.add(Text.literal("  §8" + desc + ": §f" + formatModifier(might)));
                     }
-                    if (Math.abs(defense) > MODIFIER_THRESHOLD) {
-                        String desc = defense > 0 ? "Resilient" : "Fragile";
-                        lines.add(Text.literal("  §8" + desc + ": §f" + formatModifier(defense)));
+                    if (Math.abs(guard) > MODIFIER_THRESHOLD) {
+                        String desc = guard > 0 ? "Stalwart" : "Brittle";
+                        lines.add(Text.literal("  §8" + desc + ": §f" + formatModifier(guard)));
                     }
                 }
             } catch (Exception e) {

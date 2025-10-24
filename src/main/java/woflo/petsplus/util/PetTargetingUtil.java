@@ -6,7 +6,6 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.Vec3d;
 import org.jetbrains.annotations.Nullable;
-import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
 
@@ -147,10 +146,7 @@ public final class PetTargetingUtil {
     private static MobEntity findNearestPet(ServerPlayerEntity player, ServerWorld world) {
         return world.getEntitiesByClass(MobEntity.class,
             player.getBoundingBox().expand(PROXIMITY_FALLBACK_DISTANCE),
-            entity -> {
-                PetComponent petComp = PetComponent.get(entity);
-                return petComp != null && petComp.isOwnedBy(player) && entity.isAlive();
-            }).stream()
+            entity -> PetValidationUtil.isOwnedBy(entity, player) && entity.isAlive()).stream()
             .min((a, b) -> Double.compare(
                 player.squaredDistanceTo(a),
                 player.squaredDistanceTo(b)))

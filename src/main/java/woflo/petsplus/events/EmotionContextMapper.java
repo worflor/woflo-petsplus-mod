@@ -626,8 +626,8 @@ public class EmotionContextMapper {
     
     private static boolean isLoyalPersonality(PetImprint personality) {
         if (personality == null) return false;
-        // Loyal: high loyalty multiplier
-        return personality.getLoyaltyMultiplier() > 1.04f;
+        // Loyal: high focus multiplier (merged loyalty/focus stat)
+        return personality.getFocusMultiplier() > 1.04f;
     }
     
     private static boolean isCuriousPersonality(PetImprint personality) {
@@ -639,13 +639,13 @@ public class EmotionContextMapper {
     private static boolean isNervousPersonality(PetImprint personality) {
         if (personality == null) return false;
         // Nervous: low defense multiplier (fragile, skittish)
-        return personality.getDefenseMultiplier() < 0.95f;
+        return personality.getGuardMultiplier() < 0.95f;
     }
     
     private static boolean isBravePersonality(PetImprint personality) {
         if (personality == null) return false;
         // Brave: high attack and defense multipliers (bold, courageous)
-        return personality.getAttackMultiplier() > 1.04f && personality.getDefenseMultiplier() > 1.02f;
+        return personality.getMightMultiplier() > 1.04f && personality.getGuardMultiplier() > 1.02f;
     }
     
     public enum SocialInteractionType {

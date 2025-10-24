@@ -491,7 +491,7 @@ public class XpEventHandler {
      * <h2>Learning Modifier Pipeline:</h2>
      * <ul>
      *   <li><b>Nature:</b> No XP modifier - natures are pure personality/stat quirks</li>
-     *   <li><b>Imprint:</b> Focus stat subtly affects learning (±3% typical range)</li>
+     *   <li><b>Imprint:</b> Focus stat subtly affects learning (+/-3% typical range)</li>
      *   <li><b>Role:</b> Intentional choice determines learning aptitude (Scholar +15%, Cursed -10%)</li>
      * </ul>
      * 
@@ -511,7 +511,7 @@ public class XpEventHandler {
         // Imprint-based learning bonus (subtle focus influence)
         woflo.petsplus.stats.PetImprint imprint = petComp.getImprint();
         if (imprint != null) {
-            // Focus multiplier 0.88-1.12 → learning bonus 0.97-1.03 (scaled to ±3%)
+            // Focus multiplier 0.88-1.12 → learning bonus 0.97-1.03 (scaled to +/-3%)
             float focusMult = imprint.getFocusMultiplier();
             float imprintBonus = 1.0f + ((focusMult - 1.0f) * 0.25f);
             multiplier *= imprintBonus;

@@ -36,15 +36,12 @@ public class PetAttributeManager {
     private static final Identifier BOOST_ATTACK_ID = Identifier.of("petsplus", "boost_attack");
     private static final Identifier BOOST_DEFENSE_ID = Identifier.of("petsplus", "boost_defense");
 
-    private static final Identifier NATURE_HEALTH_ID = Identifier.of("petsplus", "nature_health");
     private static final Identifier NATURE_VITALITY_ID = Identifier.of("petsplus", "nature_vitality");
-    private static final Identifier NATURE_SPEED_ID = Identifier.of("petsplus", "nature_speed");
-    private static final Identifier NATURE_SWIM_SPEED_ID = Identifier.of("petsplus", "nature_swim_speed");
-    private static final Identifier NATURE_ATTACK_ID = Identifier.of("petsplus", "nature_attack");
-    private static final Identifier NATURE_DEFENSE_ID = Identifier.of("petsplus", "nature_defense");
-    private static final Identifier NATURE_AGILITY_ID = Identifier.of("petsplus", "nature_agility");
+    private static final Identifier NATURE_SWIFTNESS_ID = Identifier.of("petsplus", "nature_swiftness");
+    private static final Identifier NATURE_MIGHT_ID = Identifier.of("petsplus", "nature_might");
+    private static final Identifier NATURE_GUARD_ID = Identifier.of("petsplus", "nature_guard");
     private static final Identifier NATURE_FOCUS_ID = Identifier.of("petsplus", "nature_focus");
-    private static final Identifier NATURE_LOYALTY_ID = Identifier.of("petsplus", "nature_loyalty");
+    private static final Identifier NATURE_AGILITY_ID = Identifier.of("petsplus", "nature_agility");
 
     private static final Map<NatureModifierSampler.NatureStat, NatureAttributeBinding> NATURE_ATTRIBUTE_BINDINGS =
         createNatureAttributeBindings();
@@ -106,7 +103,7 @@ public class PetAttributeManager {
         if (pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE) != null) {
             pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).removeModifier(LEVEL_ATTACK_ID);
         }
-        
+
         // Remove characteristic-based modifiers
         if (pet.getAttributeInstance(EntityAttributes.MAX_HEALTH) != null) {
             pet.getAttributeInstance(EntityAttributes.MAX_HEALTH).removeModifier(CHAR_HEALTH_ID);
@@ -117,7 +114,7 @@ public class PetAttributeManager {
         if (pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE) != null) {
             pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).removeModifier(CHAR_ATTACK_ID);
         }
-        
+
         // Remove permanent stat boost modifiers
         if (pet.getAttributeInstance(EntityAttributes.MAX_HEALTH) != null) {
             pet.getAttributeInstance(EntityAttributes.MAX_HEALTH).removeModifier(BOOST_HEALTH_ID);
@@ -132,33 +129,31 @@ public class PetAttributeManager {
             pet.getAttributeInstance(EntityAttributes.ARMOR).removeModifier(BOOST_DEFENSE_ID);
         }
 
+        // Remove nature modifiers
         if (pet.getAttributeInstance(EntityAttributes.MAX_HEALTH) != null) {
-            pet.getAttributeInstance(EntityAttributes.MAX_HEALTH).removeModifier(NATURE_HEALTH_ID);
             pet.getAttributeInstance(EntityAttributes.MAX_HEALTH).removeModifier(NATURE_VITALITY_ID);
         }
         if (pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED) != null) {
-            pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED).removeModifier(NATURE_SPEED_ID);
-            pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED).removeModifier(NATURE_SWIM_SPEED_ID);
+            pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED).removeModifier(NATURE_SWIFTNESS_ID);
         }
         RegistryEntry<EntityAttribute> swimAttribute = resolveSwimSpeedAttribute();
         if (swimAttribute != null) {
             EntityAttributeInstance instance = pet.getAttributeInstance(swimAttribute);
             if (instance != null) {
-                instance.removeModifier(NATURE_SWIM_SPEED_ID);
+                instance.removeModifier(NATURE_SWIFTNESS_ID);
             }
         }
         if (pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE) != null) {
-            pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).removeModifier(NATURE_ATTACK_ID);
+            pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).removeModifier(NATURE_MIGHT_ID);
         }
         if (pet.getAttributeInstance(EntityAttributes.ARMOR) != null) {
-            pet.getAttributeInstance(EntityAttributes.ARMOR).removeModifier(NATURE_DEFENSE_ID);
+            pet.getAttributeInstance(EntityAttributes.ARMOR).removeModifier(NATURE_GUARD_ID);
         }
         if (pet.getAttributeInstance(EntityAttributes.KNOCKBACK_RESISTANCE) != null) {
             pet.getAttributeInstance(EntityAttributes.KNOCKBACK_RESISTANCE).removeModifier(NATURE_AGILITY_ID);
         }
         if (pet.getAttributeInstance(EntityAttributes.FOLLOW_RANGE) != null) {
             pet.getAttributeInstance(EntityAttributes.FOLLOW_RANGE).removeModifier(NATURE_FOCUS_ID);
-            pet.getAttributeInstance(EntityAttributes.FOLLOW_RANGE).removeModifier(NATURE_LOYALTY_ID);
         }
     }
     
@@ -243,12 +238,12 @@ public class PetAttributeManager {
      * 
      * NOTE: Imprint multipliers are already in multiplicative format (0.88-1.12),
      * but we need to convert them to additive format for Minecraft's attribute system.
-     * Multiplier 1.08 → additive 0.08 (+8%)
+     * Multiplier 1.08 â†’ additive 0.08 (+8%)
      */
     private static void applyImprintModifiers(MobEntity pet, PetImprint imprint, PetRoleType roleType) {
         // Health imprint modifier
-        float healthMult = imprint.getHealthMultiplier();
-        float healthMod = healthMult - 1.0f; // Convert 1.08x → +0.08 (8%)
+        float healthMult = imprint.getVitalityMultiplier();
+        float healthMod = healthMult - 1.0f; // Convert 1.08x â†’ +0.08 (8%)
         if (Math.abs(healthMod) > 0.01f && pet.getAttributeInstance(EntityAttributes.MAX_HEALTH) != null) {
             EntityAttributeModifier modifier = new EntityAttributeModifier(
                 CHAR_HEALTH_ID, 
@@ -259,7 +254,7 @@ public class PetAttributeManager {
         }
         
         // Speed imprint modifier
-        float speedMult = imprint.getSpeedMultiplier();
+        float speedMult = imprint.getSwiftnessMultiplier();
         float speedMod = speedMult - 1.0f;
         if (Math.abs(speedMod) > 0.01f && pet.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED) != null) {
             EntityAttributeModifier modifier = new EntityAttributeModifier(
@@ -272,7 +267,7 @@ public class PetAttributeManager {
         
         // Attack imprint modifier (only for entities that can attack)
         if (pet.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE) != null) {
-            float attackMult = imprint.getAttackMultiplier();
+            float attackMult = imprint.getMightMultiplier();
             float attackMod = attackMult - 1.0f;
             if (Math.abs(attackMod) > 0.01f) {
                 EntityAttributeModifier modifier = new EntityAttributeModifier(
@@ -342,27 +337,88 @@ public class PetAttributeManager {
         Function<RegistryEntry<EntityAttribute>, EntityAttributeInstance> lookup,
         NatureModifierSampler.NatureStat stat,
         RegistryEntry<EntityAttribute> attribute,
-        RegistryEntry<EntityAttribute> fallbackAttribute,
+        RegistryEntry<EntityAttribute> secondaryAttribute,
         NatureAttributeBinding binding,
         float bonus
     ) {
-        if (binding == null || attribute == null) {
-            if (binding == null || fallbackAttribute == null) {
-                return;
+        if (binding == null) {
+            return;
+        }
+
+        applyNatureModifierToAttribute(lookup, attribute != null ? attribute : secondaryAttribute, binding, bonus);
+        if (secondaryAttribute != null && secondaryAttribute != attribute) {
+            applyNatureModifierToAttribute(lookup, secondaryAttribute, binding, bonus);
+        }
+    }
+
+    private static RegistryEntry<EntityAttribute> resolveAttribute(
+        NatureModifierSampler.NatureStat stat,
+        Map<NatureModifierSampler.NatureStat, RegistryEntry<EntityAttribute>> attributeOverrides
+    ) {
+        if (attributeOverrides != null) {
+            RegistryEntry<EntityAttribute> override = attributeOverrides.get(stat);
+            if (override != null) {
+                return override;
             }
-            attribute = fallbackAttribute;
+        }
+
+        return switch (stat) {
+            case VITALITY -> EntityAttributes.MAX_HEALTH;
+            case SWIFTNESS -> EntityAttributes.MOVEMENT_SPEED;
+            case MIGHT -> EntityAttributes.ATTACK_DAMAGE;
+            case GUARD -> EntityAttributes.ARMOR;
+            case FOCUS -> EntityAttributes.FOLLOW_RANGE;
+            case AGILITY -> EntityAttributes.KNOCKBACK_RESISTANCE;
+            case NONE -> null;
+        };
+    }
+
+    private static RegistryEntry<EntityAttribute> fallbackAttributeFor(
+        NatureModifierSampler.NatureStat stat,
+        Map<NatureModifierSampler.NatureStat, RegistryEntry<EntityAttribute>> attributeOverrides
+    ) {
+        if (stat != NatureModifierSampler.NatureStat.SWIFTNESS) {
+            return null;
+        }
+        return resolveSwimSpeedAttribute();
+    }
+
+    private static Map<NatureModifierSampler.NatureStat, NatureAttributeBinding> createNatureAttributeBindings() {
+        Map<NatureModifierSampler.NatureStat, NatureAttributeBinding> map =
+            new java.util.EnumMap<>(NatureModifierSampler.NatureStat.class);
+        map.put(NatureModifierSampler.NatureStat.VITALITY,
+            NatureAttributeBinding.multiplicative(NATURE_VITALITY_ID));
+        map.put(NatureModifierSampler.NatureStat.SWIFTNESS,
+            NatureAttributeBinding.multiplicative(NATURE_SWIFTNESS_ID));
+        map.put(NatureModifierSampler.NatureStat.MIGHT,
+            NatureAttributeBinding.multiplicative(NATURE_MIGHT_ID));
+        map.put(NatureModifierSampler.NatureStat.GUARD,
+            NatureAttributeBinding.scaledAdditive(NATURE_GUARD_ID, 8.0));
+        map.put(NatureModifierSampler.NatureStat.FOCUS,
+            NatureAttributeBinding.multiplicative(NATURE_FOCUS_ID));
+        map.put(NatureModifierSampler.NatureStat.AGILITY,
+            NatureAttributeBinding.scaledAdditive(NATURE_AGILITY_ID, 1.0));
+        return java.util.Collections.unmodifiableMap(map);
+    }
+
+    private static RegistryEntry<EntityAttribute> resolveSwimSpeedAttribute() {
+        if (cachedSwimSpeedAttribute == null) {
+            cachedSwimSpeedAttribute = Registries.ATTRIBUTE.getEntry(VANILLA_SWIM_SPEED_ID).orElse(null);
+        }
+        return cachedSwimSpeedAttribute;
+    }
+
+    private static void applyNatureModifierToAttribute(
+        Function<RegistryEntry<EntityAttribute>, EntityAttributeInstance> lookup,
+        RegistryEntry<EntityAttribute> attribute,
+        NatureAttributeBinding binding,
+        float bonus
+    ) {
+        if (attribute == null) {
+            return;
         }
 
         EntityAttributeInstance instance = lookup.apply(attribute);
-        if (instance == null && fallbackAttribute != null && attribute != fallbackAttribute) {
-            instance = lookup.apply(fallbackAttribute);
-        }
-        if (instance == null && stat == NatureModifierSampler.NatureStat.SWIM_SPEED) {
-            RegistryEntry<EntityAttribute> resolvedFallback = resolveSwimFallbackAttribute();
-            if (resolvedFallback != null) {
-                instance = lookup.apply(resolvedFallback);
-            }
-        }
         if (instance == null) {
             return;
         }
@@ -394,82 +450,6 @@ public class PetAttributeManager {
             EntityAttributeModifier.Operation.ADD_VALUE
         );
         instance.addPersistentModifier(modifier);
-    }
-
-    private static RegistryEntry<EntityAttribute> resolveAttribute(
-        NatureModifierSampler.NatureStat stat,
-        Map<NatureModifierSampler.NatureStat, RegistryEntry<EntityAttribute>> attributeOverrides
-    ) {
-        if (attributeOverrides != null) {
-            RegistryEntry<EntityAttribute> override = attributeOverrides.get(stat);
-            if (override != null) {
-                return override;
-            }
-        }
-
-        return switch (stat) {
-            case HEALTH, VITALITY -> EntityAttributes.MAX_HEALTH;
-            case SPEED -> EntityAttributes.MOVEMENT_SPEED;
-            case SWIM_SPEED -> resolveSwimSpeedAttribute();
-            case ATTACK -> EntityAttributes.ATTACK_DAMAGE;
-            case DEFENSE -> EntityAttributes.ARMOR;
-            case AGILITY -> EntityAttributes.KNOCKBACK_RESISTANCE;
-            case FOCUS, LOYALTY -> EntityAttributes.FOLLOW_RANGE;
-            case NONE -> null;
-        };
-    }
-
-    private static RegistryEntry<EntityAttribute> fallbackAttributeFor(
-        NatureModifierSampler.NatureStat stat,
-        Map<NatureModifierSampler.NatureStat, RegistryEntry<EntityAttribute>> attributeOverrides
-    ) {
-        if (stat != NatureModifierSampler.NatureStat.SWIM_SPEED) {
-            return null;
-        }
-
-        if (attributeOverrides != null) {
-            RegistryEntry<EntityAttribute> movementOverride = attributeOverrides.get(NatureModifierSampler.NatureStat.SPEED);
-            if (movementOverride != null) {
-                return movementOverride;
-            }
-        }
-
-        return resolveSwimFallbackAttribute();
-    }
-
-    private static Map<NatureModifierSampler.NatureStat, NatureAttributeBinding> createNatureAttributeBindings() {
-        Map<NatureModifierSampler.NatureStat, NatureAttributeBinding> map =
-            new java.util.EnumMap<>(NatureModifierSampler.NatureStat.class);
-        map.put(NatureModifierSampler.NatureStat.HEALTH,
-            NatureAttributeBinding.multiplicative(NATURE_HEALTH_ID));
-        map.put(NatureModifierSampler.NatureStat.VITALITY,
-            NatureAttributeBinding.multiplicative(NATURE_VITALITY_ID));
-        map.put(NatureModifierSampler.NatureStat.SPEED,
-            NatureAttributeBinding.multiplicative(NATURE_SPEED_ID));
-        map.put(NatureModifierSampler.NatureStat.SWIM_SPEED,
-            NatureAttributeBinding.multiplicative(NATURE_SWIM_SPEED_ID));
-        map.put(NatureModifierSampler.NatureStat.ATTACK,
-            NatureAttributeBinding.multiplicative(NATURE_ATTACK_ID));
-        map.put(NatureModifierSampler.NatureStat.DEFENSE,
-            NatureAttributeBinding.scaledAdditive(NATURE_DEFENSE_ID, 8.0));
-        map.put(NatureModifierSampler.NatureStat.AGILITY,
-            NatureAttributeBinding.scaledAdditive(NATURE_AGILITY_ID, 1.0));
-        map.put(NatureModifierSampler.NatureStat.FOCUS,
-            NatureAttributeBinding.multiplicative(NATURE_FOCUS_ID));
-        map.put(NatureModifierSampler.NatureStat.LOYALTY,
-            NatureAttributeBinding.multiplicative(NATURE_LOYALTY_ID));
-        return java.util.Collections.unmodifiableMap(map);
-    }
-
-    private static RegistryEntry<EntityAttribute> resolveSwimSpeedAttribute() {
-        if (cachedSwimSpeedAttribute == null) {
-            cachedSwimSpeedAttribute = Registries.ATTRIBUTE.getEntry(VANILLA_SWIM_SPEED_ID).orElse(null);
-        }
-        return cachedSwimSpeedAttribute;
-    }
-
-    private static RegistryEntry<EntityAttribute> resolveSwimFallbackAttribute() {
-        return EntityAttributes.MOVEMENT_SPEED;
     }
 
     private record NatureAttributeBinding(Identifier id,
@@ -607,7 +587,7 @@ public class PetAttributeManager {
      * Provides uniqueness while maintaining balance.
      * 
      * NOTE: Imprint multipliers are in range 0.88-1.12, so we subtract 1.0 to get additive bonus.
-     * Example: 1.08x → 0.08 → scaled by 0.5 → 0.04 (4% scalar bonus)
+     * Example: 1.08x â†’ 0.08 â†’ scaled by 0.5 â†’ 0.04 (4% scalar bonus)
      */
     private static float getImprintScalarBonus(String scalarType, PetImprint imprint, PetRoleType roleType) {
         float imprintBonus = 0.0f;
@@ -615,10 +595,10 @@ public class PetAttributeManager {
         // Apply imprint bonuses to role scalars (scaled down for balance)
         switch (scalarType) {
             case "offense":
-                imprintBonus = (imprint.getAttackMultiplier() - 1.0f) * 0.5f; // ±6% max
+                imprintBonus = (imprint.getMightMultiplier() - 1.0f) * 0.5f; // +/-6% max
                 break;
             case "defense":
-                imprintBonus = (imprint.getDefenseMultiplier() - 1.0f) * 0.5f;
+                imprintBonus = (imprint.getGuardMultiplier() - 1.0f) * 0.5f;
                 break;
             case "aura":
                 imprintBonus = (imprint.getVitalityMultiplier() - 1.0f) * 0.5f;
@@ -629,7 +609,7 @@ public class PetAttributeManager {
             case "disruption":
                 // Combination stat for Eclipsed role
                 float disruptAgility = (imprint.getAgilityMultiplier() - 1.0f);
-                float disruptAttack = (imprint.getAttackMultiplier() - 1.0f);
+                float disruptAttack = (imprint.getMightMultiplier() - 1.0f);
                 imprintBonus = (disruptAgility + disruptAttack) * 0.25f;
                 break;
             case "echo":
@@ -637,8 +617,8 @@ public class PetAttributeManager {
                 break;
             case "curse":
                 // Combination stat for Cursed One role
-                float curseAttack = (imprint.getAttackMultiplier() - 1.0f);
-                float curseDefense = (imprint.getDefenseMultiplier() - 1.0f);
+                float curseAttack = (imprint.getMightMultiplier() - 1.0f);
+                float curseDefense = (imprint.getGuardMultiplier() - 1.0f);
                 imprintBonus = (curseAttack + curseDefense) * 0.25f;
                 break;
             case "slumber":

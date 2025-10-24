@@ -410,8 +410,8 @@ public final class AstrologyRegistry {
         list.add(createMoonPhaseSign("Aries", 0,
             AstrologySignDefinition.DisplayStyle.SUFFIX, "Vanguard", " ",
             new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.ATTACK, 0.07f,
-                NatureModifierSampler.NatureStat.SPEED, 0.03f,
+                NatureModifierSampler.NatureStat.MIGHT, 0.07f,
+                NatureModifierSampler.NatureStat.SWIFTNESS, 0.03f,
                 1.45f, 0.95f, 1.05f, 0.85f
             ),
             new AstrologySignDefinition.EmotionProfile(
@@ -425,7 +425,7 @@ public final class AstrologyRegistry {
             AstrologySignDefinition.DisplayStyle.PREFIX, "Bulwark", " ",
             new AstrologySignDefinition.StatProfile(
                 NatureModifierSampler.NatureStat.VITALITY, 0.06f,
-                NatureModifierSampler.NatureStat.DEFENSE, 0.03f,
+                NatureModifierSampler.NatureStat.GUARD, 0.03f,
                 0.85f, 1.30f, 0.90f, 1.25f
             ),
             new AstrologySignDefinition.EmotionProfile(
@@ -438,7 +438,7 @@ public final class AstrologyRegistry {
         list.add(createMoonPhaseSign("Gemini", 2,
             AstrologySignDefinition.DisplayStyle.PREFIX, "Syzygy", " ",
             new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.SPEED, 0.06f,
+                NatureModifierSampler.NatureStat.SWIFTNESS, 0.06f,
                 NatureModifierSampler.NatureStat.FOCUS, 0.03f,
                 1.20f, 0.95f, 1.25f, 0.90f
             ),
@@ -452,7 +452,7 @@ public final class AstrologyRegistry {
         list.add(createMoonPhaseSign("Cancer", 3,
             AstrologySignDefinition.DisplayStyle.SUFFIX, "Haven", " ",
             new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.LOYALTY, 0.06f,
+                NatureModifierSampler.NatureStat.FOCUS, 0.06f,
                 NatureModifierSampler.NatureStat.VITALITY, 0.03f,
                 0.95f, 1.30f, 1.20f, 1.30f
             ),
@@ -466,7 +466,7 @@ public final class AstrologyRegistry {
         list.add(createMoonPhaseSign("Leo", 4,
             AstrologySignDefinition.DisplayStyle.PREFIX, "Solara", " ",
             new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.ATTACK, 0.06f,
+                NatureModifierSampler.NatureStat.MIGHT, 0.06f,
                 NatureModifierSampler.NatureStat.FOCUS, 0.03f,
                 1.25f, 1.05f, 1.20f, 1.05f
             ),
@@ -495,7 +495,7 @@ public final class AstrologyRegistry {
             AstrologySignDefinition.DisplayStyle.SUFFIX, "Equinox", " ",
             new AstrologySignDefinition.StatProfile(
                 NatureModifierSampler.NatureStat.AGILITY, 0.05f,
-                NatureModifierSampler.NatureStat.LOYALTY, 0.03f,
+                NatureModifierSampler.NatureStat.FOCUS, 0.03f,
                 1.05f, 1.05f, 1.15f, 1.05f
             ),
             new AstrologySignDefinition.EmotionProfile(
@@ -508,8 +508,8 @@ public final class AstrologyRegistry {
         list.add(createMoonPhaseSign("Scorpio", 7,
             AstrologySignDefinition.DisplayStyle.PREFIX, "Vesper", " ",
             new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.ATTACK, 0.06f,
-                NatureModifierSampler.NatureStat.DEFENSE, 0.03f,
+                NatureModifierSampler.NatureStat.MIGHT, 0.06f,
+                NatureModifierSampler.NatureStat.GUARD, 0.03f,
                 1.30f, 1.10f, 0.90f, 1.30f
             ),
             new AstrologySignDefinition.EmotionProfile(
@@ -522,7 +522,7 @@ public final class AstrologyRegistry {
         list.add(createMoonPhaseSign("Sagittarius", 8,
             AstrologySignDefinition.DisplayStyle.PREFIX, "Zenith", " ",
             new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.SPEED, 0.06f,
+                NatureModifierSampler.NatureStat.SWIFTNESS, 0.06f,
                 NatureModifierSampler.NatureStat.VITALITY, 0.03f,
                 1.30f, 1.00f, 1.10f, 0.95f
             ),
@@ -536,7 +536,7 @@ public final class AstrologyRegistry {
         list.add(createMoonPhaseSign("Capricorn", 9,
             AstrologySignDefinition.DisplayStyle.SUFFIX, "Apex", " ",
             new AstrologySignDefinition.StatProfile(
-                NatureModifierSampler.NatureStat.DEFENSE, 0.06f,
+                NatureModifierSampler.NatureStat.GUARD, 0.06f,
                 NatureModifierSampler.NatureStat.FOCUS, 0.03f,
                 0.80f, 1.35f, 0.85f, 1.30f
             ),
@@ -551,7 +551,7 @@ public final class AstrologyRegistry {
             AstrologySignDefinition.DisplayStyle.PREFIX, "Cascade", " ",
             new AstrologySignDefinition.StatProfile(
                 NatureModifierSampler.NatureStat.FOCUS, 0.05f,
-                NatureModifierSampler.NatureStat.SPEED, 0.03f,
+                NatureModifierSampler.NatureStat.SWIFTNESS, 0.03f,
                 1.10f, 0.95f, 1.20f, 0.95f
             ),
             new AstrologySignDefinition.EmotionProfile(
@@ -565,7 +565,7 @@ public final class AstrologyRegistry {
             AstrologySignDefinition.DisplayStyle.PREFIX, "Eidolon", " ",
             new AstrologySignDefinition.StatProfile(
                 NatureModifierSampler.NatureStat.VITALITY, 0.05f,
-                NatureModifierSampler.NatureStat.LOYALTY, 0.03f,
+                NatureModifierSampler.NatureStat.FOCUS, 0.03f,
                 0.85f, 1.25f, 1.15f, 0.90f
             ),
             new AstrologySignDefinition.EmotionProfile(

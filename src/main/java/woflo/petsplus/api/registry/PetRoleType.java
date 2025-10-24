@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
-
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -665,7 +665,15 @@ public final class PetRoleType {
         }
 
         public DefinitionBuilder withStatAffinity(String key, float value) {
-            this.statAffinities.put(key, value);
+            if (key == null || key.isBlank()) {
+                return this;
+            }
+            String normalized = normalizeStatKey(key);
+            float clamped = value;
+            Float existing = this.statAffinities.get(normalized);
+            if (existing == null || Math.abs(clamped) >= Math.abs(existing)) {
+                this.statAffinities.put(normalized, clamped);
+            }
             return this;
         }
 
@@ -678,9 +686,24 @@ public final class PetRoleType {
          */
         public DefinitionBuilder withStatAffinities(Map<String, Float> affinities) {
             if (affinities != null) {
-                this.statAffinities.putAll(affinities);
+                for (Map.Entry<String, Float> entry : affinities.entrySet()) {
+                    withStatAffinity(entry.getKey(), entry.getValue());
+                }
             }
             return this;
+        }
+
+        private static String normalizeStatKey(String key) {
+            String trimmed = key.trim().toLowerCase(Locale.ROOT);
+            return switch (trimmed) {
+                case "health", "vitality" -> "vitality";
+                case "speed", "swim_speed", "swim-speed", "swiftness" -> "swiftness";
+                case "attack", "might" -> "might";
+                case "defense", "guard" -> "guard";
+                case "loyalty", "focus" -> "focus";
+                case "agility" -> "agility";
+                default -> key;
+            };
         }
 
         public DefinitionBuilder withAttributeScaling(AttributeScaling scaling) {

@@ -58,6 +58,7 @@ import woflo.petsplus.stats.nature.PetNatureSelector;
 import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
 import woflo.petsplus.ui.ChatLinks;
 import woflo.petsplus.util.PetTargetingUtil;
+import woflo.petsplus.util.PetValidationUtil;
 
 import net.minecraft.world.Heightmap;
 
@@ -83,11 +84,9 @@ public class PetsCommand {
     public static final SuggestionProvider<ServerCommandSource> PET_SUGGESTIONS = (context, builder) -> {
         try {
             ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-            List<String> petNames = findNearbyOwnedPets(player)
+            List<String> petNames = PetValidationUtil.findOwnedPets(player)
                 .stream()
-                .map(pet -> pet.hasCustomName() ? 
-                    pet.getCustomName().getString() : 
-                    pet.getType().getName().getString())
+                .map(PetValidationUtil::getDisplayName)
                 .collect(Collectors.toList());
             return CommandSource.suggestMatching(petNames, builder);
         } catch (CommandSyntaxException e) {
@@ -309,7 +308,7 @@ public class PetsCommand {
     private static int showPetOverview(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
         
-        List<MobEntity> nearbyPets = findNearbyOwnedPets(player);
+        List<MobEntity> nearbyPets = PetValidationUtil.findOwnedPets(player);
         List<MobEntity> pendingPets = woflo.petsplus.events.PetDetectionHandler.getPendingPets(player);
         
         // Header
@@ -321,8 +320,7 @@ public class PetsCommand {
                 .formatted(Formatting.YELLOW), false);
             
             for (MobEntity pet : pendingPets) {
-                String petName = pet.hasCustomName() ? pet.getCustomName().getString() : 
-                    pet.getType().getName().getString();
+                String petName = PetValidationUtil.getDisplayName(pet);
                 
                 player.sendMessage(Text.literal("  - " + petName)
                     .formatted(Formatting.WHITE), false);
@@ -467,7 +465,7 @@ public class PetsCommand {
     private static int showNearbyPetsInfo(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
         
-        List<MobEntity> pets = findNearbyOwnedPets(player);
+        List<MobEntity> pets = PetValidationUtil.findOwnedPets(player);
         
         if (pets.isEmpty()) {
             player.sendMessage(Text.literal("No pets found nearby!")
@@ -1019,18 +1017,6 @@ public class PetsCommand {
             .map(role -> role.id().getPath())
             .collect(Collectors.joining(", "));
     }
-
-    private static List<MobEntity> findNearbyOwnedPets(ServerPlayerEntity player) {
-        return player.getEntityWorld().getEntitiesByClass(
-            MobEntity.class,
-            player.getBoundingBox().expand(10),
-            entity -> {
-                PetComponent petComp = PetComponent.get(entity);
-                return petComp != null && petComp.isOwnedBy(player);
-            }
-        );
-    }
-
     private static void showRoleButtons(ServerPlayerEntity player) {
         Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
         List<ChatLinks.Suggest> commands = new ArrayList<>();
@@ -1323,18 +1309,6 @@ public class PetsCommand {
     }
 
     private static MobEntity findPetByName(ServerPlayerEntity player, String petName) {
-        List<MobEntity> nearbyPets = findNearbyOwnedPets(player);
-        for (MobEntity pet : nearbyPets) {
-            if (pet.hasCustomName() && pet.getCustomName().getString().equalsIgnoreCase(petName)) {
-                return pet;
-            }
-        }
-        // If no pet with a custom name is found, check for default names
-        for (MobEntity pet : nearbyPets) {
-            if (!pet.hasCustomName() && pet.getType().getName().getString().equalsIgnoreCase(petName)) {
-                return pet;
-            }
-        }
-        return null;
+        return PetValidationUtil.findOwnedPetByName(player, petName);
     }
 }

@@ -149,9 +149,11 @@ public final class AstrologySignDataLoader extends BaseJsonDataLoader<AstrologyS
         if (statsJson == null) {
             throw new IllegalArgumentException("Missing stat_profile for " + source);
         }
-        NatureModifierSampler.NatureStat majorStat = parseEnum(RegistryJsonHelper.getString(statsJson, "major", "speed"),
-            NatureModifierSampler.NatureStat.class, NatureModifierSampler.NatureStat.SPEED, source);
-        NatureModifierSampler.NatureStat minorStat = parseEnum(RegistryJsonHelper.getString(statsJson, "minor", "agility"),
+        String majorKey = normalizeStatKey(RegistryJsonHelper.getString(statsJson, "major", "swiftness"));
+        String minorKey = normalizeStatKey(RegistryJsonHelper.getString(statsJson, "minor", "agility"));
+        NatureModifierSampler.NatureStat majorStat = parseEnum(majorKey,
+            NatureModifierSampler.NatureStat.class, NatureModifierSampler.NatureStat.SWIFTNESS, source);
+        NatureModifierSampler.NatureStat minorStat = parseEnum(minorKey,
             NatureModifierSampler.NatureStat.class, NatureModifierSampler.NatureStat.AGILITY, source);
         float majorBase = RegistryJsonHelper.getFloat(statsJson, "major_base", 0.05f);
         float minorBase = RegistryJsonHelper.getFloat(statsJson, "minor_base", 0.03f);
@@ -212,6 +214,21 @@ public final class AstrologySignDataLoader extends BaseJsonDataLoader<AstrologyS
         }
 
         return builder.build();
+    }
+
+    private static String normalizeStatKey(String value) {
+        if (value == null) {
+            return null;
+        }
+        return switch (value.trim().toLowerCase(Locale.ROOT)) {
+            case "health", "vitality" -> "vitality";
+            case "speed", "swim_speed", "swim-speed", "swiftness" -> "swiftness";
+            case "attack", "might" -> "might";
+            case "defense", "guard" -> "guard";
+            case "loyalty", "focus" -> "focus";
+            case "agility" -> "agility";
+            default -> value;
+        };
     }
 
     private static <T extends Enum<T>> T parseEnum(String value, Class<T> type, T fallback, String source) {

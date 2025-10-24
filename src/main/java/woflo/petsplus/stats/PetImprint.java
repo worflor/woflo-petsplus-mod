@@ -1,7 +1,11 @@
 package woflo.petsplus.stats;
 
+import com.mojang.datafixers.util.Pair;
 import com.mojang.serialization.Codec;
-import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.mojang.serialization.DataResult;
+import com.mojang.serialization.Dynamic;
+import com.mojang.serialization.DynamicOps;
+import com.mojang.serialization.RecordBuilder;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
@@ -11,26 +15,16 @@ import java.util.Random;
 import java.util.UUID;
 
 /**
- * Represents the unique "imprint" of a pet - random stat variance that makes each pet individual.
- * 
- * <p>Even two pets with the same Nature and Role will have different stats due to their imprint.
- * This creates the "this specific wolf is naturally faster/stronger" feeling.
- * 
- * <p>Imprint modifiers are multiplicative bonuses in the range 0.88x to 1.12x (±12% variance).
- * They are generated once when the pet is tamed or born and remain constant throughout its life.
- * 
- * <h2>Example:</h2>
- * <pre>
- * Wolf A: 1.08x health, 0.94x speed, 1.03x attack (fast and sturdy but clumsy)
- * Wolf B: 0.92x health, 1.09x speed, 1.02x attack (fragile but swift)
- * </pre>
- * 
- * @see StatModifierProvider
- * @see woflo.petsplus.stats.nature.NatureModifierSampler
+ * Represents the unique "imprint" of a pet – small stat variances that ensure every companion
+ * feels distinct even when sharing the same nature and role. Multipliers are generated at tame
+ * time (or birth) and never change afterwards.
+ *
+ * <p>All multipliers are multiplicative values in the range {@link #MIN_MULTIPLIER} to
+ * {@link #MAX_MULTIPLIER}. Consolidated stats align with the new six-stat progression model:
+ * vitality, swiftness, might, guard, focus, agility.</p>
  */
-public class PetImprint implements StatModifierProvider {
-    
-    // Multiplier ranges: 0.88x to 1.12x (±12% variance)
+public final class PetImprint implements StatModifierProvider {
+
     private static final float MIN_MULTIPLIER = 0.88f;
     private static final float MAX_MULTIPLIER = 1.12f;
 
@@ -38,61 +32,52 @@ public class PetImprint implements StatModifierProvider {
         .map(StatType::key)
         .toArray(String[]::new);
 
-    // Individual stat multipliers
-    private final float healthMultiplier;
-    private final float speedMultiplier;
-    private final float attackMultiplier;
-    private final float defenseMultiplier;
-    private final float agilityMultiplier;
     private final float vitalityMultiplier;
-    
-    // Calculated seed for this pet's imprint
+    private final float swiftnessMultiplier;
+    private final float mightMultiplier;
+    private final float guardMultiplier;
+    private final float focusMultiplier;
+    private final float agilityMultiplier;
     private final long imprintSeed;
-    
-    private PetImprint(float health, float speed, float attack, float defense, float agility, float vitality, long seed) {
-        this.healthMultiplier = health;
-        this.speedMultiplier = speed;
-        this.attackMultiplier = attack;
-        this.defenseMultiplier = defense;
-        this.agilityMultiplier = agility;
-        this.vitalityMultiplier = vitality;
+
+    private PetImprint(float vitality,
+                       float swiftness,
+                       float might,
+                       float guard,
+                       float focus,
+                       float agility,
+                       long seed) {
+        this.vitalityMultiplier = clampMultiplier(vitality);
+        this.swiftnessMultiplier = clampMultiplier(swiftness);
+        this.mightMultiplier = clampMultiplier(might);
+        this.guardMultiplier = clampMultiplier(guard);
+        this.focusMultiplier = clampMultiplier(focus);
+        this.agilityMultiplier = clampMultiplier(agility);
         this.imprintSeed = seed;
-    }
-    
-    /**
-     * Generate imprint for a newly tamed pet.
-     */
-    public static PetImprint generateForNewPet(MobEntity pet, long tameTime) {
-        UUID petUuid = pet.getUuid();
-        long baseHash = petUuid.getMostSignificantBits() ^ petUuid.getLeastSignificantBits();
-        long seed = BehaviorSeedUtil.mixBehaviorSeed(baseHash, tameTime);
-        Random random = new Random(seed);
-        
-        return new PetImprint(
-            generateMultiplier(random),  // health
-            generateMultiplier(random),  // speed
-            generateMultiplier(random),  // attack
-            generateMultiplier(random),  // defense
-            generateMultiplier(random),  // agility
-            generateMultiplier(random),  // vitality
-            seed
-        );
-    }
-    
-    /**
-     * Generate a balanced random multiplier in range 0.88-1.12.
-     * Uses a bell-curved distribution to favor moderate values.
-     */
-    private static float generateMultiplier(Random random) {
-        // Generate two random values and average them for bell curve
-        float val1 = MIN_MULTIPLIER + (MAX_MULTIPLIER - MIN_MULTIPLIER) * random.nextFloat();
-        float val2 = MIN_MULTIPLIER + (MAX_MULTIPLIER - MIN_MULTIPLIER) * random.nextFloat();
-        return (val1 + val2) / 2.0f;
     }
 
     /**
-     * Blend parent imprints to create a child profile.
-     * If no parents provided, generates a fresh imprint.
+     * Generate a brand-new imprint for a freshly tamed pet.
+     */
+    public static PetImprint generateForNewPet(MobEntity pet, long tameTime) {
+        UUID uuid = pet.getUuid();
+        long baseHash = uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits();
+        long seed = BehaviorSeedUtil.mixBehaviorSeed(baseHash, tameTime);
+        Random random = new Random(seed);
+
+        return new PetImprint(
+            generateMultiplier(random), // vitality
+            generateMultiplier(random), // swiftness
+            generateMultiplier(random), // might
+            generateMultiplier(random), // guard
+            generateMultiplier(random), // focus
+            generateMultiplier(random), // agility
+            seed
+        );
+    }
+
+    /**
+     * Blend the parent imprints to create an offspring profile.
      */
     public static PetImprint blendFromParents(MobEntity child,
                                               long tameTime,
@@ -107,63 +92,76 @@ public class PetImprint implements StatModifierProvider {
         long seed = BehaviorSeedUtil.mixBehaviorSeed(baseHash, tameTime);
         Random random = new Random(seed);
 
-        float[] primaryStats = primary != null ? primary.toArray() : generateDefaults();
-        float[] partnerStats = partner != null ? partner.toArray() : generateDefaults();
-        float[] childStats = new float[6];
+        float[] a = primary != null ? primary.toArray() : generateDefaults();
+        float[] b = partner != null ? partner.toArray() : generateDefaults();
+        float[] result = new float[6];
 
-        // Blend with slight mutation
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < result.length; i++) {
             float blendRatio = random.nextFloat();
-            float blended = primaryStats[i] * blendRatio + partnerStats[i] * (1.0f - blendRatio);
-            float mutation = (random.nextFloat() - 0.5f) * 0.08f; // ±4% mutation
-            childStats[i] = clampMultiplier(blended + mutation);
+            float blended = (a[i] * blendRatio) + (b[i] * (1.0f - blendRatio));
+            float mutation = (random.nextFloat() - 0.5f) * 0.08f; // +/-4% mutation
+            result[i] = clampMultiplier(blended + mutation);
         }
 
         return new PetImprint(
-            childStats[0], childStats[1], childStats[2],
-            childStats[3], childStats[4], childStats[5],
+            result[0], result[1], result[2],
+            result[3], result[4], result[5],
             seed
         );
     }
 
+    private static float generateMultiplier(Random random) {
+        float val1 = MIN_MULTIPLIER + (MAX_MULTIPLIER - MIN_MULTIPLIER) * random.nextFloat();
+        float val2 = MIN_MULTIPLIER + (MAX_MULTIPLIER - MIN_MULTIPLIER) * random.nextFloat();
+        return (val1 + val2) * 0.5f;
+    }
+
     private static float[] generateDefaults() {
-        return new float[]{1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
+        return new float[] {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
     }
 
     private static float clampMultiplier(float value) {
         return MathHelper.clamp(value, MIN_MULTIPLIER, MAX_MULTIPLIER);
     }
 
-    private float[] toArray() {
-        return new float[]{
-            healthMultiplier,
-            speedMultiplier,
-            attackMultiplier,
-            defenseMultiplier,
-            agilityMultiplier,
-            vitalityMultiplier
+    public float[] toArray() {
+        return new float[] {
+            vitalityMultiplier,
+            swiftnessMultiplier,
+            mightMultiplier,
+            guardMultiplier,
+            focusMultiplier,
+            agilityMultiplier
         };
     }
-    
+
+    // ------------------------------------------------------------------------
     // StatModifierProvider implementation
+    // ------------------------------------------------------------------------
+
     @Override
-    public float getHealthMultiplier() {
-        return healthMultiplier;
+    public float getVitalityMultiplier() {
+        return vitalityMultiplier;
     }
 
     @Override
-    public float getSpeedMultiplier() {
-        return speedMultiplier;
+    public float getSwiftnessMultiplier() {
+        return swiftnessMultiplier;
     }
 
     @Override
-    public float getAttackMultiplier() {
-        return attackMultiplier;
+    public float getMightMultiplier() {
+        return mightMultiplier;
     }
 
     @Override
-    public float getDefenseMultiplier() {
-        return defenseMultiplier;
+    public float getGuardMultiplier() {
+        return guardMultiplier;
+    }
+
+    @Override
+    public float getFocusMultiplier() {
+        return focusMultiplier;
     }
 
     @Override
@@ -171,91 +169,159 @@ public class PetImprint implements StatModifierProvider {
         return agilityMultiplier;
     }
 
-    @Override
-    public float getVitalityMultiplier() {
-        return vitalityMultiplier;
-    }
-
-    /**
-     * Get the seed used to generate this imprint.
-     */
     public long getImprintSeed() {
         return imprintSeed;
     }
-    
+
     /**
-     * Get a description of this pet's notable traits.
-     * Returns strings like "Swift", "Hardy", "Fierce", etc.
+     * Human-readable short description summarising the imprint strengths.
      */
     public String getImprintDescription() {
-        StringBuilder desc = new StringBuilder();
-
+        StringBuilder builder = new StringBuilder();
         float[] stats = toArray();
-        String[] labels = {"Hardy", "Swift", "Fierce", "Sturdy", "Nimble", "Resilient"};
-        String[] weakLabels = {"Frail", "Slow", "Gentle", "Fragile", "Clumsy", "Sensitive"};
-        
-        // Find the strongest and weakest traits (only if significant)
-        float maxValue = 1.0f;
-        float minValue = 1.0f;
-        int maxIndex = -1;
-        int minIndex = -1;
-        
+
+        String[] strongLabels = {"Stalwart", "Fleet", "Fierce", "Bulwark", "Insightful", "Acrobatic"};
+        String[] weakLabels = {"Fragile", "Sluggish", "Gentle", "Brittle", "Distracted", "Clumsy"};
+
+        float highest = 1.0f;
+        float lowest = 1.0f;
+        int highIndex = -1;
+        int lowIndex = -1;
+
         for (int i = 0; i < stats.length; i++) {
-            if (stats[i] > maxValue && stats[i] >= 1.08f) {
-                maxValue = stats[i];
-                maxIndex = i;
+            float value = stats[i];
+            if (value > highest && value >= 1.08f) {
+                highest = value;
+                highIndex = i;
             }
-            if (stats[i] < minValue && stats[i] <= 0.92f) {
-                minValue = stats[i];
-                minIndex = i;
+            if (value < lowest && value <= 0.92f) {
+                lowest = value;
+                lowIndex = i;
             }
         }
-        
-        if (maxIndex >= 0) {
-            desc.append(labels[maxIndex]);
+
+        if (highIndex >= 0) {
+            builder.append(strongLabels[highIndex]);
         }
-        
-        if (minIndex >= 0) {
-            if (desc.length() > 0) desc.append(" but ");
-            desc.append(weakLabels[minIndex]);
+        if (lowIndex >= 0) {
+            if (builder.length() > 0) {
+                builder.append(" but ");
+            }
+            builder.append(weakLabels[lowIndex]);
         }
-        
-        if (desc.length() == 0) {
-            desc.append("Balanced");
+        if (builder.length() == 0) {
+            builder.append("Balanced");
         }
-        
-        return desc.toString().trim();
+
+        return builder.toString();
     }
-    
-    /**
-     * Codec for serialization.
-     */
-    public static final Codec<PetImprint> CODEC = RecordCodecBuilder.create(instance ->
-        instance.group(
-            Codec.FLOAT.fieldOf("healthMult").forGetter(i -> i.healthMultiplier),
-            Codec.FLOAT.fieldOf("speedMult").forGetter(i -> i.speedMultiplier),
-            Codec.FLOAT.fieldOf("attackMult").forGetter(i -> i.attackMultiplier),
-            Codec.FLOAT.fieldOf("defenseMult").forGetter(i -> i.defenseMultiplier),
-            Codec.FLOAT.fieldOf("agilityMult").forGetter(i -> i.agilityMultiplier),
-            Codec.FLOAT.fieldOf("vitalityMult").forGetter(i -> i.vitalityMultiplier),
-            Codec.LONG.fieldOf("imprintSeed").forGetter(i -> i.imprintSeed)
-        ).apply(instance, PetImprint::new)
-    );
 
     public static String[] statKeyArray() {
         return STAT_KEYS.clone();
     }
-    
-    /**
-     * Enum for different stat types.
-     */
+
+    // ------------------------------------------------------------------------
+    // Serialization (with legacy migration support)
+    // ------------------------------------------------------------------------
+
+    public static final Codec<PetImprint> CODEC = Codec.of(
+        new com.mojang.serialization.Encoder<PetImprint>() {
+            @Override
+            public <T> DataResult<T> encode(PetImprint imprint, DynamicOps<T> ops, T prefix) {
+                RecordBuilder<T> builder = ops.mapBuilder();
+                encodeToBuilder(imprint, ops, builder);
+                return builder.build(prefix);
+            }
+        },
+        new com.mojang.serialization.Decoder<PetImprint>() {
+            @Override
+            public <T> DataResult<Pair<PetImprint, T>> decode(DynamicOps<T> ops, T input) {
+                try {
+                    PetImprint imprint = fromDynamic(new Dynamic<>(ops, input));
+                    return DataResult.success(Pair.of(imprint, input));
+                } catch (Exception error) {
+                    return DataResult.error(() -> "Failed to decode PetImprint: " + error.getMessage());
+                }
+            }
+        }
+    );
+
+    private static PetImprint fromDynamic(Dynamic<?> dynamic) {
+        float vitality = mergeHighest(dynamic,
+            "vitalityMult",
+            "healthMult",
+            "vitality");
+
+        float swiftness = mergeHighest(dynamic,
+            "swiftnessMult",
+            "speedMult",
+            "swimSpeedMult",
+            "swim_speedMult");
+
+        float might = mergeHighest(dynamic,
+            "mightMult",
+            "attackMult");
+
+        float guard = mergeHighest(dynamic,
+            "guardMult",
+            "defenseMult");
+
+        float focus = mergeHighest(dynamic,
+            "focusMult",
+            "loyaltyMult");
+
+        float agility = mergeHighest(dynamic,
+            "agilityMult",
+            "dexterityMult");
+
+        long seed = dynamic.get("imprintSeed").asLong(0L);
+        if (seed == 0L) {
+            // Attempt fallback for older saves that might have stored "seed"
+            seed = dynamic.get("seed").asLong(0L);
+        }
+
+        return new PetImprint(vitality, swiftness, might, guard, focus, agility, seed);
+    }
+
+    private static float mergeHighest(Dynamic<?> dynamic, String... keys) {
+        float best = Float.NaN;
+
+        for (String key : keys) {
+            var optional = dynamic.get(key);
+            if (optional.result().isPresent()) {
+                float value = optional.asFloat(1.0f);
+                if (Float.isNaN(best) || value > best) {
+                    best = value;
+                }
+            }
+        }
+
+        if (Float.isNaN(best)) {
+            return 1.0f;
+        }
+        return clampMultiplier(best);
+    }
+
+    private static <T> RecordBuilder<T> encodeToBuilder(PetImprint imprint,
+                                                        DynamicOps<T> ops,
+                                                        RecordBuilder<T> builder) {
+        builder.add("vitalityMult", ops.createFloat(imprint.vitalityMultiplier));
+        builder.add("swiftnessMult", ops.createFloat(imprint.swiftnessMultiplier));
+        builder.add("mightMult", ops.createFloat(imprint.mightMultiplier));
+        builder.add("guardMult", ops.createFloat(imprint.guardMultiplier));
+        builder.add("focusMult", ops.createFloat(imprint.focusMultiplier));
+        builder.add("agilityMult", ops.createFloat(imprint.agilityMultiplier));
+        builder.add("imprintSeed", ops.createLong(imprint.imprintSeed));
+        return builder;
+    }
+
     private enum StatType {
-        HEALTH("health"),
-        SPEED("speed"),
-        ATTACK("attack"),
-        DEFENSE("defense"),
-        AGILITY("agility"),
-        VITALITY("vitality");
+        VITALITY("vitality"),
+        SWIFTNESS("swiftness"),
+        MIGHT("might"),
+        GUARD("guard"),
+        FOCUS("focus"),
+        AGILITY("agility");
 
         private final String key;
 
