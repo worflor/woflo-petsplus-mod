@@ -386,9 +386,14 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
             }
             lastMoveTarget = moveTarget;
 
-            if (budgetDenied) {
-                consecutiveBudgetDenials = Math.min(consecutiveBudgetDenials + 1, PATH_FAILURE_TIMEOUT);
-            } else if (!navigationIdle || attemptedPathStart) {
+            if (budgetDenied) { // Pathfinding budget was denied
+                consecutiveBudgetDenials++;
+                if (consecutiveBudgetDenials >= 5) { // After 5 consecutive failures...
+                    // Go on cooldown. The duration increases with more failures (exponential backoff).
+                    petComponent.setCooldown(FOLLOW_PATH_COOLDOWN_KEY, Math.min(100, 10 * consecutiveBudgetDenials)); // Cooldown up to 5 seconds
+                    requestStop(); // Immediately stop the goal. It won't run again until the cooldown expires.
+                }
+            } else if (attemptedPathStart || !navigationIdle) { // Reset if we successfully started a path or are already moving.
                 consecutiveBudgetDenials = 0;
             }
 
@@ -511,6 +516,11 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
             return;
         }
         if (!(mob.getEntityWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+        // Prevent debug logging during server shutdown to avoid client-side rendering issues.
+        // Assuming StateManager has a static method `isServerStopping()` to check this state.
+        if (StateManager.isServerStopping()) {
             return;
         }
         // Delegate to centralized aggregator for periodic owner-level summaries.
