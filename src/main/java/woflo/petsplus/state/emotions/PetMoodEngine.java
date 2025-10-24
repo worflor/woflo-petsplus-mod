@@ -41,6 +41,7 @@ import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeKeys;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
+import woflo.petsplus.ai.traits.SpeciesTraits;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.config.DebugSettings;
@@ -1868,20 +1869,55 @@ public final class PetMoodEngine {
                                                         float physicalStamina,
                                                         float mentalFocus,
                                                         float socialCharge) {
-        float normalizedPhysical = Math.min(1f, physicalActivity * 0.4f);
-        float normalizedMental = Math.min(1f, mentalActivity * 0.3f);
-        float normalizedSocial = Math.min(1f, socialActivity * 0.3f);
-        return new BehaviouralEnergyProfile(
+        MobEntity petEntity = parent.getPetEntity();
+        float multiplier = resolveEnergyMultiplier(petEntity);
+        return applyEnergyMultiplier(multiplier,
                 momentum,
                 physicalActivity,
                 mentalActivity,
                 socialActivity,
+                physicalStamina,
+                mentalFocus,
+                socialCharge);
+    }
+
+    private float resolveEnergyMultiplier(@Nullable MobEntity petEntity) {
+        if (petEntity == null) {
+            return 1f;
+        }
+        return SpeciesTraits.getEnergyMultiplier(petEntity);
+    }
+
+    private static BehaviouralEnergyProfile applyEnergyMultiplier(float multiplier,
+                                                          float momentum,
+                                                          float physicalActivity,
+                                                          float mentalActivity,
+                                                          float socialActivity,
+                                                          float physicalStamina,
+                                                          float mentalFocus,
+                                                          float socialCharge) {
+        float scaledMomentum = MathHelper.clamp(momentum * multiplier, 0f, 1f);
+        float scaledPhysicalActivity = MathHelper.clamp(physicalActivity * multiplier, 0f, 1f);
+        float scaledMentalActivity = MathHelper.clamp(mentalActivity * multiplier, 0f, 1f);
+        float scaledSocialActivity = MathHelper.clamp(socialActivity * multiplier, 0f, 1f);
+        float scaledPhysicalStamina = MathHelper.clamp(physicalStamina * multiplier, 0f, 1f);
+        float scaledMentalFocus = MathHelper.clamp(mentalFocus * multiplier, 0f, 1f);
+        float scaledSocialCharge = MathHelper.clamp(socialCharge * multiplier, 0f, 1f);
+
+        float normalizedPhysical = MathHelper.clamp(scaledPhysicalActivity * 0.4f, 0f, 1f);
+        float normalizedMental = MathHelper.clamp(scaledMentalActivity * 0.3f, 0f, 1f);
+        float normalizedSocial = MathHelper.clamp(scaledSocialActivity * 0.3f, 0f, 1f);
+        return new BehaviouralEnergyProfile(
+                scaledMomentum,
+                scaledPhysicalActivity,
+                scaledMentalActivity,
+                scaledSocialActivity,
                 normalizedPhysical,
                 normalizedMental,
                 normalizedSocial,
-                physicalStamina,
-                mentalFocus,
-                socialCharge
+                scaledPhysicalStamina,
+                scaledMentalFocus,
+                scaledSocialCharge
         );
     }
 
@@ -2106,18 +2142,11 @@ public final class PetMoodEngine {
     }
 
     private void refreshEnergyProfile() {
-        float normalizedPhysical = Math.min(1f, physicalActivity * 0.4f);
-        float normalizedMental = Math.min(1f, mentalActivity * 0.3f);
-        float normalizedSocial = Math.min(1f, socialActivity * 0.3f);
-
-        cachedEnergyProfile = new BehaviouralEnergyProfile(
+        cachedEnergyProfile = buildEnergyProfile(
             behavioralMomentum,
             physicalActivity,
             mentalActivity,
             socialActivity,
-            normalizedPhysical,
-            normalizedMental,
-            normalizedSocial,
             physicalStamina,
             mentalFocus,
             socialCharge
