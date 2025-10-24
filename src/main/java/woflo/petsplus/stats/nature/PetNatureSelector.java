@@ -88,8 +88,13 @@ public final class PetNatureSelector {
     }
 
     static {
-        registerNature("frisky", ctx -> false, ctx -> ctx.environment().getBiomeTemperature() <= 0.3f);
-        registerNature("fierce", ctx -> false, ctx -> ctx.environment().getBiomeTemperature() >= 1.0f);
+        registerNature("fissure", ctx -> false, PetNatureSelector::matchesFissure);
+        registerNature("falsi", ctx -> false, PetNatureSelector::matchesFalsi);
+
+        registerNature("frisky", ctx -> false,
+            ctx -> ctx.environment().getBiomeTemperature() <= 0.3f);
+        registerNature("fierce", ctx -> false,
+            ctx -> ctx.environment().getBiomeTemperature() >= 1.0f);
         registerNature("feral", ctx -> false, ctx -> {
             float temp = ctx.environment().getBiomeTemperature();
             return temp > 0.3f && temp < 1.0f;
@@ -232,12 +237,17 @@ public final class PetNatureSelector {
         BlockPos pos = entity.getBlockPos();
         RegistryEntry<Biome> biomeEntry = world.getBiome(pos);
         Identifier biomeId = biomeEntry.getKey().map(RegistryKey::getValue).orElse(Identifier.of("minecraft", "unknown"));
-        float biomeTemperature = biomeEntry.value().getTemperature();
+        Biome biome = biomeEntry.value();
+        boolean hasPrecipitation = biome.hasPrecipitation();
+        float biomeTemperature = biome.getTemperature();
+        float biomeMoisture = hasPrecipitation ? 0.75f : 0.0f;
+        if (world.hasRain(pos)) {
+            biomeMoisture = 1.0f;
+        }
         boolean deepDark = biomeEntry.matchesKey(BiomeKeys.DEEP_DARK);
         boolean mushroomFields = biomeEntry.matchesKey(BiomeKeys.MUSHROOM_FIELDS);
         boolean ocean = biomeEntry.isIn(BiomeTags.IS_OCEAN);
         boolean swamp = biomeEntry.matchesKey(BiomeKeys.SWAMP) || biomeEntry.matchesKey(BiomeKeys.MANGROVE_SWAMP);
-        boolean hasPrecipitation = biomeEntry.value().hasPrecipitation();
         boolean snowyPrecipitation = hasPrecipitation && biomeTemperature <= 0.15f;
 
         int skyLight = world.getLightLevel(LightType.SKY, pos);
@@ -262,6 +272,7 @@ public final class PetNatureSelector {
             pos.toImmutable(),
             biomeId,
             biomeTemperature,
+            biomeMoisture,
             deepDark,
             mushroomFields,
             ocean,
@@ -335,6 +346,42 @@ public final class PetNatureSelector {
             count[0]++;
         });
         return count[0];
+    }
+
+    private static boolean matchesFissure(NatureContext context) {
+        PetBreedEvent.BirthContext.Environment env = context.environment();
+        if (env == null) {
+            return false;
+        }
+
+        boolean deepStone = !env.hasOpenSky() && env.getHeight() <= 40;
+        boolean magmaVent = env.isNearLavaOrMagma();
+        boolean oreRich = env.hasValuableOres();
+        boolean ruggedSummit = env.getHeight() >= 90 && oreRich;
+
+        if (deepStone && (magmaVent || oreRich)) {
+            return true;
+        }
+        return ruggedSummit;
+    }
+
+    private static boolean matchesFalsi(NatureContext context) {
+        PetBreedEvent.BirthContext.Environment env = context.environment();
+        if (env == null) {
+            return false;
+        }
+
+        if (env.getBiomeMoisture() < 0.75f) {
+            return false;
+        }
+        boolean warmCanopy = env.getBiomeTemperature() >= 0.8f;
+        if (!warmCanopy && !context.isRaining()) {
+            return false;
+        }
+        if (!env.hasLushFoliage() && !env.hasCherryBloom()) {
+            return false;
+        }
+        return context.nearbyPlayers() + context.nearbyPets() > 0;
     }
 
     private static boolean matchesRadiant(NatureContext context) {
