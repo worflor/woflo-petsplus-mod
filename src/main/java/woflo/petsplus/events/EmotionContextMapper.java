@@ -423,38 +423,19 @@ public class EmotionContextMapper {
     private static float calculateRelationshipStrength(PetComponent petComp) {
         // Create a cache key based on pet component identity
         String cacheKey = petComp.getPet().getUuidAsString();
-        
-        // Thread safety: Use read lock for cache lookup to allow concurrent reads
-        cacheLock.readLock().lock();
-        try {
-            CacheEntry cachedEntry = RELATIONSHIP_CACHE.get(cacheKey);
-            if (cachedEntry != null && !cachedEntry.isExpired()) {
-                // Return cached value if it's still valid
-                return cachedEntry.value;
+
+        // Use compute for atomic, thread-safe cache updates.
+        CacheEntry entry = RELATIONSHIP_CACHE.compute(cacheKey, (key, existingEntry) -> {
+            if (existingEntry != null && !existingEntry.isExpired()) {
+                return existingEntry; // Return existing, valid entry
             }
-        } finally {
-            cacheLock.readLock().unlock();
-        }
-        
-        // Thread safety: Use write lock for cache update to ensure thread safety
-        cacheLock.writeLock().lock();
-        try {
-            // Double-check pattern - another thread might have updated the cache while we waited for write lock
-            CacheEntry cachedEntry = RELATIONSHIP_CACHE.get(cacheKey);
-            if (cachedEntry != null && !cachedEntry.isExpired()) {
-                return cachedEntry.value;
-            }
-            
-            // Calculate the relationship strength
-            float baseStrength = calculateBaseRelationshipStrength(petComp);
-            
-            // Cache the result with current timestamp
-            RELATIONSHIP_CACHE.put(cacheKey, new CacheEntry(baseStrength));
-            
-            return baseStrength;
-        } finally {
-            cacheLock.writeLock().unlock();
-        }
+            // Either no entry or it's expired, compute a new one.
+            float newStrength = calculateBaseRelationshipStrength(petComp);
+            return new CacheEntry(newStrength);
+        });
+
+        // The entry is guaranteed to be non-null by compute.
+        return entry.value;
     }
     
     /**

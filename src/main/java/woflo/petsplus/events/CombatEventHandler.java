@@ -1637,17 +1637,17 @@ public class CombatEventHandler {
      * Handle when a pet takes damage - triggers fear/anger emotions based on context
      */
     private static void handlePetDamageReceived(MobEntity pet, PetComponent petComponent, DamageSource damageSource, float amount) {
-        // Ensure thread-safe access to pet state
+        // Synchronize on the pet entity to ensure atomic state updates for this specific pet.
         synchronized (pet) {
             long now = pet.getEntityWorld().getTime();
             petComponent.setLastAttackTick(now);
 
-        float maxHealth = pet.getMaxHealth();
-        float damageIntensity = damageIntensity(amount, maxHealth);
-        float healthAfter = pet.getHealth() - amount;
-        float healthAfterPercent = maxHealth > 0f ? MathHelper.clamp(healthAfter / maxHealth, 0f, 1f) : 0f;
-        float lowHealthFactor = missingHealthFactor(healthAfterPercent, 0.5f);
-        float criticalFactor = missingHealthFactor(healthAfterPercent, 0.25f);
+            float maxHealth = pet.getMaxHealth();
+            float damageIntensity = damageIntensity(amount, maxHealth);
+            float healthAfter = pet.getHealth() - amount;
+            float healthAfterPercent = maxHealth > 0f ? MathHelper.clamp(healthAfter / maxHealth, 0f, 1f) : 0f;
+            float lowHealthFactor = missingHealthFactor(healthAfterPercent, 0.5f);
+            float criticalFactor = missingHealthFactor(healthAfterPercent, 0.25f);
 
         Entity attacker = damageSource.getAttacker();
         PlayerEntity owner = petComponent.getOwner();
@@ -1661,16 +1661,8 @@ public class CombatEventHandler {
         if (attacker instanceof PlayerEntity playerAttacker) {
             if (owner != null && playerAttacker.equals(owner)) {
                 // Relationship tracking - owner attacked their own pet
-                RelationshipEventHandler.onOwnerAttackedPet(pet, playerAttacker, amount);
-                
-                // Check cooldown to prevent emotion spam from rapid punching
-                // Use atomic check-and-set to prevent race condition in emotion processing
-                long lastEmotionTime = petComponent.getLastAttackTick();
-                if (now - lastEmotionTime < 40) { // 2 second cooldown (40 ticks)
-                    return; // Skip emotion processing if too recent
-                }
-                // Update the last attack tick atomically to prevent race conditions
-                petComponent.setLastAttackTick(now);
+                RelationshipEventHandler.onOwnerAttackedPet(pet, playerAttacker, amount); // This is fine, relationship can be recorded.
+
                 // Realistic emotional responses to being hit by owner
                 if (damageIntensity < 0.15f && petIsCursed) {
                     // Only very light damage on cursed pets counts as "rough housing"
@@ -1813,14 +1805,14 @@ public class CombatEventHandler {
         float damageIntensity = damageIntensity(damage, victimMaxHealth);
         PlayerEntity owner = petComponent.getOwner();
 
-        // Ensure thread-safe access to pet state
+        // Synchronize on the pet entity to ensure atomic state updates for this specific pet.
         synchronized (pet) {
             long now = pet.getEntityWorld().getTime();
             petComponent.setLastAttackTick(now);
 
-        float petHealthPercent = pet.getMaxHealth() > 0f ? MathHelper.clamp(pet.getHealth() / pet.getMaxHealth(), 0f, 1f) : 1f;
-        float lowHealthFactor = missingHealthFactor(petHealthPercent, 0.5f);
-        float criticalFactor = missingHealthFactor(petHealthPercent, 0.25f);
+            float petHealthPercent = pet.getMaxHealth() > 0f ? MathHelper.clamp(pet.getHealth() / pet.getMaxHealth(), 0f, 1f) : 1f;
+            float lowHealthFactor = missingHealthFactor(petHealthPercent, 0.5f);
+            float criticalFactor = missingHealthFactor(petHealthPercent, 0.25f);
 
         // Check for health recovery: if pet was low and has recovered, apply stoic/endurance
         checkHealthRecovery(pet, petComponent, petHealthPercent, now);
@@ -1959,7 +1951,7 @@ public class CombatEventHandler {
                     if (owner == null || owner.squaredDistanceTo(pet) > 8 * 8) {
                         petComponent.pushEmotion(PetComponent.Emotion.REGRET, scaledAmount(0.08f, 0.25f, damageIntensity));
                     }
-                    } // End synchronized block for pet state access
+                } // End synchronized block for pet state access
                 }
                 Petsplus.LOGGER.debug("Pet {} fighting hostile mob, pushed combat emotions", pet.getName().getString());
             }
@@ -3126,6 +3118,3 @@ public class CombatEventHandler {
         }
     }
 }
-
-
-
