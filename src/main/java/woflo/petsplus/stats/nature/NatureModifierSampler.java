@@ -43,8 +43,8 @@ public final class NatureModifierSampler {
             1.25f, 1.10f, 0.95f, 1.05f,
             Emotion.GUARDIAN_VIGIL, 0.35f, Emotion.FRUSTRATION, 0.25f, Emotion.PRIDE, 0.20f);
         
-        register("radiant", NatureStat.SPEED, 0.06f, NatureStat.VITALITY, 0.03f,
-            1.20f, 0.80f, 1.25f, 1.05f,
+        register("radiant", NatureStat.HEALTH, 0.06f, NatureStat.VITALITY, 0.03f,
+            0.95f, 1.20f, 1.25f, 1.05f,
             Emotion.CHEERFUL, 0.38f, Emotion.HOPEFUL, 0.28f, Emotion.CONTENT, 0.24f);
         
         register("festival", NatureStat.LOYALTY, 0.05f, NatureStat.SPEED, 0.03f,
@@ -108,7 +108,7 @@ public final class NatureModifierSampler {
             Emotion.STOIC, 0.42f, Emotion.ENNUI, 0.30f, Emotion.FOCUSED, 0.22f);
         
         register("mire", NatureStat.HEALTH, 0.05f, NatureStat.VITALITY, 0.03f,
-            1.05f, 1.00f, 0.95f, 0.95f,
+            0.80f, 1.15f, 0.95f, 0.95f,
             Emotion.HIRAETH, 0.36f, Emotion.SAUDADE, 0.28f, Emotion.LOYALTY, 0.22f);
         
         register("relic", NatureStat.FOCUS, 0.05f, NatureStat.DEFENSE, 0.02f,
