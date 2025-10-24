@@ -12,7 +12,19 @@ public final class AIBudgetPolicy {
     }
 
     public static int pathStartsPerOwnerPerTick(boolean ownerIsMoving) {
-        return ownerIsMoving ? 2 : 1;
+        return pathStartsPerOwnerPerTick(ownerIsMoving, 1);
+    }
+
+    public static int pathStartsPerOwnerPerTick(boolean ownerIsMoving, int packSize) {
+        int normalizedSize = Math.max(1, packSize);
+        int base = ownerIsMoving ? 2 : 1;
+        if (normalizedSize <= 2) {
+            return base;
+        }
+        if (normalizedSize <= 5) {
+            return Math.max(1, base - 1);
+        }
+        return 1;
     }
 }
 

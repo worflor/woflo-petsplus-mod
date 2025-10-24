@@ -23,9 +23,11 @@ import woflo.petsplus.ai.goals.OwnerAssistAttackGoal;
 import woflo.petsplus.ai.movement.MovementCommand;
 import woflo.petsplus.ai.capability.MobCapabilities;
 import woflo.petsplus.api.entity.PetsplusTameable;
+import woflo.petsplus.config.DebugSettings;
+import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
 import woflo.petsplus.state.emotions.PetMoodEngine;
-import woflo.petsplus.config.DebugSettings;
 
 import java.util.EnumSet;
 import java.util.Locale;
@@ -43,6 +45,7 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
     private static final double HESITATION_CLEAR_DISTANCE = 2.5d;
     private static final double OWNER_SPEED_DAMPING_THRESHOLD = 0.035d;
     private static final double THRESHOLD_SMOOTHING_ALPHA = 0.3d;
+    private static final long PACK_SIZE_SAMPLE_INTERVAL = 20L;
 
     private final PetsplusTameable tameable;
     private final double baseSpeed;
@@ -66,6 +69,8 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
     private double debugLastStopDistance = Double.NaN;
     private long lastPathStartTick = Long.MIN_VALUE;
     private int consecutiveBudgetDenials = 0;
+    private int cachedPackSize = 1;
+    private long lastPackSizeSampleTick = Long.MIN_VALUE;
 
     public FollowOwnerAdaptiveGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.FOLLOW_OWNER), EnumSet.of(Control.MOVE, Control.LOOK));
@@ -236,6 +241,8 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
         lastMomentumSampleTick = Long.MIN_VALUE;
         smoothedStartDistance = Double.NaN;
         smoothedStopDistance = Double.NaN;
+        cachedPackSize = 1;
+        lastPackSizeSampleTick = Long.MIN_VALUE;
     }
 
     @Override
@@ -347,7 +354,8 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
                 if (now == Long.MIN_VALUE || lastPathStartTick == Long.MIN_VALUE || (now - lastPathStartTick) >= 8) {
                     if (mob.getEntityWorld() instanceof ServerWorld sw) {
                         java.util.UUID ownerId = owner.getUuid();
-                        int perTickLimit = woflo.petsplus.policy.AIBudgetPolicy.pathStartsPerOwnerPerTick(ownerIsMoving);
+                        int packSize = getPackSize(owner, now);
+                        int perTickLimit = woflo.petsplus.policy.AIBudgetPolicy.pathStartsPerOwnerPerTick(ownerIsMoving, packSize);
                         boolean allowed = woflo.petsplus.state.coordination.PathBudgetManager.get(sw)
                             .tryConsume(ownerId, now, perTickLimit);
                         if (allowed) {
@@ -645,6 +653,33 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
             petComponent.setCooldown(FOLLOW_PATH_COOLDOWN_KEY, PATH_BLOCK_COOLDOWN_TICKS);
         }
         petComponent.getAIState().incrementQuirkCounter("follow_path_blocked");
+    }
+
+    private int getPackSize(PlayerEntity owner, long now) {
+        if (lastPackSizeSampleTick == Long.MIN_VALUE || (now - lastPackSizeSampleTick) >= PACK_SIZE_SAMPLE_INTERVAL) {
+            cachedPackSize = samplePackSize(owner);
+            lastPackSizeSampleTick = now;
+        }
+        return cachedPackSize;
+    }
+
+    private int samplePackSize(PlayerEntity owner) {
+        if (petComponent == null) {
+            return 1;
+        }
+        StateManager manager = petComponent.getStateManager();
+        if (manager == null && owner.getEntityWorld() instanceof ServerWorld serverWorld) {
+            manager = StateManager.forWorld(serverWorld);
+        }
+        if (manager == null) {
+            return 1;
+        }
+        PetSwarmIndex swarmIndex = manager.getSwarmIndex();
+        if (swarmIndex == null) {
+            return 1;
+        }
+        int size = swarmIndex.ownerSize(owner.getUuid());
+        return Math.max(1, size);
     }
 
     private void sendDebugLine(String message) {

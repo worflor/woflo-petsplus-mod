@@ -196,6 +196,13 @@ public final class PetMoodEngine {
     private float recentLevel23Time = 0f;
     private int previousMoodLevel = 0;
     private float previousMoodStrength = 0f;
+    private Map<PetComponent.Mood, Float> cachedMoodBlendView = Collections.emptyMap();
+    private Map<PetComponent.Emotion, Float> cachedActiveEmotionsView = Collections.emptyMap();
+    private boolean moodBlendDirty = true;
+    private boolean activeEmotionsDirty = true;
+    private boolean dominantEmotionDirty = true;
+    @Nullable
+    private PetComponent.Emotion cachedDominantEmotion = null;
     @Nullable
     private PetComponent.Mood previousMoodSnapshot = null;
 
@@ -396,6 +403,22 @@ public final class PetMoodEngine {
         return moodLevel;
     }
 
+    private void invalidateCaches() {
+        moodBlendDirty = true;
+        markEmotionCachesDirty();
+    }
+
+    private void markStateDirty() {
+        dirty = true;
+        invalidateCaches();
+    }
+
+    private void markEmotionCachesDirty() {
+        activeEmotionsDirty = true;
+        dominantEmotionDirty = true;
+        cachedDominantEmotion = null;
+    }
+
     void update() {
         long now = parent.getPet().getEntityWorld() instanceof ServerWorld sw ? sw.getTime() : lastMoodUpdate;
         ensureFresh(now);
@@ -474,16 +497,16 @@ public final class PetMoodEngine {
         long now = eventTime > 0 ? eventTime : parent.getPet().getEntityWorld().getTime();
         pushEmotion(delta.emotion(), delta.amount(), now);
         lastStimulusTime = now;
-        dirty = true;
+        markStateDirty();
     }
 
     public void onNatureTuningChanged() {
-        dirty = true;
+        markStateDirty();
     }
 
     public void onNatureEmotionProfileChanged(PetComponent.NatureEmotionProfile profile) {
         natureEmotionProfile = profile != null ? profile : PetComponent.NatureEmotionProfile.EMPTY;
-        dirty = true;
+        markStateDirty();
     }
 
     public PetComponent.NatureGuardTelemetry getNatureGuardTelemetry() {
@@ -616,6 +639,7 @@ public final class PetMoodEngine {
         float updated = MathHelper.clamp(record.contagionShare + tunedAmount, -tunedCap, tunedCap);
         record.contagionShare = updated;
         record.lastUpdateTime = now;
+        markStateDirty();
     }
 
     public float getMoodStrength(PetComponent.Mood mood) {
@@ -625,18 +649,26 @@ public final class PetMoodEngine {
 
     public Map<PetComponent.Mood, Float> getMoodBlend() {
         update();
-        return Collections.unmodifiableMap(new EnumMap<>(moodBlend));
+        if (moodBlendDirty) {
+            cachedMoodBlendView = Map.copyOf(moodBlend);
+            moodBlendDirty = false;
+        }
+        return cachedMoodBlendView;
     }
 
     public Map<PetComponent.Emotion, Float> getActiveEmotions() {
         update();
-        EnumMap<PetComponent.Emotion, Float> active = new EnumMap<>(PetComponent.Emotion.class);
-        for (EmotionRecord record : emotionRecords.values()) {
-            if (record.weight > EPSILON) {
-                active.put(record.emotion, MathHelper.clamp(record.weight, 0f, 1f));
+        if (activeEmotionsDirty) {
+            EnumMap<PetComponent.Emotion, Float> active = new EnumMap<>(PetComponent.Emotion.class);
+            for (EmotionRecord record : emotionRecords.values()) {
+                if (record.weight > EPSILON) {
+                    active.put(record.emotion, MathHelper.clamp(record.weight, 0f, 1f));
+                }
             }
+            cachedActiveEmotionsView = Map.copyOf(active);
+            activeEmotionsDirty = false;
         }
-        return Collections.unmodifiableMap(active);
+        return cachedActiveEmotionsView;
     }
 
     public boolean hasMoodAbove(PetComponent.Mood mood, float threshold) {
@@ -651,15 +683,29 @@ public final class PetMoodEngine {
     @Nullable
     public PetComponent.Emotion getDominantEmotion() {
         update();
-        return emotionRecords.values().stream()
-                .max(Comparator.comparingDouble(r -> r.weight))
-                .map(record -> record.emotion)
-                .orElse(null);
+        if (dominantEmotionDirty) {
+            cachedDominantEmotion = computeDominantEmotion();
+            dominantEmotionDirty = false;
+        }
+        return cachedDominantEmotion;
     }
 
     String getDominantEmotionName() {
         PetComponent.Emotion dominant = getDominantEmotion();
         return dominant != null ? prettify(dominant.name()) : "None";
+    }
+
+    @Nullable
+    private PetComponent.Emotion computeDominantEmotion() {
+        PetComponent.Emotion bestEmotion = null;
+        float bestWeight = Float.NEGATIVE_INFINITY;
+        for (EmotionRecord record : emotionRecords.values()) {
+            if (record.weight > bestWeight) {
+                bestWeight = record.weight;
+                bestEmotion = record.emotion;
+            }
+        }
+        return bestEmotion;
     }
 
     public Text getMoodText() {
@@ -712,7 +758,7 @@ public final class PetMoodEngine {
             case REST -> restActivity = Math.min(5f, restActivity + contribution);
         }
         energyProfileDirty = true;
-        dirty = true;
+        markStateDirty();
     }
     
     /**
@@ -938,6 +984,7 @@ public final class PetMoodEngine {
         recentPhysicalBurst = 0f;
         lastMomentumUpdate = 0L;
         energyProfileDirty = true;
+        invalidateCaches();
     }
 
     // --------------------------------------------------------------------------------------------
@@ -1936,6 +1983,7 @@ public final class PetMoodEngine {
 
         moodBlend.clear();
         moodBlend.putAll(result.finalBlend());
+        invalidateCaches();
 
         for (Map.Entry<PetComponent.Emotion, Float> entry : result.recordWeights().entrySet()) {
             EmotionRecord record = emotionRecords.get(entry.getKey());
@@ -1951,11 +1999,15 @@ public final class PetMoodEngine {
 
         PetComponent.Mood previousMood = snapshot.previousMood();
         float previousStrength = snapshot.previousStrength();
-        PetComponent.Mood bestMood = moodBlend.entrySet().stream()
-                .max(Map.Entry.comparingByValue())
-                .map(Map.Entry::getKey)
-                .orElse(PetComponent.Mood.CALM);
-        float bestStrength = moodBlend.getOrDefault(bestMood, 0f);
+        PetComponent.Mood bestMood = PetComponent.Mood.CALM;
+        float bestStrength = 0f;
+        for (Map.Entry<PetComponent.Mood, Float> entry : moodBlend.entrySet()) {
+            float strength = entry.getValue();
+            if (strength > bestStrength) {
+                bestStrength = strength;
+                bestMood = entry.getKey();
+            }
+        }
 
         float momentumBand = Math.max((float) snapshot.cachedSwitchMargin(), computeMomentumBand(previousStrength));
         if (bestMood != previousMood && (bestStrength - previousStrength) < momentumBand) {
@@ -1963,6 +2015,10 @@ public final class PetMoodEngine {
         } else {
             currentMood = bestMood;
         }
+
+        PetComponent.Emotion bestEmotion = computeDominantEmotion();
+        cachedDominantEmotion = bestEmotion;
+        dominantEmotionDirty = false;
 
         float currentStrength = moodBlend.getOrDefault(currentMood, 0f);
         updateDominantHistory(currentStrength);
@@ -1975,6 +2031,7 @@ public final class PetMoodEngine {
     }
 
     private void applyRecordUpdates(ComputationSnapshot snapshot, ComputationResult result) {
+        boolean recordsMutated = false;
         if (result.recordUpdates() != null && !result.recordUpdates().isEmpty()) {
             for (Map.Entry<PetComponent.Emotion, EmotionRecordUpdate> entry : result.recordUpdates().entrySet()) {
                 EmotionRecordUpdate update = entry.getValue();
@@ -1994,13 +2051,19 @@ public final class PetMoodEngine {
                 record.appraisalConfidence = update.appraisalConfidence();
                 record.lastEventTime = update.lastEventTime();
                 record.lastUpdateTime = update.lastUpdateTime();
+                recordsMutated = true;
             }
         }
 
         if (result.recordsToRemove() != null && !result.recordsToRemove().isEmpty()) {
             for (PetComponent.Emotion emotion : result.recordsToRemove()) {
                 emotionRecords.remove(emotion);
+                recordsMutated = true;
             }
+        }
+
+        if (recordsMutated) {
+            markEmotionCachesDirty();
         }
     }
 
@@ -2096,6 +2159,7 @@ public final class PetMoodEngine {
             currentPaletteStops = Collections.emptyList();
             paletteGeneration++;
         }
+        invalidateCaches();
     }
 
     private void updateMoodLevel(float currentStrength) {

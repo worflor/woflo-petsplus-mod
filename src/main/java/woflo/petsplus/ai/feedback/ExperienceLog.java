@@ -3,7 +3,6 @@ package woflo.petsplus.ai.feedback;
 import net.minecraft.util.Identifier;
 
 import java.util.ArrayDeque;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 
@@ -20,7 +19,7 @@ public final class ExperienceLog {
     }
 
     public List<Entry> entries() {
-        return Collections.unmodifiableList(entries.stream().toList());
+        return List.copyOf(entries);
     }
 
     public record Entry(Identifier goalId, float satisfaction, long tick) {}
