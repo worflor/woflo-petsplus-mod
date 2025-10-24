@@ -1,6 +1,9 @@
 {
   "pack": {
-    "pack_format": 48,
+    "pack_format": {
+      "resource": 34,
+      "data": 48
+    },
     "description": "PetsPlus Data Pack"
   }
 }
