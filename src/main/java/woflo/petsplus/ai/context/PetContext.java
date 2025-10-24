@@ -189,11 +189,11 @@ public record PetContext(
         // PetsPlus-specific data
         PetComponent.Mood mood = pc != null ? pc.getCurrentMood() : null;
         int moodLevel = pc != null ? pc.getMoodLevel() : 0;
-        Map<PetComponent.Mood, Float> moodBlend = pc != null && pc.getMoodBlend() != null
-            ? Map.copyOf(pc.getMoodBlend())
+        Map<PetComponent.Mood, Float> moodBlend = pc != null
+            ? pc.getMoodBlend()
             : Collections.emptyMap();
-        Map<PetComponent.Emotion, Float> activeEmotions = pc != null && pc.getActiveEmotions() != null
-            ? Map.copyOf(pc.getActiveEmotions())
+        Map<PetComponent.Emotion, Float> activeEmotions = pc != null
+            ? pc.getActiveEmotions()
             : Collections.emptyMap();
         
         PetRoleType role = pc != null ? pc.getRoleType() : null;

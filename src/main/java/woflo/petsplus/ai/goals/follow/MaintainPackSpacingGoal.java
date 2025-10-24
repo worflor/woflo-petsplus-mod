@@ -216,11 +216,11 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
         if (swarmIndex == null) {
             return 1;
         }
-        List<PetSwarmIndex.SwarmEntry> entries = swarmIndex.snapshotOwner(owner.getUuid());
-        if (entries == null || entries.isEmpty()) {
+        int size = swarmIndex.ownerSize(owner.getUuid());
+        if (size <= 0) {
             return 1;
         }
-        return entries.size();
+        return size;
     }
 
     private FollowSpacingResult computeSpacing(long now, PlayerEntity owner, PetSwarmIndex swarmIndex) {

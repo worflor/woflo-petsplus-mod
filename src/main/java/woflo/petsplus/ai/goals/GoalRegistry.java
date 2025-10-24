@@ -38,6 +38,7 @@ public final class GoalRegistry {
     private static final Set<Identifier> DATA_DRIVEN = new HashSet<>();
     private static final Map<Identifier, GoalMovementConfig> MOVEMENT_CONFIGS = new HashMap<>();
     private static final Map<Identifier, GoalMovementConfig> BUILT_IN_MOVEMENT_CONFIGS = new HashMap<>();
+    private static volatile Collection<GoalDefinition> cachedDefinitions = List.of();
 
     private static int secondsToTicks(int seconds) {
         return Math.max(0, seconds) * 20;
@@ -1002,6 +1003,7 @@ public final class GoalRegistry {
         DEFINITIONS.put(id, definition);
         BUILT_IN_DEFAULTS.put(id, definition);
         DATA_DRIVEN.remove(id);
+        refreshDefinitionView();
     }
 
     private static void initializeMovementConfigs() {
@@ -1096,6 +1098,7 @@ public final class GoalRegistry {
         BUILT_IN_DEFAULTS.putIfAbsent(id, definition);
         DATA_DRIVEN.remove(id);
         assignMovementForDefinition(id, definition, movementOverride);
+        refreshDefinitionView();
         return definition;
     }
 
@@ -1108,6 +1111,7 @@ public final class GoalRegistry {
         DEFINITIONS.put(id, definition);
         DATA_DRIVEN.add(id);
         assignMovementForDefinition(id, definition, movementOverride);
+        refreshDefinitionView();
         return definition;
     }
 
@@ -1131,6 +1135,7 @@ public final class GoalRegistry {
             }
         }
         DATA_DRIVEN.clear();
+        refreshDefinitionView();
     }
 
     private static void assignMovementForDefinition(Identifier id, GoalDefinition definition, @Nullable GoalMovementConfig movementOverride) {
@@ -1156,7 +1161,15 @@ public final class GoalRegistry {
     }
 
     public static Collection<GoalDefinition> all() {
-        return Collections.unmodifiableCollection(DEFINITIONS.values());
+        return cachedDefinitions;
+    }
+
+    private static void refreshDefinitionView() {
+        if (DEFINITIONS.isEmpty()) {
+            cachedDefinitions = List.of();
+            return;
+        }
+        cachedDefinitions = Collections.unmodifiableList(List.copyOf(DEFINITIONS.values()));
     }
 
     public static Optional<GoalDefinition> get(Identifier id) {

@@ -1,5 +1,7 @@
 package woflo.petsplus.ai.capability;
 
+import net.minecraft.entity.ai.goal.Goal;
+import net.minecraft.entity.ai.goal.GoalSelector;
 import net.minecraft.entity.ai.goal.SitGoal;
 import net.minecraft.entity.ai.pathing.*;
 import net.minecraft.entity.mob.MobEntity;
@@ -119,10 +121,16 @@ public class MobCapabilities {
         // Fall back to detecting a dedicated sit goal so custom mobs are recognized.
         try {
             MobEntityAccessor accessor = (MobEntityAccessor) mob;
-            return accessor.getGoalSelector().getGoals().stream()
-                .map(entry -> entry.getGoal())
-                .anyMatch(goal -> goal instanceof SitGoal ||
-                    (goal != null && goal.getClass().getSimpleName().toLowerCase().contains("sit")));
+            for (var entry : accessor.getGoalSelector().getGoals()) {
+                Goal goal = entry.getGoal();
+                if (goal instanceof SitGoal) {
+                    return true;
+                }
+                if (goal != null && goal.getClass().getSimpleName().toLowerCase().contains("sit")) {
+                    return true;
+                }
+            }
+            return false;
         } catch (ClassCastException ignored) {
             return false;
         }

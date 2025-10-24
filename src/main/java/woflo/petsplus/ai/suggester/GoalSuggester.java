@@ -51,6 +51,7 @@ public class GoalSuggester {
     public static final float MAX_DESIRABILITY = 12.0f;
     public static final float MAX_FEASIBILITY = 1.0f;
     private static final float MIN_MULTIPLIER = 0.0f;
+    private static final long CAPABILITY_CACHE_TTL_TICKS = 40L;
 
     private final CapabilityAnalyzer capabilityAnalyzer;
     private final Map<MobEntity, EvaluationState> states = new WeakHashMap<>();
@@ -86,7 +87,7 @@ public class GoalSuggester {
         SignalBootstrap.ensureInitialized();
 
         EvaluationState state = stateFor(ctx.mob());
-        MobCapabilities.CapabilityProfile capabilities = capabilityAnalyzer.analyze(ctx.mob());
+        MobCapabilities.CapabilityProfile capabilities = capabilitiesFor(state, ctx.mob(), ctx.worldTime());
         ensureFreshEvaluations(state, ctx, capabilities, ctx.worldTime(), true);
 
         List<GoalEvaluationCache.Entry> entries = state.cache.validEntriesSorted();
@@ -105,11 +106,19 @@ public class GoalSuggester {
         SignalBootstrap.ensureInitialized();
 
         EvaluationState state = stateFor(ctx.mob());
-        MobCapabilities.CapabilityProfile capabilities = capabilityAnalyzer.analyze(ctx.mob());
+        MobCapabilities.CapabilityProfile capabilities = capabilitiesFor(state, ctx.mob(), ctx.worldTime());
         ensureFreshEvaluations(state, ctx, capabilities, ctx.worldTime(), false);
-
+        
         GoalEvaluationCache.Entry best = state.cache.bestEntry();
         return best != null ? Optional.of(best.suggestion()) : Optional.empty();
+    }
+
+    private MobCapabilities.CapabilityProfile capabilitiesFor(
+        EvaluationState state,
+        MobEntity mob,
+        long tick
+    ) {
+        return state.cachedCapabilities(mob, tick, capabilityAnalyzer);
     }
 
     private void ensureFreshEvaluations(
@@ -271,8 +280,11 @@ public class GoalSuggester {
         }
 
         reason.append("Age: ").append(ctx.getAgeCategory()).append(", ");
-        reason.append("Desire: ").append(String.format("%.2f", desirability)).append(", ");
-        reason.append("Feasible: ").append(String.format("%.2f", feasibility));
+        reason.append("Desire: ");
+        appendScaledPercent(reason, desirability);
+        reason.append(", ");
+        reason.append("Feasible: ");
+        appendScaledPercent(reason, feasibility);
         reason.append(")");
 
         return reason.toString();
@@ -292,10 +304,56 @@ public class GoalSuggester {
         return (int) Math.round(value * 100.0d);
     }
 
+    private static void appendScaledPercent(StringBuilder out, float value) {
+        if (Float.isNaN(value)) {
+            out.append("NaN");
+            return;
+        }
+        if (value == Float.POSITIVE_INFINITY) {
+            out.append("Infinity");
+            return;
+        }
+        if (value == Float.NEGATIVE_INFINITY) {
+            out.append("-Infinity");
+            return;
+        }
+
+        double scaled = value * 100.0d;
+        double rounded = scaled >= 0.0d
+            ? Math.floor(scaled + 0.5d)
+            : Math.ceil(scaled - 0.5d);
+        long scaledLong = (long) rounded;
+
+        if (scaledLong == 0L) {
+            if (Float.floatToRawIntBits(value) < 0) {
+                out.append("-0.00");
+            } else {
+                out.append("0.00");
+            }
+            return;
+        }
+
+        if (scaledLong < 0L) {
+            out.append('-');
+            scaledLong = -scaledLong;
+        }
+
+        long whole = scaledLong / 100L;
+        long fraction = scaledLong % 100L;
+        out.append(whole);
+        out.append('.');
+        if (fraction < 10L) {
+            out.append('0');
+        }
+        out.append(fraction);
+    }
+
     private static final class EvaluationState {
         private final GoalEvaluationCache cache = new GoalEvaluationCache();
         private final long jitterSeed;
         private ContextSignature lastSignature;
+        private MobCapabilities.CapabilityProfile cachedCapabilities;
+        private long capabilitiesSampleTick = Long.MIN_VALUE;
 
         private EvaluationState(MobEntity mob) {
             this.jitterSeed = computeJitterSeed(mob);
@@ -317,6 +375,27 @@ public class GoalSuggester {
             lastSignature = signature;
             return diff;
         }
+
+        MobCapabilities.CapabilityProfile cachedCapabilities(
+            MobEntity mob,
+            long tick,
+            CapabilityAnalyzer analyzer
+        ) {
+            if (mob == null) {
+                return defaultCapabilities();
+            }
+            MobCapabilities.CapabilityProfile cached = cachedCapabilities;
+            if (cached != null) {
+                long age = tick - capabilitiesSampleTick;
+                if (age >= 0 && age <= CAPABILITY_CACHE_TTL_TICKS) {
+                    return cached;
+                }
+            }
+            MobCapabilities.CapabilityProfile fresh = analyzer.analyze(mob);
+            cachedCapabilities = fresh;
+            capabilitiesSampleTick = tick;
+            return fresh;
+        }
         private static long computeJitterSeed(MobEntity mob) {
             if (mob == null) {
                 return 0L;
@@ -332,6 +411,8 @@ public class GoalSuggester {
     private static final class GoalEvaluationCache {
         private final Map<Identifier, Entry> entries = new HashMap<>();
         private Entry bestEntry;
+        private List<Entry> sortedCache = List.of();
+        private boolean sortedDirty = true;
 
         Entry entryFor(
             GoalDefinition definition,
@@ -343,6 +424,7 @@ public class GoalSuggester {
             if (entry == null) {
                 entry = new Entry(definition, dependencies, cadence, jitterSeed);
                 entries.put(definition.id(), entry);
+                markSortedDirty();
             } else {
                 entry.setDependencies(dependencies);
                 entry.setCadence(cadence);
@@ -355,12 +437,16 @@ public class GoalSuggester {
             if (removed != null && removed == bestEntry) {
                 bestEntry = null;
             }
+            if (removed != null) {
+                markSortedDirty();
+            }
         }
 
         void markDirty(EnumSet<ContextSlice> slices) {
             if (entries.isEmpty()) {
                 return;
             }
+            markSortedDirty();
             if (slices.contains(ContextSlice.ALL)) {
                 for (Entry entry : entries.values()) {
                     entry.markDirty();
@@ -383,6 +469,7 @@ public class GoalSuggester {
                 onEntryInvalidated(entry);
                 return;
             }
+            markSortedDirty();
             if (entry == bestEntry) {
                 if (entry.score() < entry.previousScore()) {
                     bestEntry = null;
@@ -399,6 +486,7 @@ public class GoalSuggester {
             if (bestEntry == entry) {
                 bestEntry = null;
             }
+            markSortedDirty();
         }
 
         Entry bestEntry() {
@@ -418,17 +506,32 @@ public class GoalSuggester {
         }
 
         List<Entry> validEntriesSorted() {
-            if (entries.isEmpty()) {
-                return List.of();
+            if (!sortedDirty) {
+                return sortedCache;
             }
-            List<Entry> result = new ArrayList<>();
+            if (entries.isEmpty()) {
+                sortedCache = List.of();
+                sortedDirty = false;
+                return sortedCache;
+            }
+            List<Entry> result = new ArrayList<>(entries.size());
             for (Entry entry : entries.values()) {
                 if (entry.isValid()) {
                     result.add(entry);
                 }
             }
-            result.sort((a, b) -> Float.compare(b.score(), a.score()));
-            return result;
+            if (result.isEmpty()) {
+                sortedCache = List.of();
+            } else {
+                result.sort((a, b) -> Float.compare(b.score(), a.score()));
+                sortedCache = result;
+            }
+            sortedDirty = false;
+            return sortedCache;
+        }
+
+        private void markSortedDirty() {
+            sortedDirty = true;
         }
 
         private static final class Entry {
@@ -454,7 +557,9 @@ public class GoalSuggester {
             ) {
                 this.definition = definition;
                 this.entrySeed = computeEntrySeed(definition, jitterSeed);
-                this.dependencies = copyDependencies(dependencies);
+                this.dependencies = dependencies == null
+                    ? EnumSet.noneOf(ContextSlice.class)
+                    : dependencies;
                 this.cadence = cadence;
                 this.cadenceJitter = cadence.jitterOffset(entrySeed);
                 this.suggestion = null;
@@ -468,10 +573,14 @@ public class GoalSuggester {
             }
 
             void setDependencies(EnumSet<ContextSlice> dependencies) {
-                EnumSet<ContextSlice> copy = copyDependencies(dependencies);
-                if (!this.dependencies.equals(copy)) {
-                    this.dependencies = copy;
+                EnumSet<ContextSlice> replacement = dependencies == null
+                    ? EnumSet.noneOf(ContextSlice.class)
+                    : dependencies;
+                if (!this.dependencies.equals(replacement)) {
+                    this.dependencies = replacement;
                     this.dirty = true;
+                } else {
+                    this.dependencies = replacement;
                 }
             }
 
@@ -569,12 +678,6 @@ public class GoalSuggester {
                 return base ^ jitterSeed;
             }
 
-            private static EnumSet<ContextSlice> copyDependencies(EnumSet<ContextSlice> dependencies) {
-                if (dependencies == null || dependencies.isEmpty()) {
-                    return EnumSet.noneOf(ContextSlice.class);
-                }
-                return EnumSet.copyOf(dependencies);
-            }
         }
     }
 

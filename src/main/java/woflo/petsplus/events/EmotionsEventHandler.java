@@ -1347,8 +1347,8 @@ private record WeatherState(boolean raining, boolean thundering) {}
 
         if (runIdleMaintenance || runNuancedSweep) {
             PetSwarmIndex swarmIndex = stateManager.getSwarmIndex();
-            List<PetSwarmIndex.SwarmEntry> ownerSnapshot = swarmIndex.snapshotOwner(player.getUuid());
-            if (!ownerSnapshot.isEmpty()) {
+            boolean hasPets = swarmIndex != null && swarmIndex.ownerHasPets(player.getUuid());
+            if (hasPets) {
                 long version = ++state.emotionVersionCounter;
                 EmotionOwnerTickPayload payload = new EmotionOwnerTickPayload(version, runIdleMaintenance, runNuancedSweep);
                 stateManager.requestEmotionEvent(player, payload);

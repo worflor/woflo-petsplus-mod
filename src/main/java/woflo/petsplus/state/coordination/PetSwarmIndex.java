@@ -15,6 +15,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 import org.jetbrains.annotations.Nullable;
@@ -27,7 +28,7 @@ public final class PetSwarmIndex {
 
     private final Map<UUID, OwnerSwarm> swarmsByOwner = new HashMap<>();
     private final Map<MobEntity, OwnerSwarm> swarmByPet = new IdentityHashMap<>();
-    private final List<SwarmListener> listeners = new ArrayList<>();
+    private final CopyOnWriteArrayList<SwarmListener> listeners = new CopyOnWriteArrayList<>();
 
     public void trackPet(MobEntity pet, PetComponent component) {
         updatePet(pet, component);
@@ -56,7 +57,9 @@ public final class PetSwarmIndex {
 
         swarmByPet.put(pet, swarm);
         swarm.updateEntry(pet, component);
-        notifyOwnerUpdated(ownerId, swarm.snapshot());
+        if (hasListeners()) {
+            notifyOwnerUpdated(ownerId, swarm.snapshot());
+        }
     }
 
     public void untrackPet(MobEntity pet) {
@@ -66,7 +69,9 @@ public final class PetSwarmIndex {
             if (swarm.isEmpty()) {
                 swarmsByOwner.remove(swarm.ownerId(), swarm);
             }
-            notifyOwnerUpdated(swarm.ownerId(), swarm.snapshot());
+            if (hasListeners()) {
+                notifyOwnerUpdated(swarm.ownerId(), swarm.snapshot());
+            }
         }
     }
 
@@ -84,11 +89,9 @@ public final class PetSwarmIndex {
         }
         swarmsByOwner.clear();
         swarmByPet.clear();
-        synchronized (listeners) {
-            if (!listeners.isEmpty()) {
-                for (SwarmListener listener : listeners) {
-                    listener.onSwarmUpdated(null, List.of());
-                }
+        if (!listeners.isEmpty()) {
+            for (SwarmListener listener : listeners) {
+                listener.onSwarmUpdated(null, List.of());
             }
         }
     }
@@ -97,18 +100,14 @@ public final class PetSwarmIndex {
         if (listener == null) {
             return;
         }
-        synchronized (listeners) {
-            listeners.add(listener);
-        }
+        listeners.add(listener);
     }
 
     public void removeListener(SwarmListener listener) {
         if (listener == null) {
             return;
         }
-        synchronized (listeners) {
-            listeners.remove(listener);
-        }
+        listeners.remove(listener);
     }
 
     public void forEachPetInRange(ServerPlayerEntity owner, Vec3d center, double radius,
@@ -165,6 +164,21 @@ public final class PetSwarmIndex {
         return swarm.snapshot();
     }
 
+    public int ownerSize(@Nullable UUID ownerId) {
+        if (ownerId == null) {
+            return 0;
+        }
+        OwnerSwarm swarm = swarmsByOwner.get(ownerId);
+        if (swarm == null) {
+            return 0;
+        }
+        return swarm.size();
+    }
+
+    public boolean ownerHasPets(@Nullable UUID ownerId) {
+        return ownerSize(ownerId) > 0;
+    }
+
     @Nullable
     public SwarmEntry findEntry(UUID ownerId, UUID petId) {
         if (ownerId == null || petId == null) {
@@ -189,15 +203,15 @@ public final class PetSwarmIndex {
         void onSwarmUpdated(@Nullable UUID ownerId, List<SwarmEntry> entries);
     }
 
+    private boolean hasListeners() {
+        return !listeners.isEmpty();
+    }
+
     private void notifyOwnerUpdated(@Nullable UUID ownerId, List<SwarmEntry> snapshot) {
-        List<SwarmListener> copy;
-        synchronized (listeners) {
-            if (listeners.isEmpty()) {
-                return;
-            }
-            copy = new ArrayList<>(listeners);
+        if (listeners.isEmpty()) {
+            return;
         }
-        for (SwarmListener listener : copy) {
+        for (SwarmListener listener : listeners) {
             listener.onSwarmUpdated(ownerId, snapshot);
         }
     }
@@ -266,6 +280,10 @@ public final class PetSwarmIndex {
 
         boolean isEmpty() {
             return entries.isEmpty();
+        }
+
+        int size() {
+            return entries.size();
         }
 
         void clear() {
@@ -701,7 +719,11 @@ public final class PetSwarmIndex {
             for (int i = 0; i < members.size();) {
                 TrackedEntry entry = members.get(i);
                 if (!entry.isValid()) {
-                    remove(entry);
+                    int last = members.size() - 1;
+                    if (i != last) {
+                        members.set(i, members.get(last));
+                    }
+                    members.remove(last);
                     continue;
                 }
 
@@ -720,7 +742,11 @@ public final class PetSwarmIndex {
             for (int i = 0; i < members.size();) {
                 TrackedEntry entry = members.get(i);
                 if (!entry.isValid()) {
-                    remove(entry);
+                    int last = members.size() - 1;
+                    if (i != last) {
+                        members.set(i, members.get(last));
+                    }
+                    members.remove(last);
                     continue;
                 }
                 if (entry == base) {
