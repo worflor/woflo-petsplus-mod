@@ -1,7 +1,6 @@
 {
   "pack": {
-    "pack_format": 48,
-    "supported_formats": {
+    "pack_format": {
       "resource": 34,
       "data": 48
     },
