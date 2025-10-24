@@ -230,6 +230,17 @@ public final class NatureFlavorHandler {
             .hook(Trigger.WEATHER_CLEAR, Slot.QUIRK, 0.35f, 240)
             .hook(Trigger.CHERRY_BLOSSOM_BLOOM, Slot.MINOR, 0.6f, 220)
             .hook(Trigger.CHERRY_PETAL_HARVEST, Slot.QUIRK, 0.4f, 220));
+
+        register("fissure", builder -> builder
+            .hook(Trigger.USE_LAVA_BUCKET, Slot.MAJOR, 0.75f, 180)
+            .hook(Trigger.REDSTONE_PULSE, Slot.MINOR, 0.55f, 200)
+            .hook(Trigger.USE_FLINT_AND_STEEL, Slot.QUIRK, 0.35f, 200));
+
+        register("falsi", builder -> builder
+            .hook(Trigger.JUKEBOX_PLAY, Slot.MAJOR, 0.75f, 160)
+            .hook(Trigger.VILLAGER_TRADE, Slot.MINOR, 0.55f, 180)
+            .hook(Trigger.CHERRY_BLOSSOM_BLOOM, Slot.MINOR, 0.45f, 220)
+            .hook(Trigger.PLACE_SAPLING, Slot.QUIRK, 0.40f, 200));
     }
 
     private NatureFlavorHandler() {

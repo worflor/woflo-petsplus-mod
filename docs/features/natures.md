@@ -8,8 +8,8 @@ Pets pull from different nature pools depending on how they arrive. Wild partner
 
 ### Wild natures
 
-Taming a stray locks in a climate-taught personality. Cold, temperate, and hot biomes each lend a different temperament:
-
+* **Fissure:** Deep stone dens or ore-lined peaks spark aggressive tunnelguards.
+* **Falsi:** Humid, lush gatherings brim with whimsical, social sprites.
 * **Frisky:** Frozen homes create alert, playful scouts.
 * **Feral:** Mild regions raise steady survivors.
 * **Fierce:** Blistering zones forge bold guardians.
