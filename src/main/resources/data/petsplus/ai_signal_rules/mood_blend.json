@@ -15,8 +15,8 @@
     "CHEERFUL": {
       "categories": {
         "PLAY": [
-          1.6,
-          1.7
+          1.05,
+          1.1
         ]
       },
       "goals": {
@@ -33,7 +33,7 @@
           1.8
         ]
       },
-      "threshold": 0.4
+      "threshold": 0.55
     },
     "CONTENT": {
       "categories": {
@@ -43,10 +43,10 @@
       },
       "goals": {
         "petsplus:sit_sphinx_pose": [
-          1.9
+          2.1
         ],
         "petsplus:stargazing": [
-          1.9
+          2.1
         ]
       },
       "threshold": 0.3
@@ -223,7 +223,7 @@
     "PLAYFULNESS": {
       "categories": {
         "PLAY": [
-          1.7
+          1.05
         ]
       },
       "goals": {
@@ -234,7 +234,7 @@
           1.9
         ]
       },
-      "threshold": 0.4
+      "threshold": 0.55
     },
     "RELIEF": {
       "categories": {
