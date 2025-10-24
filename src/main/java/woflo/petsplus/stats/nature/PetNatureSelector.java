@@ -91,22 +91,11 @@ public final class PetNatureSelector {
         registerNature("fissure", ctx -> false, PetNatureSelector::matchesFissure);
         registerNature("falsi", ctx -> false, PetNatureSelector::matchesFalsi);
 
-        registerNature("frisky", ctx -> false, ctx -> {
-            if (matchesFissure(ctx) || matchesFalsi(ctx)) {
-                return false;
-            }
-            return ctx.environment().getBiomeTemperature() <= 0.3f;
-        });
-        registerNature("fierce", ctx -> false, ctx -> {
-            if (matchesFissure(ctx) || matchesFalsi(ctx)) {
-                return false;
-            }
-            return ctx.environment().getBiomeTemperature() >= 1.0f;
-        });
+        registerNature("frisky", ctx -> false,
+            ctx -> ctx.environment().getBiomeTemperature() <= 0.3f);
+        registerNature("fierce", ctx -> false,
+            ctx -> ctx.environment().getBiomeTemperature() >= 1.0f);
         registerNature("feral", ctx -> false, ctx -> {
-            if (matchesFissure(ctx) || matchesFalsi(ctx)) {
-                return false;
-            }
             float temp = ctx.environment().getBiomeTemperature();
             return temp > 0.3f && temp < 1.0f;
         });
