@@ -46,6 +46,12 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
     private long lastSwarmCheckTick = Long.MIN_VALUE;
     private int lastObservedSwarmSize = 1;
     private final Map<MobEntity, PetSocialData> socialScratch = new HashMap<>();
+    private long lastSpacingUpdateTick = Long.MIN_VALUE;
+    private long debugSpacingLastReportTick = Long.MIN_VALUE; // preserved for compatibility; unused after aggregation
+    private int debugSpacingCacheHits = 0; // preserved (no-op)
+    private int debugSpacingCacheMisses = 0; // preserved (no-op)
+    private int debugSpacingNeighborSamples = 0; // preserved (no-op)
+    private long debugSpacingComputeNanos = 0L; // preserved (no-op)
 
     public MaintainPackSpacingGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.MAINTAIN_PACK_SPACING), EnumSet.noneOf(Control.class));
@@ -113,7 +119,6 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
             petComponent.setFollowSpacingFocus(null, Long.MIN_VALUE);
             return;
         }
-        long lastSpacingUpdateTick = petComponent.getStateData("last_spacing_update_tick", Long.class, Long.MIN_VALUE);
         long now = owner.getEntityWorld().getTime();
         refreshSwarmSize(owner, now);
         // Throttle compute frequency based on pack size
@@ -121,10 +126,8 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
         if (lastSpacingUpdateTick != Long.MIN_VALUE && now - lastSpacingUpdateTick < interval) {
             return;
         }
-        petComponent.setStateData("last_spacing_update_tick", now);
         lastSpacingUpdateTick = now;
         if (lastObservedSwarmSize <= 1) {
-            petComponent.clearStateData("last_spacing_update_tick");
             movementDirector.clearSource(goalId);
             petComponent.setFollowSpacingFocus(null, Long.MIN_VALUE);
             OWNER_SPACING_CACHE.remove(owner.getUuid());
@@ -139,7 +142,7 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
         UUID ownerId = owner.getUuid();
         FollowSpacingResult result = null;
         boolean cacheHit = false;
-        long debugComputeDuration = 0L;
+        long computeDuration = 0L;
 
         CachedSpacing cached = OWNER_SPACING_CACHE.get(ownerId);
         // Dynamic recalc interval based on pack size and owner motion
@@ -161,14 +164,17 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
                 if (swarmIndex != null) {
                     long computeStart = isDebugLoggingEnabled() ? System.nanoTime() : 0L;
                     computed = computeSpacing(now, owner, swarmIndex);
-                    debugComputeDuration = isDebugLoggingEnabled() ? System.nanoTime() - computeStart : 0L;
+                    if (isDebugLoggingEnabled()) {
+                        computeDuration = System.nanoTime() - computeStart;
+                    }
                 }
             }
             result = computed;
             OWNER_SPACING_CACHE.put(ownerId, new CachedSpacing(now, result));
         }
+
         if (isDebugLoggingEnabled()) {
-            recordSpacingDebug(ownerId, now, cacheHit, result, debugComputeDuration);
+            recordSpacingDebug(ownerId, now, cacheHit, result, computeDuration);
         }
 
         double weight = Math.max(0.0, getMovementConfig().influencerWeight());
