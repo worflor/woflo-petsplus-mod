@@ -42,6 +42,14 @@ public final class NatureModifierSampler {
         register("fierce", NatureStat.ATTACK, 0.06f, NatureStat.VITALITY, 0.03f,
             1.25f, 1.10f, 0.95f, 1.05f,
             Emotion.GUARDIAN_VIGIL, 0.35f, Emotion.FRUSTRATION, 0.25f, Emotion.PRIDE, 0.20f);
+
+        register("fissure", NatureStat.ATTACK, 0.06f, NatureStat.FOCUS, 0.03f,
+            1.30f, 1.20f, 1.00f, 1.20f,
+            Emotion.GUARDIAN_VIGIL, 0.38f, Emotion.FRUSTRATION, 0.28f, Emotion.STOIC, 0.22f);
+
+        register("falsi", NatureStat.SPEED, 0.06f, NatureStat.LOYALTY, 0.03f,
+            1.25f, 0.85f, 1.35f, 0.90f,
+            Emotion.CHEERFUL, 0.40f, Emotion.CURIOUS, 0.30f, Emotion.PLAYFULNESS, 0.28f);
         
         register("radiant", NatureStat.HEALTH, 0.06f, NatureStat.VITALITY, 0.03f,
             0.95f, 1.20f, 1.25f, 1.05f,
