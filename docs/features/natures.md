@@ -8,7 +8,7 @@ Pets pull from different nature pools depending on how they arrive. Wild partner
 
 ### Wild natures
 
-Taming a stray now pulls from five easy signals: depth, humidity, and temperature each nudge a different instinct.
+Five simple signals—depth, humidity, and temperature among them—guide which instinct emerges when you tame a wanderer.
 
 * **Fissure:** Deep stone dens or ore-lined peaks spark aggressive tunnelguards.
 * **Falsi:** Humid, lush gatherings brim with whimsical, social sprites.
