@@ -2,7 +2,6 @@ package woflo.petsplus.state.relationships;
 
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.HostileEntity;
-import net.minecraft.entity.passive.PassiveEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import woflo.petsplus.state.PetComponent;
 

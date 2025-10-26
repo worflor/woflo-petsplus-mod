@@ -30,7 +30,6 @@ import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
 import woflo.petsplus.state.emotions.PetMoodEngine;
 
 import java.util.EnumSet;
-import java.util.Locale;
 /**
  * Drives concrete navigation toward the pet's owner after blending movement modifiers.
  */

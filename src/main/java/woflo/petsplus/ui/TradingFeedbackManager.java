@@ -2,7 +2,6 @@ package woflo.petsplus.ui;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
 import woflo.petsplus.pet.TransferResult;
 
 /**

@@ -1,10 +1,7 @@
 package woflo.petsplus.state.modules.impl;
 
-import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
-import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.modules.PetModule;
 import woflo.petsplus.state.modules.SpeciesMetadataModule;
 
 /**

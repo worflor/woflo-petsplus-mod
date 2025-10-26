@@ -1,10 +1,7 @@
 package woflo.petsplus.ui;
 
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.math.random.Random;
 
 import java.util.HashMap;
 import java.util.Map;

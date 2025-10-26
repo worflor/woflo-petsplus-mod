@@ -1,9 +1,6 @@
 package woflo.petsplus.roles.eepyeeper;
 
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -11,12 +8,8 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
-import net.minecraft.particle.ParticleTypes;
-import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.api.registry.PetRoleType;
-import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.util.ChanceValidationUtil;
 import woflo.petsplus.ui.ActionBarUtils;
 import java.util.Iterator;
 import java.util.List;

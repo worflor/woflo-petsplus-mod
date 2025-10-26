@@ -17,10 +17,8 @@ import net.minecraft.world.World;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.items.PetsplusItems;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.ui.PetCompendiumDataExtractor;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 

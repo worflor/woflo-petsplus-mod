@@ -12,7 +12,6 @@ import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.state.tracking.PlayerTickDispatcher;
-import woflo.petsplus.state.tracking.PlayerTickListeners;
 import woflo.petsplus.ui.ActionBarCueManager;
 import woflo.petsplus.ui.BossBarManager;
 import woflo.petsplus.ui.PetInspectionManager;

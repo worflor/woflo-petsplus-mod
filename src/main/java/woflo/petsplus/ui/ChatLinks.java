@@ -1,9 +1,7 @@
 package woflo.petsplus.ui;
 
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.ClickEvent;
 import net.minecraft.text.ClickEvent.CopyToClipboard;
-import net.minecraft.text.HoverEvent;
 import net.minecraft.text.HoverEvent.ShowText;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;

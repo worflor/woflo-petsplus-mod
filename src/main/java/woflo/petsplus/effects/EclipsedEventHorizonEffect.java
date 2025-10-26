@@ -24,7 +24,6 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.roles.eclipsed.EclipsedVoid;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.ui.UIFeedbackManager;
 
 /**
  * Ability effect for Event Horizon that applies crowd control and protective buffs when

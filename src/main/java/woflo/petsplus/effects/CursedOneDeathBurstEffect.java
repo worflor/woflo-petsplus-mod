@@ -14,7 +14,6 @@ import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.roles.cursedone.CursedOneSoulSacrificeManager;
-import woflo.petsplus.ui.UIFeedbackManager;
 
 import java.util.ArrayList;
 import java.util.List;

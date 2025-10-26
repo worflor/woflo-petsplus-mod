@@ -4,7 +4,6 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.Vec3d;
-import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.event.OwnerAbilitySignalEvent;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.tracking.PlayerTickDispatcher;

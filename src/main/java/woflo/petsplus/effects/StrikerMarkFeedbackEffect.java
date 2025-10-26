@@ -3,7 +3,6 @@ package woflo.petsplus.effects;
 import com.google.gson.JsonObject;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
-
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -14,7 +13,6 @@ import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.roles.striker.StrikerHuntManager;
-import woflo.petsplus.ui.UIFeedbackManager;
 
 /**
  * Sends UI and particle feedback when a Striker finisher mark is applied.

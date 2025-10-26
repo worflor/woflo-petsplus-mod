@@ -14,7 +14,6 @@ import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.ui.FeedbackManager;
-import woflo.petsplus.ui.UIFeedbackManager;
 
 import java.util.Comparator;
 import java.util.List;
