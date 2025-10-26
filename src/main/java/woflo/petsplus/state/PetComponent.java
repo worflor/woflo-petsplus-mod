@@ -204,6 +204,7 @@ public class PetComponent {
         ECHOED_RESONANCE(PetMood.ECHOED_RESONANCE),
         ARCANE_OVERFLOW(PetMood.ARCANE_OVERFLOW),
         PACK_SPIRIT(PetMood.PACK_SPIRIT),
+        MALEVOLENT_ECLIPSE(PetMood.MALEVOLENT_ECLIPSE),
         MINING_REVERIE(PetMood.MINING_REVERIE);
 
         public final Formatting primaryFormatting;
