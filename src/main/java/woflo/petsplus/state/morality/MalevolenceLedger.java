@@ -35,13 +35,62 @@ public final class MalevolenceLedger {
 
     public MalevolenceLedger(PetComponent parent) {
         this.parent = parent;
-        this.score = parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_SCORE, Float.class, 0f);
-        this.spreeCount = parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_SPREE_COUNT, Integer.class, 0);
+        loadSnapshotFromStateStore();
+    }
+
+    private void loadSnapshotFromStateStore() {
+        this.score = sanitizeNonNegative(parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_SCORE, Float.class, 0f));
+        this.spreeCount = Math.max(0, parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_SPREE_COUNT, Integer.class, 0));
         this.spreeAnchorTick = parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_SPREE_ANCHOR_TICK, Long.class, Long.MIN_VALUE);
         this.lastDeedTick = parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_LAST_DEED_TICK, Long.class, Long.MIN_VALUE);
         this.lastTriggerTick = parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_LAST_TRIGGER_TICK, Long.class, Long.MIN_VALUE);
-        this.disharmonyStrength = parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_DISHARMONY, Float.class, 0f);
-        this.active = parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_ACTIVE, Boolean.class, Boolean.FALSE);
+        this.disharmonyStrength = sanitizeNonNegative(parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_DISHARMONY, Float.class, 0f));
+        this.active = Boolean.TRUE.equals(parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_ACTIVE, Boolean.class, Boolean.FALSE));
+        this.lastContextTick = Long.MIN_VALUE;
+        this.lastContextHash = 0;
+    }
+
+    private static float sanitizeNonNegative(float candidate) {
+        if (!Float.isFinite(candidate) || candidate < 0f) {
+            return 0f;
+        }
+        return candidate;
+    }
+
+    public synchronized void onStateDataRehydrated(long now) {
+        loadSnapshotFromStateStore();
+        disharmonyStrength = Math.max(0f, disharmonyStrength);
+        MalevolenceRules rules = MalevolenceRulesRegistry.get();
+        if (rules != null && rules != MalevolenceRules.EMPTY) {
+            float maxStrength = Math.max(0f, rules.disharmonySettings().maxStrength());
+            if (maxStrength > 0f) {
+                disharmonyStrength = MathHelper.clamp(disharmonyStrength, 0f, maxStrength);
+            } else {
+                disharmonyStrength = 0f;
+            }
+        }
+        PetComponent.HarmonyState current = parent.getHarmonyState();
+        PetComponent.HarmonyState overlay = overlayHarmonyState(current, now);
+        if (overlay != current) {
+            parent.applyHarmonyState(overlay);
+        }
+    }
+
+    public synchronized void onStateDataCleared(long now) {
+        score = 0f;
+        spreeCount = 0;
+        spreeAnchorTick = Long.MIN_VALUE;
+        lastDeedTick = Long.MIN_VALUE;
+        lastTriggerTick = Long.MIN_VALUE;
+        disharmonyStrength = 0f;
+        active = false;
+        lastContextTick = Long.MIN_VALUE;
+        lastContextHash = 0;
+        PetComponent.HarmonyState current = parent.getHarmonyState();
+        PetComponent.HarmonyState overlay = overlayHarmonyState(current, now);
+        if (overlay != current) {
+            parent.applyHarmonyState(overlay);
+        }
     }
 
     public synchronized TriggerOutcome recordDarkDeed(DarkDeedContext context, long now) {

@@ -2332,6 +2332,9 @@ public class PetComponent {
                 }
             });
         }
+        if (malevolenceLedger != null) {
+            malevolenceLedger.onStateDataRehydrated(currentWorldTime());
+        }
     }
 
     private Optional<Object> decodeStateDataValue(NbtCompound compound) {
@@ -4222,6 +4225,9 @@ public class PetComponent {
         }
         stateData.clear();
         speciesMetadataModule.markFlightDirty();
+        if (malevolenceLedger != null) {
+            malevolenceLedger.onStateDataCleared(currentWorldTime());
+        }
     }
 
     private static RelationshipModule.Data emptyRelationshipData() {
