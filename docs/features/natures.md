@@ -8,7 +8,7 @@ Pets pull from different nature pools depending on how they arrive. Wild partner
 
 ### Wild natures
 
-* **Fissure:** Deep stone dens or ore-lined peaks spark aggressive tunnelguards.
+* **Fenn:** Rainy open-sky tames kindle storm sentries; humidity only nudges odds while nearby pets blunt them.
 * **Falsi:** Humid, lush gatherings brim with whimsical, social sprites.
 * **Frisky:** Frozen homes create alert, playful scouts.
 * **Feral:** Mild regions raise steady survivors.
