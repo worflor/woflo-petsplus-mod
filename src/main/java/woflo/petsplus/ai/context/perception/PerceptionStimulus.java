@@ -3,7 +3,6 @@ package woflo.petsplus.ai.context.perception;
 import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.EnumSet;
 import java.util.Objects;
 
 /**
@@ -14,20 +13,18 @@ import java.util.Objects;
 public record PerceptionStimulus(
     Identifier type,
     long tick,
-    EnumSet<ContextSlice> slices,
+    ContextSliceMask slices,
     @Nullable Object payload
 ) {
 
     public PerceptionStimulus {
         Objects.requireNonNull(type, "type");
         if (slices == null || slices.isEmpty()) {
-            slices = EnumSet.of(ContextSlice.ALL);
-        } else {
-            slices = EnumSet.copyOf(slices);
+            slices = ContextSliceMask.ALL;
         }
     }
 
     public static PerceptionStimulus of(Identifier type, long tick, ContextSlice slice, @Nullable Object payload) {
-        return new PerceptionStimulus(type, tick, EnumSet.of(slice), payload);
+        return new PerceptionStimulus(type, tick, ContextSliceMask.of(slice), payload);
     }
 }

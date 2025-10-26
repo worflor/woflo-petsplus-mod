@@ -4,7 +4,6 @@ import net.minecraft.util.Identifier;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.List;
 
 /**
@@ -49,7 +48,7 @@ public final class StimulusSnapshot {
         Identifier type,
         long tick,
         long ageTicks,
-        EnumSet<ContextSlice> slices,
+        ContextSliceMask slices,
         Object payload
     ) {
         public Event {
@@ -57,9 +56,7 @@ public final class StimulusSnapshot {
                 throw new IllegalArgumentException("type");
             }
             if (slices == null || slices.isEmpty()) {
-                slices = EnumSet.of(ContextSlice.ALL);
-            } else {
-                slices = EnumSet.copyOf(slices);
+                slices = ContextSliceMask.ALL;
             }
             if (ageTicks < 0) {
                 ageTicks = 0;
@@ -67,4 +64,3 @@ public final class StimulusSnapshot {
         }
     }
 }
-

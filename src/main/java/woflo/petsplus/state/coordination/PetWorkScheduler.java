@@ -8,8 +8,6 @@ import java.util.EnumMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableMap;
-import java.util.TreeMap;
 import java.util.function.Consumer;
 
 /**
@@ -59,7 +57,7 @@ public final class PetWorkScheduler {
         }
     }
 
-    private final NavigableMap<Long, List<ScheduledTask>> buckets = new TreeMap<>();
+    private final TickWheelScheduler<ScheduledTask> wheel = new TickWheelScheduler<>();
     private final Map<PetComponent, EnumMap<TaskType, ScheduledTask>> tasksByComponent = new IdentityHashMap<>();
 
     public synchronized void schedule(PetComponent component, TaskType type, long tick) {
@@ -102,7 +100,7 @@ public final class PetWorkScheduler {
         ScheduledTask task = new ScheduledTask(pet, component, type, jittered);
         existing = tasksByComponent.computeIfAbsent(component, c -> new EnumMap<>(TaskType.class));
         existing.put(type, task);
-        buckets.computeIfAbsent(jittered, ignored -> new ArrayList<>()).add(task);
+        wheel.schedule(jittered, task);
         component.onTaskScheduled(type, jittered);
     }
 
@@ -121,23 +119,18 @@ public final class PetWorkScheduler {
         if (consumer == null) {
             return;
         }
-        var iterator = buckets.entrySet().iterator();
         List<ScheduledTask> tasksToProcess = new ArrayList<>();
-
-        // First pass: collect all due tasks and remove buckets
-        while (iterator.hasNext()) {
-            var entry = iterator.next();
-            if (entry.getKey() > currentTick) {
-                break;
+        wheel.drainTo(currentTick, task -> {
+            if (task == null || task.cancelled) {
+                return;
             }
-            iterator.remove();
-            List<ScheduledTask> tasks = entry.getValue();
-            for (ScheduledTask task : tasks) {
-                if (!task.cancelled && task != null && task.component != null && task.pet != null && !task.pet.isRemoved()) {
-                    tasksToProcess.add(task);
-                }
+            PetComponent component = task.component;
+            MobEntity pet = task.pet;
+            if (component == null || pet == null || pet.isRemoved()) {
+                return;
             }
-        }
+            tasksToProcess.add(task);
+        });
 
         // Second pass: clean up task mappings and notify
         for (ScheduledTask task : tasksToProcess) {
@@ -169,6 +162,6 @@ public final class PetWorkScheduler {
             }
         }
         tasksByComponent.clear();
-        buckets.clear();
+        wheel.clear();
     }
 }

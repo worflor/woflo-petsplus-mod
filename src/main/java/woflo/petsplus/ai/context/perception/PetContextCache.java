@@ -5,7 +5,6 @@ import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.ai.context.PetContext;
 
-import java.util.EnumSet;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -17,7 +16,7 @@ import java.util.function.Supplier;
 public final class PetContextCache implements PerceptionListener {
     private static final long DEFAULT_MAX_IDLE_TICKS = 20L; // one second
 
-    private final EnumSet<ContextSlice> dirtySlices = EnumSet.noneOf(ContextSlice.class);
+    private ContextSliceMask dirtyMask = ContextSliceMask.EMPTY;
     private long lastCaptureTick = Long.MIN_VALUE;
     private long maxIdleTicks = DEFAULT_MAX_IDLE_TICKS;
     @Nullable
@@ -28,26 +27,29 @@ public final class PetContextCache implements PerceptionListener {
     }
 
     public void markDirty(ContextSlice slice) {
-        if (slice == ContextSlice.ALL) {
-            dirtySlices.clear();
-            dirtySlices.add(ContextSlice.ALL);
+        if (slice == null) {
             return;
         }
-        dirtySlices.add(slice);
+        if (slice == ContextSlice.ALL) {
+            dirtyMask = ContextSliceMask.ALL;
+            return;
+        }
+        dirtyMask = dirtyMask.union(ContextSliceMask.of(slice));
     }
 
-    public void markDirty(EnumSet<ContextSlice> slices) {
-        if (slices.contains(ContextSlice.ALL)) {
-            dirtySlices.clear();
-            dirtySlices.add(ContextSlice.ALL);
+    public void markDirty(ContextSliceMask mask) {
+        if (mask == null || mask.isEmpty()) {
             return;
         }
-        dirtySlices.addAll(slices);
+        if (mask.isAll()) {
+            dirtyMask = ContextSliceMask.ALL;
+            return;
+        }
+        dirtyMask = dirtyMask.union(mask);
     }
 
     public void markAllDirty() {
-        dirtySlices.clear();
-        dirtySlices.add(ContextSlice.ALL);
+        dirtyMask = ContextSliceMask.ALL;
     }
 
     public void setMaxIdleTicks(long maxIdleTicks) {
@@ -59,7 +61,7 @@ public final class PetContextCache implements PerceptionListener {
         long worldTime = world != null ? world.getTime() : 0L;
         if (shouldRefresh(worldTime)) {
             cached = capture.get();
-            dirtySlices.clear();
+            dirtyMask = ContextSliceMask.EMPTY;
             lastCaptureTick = worldTime;
         }
         return cached;
@@ -69,7 +71,7 @@ public final class PetContextCache implements PerceptionListener {
         if (cached == null) {
             return true;
         }
-        if (!dirtySlices.isEmpty()) {
+        if (!dirtyMask.isEmpty()) {
             return true;
         }
         if (lastCaptureTick == Long.MIN_VALUE) {
