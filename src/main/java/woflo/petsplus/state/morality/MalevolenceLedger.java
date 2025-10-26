@@ -255,7 +255,7 @@ public final class MalevolenceLedger {
             }
             Map<UUID, PetComponent.HarmonyCompatibility> copy = new LinkedHashMap<>(compat);
             copy.remove(ownerUuid);
-            float disharmonyTotal = 0f;
+            float disharmonyTotal = incoming.disharmonyStrength();
             for (PetComponent.HarmonyCompatibility value : copy.values()) {
                 if (value != null) {
                     disharmonyTotal = Math.max(disharmonyTotal, value.disharmonyStrength());
@@ -316,7 +316,7 @@ public final class MalevolenceLedger {
         if (!globalSets.contains(marker)) {
             globalSets.add(marker);
         }
-        float disharmonyTotal = resolvedStrength;
+        float disharmonyTotal = Math.max(incoming.disharmonyStrength(), resolvedStrength);
         for (PetComponent.HarmonyCompatibility value : copy.values()) {
             if (value != null) {
                 disharmonyTotal = Math.max(disharmonyTotal, value.disharmonyStrength());
