@@ -28,6 +28,7 @@ public final class MalevolenceLedger {
     private long spreeAnchorTick = Long.MIN_VALUE;
     private long lastDeedTick = Long.MIN_VALUE;
     private long lastTriggerTick = Long.MIN_VALUE;
+    private long lastDecayTick = Long.MIN_VALUE;
     private float disharmonyStrength;
     private boolean active;
     private long lastContextTick = Long.MIN_VALUE;
@@ -44,6 +45,14 @@ public final class MalevolenceLedger {
         this.spreeAnchorTick = parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_SPREE_ANCHOR_TICK, Long.class, Long.MIN_VALUE);
         this.lastDeedTick = parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_LAST_DEED_TICK, Long.class, Long.MIN_VALUE);
         this.lastTriggerTick = parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_LAST_TRIGGER_TICK, Long.class, Long.MIN_VALUE);
+        long storedDecayTick = parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_LAST_DECAY_TICK, Long.class, Long.MIN_VALUE);
+        if (storedDecayTick == Long.MIN_VALUE) {
+            this.lastDecayTick = lastDeedTick;
+        } else if (lastDeedTick == Long.MIN_VALUE) {
+            this.lastDecayTick = storedDecayTick;
+        } else {
+            this.lastDecayTick = Math.max(storedDecayTick, lastDeedTick);
+        }
         this.disharmonyStrength = sanitizeNonNegative(parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_DISHARMONY, Float.class, 0f));
         this.active = Boolean.TRUE.equals(parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_ACTIVE, Boolean.class, Boolean.FALSE));
         this.lastContextTick = Long.MIN_VALUE;
@@ -60,6 +69,9 @@ public final class MalevolenceLedger {
     public synchronized void onStateDataRehydrated(long now) {
         loadSnapshotFromStateStore();
         disharmonyStrength = Math.max(0f, disharmonyStrength);
+        if (lastDecayTick != Long.MIN_VALUE && now > 0L && lastDecayTick > now) {
+            lastDecayTick = now;
+        }
         MalevolenceRules rules = MalevolenceRulesRegistry.get();
         if (rules != null && rules != MalevolenceRules.EMPTY) {
             float maxStrength = Math.max(0f, rules.disharmonySettings().maxStrength());
@@ -82,6 +94,7 @@ public final class MalevolenceLedger {
         spreeAnchorTick = Long.MIN_VALUE;
         lastDeedTick = Long.MIN_VALUE;
         lastTriggerTick = Long.MIN_VALUE;
+        lastDecayTick = Long.MIN_VALUE;
         disharmonyStrength = 0f;
         active = false;
         lastContextTick = Long.MIN_VALUE;
@@ -118,7 +131,7 @@ public final class MalevolenceLedger {
         if (baseWeight <= 0f) {
             lastContextTick = now;
             lastContextHash = contextHash;
-            maybeClear(ownerUuid, rules, now);
+            maybeClear(ownerUuid, rules, now, true);
             persistState();
             return TriggerOutcome.none();
         }
@@ -141,7 +154,7 @@ public final class MalevolenceLedger {
             }
             lastContextTick = now;
             lastContextHash = contextHash;
-            maybeClear(ownerUuid, rules, now);
+            maybeClear(ownerUuid, rules, now, true);
             persistState();
             return TriggerOutcome.none();
         }
@@ -153,7 +166,7 @@ public final class MalevolenceLedger {
         if (addedScore <= 0f || Float.isNaN(addedScore) || Float.isInfinite(addedScore)) {
             lastContextTick = now;
             lastContextHash = contextHash;
-            maybeClear(ownerUuid, rules, now);
+            maybeClear(ownerUuid, rules, now, true);
             persistState();
             return TriggerOutcome.none();
         }
@@ -165,6 +178,7 @@ public final class MalevolenceLedger {
         lastContextTick = now;
         lastContextHash = contextHash;
 
+        lastDecayTick = now;
         ThresholdEvaluation evaluation = evaluateThreshold(rules.thresholds(), now);
         DisharmonyEvaluation disharmonyEvaluation = updateDisharmony(ownerUuid, rules, evaluation, now);
         persistState();
@@ -176,7 +190,8 @@ public final class MalevolenceLedger {
             return;
         }
         float halfLife = Math.max(1f, thresholds.decayHalfLifeTicks());
-        long elapsed = Math.max(0L, now - lastDeedTick);
+        long referenceTick = lastDecayTick != Long.MIN_VALUE ? lastDecayTick : lastDeedTick;
+        long elapsed = Math.max(0L, now - referenceTick);
         if (elapsed == 0L) {
             return;
         }
@@ -185,6 +200,7 @@ public final class MalevolenceLedger {
         if (score < 0.05f) {
             score = 0f;
         }
+        lastDecayTick = now;
     }
 
     private void refreshSpreeWindow(long now, MalevolenceRules.SpreeSettings spreeSettings) {
@@ -262,15 +278,18 @@ public final class MalevolenceLedger {
         return new DisharmonyEvaluation(previous, disharmonyStrength, evaluation.cleared());
     }
 
-    private void maybeClear(UUID ownerUuid, MalevolenceRules rules, long now) {
+    private void maybeClear(UUID ownerUuid, MalevolenceRules rules, long now, boolean decayFirst) {
         if (!active) {
             return;
         }
         MalevolenceRules.Thresholds thresholds = rules.thresholds();
-        decayScore(now, thresholds);
+        if (decayFirst) {
+            decayScore(now, thresholds);
+        }
         if (score <= thresholds.remissionScore()) {
             active = false;
             disharmonyStrength = 0f;
+            lastDecayTick = now;
             applyHarmony(ownerUuid, 0f, now, rules);
         }
     }
@@ -280,6 +299,58 @@ public final class MalevolenceLedger {
         PetComponent.HarmonyState overlay = overlayHarmonyState(current, tick);
         if (overlay != current) {
             parent.applyHarmonyState(overlay);
+        }
+    }
+
+    public synchronized void onWorldTimeSegmentTick(long now) {
+        MalevolenceRules rules = MalevolenceRulesRegistry.get();
+        if (rules == null || rules == MalevolenceRules.EMPTY) {
+            return;
+        }
+        long effectiveNow = now;
+        if (effectiveNow <= 0L && parent.getPetEntity() != null && parent.getPetEntity().getEntityWorld() != null) {
+            effectiveNow = parent.getPetEntity().getEntityWorld().getTime();
+        }
+        if (effectiveNow <= 0L) {
+            return;
+        }
+
+        float previousScore = score;
+        int previousSpreeCount = spreeCount;
+        float previousDisharmony = disharmonyStrength;
+        boolean wasActive = active;
+        long previousDecayTick = lastDecayTick;
+
+        decayScore(effectiveNow, rules.thresholds());
+        refreshSpreeWindow(effectiveNow, rules.spreeSettings());
+
+        UUID ownerUuid = parent.getOwnerUuid();
+        if (ownerUuid != null) {
+            if (active) {
+                if (score <= rules.thresholds().remissionScore()) {
+                    active = false;
+                    disharmonyStrength = 0f;
+                    lastDecayTick = effectiveNow;
+                    applyHarmony(ownerUuid, 0f, effectiveNow, rules);
+                } else if (disharmonyStrength > 0f) {
+                    applyHarmony(ownerUuid, disharmonyStrength, effectiveNow, rules);
+                }
+            } else if (disharmonyStrength > 0f) {
+                if (disharmonyStrength <= rules.disharmonySettings().remissionFloor()) {
+                    disharmonyStrength = 0f;
+                    applyHarmony(ownerUuid, 0f, effectiveNow, rules);
+                } else {
+                    applyHarmony(ownerUuid, disharmonyStrength, effectiveNow, rules);
+                }
+            }
+        }
+
+        if (score != previousScore
+            || spreeCount != previousSpreeCount
+            || disharmonyStrength != previousDisharmony
+            || wasActive != active
+            || lastDecayTick != previousDecayTick) {
+            persistState();
         }
     }
 
@@ -400,6 +471,7 @@ public final class MalevolenceLedger {
         parent.setStateData(PetComponent.StateKeys.MALEVOLENCE_SCORE, score);
         parent.setStateData(PetComponent.StateKeys.MALEVOLENCE_LAST_DEED_TICK, lastDeedTick);
         parent.setStateData(PetComponent.StateKeys.MALEVOLENCE_LAST_TRIGGER_TICK, lastTriggerTick);
+        parent.setStateData(PetComponent.StateKeys.MALEVOLENCE_LAST_DECAY_TICK, lastDecayTick);
         parent.setStateData(PetComponent.StateKeys.MALEVOLENCE_SPREE_COUNT, spreeCount);
         parent.setStateData(PetComponent.StateKeys.MALEVOLENCE_SPREE_ANCHOR_TICK, spreeAnchorTick);
         parent.setStateData(PetComponent.StateKeys.MALEVOLENCE_DISHARMONY, disharmonyStrength);

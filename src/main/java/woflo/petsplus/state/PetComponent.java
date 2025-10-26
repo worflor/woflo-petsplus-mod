@@ -384,6 +384,7 @@ public class PetComponent {
         public static final String MALEVOLENCE_SCORE = "morality_malevolence_score";
         public static final String MALEVOLENCE_LAST_DEED_TICK = "morality_malevolence_last_deed_tick";
         public static final String MALEVOLENCE_LAST_TRIGGER_TICK = "morality_malevolence_last_trigger_tick";
+        public static final String MALEVOLENCE_LAST_DECAY_TICK = "morality_malevolence_last_decay_tick";
         public static final String MALEVOLENCE_SPREE_COUNT = "morality_malevolence_spree_count";
         public static final String MALEVOLENCE_SPREE_ANCHOR_TICK = "morality_malevolence_spree_anchor";
         public static final String MALEVOLENCE_DISHARMONY = "morality_malevolence_disharmony";
@@ -885,6 +886,9 @@ public class PetComponent {
     public void notifyWorldTimeUpdated(@Nullable EnvironmentPerceptionBridge.WorldSnapshot snapshot) {
         if (snapshot == null) {
             return;
+        }
+        if (malevolenceLedger != null) {
+            malevolenceLedger.onWorldTimeSegmentTick(snapshot.worldTime());
         }
         markContextDirty(ContextSlice.WORLD);
         publishStimulus(PerceptionStimulusType.WORLD_TICK, ContextSlice.WORLD, snapshot);
