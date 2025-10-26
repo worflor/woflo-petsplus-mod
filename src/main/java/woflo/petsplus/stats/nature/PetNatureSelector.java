@@ -88,7 +88,7 @@ public final class PetNatureSelector {
     }
 
     static {
-        registerNature("fissure", ctx -> false, PetNatureSelector::matchesFissure);
+        registerNature("fenn", (random, ctx) -> false, PetNatureSelector::rollFenn);
         registerNature("falsi", ctx -> false, PetNatureSelector::matchesFalsi);
 
         registerNature("frisky", ctx -> false,
@@ -348,21 +348,33 @@ public final class PetNatureSelector {
         return count[0];
     }
 
-    private static boolean matchesFissure(NatureContext context) {
+    private static boolean rollFenn(Random random, NatureContext context) {
         PetBreedEvent.BirthContext.Environment env = context.environment();
         if (env == null) {
             return false;
         }
 
-        boolean deepStone = !env.hasOpenSky() && env.getHeight() <= 40;
-        boolean magmaVent = env.isNearLavaOrMagma();
-        boolean oreRich = env.hasValuableOres();
-        boolean ruggedSummit = env.getHeight() >= 90 && oreRich;
-
-        if (deepStone && (magmaVent || oreRich)) {
-            return true;
+        if (context.isIndoors()) {
+            return false;
         }
-        return ruggedSummit;
+        if (!env.hasOpenSky()) {
+            return false;
+        }
+
+        if (!(context.isRaining() || context.isThundering())) {
+            return false;
+        }
+
+        // The player must be nearby to tame, so only gate on other witness counts.
+        if (context.nearbyPets() > 1) {
+            return false;
+        }
+
+        float humidity = MathHelper.clamp(env.getBiomeMoisture(), 0.0f, 1.0f);
+        float baseChance = 0.35f;
+        float humidityBonus = humidity * 0.35f;
+        float chance = MathHelper.clamp(baseChance + humidityBonus, 0.2f, 0.85f);
+        return random.nextFloat() < chance;
     }
 
     private static boolean matchesFalsi(NatureContext context) {

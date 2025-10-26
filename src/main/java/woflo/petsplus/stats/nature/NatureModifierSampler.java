@@ -43,9 +43,9 @@ public final class NatureModifierSampler {
             1.25f, 1.10f, 0.95f, 1.05f,
             Emotion.GUARDIAN_VIGIL, 0.35f, Emotion.FRUSTRATION, 0.25f, Emotion.PRIDE, 0.20f);
 
-        register("fissure", NatureStat.MIGHT, 0.06f, NatureStat.FOCUS, 0.03f,
-            1.30f, 1.20f, 1.00f, 1.20f,
-            Emotion.GUARDIAN_VIGIL, 0.38f, Emotion.FRUSTRATION, 0.28f, Emotion.STOIC, 0.22f);
+        register("fenn", NatureStat.GUARD, 0.06f, NatureStat.FOCUS, 0.03f,
+            0.92f, 1.18f, 0.90f, 1.12f,
+            Emotion.VIGILANT, 0.38f, Emotion.HIRAETH, 0.28f, Emotion.STOIC, 0.24f);
 
         register("falsi", NatureStat.SWIFTNESS, 0.06f, NatureStat.FOCUS, 0.03f,
             1.25f, 0.85f, 1.35f, 0.90f,
