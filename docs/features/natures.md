@@ -8,7 +8,7 @@ Pets pull from different nature pools depending on how they arrive. Wild partner
 
 ### Wild natures
 
-* **Fenn:** Rain-swept open sky taming—ideally without other pets crowding in—turns strays into brooding storm sentries, with humid biomes merely nudging the odds upward.
+* **Fenn:** Rain-swept open sky taming turns strays into brooding storm sentries; humidity simply nudges the odds up while nearby pets dull the spark.
 * **Falsi:** Humid, lush gatherings brim with whimsical, social sprites.
 * **Frisky:** Frozen homes create alert, playful scouts.
 * **Feral:** Mild regions raise steady survivors.

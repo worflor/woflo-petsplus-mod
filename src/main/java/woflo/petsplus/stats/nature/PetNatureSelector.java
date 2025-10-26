@@ -365,15 +365,19 @@ public final class PetNatureSelector {
             return false;
         }
 
-        // The player must be nearby to tame, so only gate on other witness counts.
-        if (context.nearbyPets() > 1) {
+        // The player must be nearby to tame, so only adjust for other pets crowding the scene.
+        int nearbyPets = MathHelper.clamp(context.nearbyPets(), 0, 3);
+        if (nearbyPets >= 3) {
             return false;
         }
 
         float humidity = MathHelper.clamp(env.getBiomeMoisture(), 0.0f, 1.0f);
-        float baseChance = 0.35f;
-        float humidityBonus = humidity * 0.35f;
-        float chance = MathHelper.clamp(baseChance + humidityBonus, 0.2f, 0.85f);
+        float chance = 0.30f + humidity * 0.28f;
+        if (nearbyPets > 0) {
+            chance -= nearbyPets * 0.12f;
+        }
+
+        chance = MathHelper.clamp(chance, 0.14f, 0.72f);
         return random.nextFloat() < chance;
     }
 
