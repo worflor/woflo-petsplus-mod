@@ -7,6 +7,7 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import org.jetbrains.annotations.Nullable;
@@ -118,6 +119,10 @@ public final class AuraTargetResolver {
         }
 
         double r = Math.max(0.0D, radius);
+        if (r > AuraNeighborhoodIndex.maxRadius()) {
+            return List.of();
+        }
+
         double squaredRadius = r <= 0 ? 0 : r * r;
         Vec3d center = pet.getEntityPos();
         Set<LivingEntity> resolved = new ObjectLinkedOpenHashSet<>();
@@ -298,7 +303,45 @@ public final class AuraTargetResolver {
         if (players.isEmpty()) {
             return List.of();
         }
-        return players;
+
+        double effectiveRadius = Math.max(0.0D, radius);
+        if (effectiveRadius <= PlayerProximityIndex.MAX_RADIUS) {
+            return players;
+        }
+
+        double limitSq = squaredRadius <= 0 ? (effectiveRadius <= 0 ? Double.POSITIVE_INFINITY : effectiveRadius * effectiveRadius)
+            : squaredRadius;
+
+        if (!(owner.getEntityWorld() instanceof ServerWorld world)) {
+            return players;
+        }
+
+        double cx = center.x;
+        double cy = center.y;
+        double cz = center.z;
+        Box searchBox = new Box(cx - effectiveRadius, cy - effectiveRadius, cz - effectiveRadius,
+            cx + effectiveRadius, cy + effectiveRadius, cz + effectiveRadius);
+
+        List<ServerPlayerEntity> extras = world.getEntitiesByClass(ServerPlayerEntity.class, searchBox, candidate -> {
+            if (candidate == null || candidate.isRemoved() || !candidate.isAlive()) {
+                return false;
+            }
+            if (limitSq != Double.POSITIVE_INFINITY) {
+                double distSq = candidate.squaredDistanceTo(cx, cy, cz);
+                if (distSq > limitSq) {
+                    return false;
+                }
+            }
+            return true;
+        });
+
+        if (extras.isEmpty()) {
+            return players;
+        }
+
+        ObjectLinkedOpenHashSet<ServerPlayerEntity> merged = new ObjectLinkedOpenHashSet<>(players);
+        merged.addAll(extras);
+        return new ArrayList<>(merged);
     }
 
     private static final class PlayerProximityIndex {

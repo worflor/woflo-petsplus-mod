@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 final class AuraNeighborhoodIndex {
 
-    private static final double MAX_RADIUS = 48.0D;
+    private static final double MAX_RADIUS = 64.0D;
     private static final double MAX_RADIUS_SQ = MAX_RADIUS * MAX_RADIUS;
     private static final int REFRESH_INTERVAL = 10;
 
@@ -76,6 +76,10 @@ final class AuraNeighborhoodIndex {
             return List.of();
         }
         return List.copyOf(nearby);
+    }
+
+    static double maxRadius() {
+        return MAX_RADIUS;
     }
 
     static final class NeighborhoodSnapshot {
