@@ -2,6 +2,7 @@ package woflo.petsplus.state.emotions;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.CampfireBlock;
@@ -63,6 +64,7 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -336,6 +338,8 @@ public final class PetMoodEngine {
     private float cachedArcaneAmbientDistanceExponent = 1.0f;
     private float cachedArcaneAmbientMysticBonus = 0.2f;
     private Map<Identifier, Float> cachedArcaneAmbientStructureWeights = new HashMap<>();
+    private final Map<Block, Float> cachedArcaneAmbientStructureWeightByBlock = new IdentityHashMap<>();
+    private final Map<ArcaneFalloffKey, ArcaneFalloffData> arcaneFalloffCache = new HashMap<>();
     private float cachedArcaneRespawnAnchorEmptyMultiplier = 0.0f;
     private float cachedArcaneRespawnAnchorChargeStep = 0.25f;
     private float cachedArcaneRespawnAnchorMaxMultiplier = 1.0f;
@@ -3685,29 +3689,33 @@ public final class PetMoodEngine {
         }
         BlockPos.Mutable mutable = new BlockPos.Mutable();
         float accumulated = 0f;
-        double normalization = Math.max(1.0d, clamped + 0.5d);
         double exponent = Math.max(0.25d, cachedArcaneAmbientDistanceExponent);
+        ArcaneFalloffData falloffData = getArcaneFalloffData(clamped, exponent);
+        float[] falloffWeights = falloffData.weights();
+        short[] offsetX = falloffData.offsetX();
+        short[] offsetY = falloffData.offsetY();
+        short[] offsetZ = falloffData.offsetZ();
+        int active = falloffData.size();
+        int originX = origin.getX();
+        int originY = origin.getY();
+        int originZ = origin.getZ();
 
-        double originCenterX = origin.getX() + 0.5d;
-        double originCenterY = origin.getY() + 0.5d;
-        double originCenterZ = origin.getZ() + 0.5d;
-
-        for (int dx = -clamped; dx <= clamped; dx++) {
-            for (int dy = -clamped; dy <= clamped; dy++) {
-                for (int dz = -clamped; dz <= clamped; dz++) {
-                    mutable.set(origin.getX() + dx, origin.getY() + dy, origin.getZ() + dz);
-                    BlockPos samplePos = mutable.toImmutable();
-                    BlockState state = world.getBlockState(samplePos);
-                    float weight = resolveArcaneStructureWeight(world, samplePos, state);
-                    if (weight <= 0f) {
-                        continue;
-                    }
-                    double distance = Math.sqrt(samplePos.getSquaredDistance(originCenterX, originCenterY, originCenterZ));
-                    double normalized = MathHelper.clamp(distance / normalization, 0.0d, 1.0d);
-                    double falloff = Math.pow(1.0d - normalized, exponent);
-                    accumulated += weight * (float) Math.max(0d, falloff);
-                }
+        for (int i = 0; i < active; i++) {
+            float falloff = falloffWeights[i];
+            if (falloff <= 0f) {
+                continue;
             }
+            mutable.set(
+                originX + offsetX[i],
+                originY + offsetY[i],
+                originZ + offsetZ[i]
+            );
+            BlockState state = world.getBlockState(mutable);
+            float weight = resolveArcaneStructureWeight(world, mutable, state);
+            if (weight <= 0f) {
+                continue;
+            }
+            accumulated += weight * falloff;
         }
 
         return MathHelper.clamp(accumulated, 0f, cachedArcaneAmbientStructureMaxEnergy);
@@ -3717,14 +3725,9 @@ public final class PetMoodEngine {
         if (state == null) {
             return 0f;
         }
-        Identifier id = Registries.BLOCK.getId(state.getBlock());
-        float baseWeight = 0f;
-        if (id != null) {
-            Float configured = cachedArcaneAmbientStructureWeights.get(id);
-            if (configured != null) {
-                baseWeight = Math.max(0f, configured);
-            }
-        }
+        Block block = state.getBlock();
+        Float configured = cachedArcaneAmbientStructureWeightByBlock.get(block);
+        float baseWeight = configured != null ? Math.max(0f, configured) : 0f;
         if (baseWeight <= 0f && isArcaneBlock(state)) {
             baseWeight = Math.max(0f, cachedArcaneAmbientStructureBaseWeight);
         }
@@ -3742,6 +3745,12 @@ public final class PetMoodEngine {
             return baseWeight * Math.max(0f, resolveSculkCatalystMultiplier(world, pos));
         }
         return baseWeight;
+    }
+
+    private ArcaneFalloffData getArcaneFalloffData(int radius, double exponent) {
+        int exponentBits = Float.floatToIntBits((float) exponent);
+        ArcaneFalloffKey key = new ArcaneFalloffKey(radius, exponentBits);
+        return arcaneFalloffCache.computeIfAbsent(key, ignored -> ArcaneFalloffData.create(radius, exponent));
     }
 
     private static Optional<Field> lookupArcaneField(Class<?> type, String name) {
@@ -4147,6 +4156,7 @@ public final class PetMoodEngine {
         cachedConfigGeneration = generation;
         cachedMoodsSection = moodConfig.getMoodsSection();
         resolvedWeightCache.clear();
+        arcaneFalloffCache.clear();
         invalidateArcaneAmbientCachesIfNeeded(generation);
         cachedWeightSection = getObject(cachedMoodsSection, "weight");
         cachedOpponentSection = getObject(cachedMoodsSection, "opponents");
@@ -4241,6 +4251,7 @@ public final class PetMoodEngine {
         cachedArcaneAmbientMysticBonus = MathHelper.clamp(
             RegistryJsonHelper.getFloat(arcaneSection, "mysticEnvironmentBonus", 0.2f), 0f, 1.0f);
         cachedArcaneAmbientStructureWeights = new HashMap<>();
+        cachedArcaneAmbientStructureWeightByBlock.clear();
         JsonObject arcaneWeights = getObject(arcaneSection, "structureWeights");
         if (arcaneWeights != null) {
             for (Map.Entry<String, JsonElement> entry : arcaneWeights.entrySet()) {
@@ -4253,8 +4264,12 @@ public final class PetMoodEngine {
                     continue;
                 }
                 if (Registries.BLOCK.containsId(id)) {
-                    cachedArcaneAmbientStructureWeights.put(id,
-                        MathHelper.clamp(value.getAsFloat(), 0f, 2.0f));
+                    float weight = MathHelper.clamp(value.getAsFloat(), 0f, 2.0f);
+                    cachedArcaneAmbientStructureWeights.put(id, weight);
+                    Block block = Registries.BLOCK.get(id);
+                    if (block != null) {
+                        cachedArcaneAmbientStructureWeightByBlock.put(block, weight);
+                    }
                 }
             }
         }
@@ -5409,6 +5424,90 @@ public final class PetMoodEngine {
                     EnumSet.noneOf(PetComponent.Emotion.class),
                     null
             );
+        }
+    }
+
+    private record ArcaneFalloffKey(int radius, int exponentBits) {
+    }
+
+    private static final class ArcaneFalloffData {
+        private final short[] offsetX;
+        private final short[] offsetY;
+        private final short[] offsetZ;
+        private final float[] weights;
+        private final int size;
+
+        private ArcaneFalloffData(short[] offsetX, short[] offsetY, short[] offsetZ, float[] weights, int size) {
+            this.offsetX = offsetX;
+            this.offsetY = offsetY;
+            this.offsetZ = offsetZ;
+            this.weights = weights;
+            this.size = size;
+        }
+
+        static ArcaneFalloffData create(int radius, double exponent) {
+            if (radius <= 0) {
+                return new ArcaneFalloffData(new short[]{0}, new short[]{0}, new short[]{0}, new float[]{1f}, 1);
+            }
+            int diameter = radius * 2 + 1;
+            int total = diameter * diameter * diameter;
+            short[] offsetX = new short[total];
+            short[] offsetY = new short[total];
+            short[] offsetZ = new short[total];
+            float[] weights = new float[total];
+            double normalization = Math.max(1.0d, radius + 0.5d);
+            double inverseNormalization = 1.0d / normalization;
+            int index = 0;
+            for (int dx = -radius; dx <= radius; dx++) {
+                double dxSquared = (double) dx * (double) dx;
+                for (int dy = -radius; dy <= radius; dy++) {
+                    double dySquared = (double) dy * (double) dy;
+                    for (int dz = -radius; dz <= radius; dz++) {
+                        double dzSquared = (double) dz * (double) dz;
+                        double distanceSquared = dxSquared + dySquared + dzSquared;
+                        double normalized = Math.sqrt(distanceSquared) * inverseNormalization;
+                        double clamped = MathHelper.clamp(normalized, 0.0d, 1.0d);
+                        double base = 1.0d - clamped;
+                        double falloff = base <= 0.0d ? 0.0d : Math.pow(base, exponent);
+                        float weight = (float) Math.max(0.0d, falloff);
+                        if (weight <= 0f) {
+                            continue;
+                        }
+                        offsetX[index] = (short) dx;
+                        offsetY[index] = (short) dy;
+                        offsetZ[index] = (short) dz;
+                        weights[index] = weight;
+                        index++;
+                    }
+                }
+            }
+            return new ArcaneFalloffData(
+                Arrays.copyOf(offsetX, index),
+                Arrays.copyOf(offsetY, index),
+                Arrays.copyOf(offsetZ, index),
+                Arrays.copyOf(weights, index),
+                index
+            );
+        }
+
+        short[] offsetX() {
+            return offsetX;
+        }
+
+        short[] offsetY() {
+            return offsetY;
+        }
+
+        short[] offsetZ() {
+            return offsetZ;
+        }
+
+        float[] weights() {
+            return weights;
+        }
+
+        int size() {
+            return size;
         }
     }
 
