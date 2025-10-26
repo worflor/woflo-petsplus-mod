@@ -409,12 +409,6 @@ public final class MalevolenceLedger {
             }
             Map<UUID, PetComponent.HarmonyCompatibility> copy = new LinkedHashMap<>(compat);
             copy.remove(ownerUuid);
-            float disharmonyTotal = incoming.disharmonyStrength();
-            for (PetComponent.HarmonyCompatibility value : copy.values()) {
-                if (value != null) {
-                    disharmonyTotal = Math.max(disharmonyTotal, value.disharmonyStrength());
-                }
-            }
             List<Identifier> disharmonySets = new ArrayList<>(incoming.disharmonySetIds());
             Identifier marker = rules.disharmonySetId();
             List<Identifier> sanitizedDisharmony;
@@ -422,6 +416,15 @@ public final class MalevolenceLedger {
                 sanitizedDisharmony = disharmonySets.isEmpty() ? List.of() : List.copyOf(disharmonySets);
             } else {
                 sanitizedDisharmony = incoming.disharmonySetIds();
+            }
+            float disharmonyTotal = 0f;
+            for (PetComponent.HarmonyCompatibility value : copy.values()) {
+                if (value != null) {
+                    disharmonyTotal = Math.max(disharmonyTotal, value.disharmonyStrength());
+                }
+            }
+            if (!sanitizedDisharmony.isEmpty()) {
+                disharmonyTotal = Math.max(disharmonyTotal, incoming.disharmonyStrength());
             }
             return new PetComponent.HarmonyState(
                 incoming.harmonySetIds(),
