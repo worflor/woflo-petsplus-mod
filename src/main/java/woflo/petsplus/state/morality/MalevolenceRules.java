@@ -31,6 +31,7 @@ public final class MalevolenceRules {
         Thresholds.DEFAULT,
         SpreeSettings.DEFAULT,
         DisharmonySettings.DEFAULT,
+        ForgivenessSettings.DEFAULT,
         Identifier.of("petsplus", "morality/malevolence"),
         false
     );
@@ -43,6 +44,7 @@ public final class MalevolenceRules {
     private final Thresholds thresholds;
     private final SpreeSettings spreeSettings;
     private final DisharmonySettings disharmonySettings;
+    private final ForgivenessSettings forgivenessSettings;
     private final Identifier disharmonySetId;
     private final boolean replace;
 
@@ -55,6 +57,7 @@ public final class MalevolenceRules {
         Thresholds thresholds,
         SpreeSettings spreeSettings,
         DisharmonySettings disharmonySettings,
+        ForgivenessSettings forgivenessSettings,
         Identifier disharmonySetId,
         boolean replace
     ) {
@@ -66,6 +69,7 @@ public final class MalevolenceRules {
         this.thresholds = thresholds == null ? Thresholds.DEFAULT : thresholds;
         this.spreeSettings = spreeSettings == null ? SpreeSettings.DEFAULT : spreeSettings;
         this.disharmonySettings = disharmonySettings == null ? DisharmonySettings.DEFAULT : disharmonySettings;
+        this.forgivenessSettings = forgivenessSettings == null ? ForgivenessSettings.DEFAULT : forgivenessSettings;
         this.disharmonySetId = disharmonySetId == null ? Identifier.of("petsplus", "morality/malevolence") : disharmonySetId;
         this.replace = replace;
     }
@@ -97,6 +101,7 @@ public final class MalevolenceRules {
         Thresholds mergedThresholds = this.thresholds.overlay(other.thresholds);
         SpreeSettings mergedSpree = this.spreeSettings.overlay(other.spreeSettings);
         DisharmonySettings mergedDisharmony = this.disharmonySettings.overlay(other.disharmonySettings);
+        ForgivenessSettings mergedForgiveness = this.forgivenessSettings.overlay(other.forgivenessSettings);
         Identifier resolvedDisharmonySet = other.disharmonySetId != null ? other.disharmonySetId : this.disharmonySetId;
 
         return new MalevolenceRules(
@@ -108,6 +113,7 @@ public final class MalevolenceRules {
             mergedThresholds,
             mergedSpree,
             mergedDisharmony,
+            mergedForgiveness,
             resolvedDisharmonySet,
             false
         );
@@ -282,6 +288,10 @@ public final class MalevolenceRules {
         return disharmonySettings;
     }
 
+    public ForgivenessSettings forgivenessSettings() {
+        return forgivenessSettings;
+    }
+
     public Identifier disharmonySetId() {
         return disharmonySetId;
     }
@@ -357,6 +367,65 @@ public final class MalevolenceRules {
 
         public float spreeBonus() {
             return spreeBonus;
+        }
+    }
+
+    public record ForgivenessSettings(
+        float friendlyFireFloor,
+        int spreeGrace,
+        float magnitudeFloor,
+        float highTrustThreshold,
+        float highTrustSeverityLimit,
+        float magnitudeTrustWeight,
+        float magnitudeAffectionWeight,
+        float magnitudeRespectWeight
+    ) {
+        public static final ForgivenessSettings DEFAULT = new ForgivenessSettings(0.25f, 1, 0.28f, 0.75f, 0.35f, 1.0f, 1.1f, 0.6f);
+
+        public ForgivenessSettings overlay(ForgivenessSettings other) {
+            if (other == null || other == DEFAULT) {
+                return this;
+            }
+            float friendlyFloor = other.friendlyFireFloor > 0f ? other.friendlyFireFloor : this.friendlyFireFloor;
+            int grace = other.spreeGrace > 0 ? other.spreeGrace : this.spreeGrace;
+            float magnitude = other.magnitudeFloor > 0f ? other.magnitudeFloor : this.magnitudeFloor;
+            float trustThreshold = other.highTrustThreshold > 0f ? other.highTrustThreshold : this.highTrustThreshold;
+            float severityLimit = other.highTrustSeverityLimit > 0f ? other.highTrustSeverityLimit : this.highTrustSeverityLimit;
+            float trustWeight = other.magnitudeTrustWeight != 0f ? other.magnitudeTrustWeight : this.magnitudeTrustWeight;
+            float affectionWeight = other.magnitudeAffectionWeight != 0f ? other.magnitudeAffectionWeight : this.magnitudeAffectionWeight;
+            float respectWeight = other.magnitudeRespectWeight != 0f ? other.magnitudeRespectWeight : this.magnitudeRespectWeight;
+            return new ForgivenessSettings(friendlyFloor, grace, magnitude, trustThreshold, severityLimit, trustWeight, affectionWeight, respectWeight);
+        }
+
+        public boolean shouldForgive(
+            @Nullable RelationshipProfile profile,
+            @Nullable InteractionVector interactionVector,
+            float friendlyFireSeverity,
+            int candidateSpreeCount
+        ) {
+            if (friendlyFireSeverity > 0f) {
+                if (friendlyFireSeverity <= friendlyFireFloor && candidateSpreeCount <= spreeGrace) {
+                    return true;
+                }
+                if (profile != null && profile.trust() >= highTrustThreshold && friendlyFireSeverity <= highTrustSeverityLimit && candidateSpreeCount <= spreeGrace + 1) {
+                    return true;
+                }
+            }
+            if (interactionVector != null) {
+                float magnitude = interactionVector.magnitude(magnitudeTrustWeight, magnitudeAffectionWeight, magnitudeRespectWeight);
+                if (magnitude <= magnitudeFloor) {
+                    if (friendlyFireSeverity <= friendlyFireFloor && candidateSpreeCount <= spreeGrace + 1) {
+                        return true;
+                    }
+                    if (friendlyFireSeverity == 0f && candidateSpreeCount <= spreeGrace) {
+                        return true;
+                    }
+                    if (profile != null && profile.trust() >= highTrustThreshold && friendlyFireSeverity <= highTrustSeverityLimit) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
     }
 

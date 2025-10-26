@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.state.morality.MalevolenceRules;
 import woflo.petsplus.state.morality.MalevolenceRulesRegistry;
@@ -62,9 +63,10 @@ public final class MalevolenceRulesDataLoader extends BaseJsonDataLoader<Malevol
         MalevolenceRules.Thresholds thresholds = parseThresholds(getObject(root, "thresholds"));
         MalevolenceRules.SpreeSettings spree = parseSpree(getObject(root, "spree"));
         MalevolenceRules.DisharmonySettings disharmony = parseDisharmony(getObject(root, "disharmony"));
+        MalevolenceRules.ForgivenessSettings forgiveness = parseForgiveness(getObject(root, "forgiveness"));
         Identifier disharmonySet = disharmonySet(getObject(root, "disharmony"));
         return new MalevolenceRules(tagRules, victimRules, tagVictimRules, relationshipWeights,
-            telemetry, thresholds, spree, disharmony, disharmonySet, replace);
+            telemetry, thresholds, spree, disharmony, forgiveness, disharmonySet, replace);
     }
 
     private static Map<String, MalevolenceRules.TagRule> parseTagRules(JsonObject tagsObject, String source) {
@@ -190,6 +192,30 @@ public final class MalevolenceRulesDataLoader extends BaseJsonDataLoader<Malevol
         return new MalevolenceRules.DisharmonySettings(base, scale, max, floor);
     }
 
+    private static MalevolenceRules.ForgivenessSettings parseForgiveness(JsonObject object) {
+        if (object == null) {
+            return MalevolenceRules.ForgivenessSettings.DEFAULT;
+        }
+        float friendlyFloor = getFloat(object, "friendly_fire_floor", MalevolenceRules.ForgivenessSettings.DEFAULT.friendlyFireFloor());
+        int spreeGrace = getInt(object, "spree_grace", MalevolenceRules.ForgivenessSettings.DEFAULT.spreeGrace());
+        float magnitudeFloor = getFloat(object, "magnitude_floor", MalevolenceRules.ForgivenessSettings.DEFAULT.magnitudeFloor());
+        float highTrustThreshold = getFloat(object, "high_trust_threshold", MalevolenceRules.ForgivenessSettings.DEFAULT.highTrustThreshold());
+        float highTrustSeverityLimit = getFloat(object, "high_trust_severity_limit", MalevolenceRules.ForgivenessSettings.DEFAULT.highTrustSeverityLimit());
+        float trustWeight = getFloat(object, "trust_weight", MalevolenceRules.ForgivenessSettings.DEFAULT.magnitudeTrustWeight());
+        float affectionWeight = getFloat(object, "affection_weight", MalevolenceRules.ForgivenessSettings.DEFAULT.magnitudeAffectionWeight());
+        float respectWeight = getFloat(object, "respect_weight", MalevolenceRules.ForgivenessSettings.DEFAULT.magnitudeRespectWeight());
+        return new MalevolenceRules.ForgivenessSettings(
+            Math.max(0f, friendlyFloor),
+            Math.max(0, spreeGrace),
+            Math.max(0f, magnitudeFloor),
+            MathHelper.clamp(highTrustThreshold, 0f, 1f),
+            Math.max(0f, highTrustSeverityLimit),
+            trustWeight,
+            affectionWeight,
+            respectWeight
+        );
+    }
+
     private static Identifier disharmonySet(JsonObject object) {
         if (object == null || !object.has("set")) {
             return Identifier.of("petsplus", "morality/malevolence");
@@ -277,6 +303,17 @@ public final class MalevolenceRulesDataLoader extends BaseJsonDataLoader<Malevol
         JsonElement element = object.get(key);
         if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()) {
             return element.getAsLong();
+        }
+        return defaultValue;
+    }
+
+    private static int getInt(JsonObject object, String key, int defaultValue) {
+        if (object == null || !object.has(key)) {
+            return defaultValue;
+        }
+        JsonElement element = object.get(key);
+        if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()) {
+            return element.getAsInt();
         }
         return defaultValue;
     }

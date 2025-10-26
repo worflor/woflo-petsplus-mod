@@ -61,7 +61,8 @@ public final class MalevolenceLedger {
         }
 
         decayScore(now, rules.thresholds());
-        updateSpree(now, rules.spreeSettings());
+        refreshSpreeWindow(now, rules.spreeSettings());
+        SpreeSnapshot spreeSnapshot = computeSpreeSnapshot(now, rules.spreeSettings());
 
         Set<String> resolvedTags = rules.resolveTags(context.victimType(), context.registryTags(), context.dynamicTags());
         float baseWeight = rules.baseWeight(context.victimType(), resolvedTags);
@@ -84,9 +85,20 @@ public final class MalevolenceLedger {
 
         float relationshipMultiplier = rules.relationshipMultiplier(relationshipType, resolvedTags);
         MalevolenceRules.InteractionVector interactionVector = MalevolenceRules.InteractionVector.of(context.interactionVector());
+        if (rules.forgivenessSettings().shouldForgive(relationshipProfile, interactionVector,
+            context.friendlyFireSeverity(), spreeSnapshot.count())) {
+            if (context.friendlyFireSeverity() > 0f) {
+                applySpreeSnapshot(spreeSnapshot);
+            }
+            lastContextTick = now;
+            lastContextHash = contextHash;
+            maybeClear(ownerUuid, rules, now);
+            persistState();
+            return TriggerOutcome.none();
+        }
         float telemetryMultiplier = rules.telemetryMultiplier(relationshipProfile, interactionVector,
             context.friendlyFireSeverity(), resolvedTags);
-        float spreeMultiplier = rules.spreeMultiplier(spreeCount, context.lowHealthFinish(), resolvedTags);
+        float spreeMultiplier = rules.spreeMultiplier(spreeSnapshot.count(), context.lowHealthFinish(), resolvedTags);
 
         float addedScore = baseWeight * relationshipMultiplier * telemetryMultiplier * spreeMultiplier;
         if (addedScore <= 0f || Float.isNaN(addedScore) || Float.isInfinite(addedScore)) {
@@ -97,6 +109,7 @@ public final class MalevolenceLedger {
             return TriggerOutcome.none();
         }
 
+        applySpreeSnapshot(spreeSnapshot);
         score += addedScore;
         score = Math.max(0f, score);
         lastDeedTick = now;
@@ -125,12 +138,43 @@ public final class MalevolenceLedger {
         }
     }
 
-    private void updateSpree(long now, MalevolenceRules.SpreeSettings spreeSettings) {
-        if (spreeAnchorTick == Long.MIN_VALUE || now - spreeAnchorTick > spreeSettings.windowTicks()) {
-            spreeCount = 0;
-            spreeAnchorTick = now;
+    private void refreshSpreeWindow(long now, MalevolenceRules.SpreeSettings spreeSettings) {
+        if (spreeSettings == null) {
+            return;
         }
-        spreeCount = Math.min(Integer.MAX_VALUE - 1, spreeCount + 1);
+        if (spreeAnchorTick != Long.MIN_VALUE && now - spreeAnchorTick > spreeSettings.windowTicks()) {
+            spreeCount = 0;
+            spreeAnchorTick = Long.MIN_VALUE;
+        }
+    }
+
+    private SpreeSnapshot computeSpreeSnapshot(long now, MalevolenceRules.SpreeSettings spreeSettings) {
+        int candidate;
+        long anchor;
+        if (spreeSettings == null) {
+            candidate = Math.min(Integer.MAX_VALUE - 1, spreeCount + 1);
+            if (candidate <= 0) {
+                candidate = 1;
+            }
+            anchor = spreeAnchorTick == Long.MIN_VALUE ? now : spreeAnchorTick;
+            return new SpreeSnapshot(candidate, anchor);
+        }
+        boolean reset = spreeAnchorTick == Long.MIN_VALUE || now - spreeAnchorTick > spreeSettings.windowTicks();
+        anchor = reset ? now : spreeAnchorTick;
+        int base = reset ? 0 : spreeCount;
+        candidate = Math.min(Integer.MAX_VALUE - 1, base + 1);
+        if (candidate <= 0) {
+            candidate = 1;
+        }
+        return new SpreeSnapshot(candidate, anchor);
+    }
+
+    private void applySpreeSnapshot(SpreeSnapshot snapshot) {
+        if (snapshot == null) {
+            return;
+        }
+        spreeCount = snapshot.count();
+        spreeAnchorTick = snapshot.anchor();
     }
 
     private ThresholdEvaluation evaluateThreshold(MalevolenceRules.Thresholds thresholds, long now) {
@@ -356,6 +400,8 @@ public final class MalevolenceLedger {
     }
 
     private record DisharmonyEvaluation(float previous, float current, boolean cleared) {}
+
+    private record SpreeSnapshot(int count, long anchor) {}
 
     public record DarkDeedContext(
         @Nullable net.minecraft.entity.EntityType<?> victimType,

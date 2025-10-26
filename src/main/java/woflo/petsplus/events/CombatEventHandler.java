@@ -53,6 +53,7 @@ import woflo.petsplus.abilities.AbilityTriggerResult;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.morality.MalevolenceLedger;
+import woflo.petsplus.state.relationships.InteractionType;
 import woflo.petsplus.state.relationships.RelationshipType;
 import woflo.petsplus.mood.MoodService;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
@@ -1133,6 +1134,15 @@ public class CombatEventHandler {
         if (ally.getMaxHealth() > 0f) {
             normalizedDamage = MathHelper.clamp(damage / ally.getMaxHealth(), 0f, 4f);
         }
+        float trustMult = 1.0f;
+        float affectionMult = 1.0f;
+        float respectMult = 1.0f;
+        if (ally.getMaxHealth() > 0f && damage > ally.getMaxHealth() * 0.3f) {
+            trustMult = 1.5f;
+            affectionMult = 1.3f;
+            respectMult = 1.4f;
+        }
+        InteractionType.DimensionalResult interactionVector = InteractionType.ATTACK.scaled(trustMult, affectionMult, respectMult);
         RelationshipType relationshipHint = RelationshipType.NEUTRAL;
         if (observer.getRelationshipModule() != null) {
             relationshipHint = observer.getRelationshipModule().getRelationshipType(ally.getUuid());
@@ -1142,7 +1152,7 @@ public class CombatEventHandler {
             ally.getUuid(),
             registryTags,
             dynamicTags,
-            null,
+            interactionVector,
             normalizedDamage,
             false,
             relationshipHint
