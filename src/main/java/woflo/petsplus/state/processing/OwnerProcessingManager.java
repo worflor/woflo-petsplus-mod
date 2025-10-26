@@ -7,16 +7,15 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.coordination.PetWorkScheduler;
+import woflo.petsplus.state.coordination.TickWheelScheduler;
 
 /**
  * Coordinates aggregation of pet upkeep tasks into owner-scoped batches. This
@@ -30,8 +29,8 @@ public final class OwnerProcessingManager {
     private final Map<PetComponent, UUID> membership = new IdentityHashMap<>();
     private final List<PetWorkScheduler.ScheduledTask> orphanTasks = new ArrayList<>();
     private final ArrayDeque<OwnerProcessingGroup> pendingQueue = new ArrayDeque<>();
-    private final TreeMap<Long, LinkedHashSet<OwnerProcessingGroup>> eventDueQueue = new TreeMap<>();
-    private final Map<OwnerProcessingGroup, Long> eventDueIndex = new IdentityHashMap<>();
+    private final TickWheelScheduler<EventTicket> eventDueWheel = new TickWheelScheduler<>();
+    private final Map<OwnerProcessingGroup, EventTicket> eventDueIndex = new IdentityHashMap<>();
     private final EnumSet<OwnerEventType> activeEvents = EnumSet.copyOf(ALWAYS_ACTIVE_EVENTS);
     private final EnumMap<OwnerEventType, Boolean> lastPresence = new EnumMap<>(OwnerEventType.class);
     private long currentTick;
@@ -453,51 +452,42 @@ public final class OwnerProcessingManager {
             removeGroupFromDueQueue(group);
             return;
         }
-        Long previousTick = eventDueIndex.get(group);
-        if (previousTick != null) {
-            if (previousTick == nextTick) {
-                return;
-            }
-            LinkedHashSet<OwnerProcessingGroup> bucket = eventDueQueue.get(previousTick);
-            if (bucket != null) {
-                bucket.remove(group);
-                if (bucket.isEmpty()) {
-                    eventDueQueue.remove(previousTick);
-                }
-            }
+        EventTicket previous = eventDueIndex.get(group);
+        if (previous != null && previous.tick == nextTick && !previous.cancelled) {
+            return;
         }
-        LinkedHashSet<OwnerProcessingGroup> bucket = eventDueQueue.computeIfAbsent(nextTick, ignored -> new LinkedHashSet<>());
-        bucket.add(group);
-        eventDueIndex.put(group, nextTick);
+        EventTicket ticket = new EventTicket(group, nextTick);
+        eventDueIndex.put(group, ticket);
+        if (previous != null) {
+            previous.cancelled = true;
+        }
+        eventDueWheel.schedule(nextTick, ticket);
     }
 
     private void promoteDueEvents() {
-        while (!eventDueQueue.isEmpty()) {
-            Map.Entry<Long, LinkedHashSet<OwnerProcessingGroup>> entry = eventDueQueue.firstEntry();
-            if (entry == null || entry.getKey() > currentTick) {
-                break;
+        eventDueWheel.drainTo(currentTick, ticket -> {
+            if (ticket == null || ticket.cancelled) {
+                return;
             }
-            eventDueQueue.pollFirstEntry();
-            LinkedHashSet<OwnerProcessingGroup> dueGroups = entry.getValue();
-            if (dueGroups == null) {
-                continue;
+            OwnerProcessingGroup group = ticket.group;
+            if (group == null) {
+                return;
             }
-            for (OwnerProcessingGroup group : dueGroups) {
-                if (group == null) {
-                    continue;
-                }
+            if (groups.get(group.ownerId()) != group) {
                 eventDueIndex.remove(group);
-                if (groups.get(group.ownerId()) != group) {
-                    continue;
-                }
-                long nextTick = group.nextEventTick();
-                if (nextTick > currentTick && nextTick != Long.MAX_VALUE) {
-                    scheduleEventGroup(group);
-                    continue;
-                }
-                queueGroup(group);
+                return;
             }
-        }
+            if (eventDueIndex.get(group) != ticket) {
+                return;
+            }
+            eventDueIndex.remove(group);
+            long nextTick = group.nextEventTick();
+            if (nextTick > currentTick && nextTick != Long.MAX_VALUE) {
+                scheduleEventGroup(group);
+                return;
+            }
+            queueGroup(group);
+        });
     }
 
     private void processOrphanTasks(BiConsumer<UUID, OwnerTaskBatch> consumer, long currentTick) {
@@ -546,21 +536,24 @@ public final class OwnerProcessingManager {
         return ALWAYS_ACTIVE_EVENTS.contains(type) || activeEvents.contains(type);
     }
 
-    private void removeGroupFromDueQueue(OwnerProcessingGroup target) {
+    private void removeGroupFromDueQueue(@Nullable OwnerProcessingGroup target) {
         if (target == null) {
             return;
         }
-        Long scheduledTick = eventDueIndex.remove(target);
-        if (scheduledTick == null) {
-            return;
+        EventTicket ticket = eventDueIndex.remove(target);
+        if (ticket != null) {
+            ticket.cancelled = true;
         }
-        LinkedHashSet<OwnerProcessingGroup> bucket = eventDueQueue.get(scheduledTick);
-        if (bucket == null) {
-            return;
-        }
-        bucket.remove(target);
-        if (bucket.isEmpty()) {
-            eventDueQueue.remove(scheduledTick);
+    }
+
+    private static final class EventTicket {
+        private final OwnerProcessingGroup group;
+        private final long tick;
+        private boolean cancelled;
+
+        private EventTicket(OwnerProcessingGroup group, long tick) {
+            this.group = group;
+            this.tick = tick;
         }
     }
 
@@ -572,7 +565,7 @@ public final class OwnerProcessingManager {
         membership.clear();
         orphanTasks.clear();
         pendingQueue.clear();
-        eventDueQueue.clear();
+        eventDueWheel.clear();
         eventDueIndex.clear();
         activeEvents.clear();
         activeEvents.addAll(ALWAYS_ACTIVE_EVENTS);

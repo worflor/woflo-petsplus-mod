@@ -7,7 +7,6 @@ import woflo.petsplus.state.processing.OwnerEventFrame;
 import woflo.petsplus.state.processing.OwnerEventListener;
 import woflo.petsplus.state.processing.OwnerEventType;
 
-import java.util.EnumSet;
 import java.util.List;
 
 /**
@@ -47,7 +46,7 @@ public final class OwnerPerceptionBridge implements OwnerEventListener {
         }
 
         long tick = frame.currentTick();
-        EnumSet<ContextSlice> slices = EnumSet.of(slice);
+        ContextSliceMask mask = ContextSliceMask.of(slice);
         for (PetComponent component : pets) {
             if (component == null) {
                 continue;
@@ -55,7 +54,7 @@ public final class OwnerPerceptionBridge implements OwnerEventListener {
             component.markContextDirty(slice);
             PerceptionBus bus = component.getPerceptionBus();
             if (bus != null) {
-                bus.publish(new PerceptionStimulus(stimulusType, tick, slices, payload));
+                bus.publish(new PerceptionStimulus(stimulusType, tick, mask, payload));
             }
         }
     }

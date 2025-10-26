@@ -42,6 +42,7 @@ import woflo.petsplus.ai.context.perception.PerceptionBus;
 import woflo.petsplus.ai.context.perception.PerceptionListener;
 import woflo.petsplus.ai.context.perception.PerceptionStimulus;
 import woflo.petsplus.ai.context.perception.PerceptionStimulusType;
+import woflo.petsplus.ai.context.perception.ContextSliceMask;
 import woflo.petsplus.ai.context.perception.PetContextCache;
 import woflo.petsplus.ai.context.perception.StimulusSnapshot;
 import woflo.petsplus.ai.context.perception.StimulusTimeline;
@@ -78,9 +79,9 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Deque;
@@ -89,7 +90,6 @@ import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.stream.Stream;
 import java.util.stream.Collectors;
-import java.util.EnumSet;
 
 /**
  * Coordinates pet state through specialized modules for characteristics, progression,
@@ -111,7 +111,7 @@ public class PetComponent {
     // Core pet identity
     private final MobEntity pet;
     private Identifier roleId;
-    private final Map<String, Object> stateData;
+    private final PetStateStore stateData;
     private long lastAttackTick;
     private boolean isPerched;
     
@@ -446,7 +446,7 @@ public class PetComponent {
     public PetComponent(MobEntity pet) {
         this.pet = pet;
         this.roleId = null;
-        this.stateData = new HashMap<>();
+        this.stateData = new PetStateStore();
         this.lastAttackTick = 0;
         this.isPerched = false;
 
@@ -784,13 +784,28 @@ public class PetComponent {
     }
 
     public void markContextDirty(ContextSlice... slices) {
-        if (contextCache == null || slices == null) {
+        if (contextCache == null || slices == null || slices.length == 0) {
             return;
         }
-        for (ContextSlice slice : slices) {
+        if (slices.length == 1) {
+            ContextSlice slice = slices[0];
             if (slice != null) {
                 contextCache.markDirty(slice);
             }
+            return;
+        }
+        ContextSliceMask mask = ContextSliceMask.EMPTY;
+        for (ContextSlice slice : slices) {
+            if (slice == null) {
+                continue;
+            }
+            mask = mask.union(ContextSliceMask.of(slice));
+            if (mask.isAll()) {
+                break;
+            }
+        }
+        if (!mask.isEmpty()) {
+            contextCache.markDirty(mask);
         }
     }
 
@@ -837,7 +852,7 @@ public class PetComponent {
         }
         markContextDirty(ContextSlice.SOCIAL, ContextSlice.MOOD, ContextSlice.EMOTIONS);
         publishStimulus(PerceptionStimulusType.HARMONY_STATE,
-            EnumSet.of(ContextSlice.SOCIAL, ContextSlice.MOOD, ContextSlice.EMOTIONS), sanitized);
+            ContextSliceMask.of(ContextSlice.SOCIAL, ContextSlice.MOOD, ContextSlice.EMOTIONS), sanitized);
     }
 
     public void notifyEnvironmentUpdated(@Nullable EnvironmentPerceptionBridge.EnvironmentSnapshot snapshot) {
@@ -861,21 +876,19 @@ public class PetComponent {
     }
 
     private void publishStimulus(Identifier type, ContextSlice slice, @Nullable Object payload) {
-        if (slice == null) {
-            publishStimulus(type, EnumSet.of(ContextSlice.ALL), payload);
-            return;
-        }
-        publishStimulus(type, EnumSet.of(slice), payload);
+        ContextSliceMask mask = slice == null ? ContextSliceMask.ALL : ContextSliceMask.of(slice);
+        publishStimulus(type, mask, payload);
     }
 
-    private void publishStimulus(Identifier type, EnumSet<ContextSlice> slices, @Nullable Object payload) {
+    private void publishStimulus(Identifier type, ContextSliceMask mask, @Nullable Object payload) {
         if (perceptionBus == null || type == null) {
             return;
         }
+        ContextSliceMask effective = (mask == null || mask.isEmpty()) ? ContextSliceMask.ALL : mask;
         if (contextCache != null) {
             contextCache.markDirty(ContextSlice.STIMULI);
         }
-        perceptionBus.publish(new PerceptionStimulus(type, currentWorldTime(), slices, payload));
+        perceptionBus.publish(new PerceptionStimulus(type, currentWorldTime(), effective, payload));
     }
 
     public void recordGoalStart(Identifier goalId) {
@@ -1482,31 +1495,25 @@ public class PetComponent {
             return false;
         }
 
-        for (Map.Entry<String, Object> entry : stateData.entrySet()) {
-            if (entry.getKey() == null) {
-                continue;
+        return stateData.anyMatch((rawKey, value) -> {
+            if (rawKey == null || value == null) {
+                return false;
             }
 
-            String key = entry.getKey().toLowerCase(Locale.ROOT);
+            String key = rawKey.toLowerCase(Locale.ROOT);
             if (!(key.startsWith("tag_") || key.startsWith("context_"))) {
-                continue;
+                return false;
             }
 
-            Object value = entry.getValue();
-            if (key.contains("flight") || key.contains("fly") || key.contains("air")) {
-                if (valueIndicatesFlight(value)) {
-                    return true;
-                }
-            }
+            boolean matchesKeyword = key.contains("flight")
+                || key.contains("fly")
+                || key.contains("air")
+                || key.contains("movement")
+                || key.contains("capability")
+                || key.contains("ability");
 
-            if (key.contains("movement") || key.contains("capability") || key.contains("ability")) {
-                if (valueIndicatesFlight(value)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+            return matchesKeyword && valueIndicatesFlight(value);
+        });
     }
 
     private boolean valueIndicatesFlight(@Nullable Object value) {
@@ -2139,7 +2146,7 @@ public class PetComponent {
     }
 
     public void clearStateData(String key) {
-        if (!stateData.containsKey(key)) {
+        if (!stateData.contains(key)) {
             return;
         }
 
@@ -2166,25 +2173,22 @@ public class PetComponent {
         }
 
         NbtCompound serialized = new NbtCompound();
-        int storedEntries = 0;
-
-        for (Map.Entry<String, Object> entry : stateData.entrySet()) {
-            String key = entry.getKey();
-            Object value = entry.getValue();
+        final int[] stored = {0};
+        stateData.forEach((key, value) -> {
             if (key == null || value == null) {
-                continue;
+                return;
             }
 
             Optional<NbtCompound> encoded = encodeStateDataValue(value);
             if (encoded.isPresent()) {
                 serialized.put(key, encoded.get());
-                storedEntries++;
+                stored[0]++;
             } else {
                 Petsplus.LOGGER.warn("Skipping state data entry '{}' of unsupported type {} during serialization", key, value.getClass().getName());
             }
-        }
+        });
 
-        if (storedEntries == 0 || serialized.getKeys().isEmpty()) {
+        if (stored[0] == 0 || serialized.getKeys().isEmpty()) {
             return Optional.empty();
         }
 
@@ -2383,8 +2387,8 @@ public class PetComponent {
     }
 
     private void setStateDataInternal(String key, Object value, boolean invalidateCaches, boolean markDirty) {
-        boolean hadKey = stateData.containsKey(key);
-        Object previous = hadKey ? stateData.get(key) : null;
+        boolean hadKey = stateData.contains(key);
+        Object previous = stateData.getRaw(key);
         boolean sameReference = hadKey && previous == value;
         boolean changed = !hadKey || !Objects.equals(previous, value);
         if (!changed && !sameReference) {
@@ -2434,25 +2438,15 @@ public class PetComponent {
         return normalized.contains("flight") || normalized.contains("fly");
     }
 
-    @SuppressWarnings("unchecked")
     public <T> T getStateData(String key, Class<T> type) {
-        Object value = stateData.get(key);
-        if (value != null && type.isInstance(value)) {
-            return (T) value;
-        }
-        return null;
+        return stateData.get(key, type);
     }
 
     /**
      * Get typed state data with a default value when missing or wrong type.
      */
-    @SuppressWarnings("unchecked")
     public <T> T getStateData(String key, Class<T> type, T defaultValue) {
-        Object value = stateData.get(key);
-        if (value != null && type.isInstance(value)) {
-            return (T) value;
-        }
-        return defaultValue;
+        return stateData.get(key, type, defaultValue);
     }
 
     /**
@@ -4010,11 +4004,11 @@ public class PetComponent {
         }
         
         // Preserve custom tags
-        for (String key : stateData.keySet()) {
-            if (key.startsWith("tag_")) {
-                preservedData.put(key, stateData.get(key));
+        stateData.forEach((key, value) -> {
+            if (key != null && key.startsWith("tag_") && value != null) {
+                preservedData.put(key, value);
             }
-        }
+        });
         
         // Clear all state data and restore preserved items
         stateData.clear();

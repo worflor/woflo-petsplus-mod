@@ -6,6 +6,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.ai.context.perception.ContextSlice;
+import woflo.petsplus.ai.context.perception.ContextSliceMask;
 import woflo.petsplus.ai.context.perception.PerceptionBus;
 import woflo.petsplus.ai.context.perception.PerceptionStimulus;
 import woflo.petsplus.ai.context.perception.PerceptionStimulusType;
@@ -84,7 +85,7 @@ public class DefaultRelationshipModule implements RelationshipModule {
                     bus.publish(new PerceptionStimulus(
                         PerceptionStimulusType.SOCIAL_GRAPH,
                         tick,
-                        EnumSet.of(ContextSlice.SOCIAL),
+                        ContextSliceMask.of(ContextSlice.SOCIAL),
                         updated
                     ));
                 }

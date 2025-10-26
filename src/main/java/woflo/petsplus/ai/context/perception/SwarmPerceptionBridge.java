@@ -4,7 +4,6 @@ import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -34,7 +33,7 @@ public final class SwarmPerceptionBridge implements PetSwarmIndex.SwarmListener 
                 continue;
             }
             long tick = component.getPetEntity().getEntityWorld().getTime();
-            bus.publish(new PerceptionStimulus(PerceptionStimulusType.CROWD_SUMMARY, tick, EnumSet.of(ContextSlice.CROWD), entries));
+            bus.publish(new PerceptionStimulus(PerceptionStimulusType.CROWD_SUMMARY, tick, ContextSliceMask.of(ContextSlice.CROWD), entries));
         }
     }
 }

@@ -26,11 +26,11 @@ import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.processing.OwnerSpatialResult;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectLinkedOpenHashSet;
 
 import woflo.petsplus.ui.ActionBarUtils;
 import woflo.petsplus.ui.FeedbackManager;
@@ -107,7 +107,7 @@ public final class PetsplusEffectManager {
             }
 
             double radius = Math.max(0.0, config.getPassiveAuraRadius(roleType, aura));
-            Set<LivingEntity> affectedEntities = new LinkedHashSet<>();
+            Set<LivingEntity> affectedEntities = new ObjectLinkedOpenHashSet<>();
             for (PetRoleType.AuraEffect effect : aura.effects()) {
                 if (level < effect.minLevel()) {
                     continue;
@@ -184,7 +184,12 @@ public final class PetsplusEffectManager {
                 return resolved;
             }
         }
-        List<LivingEntity> fallback = resolveTargetsFallback(world, pet, owner, radius, target);
+        List<LivingEntity> fallback = resolver != null
+            ? resolver.resolveUsingNeighborhood(world, pet, petComp, owner, radius, target)
+            : List.of();
+        if (fallback.isEmpty()) {
+            fallback = resolveTargetsFallback(world, pet, owner, radius, target);
+        }
         if (woflo.petsplus.config.DebugSettings.isDebugEnabled()) {
             woflo.petsplus.debug.DebugSnapshotAggregator.recordAuraResolve(world.getServer(), owner.getUuid(), world.getTime(), false);
         }
@@ -195,7 +200,7 @@ public final class PetsplusEffectManager {
                                                              double radius, PetRoleType.AuraTarget target) {
         double r = Math.max(0.0, radius);
         double squaredRadius = r <= 0 ? 0 : r * r;
-        Set<LivingEntity> resolved = new LinkedHashSet<>();
+        Set<LivingEntity> resolved = new ObjectLinkedOpenHashSet<>();
         switch (target) {
             case PET -> resolved.add(pet);
             case OWNER -> addOwnerIfInRange(resolved, owner, pet, squaredRadius);

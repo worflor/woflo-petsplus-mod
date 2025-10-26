@@ -1,5 +1,8 @@
 package woflo.petsplus.state.coordination;
 
+import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.math.ChunkSectionPos;
@@ -263,8 +266,8 @@ public final class PetSwarmIndex {
         private final UUID ownerId;
         private final Map<MobEntity, TrackedEntry> entries = new IdentityHashMap<>();
         private final Map<UUID, TrackedEntry> entriesByUuid = new HashMap<>();
-        private final Map<Long, OwnerCell> cells = new HashMap<>();
-        private final Map<Long, OwnerCluster> clusters = new HashMap<>();
+        private final Long2ReferenceOpenHashMap<OwnerCell> cells = new Long2ReferenceOpenHashMap<>();
+        private final Long2ReferenceOpenHashMap<OwnerCluster> clusters = new Long2ReferenceOpenHashMap<>();
 
         private List<SwarmEntry> snapshotView = List.of();
         private boolean snapshotDirty = true;
@@ -614,7 +617,7 @@ public final class PetSwarmIndex {
 
         private final class OwnerCluster {
             private final long key;
-            private final List<OwnerCell> members = new ArrayList<>();
+            private final ObjectArrayList<OwnerCell> members = new ObjectArrayList<>();
 
             private OwnerCluster(long key) {
                 this.key = key;
@@ -686,7 +689,7 @@ public final class PetSwarmIndex {
 
     private static final class OwnerCell {
         private final long key;
-        private final List<TrackedEntry> members = new ArrayList<>();
+        private final ObjectArrayList<TrackedEntry> members = new ObjectArrayList<>();
         private OwnerSwarm.OwnerCluster cluster;
 
         private OwnerCell(long key) {
