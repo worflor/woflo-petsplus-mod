@@ -71,6 +71,7 @@ import woflo.petsplus.state.modules.impl.*;
 import woflo.petsplus.state.relationships.SpeciesMemory;
 import woflo.petsplus.util.BehaviorSeedUtil;
 import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
+import woflo.petsplus.state.morality.MalevolenceLedger;
 
 import net.minecraft.util.math.ChunkSectionPos;
 
@@ -129,6 +130,7 @@ public class PetComponent {
     private final StimulusTimeline stimulusTimeline;
     private final ExperienceLog experienceLog;
     private final MovementDirector movementDirector;
+    private final MalevolenceLedger malevolenceLedger;
     private final PetAIState aiState = new PetAIState();
 
     private HarmonyState harmonyState = HarmonyState.empty();
@@ -201,7 +203,8 @@ public class PetComponent {
         // Ultra-rare moods
         ECHOED_RESONANCE(PetMood.ECHOED_RESONANCE),
         ARCANE_OVERFLOW(PetMood.ARCANE_OVERFLOW),
-        PACK_SPIRIT(PetMood.PACK_SPIRIT);
+        PACK_SPIRIT(PetMood.PACK_SPIRIT),
+        MALEVOLENT_ECLIPSE(PetMood.MALEVOLENT_ECLIPSE);
 
         public final Formatting primaryFormatting;
         public final Formatting secondaryFormatting;
@@ -253,8 +256,9 @@ public class PetComponent {
         NOSTALGIA(0xCCAA7D),
         PLAYFULNESS(0x42E6A4),
         LOYALTY(0x244C7A),
-        
+
         // Ultra-rare emotions
+        MALEVOLENCE(0x2B1115, 0x6B0F16),
         ECHOED_RESONANCE(0x1A3A52),  // Deep dark teal - whispers from the depths
         ARCANE_OVERFLOW(0x9D4EDD),   // Vibrant purple - enchantment energy
         PACK_SPIRIT(0xFF6B35);       // Warm orange - unified pack strength
@@ -377,6 +381,14 @@ public class PetComponent {
         public static final String GOSSIP_OPT_OUT_UNTIL = "gossip_opt_out_until";
         public static final String GOSSIP_CLUSTER_CURSOR = "gossip_cluster_cursor";
         public static final String GOSSIP_STALL_COUNT = "gossip_stall_count";
+        public static final String MALEVOLENCE_SCORE = "morality_malevolence_score";
+        public static final String MALEVOLENCE_LAST_DEED_TICK = "morality_malevolence_last_deed_tick";
+        public static final String MALEVOLENCE_LAST_TRIGGER_TICK = "morality_malevolence_last_trigger_tick";
+        public static final String MALEVOLENCE_LAST_DECAY_TICK = "morality_malevolence_last_decay_tick";
+        public static final String MALEVOLENCE_SPREE_COUNT = "morality_malevolence_spree_count";
+        public static final String MALEVOLENCE_SPREE_ANCHOR_TICK = "morality_malevolence_spree_anchor";
+        public static final String MALEVOLENCE_DISHARMONY = "morality_malevolence_disharmony";
+        public static final String MALEVOLENCE_ACTIVE = "morality_malevolence_active";
         public static final String THREAT_LAST_TICK = "threat_last_tick";
         public static final String THREAT_SAFE_STREAK = "threat_safe_streak";
         public static final String THREAT_SENSITIZED_STREAK = "threat_sensitized_streak";
@@ -478,7 +490,7 @@ public class PetComponent {
         this.ownerModule = new DefaultOwnerModule();
         this.speciesMetadataModule = new DefaultSpeciesMetadataModule();
         this.relationshipModule = new DefaultRelationshipModule();
-        
+
         // Attach modules
         this.inventoryModule.onAttach(this);
         this.characteristicsModule.onAttach(this);
@@ -488,6 +500,7 @@ public class PetComponent {
         this.ownerModule.onAttach(this);
         this.speciesMetadataModule.onAttach(this);
         this.relationshipModule.onAttach(this);
+        this.malevolenceLedger = new MalevolenceLedger(this);
     }
 
     public void attachStateManager(StateManager manager) {
@@ -545,6 +558,10 @@ public class PetComponent {
 
     public PetGossipLedger getGossipLedger() {
         return gossipLedger;
+    }
+
+    public MalevolenceLedger getMalevolenceLedger() {
+        return malevolenceLedger;
     }
 
     public PetMoodEngine getMoodEngine() {
@@ -843,6 +860,9 @@ public class PetComponent {
 
     public void applyHarmonyState(HarmonyState state) {
         HarmonyState sanitized = state == null ? HarmonyState.empty() : state;
+        if (malevolenceLedger != null) {
+            sanitized = malevolenceLedger.overlayHarmonyState(sanitized, currentWorldTime());
+        }
         if (harmonyState.equals(sanitized)) {
             return;
         }
@@ -866,6 +886,9 @@ public class PetComponent {
     public void notifyWorldTimeUpdated(@Nullable EnvironmentPerceptionBridge.WorldSnapshot snapshot) {
         if (snapshot == null) {
             return;
+        }
+        if (malevolenceLedger != null) {
+            malevolenceLedger.onWorldTimeSegmentTick(snapshot.worldTime());
         }
         markContextDirty(ContextSlice.WORLD);
         publishStimulus(PerceptionStimulusType.WORLD_TICK, ContextSlice.WORLD, snapshot);
@@ -2312,6 +2335,9 @@ public class PetComponent {
                     Petsplus.LOGGER.warn("Unable to decode state data entry '{}' of type {}", key, typeId.get());
                 }
             });
+        }
+        if (malevolenceLedger != null) {
+            malevolenceLedger.onStateDataRehydrated(currentWorldTime());
         }
     }
 
@@ -4203,6 +4229,9 @@ public class PetComponent {
         }
         stateData.clear();
         speciesMetadataModule.markFlightDirty();
+        if (malevolenceLedger != null) {
+            malevolenceLedger.onStateDataCleared(currentWorldTime());
+        }
     }
 
     private static RelationshipModule.Data emptyRelationshipData() {

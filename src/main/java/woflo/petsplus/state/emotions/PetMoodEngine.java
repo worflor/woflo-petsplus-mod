@@ -4730,6 +4730,10 @@ public final class PetMoodEngine {
                 Map.entry(PetComponent.Mood.CALM, 0.2f)));
         
         // Ultra-rare emotion mappings
+        table.put(PetComponent.Emotion.MALEVOLENCE, weights(
+                Map.entry(PetComponent.Mood.MALEVOLENT_ECLIPSE, 0.80f),
+                Map.entry(PetComponent.Mood.RESTLESS, 0.10f),
+                Map.entry(PetComponent.Mood.PROTECTIVE, 0.10f)));
         table.put(PetComponent.Emotion.ECHOED_RESONANCE, weights(
                 Map.entry(PetComponent.Mood.ECHOED_RESONANCE, 0.70f),
                 Map.entry(PetComponent.Mood.SISU, 0.20f),
