@@ -423,9 +423,6 @@ public final class MalevolenceLedger {
                     disharmonyTotal = Math.max(disharmonyTotal, value.disharmonyStrength());
                 }
             }
-            if (!sanitizedDisharmony.isEmpty()) {
-                disharmonyTotal = Math.max(disharmonyTotal, incoming.disharmonyStrength());
-            }
             return new PetComponent.HarmonyState(
                 incoming.harmonySetIds(),
                 sanitizedDisharmony,
