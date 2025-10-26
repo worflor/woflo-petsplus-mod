@@ -12,6 +12,18 @@
       },
       "threshold": 0.3
     },
+    "MALEVOLENCE": {
+      "categories": {},
+      "goals": {
+        "petsplus:owner_orbit": [
+          3.0
+        ],
+        "petsplus:purposeful_patrol": [
+          2.8
+        ]
+      },
+      "threshold": 0.2
+    },
     "CHEERFUL": {
       "categories": {
         "PLAY": [

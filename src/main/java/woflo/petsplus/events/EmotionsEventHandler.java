@@ -21,8 +21,10 @@ import net.minecraft.entity.mob.HuskEntity;
 import net.minecraft.entity.mob.SlimeEntity;
 import net.minecraft.entity.mob.ZombieEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.passive.VillagerEntity;
 import net.minecraft.entity.passive.AbstractHorseEntity;
+import net.minecraft.entity.passive.GolemEntity;
+import net.minecraft.entity.passive.MerchantEntity;
+import net.minecraft.entity.passive.VillagerEntity;
 import net.minecraft.entity.passive.CatEntity;
 import net.minecraft.entity.passive.FoxEntity;
 import net.minecraft.entity.passive.OcelotEntity;
@@ -98,6 +100,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -112,6 +115,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.LongSupplier;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import woflo.petsplus.behavior.social.GossipCircleRoutine;
 import woflo.petsplus.behavior.social.GossipWhisperRoutine;
@@ -129,6 +133,8 @@ import woflo.petsplus.state.processing.AsyncWorkCoordinator;
 import woflo.petsplus.state.processing.AsyncJobPriority;
 import woflo.petsplus.state.processing.OwnerEventFrame;
 import woflo.petsplus.state.gossip.GossipTopics;
+import woflo.petsplus.state.morality.MalevolenceLedger;
+import woflo.petsplus.state.relationships.RelationshipType;
 
 /**
  * Central, low-cost, event-driven emotion hooks.
@@ -539,6 +545,14 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             boolean lowHealthFinish = healthPct < 0.35f;
             streak.recordKill(now, healthPct, lowHealthFinish);
             applyConfiguredStimulus(sp, "combat.owner_kill", 32, (pc, collector) -> {
+                MalevolenceLedger ledger = pc.getMalevolenceLedger();
+                if (ledger != null) {
+                    MalevolenceLedger.DarkDeedContext deedContext = buildMalevolenceKillContext(pc, killed, context, streak);
+                    MalevolenceLedger.TriggerOutcome outcome = ledger.recordDarkDeed(deedContext, now);
+                    if (outcome.triggered()) {
+                        collector.pushEmotion(PetComponent.Emotion.MALEVOLENCE, outcome.intensity());
+                    }
+                }
                 if (reliefBonus > 0f) {
                     collector.pushEmotion(PetComponent.Emotion.RELIEF, reliefBonus * 3.0f);
                 }
@@ -2399,6 +2413,88 @@ private record WeatherState(boolean raining, boolean thundering) {}
             || type == EntityType.WARDEN
             || type == EntityType.ENDER_DRAGON
             || type == EntityType.WITHER;
+    }
+
+    private static MalevolenceLedger.DarkDeedContext buildMalevolenceKillContext(
+        PetComponent observer,
+        LivingEntity killed,
+        KillContext context,
+        OwnerKillStreak streak
+    ) {
+        Set<Identifier> registryTags = killed.getType().getRegistryEntry().streamTags()
+            .map(TagKey::id)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> dynamicTags = new LinkedHashSet<>();
+        switch (context) {
+            case PASSIVE -> dynamicTags.add("passive_target");
+            case HOSTILE -> dynamicTags.add("hostile_target");
+            case BOSS -> dynamicTags.add("boss_target");
+        }
+        boolean villagerLike = false;
+        if (killed instanceof MerchantEntity) {
+            dynamicTags.add("trader");
+            villagerLike = true;
+        }
+        if (killed instanceof VillagerEntity) {
+            villagerLike = true;
+        }
+        if (villagerLike) {
+            dynamicTags.add("villager");
+        }
+        if (killed instanceof net.minecraft.entity.passive.PassiveEntity passive) {
+            dynamicTags.add("passive_species");
+            if (passive.isBaby()) {
+                dynamicTags.add("passive_baby");
+            }
+        }
+        if (killed instanceof PlayerEntity) {
+            dynamicTags.add("player");
+        }
+        if (killed instanceof GolemEntity) {
+            dynamicTags.add("golem_guardian");
+        }
+        if (killed instanceof MobEntity mob) {
+            PetComponent victimComponent = PetComponent.get(mob);
+            UUID ownerUuid = observer.getOwnerUuid();
+            if (victimComponent != null && ownerUuid != null && ownerUuid.equals(victimComponent.getOwnerUuid())) {
+                dynamicTags.add("owned_pet");
+                dynamicTags.add("owner_betrayal");
+            }
+            if (killed instanceof AbstractHorseEntity horse) {
+                LivingEntity mountOwner = horse.getOwner();
+                if (mountOwner != null && ownerUuid != null && ownerUuid.equals(mountOwner.getUuid())) {
+                    dynamicTags.add("owned_mount");
+                }
+            }
+        }
+        if (streak != null && streak.streakCount() >= 2) {
+            dynamicTags.add("kill_spree");
+        }
+        boolean lowHealthFinish = streak != null && streak.sawLowHealthFinish();
+        if (lowHealthFinish) {
+            dynamicTags.add("clutch_finish");
+        }
+        UUID victimUuid = killed.getUuid();
+        RelationshipType relationshipHint = RelationshipType.NEUTRAL;
+        if (victimUuid != null && observer.getRelationshipModule() != null) {
+            relationshipHint = observer.getRelationshipModule().getRelationshipType(victimUuid);
+        }
+        PlayerEntity owner = observer.getOwner();
+        if (owner != null && killed instanceof PlayerEntity player) {
+            if (player.equals(owner) || owner.isTeammate(player)) {
+                dynamicTags.add("team_betrayal");
+            }
+        }
+        return new MalevolenceLedger.DarkDeedContext(
+            killed.getType(),
+            victimUuid,
+            registryTags,
+            dynamicTags,
+            null,
+            0f,
+            lowHealthFinish,
+            relationshipHint
+        );
     }
 
     private static TimePhase computeTimePhase(long timeOfDay) {
