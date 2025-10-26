@@ -22,7 +22,11 @@ import net.minecraft.entity.mob.PhantomEntity;
 import net.minecraft.entity.mob.VexEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.projectile.PersistentProjectileEntity;
+import net.minecraft.entity.passive.AbstractHorseEntity;
+import net.minecraft.entity.passive.GolemEntity;
+import net.minecraft.entity.passive.MerchantEntity;
 import net.minecraft.entity.passive.TameableEntity;
+import net.minecraft.entity.passive.VillagerEntity;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.tag.FluidTags;
@@ -48,6 +52,8 @@ import woflo.petsplus.abilities.AbilityManager;
 import woflo.petsplus.abilities.AbilityTriggerResult;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.morality.MalevolenceLedger;
+import woflo.petsplus.state.relationships.RelationshipType;
 import woflo.petsplus.mood.MoodService;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
@@ -63,10 +69,14 @@ import woflo.petsplus.util.TriggerConditions;
 
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -196,7 +206,7 @@ public class CombatEventHandler {
 
         if (attackingOwner != null && isSameOwnerAlly(attackingOwner, entity)) {
             ownerFriendlyHit = true;
-            handleOwnerFriendlyStrike(attackingOwner, entity);
+            handleOwnerFriendlyStrike(attackingOwner, entity, amount);
         }
 
         if (attackingOwner != null && !ownerFriendlyHit) {
@@ -247,7 +257,7 @@ public class CombatEventHandler {
             if (projectile.getOwner() instanceof PlayerEntity shooter && !targetCancelled) {
                 if (isSameOwnerAlly(shooter, entity)) {
                     if (!ownerFriendlyHit) {
-                        handleOwnerFriendlyStrike(shooter, entity);
+                        handleOwnerFriendlyStrike(shooter, entity, appliedDamage);
                     }
                     ownerFriendlyHit = true;
                 } else {
@@ -797,7 +807,7 @@ public class CombatEventHandler {
     
     private static void handleOwnerDealtDamage(PlayerEntity owner, LivingEntity victim, float damage) {
         if (isSameOwnerAlly(owner, victim)) {
-            handleOwnerFriendlyStrike(owner, victim);
+            handleOwnerFriendlyStrike(owner, victim, damage);
             return;
         }
 
@@ -1034,13 +1044,109 @@ public class CombatEventHandler {
             owner.getName().getString(), modifiedDamage, victimTypeName, victimHealthPct * 100);
     }
 
-    private static void handleOwnerFriendlyStrike(PlayerEntity owner, LivingEntity ally) {
+    private static void handleOwnerFriendlyStrike(PlayerEntity owner, LivingEntity ally, float damage) {
         if (owner == null || ally == null) {
             return;
         }
 
         resetOwnerCombatState(owner);
         disengagePetsFromAlly(owner, ally);
+
+        if (!(owner instanceof ServerPlayerEntity) || !(owner.getEntityWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+
+        long now = serverWorld.getTime();
+        List<PetSwarmIndex.SwarmEntry> swarm = snapshotOwnedPets(owner);
+        if (swarm.isEmpty()) {
+            return;
+        }
+
+        for (PetSwarmIndex.SwarmEntry entry : swarm) {
+            PetComponent pc = entry.component();
+            if (pc == null) {
+                continue;
+            }
+            MalevolenceLedger ledger = pc.getMalevolenceLedger();
+            if (ledger == null) {
+                continue;
+            }
+            MalevolenceLedger.DarkDeedContext context = buildFriendlyStrikeMalevolenceContext(owner, pc, ally, damage);
+            MalevolenceLedger.TriggerOutcome outcome = ledger.recordDarkDeed(context, now);
+            if (outcome.triggered()) {
+                pc.pushEmotion(PetComponent.Emotion.MALEVOLENCE, outcome.intensity());
+            }
+        }
+    }
+
+    private static MalevolenceLedger.DarkDeedContext buildFriendlyStrikeMalevolenceContext(
+        @Nullable PlayerEntity owner,
+        PetComponent observer,
+        LivingEntity ally,
+        float damage
+    ) {
+        Set<Identifier> registryTags = ally.getType().getRegistryEntry().streamTags()
+            .map(TagKey::id)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> dynamicTags = new LinkedHashSet<>();
+        dynamicTags.add("friendly_fire");
+        boolean villagerLike = false;
+        if (ally instanceof MerchantEntity) {
+            dynamicTags.add("trader");
+            villagerLike = true;
+        }
+        if (ally instanceof VillagerEntity) {
+            villagerLike = true;
+        }
+        if (villagerLike) {
+            dynamicTags.add("villager");
+        }
+        if (ally instanceof net.minecraft.entity.passive.PassiveEntity passive) {
+            dynamicTags.add("passive_species");
+            if (passive.isBaby()) {
+                dynamicTags.add("passive_baby");
+            }
+        }
+        if (ally instanceof GolemEntity) {
+            dynamicTags.add("golem_guardian");
+        }
+        if (ally instanceof MobEntity mob) {
+            PetComponent victimComponent = PetComponent.get(mob);
+            UUID ownerUuid = observer.getOwnerUuid();
+            if (victimComponent != null && ownerUuid != null && ownerUuid.equals(victimComponent.getOwnerUuid())) {
+                dynamicTags.add("owned_pet");
+                dynamicTags.add("owner_betrayal");
+            }
+            if (ally instanceof AbstractHorseEntity horse) {
+                LivingEntity mountOwner = horse.getOwner();
+                if (mountOwner != null && ownerUuid != null && ownerUuid.equals(mountOwner.getUuid())) {
+                    dynamicTags.add("owned_mount");
+                }
+            }
+        }
+        if (ally instanceof PlayerEntity player && owner != null) {
+            if (player.equals(owner) || owner.isTeammate(player)) {
+                dynamicTags.add("team_betrayal");
+            }
+        }
+        float normalizedDamage = 0f;
+        if (ally.getMaxHealth() > 0f) {
+            normalizedDamage = MathHelper.clamp(damage / ally.getMaxHealth(), 0f, 4f);
+        }
+        RelationshipType relationshipHint = RelationshipType.NEUTRAL;
+        if (observer.getRelationshipModule() != null) {
+            relationshipHint = observer.getRelationshipModule().getRelationshipType(ally.getUuid());
+        }
+        return new MalevolenceLedger.DarkDeedContext(
+            ally.getType(),
+            ally.getUuid(),
+            registryTags,
+            dynamicTags,
+            null,
+            normalizedDamage,
+            false,
+            relationshipHint
+        );
     }
 
     private static void resetOwnerCombatState(PlayerEntity owner) {
@@ -1168,7 +1274,7 @@ public class CombatEventHandler {
     
     private static void handleProjectileDamage(PlayerEntity shooter, LivingEntity target, float damage, PersistentProjectileEntity projectile) {
         if (isSameOwnerAlly(shooter, target)) {
-            handleOwnerFriendlyStrike(shooter, target);
+            handleOwnerFriendlyStrike(shooter, target, damage);
             return;
         }
 

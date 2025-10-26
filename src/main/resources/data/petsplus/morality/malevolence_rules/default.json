@@ -1,0 +1,214 @@
+{
+  "replace": true,
+  "tags": {
+    "passive_target": {
+      "base": 2.0,
+      "telemetry_bias": 0.1
+    },
+    "passive_species": {
+      "base": 1.2,
+      "telemetry_bias": 0.1
+    },
+    "villager": {
+      "base": 7.0,
+      "telemetry_bias": 0.5,
+      "relationship_multipliers": {
+        "COMPANION": 3.5,
+        "FRIEND": 2.6,
+        "NEUTRAL": 1.5
+      }
+    },
+    "trader": {
+      "base": 4.5,
+      "telemetry_bias": 0.35,
+      "relationship_multipliers": {
+        "FRIEND": 1.8,
+        "NEUTRAL": 1.3
+      }
+    },
+    "passive_baby": {
+      "base": 5.5,
+      "telemetry_bias": 0.4
+    },
+    "owned_pet": {
+      "base": 9.0,
+      "telemetry_bias": 0.75,
+      "relationship_multipliers": {
+        "COMPANION": 3.8,
+        "FRIEND": 3.0,
+        "TRUSTED_AUTHORITY": 2.0
+      }
+    },
+    "owned_mount": {
+      "base": 5.5,
+      "telemetry_bias": 0.33,
+      "relationship_multipliers": {
+        "COMPANION": 2.4,
+        "FRIEND": 1.9
+      }
+    },
+    "team_betrayal": {
+      "base": 4.0,
+      "telemetry_bias": 0.28,
+      "relationship_multipliers": {
+        "COMPANION": 2.4,
+        "FRIEND": 2.0,
+        "TRUSTED_AUTHORITY": 1.6
+      }
+    },
+    "golem_guardian": {
+      "base": 3.8,
+      "telemetry_bias": 0.22,
+      "relationship_multipliers": {
+        "FRIEND": 1.6,
+        "COMPANION": 2.0
+      }
+    },
+    "owner_betrayal": {
+      "base": 4.5,
+      "telemetry_bias": 0.3,
+      "spree_bonus": 0.25
+    },
+    "friendly_fire": {
+      "base": 2.25,
+      "telemetry_bias": 0.22
+    },
+    "kill_spree": {
+      "base": 1.5,
+      "spree_bonus": 0.35
+    },
+    "clutch_finish": {
+      "spree_bonus": 0.3
+    },
+    "boss_target": {
+      "base": 0.8
+    },
+    "hostile_target": {
+      "base": 0.4
+    },
+    "player": {
+      "base": 5.0,
+      "telemetry_bias": 0.35
+    }
+  },
+  "victims": {
+    "minecraft:villager": {
+      "base": 3.0,
+      "tags": [
+        "villager"
+      ]
+    },
+    "minecraft:wandering_trader": {
+      "base": 3.0,
+      "tags": [
+        "villager",
+        "trader"
+      ]
+    },
+    "#minecraft:animals": {
+      "tags": [
+        "passive_species"
+      ]
+    },
+    "minecraft:iron_golem": {
+      "tags": [
+        "golem_guardian"
+      ]
+    },
+    "minecraft:snow_golem": {
+      "tags": [
+        "golem_guardian"
+      ]
+    },
+    "minecraft:horse": {
+      "tags": [
+        "owned_mount"
+      ]
+    },
+    "minecraft:donkey": {
+      "tags": [
+        "owned_mount"
+      ]
+    },
+    "minecraft:mule": {
+      "tags": [
+        "owned_mount"
+      ]
+    },
+    "minecraft:camel": {
+      "tags": [
+        "owned_mount"
+      ]
+    },
+    "minecraft:skeleton_horse": {
+      "tags": [
+        "owned_mount"
+      ]
+    },
+    "minecraft:zombie_horse": {
+      "tags": [
+        "owned_mount"
+      ]
+    },
+    "minecraft:llama": {
+      "tags": [
+        "owned_mount"
+      ]
+    },
+    "minecraft:trader_llama": {
+      "tags": [
+        "owned_mount",
+        "trader"
+      ]
+    },
+    "minecraft:player": {
+      "tags": [
+        "player"
+      ]
+    }
+  },
+  "relationship_weights": {
+    "STRANGER": 0.7,
+    "NEUTRAL": 1.0,
+    "FUN_ACQUAINTANCE": 1.25,
+    "FRIEND": 1.9,
+    "COMPANION": 2.8,
+    "TRUSTED_AUTHORITY": 1.6,
+    "RIVAL": 0.5,
+    "HOSTILE": 0.35,
+    "WARY": 0.65
+  },
+  "telemetry": {
+    "base": 1.0,
+    "trust_weight": 1.2,
+    "affection_weight": 1.8,
+    "respect_weight": 0.9,
+    "delta_weight": 1.35,
+    "friendly_fire_weight": 2.2,
+    "min": 0.5,
+    "max": 4.75
+  },
+  "thresholds": {
+    "trigger": 32.0,
+    "remission": 12.0,
+    "cooldown": 96000,
+    "decay_half_life": 48000.0,
+    "intensity_scale": 0.04,
+    "min_intensity": 0.3,
+    "max_intensity": 1.0
+  },
+  "spree": {
+    "window": 1400,
+    "base": 1.0,
+    "step": 0.3,
+    "max": 1.75,
+    "clutch_bonus": 0.45
+  },
+  "disharmony": {
+    "base": 0.4,
+    "scale": 0.6,
+    "max": 2.75,
+    "remission_floor": 0.18,
+    "set": "petsplus:morality/malevolence"
+  }
+}

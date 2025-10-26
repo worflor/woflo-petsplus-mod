@@ -25,6 +25,7 @@ import woflo.petsplus.ai.goals.special.survey.SurveyTargetDataLoader;
 import woflo.petsplus.data.AbilityDataLoader;
 import woflo.petsplus.data.AstrologySignDataLoader;
 import woflo.petsplus.data.NatureFlavorDataLoader;
+import woflo.petsplus.data.MalevolenceRulesDataLoader;
 import woflo.petsplus.data.NatureHarmonyDataLoader;
 import woflo.petsplus.data.PetRoleDataLoader;
 import woflo.petsplus.config.PetsPlusConfig;
@@ -154,6 +155,8 @@ public final class PetsPlusRegistries {
             .registerReloadListener(new NatureFlavorDataLoader());
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
             .registerReloadListener(new NatureHarmonyDataLoader());
+        ResourceManagerHelper.get(ResourceType.SERVER_DATA)
+            .registerReloadListener(new MalevolenceRulesDataLoader());
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
             .registerReloadListener(new GoalDataLoader());
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
