@@ -384,6 +384,15 @@ public final class PetMoodEngine {
     private long cachedArcaneScanCooldownTicks = 80L;
     private double cachedArcaneScanMovementThreshold = 3.0d;
     private double cachedArcaneScanMovementThresholdSquared = 9.0d;
+    private long cachedMiningReverieGraceTicks = 200L;
+    private long cachedMiningReverieLingerTicks = 260L;
+    private float cachedMiningReverieStreakHalfLife = 160f;
+    private float cachedMiningReverieVeinHalfLife = 320f;
+    private float cachedMiningReverieThreshold = 0.85f;
+    private float cachedMiningReverieMaxStrength = 3.5f;
+    private float cachedMiningReverieStreakWeight = 0.65f;
+    private float cachedMiningReverieStabilityWeight = 0.35f;
+    private float cachedMiningReverieVarietyWeight = 0.18f;
 
     private final EnumMap<PetComponent.Emotion, EnumSet<PetComponent.Emotion>> opponentPairs =
             new EnumMap<>(PetComponent.Emotion.class);
@@ -2780,6 +2789,15 @@ public final class PetMoodEngine {
         return Arrays.copyOf(data, newSize);
     }
 
+    private float applyHalfLifeDecay(float value, long elapsedTicks, float halfLife) {
+        if (value <= 0f || elapsedTicks <= 0L || halfLife <= 0f) {
+            return Math.max(0f, value);
+        }
+        double exponent = elapsedTicks / Math.max(1.0d, halfLife);
+        double decay = Math.pow(0.5d, exponent);
+        return (float) (value * decay);
+    }
+
     @SuppressWarnings("unused")
     private float smoothstep(float edge0, float edge1, float x) {
         if (Math.abs(edge0 - edge1) < EPSILON) {
@@ -2910,6 +2928,9 @@ public final class PetMoodEngine {
 
             case ARCANE_OVERFLOW:
                 return hasArcaneMomentum(now);
+
+            case MINING_REVERIE:
+                return hasMiningMomentum(now);
 
             default:
                 // Most emotions don't have persistent conditions
@@ -3571,6 +3592,56 @@ public final class PetMoodEngine {
         return MathHelper.clamp(total, 0f, cachedArcaneStatusMaxContribution);
     }
 
+    private boolean hasMiningMomentum(long now) {
+        long lastTick = parent.getStateData(PetComponent.StateKeys.MINING_REVERIE_LAST_TICK, Long.class, 0L);
+        if (lastTick <= 0L) {
+            return false;
+        }
+
+        long elapsed = Math.max(0L, now - lastTick);
+        if (elapsed > cachedMiningReverieGraceTicks) {
+            return false;
+        }
+
+        float streak = parent.getStateData(PetComponent.StateKeys.MINING_REVERIE_STREAK, Float.class, 0f);
+        float stability = parent.getStateData(PetComponent.StateKeys.MINING_REVERIE_WEIGHTED_QUALITY, Float.class, 0f);
+        float strongest = parent.getStateData(PetComponent.StateKeys.MINING_REVERIE_STRONGEST_SAMPLE, Float.class, 0f);
+        float variety = parent.getStateData(PetComponent.StateKeys.MINING_REVERIE_VEIN_VARIETY, Float.class, 0f);
+        long lastVarietyTick = parent.getStateData(PetComponent.StateKeys.MINING_REVERIE_LAST_VARIETY_TICK, Long.class, 0L);
+
+        float decayedStreak = applyHalfLifeDecay(streak, elapsed, cachedMiningReverieStreakHalfLife);
+        float decayedStability = applyHalfLifeDecay(stability, elapsed, cachedMiningReverieVeinHalfLife);
+        float decayedStrongest = applyHalfLifeDecay(strongest, elapsed, cachedMiningReverieVeinHalfLife);
+        float decayedVariety = applyHalfLifeDecay(variety, elapsed, cachedMiningReverieVeinHalfLife);
+
+        float combined = decayedStreak * cachedMiningReverieStreakWeight
+            + decayedStability * cachedMiningReverieStabilityWeight
+            + MathHelper.clamp(decayedStrongest * 0.25f, 0f, 1.0f)
+            + MathHelper.clamp(decayedVariety * cachedMiningReverieVarietyWeight, 0f, 1.0f);
+
+        if (combined >= cachedMiningReverieThreshold) {
+            parent.setStateData(PetComponent.StateKeys.MINING_REVERIE_STREAK,
+                MathHelper.clamp(decayedStreak, 0f, cachedMiningReverieMaxStrength));
+            parent.setStateData(PetComponent.StateKeys.MINING_REVERIE_WEIGHTED_QUALITY,
+                MathHelper.clamp(decayedStability, 0f, cachedMiningReverieMaxStrength));
+            parent.setStateData(PetComponent.StateKeys.MINING_REVERIE_STRONGEST_SAMPLE,
+                MathHelper.clamp(decayedStrongest, 0f, cachedMiningReverieMaxStrength));
+            parent.setStateData(PetComponent.StateKeys.MINING_REVERIE_LAST_TICK, now);
+            parent.setStateData(PetComponent.StateKeys.MINING_REVERIE_VEIN_VARIETY,
+                MathHelper.clamp(decayedVariety, 0f, cachedMiningReverieMaxStrength));
+            if (lastVarietyTick > 0L) {
+                parent.setStateData(PetComponent.StateKeys.MINING_REVERIE_LAST_VARIETY_TICK, now);
+            }
+            return true;
+        }
+
+        if (elapsed <= cachedMiningReverieLingerTicks) {
+            return combined >= cachedMiningReverieThreshold * 0.65f;
+        }
+
+        return false;
+    }
+
     public static float computeStatusHazardSeverity(@Nullable LivingEntity entity) {
         if (entity == null) {
             return 0f;
@@ -4000,7 +4071,11 @@ public final class PetMoodEngine {
                 // Echoed Resonance strengthened by deep bonds forged through danger
                 modulation += 0.35f * (bondFactor - 1.0f);
                 break;
-                
+
+            case MINING_REVERIE:
+                modulation += 0.18f * (bondFactor - 1.0f);
+                break;
+
             // All other emotions: no bond-based modulation
             default:
                 break;
@@ -4041,7 +4116,11 @@ public final class PetMoodEngine {
             case ARCANE_OVERFLOW:
                 // Arcane Overflow unaffected by mundane danger
                 break;
-                
+
+            case MINING_REVERIE:
+                modulation -= 0.15f * Math.max(0f, dangerBoost);
+                break;
+
             // All other emotions: no danger-based modulation
             default:
                 break;
@@ -4081,7 +4160,11 @@ public final class PetMoodEngine {
                         modulation += 0.15f * healthPenalty;
                     }
                     break;
-                    
+
+                case MINING_REVERIE:
+                    modulation -= 0.25f * healthPenalty;
+                    break;
+
                 case ECHOED_RESONANCE:
                 case PACK_SPIRIT:
                     // Ultra-rare bond states: strengthen when wounded together
@@ -4229,6 +4312,28 @@ public final class PetMoodEngine {
                     }
                 }
             }
+        }
+
+        JsonObject miningSection = getObject(cachedMoodsSection, "miningReverie");
+        if (miningSection != null) {
+            cachedMiningReverieGraceTicks = Math.max(40L,
+                RegistryJsonHelper.getLong(miningSection, "graceTicks", cachedMiningReverieGraceTicks));
+            cachedMiningReverieLingerTicks = Math.max(40L,
+                RegistryJsonHelper.getLong(miningSection, "lingerTicks", cachedMiningReverieLingerTicks));
+            cachedMiningReverieStreakHalfLife = Math.max(20f,
+                RegistryJsonHelper.getFloat(miningSection, "streakHalfLife", cachedMiningReverieStreakHalfLife));
+            cachedMiningReverieVeinHalfLife = Math.max(40f,
+                RegistryJsonHelper.getFloat(miningSection, "veinHalfLife", cachedMiningReverieVeinHalfLife));
+            cachedMiningReverieThreshold = MathHelper.clamp(
+                RegistryJsonHelper.getFloat(miningSection, "threshold", cachedMiningReverieThreshold), 0.2f, 2.5f);
+            cachedMiningReverieMaxStrength = MathHelper.clamp(
+                RegistryJsonHelper.getFloat(miningSection, "maxStreak", cachedMiningReverieMaxStrength), 0.5f, 8.0f);
+            cachedMiningReverieStreakWeight = MathHelper.clamp(
+                RegistryJsonHelper.getFloat(miningSection, "streakWeight", cachedMiningReverieStreakWeight), 0f, 1.5f);
+            cachedMiningReverieStabilityWeight = MathHelper.clamp(
+                RegistryJsonHelper.getFloat(miningSection, "stabilityWeight", cachedMiningReverieStabilityWeight), 0f, 1.5f);
+            cachedMiningReverieVarietyWeight = MathHelper.clamp(
+                RegistryJsonHelper.getFloat(miningSection, "varietyWeight", cachedMiningReverieVarietyWeight), 0f, 1.5f);
         }
 
         JsonObject arcaneSection = getObject(cachedMoodsSection, "arcaneOverflow");
@@ -4742,6 +4847,10 @@ public final class PetMoodEngine {
                 Map.entry(PetComponent.Mood.PACK_SPIRIT, 0.70f),
                 Map.entry(PetComponent.Mood.BONDED, 0.20f),
                 Map.entry(PetComponent.Mood.PROTECTIVE, 0.10f)));
+        table.put(PetComponent.Emotion.MINING_REVERIE, weights(
+                Map.entry(PetComponent.Mood.MINING_REVERIE, 0.72f),
+                Map.entry(PetComponent.Mood.FOCUSED, 0.18f),
+                Map.entry(PetComponent.Mood.CALM, 0.10f)));
 
         return table;
     }
