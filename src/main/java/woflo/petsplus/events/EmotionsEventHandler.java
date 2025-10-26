@@ -10,6 +10,9 @@ import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import net.minecraft.enchantment.Enchantment;
+import net.minecraft.enchantment.EnchantmentHelper;
+import net.minecraft.enchantment.Enchantments;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
@@ -39,6 +42,7 @@ import net.minecraft.block.BarrelBlock;
 import net.minecraft.block.BedBlock;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.ExperienceDroppingBlock;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.ChestBlock;
@@ -58,12 +62,14 @@ import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.BlockPos.Mutable;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.world.World;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.Registries;
+import net.minecraft.fluid.FluidState;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.biome.Biome;
@@ -75,6 +81,7 @@ import net.minecraft.registry.tag.EntityTypeTags;
 import net.minecraft.registry.tag.ItemTags;
 import net.minecraft.registry.tag.TagKey;
 import net.minecraft.registry.tag.BlockTags;
+import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.state.property.Properties;
 import net.minecraft.world.Heightmap;
 import org.jetbrains.annotations.Nullable;
@@ -179,6 +186,53 @@ public final class EmotionsEventHandler {
     private static final Object ARCANE_STRUCTURE_CACHE_LOCK = new Object();
     private static volatile Set<Identifier> cachedArcaneStructureIds = Set.of();
     private static volatile int cachedArcaneStructureGeneration = -1;
+
+    // Mining Reverie constants (config-backed)
+    private static final Object MINING_REVERIE_CONFIG_LOCK = new Object();
+    private static volatile int cachedMiningReverieGeneration = -1;
+    private static long MINING_REVERIE_GRACE_TICKS = 200L;
+    private static long MINING_REVERIE_LINGER_TICKS = 260L;
+    private static float MINING_REVERIE_STREAK_HALF_LIFE = 160f;
+    private static float MINING_REVERIE_VEIN_HALF_LIFE = 320f;
+    private static float MINING_REVERIE_THRESHOLD = 0.85f;
+    private static float MINING_REVERIE_MAX_STREAK = 3.5f;
+    private static float MINING_REVERIE_BASE_INCREMENT = 0.08f;
+    private static float MINING_REVERIE_HARDNESS_WEIGHT = 0.35f;
+    private static float MINING_REVERIE_ORE_WEIGHT = 0.30f;
+    private static float MINING_REVERIE_CLUSTER_WEIGHT = 0.12f;
+    private static float MINING_REVERIE_DEPTH_WEIGHT = 0.20f;
+    private static float MINING_REVERIE_ENCHANT_WEIGHT = 0.05f;
+    private static float MINING_REVERIE_MAX_INCREMENT = 1.6f;
+    private static final Direction[] ALL_DIRECTIONS = Direction.values();
+
+    private static float MINING_REVERIE_STREAK_WEIGHT = 0.65f;
+    private static float MINING_REVERIE_STABILITY_WEIGHT = 0.35f;
+    private static float MINING_REVERIE_VARIETY_WEIGHT = 0.18f;
+    private static float MINING_REVERIE_ECHO_WEIGHT = 0.18f;
+    private static float MINING_REVERIE_HAZARD_WEIGHT = 0.22f;
+    private static float MINING_REVERIE_RHYTHM_WEIGHT = 0.14f;
+    private static float MINING_REVERIE_TOOL_BASE_WEIGHT = 0.12f;
+    private static float MINING_REVERIE_TOOL_STONE_WEIGHT = 0.18f;
+    private static float MINING_REVERIE_TOOL_IRON_WEIGHT = 0.28f;
+    private static float MINING_REVERIE_TOOL_DIAMOND_WEIGHT = 0.42f;
+    private static final int MINING_REVERIE_ENVIRONMENT_SCAN_RADIUS = 2;
+    private static final Set<Block> MINING_REVERIE_RESONANT_BLOCKS = Set.of(
+        Blocks.CALCITE,
+        Blocks.TUFF,
+        Blocks.AMETHYST_BLOCK,
+        Blocks.BUDDING_AMETHYST,
+        Blocks.AMETHYST_CLUSTER,
+        Blocks.SCULK,
+        Blocks.SCULK_SENSOR,
+        Blocks.SCULK_SHRIEKER,
+        Blocks.SCULK_CATALYST
+    );
+
+    private static final Object MINING_REVERIE_ENCHANTMENT_CACHE_LOCK = new Object();
+    private static final Identifier FORTUNE_ENCHANTMENT_ID = Enchantments.FORTUNE.getValue();
+    private static final Identifier EFFICIENCY_ENCHANTMENT_ID = Enchantments.EFFICIENCY.getValue();
+    private static volatile RegistryEntry<Enchantment> cachedFortuneEnchantment;
+    private static volatile RegistryEntry<Enchantment> cachedEfficiencyEnchantment;
 
     private static final String STATE_LAST_LEASH_SOCIAL_TICK = "social_leash_last_tick";
     private static final String STATE_LAST_LEASH_MODE = "social_leash_last_mode";
@@ -358,6 +412,8 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         }
 
         if (world instanceof ServerWorld serverWorld) {
+            ensureMiningReverieConfig();
+            handleMiningReverie(serverWorld, sp, pos, state);
             invalidateArcaneAmbient(serverWorld, pos, state);
         }
     }
@@ -484,6 +540,77 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
         }
     }
 
+    private static void ensureMiningReverieConfig() {
+        MoodEngineConfig config = MoodEngineConfig.get();
+        int generation = config.getGeneration();
+        if (generation == cachedMiningReverieGeneration) {
+            return;
+        }
+
+        synchronized (MINING_REVERIE_CONFIG_LOCK) {
+            if (generation == cachedMiningReverieGeneration) {
+                return;
+            }
+
+            JsonObject moods = config.getMoodsSection();
+            JsonObject mining = RegistryJsonHelper.getObject(moods, "miningReverie");
+            if (mining != null) {
+                MINING_REVERIE_GRACE_TICKS = Math.max(40L,
+                    RegistryJsonHelper.getLong(mining, "graceTicks", MINING_REVERIE_GRACE_TICKS));
+                MINING_REVERIE_LINGER_TICKS = Math.max(40L,
+                    RegistryJsonHelper.getLong(mining, "lingerTicks", MINING_REVERIE_LINGER_TICKS));
+                MINING_REVERIE_STREAK_HALF_LIFE = Math.max(20f,
+                    RegistryJsonHelper.getFloat(mining, "streakHalfLife", MINING_REVERIE_STREAK_HALF_LIFE));
+                MINING_REVERIE_VEIN_HALF_LIFE = Math.max(40f,
+                    RegistryJsonHelper.getFloat(mining, "veinHalfLife", MINING_REVERIE_VEIN_HALF_LIFE));
+                MINING_REVERIE_THRESHOLD = MathHelper.clamp(
+                    RegistryJsonHelper.getFloat(mining, "threshold", MINING_REVERIE_THRESHOLD), 0.2f, 2.5f);
+                MINING_REVERIE_MAX_STREAK = MathHelper.clamp(
+                    RegistryJsonHelper.getFloat(mining, "maxStreak", MINING_REVERIE_MAX_STREAK), 0.5f, 8.0f);
+                MINING_REVERIE_BASE_INCREMENT = MathHelper.clamp(
+                    RegistryJsonHelper.getFloat(mining, "baseIncrement", MINING_REVERIE_BASE_INCREMENT), 0f, 1.0f);
+                MINING_REVERIE_HARDNESS_WEIGHT = MathHelper.clamp(
+                    RegistryJsonHelper.getFloat(mining, "hardnessWeight", MINING_REVERIE_HARDNESS_WEIGHT), 0f, 2.0f);
+                MINING_REVERIE_ORE_WEIGHT = MathHelper.clamp(
+                    RegistryJsonHelper.getFloat(mining, "oreWeight", MINING_REVERIE_ORE_WEIGHT), 0f, 2.0f);
+                MINING_REVERIE_CLUSTER_WEIGHT = MathHelper.clamp(
+                    RegistryJsonHelper.getFloat(mining, "clusterWeight", MINING_REVERIE_CLUSTER_WEIGHT), 0f, 1.0f);
+                MINING_REVERIE_DEPTH_WEIGHT = MathHelper.clamp(
+                    RegistryJsonHelper.getFloat(mining, "depthWeight", MINING_REVERIE_DEPTH_WEIGHT), 0f, 1.0f);
+                MINING_REVERIE_ENCHANT_WEIGHT = MathHelper.clamp(
+                    RegistryJsonHelper.getFloat(mining, "enchantWeight", MINING_REVERIE_ENCHANT_WEIGHT), 0f, 0.5f);
+                MINING_REVERIE_MAX_INCREMENT = MathHelper.clamp(
+                    RegistryJsonHelper.getFloat(mining, "maxIncrement", MINING_REVERIE_MAX_INCREMENT), 0.5f, 4.0f);
+                MINING_REVERIE_STREAK_WEIGHT = MathHelper.clamp(
+                    RegistryJsonHelper.getFloat(mining, "streakWeight", MINING_REVERIE_STREAK_WEIGHT), 0f, 1.5f);
+                MINING_REVERIE_STABILITY_WEIGHT = MathHelper.clamp(
+                    RegistryJsonHelper.getFloat(mining, "stabilityWeight", MINING_REVERIE_STABILITY_WEIGHT), 0f, 1.5f);
+                MINING_REVERIE_VARIETY_WEIGHT = MathHelper.clamp(
+                    RegistryJsonHelper.getFloat(mining, "varietyWeight", MINING_REVERIE_VARIETY_WEIGHT), 0f, 1.5f);
+                MINING_REVERIE_ECHO_WEIGHT = MathHelper.clamp(
+                    RegistryJsonHelper.getFloat(mining, "echoWeight", MINING_REVERIE_ECHO_WEIGHT), 0f, 1.5f);
+                MINING_REVERIE_HAZARD_WEIGHT = MathHelper.clamp(
+                    RegistryJsonHelper.getFloat(mining, "hazardWeight", MINING_REVERIE_HAZARD_WEIGHT), 0f, 1.5f);
+                MINING_REVERIE_RHYTHM_WEIGHT = MathHelper.clamp(
+                    RegistryJsonHelper.getFloat(mining, "rhythmWeight", MINING_REVERIE_RHYTHM_WEIGHT), 0f, 1.5f);
+
+                JsonObject toolWeights = RegistryJsonHelper.getObject(mining, "toolWeights");
+                if (toolWeights != null) {
+                    MINING_REVERIE_TOOL_BASE_WEIGHT = MathHelper.clamp(
+                        RegistryJsonHelper.getFloat(toolWeights, "base", MINING_REVERIE_TOOL_BASE_WEIGHT), 0f, 1.0f);
+                    MINING_REVERIE_TOOL_STONE_WEIGHT = MathHelper.clamp(
+                        RegistryJsonHelper.getFloat(toolWeights, "stone", MINING_REVERIE_TOOL_STONE_WEIGHT), 0f, 1.0f);
+                    MINING_REVERIE_TOOL_IRON_WEIGHT = MathHelper.clamp(
+                        RegistryJsonHelper.getFloat(toolWeights, "iron", MINING_REVERIE_TOOL_IRON_WEIGHT), 0f, 1.5f);
+                    MINING_REVERIE_TOOL_DIAMOND_WEIGHT = MathHelper.clamp(
+                        RegistryJsonHelper.getFloat(toolWeights, "diamond", MINING_REVERIE_TOOL_DIAMOND_WEIGHT), 0f, 2.0f);
+                }
+            }
+
+            cachedMiningReverieGeneration = generation;
+        }
+    }
+
     private static void invalidateArcaneAmbient(ServerWorld world, BlockPos pos, @Nullable BlockState state) {
         if (world == null || pos == null || state == null) {
             return;
@@ -502,6 +629,385 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
             return;
         }
         StateManager.invalidateArcaneAmbientAt(world, pos);
+    }
+
+    private static void handleMiningReverie(ServerWorld world, ServerPlayerEntity player, BlockPos pos, BlockState state) {
+        if (world == null || player == null || state == null) {
+            return;
+        }
+        if (!state.isIn(BlockTags.PICKAXE_MINEABLE)) {
+            return;
+        }
+
+        StateManager stateManager = StateManager.forWorld(world);
+        PetSwarmIndex swarmIndex = stateManager != null ? stateManager.getSwarmIndex() : null;
+        if (swarmIndex == null || !swarmIndex.ownerHasPets(player.getUuid())) {
+            return;
+        }
+
+        float increment = computeMiningReverieIncrement(world, player, pos, state);
+        float ambientEcho = MINING_REVERIE_ECHO_WEIGHT > 0f
+            ? computeMiningReverieAmbientEcho(world, pos) * MINING_REVERIE_ECHO_WEIGHT
+            : 0f;
+        float hazardSignal = MINING_REVERIE_HAZARD_WEIGHT > 0f
+            ? computeMiningReverieHazardSignal(world, pos) * MINING_REVERIE_HAZARD_WEIGHT
+            : 0f;
+        if (increment <= 0f && MINING_REVERIE_BASE_INCREMENT <= 0f
+            && ambientEcho <= 0f && hazardSignal <= 0f) {
+            return;
+        }
+
+        long now = world.getTime();
+        float clusterBonus = 0f;
+        if (MINING_REVERIE_CLUSTER_WEIGHT > 0f) {
+            int clusterMatches = countAdjacentMatchingBlocks(world, pos, state);
+            clusterBonus = Math.min(clusterMatches, 4) * MINING_REVERIE_CLUSTER_WEIGHT;
+        }
+        float baseEventIncrement = MathHelper.clamp(
+            MINING_REVERIE_BASE_INCREMENT + increment + clusterBonus + ambientEcho + hazardSignal,
+            0f, MINING_REVERIE_MAX_INCREMENT);
+        Identifier blockId = Registries.BLOCK.getId(state.getBlock());
+        String blockIdString = blockId != null ? blockId.toString() : null;
+        boolean oreBlock = isOreBlock(state);
+
+        pushToNearbyOwnedPets(player, 18, (component, collector) -> {
+            float streak = component.getStateData(PetComponent.StateKeys.MINING_REVERIE_STREAK, Float.class, 0f);
+            float stability = component.getStateData(PetComponent.StateKeys.MINING_REVERIE_WEIGHTED_QUALITY, Float.class, 0f);
+            float strongest = component.getStateData(PetComponent.StateKeys.MINING_REVERIE_STRONGEST_SAMPLE, Float.class, 0f);
+            long lastTick = component.getStateData(PetComponent.StateKeys.MINING_REVERIE_LAST_TICK, Long.class, 0L);
+            float variety = component.getStateData(PetComponent.StateKeys.MINING_REVERIE_VEIN_VARIETY, Float.class, 0f);
+            long lastVarietyTick = component.getStateData(
+                PetComponent.StateKeys.MINING_REVERIE_LAST_VARIETY_TICK, Long.class, 0L);
+            String lastBlock = component.getStateData(PetComponent.StateKeys.MINING_REVERIE_LAST_BLOCK, String.class, null);
+
+            if (lastTick > 0L && now > lastTick) {
+                long elapsed = now - lastTick;
+                streak = applyHalfLifeDecay(streak, elapsed, MINING_REVERIE_STREAK_HALF_LIFE);
+                stability = applyHalfLifeDecay(stability, elapsed, MINING_REVERIE_VEIN_HALF_LIFE);
+                strongest = applyHalfLifeDecay(strongest, elapsed, MINING_REVERIE_VEIN_HALF_LIFE);
+                variety = applyHalfLifeDecay(variety, elapsed, MINING_REVERIE_VEIN_HALF_LIFE);
+                if (elapsed > MINING_REVERIE_GRACE_TICKS) {
+                    streak = 0f;
+                    stability = Math.min(stability, MINING_REVERIE_THRESHOLD * 0.35f);
+                    variety = Math.min(variety, MINING_REVERIE_THRESHOLD * 0.25f);
+                    if (elapsed > MINING_REVERIE_LINGER_TICKS) {
+                        component.clearStateData(PetComponent.StateKeys.MINING_REVERIE_LAST_BLOCK);
+                        component.clearStateData(PetComponent.StateKeys.MINING_REVERIE_LAST_VARIETY_TICK);
+                        lastVarietyTick = 0L;
+                        lastBlock = null;
+                        variety = 0f;
+                    }
+                }
+            }
+
+            float rhythmFactor = lastTick > 0L
+                ? MathHelper.clamp(1f - Math.min(1f,
+                        (float) Math.min(now - lastTick, MINING_REVERIE_GRACE_TICKS)
+                            / Math.max(1f, MINING_REVERIE_GRACE_TICKS)), 0f, 1f)
+                : 0.55f;
+            float rhythmBonus = rhythmFactor * MINING_REVERIE_RHYTHM_WEIGHT;
+
+            float localIncrement = baseEventIncrement + rhythmBonus;
+            if (blockIdString != null) {
+                if (blockIdString.equals(lastBlock)) {
+                    localIncrement += Math.min(baseEventIncrement * 0.35f, MINING_REVERIE_MAX_INCREMENT * 0.2f);
+                    variety = Math.max(0f, variety - 0.08f);
+                } else if (oreBlock) {
+                    float novelty = lastVarietyTick > 0L
+                        ? MathHelper.clamp(1f - Math.min(1f,
+                            (float) Math.min(now - lastVarietyTick, MINING_REVERIE_LINGER_TICKS)
+                                / Math.max(1f, MINING_REVERIE_LINGER_TICKS)), 0f, 1f)
+                        : 0.75f;
+                    localIncrement += MathHelper.clamp(MINING_REVERIE_VARIETY_WEIGHT * (0.35f + novelty * 0.5f), 0f,
+                        MINING_REVERIE_MAX_INCREMENT * 0.25f);
+                    variety = MathHelper.clamp(variety + 0.35f + novelty * 0.4f, 0f, MINING_REVERIE_MAX_STREAK);
+                    lastVarietyTick = now;
+                }
+                component.setStateData(PetComponent.StateKeys.MINING_REVERIE_LAST_BLOCK, blockIdString);
+            }
+
+            localIncrement = MathHelper.clamp(localIncrement, 0f, MINING_REVERIE_MAX_INCREMENT);
+
+            streak = MathHelper.clamp(streak + localIncrement * MINING_REVERIE_STREAK_WEIGHT,
+                0f, MINING_REVERIE_MAX_STREAK);
+            stability = MathHelper.clamp(stability + localIncrement * MINING_REVERIE_STABILITY_WEIGHT,
+                0f, MINING_REVERIE_MAX_STREAK);
+            strongest = MathHelper.clamp(Math.max(strongest, localIncrement), 0f, MINING_REVERIE_MAX_STREAK);
+
+            component.setStateData(PetComponent.StateKeys.MINING_REVERIE_STREAK, streak);
+            component.setStateData(PetComponent.StateKeys.MINING_REVERIE_WEIGHTED_QUALITY, stability);
+            component.setStateData(PetComponent.StateKeys.MINING_REVERIE_STRONGEST_SAMPLE, strongest);
+            component.setStateData(PetComponent.StateKeys.MINING_REVERIE_LAST_TICK, now);
+            component.setStateData(PetComponent.StateKeys.MINING_REVERIE_VEIN_VARIETY, variety);
+            if (lastVarietyTick > 0L) {
+                component.setStateData(PetComponent.StateKeys.MINING_REVERIE_LAST_VARIETY_TICK, lastVarietyTick);
+            } else {
+                component.clearStateData(PetComponent.StateKeys.MINING_REVERIE_LAST_VARIETY_TICK);
+            }
+
+            float combined = (streak * MINING_REVERIE_STREAK_WEIGHT)
+                + (stability * MINING_REVERIE_STABILITY_WEIGHT)
+                + MathHelper.clamp(strongest * 0.25f, 0f, 1.0f)
+                + MathHelper.clamp(variety * MINING_REVERIE_VARIETY_WEIGHT, 0f, 1.0f);
+            float intensity = MathHelper.clamp(
+                (combined - MINING_REVERIE_THRESHOLD)
+                    / Math.max(0.0001f, MINING_REVERIE_MAX_STREAK - MINING_REVERIE_THRESHOLD),
+                0f, 1f);
+
+            if (intensity > 0f) {
+                collector.pushEmotion(PetComponent.Emotion.MINING_REVERIE, intensity);
+            }
+        });
+    }
+
+    private static float computeMiningReverieIncrement(ServerWorld world, ServerPlayerEntity player, BlockPos pos,
+                                                       BlockState state) {
+        float hardnessContribution = 0f;
+        if (MINING_REVERIE_HARDNESS_WEIGHT > 0f) {
+            float hardness = Math.max(0f, state.getHardness(world, pos));
+            hardnessContribution = MathHelper.clamp(hardness / 30f, 0f, 1f) * MINING_REVERIE_HARDNESS_WEIGHT;
+        }
+
+        float oreContribution = (MINING_REVERIE_ORE_WEIGHT > 0f && isOreBlock(state))
+            ? MINING_REVERIE_ORE_WEIGHT
+            : 0f;
+
+        float toolContribution = MINING_REVERIE_TOOL_BASE_WEIGHT;
+        if (state.isIn(BlockTags.NEEDS_DIAMOND_TOOL)) {
+            toolContribution += MINING_REVERIE_TOOL_DIAMOND_WEIGHT;
+        } else if (state.isIn(BlockTags.NEEDS_IRON_TOOL)) {
+            toolContribution += MINING_REVERIE_TOOL_IRON_WEIGHT;
+        } else if (state.isIn(BlockTags.NEEDS_STONE_TOOL)) {
+            toolContribution += MINING_REVERIE_TOOL_STONE_WEIGHT;
+        }
+
+        float depthContribution = 0f;
+        if (MINING_REVERIE_DEPTH_WEIGHT > 0f) {
+            depthContribution = computeDepthBonus(world, pos) * MINING_REVERIE_DEPTH_WEIGHT;
+        }
+
+        float enchantContribution = 0f;
+        if (MINING_REVERIE_ENCHANT_WEIGHT > 0f) {
+            ItemStack held = player.getMainHandStack();
+            if (!held.isEmpty() && held.isIn(ItemTags.PICKAXES)) {
+                RegistryEntry<Enchantment> fortuneEntry = getFortuneEnchantment(world);
+                RegistryEntry<Enchantment> efficiencyEntry = getEfficiencyEnchantment(world);
+                if (fortuneEntry != null) {
+                    int fortune = Math.min(3, EnchantmentHelper.getLevel(fortuneEntry, held));
+                    enchantContribution += fortune * MINING_REVERIE_ENCHANT_WEIGHT;
+                }
+                if (efficiencyEntry != null) {
+                    int efficiency = Math.min(3, EnchantmentHelper.getLevel(efficiencyEntry, held));
+                    enchantContribution += efficiency * (MINING_REVERIE_ENCHANT_WEIGHT * 0.5f);
+                }
+            }
+        }
+
+        float total = hardnessContribution + oreContribution + toolContribution + depthContribution + enchantContribution;
+        return MathHelper.clamp(total, 0f, MINING_REVERIE_MAX_INCREMENT);
+    }
+
+    private static RegistryEntry<Enchantment> getFortuneEnchantment(ServerWorld world) {
+        RegistryEntry<Enchantment> entry = cachedFortuneEnchantment;
+        if (entry != null) {
+            return entry;
+        }
+        synchronized (MINING_REVERIE_ENCHANTMENT_CACHE_LOCK) {
+            if (cachedFortuneEnchantment != null || FORTUNE_ENCHANTMENT_ID == null) {
+                return cachedFortuneEnchantment;
+            }
+            RegistryEntry<Enchantment> resolved = world.getRegistryManager().getOrThrow(RegistryKeys.ENCHANTMENT)
+                .getEntry(FORTUNE_ENCHANTMENT_ID).orElse(null);
+            cachedFortuneEnchantment = resolved;
+            return resolved;
+        }
+    }
+
+    private static RegistryEntry<Enchantment> getEfficiencyEnchantment(ServerWorld world) {
+        RegistryEntry<Enchantment> entry = cachedEfficiencyEnchantment;
+        if (entry != null) {
+            return entry;
+        }
+        synchronized (MINING_REVERIE_ENCHANTMENT_CACHE_LOCK) {
+            if (cachedEfficiencyEnchantment != null || EFFICIENCY_ENCHANTMENT_ID == null) {
+                return cachedEfficiencyEnchantment;
+            }
+            RegistryEntry<Enchantment> resolved = world.getRegistryManager().getOrThrow(RegistryKeys.ENCHANTMENT)
+                .getEntry(EFFICIENCY_ENCHANTMENT_ID).orElse(null);
+            cachedEfficiencyEnchantment = resolved;
+            return resolved;
+        }
+    }
+
+    private static boolean isOreBlock(BlockState state) {
+        if (state == null) {
+            return false;
+        }
+        if (state.getBlock() instanceof ExperienceDroppingBlock) {
+            return true;
+        }
+        return state.isIn(BlockTags.COAL_ORES)
+            || state.isIn(BlockTags.COPPER_ORES)
+            || state.isIn(BlockTags.IRON_ORES)
+            || state.isIn(BlockTags.GOLD_ORES)
+            || state.isIn(BlockTags.LAPIS_ORES)
+            || state.isIn(BlockTags.REDSTONE_ORES)
+            || state.isIn(BlockTags.DIAMOND_ORES)
+            || state.isIn(BlockTags.EMERALD_ORES)
+            || state.isOf(Blocks.ANCIENT_DEBRIS)
+            || state.isOf(Blocks.NETHERITE_BLOCK);
+    }
+
+    private static boolean isWithinBuildLimit(ServerWorld world, BlockPos pos) {
+        if (world == null || pos == null) {
+            return false;
+        }
+        int y = pos.getY();
+        int bottom = world.getBottomY();
+        int top = bottom + world.getHeight();
+        return y >= bottom && y < top;
+    }
+
+    private static float computeMiningReverieAmbientEcho(ServerWorld world, BlockPos pos) {
+        if (world == null || pos == null) {
+            return 0f;
+        }
+        int lightLevel = world.getLightLevel(pos);
+        float darkness = MathHelper.clamp((15 - lightLevel) / 15f, 0f, 1f);
+
+        Mutable scan = new Mutable();
+        int verticalAir = 0;
+        for (int i = 1; i <= 4; i++) {
+            scan.set(pos.getX(), pos.getY() + i, pos.getZ());
+            if (!isWithinBuildLimit(world, scan)) {
+                break;
+            }
+            BlockState above = world.getBlockState(scan);
+            if (!above.isAir()) {
+                break;
+            }
+            verticalAir++;
+        }
+        float cavernOpen = MathHelper.clamp(verticalAir / 4f, 0f, 1f);
+
+        float resonant = 0f;
+        for (Direction direction : ALL_DIRECTIONS) {
+            scan.set(pos.getX() + direction.getOffsetX(), pos.getY() + direction.getOffsetY(),
+                pos.getZ() + direction.getOffsetZ());
+            if (!isWithinBuildLimit(world, scan)) {
+                continue;
+            }
+            BlockState neighbor = world.getBlockState(scan);
+            if (neighbor != null && MINING_REVERIE_RESONANT_BLOCKS.contains(neighbor.getBlock())) {
+                resonant += 1f;
+            }
+        }
+        float resonanceFactor = MathHelper.clamp(resonant / ALL_DIRECTIONS.length, 0f, 1f);
+
+        return MathHelper.clamp(darkness * 0.45f + cavernOpen * 0.35f + resonanceFactor * 0.4f, 0f, 1f);
+    }
+
+    private static float computeMiningReverieHazardSignal(ServerWorld world, BlockPos pos) {
+        if (world == null || pos == null) {
+            return 0f;
+        }
+        Mutable scan = new Mutable();
+        float hazard = 0f;
+        for (int dx = -MINING_REVERIE_ENVIRONMENT_SCAN_RADIUS; dx <= MINING_REVERIE_ENVIRONMENT_SCAN_RADIUS; dx++) {
+            for (int dz = -MINING_REVERIE_ENVIRONMENT_SCAN_RADIUS; dz <= MINING_REVERIE_ENVIRONMENT_SCAN_RADIUS; dz++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    scan.set(pos.getX() + dx, pos.getY() + dy, pos.getZ() + dz);
+                    if (!isWithinBuildLimit(world, scan)) {
+                        continue;
+                    }
+                    BlockState neighbor = world.getBlockState(scan);
+                    if (neighbor == null) {
+                        continue;
+                    }
+                    FluidState fluid = world.getFluidState(scan);
+                    if (neighbor.isOf(Blocks.LAVA) || fluid.isIn(FluidTags.LAVA)) {
+                        double dxPos = scan.getX() - pos.getX();
+                        double dyPos = scan.getY() - pos.getY();
+                        double dzPos = scan.getZ() - pos.getZ();
+                        double distance = Math.sqrt(dxPos * dxPos + dyPos * dyPos + dzPos * dzPos);
+                        double normalized = MathHelper.clamp(distance / Math.max(1.0, MINING_REVERIE_ENVIRONMENT_SCAN_RADIUS + 1),
+                            0d, 1d);
+                        hazard = Math.max(hazard, (float) (0.7f + 0.3f * (1d - normalized)));
+                        if (hazard >= 0.7f) {
+                            return MathHelper.clamp(hazard, 0f, 1f);
+                        }
+                        continue;
+                    }
+                    if (neighbor.isOf(Blocks.MAGMA_BLOCK) || neighbor.isOf(Blocks.FIRE)
+                        || neighbor.isOf(Blocks.CAMPFIRE) || neighbor.isOf(Blocks.SOUL_CAMPFIRE)) {
+                        hazard = Math.max(hazard, 0.45f);
+                    }
+                    if (fluid.isIn(FluidTags.WATER)) {
+                        hazard = Math.max(hazard, 0.25f);
+                    }
+                }
+            }
+        }
+
+        scan.set(pos.getX(), pos.getY() - 1, pos.getZ());
+        int drop = 0;
+        for (int depth = 0; depth < 4; depth++) {
+            if (!isWithinBuildLimit(world, scan)) {
+                break;
+            }
+            BlockState below = world.getBlockState(scan);
+            if (!below.isAir() || !world.getFluidState(scan).isEmpty()) {
+                break;
+            }
+            drop++;
+            scan.move(Direction.DOWN);
+        }
+        if (drop >= 3) {
+            hazard = Math.max(hazard, 0.6f);
+        }
+
+        return MathHelper.clamp(hazard, 0f, 1f);
+    }
+
+    private static float computeDepthBonus(ServerWorld world, BlockPos pos) {
+        int y = pos.getY();
+        if (world.getRegistryKey() == World.NETHER) {
+            return MathHelper.clamp((128 - y) / 128f, 0f, 1f);
+        }
+        if (world.getRegistryKey() == World.END) {
+            return MathHelper.clamp((64 - Math.abs(y - 32)) / 64f, 0f, 1f);
+        }
+        float belowSurface = MathHelper.clamp((63 - y) / 90f, 0f, 1f);
+        if (y < 0) {
+            belowSurface = MathHelper.clamp(belowSurface + (-y / 64f), 0f, 1f);
+        }
+        return belowSurface;
+    }
+
+    private static int countAdjacentMatchingBlocks(ServerWorld world, BlockPos pos, BlockState state) {
+        int matches = 0;
+        BlockPos.Mutable mutable = new BlockPos.Mutable();
+        for (Direction direction : ALL_DIRECTIONS) {
+            mutable.set(pos.getX() + direction.getOffsetX(), pos.getY() + direction.getOffsetY(),
+                pos.getZ() + direction.getOffsetZ());
+            BlockState neighbor = world.getBlockState(mutable);
+            if (neighbor.isOf(state.getBlock())) {
+                matches++;
+                if (matches >= 4) {
+                    break;
+                }
+            }
+        }
+        return matches;
+    }
+
+    private static float applyHalfLifeDecay(float value, long elapsedTicks, float halfLife) {
+        if (value <= 0f || elapsedTicks <= 0L || halfLife <= 0f) {
+            return Math.max(0f, value);
+        }
+        double exponent = elapsedTicks / Math.max(1.0, halfLife);
+        double decay = Math.pow(0.5d, exponent);
+        return (float) (value * decay);
     }
 
     interface BlockIdentifierProvider {

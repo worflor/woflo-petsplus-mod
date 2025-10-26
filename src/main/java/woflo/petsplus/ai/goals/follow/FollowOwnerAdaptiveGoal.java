@@ -11,10 +11,12 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.text.Text;
 import net.minecraft.world.WorldView;
+import net.minecraft.util.shape.VoxelShape;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalDefinition;
 import woflo.petsplus.ai.goals.GoalIds;
@@ -46,6 +48,23 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
     private static final double OWNER_SPEED_DAMPING_THRESHOLD = 0.035d;
     private static final double THRESHOLD_SMOOTHING_ALPHA = 0.3d;
     private static final long PACK_SIZE_SAMPLE_INTERVAL = 20L;
+    private static final double[] TELEPORT_RADII = {1.75d, 2.5d, 3.5d};
+    private static final double[][] TELEPORT_PATTERN = {
+        {-1.0d, 0.0d},
+        {-0.85d, 0.55d},
+        {-0.85d, -0.55d},
+        {-0.45d, 0.9d},
+        {-0.45d, -0.9d},
+        {-0.1d, 0.0d},
+        {0.35d, 0.75d},
+        {0.35d, -0.75d},
+        {0.65d, 0.4d},
+        {0.65d, -0.4d}
+    };
+    private static final int[] TELEPORT_PATTERN_RIGHT_ORDER = {0, 1, 3, 6, 8, 5, 2, 4, 7, 9};
+    private static final int[] TELEPORT_PATTERN_LEFT_ORDER = {0, 2, 4, 7, 9, 5, 1, 3, 6, 8};
+    private static final double TELEPORT_LATERAL_BIAS_EPSILON = 0.15d;
+    private static final int[] TELEPORT_VERTICAL_OFFSETS = {0, -1, 1};
 
     private final PetsplusTameable tameable;
     private final double baseSpeed;
@@ -569,25 +588,80 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
 
         WorldView world = mob.getEntityWorld();
         BlockPos ownerPos = owner.getBlockPos();
-
         boolean canFly = MobCapabilities.canFly(mob);
         boolean isAquatic = MobCapabilities.prefersWater(mob);
 
-        double distanceToOwnerSq = mob.squaredDistanceTo(owner);
-        if (Double.isInfinite(distanceToOwnerSq)) {
-            return false;
+        float yawDegrees = owner.getYaw(1.0f);
+        float yawRadians = yawDegrees * ((float) Math.PI / 180.0f);
+        double forwardX = -MathHelper.sin(yawRadians);
+        double forwardZ = MathHelper.cos(yawRadians);
+        double rightX = forwardZ;
+        double rightZ = -forwardX;
+
+        double baseX = ownerPos.getX() + 0.5d;
+        double baseZ = ownerPos.getZ() + 0.5d;
+        double mobDeltaX = mob.getX() - baseX;
+        double mobDeltaZ = mob.getZ() - baseZ;
+        double lateralOffset = mobDeltaX * rightX + mobDeltaZ * rightZ;
+        int[] patternOrder;
+        if (lateralOffset > TELEPORT_LATERAL_BIAS_EPSILON) {
+            patternOrder = TELEPORT_PATTERN_RIGHT_ORDER;
+        } else if (lateralOffset < -TELEPORT_LATERAL_BIAS_EPSILON) {
+            patternOrder = TELEPORT_PATTERN_LEFT_ORDER;
+        } else if (((mob.age + mob.getId()) & 1) != 0) {
+            patternOrder = TELEPORT_PATTERN_LEFT_ORDER;
+        } else {
+            patternOrder = TELEPORT_PATTERN_RIGHT_ORDER;
         }
 
-        for (int i = 0; i < 10; i++) {
-            int x = ownerPos.getX() + mob.getRandom().nextInt(7) - 3;
-            int z = ownerPos.getZ() + mob.getRandom().nextInt(7) - 3;
-            int y = ownerPos.getY();
+        double ownerDistance = Math.sqrt(mob.squaredDistanceTo(owner));
+        double closeness = MathHelper.clamp(ownerDistance / Math.max(1.0d, (double) teleportDistance), 0.0d, 1.0d);
+        double radiusScale = 0.85d + (0.35d * closeness);
 
-            BlockPos teleportPos = new BlockPos(x, y, z);
-            if (isSafeTeleportLocation(world, teleportPos, canFly, isAquatic)) {
-                mob.teleport(x + 0.5, y, z + 0.5, false);
-                mob.getNavigation().stop();
-                return true;
+        int[] verticalOffsets = orderVerticalOffsets(ownerPos.getY(), mob.getBlockY());
+        BlockPos.Mutable mutable = new BlockPos.Mutable();
+
+        for (double radius : TELEPORT_RADII) {
+            double scaledRadius = radius * radiusScale;
+            for (int orderIndex = 0; orderIndex < patternOrder.length; orderIndex++) {
+                int idx = patternOrder[orderIndex];
+                double forwardFactor = TELEPORT_PATTERN[idx][0];
+                double strafeFactor = TELEPORT_PATTERN[idx][1];
+                double offsetX = (forwardFactor * scaledRadius * forwardX) + (strafeFactor * scaledRadius * rightX);
+                double offsetZ = (forwardFactor * scaledRadius * forwardZ) + (strafeFactor * scaledRadius * rightZ);
+
+                int x = MathHelper.floor(baseX + offsetX);
+                int z = MathHelper.floor(baseZ + offsetZ);
+                int baseY = ownerPos.getY();
+
+                for (int dy : verticalOffsets) {
+                    mutable.set(x, baseY + dy, z);
+                    if (isSafeTeleportLocation(world, mutable, canFly, isAquatic)) {
+                        mob.teleport(x + 0.5d, baseY + dy, z + 0.5d, false);
+                        mob.getNavigation().stop();
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Fall back to a simple local sweep near the owner to handle cramped interiors.
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                if (dx == 0 && dz == 0) {
+                    continue;
+                }
+                int x = ownerPos.getX() + dx;
+                int z = ownerPos.getZ() + dz;
+                int baseY = ownerPos.getY();
+                for (int dy : verticalOffsets) {
+                    mutable.set(x, baseY + dy, z);
+                    if (isSafeTeleportLocation(world, mutable, canFly, isAquatic)) {
+                        mob.teleport(x + 0.5d, baseY + dy, z + 0.5d, false);
+                        mob.getNavigation().stop();
+                        return true;
+                    }
+                }
             }
         }
 
@@ -601,31 +675,82 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
         BlockState headState = world.getBlockState(pos.up());
         FluidState bodyFluid = world.getFluidState(pos);
         FluidState headFluid = world.getFluidState(pos.up());
+        FluidState supportFluid = world.getFluidState(belowPos);
 
         if (isAquatic) {
             boolean waterAtBody = bodyFluid.isIn(FluidTags.WATER);
             boolean headClear = headState.isAir() || headFluid.isIn(FluidTags.WATER);
             if (waterAtBody && headClear) {
-                boolean support = belowState.isSolidBlock(world, belowPos)
-                    || world.getFluidState(belowPos).isIn(FluidTags.WATER);
-                if (support) {
+                double aquaticSupport = computeSupportScore(world, belowPos, belowState, supportFluid, canFly, true);
+                if (aquaticSupport >= 0.5d) {
                     return true;
                 }
             }
         }
 
-        if (!bodyState.isAir() || !headState.isAir()) {
-            return false;
-        }
-        if (!bodyFluid.isEmpty() || !headFluid.isEmpty()) {
+        if (!hasAirClearance(bodyState, headState, bodyFluid, headFluid)) {
             return false;
         }
 
-        if (!canFly) {
-            return belowState.isSolidBlock(world, belowPos);
+        double supportScore = computeSupportScore(world, belowPos, belowState, supportFluid, canFly, isAquatic);
+        double requiredScore = canFly ? 0.25d : 0.6d;
+        return supportScore >= requiredScore;
+    }
+
+    private boolean hasAirClearance(BlockState bodyState, BlockState headState, FluidState bodyFluid, FluidState headFluid) {
+        return bodyState.isAir() && headState.isAir() && bodyFluid.isEmpty() && headFluid.isEmpty();
+    }
+
+    private double computeSupportScore(WorldView world, BlockPos pos, BlockState state, FluidState fluid, boolean canFly, boolean isAquatic) {
+        double support = 0.0d;
+
+        if (!state.isAir()) {
+            if (state.isSolidBlock(world, pos)) {
+                support = 1.0d;
+            } else if (state.isSideSolidFullSquare(world, pos, Direction.UP)) {
+                support = 0.9d;
+            } else {
+                VoxelShape shape = state.getCollisionShape(world, pos);
+                if (!shape.isEmpty()) {
+                    double height = MathHelper.clamp(shape.getMax(Direction.Axis.Y), 0.0d, 1.0d);
+                    double easedHeight = MathHelper.square(height);
+                    support = Math.max(support, 0.5d + 0.5d * height);
+                    support = Math.max(support, easedHeight);
+                }
+            }
         }
 
-        return belowState.isSolidBlock(world, belowPos);
+        if (!fluid.isEmpty()) {
+            if (fluid.isIn(FluidTags.WATER)) {
+                double waterScore = isAquatic ? 1.0d : 0.2d;
+                support = Math.max(support, waterScore);
+            } else {
+                support = Math.min(support, 0.05d);
+            }
+        }
+
+        if (canFly && support < 0.5d) {
+            double aerialTolerance = fluid.isIn(FluidTags.WATER) ? 0.6d : (state.isAir() ? 0.5d : 0.35d);
+            support = Math.max(support, aerialTolerance);
+        }
+
+        return MathHelper.clamp(support, 0.0d, 1.0d);
+    }
+
+    private static int[] orderVerticalOffsets(int ownerY, int mobY) {
+        int delta = MathHelper.clamp(mobY - ownerY, -1, 1);
+        if (delta == 0) {
+            return TELEPORT_VERTICAL_OFFSETS;
+        }
+        int[] ordered = new int[TELEPORT_VERTICAL_OFFSETS.length];
+        ordered[0] = delta;
+        int index = 1;
+        for (int offset : TELEPORT_VERTICAL_OFFSETS) {
+            if (offset != delta) {
+                ordered[index++] = offset;
+            }
+        }
+        return ordered;
     }
 
     private void sampleMomentum(long worldTime, boolean hesitating, double distanceToOwnerSq) {

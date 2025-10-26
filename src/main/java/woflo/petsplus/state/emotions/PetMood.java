@@ -26,7 +26,7 @@ public enum PetMood {
     ECHOED_RESONANCE(Formatting.DARK_AQUA, Formatting.DARK_PURPLE), // Whispers from the deep
     ARCANE_OVERFLOW(Formatting.LIGHT_PURPLE, Formatting.AQUA),      // Drunk on enchantment
     PACK_SPIRIT(Formatting.GOLD, Formatting.RED),                   // United pack power
-    MALEVOLENT_ECLIPSE(Formatting.DARK_RED, Formatting.BLACK);      // Searing dread aura
+    MINING_REVERIE(Formatting.DARK_GREEN, Formatting.GOLD);         // Deep focus while mining veins
 
     public final Formatting primaryFormatting;
     public final Formatting secondaryFormatting;

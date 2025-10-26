@@ -204,7 +204,7 @@ public class PetComponent {
         ECHOED_RESONANCE(PetMood.ECHOED_RESONANCE),
         ARCANE_OVERFLOW(PetMood.ARCANE_OVERFLOW),
         PACK_SPIRIT(PetMood.PACK_SPIRIT),
-        MALEVOLENT_ECLIPSE(PetMood.MALEVOLENT_ECLIPSE);
+        MINING_REVERIE(PetMood.MINING_REVERIE);
 
         public final Formatting primaryFormatting;
         public final Formatting secondaryFormatting;
@@ -261,7 +261,8 @@ public class PetComponent {
         MALEVOLENCE(0x2B1115, 0x6B0F16),
         ECHOED_RESONANCE(0x1A3A52),  // Deep dark teal - whispers from the depths
         ARCANE_OVERFLOW(0x9D4EDD),   // Vibrant purple - enchantment energy
-        PACK_SPIRIT(0xFF6B35);       // Warm orange - unified pack strength
+        PACK_SPIRIT(0xFF6B35),       // Warm orange - unified pack strength
+        MINING_REVERIE(0x4F6F52);    // Earthy green - meditative mining trance
 
         private final EmotionColorProfile palette;
 
@@ -427,6 +428,13 @@ public class PetComponent {
         public static final String ARCANE_LAST_SCAN_TICK = "arcane_last_scan_tick";
         public static final String ARCANE_CACHED_AMBIENT_ENERGY = "arcane_cached_ambient_energy";
         public static final String ARCANE_LAST_SCAN_POS = "arcane_last_scan_pos";
+        public static final String MINING_REVERIE_LAST_TICK = "mining_reverie_last_tick";
+        public static final String MINING_REVERIE_STREAK = "mining_reverie_streak";
+        public static final String MINING_REVERIE_WEIGHTED_QUALITY = "mining_reverie_weighted_quality";
+        public static final String MINING_REVERIE_STRONGEST_SAMPLE = "mining_reverie_strongest_sample";
+        public static final String MINING_REVERIE_VEIN_VARIETY = "mining_reverie_variety";
+        public static final String MINING_REVERIE_LAST_VARIETY_TICK = "mining_reverie_last_variety_tick";
+        public static final String MINING_REVERIE_LAST_BLOCK = "mining_reverie_last_block";
         public static final String LAST_PLAY_INTERACTION_TICK = "last_play_interaction_tick";
         public static final String LAST_FEED_TICK = "last_feed_tick";
         public static final String LAST_GIFT_TICK = "last_gift_tick";

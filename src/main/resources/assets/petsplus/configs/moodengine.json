@@ -242,6 +242,11 @@
         0.38,
         0.68,
         0.9
+      ],
+      "mining_reverie": [
+        0.38,
+        0.68,
+        0.9
       ]
     },
     "guardianVigil": {
@@ -275,6 +280,20 @@
           "UTILITY": 0.7
         }
       }
+    },
+    "miningReverie": {
+      "graceTicks": 200,
+      "lingerTicks": 260,
+      "streakHalfLife": 160.0,
+      "veinHalfLife": 320.0,
+      "threshold": 0.85,
+      "maxStreak": 3.5,
+      "streakWeight": 0.65,
+      "stabilityWeight": 0.35,
+      "varietyWeight": 0.2,
+      "echoWeight": 0.18,
+      "hazardWeight": 0.22,
+      "rhythmWeight": 0.14
     },
     "arcaneOverflow": {
       "lingerTicks": 220,
