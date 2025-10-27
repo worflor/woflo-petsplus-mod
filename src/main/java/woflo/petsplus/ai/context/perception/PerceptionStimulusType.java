@@ -7,6 +7,7 @@ import net.minecraft.util.Identifier;
  */
 public final class PerceptionStimulusType {
     public static final Identifier OWNER_NEARBY = Identifier.of("petsplus", "perception/owner_nearby");
+    public static final Identifier OWNER_ACTIVITY = Identifier.of("petsplus", "perception/owner_activity");
     public static final Identifier CROWD_SUMMARY = Identifier.of("petsplus", "perception/crowd_summary");
     public static final Identifier ENVIRONMENTAL_SNAPSHOT = Identifier.of("petsplus", "perception/environmental_snapshot");
     public static final Identifier MOOD_BLEND = Identifier.of("petsplus", "perception/mood_blend");

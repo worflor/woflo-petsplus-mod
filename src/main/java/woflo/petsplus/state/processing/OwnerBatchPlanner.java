@@ -42,6 +42,7 @@ public final class OwnerBatchPlanner {
 
         OwnerBatchPlan.Builder builder = OwnerBatchPlan.builder();
         boolean hasContent = false;
+        OwnerFocusSnapshot focusSnapshot = snapshot.ownerFocus();
 
         AbilityCooldownPlan cooldownPlan = AbilityCooldownPlanner.plan(snapshot);
         if (!cooldownPlan.isEmpty()) {
@@ -61,10 +62,20 @@ public final class OwnerBatchPlanner {
             OwnerSpatialResult spatialResult = OwnerSpatialResult.analyze(snapshot);
             if (!spatialResult.isEmpty()) {
                 for (OwnerEventType type : swarmTargets) {
-                    builder.withPayload(type, spatialResult);
+                    if (type == OwnerEventType.MOVEMENT) {
+                        builder.withPayload(type, new OwnerMovementPayload(spatialResult, focusSnapshot));
+                    } else {
+                        builder.withPayload(type, spatialResult);
+                    }
                 }
                 hasContent = true;
+            } else if (focusSnapshot != null && focusSnapshot.isBusy()) {
+                builder.withPayload(OwnerEventType.MOVEMENT, new OwnerMovementPayload(null, focusSnapshot));
+                hasContent = true;
             }
+        } else if (focusSnapshot != null && focusSnapshot.isBusy()) {
+            builder.withPayload(OwnerEventType.MOVEMENT, new OwnerMovementPayload(null, focusSnapshot));
+            hasContent = true;
         }
 
         if (!hasContent) {

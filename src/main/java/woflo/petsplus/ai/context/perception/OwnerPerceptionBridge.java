@@ -3,6 +3,8 @@ package woflo.petsplus.ai.context.perception;
 import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.processing.OwnerFocusSnapshot;
+import woflo.petsplus.state.processing.OwnerMovementPayload;
 import woflo.petsplus.state.processing.OwnerEventFrame;
 import woflo.petsplus.state.processing.OwnerEventListener;
 import woflo.petsplus.state.processing.OwnerEventType;
@@ -22,6 +24,7 @@ public final class OwnerPerceptionBridge implements OwnerEventListener {
         OwnerEventType type = frame.eventType();
         if (type == OwnerEventType.MOVEMENT) {
             emitOwnerStimulus(frame);
+            emitOwnerActivityStimulus(frame);
         }
         if (type.requiresSwarmSnapshot()) {
             emitCrowdStimulus(frame);
@@ -30,6 +33,20 @@ public final class OwnerPerceptionBridge implements OwnerEventListener {
 
     private void emitOwnerStimulus(OwnerEventFrame frame) {
         emit(frame, PerceptionStimulusType.OWNER_NEARBY, ContextSlice.OWNER, frame.owner());
+    }
+
+    private void emitOwnerActivityStimulus(OwnerEventFrame frame) {
+        Object payload = frame.payload();
+        OwnerFocusSnapshot focus = null;
+        if (payload instanceof OwnerMovementPayload movementPayload) {
+            focus = movementPayload.focusSnapshot();
+        } else if (payload instanceof OwnerFocusSnapshot focusSnapshot) {
+            focus = focusSnapshot;
+        }
+        if (focus == null) {
+            focus = OwnerFocusSnapshot.idle();
+        }
+        emit(frame, PerceptionStimulusType.OWNER_ACTIVITY, ContextSlice.OWNER, focus);
     }
 
     private void emitCrowdStimulus(OwnerEventFrame frame) {

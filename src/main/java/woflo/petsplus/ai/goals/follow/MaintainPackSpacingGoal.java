@@ -18,6 +18,7 @@ import woflo.petsplus.behavior.social.SocialContextSnapshot;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.config.DebugSettings;
+import woflo.petsplus.state.PetComponent;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -260,18 +261,22 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
         double padding = 0.0;
         double weight = 0.0;
         MobEntity focus = null;
+        double bestAffinity = Double.NEGATIVE_INFINITY;
 
         for (SocialContextSnapshot.NeighborSample sample : neighbors) {
             Vec3d toNeighbor = new Vec3d(sample.pet().getX() - ownerPos.x, 0.0, sample.pet().getZ() - ownerPos.z);
             double forwardComponent = toNeighbor.dotProduct(forward);
             double lateralComponent = toNeighbor.dotProduct(lateral);
-            double weightContribution = Math.max(0.1, 1.0 - Math.min(1.0, Math.sqrt(sample.squaredDistance()) / 6.0));
+            double affinity = computeAffinityWeight(selfData, sample.data(), now);
+            double weightContribution = Math.max(0.1, 1.0 - Math.min(1.0, Math.sqrt(sample.squaredDistance()) / 6.0))
+                * affinity;
             extension += forwardComponent * weightContribution;
             lateralOffset += lateralComponent * weightContribution;
             padding += Math.max(0.0, MAX_PADDING - Math.abs(lateralComponent)) * weightContribution;
             weight += weightContribution;
-            if (focus == null) {
+            if (weightContribution > 0.0 && affinity > bestAffinity) {
                 focus = sample.pet();
+                bestAffinity = affinity;
             }
         }
 
@@ -294,9 +299,65 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
             padding = 0.0f;
         }
 
+        if (petComponent != null) {
+            PetComponent.OwnerCourtesyState courtesyState = petComponent.getOwnerCourtesyState(now);
+            if (courtesyState.isActive(now)) {
+                double courtesyBonus = MathHelper.clamp(courtesyState.distanceBonus(), 0.0d, 4.0d);
+                double shift = MathHelper.clamp(courtesyBonus * 0.2d, 0.0d, 0.6d);
+                extension = MathHelper.clamp(extension + shift, -MAX_FORWARD_EXTENSION, MAX_FORWARD_EXTENSION);
+                double lateralScale = Math.max(1.0d, courtesyState.lateralInflation());
+                double paddingScale = Math.max(1.0d, courtesyState.paddingInflation());
+                lateralOffset = MathHelper.clamp(lateralOffset * lateralScale, -MAX_LATERAL_OFFSET, MAX_LATERAL_OFFSET);
+                padding = MathHelper.clamp((float) (padding * paddingScale), 0.0f, MAX_PADDING);
+            }
+        }
+
         Vec3d offset = forward.multiply(extension).add(lateral.multiply(lateralOffset));
         cache.clear();
         return new FollowSpacingResult(offset.x, offset.z, (float) padding, focus, neighbors.size());
+    }
+
+    static double computeAffinityWeight(PetSocialData selfData, PetSocialData neighborData, long now) {
+        if (neighborData == null) {
+            return 1.0d;
+        }
+        double bond = MathHelper.clamp(neighborData.bondStrength(), 0.0f, 1.0f);
+        double alignment = 0.0d;
+        if (selfData != null) {
+            alignment = MathHelper.clamp(selfData.headingAlignmentWith(neighborData), 0.0d, 1.0d);
+        }
+        long affectionTick = Math.max(neighborData.lastCrouchCuddleTick(), neighborData.lastPetTick());
+        long threatTick = neighborData.lastThreatRecoveryTick();
+        return computeAffinityWeight((float) bond, alignment, affectionTick, threatTick, now);
+    }
+
+    static double computeAffinityWeight(float bondStrength,
+                                        double alignment,
+                                        long affectionTick,
+                                        long threatTick,
+                                        long now) {
+        double bond = MathHelper.clamp(bondStrength, 0.0f, 1.0f);
+        double clampedAlignment = MathHelper.clamp(alignment, 0.0d, 1.0d);
+        double affection = 0.0d;
+        if (affectionTick > 0L && now > affectionTick) {
+            long age = now - affectionTick;
+            if (age < 200L) {
+                affection = (200L - age) / 200.0d;
+            }
+        }
+        double tensionPenalty = 0.0d;
+        if (threatTick > 0L && now > threatTick) {
+            long age = now - threatTick;
+            if (age < 160L) {
+                tensionPenalty = (160L - age) / 160.0d;
+            }
+        }
+        double affinity = 1.0d
+            + (bond * 0.65d)
+            + (clampedAlignment * 0.2d)
+            + (affection * 0.25d)
+            - (tensionPenalty * 0.35d);
+        return MathHelper.clamp(affinity, 0.4d, 2.2d);
     }
 
 

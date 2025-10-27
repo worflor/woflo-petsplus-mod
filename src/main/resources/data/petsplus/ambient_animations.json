@@ -28,7 +28,9 @@
       "natures": ["energetic", "playful"],
       "moods": ["playful", "happy"],
       "weight": 0.9,
-      "animation_type": "SHAKE"
+      "animation_type": "SHAKE",
+      "weather": ["rain", "thunder"],
+      "required_stimuli": ["petsplus:perception/environmental_snapshot"]
     },
     {
       "id": "tail_wag",
@@ -38,7 +40,8 @@
       "natures": ["friendly", "loyal"],
       "moods": ["happy", "playful", "bonded"],
       "weight": 0.8,
-      "animation_type": "TAIL_WAG"
+      "animation_type": "TAIL_WAG",
+      "time_window": {"start": 0, "end": 13000}
     },
     {
       "id": "ear_perk",
@@ -58,7 +61,8 @@
       "natures": ["playful", "hunter"],
       "moods": ["playful", "focused"],
       "weight": 0.6,
-      "animation_type": "CROUCH"
+      "animation_type": "CROUCH",
+      "owner_focus": ["crouching"]
     },
     {
       "id": "groom",
@@ -98,7 +102,8 @@
       "natures": ["curious", "cautious"],
       "moods": ["curious", "vigilant"],
       "weight": 0.7,
-      "animation_type": "SNIFF"
+      "animation_type": "SNIFF",
+      "time_window": {"start": 12000, "end": 24000}
     },
     {
       "id": "head_tilt",
@@ -119,6 +124,22 @@
       "moods": ["playful", "happy"],
       "weight": 0.5,
       "animation_type": "ROLL"
+    },
+    {
+      "id": "courtesy_watch",
+      "name": "Keep Watch",
+      "description": "Stand attentive while the owner is focused",
+      "duration_ticks": 50,
+      "natures": ["loyal", "guardian"],
+      "moods": ["calm", "protective"],
+      "weight": 0.55,
+      "animation_type": "EAR_PERK",
+      "owner_focus": ["screen_open", "sleeping"],
+      "courtesy": {
+        "required": true,
+        "min_bonus": 1.1,
+        "weight_boost": 0.4
+      }
     }
   ]
 }

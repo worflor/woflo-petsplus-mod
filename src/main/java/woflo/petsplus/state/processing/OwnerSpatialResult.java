@@ -21,16 +21,19 @@ public final class OwnerSpatialResult {
     private final long snapshotTick;
     private final Map<UUID, List<Neighbor>> neighborsByPet;
     private final Set<UUID> petIds;
+    private final OwnerFocusSnapshot ownerFocus;
 
     private OwnerSpatialResult(UUID ownerId,
                                long snapshotTick,
-                               Map<UUID, List<Neighbor>> neighborsByPet) {
+                               Map<UUID, List<Neighbor>> neighborsByPet,
+                               OwnerFocusSnapshot ownerFocus) {
         this.ownerId = ownerId;
         this.snapshotTick = snapshotTick;
         this.neighborsByPet = neighborsByPet;
         this.petIds = neighborsByPet.isEmpty()
             ? Set.of()
             : Collections.unmodifiableSet(new LinkedHashSet<>(neighborsByPet.keySet()));
+        this.ownerFocus = ownerFocus;
     }
 
     public UUID ownerId() {
@@ -47,6 +50,10 @@ public final class OwnerSpatialResult {
 
     public Set<UUID> petIds() {
         return petIds;
+    }
+
+    public OwnerFocusSnapshot ownerFocus() {
+        return ownerFocus;
     }
 
     /**
@@ -79,7 +86,7 @@ public final class OwnerSpatialResult {
         Objects.requireNonNull(snapshot, "snapshot");
         List<OwnerBatchSnapshot.PetSummary> pets = snapshot.pets();
         if (pets.isEmpty()) {
-            return new OwnerSpatialResult(snapshot.ownerId(), snapshot.snapshotTick(), Map.of());
+            return new OwnerSpatialResult(snapshot.ownerId(), snapshot.snapshotTick(), Map.of(), snapshot.ownerFocus());
         }
 
         Map<UUID, List<Neighbor>> neighbors = new HashMap<>();
@@ -119,7 +126,8 @@ public final class OwnerSpatialResult {
         return new OwnerSpatialResult(
             snapshot.ownerId(),
             snapshot.snapshotTick(),
-            Collections.unmodifiableMap(immutable)
+            Collections.unmodifiableMap(immutable),
+            snapshot.ownerFocus()
         );
     }
 

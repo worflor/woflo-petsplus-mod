@@ -61,6 +61,8 @@ import woflo.petsplus.state.processing.OwnerSpatialResult;
 import woflo.petsplus.state.processing.OwnerSchedulingPrediction;
 import woflo.petsplus.state.processing.AbilityCooldownPlan;
 import woflo.petsplus.state.processing.AbilityCooldownPlanner;
+import woflo.petsplus.state.processing.OwnerFocusSnapshot;
+import woflo.petsplus.state.processing.OwnerMovementPayload;
 import woflo.petsplus.state.processing.GossipPropagationPlanner.GossipPropagationPlan;
 import woflo.petsplus.state.processing.GossipPropagationPlanner.Share;
 import woflo.petsplus.events.XpEventHandler;
@@ -2354,7 +2356,48 @@ public class StateManager {
             if (type == null || payload == null) {
                 return;
             }
+            if (type == OwnerEventType.MOVEMENT) {
+                payloads.put(type, mergeMovementPayload(payloads.get(type), payload));
+                return;
+            }
             payloads.put(type, payload);
+        }
+
+        private Object mergeMovementPayload(@Nullable Object existing, Object incoming) {
+            OwnerMovementPayload base = null;
+            if (existing instanceof OwnerMovementPayload payload) {
+                base = payload;
+            } else if (existing instanceof OwnerSpatialResult spatial) {
+                base = new OwnerMovementPayload(spatial, spatial.ownerFocus());
+            } else if (existing instanceof OwnerFocusSnapshot focusSnapshot) {
+                base = new OwnerMovementPayload(null, focusSnapshot);
+            }
+
+            if (incoming instanceof OwnerMovementPayload movement) {
+                if (base == null) {
+                    base = movement;
+                } else {
+                    base = base.withSpatialResult(movement.spatialResult())
+                        .withFocusSnapshot(movement.focusSnapshot());
+                }
+            } else if (incoming instanceof OwnerSpatialResult spatial) {
+                if (base == null) {
+                    base = new OwnerMovementPayload(spatial, spatial.ownerFocus());
+                } else {
+                    base = base.withSpatialResult(spatial);
+                    if (base.focusSnapshot() == null) {
+                        base = base.withFocusSnapshot(spatial.ownerFocus());
+                    }
+                }
+            } else if (incoming instanceof OwnerFocusSnapshot focusSnapshot) {
+                if (base == null) {
+                    base = new OwnerMovementPayload(null, focusSnapshot);
+                } else {
+                    base = base.withFocusSnapshot(focusSnapshot);
+                }
+            }
+
+            return base != null ? base : incoming;
         }
 
         OwnerBatchSnapshot snapshot() {

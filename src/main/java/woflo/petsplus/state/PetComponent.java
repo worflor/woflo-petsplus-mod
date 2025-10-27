@@ -63,6 +63,8 @@ import woflo.petsplus.state.emotions.PetMood;
 import woflo.petsplus.state.emotions.PetMoodEngine;
 import woflo.petsplus.state.gossip.PetGossipLedger;
 import woflo.petsplus.state.gossip.RumorEntry;
+import woflo.petsplus.state.processing.OwnerFocusBuffer;
+import woflo.petsplus.state.processing.OwnerFocusSnapshot;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
 import woflo.petsplus.naming.AttributeKey;
 import woflo.petsplus.history.HistoryEvent;
@@ -164,6 +166,7 @@ public class PetComponent {
     private long followSpacingFocusExpiryTick = Long.MIN_VALUE;
     private long moodFollowHoldUntilTick = Long.MIN_VALUE;
     private float moodFollowDistanceBonus = 0.0f;
+    private OwnerCourtesyState ownerCourtesyState = OwnerCourtesyState.inactive();
     private final Map<Long, GossipSession> gossipSessions = new HashMap<>();
     private long gossipSessionCooldownUntilTick = Long.MIN_VALUE;
     // UI state
@@ -478,6 +481,7 @@ public class PetComponent {
         this.contextCache.attachTo(perceptionBus);
         this.perceptionBus.subscribeAll(stimulusTimeline);
         this.perceptionBus.subscribe(PerceptionStimulusType.OWNER_NEARBY, contextSliceState);
+        this.perceptionBus.subscribe(PerceptionStimulusType.OWNER_ACTIVITY, contextSliceState);
         this.perceptionBus.subscribe(PerceptionStimulusType.CROWD_SUMMARY, contextSliceState);
         this.perceptionBus.subscribe(PerceptionStimulusType.ENVIRONMENTAL_SNAPSHOT, contextSliceState);
         this.perceptionBus.subscribe(PerceptionStimulusType.WORLD_TICK, contextSliceState);
@@ -667,6 +671,38 @@ public class PetComponent {
         return contextSliceState.lastCrowdStimulusTick;
     }
 
+    public boolean isOwnerBusy(long now, long courtesyWindow) {
+        return contextSliceState.isOwnerBusy(now, courtesyWindow);
+    }
+
+    public OwnerFocusSnapshot getOwnerFocusSnapshot() {
+        return contextSliceState.ownerActivitySnapshot();
+    }
+
+    public OwnerFocusSnapshot getLastBusyOwnerFocusSnapshot() {
+        return contextSliceState.lastBusyOwnerActivitySnapshot();
+    }
+
+    public OwnerFocusSnapshot getCourtesyFocusSnapshot(long now, long courtesyWindow) {
+        return contextSliceState.courtesyFocusSnapshot(now, courtesyWindow);
+    }
+
+    public void updateOwnerCourtesyState(@Nullable OwnerCourtesyState state) {
+        this.ownerCourtesyState = state == null ? OwnerCourtesyState.inactive() : state;
+    }
+
+    public OwnerCourtesyState getOwnerCourtesyState(long now) {
+        OwnerCourtesyState state = ownerCourtesyState;
+        if (state == null) {
+            return OwnerCourtesyState.inactive();
+        }
+        return state.isActive(now) ? state : OwnerCourtesyState.inactive();
+    }
+
+    public long getLastOwnerActivityTick() {
+        return contextSliceState.lastOwnerActivityTick();
+    }
+
     public void resetContextSliceCache() {
         contextSliceState.reset();
     }
@@ -681,6 +717,7 @@ public class PetComponent {
         private PlayerEntity owner;
         private float ownerDistance = Float.MAX_VALUE;
         private boolean ownerNearby;
+        private final OwnerFocusBuffer ownerFocusBuffer = new OwnerFocusBuffer();
         private List<Entity> crowdEntities = List.of();
         private PetContextCrowdSummary crowdSummary = PetContextCrowdSummary.empty();
         private NearbyMobAgeProfile mobAgeProfile = NearbyMobAgeProfile.empty();
@@ -698,6 +735,8 @@ public class PetComponent {
             Identifier type = stimulus.type();
             if (PerceptionStimulusType.OWNER_NEARBY.equals(type)) {
                 handleOwnerStimulus(stimulus);
+            } else if (PerceptionStimulusType.OWNER_ACTIVITY.equals(type)) {
+                handleOwnerActivityStimulus(stimulus);
             } else if (PerceptionStimulusType.CROWD_SUMMARY.equals(type)) {
                 handleCrowdStimulus(stimulus);
             } else if (PerceptionStimulusType.ENVIRONMENTAL_SNAPSHOT.equals(type)) {
@@ -717,6 +756,12 @@ public class PetComponent {
             ownerDistance = computeOwnerDistance(player);
             ownerNearby = ownerDistance < OWNER_RADIUS;
             lastOwnerStimulusTick = stimulus.tick();
+        }
+
+        private void handleOwnerActivityStimulus(PerceptionStimulus stimulus) {
+            Object payload = stimulus.payload();
+            OwnerFocusSnapshot snapshot = payload instanceof OwnerFocusSnapshot focus ? focus : OwnerFocusSnapshot.idle();
+            ownerFocusBuffer.update(snapshot, stimulus.tick());
         }
 
         private float computeOwnerDistance(@Nullable PlayerEntity player) {
@@ -787,6 +832,8 @@ public class PetComponent {
             ownerDistance = Float.MAX_VALUE;
             ownerNearby = false;
             lastOwnerStimulusTick = Long.MIN_VALUE;
+            ownerFocusBuffer.reset();
+            PetComponent.this.updateOwnerCourtesyState(OwnerCourtesyState.inactive());
         }
 
         void reset() {
@@ -798,6 +845,52 @@ public class PetComponent {
             lastCrowdStimulusTick = Long.MIN_VALUE;
             environmentSnapshot = null;
             worldSnapshot = null;
+        }
+
+        boolean isOwnerBusy(long now, long courtesyWindow) {
+            return ownerFocusBuffer.isBusy(now, courtesyWindow);
+        }
+
+        OwnerFocusSnapshot ownerActivitySnapshot() {
+            return ownerFocusBuffer.currentSnapshot();
+        }
+
+        OwnerFocusSnapshot lastBusyOwnerActivitySnapshot() {
+            return ownerFocusBuffer.lastBusySnapshot();
+        }
+
+        OwnerFocusSnapshot courtesyFocusSnapshot(long now, long courtesyWindow) {
+            return ownerFocusBuffer.courtesySnapshot(now, courtesyWindow);
+        }
+
+        long lastOwnerActivityTick() {
+            return ownerFocusBuffer.lastBusyTick();
+        }
+    }
+
+    public record OwnerCourtesyState(boolean active,
+                                      double distanceBonus,
+                                      float lateralInflation,
+                                      float paddingInflation,
+                                      OwnerFocusSnapshot focusSnapshot,
+                                      long expiryTick) {
+
+        private static final OwnerCourtesyState INACTIVE = new OwnerCourtesyState(false, 0.0d, 1.0f, 1.0f,
+            OwnerFocusSnapshot.idle(), Long.MIN_VALUE);
+
+        public OwnerCourtesyState {
+            distanceBonus = Math.max(0.0d, distanceBonus);
+            lateralInflation = Math.max(0.0f, lateralInflation);
+            paddingInflation = Math.max(0.0f, paddingInflation);
+            focusSnapshot = focusSnapshot == null ? OwnerFocusSnapshot.idle() : focusSnapshot;
+        }
+
+        public static OwnerCourtesyState inactive() {
+            return INACTIVE;
+        }
+
+        public boolean isActive(long now) {
+            return active && now <= expiryTick;
         }
     }
 

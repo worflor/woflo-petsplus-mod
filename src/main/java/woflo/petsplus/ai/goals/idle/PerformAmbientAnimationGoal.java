@@ -15,16 +15,25 @@ import woflo.petsplus.ai.goals.EmotionFeedback;
 import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.ai.context.perception.EnvironmentPerceptionBridge;
+import woflo.petsplus.ai.context.perception.StimulusSnapshot;
+import woflo.petsplus.state.processing.OwnerFocusSnapshot;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
+
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Performs ambient animations based on pet's nature and current mood.
@@ -33,6 +42,7 @@ import java.util.Random;
 public class PerformAmbientAnimationGoal extends AdaptiveGoal {
     private static final String ANIMATIONS_DATA_PATH = "petsplus:ambient_animations.json";
     private static final Map<Identifier, List<AmbientAnimation>> ANIMATION_CACHE = new HashMap<>();
+    private static final long CONTEXT_STIMULUS_MAX_AGE = 200L;
     
     private AmbientAnimation currentAnimation;
     private int animationTicks;
@@ -164,12 +174,98 @@ public class PerformAmbientAnimationGoal extends AdaptiveGoal {
             
             float weight = json.get("weight").getAsFloat();
             AnimationType animationType = AnimationType.valueOf(json.get("animation_type").getAsString());
-            
-            return new AmbientAnimation(id, name, description, durationTicks, natures, moods, weight, animationType);
+
+            List<String> weatherTags = parseStringList(json, "weather");
+            List<Identifier> requiredStimuli = parseIdentifierList(json, "required_stimuli");
+            JsonObject timeWindowJson = json.has("time_window") && json.get("time_window").isJsonObject()
+                ? json.getAsJsonObject("time_window")
+                : null;
+            TimeWindow timeWindow = parseTimeWindow(timeWindowJson);
+            Set<OwnerFocusCondition> ownerFocus = parseOwnerFocusConditions(json);
+            CourtesyRequirement courtesyRequirement = parseCourtesyRequirement(json);
+
+            return new AmbientAnimation(id, name, description, durationTicks, natures, moods, weight, animationType,
+                weatherTags, requiredStimuli, timeWindow, ownerFocus, courtesyRequirement);
         } catch (Exception e) {
             Petsplus.LOGGER.error("Failed to parse ambient animation", e);
             return null;
         }
+    }
+
+    private List<String> parseStringList(JsonObject json, String key) {
+        if (json == null || key == null || !json.has(key)) {
+            return List.of();
+        }
+        JsonArray array = json.getAsJsonArray(key);
+        if (array == null || array.isEmpty()) {
+            return List.of();
+        }
+        List<String> values = new ArrayList<>(array.size());
+        for (JsonElement element : array) {
+            if (element != null && !element.isJsonNull()) {
+                values.add(element.getAsString());
+            }
+        }
+        return values.isEmpty() ? List.of() : List.copyOf(values);
+    }
+
+    private List<Identifier> parseIdentifierList(JsonObject json, String key) {
+        if (json == null || key == null || !json.has(key)) {
+            return List.of();
+        }
+        JsonArray array = json.getAsJsonArray(key);
+        if (array == null || array.isEmpty()) {
+            return List.of();
+        }
+        List<Identifier> values = new ArrayList<>(array.size());
+        for (JsonElement element : array) {
+            if (element == null || element.isJsonNull()) {
+                continue;
+            }
+            Identifier id = Identifier.tryParse(element.getAsString());
+            if (id != null) {
+                values.add(id);
+            }
+        }
+        return values.isEmpty() ? List.of() : List.copyOf(values);
+    }
+
+    private Set<OwnerFocusCondition> parseOwnerFocusConditions(JsonObject json) {
+        List<String> focusTags = parseStringList(json, "owner_focus");
+        if (focusTags.isEmpty()) {
+            return Set.of();
+        }
+        EnumSet<OwnerFocusCondition> conditions = EnumSet.noneOf(OwnerFocusCondition.class);
+        for (String tag : focusTags) {
+            OwnerFocusCondition.fromString(tag).ifPresent(conditions::add);
+        }
+        return conditions.isEmpty() ? Set.of() : EnumSet.copyOf(conditions);
+    }
+
+    private CourtesyRequirement parseCourtesyRequirement(JsonObject json) {
+        if (json == null) {
+            return CourtesyRequirement.none();
+        }
+        if (json.has("courtesy") && json.get("courtesy").isJsonObject()) {
+            JsonObject courtesyJson = json.getAsJsonObject("courtesy");
+            boolean required = courtesyJson.has("required") && courtesyJson.get("required").getAsBoolean();
+            float minBonus = courtesyJson.has("min_bonus") ? courtesyJson.get("min_bonus").getAsFloat() : 0.0f;
+            float boost = courtesyJson.has("weight_boost") ? courtesyJson.get("weight_boost").getAsFloat() : 0.18f;
+            return new CourtesyRequirement(required, minBonus, boost);
+        }
+        boolean required = json.has("courtesy_required") && json.get("courtesy_required").getAsBoolean();
+        float minBonus = json.has("courtesy_min_bonus") ? json.get("courtesy_min_bonus").getAsFloat() : 0.0f;
+        float boost = required ? 0.24f : 0.18f;
+        return new CourtesyRequirement(required, minBonus, boost);
+    }
+
+    private TimeWindow parseTimeWindow(@Nullable JsonObject json) {
+        if (json == null) {
+            return null;
+        }
+        int start = json.has("start") ? json.get("start").getAsInt() : 0;
+        int end = json.has("end") ? json.get("end").getAsInt() : 24000;
+        return new TimeWindow(MathHelper.clamp(start, 0, 24000), MathHelper.clamp(end, 0, 24000));
     }
     
     private AmbientAnimation selectWeightedAnimation(List<AmbientAnimation> animations) {
@@ -186,12 +282,24 @@ public class PerformAmbientAnimationGoal extends AdaptiveGoal {
         // Filter animations by nature and mood compatibility
         List<AmbientAnimation> compatibleAnimations = new ArrayList<>();
         
+        EnvironmentPerceptionBridge.EnvironmentSnapshot environmentSnapshot = pc.getCachedEnvironmentSnapshot();
+        EnvironmentPerceptionBridge.WorldSnapshot worldSnapshot = pc.getCachedWorldSnapshot();
+        long worldTime = mob.getEntityWorld().getTime();
+        StimulusSnapshot stimuli = pc.snapshotStimuli(worldTime);
+        PetComponent.OwnerCourtesyState courtesyState = pc.getOwnerCourtesyState(worldTime);
+        OwnerFocusSnapshot ownerFocus = pc.getOwnerFocusSnapshot();
+
         for (AmbientAnimation animation : animations) {
             float compatibilityScore = calculateCompatibility(animation, petNature, moodString);
-            if (compatibilityScore > 0) {
-                // Adjust weight by compatibility
-                compatibleAnimations.add(animation.withWeight(animation.weight * compatibilityScore));
+            if (compatibilityScore <= 0) {
+                continue;
             }
+            float contextWeight = computeContextWeight(animation, environmentSnapshot, worldSnapshot,
+                stimuli, mob, ownerFocus, courtesyState, worldTime);
+            if (contextWeight <= 0.0f) {
+                continue;
+            }
+            compatibleAnimations.add(animation.withWeight(animation.weight * compatibilityScore * contextWeight));
         }
         
         if (compatibleAnimations.isEmpty()) {
@@ -241,6 +349,105 @@ public class PerformAmbientAnimationGoal extends AdaptiveGoal {
         }
         
         return Math.min(compatibility, 1.0f);
+    }
+
+    static float computeContextWeight(AmbientAnimation animation,
+                                      @Nullable EnvironmentPerceptionBridge.EnvironmentSnapshot environmentSnapshot,
+                                      @Nullable EnvironmentPerceptionBridge.WorldSnapshot worldSnapshot,
+                                      @Nullable StimulusSnapshot stimuli,
+                                      MobEntity mob,
+                                      @Nullable OwnerFocusSnapshot ownerFocus,
+                                      PetComponent.OwnerCourtesyState courtesyState,
+                                      long now) {
+        if (animation == null) {
+            return 0.0f;
+        }
+        PetComponent.OwnerCourtesyState courtesy = courtesyState == null
+            ? PetComponent.OwnerCourtesyState.inactive()
+            : courtesyState;
+        OwnerFocusSnapshot focusSnapshot = ownerFocus != null ? ownerFocus : OwnerFocusSnapshot.idle();
+        boolean courtesyActive = courtesy.isActive(now);
+        OwnerFocusSnapshot courtesyFocus = courtesyActive ? courtesy.focusSnapshot() : OwnerFocusSnapshot.idle();
+
+        boolean requiresWeather = !animation.weather.isEmpty();
+        boolean requiresStimuli = !animation.requiredStimuli.isEmpty();
+        boolean requiresTime = animation.timeWindow != null;
+        float weight = 1.0f;
+
+        if (requiresWeather) {
+            boolean raining = environmentSnapshot != null ? environmentSnapshot.raining() : mob.getEntityWorld().isRaining();
+            boolean thundering = environmentSnapshot != null ? environmentSnapshot.thundering() : mob.getEntityWorld().isThundering();
+            boolean daytime = environmentSnapshot != null ? environmentSnapshot.daytime() : mob.getEntityWorld().isDay();
+            boolean match = false;
+            for (String tag : animation.weather) {
+                if (tag == null) {
+                    continue;
+                }
+                String trimmed = tag.trim().toLowerCase(Locale.ROOT);
+                switch (trimmed) {
+                    case "rain" -> match |= raining;
+                    case "thunder" -> match |= thundering;
+                    case "clear" -> match |= !raining && !thundering;
+                    case "day" -> match |= daytime;
+                    case "night" -> match |= !daytime;
+                    default -> {
+                        // Ignore unknown tags
+                    }
+                }
+                if (match) {
+                    break;
+                }
+            }
+            if (!match) {
+                return 0.0f;
+            }
+            weight *= 1.1f;
+        }
+
+        if (requiresTime) {
+            long timeOfDay = worldSnapshot != null ? worldSnapshot.timeOfDay() : mob.getEntityWorld().getTimeOfDay();
+            if (!animation.timeWindow.contains(timeOfDay)) {
+                return 0.0f;
+            }
+            weight *= 1.1f;
+        }
+
+        if (requiresStimuli) {
+            boolean matched = false;
+            if (stimuli != null && !stimuli.isEmpty()) {
+                for (StimulusSnapshot.Event event : stimuli.events()) {
+                    if (event == null) {
+                        continue;
+                    }
+                    if (animation.requiredStimuli.contains(event.type())
+                        && event.ageTicks() <= CONTEXT_STIMULUS_MAX_AGE) {
+                        matched = true;
+                        break;
+                    }
+                }
+            }
+            if (!matched) {
+                return 0.0f;
+            }
+            weight *= 1.1f;
+        }
+
+        if (!animation.ownerFocus.isEmpty()) {
+            boolean matched = animation.ownerFocus.stream()
+                .anyMatch(condition -> condition.matches(focusSnapshot)
+                    || (courtesyActive && condition.matches(courtesyFocus)));
+            if (!matched) {
+                return 0.0f;
+            }
+            weight *= 1.05f;
+        }
+
+        if (!animation.courtesyRequirement.isSatisfied(courtesy, now)) {
+            return 0.0f;
+        }
+        weight *= animation.courtesyRequirement.weightMultiplier(courtesy, now);
+
+        return MathHelper.clamp(weight, 0.0f, 2.5f);
     }
     
     // Animation implementation methods
@@ -380,7 +587,7 @@ public class PerformAmbientAnimationGoal extends AdaptiveGoal {
     /**
      * Represents an ambient animation that can be performed by a pet.
      */
-    private static class AmbientAnimation {
+    static class AmbientAnimation {
         final String id;
         final String name;
         final String description;
@@ -389,9 +596,16 @@ public class PerformAmbientAnimationGoal extends AdaptiveGoal {
         final List<String> moods;
         float weight;
         final AnimationType animationType;
-        
+        final Set<String> weather;
+        final Set<Identifier> requiredStimuli;
+        final TimeWindow timeWindow;
+        final Set<OwnerFocusCondition> ownerFocus;
+        final CourtesyRequirement courtesyRequirement;
+
         AmbientAnimation(String id, String name, String description, int durationTicks,
-                         List<String> natures, List<String> moods, float weight, AnimationType animationType) {
+                         List<String> natures, List<String> moods, float weight, AnimationType animationType,
+                         List<String> weather, List<Identifier> requiredStimuli, TimeWindow timeWindow,
+                         Collection<OwnerFocusCondition> ownerFocus, CourtesyRequirement courtesyRequirement) {
             this.id = id;
             this.name = name;
             this.description = description;
@@ -400,17 +614,135 @@ public class PerformAmbientAnimationGoal extends AdaptiveGoal {
             this.moods = moods;
             this.weight = weight;
             this.animationType = animationType;
+            this.weather = weather.isEmpty() ? Set.of() : new HashSet<>(weather);
+            this.requiredStimuli = requiredStimuli.isEmpty() ? Set.of() : new HashSet<>(requiredStimuli);
+            this.timeWindow = timeWindow;
+            if (ownerFocus == null || ownerFocus.isEmpty()) {
+                this.ownerFocus = Set.of();
+            } else {
+                this.ownerFocus = EnumSet.copyOf(ownerFocus);
+            }
+            this.courtesyRequirement = courtesyRequirement == null ? CourtesyRequirement.none() : courtesyRequirement;
         }
-        
+
         AmbientAnimation withWeight(float newWeight) {
-            return new AmbientAnimation(id, name, description, durationTicks, natures, moods, newWeight, animationType);
+            Collection<OwnerFocusCondition> focusCopy = ownerFocus.isEmpty() ? Set.of() : EnumSet.copyOf(ownerFocus);
+            return new AmbientAnimation(id, name, description, durationTicks, natures, moods, newWeight, animationType,
+                new ArrayList<>(weather), new ArrayList<>(requiredStimuli), timeWindow, focusCopy, courtesyRequirement);
+        }
+    }
+
+    private enum OwnerFocusCondition {
+        CROUCHING {
+            @Override
+            boolean matches(OwnerFocusSnapshot snapshot) {
+                return snapshot != null && snapshot.crouching();
+            }
+        },
+        USING_ITEM {
+            @Override
+            boolean matches(OwnerFocusSnapshot snapshot) {
+                return snapshot != null && snapshot.usingItem();
+            }
+        },
+        SCREEN_OPEN {
+            @Override
+            boolean matches(OwnerFocusSnapshot snapshot) {
+                return snapshot != null && snapshot.screenOpen();
+            }
+        },
+        HANDS_BUSY {
+            @Override
+            boolean matches(OwnerFocusSnapshot snapshot) {
+                return snapshot != null && snapshot.handsBusy();
+            }
+        },
+        SLEEPING {
+            @Override
+            boolean matches(OwnerFocusSnapshot snapshot) {
+                return snapshot != null && snapshot.isSleeping();
+            }
+        };
+
+        abstract boolean matches(OwnerFocusSnapshot snapshot);
+
+        static Optional<OwnerFocusCondition> fromString(@Nullable String value) {
+            if (value == null || value.isEmpty()) {
+                return Optional.empty();
+            }
+            String normalized = value.trim().toUpperCase(Locale.ROOT);
+            return switch (normalized) {
+                case "CROUCH", "CROUCHING" -> Optional.of(CROUCHING);
+                case "USING_ITEM", "USE_ITEM", "ITEM" -> Optional.of(USING_ITEM);
+                case "SCREEN", "SCREEN_OPEN", "GUI" -> Optional.of(SCREEN_OPEN);
+                case "HANDS_BUSY", "BUSY_HANDS", "HANDS" -> Optional.of(HANDS_BUSY);
+                case "SLEEP", "SLEEPING" -> Optional.of(SLEEPING);
+                default -> Optional.empty();
+            };
+        }
+    }
+
+    private static final class CourtesyRequirement {
+        private static final CourtesyRequirement NONE = new CourtesyRequirement(false, 0.0f, 0.0f);
+
+        private final boolean requireActive;
+        private final float minDistanceBonus;
+        private final float weightBoost;
+
+        CourtesyRequirement(boolean requireActive, float minDistanceBonus, float weightBoost) {
+            this.requireActive = requireActive;
+            this.minDistanceBonus = Math.max(0.0f, minDistanceBonus);
+            this.weightBoost = Math.max(0.0f, weightBoost);
+        }
+
+        static CourtesyRequirement none() {
+            return NONE;
+        }
+
+        boolean isSatisfied(PetComponent.OwnerCourtesyState state, long now) {
+            if (!requireActive && minDistanceBonus <= 0.0f) {
+                return true;
+            }
+            if (state == null || !state.isActive(now)) {
+                return !requireActive && minDistanceBonus <= 0.0f;
+            }
+            return state.distanceBonus() >= minDistanceBonus;
+        }
+
+        float weightMultiplier(PetComponent.OwnerCourtesyState state, long now) {
+            if (state == null || !state.isActive(now) || weightBoost <= 0.0f) {
+                return 1.0f;
+            }
+            double normalized = MathHelper.clamp(state.distanceBonus() / 3.0d, 0.0d, 1.0d);
+            return (float) (1.0d + normalized * weightBoost);
+        }
+    }
+
+    private static final class TimeWindow {
+        private final int start;
+        private final int end;
+
+        TimeWindow(int start, int end) {
+            this.start = MathHelper.clamp(start, 0, 24000);
+            this.end = MathHelper.clamp(end, 0, 24000);
+        }
+
+        boolean contains(long timeOfDay) {
+            int wrapped = (int) (timeOfDay % 24000L);
+            if (start == end) {
+                return true;
+            }
+            if (start < end) {
+                return wrapped >= start && wrapped <= end;
+            }
+            return wrapped >= start || wrapped <= end;
         }
     }
     
     /**
      * Types of ambient animations.
      */
-    private enum AnimationType {
+    enum AnimationType {
         STRETCH,
         YAWN,
         SHAKE,

@@ -30,6 +30,8 @@ import woflo.petsplus.state.StateManager;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
 import woflo.petsplus.state.emotions.PetMoodEngine;
+import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.processing.OwnerFocusSnapshot;
 
 import java.util.EnumSet;
 import java.util.Locale;
@@ -65,6 +67,9 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
     private static final int[] TELEPORT_PATTERN_LEFT_ORDER = {0, 2, 4, 7, 9, 5, 1, 3, 6, 8};
     private static final double TELEPORT_LATERAL_BIAS_EPSILON = 0.15d;
     private static final int[] TELEPORT_VERTICAL_OFFSETS = {0, -1, 1};
+    private static final long OWNER_BUSY_COURTESY_WINDOW = 40L;
+    private static final double OWNER_BUSY_BASE_DISTANCE_BONUS = 2.25d;
+    private static final double COURTESY_MAX_DISTANCE_BONUS = 3.75d;
 
     private final PetsplusTameable tameable;
     private final double baseSpeed;
@@ -153,9 +158,11 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
         boolean hesitating = OwnerAssistAttackGoal.isPetHesitating(petComponent, now);
         boolean moodHoldActive = petComponent.isMoodFollowHoldActive(now);
         float moodDistanceBonus = moodHoldActive ? petComponent.getMoodFollowDistanceBonus(now) : 0.0f;
-        double baseDistance = baseFollowDistance + moodDistanceBonus;
-        movementDirector.previewMovement(owner.getEntityPos(), baseDistance, baseSpeed);
-        double startThresholdSq = computeStartThresholdSqFromBaseline(baseDistance, ownerIsMoving);
+        CourtesyProfile courtesy = sampleCourtesyProfile(now);
+        double courtesyDistance = baseFollowDistance + moodDistanceBonus + courtesy.distanceBonus();
+        movementDirector.previewMovement(owner.getEntityPos(), courtesyDistance, baseSpeed);
+        double startThresholdSq = computeStartThresholdSqFromBaseline(courtesyDistance,
+            courtesy.courtesyActive() ? false : ownerIsMoving);
         if (isDebugLoggingEnabled()) {
             // Track for summaries; avoid per-tick chat spam
             double startDistance = Math.sqrt(startThresholdSq);
@@ -164,6 +171,10 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
 
         if (hesitating) {
             return true;
+        }
+        if (courtesy.courtesyActive() && !requiresImmediateReturn
+            && distanceSq <= (courtesyDistance * courtesyDistance)) {
+            return false;
         }
         if (moodHoldActive && distanceSq <= startThresholdSq) {
             return false;
@@ -216,14 +227,20 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
         }
         boolean moodHoldActive = petComponent.isMoodFollowHoldActive(now);
         float moodDistanceBonus = moodHoldActive ? petComponent.getMoodFollowDistanceBonus(now) : 0.0f;
-        double baseDistance = baseFollowDistance + moodDistanceBonus;
-        double baselineStartDistance = computeStartThresholdDistance(baseDistance, ownerIsMoving);
-        movementDirector.previewMovement(owner.getEntityPos(), baseDistance, baseSpeed);
-        double continueThresholdSq = computeStopThresholdSqFromBaseline(baseDistance, ownerIsMoving);
+        CourtesyProfile courtesy = sampleCourtesyProfile(now);
+        double courtesyDistance = baseFollowDistance + moodDistanceBonus + courtesy.distanceBonus();
+        double baselineStartDistance = computeStartThresholdDistance(courtesyDistance,
+            courtesy.courtesyActive() ? false : ownerIsMoving);
+        movementDirector.previewMovement(owner.getEntityPos(), courtesyDistance, baseSpeed);
+        double continueThresholdSq = computeStopThresholdSqFromBaseline(courtesyDistance,
+            courtesy.courtesyActive() ? false : ownerIsMoving);
         // Threshold changes are tracked via aggregated snapshots; suppress direct chat spam.
         if (isDebugLoggingEnabled()) {
             debugLastStartDistance = baselineStartDistance;
             debugLastStopDistance = Math.sqrt(continueThresholdSq);
+        }
+        if (courtesy.courtesyActive() && distanceSq <= (courtesyDistance * courtesyDistance)) {
+            return false;
         }
         if (moodHoldActive && distanceSq <= continueThresholdSq) {
             return false;
@@ -262,6 +279,9 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
         smoothedStopDistance = Double.NaN;
         cachedPackSize = 1;
         lastPackSizeSampleTick = Long.MIN_VALUE;
+        if (petComponent != null) {
+            petComponent.updateOwnerCourtesyState(PetComponent.OwnerCourtesyState.inactive());
+        }
     }
 
     @Override
@@ -314,10 +334,22 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
             boolean hesitating = OwnerAssistAttackGoal.isPetHesitating(petComponent, now);
             boolean moodHoldActive = petComponent.isMoodFollowHoldActive(now);
             float moodDistanceBonus = moodHoldActive ? petComponent.getMoodFollowDistanceBonus(now) : 0.0f;
-            double baseDistance = baseFollowDistance + moodDistanceBonus;
-            double baselineStartDistance = computeStartThresholdDistance(baseDistance, ownerIsMoving);
+            CourtesyProfile courtesy = sampleCourtesyProfile(now);
+            double courtesyDistance = baseFollowDistance + moodDistanceBonus + courtesy.distanceBonus();
+            double baseDistance = courtesyDistance;
+            double baselineStartDistance = computeStartThresholdDistance(baseDistance,
+                courtesy.courtesyActive() ? false : ownerIsMoving);
 
             distanceToOwnerSq = mob.squaredDistanceTo(owner);
+            if (courtesy.courtesyActive() && !teleportOverride
+                && distanceToOwnerSq <= (courtesyDistance * courtesyDistance)) {
+                if (!mob.getNavigation().isIdle()) {
+                    mob.getNavigation().stop();
+                }
+                lastMoveTarget = null;
+                return;
+            }
+
             double baseSpeed = resolveDynamicSpeed(distanceToOwnerSq, baseDistance);
             MovementCommand command = movementDirector.resolveMovement(goalId, owner.getEntityPos(), baseDistance, baseSpeed);
             this.activeFollowDistance = (float) command.desiredDistance();
@@ -337,12 +369,14 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
                 return;
             }
 
-            double baselineStopDistance = computeStopThresholdDistance(baseDistance, ownerIsMoving);
+            double baselineStopDistance = computeStopThresholdDistance(baseDistance,
+                courtesy.courtesyActive() ? false : ownerIsMoving);
         if (isDebugLoggingEnabled()) {
             debugLastStopDistance = baselineStopDistance;
         }
 
-            if (moodHoldActive && !hesitating && distanceToOwnerSq <= (baselineStopDistance * baselineStopDistance)) {
+            if ((courtesy.courtesyActive() && distanceToOwnerSq <= (courtesyDistance * courtesyDistance))
+                || (moodHoldActive && !hesitating && distanceToOwnerSq <= (baselineStopDistance * baselineStopDistance))) {
                 if (!mob.getNavigation().isIdle()) {
                     mob.getNavigation().stop();
                 }
@@ -462,6 +496,80 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
     @Override
     protected float calculateEngagement() {
         return 0.65f;
+    }
+
+    private CourtesyProfile sampleCourtesyProfile(long now) {
+        if (petComponent == null) {
+            return CourtesyProfile.inactive();
+        }
+        boolean courtesyActive = petComponent.isOwnerBusy(now, OWNER_BUSY_COURTESY_WINDOW);
+        if (!courtesyActive) {
+            petComponent.updateOwnerCourtesyState(PetComponent.OwnerCourtesyState.inactive());
+            return CourtesyProfile.inactive();
+        }
+        OwnerFocusSnapshot focus = petComponent.getCourtesyFocusSnapshot(now, OWNER_BUSY_COURTESY_WINDOW);
+        if (focus == null || !focus.isBusy()) {
+            focus = petComponent.getLastBusyOwnerFocusSnapshot();
+        }
+        if (focus == null || !focus.isBusy()) {
+            petComponent.updateOwnerCourtesyState(PetComponent.OwnerCourtesyState.inactive());
+            return CourtesyProfile.inactive();
+        }
+        long lastBusyTick = petComponent.getLastOwnerActivityTick();
+        long ticksSinceBusy = lastBusyTick == Long.MIN_VALUE ? Long.MAX_VALUE : Math.max(0L, now - lastBusyTick);
+        double severity = computeCourtesySeverity(focus);
+        double recencyScale = computeCourtesyRecencyScale(ticksSinceBusy, OWNER_BUSY_COURTESY_WINDOW);
+        double distanceBonus = OWNER_BUSY_BASE_DISTANCE_BONUS * severity * recencyScale;
+        if (distanceBonus <= 0.05d) {
+            petComponent.updateOwnerCourtesyState(PetComponent.OwnerCourtesyState.inactive());
+            return CourtesyProfile.inactive();
+        }
+        distanceBonus = MathHelper.clamp(distanceBonus, 0.35d, COURTESY_MAX_DISTANCE_BONUS);
+        float lateralInflation = (float) MathHelper.clamp(1.0d + distanceBonus / 4.5d, 1.0d, 1.8d);
+        float paddingInflation = (float) MathHelper.clamp(1.0d + distanceBonus / 3.25d, 1.0d, 1.85d);
+        long expiryTick = lastBusyTick == Long.MIN_VALUE
+            ? now + OWNER_BUSY_COURTESY_WINDOW
+            : lastBusyTick + OWNER_BUSY_COURTESY_WINDOW;
+        PetComponent.OwnerCourtesyState courtesyState = new PetComponent.OwnerCourtesyState(true, distanceBonus,
+            lateralInflation, paddingInflation, focus, expiryTick);
+        petComponent.updateOwnerCourtesyState(courtesyState);
+        return new CourtesyProfile(true, distanceBonus, focus);
+    }
+
+    static double computeCourtesySeverity(OwnerFocusSnapshot focus) {
+        if (focus == null || !focus.isBusy()) {
+            return 0.0d;
+        }
+        if (focus.isSleeping()) {
+            return 1.7d;
+        }
+        if (focus.screenOpen()) {
+            return focus.usingItem() ? 1.45d : 1.25d;
+        }
+        if (focus.usingItem()) {
+            return focus.crouching() ? 1.1d : 1.0d;
+        }
+        if (focus.handsBusy()) {
+            return 0.85d;
+        }
+        if (focus.crouching()) {
+            return 0.7d;
+        }
+        return 0.5d;
+    }
+
+    static double computeCourtesyRecencyScale(long ticksSinceBusy, long courtesyWindow) {
+        if (ticksSinceBusy == Long.MAX_VALUE) {
+            return 0.0d;
+        }
+        if (courtesyWindow <= 0L) {
+            return 1.0d;
+        }
+        if (ticksSinceBusy >= courtesyWindow) {
+            return 0.0d;
+        }
+        double normalized = 1.0d - (double) ticksSinceBusy / (double) courtesyWindow;
+        return MathHelper.clamp(normalized, 0.0d, 1.0d);
     }
 
     private boolean isMajorActivityActive() {
@@ -829,6 +937,14 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
             return;
         }
         DebugSettings.broadcastDebug(server, Text.literal(message));
+    }
+
+    private record CourtesyProfile(boolean courtesyActive, double distanceBonus, OwnerFocusSnapshot focusSnapshot) {
+        private static final CourtesyProfile INACTIVE = new CourtesyProfile(false, 0.0d, OwnerFocusSnapshot.idle());
+
+        static CourtesyProfile inactive() {
+            return INACTIVE;
+        }
     }
 
     private static boolean isDebugLoggingEnabled() {
