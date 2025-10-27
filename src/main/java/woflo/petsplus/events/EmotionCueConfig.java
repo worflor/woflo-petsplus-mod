@@ -190,9 +190,23 @@ public final class EmotionCueConfig {
         return Text.translatable(definition.textKey(), args);
     }
 
-    public static EmotionCueDefinition resolveDefinition(String cueId) {
-        EmotionCueConfig config = get();
-        return config.definition(cueId);
+    public float resolveMinDelta(String definitionId) {
+        EmotionCueDefinition definition = definition(definitionId);
+        if (definition != null) {
+            return definition.minDelta();
+        }
+        double override = PetsPlusConfig.getInstance().getEmotionCueMinDeltaOverride();
+        if (override >= 0d) {
+            return (float) override;
+        }
+        String categoryId = guessCategory(definitionId);
+        CueCategory category = categories.get(categoryId);
+        float base = category != null ? category.minDelta() : defaults.minDelta();
+        return base * mode.minDeltaScale();
+    }
+
+    public boolean isForceShowEnabled() {
+        return mode.forceShow();
     }
 
     private static EmotionCueConfig load() {

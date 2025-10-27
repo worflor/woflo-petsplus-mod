@@ -3246,11 +3246,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
         EmotionCueDefinition definition = EmotionCueConfig.get().definition(definitionId);
         double radius = definition != null ? definition.resolvedRadius(defaultRadius) : defaultRadius;
         return pushToNearbyOwnedPets(owner, radius, (pc, collector) -> {
-            if (definition != null) {
-                for (Map.Entry<PetComponent.Emotion, Float> entry : definition.baseEmotions().entrySet()) {
-                    collector.pushEmotion(entry.getKey(), entry.getValue());
-                }
-            }
+            pushDefinitionBaseEmotions(definition, collector);
             consumer.accept(pc, collector);
         });
     }
@@ -3400,11 +3396,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
         String definitionId = resolveDefinitionId(cueId);
         EmotionCueDefinition definition = EmotionCueConfig.get().definition(definitionId);
         CompletableFuture<StimulusSummary> summaryFuture = pushToSinglePet(owner, pc, (petComponent, collector) -> {
-            if (definition != null) {
-                for (Map.Entry<PetComponent.Emotion, Float> entry : definition.baseEmotions().entrySet()) {
-                    collector.pushEmotion(entry.getKey(), entry.getValue());
-                }
-            }
+            pushDefinitionBaseEmotions(definition, collector);
             consumer.accept(petComponent, collector);
         });
         sendCueAfterStimulus(owner, summaryFuture, cueId,
@@ -3425,9 +3417,12 @@ private record WeatherState(boolean raining, boolean thundering) {}
                                              Supplier<Text> cueTextSupplier,
                                              long cooldownTicks) {
         // Early exit: if no pets were found/affected, don't send any cue
-        if (summaryFuture == null) {
+        if (summaryFuture == null || cueId == null) {
             return;
         }
+        String definitionId = resolveDefinitionId(cueId);
+        EmotionCueConfig config = EmotionCueConfig.get();
+        EmotionCueDefinition definition = config.definition(definitionId);
         summaryFuture.whenComplete((summary, throwable) -> {
             if (throwable != null) {
                 Petsplus.LOGGER.error("Failed to finalize stimulus summary before emitting cue {}", cueId,
@@ -3437,6 +3432,10 @@ private record WeatherState(boolean raining, boolean thundering) {}
 
             // Skip cue if no pets were actually affected
             if (summary == null || summary.isEmpty()) {
+                return;
+            }
+
+            if (!shouldEmitCue(summary, definition, definitionId, config)) {
                 return;
             }
 
@@ -3466,6 +3465,29 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 return null;
             });
         });
+    }
+
+    private static boolean shouldEmitCue(StimulusSummary summary,
+                                         @Nullable EmotionCueDefinition definition,
+                                         String definitionId,
+                                         EmotionCueConfig config) {
+        if (definition != null ? definition.forceShow() : config.isForceShowEnabled()) {
+            return true;
+        }
+        float magnitude = Math.max(summary.totalDelta(), summary.maxSampleDelta());
+        if (!Float.isFinite(magnitude) || magnitude <= 0f) {
+            return false;
+        }
+        float threshold = definition != null ? definition.minDelta() : config.resolveMinDelta(definitionId);
+        return threshold <= 0f || magnitude >= threshold;
+    }
+
+    private static void pushDefinitionBaseEmotions(@Nullable EmotionCueDefinition definition,
+                                                   EmotionStimulusBus.SimpleStimulusCollector collector) {
+        if (definition == null) {
+            return;
+        }
+        definition.baseEmotions().forEach(collector::pushEmotion);
     }
 
     private static void deliverCue(ServerPlayerEntity owner,
