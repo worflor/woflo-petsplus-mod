@@ -33,19 +33,22 @@ public final class OwnerBatchSnapshot {
     private final Set<OwnerEventType> dueEvents;
     private final Map<PetWorkScheduler.TaskType, List<TaskSnapshot>> taskBuckets;
     private final List<PetSummary> pets;
+    private final OwnerFocusSnapshot ownerFocus;
 
     private OwnerBatchSnapshot(UUID ownerId,
                                long snapshotTick,
                                @Nullable UUID lastKnownOwnerId,
                                Set<OwnerEventType> dueEvents,
                                Map<PetWorkScheduler.TaskType, List<TaskSnapshot>> taskBuckets,
-                               List<PetSummary> pets) {
+                               List<PetSummary> pets,
+                               OwnerFocusSnapshot ownerFocus) {
         this.ownerId = ownerId;
         this.snapshotTick = snapshotTick;
         this.lastKnownOwnerId = lastKnownOwnerId;
         this.dueEvents = dueEvents;
         this.taskBuckets = taskBuckets;
         this.pets = pets;
+        this.ownerFocus = ownerFocus;
     }
 
     public UUID ownerId() {
@@ -73,6 +76,10 @@ public final class OwnerBatchSnapshot {
         return pets;
     }
 
+    public OwnerFocusSnapshot ownerFocus() {
+        return ownerFocus;
+    }
+
     /**
      * Create an immutable snapshot of the supplied batch for background execution.
      */
@@ -82,8 +89,10 @@ public final class OwnerBatchSnapshot {
         long snapshotTick = batch.snapshotTick();
         UUID lastKnownOwnerId = null;
         ServerPlayerEntity lastKnownOwner = batch.lastKnownOwner();
+        OwnerFocusSnapshot focusSnapshot = OwnerFocusSnapshot.idle();
         if (lastKnownOwner != null) {
             lastKnownOwnerId = lastKnownOwner.getUuid();
+            focusSnapshot = OwnerFocusSnapshot.capture(lastKnownOwner);
         }
 
         Set<OwnerEventType> dueEvents;
@@ -166,7 +175,8 @@ public final class OwnerBatchSnapshot {
             lastKnownOwnerId,
             dueEvents,
             Collections.unmodifiableMap(taskBuckets),
-            pets
+            pets,
+            focusSnapshot
         );
     }
 
