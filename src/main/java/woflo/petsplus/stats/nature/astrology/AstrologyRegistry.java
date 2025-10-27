@@ -515,7 +515,7 @@ public final class AstrologyRegistry {
             new AstrologySignDefinition.EmotionProfile(
                 PetComponent.Emotion.VIGILANT, 0.44f,
                 PetComponent.Emotion.FOREBODING, 0.30f,
-                PetComponent.Emotion.MELANCHOLY, 0.24f
+                PetComponent.Emotion.MALEVOLENCE, 0.24f
             ),
             slot(4, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT),
             slot(0, AstrologySignDefinition.NightPeriod.MIDDLE_NIGHT)));
@@ -543,7 +543,7 @@ public final class AstrologyRegistry {
             new AstrologySignDefinition.EmotionProfile(
                 PetComponent.Emotion.STOIC, 0.44f,
                 PetComponent.Emotion.GAMAN, 0.30f,
-                PetComponent.Emotion.PROTECTIVE, 0.24f
+                PetComponent.Emotion.MINING_REVERIE, 0.24f
             ),
             slot(6, AstrologySignDefinition.NightPeriod.EARLY_NIGHT),
             slot(2, AstrologySignDefinition.NightPeriod.EARLY_NIGHT)));
