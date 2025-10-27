@@ -92,11 +92,18 @@ public final class PetWorkScheduler {
         long sanitized = Math.max(0L, tick);
         // Add tiny deterministic jitter per (component,type) to reduce burst alignment (jitter)
         int jitter = (System.identityHashCode(component) ^ type.ordinal()) & 7; // 0..7
-        long jittered = sanitized + jitter;
-        if (jittered < 0L) jittered = 0L; // ensure bounds remain valid
-
-        // Clamp to prevent overflow buckets and keep ordering stable
-        if (jittered < 0L) jittered = 0L;
+        long jittered;
+        if (sanitized > Long.MAX_VALUE - jitter) {
+            // Saturate to the "never" sentinel rather than wrap around to zero when the
+            // jitter would overflow a long. Wrapping would otherwise schedule the task
+            // immediately and flood the wheel with work.
+            jittered = Long.MAX_VALUE;
+        } else {
+            jittered = sanitized + jitter;
+        }
+        if (jittered == Long.MAX_VALUE) {
+            return;
+        }
         ScheduledTask task = new ScheduledTask(pet, component, type, jittered);
         existing = tasksByComponent.computeIfAbsent(component, c -> new EnumMap<>(TaskType.class));
         existing.put(type, task);

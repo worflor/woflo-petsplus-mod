@@ -10,21 +10,48 @@ import java.util.Set;
  * main thread after an asynchronous planning pass completes.
  */
 public final class OwnerBatchPlan {
-    private final EnumMap<OwnerEventType, Object> eventPayloads;
-    private final EnumMap<OwnerEventType, Long> eventWindows;
+    private static final OwnerBatchPlan EMPTY = new OwnerBatchPlan(Map.of(), Map.of(), null, AbilityCooldownPlan.empty());
+
+    private final Map<OwnerEventType, Object> eventPayloads;
+    private final Set<OwnerEventType> payloadEventTypes;
+    private final Map<OwnerEventType, Long> eventWindows;
     private final OwnerSchedulingPrediction schedulingPrediction;
     private final AbilityCooldownPlan abilityCooldownPlan;
 
-    OwnerBatchPlan(EnumMap<OwnerEventType, Object> eventPayloads,
-                   EnumMap<OwnerEventType, Long> eventWindows,
+    OwnerBatchPlan(Map<OwnerEventType, Object> eventPayloads,
+                   Map<OwnerEventType, Long> eventWindows,
                    OwnerSchedulingPrediction schedulingPrediction,
                    AbilityCooldownPlan abilityCooldownPlan) {
-        this.eventPayloads = eventPayloads == null || eventPayloads.isEmpty()
-            ? new EnumMap<>(OwnerEventType.class)
-            : new EnumMap<>(eventPayloads);
-        this.eventWindows = eventWindows == null || eventWindows.isEmpty()
-            ? new EnumMap<>(OwnerEventType.class)
-            : new EnumMap<>(eventWindows);
+        if (eventPayloads == null || eventPayloads.isEmpty()) {
+            this.eventPayloads = Map.of();
+            this.payloadEventTypes = Set.of();
+        } else {
+            EnumMap<OwnerEventType, Object> copy;
+            if (eventPayloads instanceof EnumMap<?, ?> enumMap) {
+                @SuppressWarnings("unchecked")
+                EnumMap<OwnerEventType, Object> typed = (EnumMap<OwnerEventType, Object>) enumMap;
+                copy = new EnumMap<>(typed);
+            } else {
+                copy = new EnumMap<>(eventPayloads);
+            }
+            this.eventPayloads = Collections.unmodifiableMap(copy);
+            this.payloadEventTypes = Collections.unmodifiableSet(copy.keySet());
+        }
+
+        if (eventWindows == null || eventWindows.isEmpty()) {
+            this.eventWindows = Map.of();
+        } else {
+            EnumMap<OwnerEventType, Long> copy;
+            if (eventWindows instanceof EnumMap<?, ?> enumMap) {
+                @SuppressWarnings("unchecked")
+                EnumMap<OwnerEventType, Long> typed = (EnumMap<OwnerEventType, Long>) enumMap;
+                copy = new EnumMap<>(typed);
+            } else {
+                copy = new EnumMap<>(eventWindows);
+            }
+            this.eventWindows = Collections.unmodifiableMap(copy);
+        }
+
         this.schedulingPrediction = schedulingPrediction;
         this.abilityCooldownPlan = abilityCooldownPlan == null ? AbilityCooldownPlan.empty() : abilityCooldownPlan;
     }
@@ -33,10 +60,7 @@ public final class OwnerBatchPlan {
      * @return immutable view of the payloads keyed by owner event type.
      */
     public Map<OwnerEventType, Object> eventPayloads() {
-        if (eventPayloads.isEmpty()) {
-            return Map.of();
-        }
-        return Collections.unmodifiableMap(eventPayloads);
+        return eventPayloads;
     }
 
     /**
@@ -52,10 +76,7 @@ public final class OwnerBatchPlan {
     }
 
     public Map<OwnerEventType, Long> eventWindowPredictions() {
-        if (eventWindows.isEmpty()) {
-            return Map.of();
-        }
-        return Collections.unmodifiableMap(eventWindows);
+        return eventWindows;
     }
 
     public boolean hasEventWindowPrediction(OwnerEventType type) {
@@ -67,10 +88,7 @@ public final class OwnerBatchPlan {
     }
 
     public Set<OwnerEventType> payloadEventTypes() {
-        if (eventPayloads.isEmpty()) {
-            return Set.of();
-        }
-        return Collections.unmodifiableSet(eventPayloads.keySet());
+        return payloadEventTypes;
     }
 
     public Object payload(OwnerEventType type) {
@@ -78,8 +96,7 @@ public final class OwnerBatchPlan {
     }
 
     public static OwnerBatchPlan empty() {
-        return new OwnerBatchPlan(new EnumMap<>(OwnerEventType.class), new EnumMap<>(OwnerEventType.class), null,
-            AbilityCooldownPlan.empty());
+        return EMPTY;
     }
 
     public static Builder builder() {
