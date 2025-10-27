@@ -5,15 +5,13 @@
 </p>
 
 <h1 align="center">woflo's Pets+</h1>
-<h3 align="center">dev-0.96-Pet-this-Pet-that</h3>
-<h4 align="center">next: complex logic just to make interactions more cohesive</h4>
+<h3 align="center">dev-0.97-unique-version-name</h3>
+<h4 align="center">next: content thats mod related</h4>
 
 ---
 
 <h4 align="center">Recent Changes</h4>
 <ul>
-  <li>Backend 0.94 [nature] - Parent natures are now exposed as predicates for nature conditions.</li>
-  <li>Updated 0.94 [version] - 1.21.8 -> 1.21.10. ;-;</li>
   <li>Rework 0.95 [ai] - Following the same path as the stimulus pipeline, AI uses pet context, mood engine snapshots, and more to allow dynamic emergent behaviour (adaptive goal).</li>
   <li>Added 0.96 [ai] - AIState exists.</li>
   <li>Updated 0.96 [ai] - Pet Adaptive Goals now react *properly* with relationships, bonds, and owner vs non owner pets.</li>
@@ -24,6 +22,9 @@
   <li>Added 0.96 [ai] - Hide and Seek Goals; utilizing Pet Director.</li>
   <li>Added 0.96 [ai] - Cuddle Heal Goal.</li>
 	<li>Broken 0.96 [my sanity] - my sanity hurts.</li>
+  <li>Added 0.97 [nature] - Fenn and Falsei (tamed natures; making 5) exist now :]</li>
+  <li>Added 0.97 [mood] - New Ultra Rare Mood: Mining Reverie. Getting lost in the mining sauce.</li>
+  <li>Added 0.97 [mood] - New Ultra Rare Mood: Malevolent Eclipse. A buildup of evil.</li>
 </ul>
 
 ---
