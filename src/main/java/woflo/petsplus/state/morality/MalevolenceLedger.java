@@ -1,5 +1,6 @@
 package woflo.petsplus.state.morality;
 
+import net.minecraft.entity.EntityType;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
@@ -32,7 +33,8 @@ public final class MalevolenceLedger {
     private float disharmonyStrength;
     private boolean active;
     private long lastContextTick = Long.MIN_VALUE;
-    private int lastContextHash;
+    @Nullable
+    private DarkDeedFingerprint lastContextFingerprint;
 
     public MalevolenceLedger(PetComponent parent) {
         this.parent = parent;
@@ -56,7 +58,7 @@ public final class MalevolenceLedger {
         this.disharmonyStrength = sanitizeNonNegative(parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_DISHARMONY, Float.class, 0f));
         this.active = Boolean.TRUE.equals(parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_ACTIVE, Boolean.class, Boolean.FALSE));
         this.lastContextTick = Long.MIN_VALUE;
-        this.lastContextHash = 0;
+        this.lastContextFingerprint = null;
     }
 
     private static float sanitizeNonNegative(float candidate) {
@@ -98,7 +100,7 @@ public final class MalevolenceLedger {
         disharmonyStrength = 0f;
         active = false;
         lastContextTick = Long.MIN_VALUE;
-        lastContextHash = 0;
+        lastContextFingerprint = null;
         PetComponent.HarmonyState current = parent.getHarmonyState();
         PetComponent.HarmonyState overlay = overlayHarmonyState(current, now);
         if (overlay != current) {
@@ -117,8 +119,10 @@ public final class MalevolenceLedger {
             return TriggerOutcome.none();
         }
 
-        int contextHash = hashContext(context);
-        if (now == lastContextTick && contextHash == lastContextHash) {
+        DarkDeedFingerprint fingerprint = DarkDeedFingerprint.from(context);
+        if (now == lastContextTick
+            && lastContextFingerprint != null
+            && lastContextFingerprint.matches(fingerprint)) {
             return TriggerOutcome.none();
         }
 
@@ -127,10 +131,11 @@ public final class MalevolenceLedger {
         SpreeSnapshot spreeSnapshot = computeSpreeSnapshot(now, rules.spreeSettings());
 
         Set<String> resolvedTags = rules.resolveTags(context.victimType(), context.registryTags(), context.dynamicTags());
-        float baseWeight = rules.baseWeight(context.victimType(), resolvedTags);
+        MalevolenceRules.TagEvaluation tagEvaluation = rules.evaluateDeedTags(resolvedTags);
+        float baseWeight = rules.baseWeight(context.victimType(), tagEvaluation);
         if (baseWeight <= 0f) {
             lastContextTick = now;
-            lastContextHash = contextHash;
+            lastContextFingerprint = fingerprint;
             maybeClear(rules, now, true);
             persistState();
             return TriggerOutcome.none();
@@ -145,7 +150,7 @@ public final class MalevolenceLedger {
             ? relationshipProfile.getType()
             : context.relationshipHint();
 
-        float relationshipMultiplier = rules.relationshipMultiplier(relationshipType, resolvedTags);
+        float relationshipMultiplier = rules.relationshipMultiplier(relationshipType, tagEvaluation);
         MalevolenceRules.InteractionVector interactionVector = MalevolenceRules.InteractionVector.of(context.interactionVector());
         if (rules.forgivenessSettings().shouldForgive(relationshipProfile, interactionVector,
             context.friendlyFireSeverity(), spreeSnapshot.count())) {
@@ -153,19 +158,19 @@ public final class MalevolenceLedger {
                 applySpreeSnapshot(spreeSnapshot);
             }
             lastContextTick = now;
-            lastContextHash = contextHash;
+            lastContextFingerprint = fingerprint;
             maybeClear(rules, now, true);
             persistState();
             return TriggerOutcome.none();
         }
         float telemetryMultiplier = rules.telemetryMultiplier(relationshipProfile, interactionVector,
-            context.friendlyFireSeverity(), resolvedTags);
-        float spreeMultiplier = rules.spreeMultiplier(spreeSnapshot.count(), context.lowHealthFinish(), resolvedTags);
+            context.friendlyFireSeverity(), tagEvaluation);
+        float spreeMultiplier = rules.spreeMultiplier(spreeSnapshot.count(), context.lowHealthFinish(), tagEvaluation);
 
         float addedScore = baseWeight * relationshipMultiplier * telemetryMultiplier * spreeMultiplier;
         if (addedScore <= 0f || Float.isNaN(addedScore) || Float.isInfinite(addedScore)) {
             lastContextTick = now;
-            lastContextHash = contextHash;
+            lastContextFingerprint = fingerprint;
             maybeClear(rules, now, true);
             persistState();
             return TriggerOutcome.none();
@@ -176,7 +181,7 @@ public final class MalevolenceLedger {
         score = Math.max(0f, score);
         lastDeedTick = now;
         lastContextTick = now;
-        lastContextHash = contextHash;
+        lastContextFingerprint = fingerprint;
 
         lastDecayTick = now;
         ThresholdEvaluation evaluation = evaluateThreshold(rules.thresholds(), now);
@@ -493,13 +498,56 @@ public final class MalevolenceLedger {
         );
     }
 
-    private static int hashContext(DarkDeedContext context) {
-        if (context == null) {
-            return 0;
+    private record DarkDeedFingerprint(
+        @Nullable Identifier victimTypeId,
+        @Nullable UUID victimUuid,
+        Set<Identifier> registryTags,
+        Set<String> dynamicTags,
+        int friendlyFireKey,
+        boolean lowHealthFinish,
+        RelationshipType relationshipHint
+    ) {
+        private static final DarkDeedFingerprint EMPTY = new DarkDeedFingerprint(null, null, Set.of(), Set.of(), 0, false,
+            RelationshipType.NEUTRAL);
+
+        private static DarkDeedFingerprint from(DarkDeedContext context) {
+            if (context == null) {
+                return EMPTY;
+            }
+            Identifier victimTypeId = context.victimType() != null ? EntityType.getId(context.victimType()) : null;
+            Set<Identifier> registryTags = context.registryTags().isEmpty() ? Set.of() : context.registryTags();
+            Set<String> dynamicTags = context.dynamicTags().isEmpty() ? Set.of() : context.dynamicTags();
+            int friendlyFireKey = MathHelper.floor(context.friendlyFireSeverity() * 100f);
+            return new DarkDeedFingerprint(
+                victimTypeId,
+                context.victimUuid(),
+                registryTags,
+                dynamicTags,
+                friendlyFireKey,
+                context.lowHealthFinish(),
+                context.relationshipHint()
+            );
         }
-        int severityKey = MathHelper.floor(context.friendlyFireSeverity() * 100f);
-        return Objects.hash(context.victimUuid(), context.registryTags(), context.dynamicTags(), severityKey,
-            context.lowHealthFinish(), context.relationshipHint());
+
+        private boolean matches(DarkDeedFingerprint other) {
+            if (other == null) {
+                return false;
+            }
+            return Objects.equals(victimTypeId, other.victimTypeId)
+                && Objects.equals(victimUuid, other.victimUuid)
+                && Objects.equals(registryTags, other.registryTags)
+                && Objects.equals(dynamicTags, other.dynamicTags)
+                && friendlyFireKey == other.friendlyFireKey
+                && lowHealthFinish == other.lowHealthFinish
+                && relationshipHint == other.relationshipHint;
+        }
+
+        private boolean matches(DarkDeedContext context) {
+            if (context == null) {
+                return false;
+            }
+            return matches(from(context));
+        }
     }
 
     private void persistState() {
