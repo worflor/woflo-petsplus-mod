@@ -15,16 +15,17 @@
   <li>Rework 0.95 [ai] - Following the same path as the stimulus pipeline, AI uses pet context, mood engine snapshots, and more to allow dynamic emergent behaviour (adaptive goal).</li>
   <li>Added 0.96 [ai] - AIState exists.</li>
   <li>Updated 0.96 [ai] - Pet Adaptive Goals now react *properly* with relationships, bonds, and owner vs non owner pets.</li>
-	<li>Reworked 0.96 [ai] - Pet Director system now integrates with Adaptive Goals, 'action goals', and 'insight goals'.</li>
+	<li>Reworked 0.96 [ai] - Pet Director system now integrates with Adaptive Goals' 'action goals' and 'insight goals'.</li>
   <li>Added 0.96 [ai] - Swarm Snapshots flow through AIState so Adaptive Goals CAN view nearby entities if a nearby scan has occured recently. Some goal's request a fresh scan, some don't need fresh information.</li>
 	<li>Added 0.96 [ai] - Bedtime Companion Goal.</li>
   <li>Added 0.96 [ai] - Nurse Baby Goal.</li>
-  <li>Added 0.96 [ai] - Hide and Seek Goals; utilizing Pet Director.</li>
+  <li>Added 0.96 [ai] - Hide and Seek Goals; utilizing Pet Director and Group Coordinator.</li>
   <li>Added 0.96 [ai] - Cuddle Heal Goal.</li>
 	<li>Broken 0.96 [my sanity] - my sanity hurts.</li>
   <li>Added 0.97 [nature] - Fenn and Falsei (tamed natures; making 5) exist now :]</li>
+  <li>Added 0.97 [nature] - Abstract pets (bred nature) are formed in tight conformed spaces with absolutely no escape.</li>
   <li>Added 0.97 [mood] - New Ultra Rare Mood: Mining Reverie. Getting lost in the mining sauce.</li>
-  <li>Added 0.97 [mood] - New Ultra Rare Mood: Malevolent Eclipse. A buildup of evil.</li>
+  <li>Added 0.97 [mood] - New Ultra Rare Mood: Malevolent Eclipse. A buildup of evil. with an accompanying "malevolence" emotion.</li>
 </ul>
 
 ---
