@@ -61,7 +61,7 @@ public final class NatureModifierSampler {
         
         register("infernal", NatureStat.MIGHT, 0.07f, NatureStat.SWIFTNESS, 0.03f,
             1.45f, 0.90f, 1.10f, 1.25f,
-            Emotion.FRUSTRATION, 0.40f, Emotion.PROTECTIVE, 0.32f, Emotion.KEFI, 0.26f);
+            Emotion.FRUSTRATION, 0.40f, Emotion.PROTECTIVE, 0.32f, Emotion.MALEVOLENCE, 0.26f);
         
         register("otherworldly", NatureStat.VITALITY, 0.05f, NatureStat.AGILITY, 0.02f,
             1.15f, 0.95f, 0.60f, 1.00f,
@@ -89,7 +89,7 @@ public final class NatureModifierSampler {
         
         register("gilded", NatureStat.FOCUS, 0.05f, NatureStat.AGILITY, 0.03f,
             1.15f, 1.05f, 0.70f, 1.40f,
-            Emotion.PRIDE, 0.42f, Emotion.QUERECIA, 0.30f, Emotion.ARCANE_OVERFLOW, 0.26f);
+            Emotion.PRIDE, 0.42f, Emotion.QUERECIA, 0.30f, Emotion.MINING_REVERIE, 0.26f);
         
         register("gloom", NatureStat.AGILITY, 0.05f, NatureStat.GUARD, 0.02f,
             1.40f, 0.70f, 0.80f, 1.10f,
