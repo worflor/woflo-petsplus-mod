@@ -11,6 +11,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -167,6 +168,13 @@ public final class MalevolenceRules {
         return weights.isEmpty() ? Map.of() : Map.copyOf(weights);
     }
 
+    private static float sanitizePositive(float value) {
+        if (Float.isNaN(value) || value <= 0f) {
+            return 0f;
+        }
+        return value;
+    }
+
     @Nullable
     public TagRule tagRule(String tag) {
         if (tag == null) {
@@ -201,7 +209,61 @@ public final class MalevolenceRules {
         return resolved;
     }
 
+    public TagEvaluation evaluateDeedTags(Set<String> deedTags) {
+        if (deedTags == null || deedTags.isEmpty()) {
+            return TagEvaluation.empty();
+        }
+        float totalBaseWeight = 0f;
+        float totalTelemetryBias = 0f;
+        float totalSpreeBonus = 0f;
+        EnumMap<RelationshipType, Float> relationshipMax = null;
+        for (String tag : deedTags) {
+            String normalized = normalizeTag(tag);
+            if (normalized == null) {
+                continue;
+            }
+            TagRule rule = tagRules.get(normalized);
+            if (rule == null) {
+                continue;
+            }
+            totalBaseWeight += rule.baseWeight();
+            if (rule.telemetryBias() > 0f) {
+                totalTelemetryBias += rule.telemetryBias();
+            }
+            if (rule.spreeBonus() > 0f) {
+                totalSpreeBonus += rule.spreeBonus();
+            }
+            if (!rule.relationshipMultipliers().isEmpty()) {
+                if (relationshipMax == null) {
+                    relationshipMax = new EnumMap<>(RelationshipType.class);
+                }
+                for (Map.Entry<RelationshipType, Float> entry : rule.relationshipMultipliers().entrySet()) {
+                    RelationshipType relationshipType = entry.getKey();
+                    Float value = entry.getValue();
+                    if (relationshipType == null || value == null || value <= 0f) {
+                        continue;
+                    }
+                    relationshipMax.merge(relationshipType, value, Math::max);
+                }
+            }
+        }
+        if ((totalBaseWeight <= 0f)
+            && (relationshipMax == null || relationshipMax.isEmpty())
+            && totalTelemetryBias <= 0f
+            && totalSpreeBonus <= 0f) {
+            return TagEvaluation.empty();
+        }
+        Map<RelationshipType, Float> relationshipView = relationshipMax == null || relationshipMax.isEmpty()
+            ? Map.of()
+            : Map.copyOf(relationshipMax);
+        return new TagEvaluation(totalBaseWeight, relationshipView, totalTelemetryBias, totalSpreeBonus);
+    }
+
     public float baseWeight(EntityType<?> victimType, Set<String> deedTags) {
+        return baseWeight(victimType, evaluateDeedTags(deedTags));
+    }
+
+    public float baseWeight(EntityType<?> victimType, TagEvaluation tagEvaluation) {
         float total = 0f;
         if (victimType != null) {
             Identifier id = EntityType.getId(victimType);
@@ -210,53 +272,47 @@ public final class MalevolenceRules {
                 total += victimRule.baseWeight();
             }
         }
-        if (deedTags == null || deedTags.isEmpty()) {
-            return Math.max(0f, total);
-        }
-        for (String tag : deedTags) {
-            TagRule rule = tagRules.get(normalizeTag(tag));
-            if (rule != null) {
-                total += rule.baseWeight();
-            }
-        }
-        return Math.max(0f, total);
+        TagEvaluation evaluation = tagEvaluation == null ? TagEvaluation.empty() : tagEvaluation;
+        total += evaluation.baseWeight();
+        return sanitizePositive(total);
     }
 
     public float relationshipMultiplier(RelationshipType type, Set<String> deedTags) {
+        return relationshipMultiplier(type, evaluateDeedTags(deedTags));
+    }
+
+    public float relationshipMultiplier(RelationshipType type, TagEvaluation tagEvaluation) {
         float base = relationshipWeights.getOrDefault(type, 1.0f);
-        if (deedTags == null || deedTags.isEmpty()) {
-            return Math.max(0f, base);
-        }
-        float modifier = 0f;
-        for (String tag : deedTags) {
-            TagRule rule = tagRules.get(normalizeTag(tag));
-            if (rule != null) {
-                modifier = Math.max(modifier, rule.relationshipMultiplier(type));
-            }
-        }
+        TagEvaluation evaluation = tagEvaluation == null ? TagEvaluation.empty() : tagEvaluation;
+        float modifier = evaluation.relationshipMultiplier(type);
         if (modifier > 0f) {
             base *= modifier;
         }
-        return Math.max(0f, base);
+        return sanitizePositive(base);
     }
 
     public float telemetryMultiplier(@Nullable RelationshipProfile profile,
                                      @Nullable InteractionVector interactionVector,
                                      float friendlyFireSeverity,
                                      Set<String> deedTags) {
+        return telemetryMultiplier(profile, interactionVector, friendlyFireSeverity, evaluateDeedTags(deedTags));
+    }
+
+    public float telemetryMultiplier(@Nullable RelationshipProfile profile,
+                                     @Nullable InteractionVector interactionVector,
+                                     float friendlyFireSeverity,
+                                     TagEvaluation tagEvaluation) {
         float multiplier = telemetry.compute(profile, interactionVector, friendlyFireSeverity);
-        if (deedTags != null) {
-            for (String tag : deedTags) {
-                TagRule rule = tagRules.get(normalizeTag(tag));
-                if (rule != null && rule.telemetryBias() > 0f) {
-                    multiplier += rule.telemetryBias();
-                }
-            }
-        }
+        TagEvaluation evaluation = tagEvaluation == null ? TagEvaluation.empty() : tagEvaluation;
+        multiplier += evaluation.telemetryBias();
         return MathHelper.clamp(multiplier, telemetry.minFactor, telemetry.maxFactor);
     }
 
     public float spreeMultiplier(int currentCount, boolean lowHealthFinish, Set<String> deedTags) {
+        return spreeMultiplier(currentCount, lowHealthFinish, evaluateDeedTags(deedTags));
+    }
+
+    public float spreeMultiplier(int currentCount, boolean lowHealthFinish, TagEvaluation tagEvaluation) {
         float multiplier = spreeSettings.baseMultiplier;
         if (currentCount > 1) {
             multiplier += Math.min(spreeSettings.maxBonus,
@@ -265,14 +321,8 @@ public final class MalevolenceRules {
         if (lowHealthFinish) {
             multiplier += spreeSettings.clutchBonus;
         }
-        if (deedTags != null) {
-            for (String tag : deedTags) {
-                TagRule rule = tagRules.get(normalizeTag(tag));
-                if (rule != null && rule.spreeBonus() > 0f) {
-                    multiplier += rule.spreeBonus();
-                }
-            }
-        }
+        TagEvaluation evaluation = tagEvaluation == null ? TagEvaluation.empty() : tagEvaluation;
+        multiplier += evaluation.spreeBonus();
         return Math.max(spreeSettings.baseMultiplier, multiplier);
     }
 
@@ -304,7 +354,7 @@ public final class MalevolenceRules {
         if (tag == null) {
             return null;
         }
-        return tag.trim().toLowerCase();
+        return tag.trim().toLowerCase(Locale.ROOT);
     }
 
     public record VictimRule(float baseWeight, Set<String> tags) {
@@ -324,34 +374,64 @@ public final class MalevolenceRules {
         }
     }
 
+    public record TagEvaluation(float baseWeight,
+                                 Map<RelationshipType, Float> relationshipMultipliers,
+                                 float telemetryBias,
+                                 float spreeBonus) {
+        private static final TagEvaluation EMPTY = new TagEvaluation(0f, Map.of(), 0f, 0f);
+
+        public TagEvaluation {
+            baseWeight = sanitizePositive(baseWeight);
+            telemetryBias = sanitizePositive(telemetryBias);
+            spreeBonus = sanitizePositive(spreeBonus);
+            if (relationshipMultipliers == null || relationshipMultipliers.isEmpty()) {
+                relationshipMultipliers = Map.of();
+            } else {
+                relationshipMultipliers = Map.copyOf(relationshipMultipliers);
+            }
+        }
+
+        public static TagEvaluation empty() {
+            return EMPTY;
+        }
+
+        public float relationshipMultiplier(RelationshipType type) {
+            if (relationshipMultipliers.isEmpty()) {
+                return 0f;
+            }
+            Float value = relationshipMultipliers.get(type);
+            if (value == null) {
+                return 0f;
+            }
+            return value > 0f ? value : 0f;
+        }
+    }
+
     public record TagRule(float baseWeight,
                           Map<RelationshipType, Float> relationshipMultipliers,
                           float telemetryBias,
                           float spreeBonus) {
-        public TagRule(float baseWeight,
-                       Map<RelationshipType, Float> relationshipMultipliers,
-                       float telemetryBias,
-                       float spreeBonus) {
-            this.baseWeight = baseWeight;
+        public TagRule {
+            baseWeight = sanitizePositive(baseWeight);
             if (relationshipMultipliers == null || relationshipMultipliers.isEmpty()) {
-                this.relationshipMultipliers = Map.of();
+                relationshipMultipliers = Map.of();
             } else {
                 EnumMap<RelationshipType, Float> copy = new EnumMap<>(RelationshipType.class);
                 for (Map.Entry<RelationshipType, Float> entry : relationshipMultipliers.entrySet()) {
-                    if (entry.getKey() == null || entry.getValue() == null) {
+                    RelationshipType key = entry.getKey();
+                    Float value = entry.getValue();
+                    if (key == null || value == null) {
                         continue;
                     }
-                    float clamped = Math.max(0f, entry.getValue());
-                    copy.put(entry.getKey(), clamped);
+                    float clamped = sanitizePositive(value);
+                    if (clamped > 0f) {
+                        copy.put(key, clamped);
+                    }
                 }
-                this.relationshipMultipliers = copy.isEmpty() ? Map.of() : Map.copyOf(copy);
+                relationshipMultipliers = copy.isEmpty() ? Map.of() : Map.copyOf(copy);
             }
-            this.telemetryBias = telemetryBias;
-            this.spreeBonus = Math.max(0f, spreeBonus);
-        }
-
-        public float baseWeight() {
-            return Math.max(0f, baseWeight);
+            telemetryBias = sanitizePositive(telemetryBias);
+            spreeBonus = sanitizePositive(spreeBonus);
         }
 
         public float relationshipMultiplier(RelationshipType type) {
@@ -359,14 +439,6 @@ public final class MalevolenceRules {
                 return 0f;
             }
             return relationshipMultipliers.getOrDefault(type, 0f);
-        }
-
-        public float telemetryBias() {
-            return Math.max(0f, telemetryBias);
-        }
-
-        public float spreeBonus() {
-            return spreeBonus;
         }
     }
 
