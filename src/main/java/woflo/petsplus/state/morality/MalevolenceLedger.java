@@ -127,6 +127,11 @@ public final class MalevolenceLedger {
         lastDecayTick = Long.MIN_VALUE;
         disharmonyStrength = 0f;
         active = false;
+        viceStates.clear();
+        virtueStates.clear();
+        persona = null;
+        dominantVice = null;
+        lastPersonaDecayTick = Long.MIN_VALUE;
         lastContextTick = Long.MIN_VALUE;
         lastContextFingerprint = null;
         PetComponent.HarmonyState current = parent.getHarmonyState();
