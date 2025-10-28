@@ -394,6 +394,9 @@ public class PetComponent {
         public static final String MALEVOLENCE_SPREE_ANCHOR_TICK = "morality_malevolence_spree_anchor";
         public static final String MALEVOLENCE_DISHARMONY = "morality_malevolence_disharmony";
         public static final String MALEVOLENCE_ACTIVE = "morality_malevolence_active";
+        public static final String MALEVOLENCE_VICE_STATE = "morality_malevolence_vices";
+        public static final String MALEVOLENCE_VIRTUE_STATE = "morality_malevolence_virtues";
+        public static final String MALEVOLENCE_PERSONA = "morality_malevolence_persona";
         public static final String THREAT_LAST_TICK = "threat_last_tick";
         public static final String THREAT_SAFE_STREAK = "threat_safe_streak";
         public static final String THREAT_SENSITIZED_STREAK = "threat_sensitized_streak";
