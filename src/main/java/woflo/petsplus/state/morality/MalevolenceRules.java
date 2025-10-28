@@ -733,7 +733,17 @@ public final class MalevolenceRules {
                              float intensityScale,
                              float minIntensity,
                              float maxIntensity) {
-        public static final Thresholds DEFAULT = new Thresholds(32f, 12f, 72000L, 1.0f, 0f, 1.0f, 0.04f, 0.25f, 1.0f);
+        public static final Thresholds DEFAULT = new Thresholds(
+            32f,
+            12f,
+            72000L,
+            MoralityAspectDefinition.persistenceFromHalfLife(48000f),
+            0f,
+            1.0f,
+            0.04f,
+            0.25f,
+            1.0f
+        );
 
         public Thresholds overlay(Thresholds other) {
             if (other == null || other == DEFAULT) {

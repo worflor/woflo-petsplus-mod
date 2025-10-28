@@ -29,12 +29,14 @@ class MalevolenceLedgerVirtueViceTest {
 
     @BeforeEach
     void setUpRegistry() {
+        float defaultPersistence = MoralityAspectDefinition.persistenceFromHalfLife(48000f);
+
         Map<Identifier, MoralityAspectDefinition> definitions = new LinkedHashMap<>();
         definitions.put(CRUELTY, new MoralityAspectDefinition(
             CRUELTY,
             MoralityAspectDefinition.Kind.VICE,
             0f,
-            1.0f,
+            defaultPersistence,
             0f,
             1.0f,
             Map.of(COMPASSION, -0.1f)
@@ -43,7 +45,7 @@ class MalevolenceLedgerVirtueViceTest {
             BETRAYAL,
             MoralityAspectDefinition.Kind.VICE,
             0f,
-            1.0f,
+            defaultPersistence,
             0f,
             1.0f,
             Map.of(LOYALTY, -0.08f)
@@ -52,7 +54,7 @@ class MalevolenceLedgerVirtueViceTest {
             COMPASSION,
             MoralityAspectDefinition.Kind.VIRTUE,
             0.6f,
-            1.0f,
+            0.9f,
             0f,
             1.0f,
             Map.of()
@@ -61,7 +63,7 @@ class MalevolenceLedgerVirtueViceTest {
             LOYALTY,
             MoralityAspectDefinition.Kind.VIRTUE,
             0.55f,
-            1.0f,
+            0.9f,
             0f,
             1.0f,
             Map.of()

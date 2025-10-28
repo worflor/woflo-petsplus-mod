@@ -64,7 +64,11 @@ public final class MoralityAspectDefinitionLoader extends BaseJsonDataLoader<Mor
                 MoralityAspectDefinition.Kind kind = MoralityAspectDefinition.Kind.fromString(string(obj, "kind"));
                 float baseline = getFloat(obj, "baseline", 0f);
                 boolean hasPersistence = obj.has("persistence");
-                float persistence = getFloat(obj, "persistence", 1f);
+                float persistence = getFloat(
+                    obj,
+                    "persistence",
+                    MoralityAspectDefinition.persistenceFromHalfLife(48000f)
+                );
                 float passiveDrift = getFloat(obj, "passive_drift", 0f);
                 float impressionability = getFloat(obj, "impressionability", 1f);
                 if (obj.has("decay_half_life")) {

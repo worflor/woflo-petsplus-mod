@@ -17,7 +17,7 @@ are loaded by `MoralityAspectDefinitionLoader`.
       "id": "petsplus:vice/cruelty",
       "kind": "vice",
       "baseline": 0.0,
-      "persistence": 1.0,
+      "persistence": 0.7071,
       "passive_drift": 0.0,
       "impressionability": 1.0,
       "synergy": {
@@ -29,7 +29,7 @@ are loaded by `MoralityAspectDefinitionLoader`.
       "id": "petsplus:virtue/compassion",
       "kind": "virtue",
       "baseline": 0.6,
-      "persistence": 1.0,
+      "persistence": 0.9,
       "passive_drift": 0.0,
       "impressionability": 0.7
     }
@@ -42,8 +42,8 @@ are loaded by `MoralityAspectDefinitionLoader`.
 | `id` | Identifier for the aspect. Vices and virtues share a single namespace. |
 | `kind` | Either `"vice"` or `"virtue"`. Defaults to vice when omitted. |
 | `baseline` | Starting value for the aspect. Virtues often begin above zero to reflect innate morals. |
-| `persistence` | Fraction (0–1) of the current deviation from baseline retained each Minecraft day. `1.0` means changes persist indefinitely until countered. |
-| `passive_drift` | Optional amount (per Minecraft day) the value nudges back toward the baseline even without new deeds. Leave at `0` for fully persistent traits. |
+| `persistence` | Fraction (0–1) of the current deviation from baseline retained each Minecraft day. Values below `1` slowly relax toward the baseline (e.g. `0.7071` mirrors the legacy 48k-tick half-life). |
+| `passive_drift` | Optional amount (per Minecraft day) the value nudges back toward the baseline even without new deeds. Leave at `0` when the exponential persistence is sufficient. |
 | `impressionability` | Multiplier applied to deltas when deeds adjust this aspect. Values below `1` make traits harder to sway. |
 | `synergy` | Optional map of aspect ids to multipliers applied when this aspect changes. Positive values spread vice, negative values bolster virtues. |
 
