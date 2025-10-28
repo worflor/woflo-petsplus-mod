@@ -146,6 +146,7 @@ public final class MalevolenceLedger {
         if (rules == null || rules == MalevolenceRules.EMPTY) {
             return TriggerOutcome.none();
         }
+        MalevolenceRules.Thresholds thresholds = rules.thresholds();
 
         DarkDeedFingerprint fingerprint = DarkDeedFingerprint.from(context);
         if (now == lastContextTick
@@ -154,7 +155,7 @@ public final class MalevolenceLedger {
             return TriggerOutcome.none();
         }
 
-        decayAspects(now, rules.thresholds());
+        decayAspects(now, thresholds);
         refreshSpreeWindow(now, rules.spreeSettings());
         SpreeSnapshot spreeSnapshot = computeSpreeSnapshot(now, rules.spreeSettings());
 
@@ -225,15 +226,29 @@ public final class MalevolenceLedger {
         }
 
         if (gateFailures.isEmpty()) {
-            applyViceAdjustments(viceWeights, addedScore, now, rules.spreeSettings(), rules.thresholds());
+            applyViceAdjustments(viceWeights, addedScore, now, rules.spreeSettings(), thresholds);
         } else {
-            for (Identifier id : viceWeights.keySet()) {
+            float fallbackImpressionability = thresholds.defaultImpressionability();
+            for (Map.Entry<Identifier, Float> entry : viceWeights.entrySet()) {
+                Identifier id = entry.getKey();
+                float weight = entry.getValue();
+                if (!Float.isFinite(weight) || weight == 0f) {
+                    continue;
+                }
                 MoralityAspectState state = ensureViceState(id);
-                state.recordSuppressed(addedScore, now);
+                MoralityAspectDefinition definition = MoralityAspectRegistry.get(id);
+                float impressionability = definition != null
+                    ? definition.impressionability()
+                    : fallbackImpressionability;
+                float suppressedDelta = addedScore * weight * impressionability;
+                if (!Float.isFinite(suppressedDelta) || suppressedDelta <= 0f) {
+                    continue;
+                }
+                state.recordSuppressed(suppressedDelta, now);
             }
         }
 
-        applyVirtueAdjustments(contribution.virtueWeights(), addedScore, now, rules.spreeSettings(), rules.thresholds());
+        applyVirtueAdjustments(contribution.virtueWeights(), addedScore, now, rules.spreeSettings(), thresholds);
 
         lastDeedTick = now;
         lastContextTick = now;
@@ -245,7 +260,7 @@ public final class MalevolenceLedger {
         Map<Identifier, Float> virtueSnapshot = snapshotVirtues();
 
         ThresholdEvaluation evaluation = gateFailures.isEmpty()
-            ? evaluateThreshold(rules.thresholds(), now)
+            ? evaluateThreshold(thresholds, now)
             : ThresholdEvaluation.suppressedResult(dominantVice, String.join(", ", gateFailures));
         DisharmonyEvaluation disharmonyEvaluation = updateDisharmony(rules, evaluation, now);
         persistState();

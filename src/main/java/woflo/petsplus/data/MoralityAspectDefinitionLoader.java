@@ -79,7 +79,11 @@ public final class MoralityAspectDefinitionLoader extends BaseJsonDataLoader<Mor
                         );
                     }
                 }
-                Map<Identifier, Float> synergy = parseSynergy(obj.getAsJsonObject("synergy"));
+                JsonObject synergyObject = null;
+                if (obj.has("synergy") && obj.get("synergy").isJsonObject()) {
+                    synergyObject = obj.getAsJsonObject("synergy");
+                }
+                Map<Identifier, Float> synergy = parseSynergy(synergyObject);
                 definitions.put(id, new MoralityAspectDefinition(
                     id,
                     kind,

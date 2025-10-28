@@ -161,6 +161,65 @@ class MalevolenceLedgerVirtueViceTest {
     }
 
     @Test
+    void suppressedChargeRespectsConfiguredWeights() throws Exception {
+        MalevolenceRules.TagRule sharedRule = new MalevolenceRules.TagRule(
+            1.0f,
+            Map.of(),
+            0f,
+            0f,
+            Map.of(CRUELTY, 1.0f, BETRAYAL, 0.25f),
+            Map.of(COMPASSION, -0.35f),
+            Map.of(COMPASSION, new MalevolenceRules.RequirementRange(0.65f, 1.0f))
+        );
+
+        MalevolenceRules rules = new MalevolenceRules(
+            Map.of("cruelty", sharedRule),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            MalevolenceRules.TelemetrySettings.EMPTY,
+            new MalevolenceRules.Thresholds(0.5f, 0.2f, 20L, 1.0f, 0f, 1.0f, 1.0f, 0.2f, 2.0f),
+            new MalevolenceRules.SpreeSettings(400L, 1.0f, 0.25f, 1.5f, 0.2f),
+            MalevolenceRules.DisharmonySettings.DEFAULT,
+            MalevolenceRules.ForgivenessSettings.DEFAULT,
+            Identifier.of("petsplus", "morality/test"),
+            true
+        );
+
+        MalevolenceRulesRegistry.reload(Map.of(Identifier.of("petsplus", "rules/weights"), rules));
+
+        TestPetComponent pet = new TestPetComponent();
+        pet.setOwnerUuid(UUID.fromString("bbbbbbbb-cccc-dddd-eeee-ffffffffffff"));
+        pet.setStateData(PetComponent.StateKeys.MALEVOLENCE_PERSONA, List.of(1.0f, 1.0f, 0.0f));
+
+        MalevolenceLedger ledger = pet.getMalevolenceLedger();
+        ledger.onStateDataRehydrated(0L);
+
+        MalevolenceLedger.DarkDeedContext context = new MalevolenceLedger.DarkDeedContext(
+            null,
+            null,
+            Set.<Identifier>of(),
+            Set.of("cruelty"),
+            null,
+            0f,
+            false,
+            RelationshipType.NEUTRAL
+        );
+
+        MalevolenceLedger.TriggerOutcome outcome = ledger.recordDarkDeed(context, 120L);
+        assertTrue(outcome.suppressed(), "Virtue requirement should block the vice contribution");
+
+        Map<Identifier, MoralityAspectState> viceStates = extractViceStates(ledger);
+        MoralityAspectState crueltyState = viceStates.get(CRUELTY);
+        MoralityAspectState betrayalState = viceStates.get(BETRAYAL);
+        assertNotNull(crueltyState);
+        assertNotNull(betrayalState);
+        assertEquals(1.0f, crueltyState.suppressedCharge(), 1.0e-5f, "Primary weight should store the full severity");
+        assertEquals(0.25f, betrayalState.suppressedCharge(), 1.0e-5f,
+            "Secondary weight should scale suppression proportionally");
+    }
+
+    @Test
     void personaAmplifiesViceAndSynergyDrainsVirtue() throws Exception {
         MalevolenceRules.TagRule betrayalRule = new MalevolenceRules.TagRule(
             1.2f,
