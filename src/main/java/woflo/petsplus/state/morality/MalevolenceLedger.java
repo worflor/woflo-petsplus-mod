@@ -22,7 +22,16 @@ import java.util.UUID;
  * the malevolence emotion when the configured rule thresholds are met.
  */
 public final class MalevolenceLedger {
+    private static final long DEFAULT_SPREE_WINDOW = MalevolenceRules.SpreeSettings.DEFAULT.windowTicks();
+
     private final PetComponent parent;
+
+    private final Map<Identifier, MoralityAspectState> viceStates = new LinkedHashMap<>();
+    private final Map<Identifier, MoralityAspectState> virtueStates = new LinkedHashMap<>();
+    private MoralityPersona persona;
+    private long lastPersonaDecayTick = Long.MIN_VALUE;
+    @Nullable
+    private Identifier dominantVice;
 
     private float score;
     private int spreeCount;
@@ -42,7 +51,7 @@ public final class MalevolenceLedger {
     }
 
     private void loadSnapshotFromStateStore() {
-        this.score = sanitizeNonNegative(parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_SCORE, Float.class, 0f));
+        float legacyScore = sanitizeNonNegative(parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_SCORE, Float.class, 0f));
         this.spreeCount = Math.max(0, parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_SPREE_COUNT, Integer.class, 0));
         this.spreeAnchorTick = parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_SPREE_ANCHOR_TICK, Long.class, Long.MIN_VALUE);
         this.lastDeedTick = parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_LAST_DEED_TICK, Long.class, Long.MIN_VALUE);
@@ -59,6 +68,25 @@ public final class MalevolenceLedger {
         this.active = Boolean.TRUE.equals(parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_ACTIVE, Boolean.class, Boolean.FALSE));
         this.lastContextTick = Long.MIN_VALUE;
         this.lastContextFingerprint = null;
+
+        viceStates.clear();
+        virtueStates.clear();
+        decodeAspectStates(castList(parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_VICE_STATE, List.class)), viceStates);
+        decodeAspectStates(castList(parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_VIRTUE_STATE, List.class)), virtueStates);
+        persona = decodePersona(castList(parent.getStateData(PetComponent.StateKeys.MALEVOLENCE_PERSONA, List.class)));
+        if (persona == null) {
+            persona = MoralityPersona.seeded(resolvePersonaSeed());
+        }
+        if (viceStates.isEmpty() && legacyScore > 0f) {
+            Identifier defaultVice = MoralityAspectRegistry.defaultViceAspectId();
+            MoralityAspectState state = new MoralityAspectState();
+            state.setValue(legacyScore);
+            state.setSpree(spreeCount, spreeAnchorTick);
+            viceStates.put(defaultVice, state);
+        }
+        ensureBaselineStates();
+        score = aggregateScore();
+        dominantVice = findDominantVice();
     }
 
     private static float sanitizeNonNegative(float candidate) {
@@ -126,7 +154,7 @@ public final class MalevolenceLedger {
             return TriggerOutcome.none();
         }
 
-        decayScore(now, rules.thresholds());
+        decayAspects(now, rules.thresholds());
         refreshSpreeWindow(now, rules.spreeSettings());
         SpreeSnapshot spreeSnapshot = computeSpreeSnapshot(now, rules.spreeSettings());
 
@@ -177,34 +205,93 @@ public final class MalevolenceLedger {
         }
 
         applySpreeSnapshot(spreeSnapshot);
-        score += addedScore;
-        score = Math.max(0f, score);
+
+        MalevolenceRules.AspectContribution contribution = rules.aspectContribution(context.victimType(), tagEvaluation);
+        Map<Identifier, Float> viceWeights = new LinkedHashMap<>(contribution.viceWeights());
+        if (viceWeights.isEmpty()) {
+            viceWeights.put(MoralityAspectRegistry.defaultViceAspectId(), 1f);
+        }
+        Map<Identifier, MalevolenceRules.RequirementRange> virtueRequirements = contribution.virtueRequirements();
+        List<String> gateFailures = new ArrayList<>();
+        if (!virtueRequirements.isEmpty()) {
+            for (Map.Entry<Identifier, MalevolenceRules.RequirementRange> entry : virtueRequirements.entrySet()) {
+                Identifier virtueId = entry.getKey();
+                MalevolenceRules.RequirementRange requirement = entry.getValue();
+                float level = getVirtueLevel(virtueId);
+                if (!requirement.isSatisfied(level)) {
+                    gateFailures.add(virtueId.toString());
+                }
+            }
+        }
+
+        if (gateFailures.isEmpty()) {
+            applyViceAdjustments(viceWeights, addedScore, now, rules.spreeSettings(), rules.thresholds());
+        } else {
+            for (Identifier id : viceWeights.keySet()) {
+                MoralityAspectState state = ensureViceState(id);
+                state.recordSuppressed(addedScore, now);
+            }
+        }
+
+        applyVirtueAdjustments(contribution.virtueWeights(), addedScore, now, rules.spreeSettings(), rules.thresholds());
+
         lastDeedTick = now;
         lastContextTick = now;
         lastContextFingerprint = fingerprint;
-
         lastDecayTick = now;
-        ThresholdEvaluation evaluation = evaluateThreshold(rules.thresholds(), now);
+        score = aggregateScore();
+        dominantVice = findDominantVice();
+
+        Map<Identifier, Float> virtueSnapshot = snapshotVirtues();
+
+        ThresholdEvaluation evaluation = gateFailures.isEmpty()
+            ? evaluateThreshold(rules.thresholds(), now)
+            : ThresholdEvaluation.suppressedResult(dominantVice, String.join(", ", gateFailures));
         DisharmonyEvaluation disharmonyEvaluation = updateDisharmony(rules, evaluation, now);
         persistState();
-        return TriggerOutcome.of(evaluation, disharmonyEvaluation);
+        return TriggerOutcome.of(evaluation, disharmonyEvaluation, virtueSnapshot);
     }
 
-    private void decayScore(long now, MalevolenceRules.Thresholds thresholds) {
-        if (score <= 0f || lastDeedTick == Long.MIN_VALUE) {
-            return;
-        }
-        float halfLife = Math.max(1f, thresholds.decayHalfLifeTicks());
+    private void decayAspects(long now, MalevolenceRules.Thresholds thresholds) {
         long referenceTick = lastDecayTick != Long.MIN_VALUE ? lastDecayTick : lastDeedTick;
         long elapsed = Math.max(0L, now - referenceTick);
-        if (elapsed == 0L) {
+        if (elapsed <= 0L) {
             return;
         }
-        double decayFactor = Math.pow(0.5d, elapsed / halfLife);
-        score *= (float) decayFactor;
-        if (score < 0.05f) {
-            score = 0f;
+        double defaultRetentionLn = thresholds.defaultRetentionLnPerTick();
+        float defaultPassiveDriftPerTick = thresholds.defaultPassiveDriftPerTick();
+        float defaultPersistence = thresholds.defaultPersistencePerDay();
+        float defaultPassiveDriftPerDay = thresholds.defaultPassiveDriftPerDay();
+        float elapsedDays = elapsed / MoralityAspectDefinition.TICKS_PER_DAY;
+        for (Map.Entry<Identifier, MoralityAspectState> entry : viceStates.entrySet()) {
+            Identifier id = entry.getKey();
+            MoralityAspectState state = entry.getValue();
+            MoralityAspectDefinition def = MoralityAspectRegistry.get(id);
+            float baseline = def != null ? def.baseline() : 0f;
+            double retentionLn = def != null ? def.retentionLnPerTick() : defaultRetentionLn;
+            float passiveDriftPerTick = def != null ? def.passiveDriftPerTick() : defaultPassiveDriftPerTick;
+            state.stabilize(baseline, retentionLn, passiveDriftPerTick, now);
+            float persistence = def != null ? def.persistencePerDay() : defaultPersistence;
+            float passiveDriftPerDay = def != null ? def.passiveDriftPerDay() : defaultPassiveDriftPerDay;
+            float bleedPerDay = 0.1f + (1f - MathHelper.clamp(persistence, 0f, 1f)) * 0.4f + passiveDriftPerDay * 0.6f;
+            float bleed = Math.max(0f, bleedPerDay * elapsedDays);
+            state.bleedSuppression(now, bleed);
         }
+        for (Map.Entry<Identifier, MoralityAspectState> entry : virtueStates.entrySet()) {
+            Identifier id = entry.getKey();
+            MoralityAspectState state = entry.getValue();
+            MoralityAspectDefinition def = MoralityAspectRegistry.get(id);
+            float baseline = def != null ? def.baseline() : 0.5f;
+            double retentionLn = def != null ? def.retentionLnPerTick() : defaultRetentionLn;
+            float passiveDriftPerTick = def != null ? def.passiveDriftPerTick() : defaultPassiveDriftPerTick;
+            state.stabilize(baseline, retentionLn, passiveDriftPerTick, now);
+        }
+        if (persona != null) {
+            persona.relax(now, defaultRetentionLn);
+            lastPersonaDecayTick = now;
+        }
+        score = aggregateScore();
+        dominantVice = findDominantVice();
         lastDecayTick = now;
     }
 
@@ -247,27 +334,145 @@ public final class MalevolenceLedger {
         spreeAnchorTick = snapshot.anchor();
     }
 
+    private void applyViceAdjustments(Map<Identifier, Float> viceWeights,
+                                      float severity,
+                                      long now,
+                                      MalevolenceRules.SpreeSettings spreeSettings,
+                                      MalevolenceRules.Thresholds thresholds) {
+        if (viceWeights.isEmpty()) {
+            return;
+        }
+        long spreeWindow = spreeSettings != null ? spreeSettings.windowTicks() : DEFAULT_SPREE_WINDOW;
+        float fallbackImpressionability = thresholds.defaultImpressionability();
+        for (Map.Entry<Identifier, Float> entry : viceWeights.entrySet()) {
+            Identifier id = entry.getKey();
+            float weight = entry.getValue();
+            if (!Float.isFinite(weight) || weight == 0f) {
+                continue;
+            }
+            MoralityAspectState state = ensureViceState(id);
+            MoralityAspectDefinition definition = MoralityAspectRegistry.get(id);
+            float impressionability = definition != null
+                ? definition.impressionability()
+                : fallbackImpressionability;
+            float delta = severity * weight * impressionability;
+            float adjusted = delta;
+            if (delta > 0f && persona != null) {
+                adjusted = persona.adjustViceDelta(id, delta, state);
+            }
+            state.applyDelta(adjusted, now, spreeWindow);
+            if (persona != null && adjusted > 0f) {
+                persona.recordViceExperience(adjusted, now);
+            }
+            applySynergy(id, adjusted, now, spreeWindow, thresholds);
+        }
+        score = aggregateScore();
+        dominantVice = findDominantVice();
+    }
+
+    private void applyVirtueAdjustments(Map<Identifier, Float> virtueWeights,
+                                        float severity,
+                                        long now,
+                                        MalevolenceRules.SpreeSettings spreeSettings,
+                                        MalevolenceRules.Thresholds thresholds) {
+        if (virtueWeights.isEmpty()) {
+            return;
+        }
+        long spreeWindow = spreeSettings != null ? spreeSettings.windowTicks() : DEFAULT_SPREE_WINDOW;
+        float fallbackImpressionability = thresholds.defaultImpressionability();
+        for (Map.Entry<Identifier, Float> entry : virtueWeights.entrySet()) {
+            Identifier id = entry.getKey();
+            float weight = entry.getValue();
+            if (!Float.isFinite(weight) || weight == 0f) {
+                continue;
+            }
+            MoralityAspectState state = ensureVirtueState(id);
+            MoralityAspectDefinition definition = MoralityAspectRegistry.get(id);
+            float impressionability = definition != null
+                ? definition.impressionability()
+                : fallbackImpressionability;
+            float delta = severity * weight * impressionability;
+            float adjusted = persona != null ? persona.adjustVirtueDelta(delta) : delta;
+            state.applyDelta(adjusted, now, spreeWindow);
+            if (persona != null) {
+                if (adjusted > 0f) {
+                    persona.recordVirtueExperience(adjusted, now);
+                } else if (adjusted < 0f) {
+                    persona.recordViceExperience(Math.abs(adjusted) * 0.5f, now);
+                }
+            }
+        }
+    }
+
+    private void applySynergy(Identifier sourceId,
+                              float delta,
+                              long now,
+                              long spreeWindow,
+                              MalevolenceRules.Thresholds thresholds) {
+        MoralityAspectDefinition definition = MoralityAspectRegistry.get(sourceId);
+        if (definition == null || definition.synergy().isEmpty() || delta == 0f) {
+            return;
+        }
+        float fallbackImpressionability = thresholds.defaultImpressionability();
+        for (Map.Entry<Identifier, Float> entry : definition.synergy().entrySet()) {
+            Identifier targetId = entry.getKey();
+            float factor = entry.getValue();
+            if (!Float.isFinite(factor) || factor == 0f) {
+                continue;
+            }
+            MoralityAspectDefinition targetDefinition = MoralityAspectRegistry.get(targetId);
+            float impressionability = targetDefinition != null
+                ? targetDefinition.impressionability()
+                : fallbackImpressionability;
+            float contribution = delta * factor * impressionability;
+            if (MoralityAspectRegistry.isVice(targetId)) {
+                MoralityAspectState state = ensureViceState(targetId);
+                float adjusted = contribution;
+                if (contribution > 0f && persona != null) {
+                    adjusted = persona.adjustViceDelta(targetId, contribution, state);
+                }
+                state.applyDelta(adjusted, now, spreeWindow);
+                if (persona != null && adjusted > 0f) {
+                    persona.recordViceExperience(adjusted * 0.5f, now);
+                }
+            } else {
+                MoralityAspectState state = ensureVirtueState(targetId);
+                float adjusted = persona != null ? persona.adjustVirtueDelta(contribution) : contribution;
+                state.applyDelta(adjusted, now, spreeWindow);
+                if (persona != null && adjusted > 0f) {
+                    persona.recordVirtueExperience(adjusted * 0.5f, now);
+                }
+            }
+        }
+    }
+
     private ThresholdEvaluation evaluateThreshold(MalevolenceRules.Thresholds thresholds, long now) {
+        score = aggregateScore();
+        Identifier viceId = dominantVice;
         boolean cooledDown = lastTriggerTick == Long.MIN_VALUE || now - lastTriggerTick >= thresholds.cooldownTicks();
         if (score >= thresholds.triggerScore() && cooledDown) {
             float intensity = thresholds.intensityForScore(score);
             lastTriggerTick = now;
             active = true;
-            return ThresholdEvaluation.triggeredResult(intensity);
+            return ThresholdEvaluation.triggeredResult(intensity, viceId);
         }
         boolean clearable = active && score <= thresholds.remissionScore();
         if (clearable) {
             active = false;
-            score = Math.max(0f, score);
-            return ThresholdEvaluation.clearedResult();
+            return ThresholdEvaluation.clearedResult(viceId);
         }
-        return ThresholdEvaluation.none();
+        return ThresholdEvaluation.none(viceId);
     }
+
 
     private DisharmonyEvaluation updateDisharmony(MalevolenceRules rules,
                                                   ThresholdEvaluation evaluation, long now) {
         MalevolenceRules.DisharmonySettings settings = rules.disharmonySettings();
         float previous = disharmonyStrength;
+        if (evaluation.suppressed()) {
+            applyHarmony(now);
+            return new DisharmonyEvaluation(previous, disharmonyStrength, false, evaluation.viceId());
+        }
         if (evaluation.triggered()) {
             float candidate = settings.resolveStrength(evaluation.intensity());
             disharmonyStrength = Math.max(disharmonyStrength, candidate);
@@ -280,7 +485,7 @@ public final class MalevolenceLedger {
             }
         }
         applyHarmony(now);
-        return new DisharmonyEvaluation(previous, disharmonyStrength, evaluation.cleared());
+        return new DisharmonyEvaluation(previous, disharmonyStrength, evaluation.cleared(), evaluation.viceId());
     }
 
     private void maybeClear(MalevolenceRules rules, long now, boolean decayFirst) {
@@ -289,8 +494,10 @@ public final class MalevolenceLedger {
         }
         MalevolenceRules.Thresholds thresholds = rules.thresholds();
         if (decayFirst) {
-            decayScore(now, thresholds);
+            decayAspects(now, thresholds);
         }
+        score = aggregateScore();
+        dominantVice = findDominantVice();
         if (score <= thresholds.remissionScore()) {
             active = false;
             disharmonyStrength = 0f;
@@ -328,7 +535,7 @@ public final class MalevolenceLedger {
         boolean wasActive = active;
         long previousDecayTick = lastDecayTick;
 
-        decayScore(effectiveNow, rules.thresholds());
+        decayAspects(effectiveNow, rules.thresholds());
         refreshSpreeWindow(effectiveNow, rules.spreeSettings());
 
         UUID ownerUuid = parent.getOwnerUuid();
@@ -550,6 +757,213 @@ public final class MalevolenceLedger {
         }
     }
 
+    private static List<?> castList(Object value) {
+        if (value instanceof List<?> list) {
+            return list;
+        }
+        return null;
+    }
+
+    private void decodeAspectStates(@Nullable List<?> encoded, Map<Identifier, MoralityAspectState> into) {
+        if (encoded == null) {
+            return;
+        }
+        for (Object element : encoded) {
+            if (!(element instanceof List<?> tuple) || tuple.isEmpty()) {
+                continue;
+            }
+            Identifier id = identifierAt(tuple, 0);
+            if (id == null) {
+                continue;
+            }
+            MoralityAspectState state = new MoralityAspectState();
+            state.setValue(floatAt(tuple, 1, 0f));
+            state.setSpree(intAt(tuple, 2, 0), longAt(tuple, 3, Long.MIN_VALUE));
+            long lastTick = longAt(tuple, 4, Long.MIN_VALUE);
+            if (lastTick != Long.MIN_VALUE) {
+                state.applyDelta(0f, lastTick, 0L);
+            }
+            state.setSuppression(floatAt(tuple, 5, 0f), longAt(tuple, 6, Long.MIN_VALUE));
+            into.put(id, state);
+        }
+    }
+
+    private List<Object> encodeAspectStates(Map<Identifier, MoralityAspectState> source) {
+        List<Object> encoded = new ArrayList<>(source.size());
+        source.forEach((id, state) -> {
+            List<Object> tuple = new ArrayList<>(7);
+            tuple.add(id.toString());
+            tuple.add(state.value());
+            tuple.add(state.spreeCount());
+            tuple.add(state.spreeAnchorTick());
+            tuple.add(state.lastUpdatedTick());
+            tuple.add(state.suppressedCharge());
+            tuple.add(state.lastSuppressedTick());
+            encoded.add(tuple);
+        });
+        return encoded;
+    }
+
+    private MoralityPersona decodePersona(@Nullable List<?> encoded) {
+        if (encoded == null || encoded.size() < 3) {
+            return null;
+        }
+        float susceptibility = floatAt(encoded, 0, 1f);
+        float resilience = floatAt(encoded, 1, 1f);
+        float trauma = floatAt(encoded, 2, 0f);
+        return new MoralityPersona(susceptibility, resilience, trauma);
+    }
+
+    private List<Object> encodePersona(MoralityPersona persona) {
+        if (persona == null) {
+            return List.of();
+        }
+        return List.of(persona.viceSusceptibility(), persona.virtueResilience(), persona.traumaImprint());
+    }
+
+    private MoralityAspectState ensureViceState(Identifier id) {
+        return viceStates.computeIfAbsent(id, key -> {
+            MoralityAspectState state = new MoralityAspectState();
+            MoralityAspectDefinition def = MoralityAspectRegistry.get(key);
+            state.setValue(def != null ? def.baseline() : 0f);
+            return state;
+        });
+    }
+
+    private MoralityAspectState ensureVirtueState(Identifier id) {
+        return virtueStates.computeIfAbsent(id, key -> {
+            MoralityAspectState state = new MoralityAspectState();
+            MoralityAspectDefinition def = MoralityAspectRegistry.get(key);
+            state.setValue(def != null ? def.baseline() : 0.5f);
+            return state;
+        });
+    }
+
+    private void ensureBaselineStates() {
+        for (MoralityAspectDefinition definition : MoralityAspectRegistry.all()) {
+            Map<Identifier, MoralityAspectState> target = definition.isVice() ? viceStates : virtueStates;
+            target.computeIfAbsent(definition.id(), id -> {
+                MoralityAspectState state = new MoralityAspectState();
+                state.setValue(definition.baseline());
+                return state;
+            });
+        }
+    }
+
+    private float aggregateScore() {
+        float total = 0f;
+        for (MoralityAspectState state : viceStates.values()) {
+            total += Math.max(0f, state.value());
+        }
+        return total;
+    }
+
+    @Nullable
+    private Identifier findDominantVice() {
+        Identifier best = null;
+        float value = 0f;
+        for (Map.Entry<Identifier, MoralityAspectState> entry : viceStates.entrySet()) {
+            float current = entry.getValue().value();
+            if (current > value + 0.0001f) {
+                value = current;
+                best = entry.getKey();
+            }
+        }
+        return best;
+    }
+
+    private float getVirtueLevel(Identifier id) {
+        MoralityAspectState state = virtueStates.get(id);
+        if (state != null) {
+            return state.value();
+        }
+        MoralityAspectDefinition def = MoralityAspectRegistry.get(id);
+        return def != null ? def.baseline() : 0.5f;
+    }
+
+    private Map<Identifier, Float> snapshotVirtues() {
+        Map<Identifier, Float> snapshot = new LinkedHashMap<>();
+        virtueStates.forEach((id, state) -> snapshot.put(id, state.value()));
+        return snapshot;
+    }
+
+    private long resolvePersonaSeed() {
+        if (parent.getPetEntity() != null) {
+            UUID uuid = parent.getPetEntity().getUuid();
+            return uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits();
+        }
+        UUID owner = parent.getOwnerUuid();
+        if (owner != null) {
+            return owner.getMostSignificantBits() ^ owner.getLeastSignificantBits();
+        }
+        return parent.hashCode();
+    }
+
+    private static Identifier identifierAt(List<?> tuple, int index) {
+        if (tuple.size() <= index) {
+            return null;
+        }
+        Object value = tuple.get(index);
+        if (value instanceof Identifier identifier) {
+            return identifier;
+        }
+        if (value instanceof String string) {
+            return Identifier.tryParse(string);
+        }
+        return null;
+    }
+
+    private static float floatAt(List<?> tuple, int index, float defaultValue) {
+        if (tuple.size() <= index) {
+            return defaultValue;
+        }
+        Object value = tuple.get(index);
+        if (value instanceof Number number) {
+            return number.floatValue();
+        }
+        if (value instanceof String string) {
+            try {
+                return Float.parseFloat(string);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return defaultValue;
+    }
+
+    private static int intAt(List<?> tuple, int index, int defaultValue) {
+        if (tuple.size() <= index) {
+            return defaultValue;
+        }
+        Object value = tuple.get(index);
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String string) {
+            try {
+                return Integer.parseInt(string);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return defaultValue;
+    }
+
+    private static long longAt(List<?> tuple, int index, long defaultValue) {
+        if (tuple.size() <= index) {
+            return defaultValue;
+        }
+        Object value = tuple.get(index);
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value instanceof String string) {
+            try {
+                return Long.parseLong(string);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return defaultValue;
+    }
+
     private void persistState() {
         parent.setStateData(PetComponent.StateKeys.MALEVOLENCE_SCORE, score);
         parent.setStateData(PetComponent.StateKeys.MALEVOLENCE_LAST_DEED_TICK, lastDeedTick);
@@ -559,51 +973,60 @@ public final class MalevolenceLedger {
         parent.setStateData(PetComponent.StateKeys.MALEVOLENCE_SPREE_ANCHOR_TICK, spreeAnchorTick);
         parent.setStateData(PetComponent.StateKeys.MALEVOLENCE_DISHARMONY, disharmonyStrength);
         parent.setStateData(PetComponent.StateKeys.MALEVOLENCE_ACTIVE, active);
+        parent.setStateData(PetComponent.StateKeys.MALEVOLENCE_VICE_STATE, encodeAspectStates(viceStates));
+        parent.setStateData(PetComponent.StateKeys.MALEVOLENCE_VIRTUE_STATE, encodeAspectStates(virtueStates));
+        parent.setStateData(PetComponent.StateKeys.MALEVOLENCE_PERSONA, encodePersona(persona));
     }
 
-    public record TriggerOutcome(boolean triggered, float intensity, boolean cleared, float disharmonyStrength) {
-        private static final TriggerOutcome NONE = new TriggerOutcome(false, 0f, false, 0f);
+    public record TriggerOutcome(boolean triggered, float intensity, boolean cleared, boolean suppressed,
+                                     float disharmonyStrength, @Nullable Identifier dominantVice,
+                                     Map<Identifier, Float> virtueLevels, @Nullable String reason) {
+        private static final TriggerOutcome NONE = new TriggerOutcome(false, 0f, false, false, 0f, null, Map.of(), null);
 
         public static TriggerOutcome none() {
             return NONE;
         }
 
-        public static TriggerOutcome triggeredOutcome(float intensity, float disharmonyStrength) {
-            return new TriggerOutcome(true, intensity, false, disharmonyStrength);
-        }
-
-        public static TriggerOutcome clearedOutcome() {
-            return new TriggerOutcome(false, 0f, true, 0f);
-        }
-
-        private static TriggerOutcome of(ThresholdEvaluation evaluation, DisharmonyEvaluation disharmony) {
+        private static TriggerOutcome of(ThresholdEvaluation evaluation, DisharmonyEvaluation disharmony,
+                                         Map<Identifier, Float> virtueSnapshot) {
             if (evaluation.triggered()) {
-                return triggeredOutcome(evaluation.intensity(), disharmony.current());
+                return new TriggerOutcome(true, evaluation.intensity(), false, false, disharmony.current(),
+                    evaluation.viceId(), virtueSnapshot, evaluation.reason());
             }
             if (evaluation.cleared()) {
-                return clearedOutcome();
+                return new TriggerOutcome(false, 0f, true, false, disharmony.current(), evaluation.viceId(), virtueSnapshot,
+                    evaluation.reason());
+            }
+            if (evaluation.suppressed()) {
+                return new TriggerOutcome(false, 0f, false, true, disharmony.current(), evaluation.viceId(), virtueSnapshot,
+                    evaluation.reason());
             }
             return none();
         }
     }
 
-    private record ThresholdEvaluation(boolean triggered, float intensity, boolean cleared) {
-        private static final ThresholdEvaluation NONE = new ThresholdEvaluation(false, 0f, false);
+    private record ThresholdEvaluation(boolean triggered, float intensity, boolean cleared, boolean suppressed,
+                                       @Nullable Identifier viceId, @Nullable String reason) {
+        private static final ThresholdEvaluation NONE = new ThresholdEvaluation(false, 0f, false, false, null, null);
 
-        static ThresholdEvaluation triggeredResult(float intensity) {
-            return new ThresholdEvaluation(true, intensity, false);
+        static ThresholdEvaluation triggeredResult(float intensity, @Nullable Identifier viceId) {
+            return new ThresholdEvaluation(true, intensity, false, false, viceId, null);
         }
 
-        static ThresholdEvaluation clearedResult() {
-            return new ThresholdEvaluation(false, 0f, true);
+        static ThresholdEvaluation clearedResult(@Nullable Identifier viceId) {
+            return new ThresholdEvaluation(false, 0f, true, false, viceId, null);
         }
 
-        static ThresholdEvaluation none() {
-            return NONE;
+        static ThresholdEvaluation suppressedResult(@Nullable Identifier viceId, @Nullable String reason) {
+            return new ThresholdEvaluation(false, 0f, false, true, viceId, reason);
+        }
+
+        static ThresholdEvaluation none(@Nullable Identifier viceId) {
+            return new ThresholdEvaluation(false, 0f, false, false, viceId, null);
         }
     }
 
-    private record DisharmonyEvaluation(float previous, float current, boolean cleared) {}
+    private record DisharmonyEvaluation(float previous, float current, boolean cleared, @Nullable Identifier viceId) {}
 
     private record SpreeSnapshot(int count, long anchor) {}
 
