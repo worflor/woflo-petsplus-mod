@@ -210,8 +210,6 @@ public final class MalevolenceLedger {
             return TriggerOutcome.none();
         }
 
-        applySpreeSnapshot(spreeSnapshot);
-
         MalevolenceRules.AspectContribution contribution = rules.aspectContribution(context.victimType(), tagEvaluation);
         Map<Identifier, Float> viceWeights = new LinkedHashMap<>(contribution.viceWeights());
         if (viceWeights.isEmpty()) {
@@ -231,6 +229,7 @@ public final class MalevolenceLedger {
         }
 
         if (gateFailures.isEmpty()) {
+            applySpreeSnapshot(spreeSnapshot);
             applyViceAdjustments(viceWeights, addedScore, now, rules.spreeSettings(), thresholds);
         } else {
             for (Map.Entry<Identifier, Float> entry : viceWeights.entrySet()) {

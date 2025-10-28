@@ -161,6 +161,63 @@ class MalevolenceLedgerVirtueViceTest {
     }
 
     @Test
+    void suppressedDeedDoesNotAdvanceGlobalSpree() throws Exception {
+        MalevolenceRules.TagRule crueltyRule = new MalevolenceRules.TagRule(
+            1.0f,
+            Map.of(),
+            0f,
+            0f,
+            Map.of(CRUELTY, 1.0f),
+            Map.of(COMPASSION, -0.45f),
+            Map.of(COMPASSION, new MalevolenceRules.RequirementRange(0f, 0.5f))
+        );
+
+        MalevolenceRules rules = new MalevolenceRules(
+            Map.of("cruelty", crueltyRule),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            MalevolenceRules.TelemetrySettings.EMPTY,
+            new MalevolenceRules.Thresholds(0.5f, 0.2f, 20L, 1.0f, 0f, 1.0f, 1.0f, 0.2f, 2.0f),
+            new MalevolenceRules.SpreeSettings(400L, 1.0f, 0.25f, 1.5f, 0.2f),
+            MalevolenceRules.DisharmonySettings.DEFAULT,
+            MalevolenceRules.ForgivenessSettings.DEFAULT,
+            Identifier.of("petsplus", "morality/test"),
+            true
+        );
+
+        MalevolenceRulesRegistry.reload(Map.of(Identifier.of("petsplus", "rules/cruelty_spree"), rules));
+
+        TestPetComponent pet = new TestPetComponent();
+        pet.setOwnerUuid(UUID.fromString("aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb"));
+        pet.setStateData(PetComponent.StateKeys.MALEVOLENCE_PERSONA, List.of(1.0f, 1.0f, 0.0f));
+
+        MalevolenceLedger ledger = pet.getMalevolenceLedger();
+        ledger.onStateDataRehydrated(0L);
+
+        MalevolenceLedger.DarkDeedContext context = new MalevolenceLedger.DarkDeedContext(
+            null,
+            null,
+            Set.<Identifier>of(),
+            Set.of("cruelty"),
+            null,
+            0f,
+            false,
+            RelationshipType.NEUTRAL
+        );
+
+        MalevolenceLedger.TriggerOutcome suppressed = ledger.recordDarkDeed(context, 20L);
+        assertTrue(suppressed.suppressed(), "Virtue requirement should block the first deed");
+        assertEquals(0, extractLedgerSpreeCount(ledger),
+            "Suppressed deed should not advance the ledger spree count");
+
+        MalevolenceLedger.TriggerOutcome breakthrough = ledger.recordDarkDeed(context, 40L);
+        assertFalse(breakthrough.suppressed(), "Collapsed virtue should let the vice score on the second deed");
+        assertEquals(1, extractLedgerSpreeCount(ledger),
+            "First actual vice contribution should advance the spree once");
+    }
+
+    @Test
     void suppressedChargeRespectsConfiguredWeights() throws Exception {
         MalevolenceRules.TagRule sharedRule = new MalevolenceRules.TagRule(
             1.0f,
@@ -285,6 +342,13 @@ class MalevolenceLedgerVirtueViceTest {
         Field field = MalevolenceLedger.class.getDeclaredField("viceStates");
         field.setAccessible(true);
         return (Map<Identifier, MoralityAspectState>) field.get(ledger);
+    }
+
+    private static int extractLedgerSpreeCount(MalevolenceLedger ledger)
+        throws NoSuchFieldException, IllegalAccessException {
+        Field field = MalevolenceLedger.class.getDeclaredField("spreeCount");
+        field.setAccessible(true);
+        return field.getInt(ledger);
     }
 
     @SuppressWarnings("unchecked")
