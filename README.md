@@ -5,8 +5,8 @@
 </p>
 
 <h1 align="center">woflo's Pets+</h1>
-<h3 align="center">dev-0.97-unique-version-name</h3>
-<h4 align="center">next: content thats mod related</h4>
+<h3 align="center">dev-0.97-virtues-and-vices</h3>
+<h4 align="center">next: bug fixing</h4>
 
 ---
 
@@ -25,7 +25,8 @@
   <li>Added 0.97 [nature] - Fenn and Falsei (tamed natures; making 5) exist now :]</li>
   <li>Added 0.97 [nature] - Abstract pets (bred nature) are formed in tight conformed spaces with absolutely no escape.</li>
   <li>Added 0.97 [mood] - New Ultra Rare Mood: Mining Reverie. Getting lost in the mining sauce.</li>
-  <li>Added 0.97 [mood] - New Ultra Rare Mood: Malevolent Eclipse. A buildup of evil. with an accompanying "malevolence" emotion.</li>
+  <li>Added 0.97 [mood] - New Ultra Rare Mood: Malevolent Eclipse. A buildup of evil.</li>
+  <li>Added 0.97 [system] - Virtue and Vices. evil is more complicated than random malicious actions. they need intent, time, and a breaching of virtues.</li>
 </ul>
 
 ---
