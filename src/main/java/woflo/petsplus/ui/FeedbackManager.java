@@ -21,7 +21,9 @@ import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.events.TributeHandler;
 
+import java.util.Map;
 import java.util.Objects;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,13 +46,52 @@ public class FeedbackManager {
     private static final Set<ScheduledFuture<?>> PENDING_TASKS = ConcurrentHashMap.newKeySet();
     private static final AtomicBoolean IS_SHUTTING_DOWN = new AtomicBoolean(false);
     private static final Object EXECUTOR_LOCK = new Object();
+    private static final Map<String, GroundTrailDefinition> GROUND_TRAILS_BY_STATE = new ConcurrentHashMap<>();
+    private static final Map<String, GroundTrailDefinition> GROUND_TRAILS_BY_EVENT = new ConcurrentHashMap<>();
+    private static final long DEFAULT_GROUND_TRAIL_INTERVAL = 6L;
+    private static final GroundTrailDefinition LOCH_TRAIL_DEFINITION = new GroundTrailDefinition(
+        "loch_n_load_tag",
+        "friend_loch_trail",
+        "trail_loch_next_tick",
+        6L,
+        40L
+    );
     // Define handler first to avoid any static-init ordering surprises
     private static final Thread.UncaughtExceptionHandler FEEDBACK_EXCEPTION_HANDLER = (thread, throwable) ->
         Petsplus.LOGGER.error("Uncaught exception in feedback executor thread {}", thread.getName(), throwable);
     private static ScheduledThreadPoolExecutor feedbackExecutor = null; // initialized lazily
 
+    private static final class DebounceKey {
+        private final Object source;
+        private final String eventName;
+        private final int hash;
+
+        private DebounceKey(Object source, String eventName) {
+            this.source = Objects.requireNonNull(source, "source");
+            this.eventName = eventName == null ? "" : eventName;
+            this.hash = Objects.hash(this.source, this.eventName);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (!(obj instanceof DebounceKey other)) {
+                return false;
+            }
+            return Objects.equals(this.source, other.source) && this.eventName.equals(other.eventName);
+        }
+
+        @Override
+        public int hashCode() {
+            return this.hash;
+        }
+    }
+
     // Static initialization block with shutdown hook registration
     static {
+        registerGroundTrail(LOCH_TRAIL_DEFINITION);
         try {
             // Avoid preview Thread Builders to prevent NPEs during class init on server thread
             Thread shutdown = new Thread(FeedbackManager::cleanup, "PetsPlus-FeedbackShutdownHook");
@@ -108,13 +149,15 @@ public class FeedbackManager {
         var effect = FeedbackConfig.getFeedback(eventName);
         if (effect == null) return;
 
-        // Per-source debounce using entity UUID if available; else use position+dimension key (debounce)
-        Object key;
+        // Per-source debounce scoped by event so independent feedback can coexist (debounce)
+        String normalizedEvent = eventName == null ? "" : eventName;
+        Object sourceToken;
         if (sourceEntity != null) {
-            key = sourceEntity.getUuid();
+            sourceToken = sourceEntity.getUuid();
         } else {
-            key = world.getRegistryKey().getValue().toString() + "@" + MathHelper.floor(position.x) + "," + MathHelper.floor(position.y) + "," + MathHelper.floor(position.z);
+            sourceToken = world.getRegistryKey().getValue().toString() + "@" + MathHelper.floor(position.x) + "," + MathHelper.floor(position.y) + "," + MathHelper.floor(position.z);
         }
+        DebounceKey key = new DebounceKey(sourceToken, normalizedEvent);
         long now = world.getTime();
         long last = LAST_EMIT_TICK.getOrDefault(key, Long.MIN_VALUE);
         if (now - last < 4L) {
@@ -123,20 +166,20 @@ public class FeedbackManager {
         LAST_EMIT_TICK.put(key, now);
 
         if (effect.delayTicks() > 0) {
-            scheduleDelayedFeedback(effect, position, world, sourceEntity);
+            scheduleDelayedFeedback(eventName, effect, position, world, sourceEntity);
         } else {
-            runImmediateFeedback(effect, position, world, sourceEntity);
+            runImmediateFeedback(eventName, effect, position, world, sourceEntity);
         }
     }
 
-    private static void runImmediateFeedback(FeedbackConfig.FeedbackEffect effect, Vec3d position,
+    private static void runImmediateFeedback(String eventName, FeedbackConfig.FeedbackEffect effect, Vec3d position,
                                              ServerWorld world, Entity sourceEntity) {
         if (effect == null || world == null || world.isClient() || position == null) return;
         MinecraftServer server = world.getServer();
         if (server == null) {
             return;
         }
-        FeedbackInvocation invocation = FeedbackInvocation.from(effect, position, world, sourceEntity);
+        FeedbackInvocation invocation = FeedbackInvocation.from(eventName, effect, position, world, sourceEntity);
         if (!server.isOnThread()) {
             server.execute(() -> invocation.dispatch(server));
             return;
@@ -144,7 +187,7 @@ public class FeedbackManager {
         invocation.dispatch(server);
     }
 
-    private static void scheduleDelayedFeedback(FeedbackConfig.FeedbackEffect effect, Vec3d position,
+    private static void scheduleDelayedFeedback(String eventName, FeedbackConfig.FeedbackEffect effect, Vec3d position,
                                                 ServerWorld world, Entity sourceEntity) {
         if (effect == null || position == null || world == null || world.isClient()) return;
         MinecraftServer server = world.getServer();
@@ -152,7 +195,7 @@ public class FeedbackManager {
             return;
         }
 
-        FeedbackInvocation invocation = FeedbackInvocation.from(effect, position, world, sourceEntity);
+        FeedbackInvocation invocation = FeedbackInvocation.from(eventName, effect, position, world, sourceEntity);
         long delayTicks = Math.max(1, effect.delayTicks());
 
         ScheduledThreadPoolExecutor executor = ensureExecutor();
@@ -182,6 +225,102 @@ public class FeedbackManager {
             // Handle executor shutdown case gracefully
             // Avoid noisy stderr; rely on server log if needed
         }
+    }
+
+    /**
+     * Register or replace a ground trail definition tied to a component state key.
+     */
+    public static void registerGroundTrail(GroundTrailDefinition definition) {
+        if (definition == null) {
+            return;
+        }
+
+        GROUND_TRAILS_BY_STATE.put(definition.stateKey(), definition);
+        GROUND_TRAILS_BY_EVENT.put(definition.eventName(), definition);
+    }
+
+    /**
+     * Remove a previously registered ground trail definition.
+     */
+    public static boolean unregisterGroundTrail(String stateKey) {
+        if (stateKey == null || stateKey.isBlank()) {
+            return false;
+        }
+
+        GroundTrailDefinition removed = GROUND_TRAILS_BY_STATE.remove(stateKey);
+        if (removed == null) {
+            return false;
+        }
+
+        GROUND_TRAILS_BY_EVENT.remove(removed.eventName());
+        return true;
+    }
+
+    static GroundTrailDefinition getGroundTrailByState(String stateKey) {
+        if (stateKey == null || stateKey.isBlank()) {
+            return null;
+        }
+        return GROUND_TRAILS_BY_STATE.get(stateKey);
+    }
+
+    static GroundTrailDefinition getGroundTrailByEvent(String eventName) {
+        if (eventName == null || eventName.isBlank()) {
+            return null;
+        }
+        return GROUND_TRAILS_BY_EVENT.get(eventName);
+    }
+
+    /**
+     * Emit any registered ground trails driven by component state flags.
+     */
+    public static boolean emitGroundTrails(MobEntity pet, PetComponent component, ServerWorld world, long currentTick) {
+        if (pet == null || component == null || world == null || world.isClient()) {
+            return false;
+        }
+        if (!pet.isAlive() || pet.isRemoved()) {
+            for (GroundTrailDefinition definition : GROUND_TRAILS_BY_STATE.values()) {
+                component.clearStateData(definition.nextTickStateKey());
+            }
+            return false;
+        }
+
+        boolean emitted = false;
+        long timeline = Math.max(world.getTime(), currentTick);
+        for (GroundTrailDefinition definition : GROUND_TRAILS_BY_STATE.values()) {
+            if (!prepareTrailEmission(component, definition, timeline)) {
+                continue;
+            }
+            emitFeedback(definition.eventName(), pet, world);
+            emitted = true;
+        }
+        return emitted;
+    }
+
+    static boolean prepareTrailEmission(PetComponent component, GroundTrailDefinition definition, long timeline) {
+        if (component == null || definition == null) {
+            return false;
+        }
+
+        boolean hasTag = Boolean.TRUE.equals(
+            component.getStateData(definition.stateKey(), Boolean.class, Boolean.FALSE)
+        );
+        if (!hasTag) {
+            component.clearStateData(definition.nextTickStateKey());
+            return false;
+        }
+
+        long lastAttack = component.getLastAttackTick();
+        if (timeline - lastAttack < definition.combatCooldownTicks()) {
+            return false;
+        }
+
+        long nextAllowed = component.getStateData(definition.nextTickStateKey(), Long.class, 0L);
+        if (nextAllowed > timeline) {
+            return false;
+        }
+
+        component.setStateData(definition.nextTickStateKey(), timeline + definition.intervalTicks());
+        return true;
     }
 
     /**
@@ -248,7 +387,7 @@ public class FeedbackManager {
         return pet.isAlive() && !pet.isRemoved();
     }
 
-    private static void executeImmediateFeedback(FeedbackConfig.FeedbackEffect effect, Vec3d position,
+    private static void executeImmediateFeedback(String eventName, FeedbackConfig.FeedbackEffect effect, Vec3d position,
                                                ServerWorld world, Entity sourceEntity) {
         if (effect == null || world == null || world.isClient() || position == null) return;
         // Emit particles with per-call total budget clamp (budget)
@@ -279,7 +418,7 @@ public class FeedbackManager {
                 int capped = Math.min(scaled, remaining);
                 if (capped <= 0) continue;
                 // Emit using override count without constructing new ParticleConfig
-                emitParticlePatternWithCount(particleConfig, capped, position, world, sourceEntity);
+                emitParticlePatternWithCount(particleConfig, capped, position, world, sourceEntity, eventName);
                 spent += capped;
             }
         }
@@ -294,7 +433,8 @@ public class FeedbackManager {
 
     // Internal helper to emit a pattern using an override count without modifying config (budget)
     private static void emitParticlePatternWithCount(FeedbackConfig.ParticleConfig config, int overrideCount,
-                                                    Vec3d position, ServerWorld world, Entity sourceEntity) {
+                                                    Vec3d position, ServerWorld world, Entity sourceEntity,
+                                                    @Nullable String eventName) {
         if (config == null || world == null || world.isClient() || position == null) return;
         double entitySizeMultiplier = 1.0;
         if (config.adaptToEntitySize() && sourceEntity != null) {
@@ -413,6 +553,7 @@ public class FeedbackManager {
             case "orbital_single" -> emitOrbitalSingle(config, position, world, sourceEntity);
             case "orbital_dual" -> emitOrbitalDual(config, position, world, sourceEntity);
             case "orbital_triple" -> emitOrbitalTriple(config, position, world, sourceEntity);
+            case "ground_trail" -> emitGroundTrailPattern(config, position, world, sourceEntity, overrideCount, eventName);
             default -> {
                 // fallback to burst
                 world.spawnParticles(config.type(), position.x, position.y + config.offsetY(), position.z,
@@ -422,7 +563,7 @@ public class FeedbackManager {
     }
 
     private static void emitParticlePattern(FeedbackConfig.ParticleConfig config, Vec3d position,
-                                          ServerWorld world, Entity sourceEntity) {
+                                          ServerWorld world, Entity sourceEntity, @Nullable String eventName) {
         if (config == null || world == null || world.isClient() || position == null) return;
         double entitySizeMultiplier = 1.0;
         if (config.adaptToEntitySize() && sourceEntity != null) {
@@ -446,6 +587,7 @@ public class FeedbackManager {
             case "orbital_single" -> emitOrbitalSingle(config, position, world, sourceEntity);
             case "orbital_dual" -> emitOrbitalDual(config, position, world, sourceEntity);
             case "orbital_triple" -> emitOrbitalTriple(config, position, world, sourceEntity);
+            case "ground_trail" -> emitGroundTrailPattern(config, position, world, sourceEntity, config.count(), eventName);
             default -> emitBurstPattern(config, position, world);
         }
     }
@@ -504,6 +646,72 @@ public class FeedbackManager {
             world.spawnParticles(config.type(),
                                pos.x + offsetX, pos.y - 0.2, pos.z + offsetZ,
                                1, config.offsetX(), 0.0, config.offsetZ(), config.speed());
+        }
+    }
+
+    private static void emitGroundTrailPattern(FeedbackConfig.ParticleConfig config, Vec3d pos, ServerWorld world,
+                                               @Nullable Entity sourceEntity, int count,
+                                               @Nullable String eventName) {
+        if (config == null || world == null || world.isClient() || sourceEntity == null || count <= 0) {
+            return;
+        }
+
+        Vec3d velocity = sourceEntity.getVelocity();
+        Vec3d forward = new Vec3d(velocity.x, 0.0, velocity.z);
+        if (forward.lengthSquared() < 1.0E-4) {
+            float yaw = sourceEntity.getYaw();
+            double yawRadians = yaw * MathHelper.RADIANS_PER_DEGREE;
+            forward = new Vec3d(-MathHelper.sin((float) yawRadians), 0.0, MathHelper.cos((float) yawRadians));
+        }
+
+        if (forward.lengthSquared() < 1.0E-6) {
+            forward = new Vec3d(0.0, 0.0, 1.0);
+        } else {
+            forward = forward.normalize();
+        }
+
+        Vec3d right = new Vec3d(-forward.z, 0.0, forward.x);
+        if (right.lengthSquared() < 1.0E-6) {
+            right = new Vec3d(1.0, 0.0, 0.0);
+        } else {
+            right = right.normalize();
+        }
+
+        double radius = Math.max(0.25, config.radius());
+        Vec3d basePos = new Vec3d(pos.x, pos.y + config.offsetY(), pos.z);
+
+        GroundTrailDefinition definition = getGroundTrailByEvent(eventName);
+        long interval = definition != null ? definition.intervalTicks() : DEFAULT_GROUND_TRAIL_INTERVAL;
+        long timeSlice = Math.max(0L, world.getTime()) / Math.max(1L, interval);
+        long seed = timeSlice ^ 0x9E3779B97F4A7C15L;
+        UUID uuid = sourceEntity.getUuid();
+        if (uuid != null) {
+            seed ^= uuid.getMostSignificantBits();
+            seed ^= uuid.getLeastSignificantBits();
+        }
+        Random random = new Random(seed);
+
+        double lateralScale = Math.max(0.2, radius * 0.45);
+        double spreadBase = Math.max(0.01, (config.offsetX() + config.offsetZ()) * 0.25);
+
+        for (int i = 0; i < count; i++) {
+            double progress = (i + 1.0) / (double) (count + 1);
+            double backFactor = 0.3 + progress * 0.7 + random.nextDouble() * 0.2;
+            Vec3d backOffset = forward.multiply(-backFactor * radius);
+
+            double lateral = (random.nextDouble() - 0.5) * lateralScale * 2.0;
+            Vec3d sideOffset = right.multiply(lateral);
+
+            double verticalOffset = -0.05 + random.nextDouble() * 0.08;
+            Vec3d spawnPos = basePos.add(backOffset).add(sideOffset).add(0.0, verticalOffset, 0.0);
+
+            double horizontalSpread = spreadBase * (0.6 + random.nextDouble() * 0.6);
+            double verticalSpread = 0.003 + random.nextDouble() * 0.004;
+            double speed = Math.max(0.0005, config.speed());
+
+            world.spawnParticles(config.type(),
+                    spawnPos.x, spawnPos.y, spawnPos.z,
+                    1, horizontalSpread, verticalSpread, horizontalSpread, speed);
         }
     }
 
@@ -581,6 +789,22 @@ public class FeedbackManager {
 
             world.spawnParticles(config.type(), x, y, z,
                                1, config.offsetX(), config.offsetY(), config.offsetZ(), config.speed());
+        }
+    }
+
+    public record GroundTrailDefinition(String stateKey,
+                                        String eventName,
+                                        String nextTickStateKey,
+                                        long intervalTicks,
+                                        long combatCooldownTicks) {
+        public GroundTrailDefinition {
+            Objects.requireNonNull(stateKey, "stateKey");
+            Objects.requireNonNull(eventName, "eventName");
+            if (nextTickStateKey == null || nextTickStateKey.isBlank()) {
+                nextTickStateKey = "trail_" + stateKey + "_next_tick";
+            }
+            intervalTicks = Math.max(1L, intervalTicks);
+            combatCooldownTicks = Math.max(0L, combatCooldownTicks);
         }
     }
 
@@ -769,24 +993,28 @@ public class FeedbackManager {
         LAST_EMIT_TICK.clear();
     }
 
-    private record FeedbackInvocation(FeedbackConfig.FeedbackEffect effect,
+    private record FeedbackInvocation(String eventName,
+                                      FeedbackConfig.FeedbackEffect effect,
                                       Vec3d position,
                                       RegistryKey<World> worldKey,
                                       @Nullable UUID sourceUuid) {
 
         private FeedbackInvocation {
+            Objects.requireNonNull(eventName, "eventName");
             Objects.requireNonNull(effect, "effect");
             Objects.requireNonNull(position, "position");
             Objects.requireNonNull(worldKey, "worldKey");
         }
 
-        private static FeedbackInvocation from(FeedbackConfig.FeedbackEffect effect,
+        private static FeedbackInvocation from(String eventName,
+                                               FeedbackConfig.FeedbackEffect effect,
                                                Vec3d position,
                                                ServerWorld world,
                                                @Nullable Entity source) {
             Objects.requireNonNull(world, "world");
             UUID uuid = source != null ? source.getUuid() : null;
-            return new FeedbackInvocation(effect, position, world.getRegistryKey(), uuid);
+            return new FeedbackInvocation(eventName == null ? "" : eventName,
+                effect, position, world.getRegistryKey(), uuid);
         }
 
         private void dispatch(MinecraftServer server) {
@@ -798,7 +1026,7 @@ public class FeedbackManager {
                 return;
             }
             Entity sourceEntity = sourceUuid != null ? targetWorld.getEntity(sourceUuid) : null;
-            executeImmediateFeedback(effect, position, targetWorld, sourceEntity);
+            executeImmediateFeedback(eventName, effect, position, targetWorld, sourceEntity);
         }
     }
 }
