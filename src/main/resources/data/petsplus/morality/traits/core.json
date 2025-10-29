@@ -1,0 +1,74 @@
+{
+  "replace": true,
+  "aspects": [
+    {
+      "id": "petsplus:vice/cruelty",
+      "kind": "vice",
+      "baseline": 0.0,
+      "persistence": 0.7071,
+      "passive_drift": 0.0,
+      "impressionability": 1.0,
+      "synergy": {
+        "petsplus:virtue/compassion": -0.1,
+        "petsplus:vice/bloodlust": 0.15
+      }
+    },
+    {
+      "id": "petsplus:vice/core",
+      "kind": "vice",
+      "baseline": 0.0,
+      "persistence": 0.7071,
+      "passive_drift": 0.0,
+      "impressionability": 1.05,
+      "synergy": {
+        "petsplus:virtue/reverence": -0.05
+      }
+    },
+    {
+      "id": "petsplus:vice/betrayal",
+      "kind": "vice",
+      "baseline": 0.0,
+      "persistence": 0.7071,
+      "passive_drift": 0.0,
+      "impressionability": 0.95,
+      "synergy": {
+        "petsplus:virtue/loyalty": -0.08
+      }
+    },
+    {
+      "id": "petsplus:vice/bloodlust",
+      "kind": "vice",
+      "baseline": 0.0,
+      "persistence": 0.7071,
+      "passive_drift": 0.0,
+      "impressionability": 1.1,
+      "synergy": {
+        "petsplus:virtue/compassion": -0.12
+      }
+    },
+    {
+      "id": "petsplus:virtue/compassion",
+      "kind": "virtue",
+      "baseline": 0.6,
+      "persistence": 0.9,
+      "passive_drift": 0.0,
+      "impressionability": 0.7
+    },
+    {
+      "id": "petsplus:virtue/loyalty",
+      "kind": "virtue",
+      "baseline": 0.55,
+      "persistence": 0.9,
+      "passive_drift": 0.0,
+      "impressionability": 0.75
+    },
+    {
+      "id": "petsplus:virtue/reverence",
+      "kind": "virtue",
+      "baseline": 0.5,
+      "persistence": 0.9,
+      "passive_drift": 0.0,
+      "impressionability": 0.65
+    }
+  ]
+}

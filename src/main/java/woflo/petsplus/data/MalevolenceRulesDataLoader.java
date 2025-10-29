@@ -8,6 +8,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.state.morality.MalevolenceRules;
+import woflo.petsplus.state.morality.MoralityAspectDefinition;
 import woflo.petsplus.state.morality.MalevolenceRulesRegistry;
 import woflo.petsplus.state.relationships.RelationshipType;
 
@@ -87,7 +88,11 @@ public final class MalevolenceRulesDataLoader extends BaseJsonDataLoader<Malevol
             Map<RelationshipType, Float> relationshipMultipliers = parseRelationshipWeights(getObject(value, "relationship_multipliers"));
             float telemetryBias = getFloat(value, "telemetry_bias", 0f);
             float spreeBonus = getFloat(value, "spree_bonus", 0f);
-            rules.put(key, new MalevolenceRules.TagRule(base, relationshipMultipliers, telemetryBias, spreeBonus));
+            Map<Identifier, Float> viceWeights = parseAspectWeights(getObject(value, "vice_weights"));
+            Map<Identifier, Float> virtueWeights = parseAspectWeightsAllowSigned(getObject(value, "virtue_weights"));
+            Map<Identifier, MalevolenceRules.RequirementRange> virtueRequirements = parseRequirementRanges(getObject(value, "virtue_requirements"));
+            rules.put(key, new MalevolenceRules.TagRule(base, relationshipMultipliers, telemetryBias, spreeBonus,
+                viceWeights, virtueWeights, virtueRequirements));
         }
         return rules;
     }
@@ -107,7 +112,11 @@ public final class MalevolenceRulesDataLoader extends BaseJsonDataLoader<Malevol
             }
             Set<String> tags = parseStringSet(value, "tags");
             float base = getFloat(value, "base", 0f);
-            MalevolenceRules.VictimRule rule = new MalevolenceRules.VictimRule(base, tags);
+            Map<Identifier, Float> viceWeights = parseAspectWeights(getObject(value, "vice_weights"));
+            Map<Identifier, Float> virtueWeights = parseAspectWeightsAllowSigned(getObject(value, "virtue_weights"));
+            Map<Identifier, MalevolenceRules.RequirementRange> virtueRequirements = parseRequirementRanges(getObject(value, "virtue_requirements"));
+            MalevolenceRules.VictimRule rule = new MalevolenceRules.VictimRule(base, tags, viceWeights, virtueWeights,
+                virtueRequirements);
             if (rawKey.startsWith("#")) {
                 Identifier id = Identifier.tryParse(rawKey.substring(1));
                 if (id != null) {
@@ -140,6 +149,60 @@ public final class MalevolenceRulesDataLoader extends BaseJsonDataLoader<Malevol
         return weights;
     }
 
+    private static Map<Identifier, Float> parseAspectWeights(JsonObject object) {
+        Map<Identifier, Float> weights = new LinkedHashMap<>();
+        if (object == null) {
+            return weights;
+        }
+        for (Map.Entry<String, JsonElement> entry : object.entrySet()) {
+            Identifier id = Identifier.tryParse(entry.getKey());
+            if (id == null) {
+                continue;
+            }
+            float value = getFloat(entry.getValue(), 0f);
+            if (value > 0f) {
+                weights.merge(id, value, Float::sum);
+            }
+        }
+        return weights;
+    }
+
+    private static Map<Identifier, Float> parseAspectWeightsAllowSigned(JsonObject object) {
+        Map<Identifier, Float> weights = new LinkedHashMap<>();
+        if (object == null) {
+            return weights;
+        }
+        for (Map.Entry<String, JsonElement> entry : object.entrySet()) {
+            Identifier id = Identifier.tryParse(entry.getKey());
+            if (id == null) {
+                continue;
+            }
+            float value = getFloat(entry.getValue(), 0f);
+            if (value != 0f) {
+                weights.merge(id, value, Float::sum);
+            }
+        }
+        return weights;
+    }
+
+    private static Map<Identifier, MalevolenceRules.RequirementRange> parseRequirementRanges(JsonObject object) {
+        Map<Identifier, MalevolenceRules.RequirementRange> requirements = new LinkedHashMap<>();
+        if (object == null) {
+            return requirements;
+        }
+        for (Map.Entry<String, JsonElement> entry : object.entrySet()) {
+            Identifier id = Identifier.tryParse(entry.getKey());
+            if (id == null || !entry.getValue().isJsonObject()) {
+                continue;
+            }
+            JsonObject value = entry.getValue().getAsJsonObject();
+            float min = getFloat(value, "min", 0f);
+            float max = getFloat(value, "max", 1f);
+            requirements.put(id, new MalevolenceRules.RequirementRange(min, max));
+        }
+        return requirements;
+    }
+
     private static MalevolenceRules.TelemetrySettings parseTelemetry(JsonObject object) {
         if (object == null) {
             return MalevolenceRules.TelemetrySettings.EMPTY;
@@ -162,11 +225,39 @@ public final class MalevolenceRulesDataLoader extends BaseJsonDataLoader<Malevol
         float trigger = getFloat(object, "trigger", MalevolenceRules.Thresholds.DEFAULT.triggerScore());
         float remission = getFloat(object, "remission", MalevolenceRules.Thresholds.DEFAULT.remissionScore());
         long cooldown = getLong(object, "cooldown", MalevolenceRules.Thresholds.DEFAULT.cooldownTicks());
-        float halfLife = getFloat(object, "decay_half_life", MalevolenceRules.Thresholds.DEFAULT.decayHalfLifeTicks());
+        float persistence = object.has("persistence")
+            ? getFloat(object, "persistence", MalevolenceRules.Thresholds.DEFAULT.defaultPersistencePerDay())
+            : Float.NaN;
+        float passiveDrift = object.has("passive_drift")
+            ? Math.max(0f, getFloat(object, "passive_drift", MalevolenceRules.Thresholds.DEFAULT.defaultPassiveDriftPerDay()))
+            : Float.NaN;
+        float impressionability = object.has("impressionability")
+            ? getFloat(object, "impressionability", MalevolenceRules.Thresholds.DEFAULT.defaultImpressionability())
+            : Float.NaN;
+        if (object.has("decay_half_life")) {
+            float halfLife = getFloat(object, "decay_half_life", 48000f);
+            if (Float.isNaN(persistence)) {
+                persistence = MoralityAspectDefinition.persistenceFromHalfLife(halfLife);
+            } else {
+                Petsplus.LOGGER.warn(
+                    "Malevolence thresholds declared both persistence and decay_half_life; using persistence"
+                );
+            }
+        }
+        if (Float.isNaN(persistence)) {
+            persistence = MalevolenceRules.Thresholds.DEFAULT.defaultPersistencePerDay();
+        }
+        if (Float.isNaN(passiveDrift)) {
+            passiveDrift = MalevolenceRules.Thresholds.DEFAULT.defaultPassiveDriftPerDay();
+        }
+        if (Float.isNaN(impressionability) || impressionability <= 0f) {
+            impressionability = MalevolenceRules.Thresholds.DEFAULT.defaultImpressionability();
+        }
         float scale = getFloat(object, "intensity_scale", MalevolenceRules.Thresholds.DEFAULT.intensityScale());
         float min = getFloat(object, "min_intensity", MalevolenceRules.Thresholds.DEFAULT.minIntensity());
         float max = getFloat(object, "max_intensity", MalevolenceRules.Thresholds.DEFAULT.maxIntensity());
-        return new MalevolenceRules.Thresholds(trigger, remission, cooldown, halfLife, scale, min, max);
+        return new MalevolenceRules.Thresholds(trigger, remission, cooldown, persistence, passiveDrift, impressionability, scale,
+            min, max);
     }
 
     private static MalevolenceRules.SpreeSettings parseSpree(JsonObject object) {

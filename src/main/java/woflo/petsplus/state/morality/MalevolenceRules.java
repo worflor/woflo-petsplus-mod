@@ -10,6 +10,7 @@ import woflo.petsplus.state.relationships.RelationshipType;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -65,7 +66,7 @@ public final class MalevolenceRules {
         this.tagRules = sanitizeTagRules(tagRules);
         this.victimRules = sanitizeVictimRules(victimRules);
         this.tagVictimRules = sanitizeVictimRules(tagVictimRules);
-        this.relationshipWeights = sanitizeRelationshipWeights(relationshipWeights);
+        this.relationshipWeights = sanitizeRelationshipMap(relationshipWeights);
         this.telemetry = telemetry == null ? TelemetrySettings.EMPTY : telemetry;
         this.thresholds = thresholds == null ? Thresholds.DEFAULT : thresholds;
         this.spreeSettings = spreeSettings == null ? SpreeSettings.DEFAULT : spreeSettings;
@@ -152,7 +153,7 @@ public final class MalevolenceRules {
         return sanitized.isEmpty() ? Map.of() : Map.copyOf(sanitized);
     }
 
-    private static Map<RelationshipType, Float> sanitizeRelationshipWeights(Map<RelationshipType, Float> raw) {
+    private static Map<RelationshipType, Float> sanitizeRelationshipMap(Map<RelationshipType, Float> raw) {
         if (raw == null || raw.isEmpty()) {
             return Map.of();
         }
@@ -166,6 +167,76 @@ public final class MalevolenceRules {
             weights.put(type, Math.max(0f, value));
         }
         return weights.isEmpty() ? Map.of() : Map.copyOf(weights);
+    }
+
+    private static Map<Identifier, Float> sanitizeAspectWeights(Map<Identifier, Float> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return Map.of();
+        }
+        Map<Identifier, Float> sanitized = new LinkedHashMap<>();
+        for (Map.Entry<Identifier, Float> entry : raw.entrySet()) {
+            Identifier id = entry.getKey();
+            Float value = entry.getValue();
+            if (id == null || value == null || !Float.isFinite(value) || value <= 0f) {
+                continue;
+            }
+            sanitized.merge(id, value, Float::sum);
+        }
+        return sanitized.isEmpty() ? Map.of() : Map.copyOf(sanitized);
+    }
+
+    private static Map<Identifier, Float> sanitizeSignedAspectWeights(Map<Identifier, Float> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return Map.of();
+        }
+        Map<Identifier, Float> sanitized = new LinkedHashMap<>();
+        for (Map.Entry<Identifier, Float> entry : raw.entrySet()) {
+            Identifier id = entry.getKey();
+            Float value = entry.getValue();
+            if (id == null || value == null || !Float.isFinite(value) || value == 0f) {
+                continue;
+            }
+            sanitized.merge(id, value, Float::sum);
+        }
+        return sanitized.isEmpty() ? Map.of() : Map.copyOf(sanitized);
+    }
+
+    private static Map<Identifier, RequirementRange> sanitizeRequirementMap(Map<Identifier, RequirementRange> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return Map.of();
+        }
+        Map<Identifier, RequirementRange> sanitized = new LinkedHashMap<>();
+        for (Map.Entry<Identifier, RequirementRange> entry : raw.entrySet()) {
+            Identifier id = entry.getKey();
+            RequirementRange range = entry.getValue();
+            if (id == null || range == null) {
+                continue;
+            }
+            sanitized.merge(id, range, RequirementRange::tighten);
+        }
+        return sanitized.isEmpty() ? Map.of() : Map.copyOf(sanitized);
+    }
+
+    private static Map<Identifier, Float> mergeAspectWeights(Map<Identifier, Float> base,
+                                                             Map<Identifier, Float> overlay) {
+        if (base.isEmpty()) {
+            return overlay.isEmpty() ? Map.of() : Map.copyOf(overlay);
+        }
+        Map<Identifier, Float> merged = new LinkedHashMap<>(base);
+        overlay.forEach((id, value) -> merged.merge(id, value, Float::sum));
+        return merged;
+    }
+
+    private static Map<Identifier, RequirementRange> mergeRequirementMaps(
+        Map<Identifier, RequirementRange> base,
+        Map<Identifier, RequirementRange> overlay
+    ) {
+        if (base.isEmpty()) {
+            return overlay.isEmpty() ? Map.of() : Map.copyOf(overlay);
+        }
+        Map<Identifier, RequirementRange> merged = new LinkedHashMap<>(base);
+        overlay.forEach((id, range) -> merged.merge(id, range, RequirementRange::tighten));
+        return merged;
     }
 
     private static float sanitizePositive(float value) {
@@ -217,6 +288,9 @@ public final class MalevolenceRules {
         float totalTelemetryBias = 0f;
         float totalSpreeBonus = 0f;
         EnumMap<RelationshipType, Float> relationshipMax = null;
+        Map<Identifier, Float> viceWeights = new LinkedHashMap<>();
+        Map<Identifier, Float> virtueWeights = new LinkedHashMap<>();
+        Map<Identifier, RequirementRange> virtueRequirements = new LinkedHashMap<>();
         for (String tag : deedTags) {
             String normalized = normalizeTag(tag);
             if (normalized == null) {
@@ -246,17 +320,36 @@ public final class MalevolenceRules {
                     relationshipMax.merge(relationshipType, value, Math::max);
                 }
             }
+            if (!rule.viceWeights().isEmpty()) {
+                rule.viceWeights().forEach((id, value) -> viceWeights.merge(id, value, Float::sum));
+            }
+            if (!rule.virtueWeights().isEmpty()) {
+                rule.virtueWeights().forEach((id, value) -> virtueWeights.merge(id, value, Float::sum));
+            }
+            if (!rule.virtueRequirements().isEmpty()) {
+                rule.virtueRequirements().forEach((id, range) ->
+                    virtueRequirements.merge(id, range, RequirementRange::tighten));
+            }
         }
         if ((totalBaseWeight <= 0f)
             && (relationshipMax == null || relationshipMax.isEmpty())
             && totalTelemetryBias <= 0f
-            && totalSpreeBonus <= 0f) {
+            && totalSpreeBonus <= 0f
+            && viceWeights.isEmpty()
+            && virtueWeights.isEmpty()
+            && virtueRequirements.isEmpty()) {
             return TagEvaluation.empty();
         }
         Map<RelationshipType, Float> relationshipView = relationshipMax == null || relationshipMax.isEmpty()
             ? Map.of()
             : Map.copyOf(relationshipMax);
-        return new TagEvaluation(totalBaseWeight, relationshipView, totalTelemetryBias, totalSpreeBonus);
+        Map<Identifier, Float> viceView = viceWeights.isEmpty() ? Map.of() : Map.copyOf(viceWeights);
+        Map<Identifier, Float> virtueView = virtueWeights.isEmpty() ? Map.of() : Map.copyOf(virtueWeights);
+        Map<Identifier, RequirementRange> requirementView = virtueRequirements.isEmpty()
+            ? Map.of()
+            : Map.copyOf(virtueRequirements);
+        return new TagEvaluation(totalBaseWeight, relationshipView, totalTelemetryBias, totalSpreeBonus,
+            viceView, virtueView, requirementView);
     }
 
     public float baseWeight(EntityType<?> victimType, Set<String> deedTags) {
@@ -326,6 +419,28 @@ public final class MalevolenceRules {
         return Math.max(spreeSettings.baseMultiplier, multiplier);
     }
 
+    public AspectContribution aspectContribution(EntityType<?> victimType, TagEvaluation tagEvaluation) {
+        TagEvaluation evaluation = tagEvaluation == null ? TagEvaluation.empty() : tagEvaluation;
+        Map<Identifier, Float> vice = new LinkedHashMap<>(evaluation.viceWeights());
+        Map<Identifier, Float> virtue = new LinkedHashMap<>(evaluation.virtueWeights());
+        Map<Identifier, RequirementRange> requirements = new LinkedHashMap<>(evaluation.virtueRequirements());
+        if (victimType != null) {
+            Identifier id = EntityType.getId(victimType);
+            VictimRule victimRule = victimRules.get(id);
+            if (victimRule != null) {
+                victimRule.viceWeights().forEach((key, value) -> vice.merge(key, value, Float::sum));
+                victimRule.virtueWeights().forEach((key, value) -> virtue.merge(key, value, Float::sum));
+                victimRule.virtueRequirements().forEach((key, range) ->
+                    requirements.merge(key, range, RequirementRange::tighten));
+            }
+        }
+        return new AspectContribution(
+            vice.isEmpty() ? Map.of() : Map.copyOf(vice),
+            virtue.isEmpty() ? Map.of() : Map.copyOf(virtue),
+            requirements.isEmpty() ? Map.of() : Map.copyOf(requirements)
+        );
+    }
+
     public Thresholds thresholds() {
         return thresholds;
     }
@@ -357,10 +472,21 @@ public final class MalevolenceRules {
         return tag.trim().toLowerCase(Locale.ROOT);
     }
 
-    public record VictimRule(float baseWeight, Set<String> tags) {
-        public VictimRule(float baseWeight, Set<String> tags) {
+    public record VictimRule(float baseWeight,
+                             Set<String> tags,
+                             Map<Identifier, Float> viceWeights,
+                             Map<Identifier, Float> virtueWeights,
+                             Map<Identifier, RequirementRange> virtueRequirements) {
+        public VictimRule(float baseWeight,
+                          Set<String> tags,
+                          Map<Identifier, Float> viceWeights,
+                          Map<Identifier, Float> virtueWeights,
+                          Map<Identifier, RequirementRange> virtueRequirements) {
             this.baseWeight = Math.max(0f, baseWeight);
             this.tags = tags == null || tags.isEmpty() ? Set.of() : Set.copyOf(tags);
+            this.viceWeights = sanitizeAspectWeights(viceWeights);
+            this.virtueWeights = sanitizeSignedAspectWeights(virtueWeights);
+            this.virtueRequirements = sanitizeRequirementMap(virtueRequirements);
         }
 
         public VictimRule overlay(VictimRule other) {
@@ -370,25 +496,31 @@ public final class MalevolenceRules {
             float weight = other.baseWeight > 0f ? other.baseWeight : this.baseWeight;
             Set<String> merged = new HashSet<>(this.tags);
             merged.addAll(other.tags);
-            return new VictimRule(weight, merged);
+            Map<Identifier, Float> mergedVice = mergeAspectWeights(this.viceWeights, other.viceWeights);
+            Map<Identifier, Float> mergedVirtue = mergeAspectWeights(this.virtueWeights, other.virtueWeights);
+            Map<Identifier, RequirementRange> mergedRequirements = mergeRequirementMaps(this.virtueRequirements,
+                other.virtueRequirements);
+            return new VictimRule(weight, merged, mergedVice, mergedVirtue, mergedRequirements);
         }
     }
 
     public record TagEvaluation(float baseWeight,
                                  Map<RelationshipType, Float> relationshipMultipliers,
                                  float telemetryBias,
-                                 float spreeBonus) {
-        private static final TagEvaluation EMPTY = new TagEvaluation(0f, Map.of(), 0f, 0f);
+                                 float spreeBonus,
+                                 Map<Identifier, Float> viceWeights,
+                                 Map<Identifier, Float> virtueWeights,
+                                 Map<Identifier, RequirementRange> virtueRequirements) {
+        private static final TagEvaluation EMPTY = new TagEvaluation(0f, Map.of(), 0f, 0f, Map.of(), Map.of(), Map.of());
 
         public TagEvaluation {
             baseWeight = sanitizePositive(baseWeight);
             telemetryBias = sanitizePositive(telemetryBias);
             spreeBonus = sanitizePositive(spreeBonus);
-            if (relationshipMultipliers == null || relationshipMultipliers.isEmpty()) {
-                relationshipMultipliers = Map.of();
-            } else {
-                relationshipMultipliers = Map.copyOf(relationshipMultipliers);
-            }
+            relationshipMultipliers = sanitizeRelationshipMap(relationshipMultipliers);
+            viceWeights = sanitizeAspectWeights(viceWeights);
+            virtueWeights = sanitizeSignedAspectWeights(virtueWeights);
+            virtueRequirements = sanitizeRequirementMap(virtueRequirements);
         }
 
         public static TagEvaluation empty() {
@@ -410,28 +542,18 @@ public final class MalevolenceRules {
     public record TagRule(float baseWeight,
                           Map<RelationshipType, Float> relationshipMultipliers,
                           float telemetryBias,
-                          float spreeBonus) {
+                          float spreeBonus,
+                          Map<Identifier, Float> viceWeights,
+                          Map<Identifier, Float> virtueWeights,
+                          Map<Identifier, RequirementRange> virtueRequirements) {
         public TagRule {
             baseWeight = sanitizePositive(baseWeight);
-            if (relationshipMultipliers == null || relationshipMultipliers.isEmpty()) {
-                relationshipMultipliers = Map.of();
-            } else {
-                EnumMap<RelationshipType, Float> copy = new EnumMap<>(RelationshipType.class);
-                for (Map.Entry<RelationshipType, Float> entry : relationshipMultipliers.entrySet()) {
-                    RelationshipType key = entry.getKey();
-                    Float value = entry.getValue();
-                    if (key == null || value == null) {
-                        continue;
-                    }
-                    float clamped = sanitizePositive(value);
-                    if (clamped > 0f) {
-                        copy.put(key, clamped);
-                    }
-                }
-                relationshipMultipliers = copy.isEmpty() ? Map.of() : Map.copyOf(copy);
-            }
+            relationshipMultipliers = sanitizeRelationshipMap(relationshipMultipliers);
             telemetryBias = sanitizePositive(telemetryBias);
             spreeBonus = sanitizePositive(spreeBonus);
+            viceWeights = sanitizeAspectWeights(viceWeights);
+            virtueWeights = sanitizeSignedAspectWeights(virtueWeights);
+            virtueRequirements = sanitizeRequirementMap(virtueRequirements);
         }
 
         public float relationshipMultiplier(RelationshipType type) {
@@ -440,6 +562,41 @@ public final class MalevolenceRules {
             }
             return relationshipMultipliers.getOrDefault(type, 0f);
         }
+    }
+
+    public record RequirementRange(float min, float max) {
+        public RequirementRange {
+            float clampedMin = Float.isFinite(min) ? min : 0f;
+            float clampedMax = Float.isFinite(max) ? max : 1f;
+            if (clampedMax < clampedMin) {
+                float tmp = clampedMax;
+                clampedMax = clampedMin;
+                clampedMin = tmp;
+            }
+            min = clampedMin;
+            max = clampedMax;
+        }
+
+        public boolean isSatisfied(float value) {
+            return value >= min && value <= max;
+        }
+
+        public RequirementRange tighten(RequirementRange other) {
+            if (other == null) {
+                return this;
+            }
+            float newMin = Math.max(this.min, other.min);
+            float newMax = Math.min(this.max, other.max);
+            if (newMax < newMin) {
+                newMax = newMin;
+            }
+            return new RequirementRange(newMin, newMax);
+        }
+    }
+
+    public record AspectContribution(Map<Identifier, Float> viceWeights,
+                                     Map<Identifier, Float> virtueWeights,
+                                     Map<Identifier, RequirementRange> virtueRequirements) {
     }
 
     public record ForgivenessSettings(
@@ -570,11 +727,23 @@ public final class MalevolenceRules {
     public record Thresholds(float triggerScore,
                              float remissionScore,
                              long cooldownTicks,
-                             float decayHalfLifeTicks,
+                             float defaultPersistencePerDay,
+                             float defaultPassiveDriftPerDay,
+                             float defaultImpressionability,
                              float intensityScale,
                              float minIntensity,
                              float maxIntensity) {
-        public static final Thresholds DEFAULT = new Thresholds(32f, 12f, 72000L, 48000f, 0.04f, 0.25f, 1.0f);
+        public static final Thresholds DEFAULT = new Thresholds(
+            32f,
+            12f,
+            72000L,
+            MoralityAspectDefinition.persistenceFromHalfLife(48000f),
+            0f,
+            1.0f,
+            0.04f,
+            0.25f,
+            1.0f
+        );
 
         public Thresholds overlay(Thresholds other) {
             if (other == null || other == DEFAULT) {
@@ -583,16 +752,32 @@ public final class MalevolenceRules {
             float trigger = other.triggerScore > 0f ? other.triggerScore : this.triggerScore;
             float remission = other.remissionScore > 0f ? other.remissionScore : this.remissionScore;
             long cooldown = other.cooldownTicks > 0 ? other.cooldownTicks : this.cooldownTicks;
-            float halfLife = other.decayHalfLifeTicks > 0f ? other.decayHalfLifeTicks : this.decayHalfLifeTicks;
+            float persistence = other.defaultPersistencePerDay >= 0f
+                ? other.defaultPersistencePerDay
+                : this.defaultPersistencePerDay;
+            float passiveDrift = other.defaultPassiveDriftPerDay >= 0f
+                ? other.defaultPassiveDriftPerDay
+                : this.defaultPassiveDriftPerDay;
+            float impressionability = other.defaultImpressionability > 0f
+                ? other.defaultImpressionability
+                : this.defaultImpressionability;
             float scale = other.intensityScale > 0f ? other.intensityScale : this.intensityScale;
             float min = other.minIntensity > 0f ? other.minIntensity : this.minIntensity;
             float max = other.maxIntensity > 0f ? other.maxIntensity : this.maxIntensity;
-            return new Thresholds(trigger, remission, cooldown, halfLife, scale, min, max);
+            return new Thresholds(trigger, remission, cooldown, persistence, passiveDrift, impressionability, scale, min, max);
         }
 
         public float intensityForScore(float score) {
             float scaled = score * intensityScale;
             return MathHelper.clamp(scaled, minIntensity, maxIntensity);
+        }
+
+        public double defaultRetentionLnPerTick() {
+            return MoralityAspectDefinition.retentionLnPerTick(defaultPersistencePerDay);
+        }
+
+        public float defaultPassiveDriftPerTick() {
+            return MoralityAspectDefinition.passiveDriftPerTick(defaultPassiveDriftPerDay);
         }
     }
 
