@@ -220,6 +220,79 @@ class MalevolenceLedgerVirtueViceTest {
     }
 
     @Test
+    void passiveTicksRecoverVirtuesAfterSuppression() throws Exception {
+        MalevolenceRules.TagRule crueltyRule = new MalevolenceRules.TagRule(
+            1.0f,
+            Map.of(),
+            0f,
+            0f,
+            Map.of(CRUELTY, 1.0f),
+            Map.of(COMPASSION, -0.45f),
+            Map.of(COMPASSION, new MalevolenceRules.RequirementRange(0f, 0.5f))
+        );
+
+        MalevolenceRules rules = new MalevolenceRules(
+            Map.of("cruelty", crueltyRule),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            MalevolenceRules.TelemetrySettings.EMPTY,
+            new MalevolenceRules.Thresholds(0.5f, 0.2f, 20L, 1.0f, 0f, 1.0f, 1.0f, 0.2f, 2.0f),
+            new MalevolenceRules.SpreeSettings(400L, 1.0f, 0.25f, 1.5f, 0.2f),
+            MalevolenceRules.DisharmonySettings.DEFAULT,
+            MalevolenceRules.ForgivenessSettings.DEFAULT,
+            Identifier.of("petsplus", "morality/test"),
+            true
+        );
+
+        MalevolenceRulesRegistry.reload(Map.of(Identifier.of("petsplus", "rules/cruelty_passive"), rules));
+
+        TestPetComponent pet = new TestPetComponent();
+        pet.setOwnerUuid(UUID.fromString("bbbbbbbb-cccc-dddd-eeee-ffffffffffff"));
+        pet.setStateData(PetComponent.StateKeys.MALEVOLENCE_PERSONA, List.of(1.0f, 1.0f, 0.0f));
+
+        MalevolenceLedger ledger = pet.getMalevolenceLedger();
+        ledger.onStateDataRehydrated(0L);
+
+        MalevolenceLedger.DarkDeedContext context = new MalevolenceLedger.DarkDeedContext(
+            null,
+            null,
+            Set.<Identifier>of(),
+            Set.of("cruelty"),
+            null,
+            0f,
+            false,
+            RelationshipType.NEUTRAL
+        );
+
+        MalevolenceLedger.TriggerOutcome suppressed = ledger.recordDarkDeed(context, 10L);
+        assertTrue(suppressed.suppressed(), "Virtue gate should block the deed");
+
+        MoralityAspectState compassionState = extractVirtueStates(ledger).get(COMPASSION);
+        assertNotNull(compassionState);
+        float compassionAfterSuppression = compassionState.value();
+        assertTrue(compassionAfterSuppression < 0.6f, "Suppression should erode compassion below its baseline");
+
+        MoralityAspectState crueltyState = extractViceStates(ledger).get(CRUELTY);
+        assertNotNull(crueltyState);
+        float suppressedChargeBefore = crueltyState.suppressedCharge();
+        assertTrue(suppressedChargeBefore > 0f, "Suppressed vice should accumulate latent charge");
+
+        ledger.onWorldTimeSegmentTick(10L + 24000L);
+
+        MoralityAspectState compassionAfterTick = extractVirtueStates(ledger).get(COMPASSION);
+        assertNotNull(compassionAfterTick);
+        assertTrue(compassionAfterTick.value() > compassionAfterSuppression,
+            "Passive tick should let compassion recover toward its baseline");
+        assertTrue(compassionAfterTick.value() <= 0.6f + 1.0e-4f,
+            "Passive recovery should not overshoot the virtue baseline");
+
+        float suppressedChargeAfter = extractViceStates(ledger).get(CRUELTY).suppressedCharge();
+        assertTrue(suppressedChargeAfter < suppressedChargeBefore,
+            "Passive tick should bleed stored suppression over time");
+    }
+
+    @Test
     void suppressedChargeRespectsConfiguredWeights() throws Exception {
         MalevolenceRules.TagRule sharedRule = new MalevolenceRules.TagRule(
             1.0f,

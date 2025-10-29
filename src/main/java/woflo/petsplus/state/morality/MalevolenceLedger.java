@@ -23,6 +23,7 @@ import java.util.UUID;
  */
 public final class MalevolenceLedger {
     private static final long DEFAULT_SPREE_WINDOW = MalevolenceRules.SpreeSettings.DEFAULT.windowTicks();
+    private static final float PASSIVE_EPSILON = 1.0e-4f;
 
     private final PetComponent parent;
 
@@ -617,7 +618,52 @@ public final class MalevolenceLedger {
     }
 
     private boolean hasPassiveState() {
-        return active || score > 0f || disharmonyStrength > 0f || spreeCount > 0;
+        if (active || score > 0f || disharmonyStrength > 0f || spreeCount > 0) {
+            return true;
+        }
+        if (personaNeedsPassiveUpdate()) {
+            return true;
+        }
+        if (aspectsNeedPassiveUpdate(viceStates, true)) {
+            return true;
+        }
+        return aspectsNeedPassiveUpdate(virtueStates, false);
+    }
+
+    private boolean personaNeedsPassiveUpdate() {
+        if (persona == null) {
+            return false;
+        }
+        if (lastPersonaDecayTick == Long.MIN_VALUE) {
+            return true;
+        }
+        if (Math.abs(persona.viceSusceptibility() - 1f) > PASSIVE_EPSILON) {
+            return true;
+        }
+        if (Math.abs(persona.virtueResilience() - 1f) > PASSIVE_EPSILON) {
+            return true;
+        }
+        return persona.traumaImprint() > PASSIVE_EPSILON;
+    }
+
+    private boolean aspectsNeedPassiveUpdate(Map<Identifier, MoralityAspectState> source, boolean vice) {
+        for (Map.Entry<Identifier, MoralityAspectState> entry : source.entrySet()) {
+            MoralityAspectState state = entry.getValue();
+            if (state == null) {
+                continue;
+            }
+            if (state.suppressedCharge() > PASSIVE_EPSILON) {
+                return true;
+            }
+            MoralityAspectDefinition definition = MoralityAspectRegistry.get(entry.getKey());
+            float baseline = definition != null
+                ? definition.baseline()
+                : (vice ? 0f : 0.5f);
+            if (Math.abs(state.value() - baseline) > PASSIVE_EPSILON) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private long resolveEffectiveNow(long candidate) {
