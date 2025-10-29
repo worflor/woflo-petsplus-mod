@@ -19,7 +19,7 @@ public class NameParser {
     private static final AtomicLong CACHE_VERSION = new AtomicLong();
 
     // Built-in attribute patterns - these are examples and can be expanded via config
-    private static final Map<String, PatternEntry> EXACT_PATTERNS = new ConcurrentHashMap<>();
+    private static final Map<String, Map<String, PatternEntry>> EXACT_PATTERNS = new ConcurrentHashMap<>();
 
     static {
         registerExactPattern("brave", new AttributeKey("courage", "brave", 1));
@@ -30,7 +30,7 @@ public class NameParser {
         registerExactPattern("clever", new AttributeKey("intelligence", "clever", 1));
         registerExactPattern("strong", new AttributeKey("strength", "strong", 1));
         registerExactPattern("wise", new AttributeKey("wisdom", "wise", 2));
-        registerExactPattern("woflo", new AttributeKey("woflo", "woflo", 5), MatchMode.WORD_BOUNDARY); // Creator/dev name with high priority
+        SpecialNameDefinitions.bootstrap();
     }
 
     private static final Map<String, AttributeKey> PREFIX_PATTERNS = Map.of(
@@ -159,24 +159,26 @@ public class NameParser {
         List<AttributeKey> attributes = new ArrayList<>();
         String searchName = caseSensitive ? name : name.toLowerCase();
 
-        for (PatternEntry entry : EXACT_PATTERNS.values()) {
-            AttributeKey attribute = entry.attribute();
-            String pattern = caseSensitive ? entry.pattern() : entry.pattern().toLowerCase();
+        for (Map<String, PatternEntry> entries : EXACT_PATTERNS.values()) {
+            for (PatternEntry entry : entries.values()) {
+                AttributeKey attribute = entry.attribute();
+                String pattern = caseSensitive ? entry.pattern() : entry.pattern().toLowerCase();
 
-            boolean matched = switch (entry.mode()) {
-                case EXACT -> searchName.equals(pattern);
-                case WORD_BOUNDARY -> matchesWordBoundary(searchName, pattern);
-                case SUBSTRING -> searchName.contains(pattern);
-            };
+                boolean matched = switch (entry.mode()) {
+                    case EXACT -> searchName.equals(pattern);
+                    case WORD_BOUNDARY -> matchesWordBoundary(searchName, pattern);
+                    case SUBSTRING -> searchName.contains(pattern);
+                };
 
-            if (matched) {
-                attributes.add(attribute);
-                Petsplus.LOGGER.debug(
-                    "Found exact pattern '{}' via {} match in name '{}'",
-                    entry.pattern(),
-                    entry.mode().name().toLowerCase(Locale.ROOT),
-                    name
-                );
+                if (matched) {
+                    attributes.add(attribute);
+                    Petsplus.LOGGER.debug(
+                        "Found exact pattern '{}' via {} match in name '{}'",
+                        entry.pattern(),
+                        entry.mode().name().toLowerCase(Locale.ROOT),
+                        name
+                    );
+                }
             }
         }
 
@@ -203,8 +205,13 @@ public class NameParser {
 
         String normalized = normalizePattern(pattern);
         MatchMode resolvedMode = mode == null ? MatchMode.SUBSTRING : mode;
-        EXACT_PATTERNS.put(normalized, new PatternEntry(pattern.trim(), attribute, resolvedMode));
-        touchCacheVersion();
+        PatternEntry entry = new PatternEntry(pattern.trim(), attribute, resolvedMode);
+
+        Map<String, PatternEntry> bucket = EXACT_PATTERNS.computeIfAbsent(normalized, ignored -> new ConcurrentHashMap<>());
+        PatternEntry previous = bucket.put(attributeKey(attribute), entry);
+        if (!entry.equals(previous)) {
+            touchCacheVersion();
+        }
     }
 
     /**
@@ -218,9 +225,80 @@ public class NameParser {
         }
 
         String normalized = normalizePattern(pattern);
-        if (EXACT_PATTERNS.remove(normalized) != null) {
+        Map<String, PatternEntry> removed = EXACT_PATTERNS.remove(normalized);
+        if (removed != null && !removed.isEmpty()) {
             touchCacheVersion();
         }
+    }
+
+    /**
+     * Unregister a specific attribute bound to the provided literal pattern.
+     *
+     * @param pattern       the literal pattern that was registered
+     * @param attributeType the normalized attribute type to remove
+     */
+    public static void unregisterExactPattern(String pattern, String attributeType) {
+        unregisterExactPattern(pattern, attributeType, null);
+    }
+
+    /**
+     * Unregister a specific attribute bound to the provided literal pattern.
+     *
+     * @param pattern        the literal pattern that was registered
+     * @param attributeType  the normalized attribute type to remove
+     * @param attributeValue optional normalized attribute value constraint
+     */
+    public static void unregisterExactPattern(String pattern, String attributeType, String attributeValue) {
+        if (pattern == null || pattern.trim().isEmpty()) {
+            return;
+        }
+        if (attributeType == null || attributeType.trim().isEmpty()) {
+            unregisterExactPattern(pattern);
+            return;
+        }
+
+        String normalizedPattern = normalizePattern(pattern);
+        Map<String, PatternEntry> bucket = EXACT_PATTERNS.get(normalizedPattern);
+        if (bucket == null || bucket.isEmpty()) {
+            return;
+        }
+
+        String normalizedType = attributeType.trim().toLowerCase(Locale.ROOT);
+        String normalizedValue = attributeValue == null || attributeValue.trim().isEmpty()
+            ? null
+            : attributeValue.trim().toLowerCase(Locale.ROOT);
+
+        boolean removed = false;
+        List<String> keysToRemove = new ArrayList<>();
+        for (Map.Entry<String, PatternEntry> entry : bucket.entrySet()) {
+            AttributeKey attribute = entry.getValue().attribute();
+            if (!attribute.normalizedType().equals(normalizedType)) {
+                continue;
+            }
+            if (normalizedValue != null && !attribute.normalizedValue().equals(normalizedValue)) {
+                continue;
+            }
+            keysToRemove.add(entry.getKey());
+        }
+
+        if (!keysToRemove.isEmpty()) {
+            removed = true;
+            for (String key : keysToRemove) {
+                bucket.remove(key);
+            }
+        }
+
+        if (bucket.isEmpty()) {
+            EXACT_PATTERNS.remove(normalizedPattern);
+        }
+
+        if (removed) {
+            touchCacheVersion();
+        }
+    }
+
+    private static String attributeKey(AttributeKey attribute) {
+        return attribute.normalizedType() + "|" + attribute.normalizedValue();
     }
 
     private static String normalizePattern(String pattern) {

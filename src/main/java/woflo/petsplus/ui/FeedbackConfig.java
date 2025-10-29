@@ -114,6 +114,9 @@ public class FeedbackConfig {
 
         // Contagion feedback effects
         registerContagionFeedback();
+
+        // Special name feedback effects
+        registerSpecialNameFeedback();
     }
 
     private static void registerRoleParticles() {
@@ -557,6 +560,15 @@ public class FeedbackConfig {
         register("contagion_social", List.of(
             new ParticleConfig(ParticleTypes.HEART, 2, 0.2, 0.1, 0.2, 0.01, "circle", 0.6, true),
             new ParticleConfig(ParticleTypes.HAPPY_VILLAGER, 2, 0.1, 0.05, 0.1, 0.005, "burst", 0.3, false)
+        ), null, 0, true);
+    }
+
+    private static void registerSpecialNameFeedback() {
+        register("friend_loch_trail", List.of(
+            new ParticleConfig(EffectParticleEffect.of(ParticleTypes.EFFECT, 0.35F, 0.95F, 0.55F, 1.0F), 7,
+                0.03, 0.02, 0.03, 0.01, "ground_trail", 1.1, false),
+            new ParticleConfig(ParticleTypes.SPORE_BLOSSOM_AIR, 4,
+                0.02, 0.02, 0.02, 0.0, "ground_trail", 1.0, false)
         ), null, 0, true);
     }
 

@@ -1860,7 +1860,7 @@ public class StateManager {
     }
 
     private void runParticlePass(MobEntity pet, PetComponent component, ServerPlayerEntity owner, long currentTick) {
-        boolean emitted = false;
+        boolean emitted = woflo.petsplus.ui.FeedbackManager.emitGroundTrails(pet, component, world, currentTick);
         if (woflo.petsplus.ui.FeedbackManager.shouldEmitAmbientParticles(pet, world)) {
             woflo.petsplus.ui.FeedbackManager.emitRoleAmbientParticles(pet, world, currentTick);
             emitted = true;

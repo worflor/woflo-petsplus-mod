@@ -2,6 +2,7 @@ package woflo.petsplus.naming;
 
 import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
+import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.stats.PetImprint;
@@ -30,16 +31,6 @@ public final class NameAffinityDefinitions {
     private static final int ATTRIBUTE_PRIORITY = 5;
     private static final Map<String, List<RoleAffinityProfile>> DEFINITIONS = new ConcurrentHashMap<>();
 
-    static {
-        registerUniformSet(
-            "rei",
-            Map.of(
-                PetRoleType.GUARDIAN_ID, 0.10f,
-                PetRoleType.SUPPORT_ID, 0.10f
-            )
-        );
-    }
-
     private NameAffinityDefinitions() {
     }
 
@@ -57,20 +48,23 @@ public final class NameAffinityDefinitions {
             return;
         }
 
-        DEFINITIONS.compute(normalizedKey, (ignored, existing) -> {
-            List<RoleAffinityProfile> merged = new ArrayList<>();
-            if (existing != null) {
-                merged.addAll(existing);
-            }
-            merged.addAll(sanitized);
-            if (merged.isEmpty()) {
-                unregisterPattern(key);
-                return null;
-            }
+        List<RoleAffinityProfile> existing = DEFINITIONS.get(normalizedKey);
+        List<RoleAffinityProfile> merged = existing == null ? new ArrayList<>() : new ArrayList<>(existing);
 
-            registerPattern(key, normalizedKey);
-            return List.copyOf(merged);
-        });
+        boolean changed = false;
+        for (RoleAffinityProfile profile : sanitized) {
+            if (!merged.contains(profile)) {
+                merged.add(profile);
+                changed = true;
+            }
+        }
+
+        if (!changed) {
+            return;
+        }
+
+        DEFINITIONS.put(normalizedKey, List.copyOf(merged));
+        registerPattern(key, normalizedKey);
     }
 
     /**
@@ -155,6 +149,11 @@ public final class NameAffinityDefinitions {
             return;
         }
 
+        List<RoleAffinityProfile> existing = DEFINITIONS.get(normalizedKey);
+        if (existing != null && existing.equals(sanitized)) {
+            return;
+        }
+
         DEFINITIONS.put(normalizedKey, List.copyOf(sanitized));
         registerPattern(key, normalizedKey);
     }
@@ -174,7 +173,7 @@ public final class NameAffinityDefinitions {
     private static void removeDefinitions(String normalizedKey, String key) {
         List<RoleAffinityProfile> removed = DEFINITIONS.remove(normalizedKey);
         if (removed != null && !removed.isEmpty()) {
-            unregisterPattern(key);
+            unregisterPattern(key, normalizedKey);
         }
     }
 
@@ -194,7 +193,7 @@ public final class NameAffinityDefinitions {
     }
 
     private static void registerPattern(String key, String normalizedKey) {
-        String patternKey = key.trim().isEmpty() ? normalizedKey : key.trim();
+        String patternKey = resolvePatternKey(key, normalizedKey);
         NameParser.registerExactPattern(
             patternKey,
             new AttributeKey(ATTRIBUTE_TYPE, normalizedKey, ATTRIBUTE_PRIORITY),
@@ -202,8 +201,14 @@ public final class NameAffinityDefinitions {
         );
     }
 
-    private static void unregisterPattern(String key) {
-        NameParser.unregisterExactPattern(key);
+    private static void unregisterPattern(String key, String normalizedKey) {
+        String patternKey = resolvePatternKey(key, normalizedKey);
+        NameParser.unregisterExactPattern(patternKey, ATTRIBUTE_TYPE, normalizedKey);
+    }
+
+    private static String resolvePatternKey(String key, String normalizedKey) {
+        String trimmed = key == null ? "" : key.trim();
+        return trimmed.isEmpty() ? normalizedKey : trimmed;
     }
 
     @Nullable
@@ -212,9 +217,18 @@ public final class NameAffinityDefinitions {
             return null;
         }
 
-        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(profile.roleId());
+        PetRoleType roleType = null;
+        try {
+            roleType = PetsPlusRegistries.petRoleTypeRegistry().get(profile.roleId());
+        } catch (ExceptionInInitializerError | NoClassDefFoundError error) {
+            Petsplus.LOGGER.debug(
+                "PetsPlus registries unavailable while resolving affinity profile for '{}': {}",
+                profile.roleId(),
+                error.getMessage()
+            );
+        }
         if (roleType == null) {
-            return null;
+            return new RoleAffinityVector(profile.roleId(), new String[0], new float[0]);
         }
 
         float defaultBonus = profile.defaultBonus();
