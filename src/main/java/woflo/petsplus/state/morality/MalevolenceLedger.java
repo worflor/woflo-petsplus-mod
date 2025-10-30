@@ -10,6 +10,7 @@ import woflo.petsplus.state.relationships.RelationshipProfile;
 import woflo.petsplus.state.relationships.RelationshipType;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -963,6 +964,78 @@ public final class MalevolenceLedger {
         return snapshot;
     }
 
+    public synchronized MoralitySnapshot describe() {
+        MalevolenceRules rules = MalevolenceRulesRegistry.get();
+        long spreeWindow = resolveSpreeWindow(rules != null ? rules.spreeSettings() : null);
+        List<AspectSnapshot> viceHighlights = collectTopAspects(viceStates, 3);
+        List<AspectSnapshot> virtueHighlights = collectTopAspects(virtueStates, 3);
+        Identifier viceId = dominantVice;
+        String viceName = viceId != null ? humanizeAspectIdentifier(viceId) : null;
+
+        return new MoralitySnapshot(
+            Math.max(0f, score),
+            Math.max(0f, disharmonyStrength),
+            active,
+            Math.max(0, spreeCount),
+            spreeWindow,
+            spreeAnchorTick,
+            lastDeedTick,
+            lastTriggerTick,
+            lastDecayTick,
+            viceId,
+            viceName,
+            viceHighlights,
+            virtueHighlights
+        );
+    }
+
+    private List<AspectSnapshot> collectTopAspects(Map<Identifier, MoralityAspectState> source, int limit) {
+        if (source.isEmpty() || limit <= 0) {
+            return List.of();
+        }
+        List<Map.Entry<Identifier, MoralityAspectState>> entries = new ArrayList<>(source.entrySet());
+        entries.removeIf(entry -> entry.getValue() == null || entry.getValue().value() <= 0f);
+        if (entries.isEmpty()) {
+            return List.of();
+        }
+        entries.sort((left, right) -> Float.compare(right.getValue().value(), left.getValue().value()));
+        List<AspectSnapshot> highlights = new ArrayList<>(Math.min(limit, entries.size()));
+        for (int index = 0; index < entries.size() && index < limit; index++) {
+            Map.Entry<Identifier, MoralityAspectState> entry = entries.get(index);
+            MoralityAspectState state = entry.getValue();
+            highlights.add(new AspectSnapshot(
+                entry.getKey(),
+                humanizeAspectIdentifier(entry.getKey()),
+                Math.max(0f, state.value()),
+                Math.max(0, state.spreeCount()),
+                Math.max(0f, state.suppressedCharge())
+            ));
+        }
+        return highlights.isEmpty() ? List.of() : Collections.unmodifiableList(highlights);
+    }
+
+    public static String humanizeAspectIdentifier(@Nullable Identifier identifier) {
+        if (identifier == null) {
+            return "Unknown";
+        }
+        String path = identifier.getPath();
+        if (path == null || path.isEmpty()) {
+            return identifier.toString();
+        }
+        String[] pieces = path.split("[_\\-]+");
+        StringBuilder builder = new StringBuilder();
+        for (String piece : pieces) {
+            if (piece.isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append(piece.substring(0, 1).toUpperCase()).append(piece.substring(1).toLowerCase());
+        }
+        return builder.length() > 0 ? builder.toString() : identifier.toString();
+    }
+
     private long resolvePersonaSeed() {
         if (parent.getPetEntity() != null) {
             UUID uuid = parent.getPetEntity().getUuid();
@@ -1079,6 +1152,36 @@ public final class MalevolenceLedger {
             }
             return none();
         }
+    }
+
+    public record MoralitySnapshot(
+        float score,
+        float disharmony,
+        boolean active,
+        int spreeCount,
+        long spreeWindowTicks,
+        long spreeAnchorTick,
+        long lastDeedTick,
+        long lastTriggerTick,
+        long lastDecayTick,
+        @Nullable Identifier dominantViceId,
+        @Nullable String dominantViceName,
+        List<AspectSnapshot> topVices,
+        List<AspectSnapshot> topVirtues
+    ) {
+        public MoralitySnapshot {
+            topVices = topVices == null || topVices.isEmpty() ? List.of() : List.copyOf(topVices);
+            topVirtues = topVirtues == null || topVirtues.isEmpty() ? List.of() : List.copyOf(topVirtues);
+        }
+    }
+
+    public record AspectSnapshot(
+        Identifier id,
+        String name,
+        float value,
+        int spreeCount,
+        float suppressedCharge
+    ) {
     }
 
     private record ThresholdEvaluation(boolean triggered, float intensity, boolean cleared, boolean suppressed,
