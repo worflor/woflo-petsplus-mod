@@ -67,7 +67,8 @@ public final class CompendiumColorTheme {
     }
 
     public static String formatSectionHeader(String label, @Nullable Identifier natureId) {
-        return getNatureAccentCode(natureId) + label + RESET;
+        Palette palette = palette(natureId);
+        return palette.accentCode() + BOLD + label + RESET;
     }
 
     public static String formatLabelValue(String label, String value, @Nullable Identifier natureId) {
@@ -76,6 +77,30 @@ public final class CompendiumColorTheme {
 
     public static String formatClickableLink(String label, @Nullable Identifier natureId) {
         return getNatureShadowCode(natureId) + "▸ " + getNatureAccentCode(natureId) + label + RESET;
+    }
+
+    public static String buildSectionDivider(@Nullable Identifier natureId) {
+        Palette palette = palette(natureId);
+        StringBuilder builder = new StringBuilder();
+        builder.append(palette.shadowCode()).append("┈");
+        for (int i = 0; i < 18; i++) {
+            float blend = i / 17f;
+            // Alternate between highlight and soft codes to hint at a gradient.
+            builder.append(blend < 0.35f ? palette.softCode() : blend > 0.7f ? palette.deepShadowCode() : palette.highlightCode())
+                .append("─");
+        }
+        builder.append(palette.shadowCode()).append("┈").append(RESET);
+        return builder.toString();
+    }
+
+    public static String formatSoftNote(String text, @Nullable Identifier natureId) {
+        Palette palette = palette(natureId);
+        return palette.softCode() + text + RESET;
+    }
+
+    public static String formatInlineBadge(String text, @Nullable Identifier natureId) {
+        Palette palette = palette(natureId);
+        return palette.shadowCode() + "[" + palette.highlightCode() + text + palette.shadowCode() + "]" + RESET;
     }
 
     private static Map<String, Palette> buildPalettes() {

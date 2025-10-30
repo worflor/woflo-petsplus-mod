@@ -45,10 +45,11 @@ public class PetCompendiumDataExtractor {
      */
     public static List<Text> buildGeneralStatsPage(MobEntity pet, PetComponent pc, long currentTick) {
         List<Text> lines = new ArrayList<>();
-        
+        Identifier natureId = pc.getNatureId();
+
         // Title
-        lines.add(Text.literal("§f§lPet Compendium§r"));
-        lines.add(Text.literal("§8─────────────────"));
+        lines.add(Text.literal(CompendiumColorTheme.formatSectionHeader("Pet Compendium", natureId)));
+        lines.add(Text.literal(CompendiumColorTheme.buildSectionDivider(natureId)));
         lines.add(Text.empty());
         
         // Name
@@ -767,18 +768,20 @@ public class PetCompendiumDataExtractor {
         float clamped = MathHelper.clamp(normalized, 0f, 1f);
         int filled = Math.round(clamped * segments);
         String fill = CompendiumColorTheme.getNatureHighlightCode(natureId);
-        String faded = CompendiumColorTheme.getNatureSoftCode(natureId);
+        String faded = CompendiumColorTheme.getNatureShadowCode(natureId);
+        String deep = CompendiumColorTheme.getNatureDeepShadowCode(natureId);
         StringBuilder bar = new StringBuilder();
+        bar.append(deep).append("[");
         for (int i = 0; i < segments; i++) {
             if (i < filled) {
                 bar.append(fill).append("▮");
             } else {
-                bar.append(CompendiumColorTheme.DARK_GRAY).append("▯");
+                bar.append(faded).append("▯");
             }
         }
-        bar.append(faded).append(" ")
-            .append(Math.round(clamped * 100)).append("%")
-            .append(CompendiumColorTheme.RESET);
+        bar.append(deep).append("]").append(CompendiumColorTheme.RESET)
+            .append(" ")
+            .append(CompendiumColorTheme.formatInlineBadge(Math.round(clamped * 100) + "%", natureId));
         return bar.toString();
     }
 

@@ -184,14 +184,11 @@ public class CompendiumBookBuilder {
     
     private static Text buildProfileCoverPage(MobEntity pet, PetComponent pc, long currentTick,
                                               @Nullable Identifier natureId) {
-        String accentCode = CompendiumColorTheme.getNatureAccentCode(natureId);
-        String dividerCode = CompendiumColorTheme.getNatureShadowCode(natureId);
-
         MutableText page = Text.literal("");
 
         // Title with nature accent
         page.append(Text.literal(CompendiumColorTheme.formatSectionHeader("Profile Overview", natureId) + "\n"));
-        page.append(Text.literal(dividerCode + "─────────────────" + CompendiumColorTheme.RESET + "\n"));
+        page.append(Text.literal(CompendiumColorTheme.buildSectionDivider(natureId) + "\n\n"));
 
         // Pet name with length validation
         String petName = pet.hasCustomName() ? pet.getCustomName().getString() :
@@ -202,8 +199,7 @@ public class CompendiumBookBuilder {
             petName = petName.substring(0, MAX_TITLE_LENGTH - 3) + "...";
         }
         
-        page.append(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Name: "
-            + accentCode + petName + CompendiumColorTheme.RESET + "\n"));
+        page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Name", petName, natureId) + "\n"));
 
         // Role & nature
         Identifier roleId = pc.getRoleId();
@@ -214,41 +210,36 @@ public class CompendiumBookBuilder {
         if (roleName == null || roleName.isBlank()) {
             roleName = "Unassigned";
         }
-        page.append(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Role: "
-            + CompendiumColorTheme.WHITE + roleName + "\n"));
+        page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Role", roleName, natureId) + "\n"));
 
         Identifier nature = natureId != null ? natureId : pc.getNatureId();
         if (nature != null) {
             String natureName = NatureDisplayUtil.formatNatureName(pc, nature, MAX_NATURE_NAME_LENGTH);
-            page.append(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Nature: "
-                + accentCode + natureName + CompendiumColorTheme.RESET + "\n"));
+            page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Nature", natureName, nature) + "\n"));
         }
 
         long bondStrength = pc.getBondStrength();
         if (bondStrength > 0L) {
             String bondLevel = PetCompendiumDataExtractor.getBondLevel(bondStrength);
-            page.append(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Bond: "
-                + CompendiumColorTheme.WHITE + bondLevel
-                + CompendiumColorTheme.DARK_GRAY + " (" + bondStrength + ")\n"));
+            page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Bond", bondLevel, natureId)
+                + CompendiumColorTheme.DARK_GRAY + " (" + bondStrength + " strength)"
+                + CompendiumColorTheme.RESET + "\n"));
         }
 
         String lifespan = PetCompendiumDataExtractor.formatLifespan(pc, currentTick);
         if (lifespan != null) {
-            page.append(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Known for: "
-                + CompendiumColorTheme.WHITE + lifespan + "\n"));
+            page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Known for", lifespan, natureId) + "\n"));
         }
 
         // Level & experience
         int level = pc.getLevel();
         int xpProgress = Math.round(MathHelper.clamp(pc.getXpProgress(), 0f, 1f) * 100f);
-        page.append(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Level: "
-            + CompendiumColorTheme.WHITE + level
+        page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Level", String.valueOf(level), natureId)
             + CompendiumColorTheme.DARK_GRAY + " · "
-            + CompendiumColorTheme.WHITE + xpProgress + "%"
-            + CompendiumColorTheme.LIGHT_GRAY + " to next"
+            + CompendiumColorTheme.formatInlineBadge(xpProgress + "% to next", natureId)
             + CompendiumColorTheme.DARK_GRAY + " · "
-            + CompendiumColorTheme.LIGHT_GRAY + "XP "
-            + CompendiumColorTheme.WHITE + pc.getExperience() + "\n"));
+            + CompendiumColorTheme.formatSoftNote("XP " + pc.getExperience(), natureId)
+            + "\n"));
         String xpBar = PetCompendiumDataExtractor.buildMeterBar(
             MathHelper.clamp(pc.getXpProgress(), 0f, 1f), 8, natureId);
         page.append(Text.literal("  " + xpBar + "\n"));
@@ -257,10 +248,10 @@ public class CompendiumBookBuilder {
         float health = pet.getHealth();
         float maxHealth = pet.getMaxHealth();
         float normalizedHealth = maxHealth <= 0f ? 0f : MathHelper.clamp(health / maxHealth, 0f, 1f);
-        page.append(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Vitality: "
-            + CompendiumColorTheme.WHITE + formatNumber(health, 1)
+        page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Vitality", formatNumber(health, 1), natureId)
             + CompendiumColorTheme.DARK_GRAY + " / "
-            + CompendiumColorTheme.WHITE + formatNumber(maxHealth, 1) + "\n"));
+            + CompendiumColorTheme.formatSoftNote(formatNumber(maxHealth, 1), natureId)
+            + "\n"));
         page.append(Text.literal("  " + PetCompendiumDataExtractor.buildMeterBar(normalizedHealth, 8, natureId) + "\n"));
 
         MalevolenceLedger ledger = pc.getMalevolenceLedger();
@@ -268,9 +259,10 @@ public class CompendiumBookBuilder {
             MalevolenceLedger.MoralitySnapshot snapshot = ledger.describe();
             if (snapshot != null) {
                 String mood = snapshot.active() ? "stirred" : "steady";
-                page.append(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Morality: "
-                    + CompendiumColorTheme.WHITE + formatNumber(snapshot.score(), 1)
-                    + CompendiumColorTheme.DARK_GRAY + " · " + mood + "\n"));
+                page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Morality",
+                    formatNumber(snapshot.score(), 1), natureId)
+                    + CompendiumColorTheme.DARK_GRAY + " · "
+                    + CompendiumColorTheme.formatSoftNote(mood, natureId) + "\n"));
             }
         }
 
@@ -278,10 +270,11 @@ public class CompendiumBookBuilder {
         if (harmonyState != null) {
             float harmonyStrength = Math.max(0f, harmonyState.harmonyStrength());
             float disharmonyStrength = Math.max(0f, harmonyState.disharmonyStrength());
-            page.append(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Harmony: "
-                + accentCode + formatNumber(harmonyStrength, 1)
+            page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Harmony",
+                formatNumber(harmonyStrength, 1), natureId)
                 + CompendiumColorTheme.DARK_GRAY + " / "
-                + "§c" + formatNumber(disharmonyStrength, 1) + "\n"));
+                + CompendiumColorTheme.formatInlineBadge(formatNumber(disharmonyStrength, 1) + " unrest", natureId)
+                + "\n"));
         }
 
         return page;
@@ -291,7 +284,8 @@ public class CompendiumBookBuilder {
                                              int totalPages) {
         MutableText page = Text.literal("");
 
-        page.append(Text.literal(CompendiumColorTheme.formatSectionHeader("Table of Contents", natureId) + "\n\n"));
+        page.append(Text.literal(CompendiumColorTheme.formatSectionHeader("Table of Contents", natureId) + "\n"));
+        page.append(Text.literal(CompendiumColorTheme.buildSectionDivider(natureId) + "\n\n"));
 
         for (CompendiumSection section : sections) {
             if (section.page() <= 0) {
@@ -300,22 +294,24 @@ public class CompendiumBookBuilder {
             page.append(createPageLink(section.label(), section.page(), natureId, totalPages));
         }
 
-        page.append(Text.literal("\n\n" + CompendiumColorTheme.DARK_GRAY + "(Click to jump)"));
+        page.append(Text.literal("\n" + CompendiumColorTheme.formatSoftNote("(Tap a title to jump)", natureId)));
 
         return page;
     }
-    
+
     private static Text createPageLink(String label, Integer pageNum, @Nullable Identifier natureId, int totalPages) {
         // Validate page number to prevent out-of-bounds navigation
         int finalPageNum = (pageNum != null && pageNum > 0 && pageNum <= totalPages && pageNum <= MAX_PAGE_NUMBER) ? pageNum : 1;
-        
-        String accentCode = CompendiumColorTheme.getNatureAccentCode(natureId);
-        
-        return Text.literal(CompendiumColorTheme.DARK_GRAY + "- " + accentCode + label + "\n")
+
+        String bullet = CompendiumColorTheme.getNatureDeepShadowCode(natureId) + "▹ ";
+        String accent = CompendiumColorTheme.getNatureAccentCode(natureId);
+        String badge = CompendiumColorTheme.formatInlineBadge("pg " + finalPageNum, natureId);
+
+        return Text.literal(bullet + accent + label + " " + badge + "\n")
             .styled(style -> style
                 .withClickEvent(new ClickEvent.ChangePage(finalPageNum))
                 .withHoverEvent(new HoverEvent.ShowText(
-                    Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Jump to page " + finalPageNum)))
+                    Text.literal(CompendiumColorTheme.formatSoftNote("Jump to page " + finalPageNum, natureId))))
             );
     }
     
@@ -337,7 +333,8 @@ public class CompendiumBookBuilder {
         }
         
         if (result.isEmpty()) {
-            MutableText emptyPage = Text.literal(CompendiumColorTheme.formatSectionHeader("History Journal", natureId) + "\n\n");
+            MutableText emptyPage = Text.literal(CompendiumColorTheme.formatSectionHeader("History Journal", natureId) + "\n");
+            emptyPage.append(Text.literal(CompendiumColorTheme.buildSectionDivider(natureId) + "\n\n"));
             emptyPage.append(Text.literal(CompendiumColorTheme.DARK_GRAY + "No recorded events\nyet. Adventures\nawait!"));
             result.add(emptyPage);
         }
