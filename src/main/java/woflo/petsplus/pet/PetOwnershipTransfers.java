@@ -2,7 +2,6 @@ package woflo.petsplus.pet;
 
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.Petsplus;
@@ -55,8 +54,9 @@ public class PetOwnershipTransfers {
             }
             
             // Detach leash
-            if (pet.isLeashed()) {
-                pet.detachLeash();
+            boolean wasLeashed = pet.isLeashed();
+            if (wasLeashed) {
+                pet.detachLeash(true, true);
             }
             
             // Transfer ownership with null checks
@@ -72,8 +72,8 @@ public class PetOwnershipTransfers {
             // Refresh component state
             component.ensureImprint();
             
-            // Reattach leash to recipient
-            pet.attachLeash(recipient, true);
+            // Since the leash item is dropped in the world when the trade completes,
+            // leave any reattachment up to the players after the swap.
             
             // Update state manager
             StateManager stateManager = StateManager.forWorld((ServerWorld) pet.getEntityWorld());
@@ -83,9 +83,6 @@ public class PetOwnershipTransfers {
                 woflo.petsplus.events.CombatEventHandler.invalidatePetSwarmCache(initiator.getUuid());
                 woflo.petsplus.events.CombatEventHandler.invalidatePetSwarmCache(recipient.getUuid());
             }
-            
-            // Handle lead transfer to recipient
-            giveLeadToRecipient(initiator, recipient);
             
             // Apply mood impact if enabled
             if (PetsPlusConfig.getInstance().isLeashTradingMoodImpactEnabled()) {
@@ -146,31 +143,6 @@ public class PetOwnershipTransfers {
         }
         
         return TransferResult.SUCCESS;
-    }
-    
-    /**
-     * Gives a lead to the recipient after a pet trade.
-     * The lead was previously attached to the mob being traded.
-     * The pet is automatically re-leashed to the recipient, and we give them
-     * a lead item so they can detach/reattach as needed.
-     */
-    private static void giveLeadToRecipient(
-        ServerPlayerEntity initiator,
-        ServerPlayerEntity recipient
-    ) {
-        // Null safety checks
-        if (initiator == null || recipient == null) {
-            return;
-        }
-        
-        // Give a lead to the recipient (they now control the pet)
-        if (!recipient.isCreative()) {
-            ItemStack newLead = new ItemStack(net.minecraft.item.Items.LEAD);
-            if (!recipient.getInventory().insertStack(newLead)) {
-                // If inventory is full, drop it at their feet
-                recipient.dropItem(newLead, false);
-            }
-        }
     }
     
     /**
