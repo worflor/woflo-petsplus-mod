@@ -56,7 +56,7 @@ public class PetOwnershipTransfers {
             // Detach leash
             boolean wasLeashed = pet.isLeashed();
             if (wasLeashed) {
-                pet.detachLeash(true, true);
+                pet.detachLeash();
             }
             
             // Transfer ownership with null checks
