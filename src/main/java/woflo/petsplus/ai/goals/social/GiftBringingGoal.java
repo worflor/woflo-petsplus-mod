@@ -1,6 +1,7 @@
 package woflo.petsplus.ai.goals.social;
 
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.block.entity.LockableContainerBlockEntity;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -114,7 +115,7 @@ public class GiftBringingGoal extends AdaptiveGoal {
             return false;
         }
 
-        GiftSource source = findGiftSource(serverWorld);
+        GiftSource source = findGiftSource(serverWorld, owner);
         if (source == null) {
             return false;
         }
@@ -441,9 +442,9 @@ public class GiftBringingGoal extends AdaptiveGoal {
         serverPlayer.sendMessage(prefix.append(body), false);
     }
 
-    private GiftSource findGiftSource(ServerWorld world) {
+    private GiftSource findGiftSource(ServerWorld world, PlayerEntity owner) {
         GiftSource itemSource = findLooseItem(world);
-        GiftSource containerSource = findContainerItem(world);
+        GiftSource containerSource = owner == null ? null : findContainerItem(world, owner);
 
         if (itemSource == null) {
             return containerSource;
@@ -472,7 +473,7 @@ public class GiftBringingGoal extends AdaptiveGoal {
         return new ItemEntitySource(items.get(0));
     }
 
-    private GiftSource findContainerItem(ServerWorld world) {
+    private GiftSource findContainerItem(ServerWorld world, PlayerEntity owner) {
         BlockPos origin = mob.getBlockPos();
         BlockPos.Mutable mutable = new BlockPos.Mutable();
         double bestDistance = Double.MAX_VALUE;
@@ -490,6 +491,14 @@ public class GiftBringingGoal extends AdaptiveGoal {
 
                     BlockEntity be = world.getBlockEntity(mutable);
                     if (!(be instanceof Inventory inventory) || inventory.isEmpty()) {
+                        continue;
+                    }
+
+                    if (!inventory.canPlayerUse(owner)) {
+                        continue;
+                    }
+
+                    if (be instanceof LockableContainerBlockEntity lockable && lockable.isLocked()) {
                         continue;
                     }
 
@@ -528,6 +537,14 @@ public class GiftBringingGoal extends AdaptiveGoal {
                 return ItemStack.EMPTY;
             }
             if (containerSource.slot() < 0 || containerSource.slot() >= inventory.size()) {
+                return ItemStack.EMPTY;
+            }
+
+            if (targetPlayer != null && !inventory.canPlayerUse(targetPlayer)) {
+                return ItemStack.EMPTY;
+            }
+
+            if (be instanceof LockableContainerBlockEntity lockable && lockable.isLocked()) {
                 return ItemStack.EMPTY;
             }
 
@@ -584,6 +601,9 @@ public class GiftBringingGoal extends AdaptiveGoal {
                 return false;
             }
             if (slot < 0 || slot >= inventory.size()) {
+                return false;
+            }
+            if (be instanceof LockableContainerBlockEntity lockable && lockable.isLocked()) {
                 return false;
             }
             return !inventory.getStack(slot).isEmpty();
