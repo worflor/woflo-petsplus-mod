@@ -17,6 +17,7 @@ import woflo.petsplus.state.coordination.PetWorkScheduler;
  */
 public final class GossipPropagationPlanner {
     private static final double DEFAULT_RADIUS = 12.0D;
+    private static final double DEFAULT_RADIUS_SQ = DEFAULT_RADIUS * DEFAULT_RADIUS;
     private static final int MAX_NEIGHBORS = 4;
 
     private GossipPropagationPlanner() {
@@ -37,20 +38,39 @@ public final class GossipPropagationPlanner {
             return GossipPropagationPlan.empty();
         }
 
-        Map<UUID, OwnerBatchSnapshot.PetSummary> summariesById = new HashMap<>();
+        Map<UUID, OwnerBatchSnapshot.PetSummary> summariesById = new HashMap<>(pets.size());
+        List<PetNode> nodes = new ArrayList<>(pets.size());
+        Map<UUID, PetNode> nodesById = new HashMap<>(pets.size());
         for (OwnerBatchSnapshot.PetSummary pet : pets) {
-            UUID petId = pet.petUuid();
-            if (petId != null) {
-                summariesById.put(petId, pet);
+            if (pet == null) {
+                continue;
             }
+            UUID petId = pet.petUuid();
+            if (petId == null) {
+                continue;
+            }
+            summariesById.put(petId, pet);
+            if (pet.gossipOptedOut()) {
+                continue;
+            }
+            double x = pet.x();
+            double y = pet.y();
+            double z = pet.z();
+            if (Double.isNaN(x) || Double.isNaN(y) || Double.isNaN(z)) {
+                continue;
+            }
+            PetNode node = new PetNode(petId, x, y, z, nodes.size());
+            nodes.add(node);
+            nodesById.put(petId, node);
         }
 
         if (summariesById.isEmpty()) {
             return GossipPropagationPlan.empty();
         }
 
-        Map<UUID, List<Share>> transmissions = new HashMap<>();
-
+        List<StoryCandidate> storytellers = new ArrayList<>(gossipTasks.size());
+        long snapshotTick = snapshot.snapshotTick();
+        List<PetNode> storytellerNodes = new ArrayList<>(gossipTasks.size());
         for (OwnerBatchSnapshot.TaskSnapshot task : gossipTasks.values()) {
             UUID storytellerId = task.petUuid();
             OwnerBatchSnapshot.PetSummary storyteller = summariesById.get(storytellerId);
@@ -58,19 +78,66 @@ public final class GossipPropagationPlanner {
                 continue;
             }
 
-            List<RumorEntry> shareableRumors = selectShareableRumors(storyteller, snapshot.snapshotTick());
+            List<RumorEntry> shareableRumors = selectShareableRumors(storyteller, snapshotTick);
             if (shareableRumors.isEmpty()) {
                 continue;
             }
 
-            List<UUID> neighbors = collectNeighbors(storyteller, summariesById);
+            PetNode node = nodesById.get(storytellerId);
+            if (node == null) {
+                continue;
+            }
+            node.ensureBuffer(MAX_NEIGHBORS);
+            if (node.neighbors != null) {
+                storytellerNodes.add(node);
+            }
+            storytellers.add(new StoryCandidate(node, shareableRumors));
+        }
+
+        if (storytellers.isEmpty()) {
+            return GossipPropagationPlan.empty();
+        }
+
+        if (nodes.size() >= 2 && !storytellerNodes.isEmpty()) {
+            storytellerNodes.sort((a, b) -> Integer.compare(a.index, b.index));
+            for (PetNode storytellerNode : storytellerNodes) {
+                NeighborBuffer bufferA = storytellerNode.neighbors;
+                if (bufferA == null) {
+                    continue;
+                }
+                for (int j = 0; j < nodes.size(); j++) {
+                    PetNode other = nodes.get(j);
+                    if (other == storytellerNode) {
+                        continue;
+                    }
+                    if (other.neighbors != null && other.index < storytellerNode.index) {
+                        continue;
+                    }
+                    double dx = other.x - storytellerNode.x;
+                    double dy = other.y - storytellerNode.y;
+                    double dz = other.z - storytellerNode.z;
+                    double distanceSq = (dx * dx) + (dy * dy) + (dz * dz);
+                    if (distanceSq > DEFAULT_RADIUS_SQ) {
+                        continue;
+                    }
+                    bufferA.insert(other.id, distanceSq);
+                    NeighborBuffer bufferB = other.neighbors;
+                    if (bufferB != null && other.index > storytellerNode.index) {
+                        bufferB.insert(storytellerNode.id, distanceSq);
+                    }
+                }
+            }
+        }
+
+        Map<UUID, List<Share>> transmissions = new HashMap<>(storytellers.size());
+        for (StoryCandidate candidate : storytellers) {
+            List<UUID> neighbors = candidate.node.neighborIds();
             if (neighbors.isEmpty()) {
                 continue;
             }
-
-            List<Share> shares = buildShares(neighbors, shareableRumors);
+            List<Share> shares = buildShares(neighbors, candidate.rumors);
             if (!shares.isEmpty()) {
-                transmissions.put(storytellerId, shares);
+                transmissions.put(candidate.node.id, shares);
             }
         }
 
@@ -129,43 +196,34 @@ public final class GossipPropagationPlanner {
         return combined;
     }
 
-    private static List<UUID> collectNeighbors(OwnerBatchSnapshot.PetSummary storyteller,
-                                               Map<UUID, OwnerBatchSnapshot.PetSummary> summariesById) {
-        double originX = storyteller.x();
-        double originY = storyteller.y();
-        double originZ = storyteller.z();
-        if (Double.isNaN(originX) || Double.isNaN(originY) || Double.isNaN(originZ)) {
-            return List.of();
+    private record StoryCandidate(PetNode node, List<RumorEntry> rumors) { }
+
+    private static final class PetNode {
+        private final UUID id;
+        private final double x;
+        private final double y;
+        private final double z;
+        private final int index;
+        private NeighborBuffer neighbors;
+
+        private PetNode(UUID id, double x, double y, double z, int index) {
+            this.id = id;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.index = index;
         }
 
-        NeighborBuffer neighbors = new NeighborBuffer(MAX_NEIGHBORS);
-        double radiusSq = DEFAULT_RADIUS * DEFAULT_RADIUS;
-
-        for (OwnerBatchSnapshot.PetSummary candidate : summariesById.values()) {
-            if (candidate == storyteller || candidate.gossipOptedOut()) {
-                continue;
+        private void ensureBuffer(int capacity) {
+            if (capacity <= 0 || neighbors != null) {
+                return;
             }
-            UUID candidateId = candidate.petUuid();
-            if (candidateId == null) {
-                continue;
-            }
-            double x = candidate.x();
-            double y = candidate.y();
-            double z = candidate.z();
-            if (Double.isNaN(x) || Double.isNaN(y) || Double.isNaN(z)) {
-                continue;
-            }
-            double dx = x - originX;
-            double dy = y - originY;
-            double dz = z - originZ;
-            double distanceSq = (dx * dx) + (dy * dy) + (dz * dz);
-            if (distanceSq > radiusSq) {
-                continue;
-            }
-            neighbors.insert(candidateId, distanceSq);
+            neighbors = new NeighborBuffer(capacity);
         }
 
-        return neighbors.toList();
+        private List<UUID> neighborIds() {
+            return neighbors == null ? List.of() : neighbors.toList();
+        }
     }
 
     private static final class NeighborBuffer {

@@ -7,6 +7,7 @@ import it.unimi.dsi.fastutil.longs.Long2LongMap;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongLinkedOpenHashSet;
 import net.minecraft.nbt.NbtElement;
@@ -351,7 +352,7 @@ public final class PetGossipLedger {
         if (rumors.isEmpty()) {
             return;
         }
-        List<Long> removals = new ArrayList<>();
+        LongArrayList removals = null;
         for (Long2ObjectMap.Entry<RumorEntry> entry : rumors.long2ObjectEntrySet()) {
             long topicId = entry.getLongKey();
             RumorEntry rumor = entry.getValue();
@@ -359,6 +360,9 @@ public final class PetGossipLedger {
             if (rumor.isExpired(currentTick, MAX_RUMOR_AGE)
                 || (rumor.intensity() < MIN_SHARE_INTENSITY * 0.5f
                 && rumor.confidence() < MIN_SHARE_CONFIDENCE * 0.5f)) {
+                if (removals == null) {
+                    removals = new LongArrayList();
+                }
                 removals.add(topicId);
                 continue;
             }
@@ -367,27 +371,30 @@ public final class PetGossipLedger {
                 enqueueForSharing(topicId);
             }
         }
-        if (!removals.isEmpty()) {
-            for (Long topicId : removals) {
-                if (topicId == null) {
-                    continue;
-                }
+        if (removals != null && !removals.isEmpty()) {
+            for (int i = 0; i < removals.size(); i++) {
+                long topicId = removals.getLong(i);
                 rumors.remove(topicId);
                 shareQueue.remove(topicId);
                 heardHistory.remove(topicId);
             }
         }
         if (!heardHistory.isEmpty()) {
-            List<Long> stale = new ArrayList<>();
+            LongArrayList stale = null;
             for (Long2LongMap.Entry entry : heardHistory.long2LongEntrySet()) {
                 long topicId = entry.getLongKey();
                 long tick = entry.getLongValue();
                 if (!rumors.containsKey(topicId) || currentTick - tick > MAX_RUMOR_AGE) {
+                    if (stale == null) {
+                        stale = new LongArrayList();
+                    }
                     stale.add(topicId);
                 }
             }
-            for (Long topicId : stale) {
-                heardHistory.remove(topicId);
+            if (stale != null && !stale.isEmpty()) {
+                for (int i = 0; i < stale.size(); i++) {
+                    heardHistory.remove(stale.getLong(i));
+                }
             }
         }
     }
