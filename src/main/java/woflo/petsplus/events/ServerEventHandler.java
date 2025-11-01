@@ -11,8 +11,8 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.tracking.PlayerTickDispatcher;
-import woflo.petsplus.state.tracking.PlayerTickListeners;
 import woflo.petsplus.ui.ActionBarCueManager;
 import woflo.petsplus.ui.BossBarManager;
 import woflo.petsplus.ui.PetInspectionManager;
@@ -52,6 +52,10 @@ public class ServerEventHandler {
             }
         }
         
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            handlePlayerDisconnect(player);
+        }
+
         // Clean up all background tasks and resources to prevent watchdog timeouts
         woflo.petsplus.ui.FeedbackManager.cleanup();
         woflo.petsplus.effects.PetsplusEffectManager.shutdown();
@@ -64,9 +68,6 @@ public class ServerEventHandler {
         // Cancel pending idle emotion tasks and shutdown executor
         woflo.petsplus.mood.MoodService.getInstance().getStimulusBus().cancelPendingIdleTasks();
         woflo.petsplus.mood.EmotionStimulusBus.shutdownIdleExecutor();
-
-        // Ensure all dispatcher-managed listeners release their per-player state.
-        server.getPlayerManager().getPlayerList().forEach(PlayerTickDispatcher::clearPlayer);
 
         // Properly shutdown all state managers to close async coordinators
         StateManager.unloadAll();
@@ -180,5 +181,6 @@ public class ServerEventHandler {
         PetInspectionManager.onPlayerDisconnect(player);
         BossBarManager.onPlayerDisconnect(player);
         ActionBarCueManager.onPlayerDisconnect(player);
+        OwnerCombatState.remove(player);
     }
 }
