@@ -25,6 +25,7 @@ import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.history.HistoryManager;
 import woflo.petsplus.mechanics.StargazeMechanic;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.modules.ProgressionModule;
 import woflo.petsplus.ui.ActionBarUtils;
 
 /**
@@ -192,8 +193,12 @@ public class TributeHandler {
 
             int previousLevel = petComp.getLevel();
 
-            // Unlock milestone
+            // Unlock milestone and award an ability slot
             petComp.unlockMilestone(milestoneLevel);
+            ProgressionModule progressionModule = petComp.getProgressionModule();
+            if (progressionModule != null) {
+                progressionModule.addAbilitySlots(1);
+            }
 
             // Get pet name for messages
             String petName = pet.hasCustomName() ?

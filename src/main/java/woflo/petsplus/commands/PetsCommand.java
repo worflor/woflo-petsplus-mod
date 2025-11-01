@@ -343,8 +343,10 @@ public class PetsCommand {
                         pet.getType().getName().getString();
                     
                     Identifier roleId = petComp.getRoleId();
-                    PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
-                    Text roleLabel = RoleIdentifierUtil.roleLabel(roleId, roleType);
+                    PetRoleType roleType = roleId != null ? PetsPlusRegistries.petRoleTypeRegistry().get(roleId) : null;
+                    Text roleLabel = roleId != null
+                        ? RoleIdentifierUtil.roleLabel(roleId, roleType)
+                        : Text.literal("Roleless").formatted(Formatting.DARK_GRAY);
                     int level = petComp.getLevel();
 
                     player.sendMessage(Text.literal("  - " + petName + " (")

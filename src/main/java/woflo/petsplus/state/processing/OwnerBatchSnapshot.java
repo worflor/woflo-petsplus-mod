@@ -2,6 +2,7 @@ package woflo.petsplus.state.processing;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
@@ -146,6 +147,15 @@ public final class OwnerBatchSnapshot {
                 Map<String, Long> sanitizedCooldowns = cooldowns.isEmpty()
                     ? Map.of()
                     : Collections.unmodifiableMap(cooldowns);
+                Set<Identifier> unlockedSet = component.getUnlockedAbilities();
+                List<Identifier> abilityList;
+                if (unlockedSet.isEmpty()) {
+                    abilityList = List.of();
+                } else {
+                    List<Identifier> ordered = new ArrayList<>(unlockedSet);
+                    ordered.sort(Comparator.comparing(Identifier::toString));
+                    abilityList = List.copyOf(ordered);
+                }
                 boolean gossipOptedOut = false;
                 List<RumorEntry> freshRumors = List.of();
                 List<RumorEntry> abstractRumors = List.of();
@@ -164,7 +174,7 @@ public final class OwnerBatchSnapshot {
                     z = entity.getZ();
                 }
                 copies.add(new PetSummary(petId, roleId, level, lastAttackTick, perched, x, y, z,
-                    sanitizedCooldowns, gossipOptedOut, freshRumors, abstractRumors));
+                    sanitizedCooldowns, abilityList, gossipOptedOut, freshRumors, abstractRumors));
             }
             pets = List.copyOf(copies);
         }
@@ -206,6 +216,7 @@ public final class OwnerBatchSnapshot {
                               double y,
                               double z,
                               Map<String, Long> cooldowns,
+                              List<Identifier> abilities,
                               boolean gossipOptedOut,
                               List<RumorEntry> freshRumors,
                               List<RumorEntry> abstractRumors) {

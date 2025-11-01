@@ -361,17 +361,14 @@ public class PetsplusAdminCommands {
         player.sendMessage(Text.literal("=== Pet Information ===").formatted(Formatting.GOLD), false);
         player.sendMessage(Text.literal("Type: " + targetPet.getType().getName().getString()), false);
         Identifier roleId = petComp.getRoleId();
-        PetRoleType roleType = petComp.getRoleType(false);
-        String roleLabel;
         if (roleId != null) {
-            roleLabel = RoleIdentifierUtil.roleLabel(roleId, roleType).getString();
+            PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+            String roleLabel = RoleIdentifierUtil.roleLabel(roleId, roleType).getString();
             if (roleLabel.isBlank()) {
                 roleLabel = roleId.toString();
             }
-        } else {
-            roleLabel = "Unknown";
+            player.sendMessage(Text.literal("Role: " + roleLabel), false);
         }
-        player.sendMessage(Text.literal("Role: " + roleLabel), false);
         player.sendMessage(Text.literal("Level: " + petComp.getLevel() + " (" + petComp.getExperience() + " XP)"), false);
         player.sendMessage(Text.literal("Bond Strength: " + petComp.getBondStrength()), false);
         Identifier natureId = petComp.getNatureId();

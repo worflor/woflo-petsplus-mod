@@ -13,6 +13,8 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import net.minecraft.util.Identifier;
+
 import woflo.petsplus.state.coordination.PetWorkScheduler;
 import woflo.petsplus.state.gossip.RumorEntry;
 
@@ -87,7 +89,8 @@ class GossipPropagationPlannerTest {
             x,
             y,
             z,
-            Map.of(),
+            Map.<String, Long>of(),
+            List.<Identifier>of(),
             optedOut,
             freshRumors,
             List.of()

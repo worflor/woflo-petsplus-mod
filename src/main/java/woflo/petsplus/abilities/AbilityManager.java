@@ -1,26 +1,35 @@
 package woflo.petsplus.abilities;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
+import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.Ability;
 import woflo.petsplus.api.DamageInterceptionResult;
 import woflo.petsplus.api.TriggerContext;
 import woflo.petsplus.api.event.AbilityActivationEvent;
 import woflo.petsplus.api.registry.AbilityType;
-import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.coordination.PetSwarmIndex;
+import woflo.petsplus.state.modules.ProgressionModule;
 import woflo.petsplus.state.processing.OwnerBatchSnapshot;
-
-import java.util.*;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * Manages all abilities and their activation for pets.
@@ -31,10 +40,8 @@ public class AbilityManager {
     private static final String EVENT_LETHAL_DAMAGE = "lethal_damage";
     private static final String EVENT_INTERCEPT_DAMAGE = "intercept_damage";
     private static final String EVENT_DAMAGE_RESULT = "damage_result";
-    private static final Map<Identifier, List<Ability>> ROLE_ABILITIES = new HashMap<>();
     private static final Map<Identifier, Ability> ALL_ABILITIES = new HashMap<>();
-    private static final Map<Identifier, RoleAbilityCache> ROLE_EVENT_CACHES = new HashMap<>();
-    private static final Map<Identifier, List<RoleAbilityCache.CompiledAbility>> ROLE_COMPILED_DEFAULTS = new HashMap<>();
+    private static final Map<Identifier, AbilityDispatchEntry> DISPATCH_ENTRIES = new HashMap<>();
 
     /**
      * Initialize the ability system with default abilities.
@@ -47,53 +54,39 @@ public class AbilityManager {
      * Rebuilds cached ability instances from the active registry contents.
      */
     public static synchronized void reloadFromRegistry() {
-        ROLE_ABILITIES.clear();
         ALL_ABILITIES.clear();
-        ROLE_EVENT_CACHES.clear();
-        ROLE_COMPILED_DEFAULTS.clear();
+        DISPATCH_ENTRIES.clear();
 
-        Map<Identifier, Ability> instantiated = new HashMap<>();
+        int nullInstances = 0;
         for (AbilityType type : PetsPlusRegistries.abilityTypeRegistry()) {
-            Ability ability = type.createAbility();
-            if (ability == null) {
-                Petsplus.LOGGER.warn("Registry ability {} returned null instance", type.id());
+            Ability ability;
+            try {
+                ability = type.createAbility();
+            } catch (Exception e) {
+                Petsplus.LOGGER.error("Failed to instantiate ability {}", type.id(), e);
+                nullInstances++;
                 continue;
             }
-            instantiated.put(type.id(), ability);
-            ALL_ABILITIES.put(type.id(), ability);
-        }
 
-        for (PetRoleType roleType : PetsPlusRegistries.petRoleTypeRegistry()) {
-            List<Ability> loadout = new ArrayList<>();
-            Map<String, List<Ability>> eventBuckets = new HashMap<>();
-            List<Ability> fallback = new ArrayList<>();
-
-            for (Identifier abilityId : roleType.defaultAbilities()) {
-                Ability ability = instantiated.get(abilityId);
-                if (ability == null) {
-                    Petsplus.LOGGER.error("Role {} references unknown ability {}", roleType.id(), abilityId);
-                    continue;
-                }
-                loadout.add(ability);
-
-                String eventKey = resolveEventKey(ability);
-                if (eventKey != null) {
-                    eventBuckets.computeIfAbsent(eventKey, unused -> new ArrayList<>()).add(ability);
-                } else {
-                    fallback.add(ability);
-                }
+            if (ability == null) {
+                Petsplus.LOGGER.warn("Registry ability {} returned null instance", type.id());
+                nullInstances++;
+                continue;
             }
 
-            RoleAbilityCache cache = RoleAbilityCache.build(loadout, eventBuckets, fallback);
-            ROLE_ABILITIES.put(roleType.id(), cache.abilityView());
-            ROLE_EVENT_CACHES.put(roleType.id(), cache);
-            ROLE_COMPILED_DEFAULTS.put(roleType.id(), cache.defaultCompiled());
+            Identifier abilityId = ability.getId();
+            if (abilityId == null) {
+                abilityId = type.id();
+            }
+
+            ALL_ABILITIES.put(abilityId, ability);
+            DISPATCH_ENTRIES.put(abilityId, AbilityDispatchEntry.from(ability, resolveEventKey(ability)));
         }
 
         if (ALL_ABILITIES.isEmpty()) {
             Petsplus.LOGGER.debug("Ability registry reload completed with no abilities available.");
         } else {
-            Petsplus.LOGGER.info("Loaded {} abilities across {} roles", ALL_ABILITIES.size(), ROLE_ABILITIES.size());
+            Petsplus.LOGGER.info("Loaded {} abilities ({} skipped)", ALL_ABILITIES.size(), nullInstances);
         }
     }
 
@@ -110,21 +103,13 @@ public class AbilityManager {
             return AbilityTriggerResult.empty();
         }
 
-        Identifier roleId = component.getRoleId();
-        RoleAbilityCache cache = ROLE_EVENT_CACHES.get(roleId);
-        List<RoleAbilityCache.CompiledAbility> compiledAbilities = cache != null
-            ? cache.compiledAbilitiesForEvent(context.getEventType())
-            : ROLE_COMPILED_DEFAULTS.get(roleId);
-
-        if (compiledAbilities == null || compiledAbilities.isEmpty()) {
-            if (PetsPlusRegistries.petRoleTypeRegistry().get(roleId) == null) {
-                Petsplus.LOGGER.warn("Pet {} has role {} without a registered definition; skipping ability triggers.", pet.getUuid(), roleId);
-            }
+        List<CompiledAbility> compiledAbilities = resolveComponentAbilities(component, context.getEventType());
+        if (compiledAbilities.isEmpty()) {
             return AbilityTriggerResult.empty();
         }
 
         TriggerContext petContext = cloneContextForPet(pet, context);
-        return executeCompiledAbilities(component, component.getRoleType(false), compiledAbilities, petContext);
+        return executeCompiledAbilities(component, compiledAbilities, petContext);
     }
 
     /**
@@ -144,8 +129,9 @@ public class AbilityManager {
             return AbilityTriggerResult.empty();
         }
 
-        Map<Identifier, RoleAbilityGroup> groups = new HashMap<>();
-        Set<Identifier> skippedRoles = new HashSet<>();
+        Map<String, Object> sharedData = eventData == null ? Map.of() : eventData;
+        DamageContext damageContext = resolveDamageContext(sharedData);
+        boolean anyActivated = false;
 
         for (PetComponent component : pets) {
             if (component == null) {
@@ -156,71 +142,31 @@ public class AbilityManager {
                 continue;
             }
 
-            Identifier roleId = component.getRoleId();
-            if (roleId == null) {
-                continue;
-            }
-            if (skippedRoles.contains(roleId)) {
-                continue;
-            }
-
-            RoleAbilityGroup group = groups.get(roleId);
-            if (group == null) {
-                RoleAbilityCache cache = ROLE_EVENT_CACHES.get(roleId);
-                List<RoleAbilityCache.CompiledAbility> compiled = cache != null
-                    ? cache.compiledAbilitiesForEvent(trimmedTrigger)
-                    : ROLE_COMPILED_DEFAULTS.get(roleId);
-                if (compiled == null || compiled.isEmpty()) {
-                    skippedRoles.add(roleId);
-                    continue;
-                }
-                PetRoleType roleType = component.getRoleType(false);
-                if (roleType == null) {
-                    skippedRoles.add(roleId);
-                    continue;
-                }
-                group = new RoleAbilityGroup(roleType, compiled);
-                groups.put(roleId, group);
-            }
-
             ServerPlayerEntity resolvedOwner = resolveOwner(ownerHint, component);
             if (resolvedOwner == null) {
                 continue;
             }
 
-            group.addMember(pet, component, resolvedOwner);
-        }
-
-        if (groups.isEmpty()) {
-            return AbilityTriggerResult.empty();
-        }
-
-        Map<String, Object> sharedData = eventData == null ? Map.of() : eventData;
-        DamageContext damageContext = resolveDamageContext(sharedData);
-        boolean anyActivated = false;
-
-        for (RoleAbilityGroup group : groups.values()) {
-            for (RoleAbilityGroup.Member member : group.members()) {
-                TriggerContext context = new TriggerContext(world, member.pet(), member.owner(), trimmedTrigger);
-                if (!sharedData.isEmpty()) {
-                    context.getEventData().putAll(sharedData);
-                }
-                if (damageContext.hasContext()) {
-                    context.withDamageContext(
-                        damageContext.source(),
-                        damageContext.damageAmount(),
-                        damageContext.lethal(),
-                        damageContext.result()
-                    );
-                }
-                AbilityTriggerResult result = executeCompiledAbilities(
-                    member.component(),
-                    group.roleType(),
-                    group.compiledAbilities(),
-                    context
-                );
-                anyActivated |= result.anyActivated();
+            List<CompiledAbility> compiled = resolveComponentAbilities(component, trimmedTrigger);
+            if (compiled.isEmpty()) {
+                continue;
             }
+
+            TriggerContext context = new TriggerContext(world, pet, resolvedOwner, trimmedTrigger);
+            if (!sharedData.isEmpty()) {
+                context.getEventData().putAll(sharedData);
+            }
+            if (damageContext.hasContext()) {
+                context.withDamageContext(
+                    damageContext.source(),
+                    damageContext.damageAmount(),
+                    damageContext.lethal(),
+                    damageContext.result()
+                );
+            }
+
+            AbilityTriggerResult result = executeCompiledAbilities(component, compiled, context);
+            anyActivated |= result.anyActivated();
         }
 
         return AbilityTriggerResult.of(anyActivated, damageContext.result());
@@ -244,22 +190,22 @@ public class AbilityManager {
 
         for (OwnerBatchSnapshot.PetSummary petSummary : pets) {
             UUID petUuid = petSummary.petUuid();
-            Identifier roleId = petSummary.roleId();
-            if (petUuid == null || roleId == null) {
+            if (petUuid == null) {
                 continue;
             }
 
-            RoleAbilityCache cache = ROLE_EVENT_CACHES.get(roleId);
-            if (cache == null) {
+            List<Identifier> abilityIds = petSummary.abilities();
+            if (abilityIds == null || abilityIds.isEmpty()) {
                 continue;
             }
-            List<RoleAbilityCache.CompiledAbility> compiled = cache.compiledAbilitiesForEvent(triggerId);
-            if (compiled == null || compiled.isEmpty()) {
+
+            List<CompiledAbility> compiled = compileAbilitiesForEvent(abilityIds, triggerId);
+            if (compiled.isEmpty()) {
                 continue;
             }
 
             Map<String, Long> cooldowns = petSummary.cooldowns();
-            executions.add(new AbilityExecutionPlan.PetExecution(petUuid, roleId, compiled, cooldowns));
+            executions.add(new AbilityExecutionPlan.PetExecution(petUuid, compiled, cooldowns));
         }
 
         return AbilityExecutionPlan.fromEntries(executions);
@@ -316,8 +262,14 @@ public class AbilityManager {
                 cooldowns = execution.cooldowns();
             }
 
-            List<RoleAbilityCache.CompiledAbility> readyAbilities = filterAbilitiesByCooldown(
-                execution.abilities(),
+            List<CompiledAbility> liveAbilities = resolveComponentAbilities(component, payload.eventType());
+            List<CompiledAbility> merged = mergeCompiledAbilities(execution.abilities(), liveAbilities);
+            if (merged.isEmpty()) {
+                continue;
+            }
+
+            List<CompiledAbility> readyAbilities = filterAbilitiesByCooldown(
+                merged,
                 cooldowns,
                 applicationTick
             );
@@ -336,22 +288,10 @@ public class AbilityManager {
                     damageContext.result()
                 );
             }
-            AbilityTriggerResult result = executeCompiledAbilities(
-                component,
-                component.getRoleType(false),
-                readyAbilities,
-                context
-            );
+            AbilityTriggerResult result = executeCompiledAbilities(component, readyAbilities, context);
             anyActivated |= result.anyActivated();
         }
         return AbilityTriggerResult.of(anyActivated, damageContext.result());
-    }
-
-    /**
-     * Get all abilities for a specific role.
-     */
-    public static List<Ability> getAbilitiesForRole(Identifier roleId) {
-        return ROLE_ABILITIES.getOrDefault(roleId, Collections.emptyList());
     }
 
     /**
@@ -379,134 +319,53 @@ public class AbilityManager {
         return path;
     }
 
-    private static final class RoleAbilityCache {
-        private final List<Ability> abilityView;
-        private final List<CompiledAbility> defaultCompiled;
-        private final Map<String, List<CompiledAbility>> compiledByEvent;
+    private static final class CompiledAbility {
+        private final Ability ability;
+        private final Identifier id;
+        private final String cooldownKey;
+        private final int baseCooldown;
 
-        private RoleAbilityCache(List<Ability> abilityView,
-                                 List<CompiledAbility> defaultCompiled,
-                                 Map<String, List<CompiledAbility>> compiledByEvent) {
-            this.abilityView = abilityView;
-            this.defaultCompiled = defaultCompiled;
-            this.compiledByEvent = compiledByEvent;
+        private CompiledAbility(Ability ability, Identifier id, String cooldownKey, int baseCooldown) {
+            this.ability = ability;
+            this.id = id;
+            this.cooldownKey = cooldownKey;
+            this.baseCooldown = baseCooldown;
         }
 
-        static RoleAbilityCache build(List<Ability> loadout,
-                                      Map<String, List<Ability>> eventBuckets,
-                                      List<Ability> fallback) {
-            List<Ability> abilityView = loadout.isEmpty() ? Collections.emptyList() : List.copyOf(loadout);
-            if (eventBuckets.isEmpty() && fallback.isEmpty()) {
-                return new RoleAbilityCache(
-                    abilityView,
-                    compileAbilities(abilityView),
-                    Collections.emptyMap()
-                );
+        static CompiledAbility from(Ability ability) {
+            Identifier id = ability.getId();
+            if (id == null) {
+                String fallbackPath = ability.getClass().getSimpleName().toLowerCase(Locale.ROOT);
+                id = Identifier.of(Petsplus.MOD_ID, "synthetic/" + fallbackPath);
             }
-
-            IdentityHashMap<Ability, CompiledAbility> compiledCache = new IdentityHashMap<>();
-            List<CompiledAbility> baseline = compileAbilities(abilityView, compiledCache);
-            List<CompiledAbility> fallbackCompiled = compileAbilities(fallback, compiledCache);
-
-            Map<String, List<CompiledAbility>> compiled = new HashMap<>();
-            for (Map.Entry<String, List<Ability>> entry : eventBuckets.entrySet()) {
-                List<Ability> abilities = entry.getValue();
-                if (abilities == null || abilities.isEmpty()) {
-                    continue;
-                }
-                List<CompiledAbility> eventCompiled = compileAbilities(abilities, compiledCache);
-                List<CompiledAbility> merged;
-                if (fallbackCompiled.isEmpty()) {
-                    merged = eventCompiled;
-                } else {
-                    merged = new ArrayList<>(eventCompiled.size() + fallbackCompiled.size());
-                    merged.addAll(eventCompiled);
-                    merged.addAll(fallbackCompiled);
-                    merged = Collections.unmodifiableList(merged);
-                }
-                compiled.put(entry.getKey(), merged);
+            String cooldownKey = id.toString();
+            int baseCooldown = 0;
+            if (ability.getTrigger() != null) {
+                baseCooldown = ability.getTrigger().getInternalCooldownTicks();
             }
-
-            return new RoleAbilityCache(
-                abilityView,
-                baseline,
-                compiled.isEmpty() ? Collections.emptyMap() : Map.copyOf(compiled)
-            );
+            return new CompiledAbility(ability, id, cooldownKey, baseCooldown);
         }
 
-        List<Ability> abilityView() {
-            return abilityView;
+        Ability ability() {
+            return ability;
         }
 
-        List<CompiledAbility> defaultCompiled() {
-            return defaultCompiled;
+        Identifier id() {
+            return id;
         }
 
-        List<CompiledAbility> compiledAbilitiesForEvent(String eventType) {
-            if (eventType != null) {
-                List<CompiledAbility> abilities = compiledByEvent.get(eventType);
-                if (abilities != null) {
-                    return abilities;
-                }
-            }
-            return defaultCompiled;
+        String cooldownKey() {
+            return cooldownKey;
         }
 
-        private static List<CompiledAbility> compileAbilities(List<Ability> abilities) {
-            return compileAbilities(abilities, new IdentityHashMap<>());
+        int baseCooldown() {
+            return baseCooldown;
         }
+    }
 
-        private static List<CompiledAbility> compileAbilities(List<Ability> abilities,
-                                                              IdentityHashMap<Ability, CompiledAbility> cache) {
-            if (abilities == null || abilities.isEmpty()) {
-                return Collections.emptyList();
-            }
-            List<CompiledAbility> compiled = new ArrayList<>(abilities.size());
-            for (Ability ability : abilities) {
-                if (ability == null) {
-                    continue;
-                }
-                CompiledAbility entry = cache.computeIfAbsent(ability, CompiledAbility::from);
-                compiled.add(entry);
-            }
-            if (compiled.isEmpty()) {
-                return Collections.emptyList();
-            }
-            return Collections.unmodifiableList(compiled);
-        }
-
-        static final class CompiledAbility {
-            private final Ability ability;
-            private final String cooldownKey;
-            private final int baseCooldown;
-
-            private CompiledAbility(Ability ability, String cooldownKey, int baseCooldown) {
-                this.ability = ability;
-                this.cooldownKey = cooldownKey;
-                this.baseCooldown = baseCooldown;
-            }
-
-            static CompiledAbility from(Ability ability) {
-                Identifier id = ability.getId();
-                String cooldownKey = id != null ? id.toString() : ability.getClass().getName();
-                int baseCooldown = 0;
-                if (ability.getTrigger() != null) {
-                    baseCooldown = ability.getTrigger().getInternalCooldownTicks();
-                }
-                return new CompiledAbility(ability, cooldownKey, baseCooldown);
-            }
-
-            Ability ability() {
-                return ability;
-            }
-
-            String cooldownKey() {
-                return cooldownKey;
-            }
-
-            int baseCooldown() {
-                return baseCooldown;
-            }
+    private record AbilityDispatchEntry(CompiledAbility compiled, @Nullable String eventKey) {
+        static AbilityDispatchEntry from(Ability ability, @Nullable String eventKey) {
+            return new AbilityDispatchEntry(CompiledAbility.from(ability), eventKey);
         }
     }
 
@@ -529,6 +388,100 @@ public class AbilityManager {
             );
         }
         return petContext;
+    }
+
+    private static List<CompiledAbility> resolveComponentAbilities(PetComponent component,
+                                                                   @Nullable String eventType) {
+        if (component == null) {
+            return List.of();
+        }
+        ProgressionModule progression = component.getProgressionModule();
+        if (progression == null) {
+            return List.of();
+        }
+        Set<Identifier> unlocked = progression.getUnlockedAbilities();
+        if (unlocked == null || unlocked.isEmpty()) {
+            return List.of();
+        }
+        return compileAbilitiesForEvent(unlocked, eventType);
+    }
+
+    private static List<CompiledAbility> compileAbilitiesForEvent(Collection<Identifier> abilityIds,
+                                                                  @Nullable String eventType) {
+        if (abilityIds == null || abilityIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Identifier> ordered = new ArrayList<>(abilityIds.size());
+        for (Identifier abilityId : abilityIds) {
+            if (abilityId != null) {
+                ordered.add(abilityId);
+            }
+        }
+        if (ordered.isEmpty()) {
+            return List.of();
+        }
+        ordered.sort(Comparator.comparing(Identifier::toString));
+
+        String trimmedEvent = eventType == null ? "" : eventType.trim();
+        boolean hasEvent = !trimmedEvent.isEmpty();
+
+        List<CompiledAbility> matches = new ArrayList<>();
+        List<CompiledAbility> fallback = new ArrayList<>();
+
+        for (Identifier abilityId : ordered) {
+            AbilityDispatchEntry entry = DISPATCH_ENTRIES.get(abilityId);
+            if (entry == null) {
+                Petsplus.LOGGER.warn("Unlocked ability {} is not registered for dispatch", abilityId);
+                continue;
+            }
+            String entryEvent = entry.eventKey();
+            if (entryEvent == null || entryEvent.isEmpty()) {
+                fallback.add(entry.compiled());
+            } else if (!hasEvent || entryEvent.equals(trimmedEvent)) {
+                matches.add(entry.compiled());
+            }
+        }
+
+        if (matches.isEmpty()) {
+            if (fallback.isEmpty()) {
+                return List.of();
+            }
+            return List.copyOf(fallback);
+        }
+        if (!fallback.isEmpty()) {
+            matches.addAll(fallback);
+        }
+        return List.copyOf(matches);
+    }
+
+    private static List<CompiledAbility> mergeCompiledAbilities(List<CompiledAbility> planned,
+                                                                List<CompiledAbility> live) {
+        if ((planned == null || planned.isEmpty()) && (live == null || live.isEmpty())) {
+            return List.of();
+        }
+        if (planned == null || planned.isEmpty()) {
+            return live == null ? List.of() : live;
+        }
+        if (live == null || live.isEmpty()) {
+            return planned;
+        }
+
+        Map<Identifier, CompiledAbility> merged = new LinkedHashMap<>();
+        for (CompiledAbility ability : planned) {
+            if (ability != null) {
+                merged.putIfAbsent(ability.id(), ability);
+            }
+        }
+        for (CompiledAbility ability : live) {
+            if (ability != null) {
+                merged.putIfAbsent(ability.id(), ability);
+            }
+        }
+        if (merged.isEmpty()) {
+            return List.of();
+        }
+        return List.copyOf(merged.values());
     }
 
     private static DamageContext resolveDamageContext(@Nullable Map<String, Object> eventData) {
@@ -574,8 +527,7 @@ public class AbilityManager {
     }
 
     private static AbilityTriggerResult executeCompiledAbilities(PetComponent component,
-                                                                 @Nullable PetRoleType roleType,
-                                                                 List<RoleAbilityCache.CompiledAbility> compiledAbilities,
+                                                                 List<CompiledAbility> compiledAbilities,
                                                                  TriggerContext context) {
         if (compiledAbilities == null || compiledAbilities.isEmpty()) {
             return AbilityTriggerResult.empty();
@@ -583,7 +535,7 @@ public class AbilityManager {
 
         boolean anyActivated = false;
 
-        for (RoleAbilityCache.CompiledAbility entry : compiledAbilities) {
+        for (CompiledAbility entry : compiledAbilities) {
             Ability ability = entry.ability();
             String cooldownKey = entry.cooldownKey();
             boolean onCooldown = component.isOnCooldown(cooldownKey);
@@ -593,7 +545,7 @@ public class AbilityManager {
                 ability,
                 context,
                 component,
-                roleType,
+                null,
                 onCooldown,
                 baseCooldown
             );
@@ -649,8 +601,8 @@ public class AbilityManager {
         return null;
     }
 
-    private static List<RoleAbilityCache.CompiledAbility> filterAbilitiesByCooldown(
-        List<RoleAbilityCache.CompiledAbility> compiled,
+    private static List<CompiledAbility> filterAbilitiesByCooldown(
+        List<CompiledAbility> compiled,
         Map<String, Long> cooldowns,
         long snapshotTick
     ) {
@@ -660,8 +612,8 @@ public class AbilityManager {
         if (cooldowns == null || cooldowns.isEmpty()) {
             return compiled;
         }
-        List<RoleAbilityCache.CompiledAbility> filtered = new ArrayList<>(compiled.size());
-        for (RoleAbilityCache.CompiledAbility ability : compiled) {
+        List<CompiledAbility> filtered = new ArrayList<>(compiled.size());
+        for (CompiledAbility ability : compiled) {
             Long cooldownEnd = cooldowns.get(ability.cooldownKey());
             if (cooldownEnd != null && cooldownEnd > snapshotTick) {
                 continue;
@@ -707,16 +659,13 @@ public class AbilityManager {
 
         public static final class PetExecution {
             private final UUID petUuid;
-            private final Identifier roleId;
-            private final List<RoleAbilityCache.CompiledAbility> abilities;
+            private final List<CompiledAbility> abilities;
             private final Map<String, Long> cooldowns;
 
             public PetExecution(UUID petUuid,
-                                 Identifier roleId,
-                                 List<RoleAbilityCache.CompiledAbility> abilities,
+                                 List<CompiledAbility> abilities,
                                  Map<String, Long> cooldowns) {
                 this.petUuid = petUuid;
-                this.roleId = roleId;
                 this.abilities = abilities == null || abilities.isEmpty()
                     ? List.of()
                     : List.copyOf(abilities);
@@ -729,47 +678,13 @@ public class AbilityManager {
                 return petUuid;
             }
 
-            public Identifier roleId() {
-                return roleId;
-            }
-
-            public List<RoleAbilityCache.CompiledAbility> abilities() {
+            public List<CompiledAbility> abilities() {
                 return abilities;
             }
 
             public Map<String, Long> cooldowns() {
                 return cooldowns;
             }
-        }
-    }
-
-    private static final class RoleAbilityGroup {
-        private final PetRoleType roleType;
-        private final List<RoleAbilityCache.CompiledAbility> compiledAbilities;
-        private final List<Member> members = new ArrayList<>();
-
-        RoleAbilityGroup(PetRoleType roleType, List<RoleAbilityCache.CompiledAbility> compiledAbilities) {
-            this.roleType = roleType;
-            this.compiledAbilities = compiledAbilities;
-        }
-
-        void addMember(MobEntity pet, PetComponent component, ServerPlayerEntity owner) {
-            members.add(new Member(pet, component, owner));
-        }
-
-        PetRoleType roleType() {
-            return roleType;
-        }
-
-        List<RoleAbilityCache.CompiledAbility> compiledAbilities() {
-            return compiledAbilities;
-        }
-
-        List<Member> members() {
-            return members;
-        }
-
-        private record Member(MobEntity pet, PetComponent component, ServerPlayerEntity owner) {
         }
     }
 

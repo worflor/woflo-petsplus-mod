@@ -175,6 +175,10 @@ public class PettingHandler {
     }
 
     private static void emitRoleSpecificEffects(ServerPlayerEntity player, MobEntity pet, ServerWorld world, Identifier roleId) {
+        if (roleId == null) {
+            return;
+        }
+
         PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
         PetRoleType.Presentation presentation = roleType != null
             ? roleType.presentation()
@@ -186,8 +190,8 @@ public class PettingHandler {
         }
 
         Text message = RoleIdentifierUtil.resolveMessageText(petting.message(), "Your companion seems content.");
-        if (!message.getString().isBlank()) {
-            String cueId = "petting.role." + (roleId != null ? roleId.toString() : "default") + "." + pet.getUuidAsString();
+        if (message != null && !message.getString().isBlank()) {
+            String cueId = "petting.role." + roleId.toString() + "." + pet.getUuidAsString();
             EmotionContextCues.sendCue(player, cueId, pet, message, 100);
         }
     }

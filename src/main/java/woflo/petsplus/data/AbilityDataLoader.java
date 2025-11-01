@@ -12,6 +12,7 @@ import woflo.petsplus.api.Ability;
 import woflo.petsplus.api.registry.AbilityType;
 import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
+import woflo.petsplus.items.PetsplusItems;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -153,6 +154,7 @@ public class AbilityDataLoader extends BaseJsonDataLoader<Ability> {
         }
 
         AbilityManager.reloadFromRegistry();
+        PetsplusItems.refreshAbilityTokenStacks();
     }
 
     private static Identifier parseAbilityId(JsonObject json, String source) {

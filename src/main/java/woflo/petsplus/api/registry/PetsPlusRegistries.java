@@ -103,6 +103,7 @@ import java.util.Optional;
  * content at common entry points.
  */
 public final class PetsPlusRegistries {
+    public static final String PLACEHOLDER_ABILITY_DESCRIPTION = "Auto-registered from JSON";
     public static final RegistryKey<Registry<AbilityType>> ABILITY_TYPE_KEY =
         RegistryKey.ofRegistry(Petsplus.id("ability_type"));
     public static final RegistryKey<Registry<TriggerSerializer<?>>> TRIGGER_SERIALIZER_KEY =
@@ -1340,7 +1341,7 @@ public final class PetsPlusRegistries {
     }
 
     private static AbilityType createPlaceholderAbilityType(Identifier id) {
-        return new AbilityType(id, () -> createPlaceholderAbility(id), "Auto-registered from JSON");
+        return new AbilityType(id, () -> createPlaceholderAbility(id), PLACEHOLDER_ABILITY_DESCRIPTION);
     }
 
     private static woflo.petsplus.api.Ability createPlaceholderAbility(Identifier abilityId) {

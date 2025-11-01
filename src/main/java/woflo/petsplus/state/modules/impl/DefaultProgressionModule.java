@@ -22,6 +22,8 @@ public class DefaultProgressionModule implements ProgressionModule {
     private final Map<String, Float> permanentStatBoosts = new HashMap<>();
     private final Map<Integer, Identifier> tributeMilestones = new HashMap<>();
     private final List<Consumer<LevelUpEvent>> levelUpListeners = new ArrayList<>();
+    private int maxAbilitySlots = 0;
+    private int occupiedAbilitySlots = 0;
 
     @Override
     public void onAttach(PetComponent parent) {
@@ -120,13 +122,40 @@ public class DefaultProgressionModule implements ProgressionModule {
     }
 
     @Override
-    public void unlockAbility(Identifier abilityId) {
+    public boolean unlockAbility(Identifier abilityId) {
+        if (abilityId == null) {
+            return false;
+        }
+        if (unlockedAbilities.containsKey(abilityId)) {
+            return false;
+        }
+        if (occupiedAbilitySlots >= maxAbilitySlots && maxAbilitySlots > 0) {
+            return false;
+        }
         unlockedAbilities.put(abilityId, true);
+        occupiedAbilitySlots = Math.min(maxAbilitySlots, unlockedAbilities.size());
+        return true;
     }
 
     @Override
     public Set<Identifier> getUnlockedAbilities() {
         return Collections.unmodifiableSet(unlockedAbilities.keySet());
+    }
+
+    @Override
+    public int getMaxAbilitySlots() {
+        return maxAbilitySlots;
+    }
+
+    @Override
+    public int getOccupiedAbilitySlots() {
+        return Math.min(occupiedAbilitySlots, maxAbilitySlots);
+    }
+
+    @Override
+    public void setMaxAbilitySlots(int slots) {
+        maxAbilitySlots = Math.max(0, slots);
+        occupiedAbilitySlots = Math.min(maxAbilitySlots, unlockedAbilities.size());
     }
 
     @Override
@@ -150,6 +179,7 @@ public class DefaultProgressionModule implements ProgressionModule {
         unlockedAbilities.clear();
         permanentStatBoosts.clear();
         tributeMilestones.clear();
+        occupiedAbilitySlots = 0;
     }
 
     @Override
@@ -192,6 +222,8 @@ public class DefaultProgressionModule implements ProgressionModule {
             experience,
             new HashMap<>(unlockedMilestones),
             new HashMap<>(unlockedAbilities),
+            maxAbilitySlots,
+            getOccupiedAbilitySlots(),
             new HashMap<>(permanentStatBoosts),
             new HashMap<>(tributeMilestones)
         );
@@ -207,10 +239,19 @@ public class DefaultProgressionModule implements ProgressionModule {
         
         this.unlockedAbilities.clear();
         this.unlockedAbilities.putAll(data.unlockedAbilities());
-        
+        this.maxAbilitySlots = Math.max(0, data.maxAbilitySlots());
+        if (this.maxAbilitySlots < 1 && !this.unlockedAbilities.isEmpty()) {
+            this.maxAbilitySlots = this.unlockedAbilities.size();
+        }
+        if (this.maxAbilitySlots < 1) {
+            this.maxAbilitySlots = 1;
+        }
+        this.occupiedAbilitySlots = Math.min(Math.max(0, data.occupiedAbilitySlots()), this.unlockedAbilities.size());
+        this.occupiedAbilitySlots = Math.min(this.occupiedAbilitySlots, this.maxAbilitySlots);
+
         this.permanentStatBoosts.clear();
         this.permanentStatBoosts.putAll(data.permanentStatBoosts());
-        
+
         this.tributeMilestones.clear();
         this.tributeMilestones.putAll(data.tributeMilestones());
     }
