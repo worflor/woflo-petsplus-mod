@@ -37,7 +37,6 @@ public final class NatureHarmonyRegistry {
 
     private static Set<Identifier> buildKnownNatureSet() {
         Set<Identifier> registered = new LinkedHashSet<>(PetNatureSelector.getRegisteredNatureIds());
-        registered.remove(Petsplus.id("abstract"));
         return Set.copyOf(registered);
     }
 
@@ -89,6 +88,17 @@ public final class NatureHarmonyRegistry {
             5.5d, 1.09f, 1.05f, 0.90f, 1.04f, 1.05f, 130,
             List.of("arcane", "weirdlight"), "petsplus:unnatural", "petsplus:otherworldly");
 
+        registerDefault("harmony/abstract_solace_otherworldly", NatureHarmonySet.Type.HARMONY,
+            5.5d, 1.11f, 1.05f, 0.84f, 1.17f, 1.05f, 150,
+            List.of("liminal", "reverie"), "petsplus:abstract", "petsplus:solace", "petsplus:otherworldly");
+
+        registerDefault("harmony/fenn_tempest_sentinel", NatureHarmonySet.Type.HARMONY,
+            5.5d, 1.09f, 1.05f, 0.92f, 1.11f, 1.13f, 130,
+            List.of("stormwatch", "ward"), "petsplus:fenn", "petsplus:tempest", "petsplus:sentinel");
+        registerDefault("harmony/falsi_blossom_festival", NatureHarmonySet.Type.HARMONY,
+            5.25d, 1.12f, 1.11f, 0.96f, 1.04f, 1.02f, 120,
+            List.of("lanternfaire", "parade"), "petsplus:falsi", "petsplus:blossom", "petsplus:festival");
+
         registerDefault("harmony/lunaris_aries_tempest", NatureHarmonySet.Type.HARMONY,
             5.5d, 1.09f, 1.06f, 0.94f, 1.06f, 1.09f, 120,
             List.of("moonlit_bravery", "charge"),
@@ -136,8 +146,8 @@ public final class NatureHarmonyRegistry {
             5.0d, 0.90f, 0.92f, 1.09f, 0.92f, 0.96f, 100,
             List.of("pace", "fidget"), "petsplus:frisky", "petsplus:sentinel");
         registerDefault("disharmony/otherworldly_frosty", NatureHarmonySet.Type.DISHARMONY,
-            5.25d, 0.91f, 0.93f, 1.06f, 0.93f, 0.95f, 120,
-            List.of("distance", "quiet"), "petsplus:otherworldly", "petsplus:frosty");
+            5.25d, 0.90f, 0.93f, 1.07f, 0.92f, 0.95f, 130,
+            List.of("distance", "unmoored", "quiet"), "petsplus:otherworldly", "petsplus:frosty", "petsplus:abstract");
         registerDefault("disharmony/verdant_molten", NatureHarmonySet.Type.DISHARMONY,
             5.25d, 0.89f, 0.92f, 1.12f, 0.90f, 0.96f, 110,
             List.of("scorch", "wilt"), "petsplus:verdant", "petsplus:molten");
@@ -150,6 +160,13 @@ public final class NatureHarmonyRegistry {
         registerDefault("disharmony/lunaris_infernal", NatureHarmonySet.Type.DISHARMONY,
             5.5d, 0.88f, 0.91f, 1.12f, 0.90f, 0.95f, 120,
             List.of("ember_glare", "singe"), "petsplus:lunaris", "petsplus:infernal");
+
+        registerDefault("disharmony/fenn_infernal", NatureHarmonySet.Type.DISHARMONY,
+            5.25d, 0.89f, 0.92f, 1.11f, 0.92f, 0.94f, 110,
+            List.of("scorched_rain", "steam"), "petsplus:fenn", "petsplus:infernal");
+        registerDefault("disharmony/falsi_sentinel", NatureHarmonySet.Type.DISHARMONY,
+            5.0d, 0.90f, 0.91f, 1.10f, 0.93f, 0.94f, 100,
+            List.of("protocol_clash", "antics"), "petsplus:falsi", "petsplus:sentinel");
 
         registerDefault("disharmony/lunaris_leo_frosty", NatureHarmonySet.Type.DISHARMONY,
             5.5d, 0.87f, 0.92f, 1.10f, 0.90f, 0.95f, 120,
