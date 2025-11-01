@@ -17,6 +17,7 @@ import woflo.petsplus.ai.context.social.SocialSnapshot;
 import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
+import woflo.petsplus.state.personality.PersonalityProfile;
 
 import java.util.*;
 
@@ -40,6 +41,7 @@ public record PetContext(
     @Nullable PetRoleType role,
     @Nullable Identifier natureId,
     @Nullable PetComponent.NatureEmotionProfile natureProfile,
+    @Nullable PersonalityProfile personalityProfile,
     
     // Progression (PetsPlus only, defaults for vanilla)
     int level,
@@ -226,10 +228,12 @@ public record PetContext(
             : BehaviouralEnergyProfile.neutral();
         float momentum = energyProfile.momentum();
 
+        PersonalityProfile personality = pc != null ? pc.getPersonalityProfile() : null;
+
         return new PetContext(
             mob, pc,
             mood, moodLevel, moodBlend, activeEmotions,
-            role, natureId, natureProfile,
+            role, natureId, natureProfile, personality,
             level, bondStrength, ticksAlive,
             owner, ownerNearby, distanceToOwner,
             entitySnapshot, crowdSummary, mobAgeProfile, interactionProfile, mob.getBlockPos(), worldTime, isDaytime,

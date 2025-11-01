@@ -65,6 +65,7 @@ import woflo.petsplus.state.gossip.PetGossipLedger;
 import woflo.petsplus.state.gossip.RumorEntry;
 import woflo.petsplus.state.processing.OwnerFocusBuffer;
 import woflo.petsplus.state.processing.OwnerFocusSnapshot;
+import woflo.petsplus.state.personality.PersonalityProfile;
 import woflo.petsplus.tags.PetsplusEntityTypeTags;
 import woflo.petsplus.naming.AttributeKey;
 import woflo.petsplus.history.HistoryEvent;
@@ -517,6 +518,8 @@ public class PetComponent {
         this.speciesMetadataModule.onAttach(this);
         this.relationshipModule.onAttach(this);
         this.malevolenceLedger = new MalevolenceLedger(this);
+
+        this.moodEngine.onPersonalityProfileChanged(characteristicsModule.getPersonalityProfile());
     }
 
     public void attachStateManager(StateManager manager) {
@@ -1537,6 +1540,7 @@ public class PetComponent {
         }
 
         boolean hasImprint = data.imprint() != null;
+        boolean hasPersonality = data.personalityProfile() != null && !data.personalityProfile().isNeutral();
         boolean hasEmotionProfile = data.natureEmotionProfile() != null && !data.natureEmotionProfile().isEmpty();
         boolean hasNameAttributes = data.nameAttributes() != null && !data.nameAttributes().isEmpty();
         boolean hasRoleAffinity = data.roleAffinityBonuses() != null && !data.roleAffinityBonuses().isEmpty();
@@ -1546,7 +1550,7 @@ public class PetComponent {
             || Float.compare(data.natureContagionModifier(), 1.0f) != 0
             || Float.compare(data.natureGuardModifier(), 1.0f) != 0;
 
-        return !(hasImprint || hasEmotionProfile || hasNameAttributes || hasRoleAffinity || hasNonDefaultTuning);
+        return !(hasImprint || hasPersonality || hasEmotionProfile || hasNameAttributes || hasRoleAffinity || hasNonDefaultTuning);
     }
 
     public boolean hasNameAttribute(String type) {
@@ -2971,9 +2975,16 @@ public class PetComponent {
      * Set the pet's imprint (usually generated once when first tamed).
      */
     public void setImprint(@Nullable PetImprint imprint) {
-        characteristicsModule.setImprint(imprint);
+        boolean changed = characteristicsModule.setImprint(imprint);
+        if (changed) {
+            moodEngine.onPersonalityProfileChanged(characteristicsModule.getPersonalityProfile());
+        }
         syncCharacteristicAffinityLookup();
         markEntityDirty();
+    }
+
+    public PersonalityProfile getPersonalityProfile() {
+        return characteristicsModule.getPersonalityProfile();
     }
 
     private void syncCharacteristicAffinityLookup() {
@@ -4259,10 +4270,12 @@ public class PetComponent {
             characteristicsModule.fromData(data.characteristics().get());
             moodEngine.onNatureTuningChanged();
             moodEngine.onNatureEmotionProfileChanged(characteristicsModule.getNatureEmotionProfile());
+            moodEngine.onPersonalityProfileChanged(characteristicsModule.getPersonalityProfile());
         } else {
             resetCharacteristicsModule();
             moodEngine.onNatureTuningChanged();
             moodEngine.onNatureEmotionProfileChanged(characteristicsModule.getNatureEmotionProfile());
+            moodEngine.onPersonalityProfileChanged(characteristicsModule.getPersonalityProfile());
         }
 
         data.stateData().ifPresentOrElse(
