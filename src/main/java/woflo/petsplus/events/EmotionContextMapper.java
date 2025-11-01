@@ -4,14 +4,10 @@ package woflo.petsplus.events;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.damage.DamageTypes;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.passive.AnimalEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.registry.tag.DamageTypeTags;
 import net.minecraft.util.math.MathHelper;
-import woflo.petsplus.Petsplus;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.stats.PetImprint;
+import woflo.petsplus.state.personality.PersonalityProfile;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -63,15 +59,15 @@ public class EmotionContextMapper {
         public final float ownerSafety;
         public final boolean isFirstTime;
         public final boolean isHighIntensityMoment;
-        public final PetImprint personality;
+        public final PersonalityProfile personalityProfile;
         public final float healthRatio;
         public final float ownerHealthRatio;
         public final UUID ownerUuid;
         public final boolean actorIsOwner;
-        
+
         public ContextFactors(float eventImportance, float relationshipStrength, float personalSafety,
                             float ownerSafety, boolean isFirstTime, boolean isHighIntensityMoment,
-                            PetImprint personality, float healthRatio, float ownerHealthRatio,
+                            PersonalityProfile personalityProfile, float healthRatio, float ownerHealthRatio,
                             UUID ownerUuid, boolean actorIsOwner) {
             this.eventImportance = MathHelper.clamp(eventImportance, 0f, 1f);
             this.relationshipStrength = MathHelper.clamp(relationshipStrength, 0f, 1f);
@@ -79,7 +75,9 @@ public class EmotionContextMapper {
             this.ownerSafety = MathHelper.clamp(ownerSafety, 0f, 1f);
             this.isFirstTime = isFirstTime;
             this.isHighIntensityMoment = isHighIntensityMoment;
-            this.personality = personality;
+            this.personalityProfile = personalityProfile != null
+                ? personalityProfile
+                : PersonalityProfile.neutral();
             this.healthRatio = MathHelper.clamp(healthRatio, 0f, 1f);
             this.ownerHealthRatio = MathHelper.clamp(ownerHealthRatio, 0f, 1f);
             this.ownerUuid = ownerUuid;
@@ -227,19 +225,25 @@ public class EmotionContextMapper {
     
     private static void mapPettingEmotions(Map<PetComponent.Emotion, Float> emotions, ContextFactors context) {
         float baseIntensity = context.isFirstTime ? 0.8f : 0.4f;
-        
-        addEmotion(emotions, PetComponent.Emotion.CHEERFUL, baseIntensity, context);
-        addEmotion(emotions, PetComponent.Emotion.UBUNTU, baseIntensity * 0.7f, context);
-        addEmotion(emotions, PetComponent.Emotion.QUERECIA, baseIntensity * 0.6f, context);
-        
-        // Personality-based variations
-        if (context.personality != null) {
-            if (isPlayfulPersonality(context.personality)) {
-                addEmotion(emotions, PetComponent.Emotion.CHEERFUL, baseIntensity * 0.5f, context);
-            }
-            if (isAffectionatePersonality(context.personality)) {
-                addEmotion(emotions, PetComponent.Emotion.CONTENT, baseIntensity * 0.4f, context);
-            }
+
+        float affection = Math.max(0f, context.personalityProfile.affection());
+        float playfulness = Math.max(0f, context.personalityProfile.playfulness());
+
+        float cheerfulIntensity = baseIntensity * (1f + playfulness * 0.5f);
+        addEmotion(emotions, PetComponent.Emotion.CHEERFUL, cheerfulIntensity, context);
+
+        float ubuntuIntensity = baseIntensity * (0.7f + affection * 0.25f);
+        addEmotion(emotions, PetComponent.Emotion.UBUNTU, ubuntuIntensity, context);
+
+        float quereciaIntensity = baseIntensity * (0.6f + affection * 0.2f);
+        addEmotion(emotions, PetComponent.Emotion.QUERECIA, quereciaIntensity, context);
+
+        float contentBase = baseIntensity * 0.35f * (1f + affection * 0.6f);
+        addEmotion(emotions, PetComponent.Emotion.CONTENT, contentBase, context);
+
+        if (playfulness > 0.05f) {
+            float playfulBlend = baseIntensity * 0.3f * (1f + playfulness * 0.6f);
+            addEmotion(emotions, PetComponent.Emotion.PLAYFULNESS, playfulBlend, context);
         }
     }
     
@@ -248,7 +252,7 @@ public class EmotionContextMapper {
             // Rare discovery
             addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.6f, context);
             addEmotion(emotions, PetComponent.Emotion.CURIOUS, 0.5f, context);
-            addEmotion(emotions, PetComponent.Emotion.CHEERFUL, 0.4f, context);
+            addEmotion(emotions, PetComponent.Emotion.PLAYFULNESS, 0.4f, context);
         } else {
             // Regular discovery
             addEmotion(emotions, PetComponent.Emotion.CURIOUS, 0.3f, context);
@@ -261,7 +265,7 @@ public class EmotionContextMapper {
                                  ContextFactors context) {
         
         // Apply personality-based modifiers
-        float modifiedIntensity = applyPersonalityModifiers(baseIntensity, emotion, context.personality);
+        float modifiedIntensity = applyPersonalityModifiers(baseIntensity, emotion, context.personalityProfile);
         
         // Apply context-based scaling
         float scaledIntensity = modifiedIntensity * context.eventImportance;
@@ -281,23 +285,43 @@ public class EmotionContextMapper {
         
         // Ensure minimum threshold for meaningful responses
         if (scaledIntensity > 0.05f) {
-            emotions.put(emotion, scaledIntensity);
+            emotions.merge(emotion, scaledIntensity, Math::max);
         }
     }
     
-    private static float applyPersonalityModifiers(float intensity, PetComponent.Emotion emotion, 
-                                                 PetImprint personality) {
-        if (personality == null) return intensity;
-        
-        // Personality-based emotion amplification/dampening
-        return switch (emotion) {
-            case CHEERFUL, PLAYFULNESS -> isPlayfulPersonality(personality) ? intensity * 1.3f : intensity;
-            case GUARDIAN_VIGIL -> isLoyalPersonality(personality) ? intensity * 1.4f : intensity;
-            case CURIOUS -> isCuriousPersonality(personality) ? intensity * 1.5f : intensity;
-            case ANGST, FOREBODING -> isNervousPersonality(personality) ? intensity * 1.3f : intensity * 0.8f;
-            case STOIC, GAMAN -> isBravePersonality(personality) ? intensity * 1.2f : intensity;
-            default -> intensity;
-        };
+    private static float applyPersonalityModifiers(float intensity, PetComponent.Emotion emotion,
+                                                 PersonalityProfile personality) {
+        if (personality == null) {
+            return intensity;
+        }
+
+        float affection = personality.affection();
+        float playfulness = personality.playfulness();
+        float curiosity = personality.curiosity();
+        float vigilance = personality.vigilance();
+        float bravery = personality.bravery();
+        float composure = personality.composure();
+
+        float modifier = 0f;
+        switch (emotion) {
+            case CHEERFUL, UBUNTU, KEFI, CONTENT, QUERECIA, HANYAUKU ->
+                modifier = affection * 0.35f + playfulness * 0.15f;
+            case PLAYFULNESS, RESTLESS ->
+                modifier = playfulness * 0.35f - composure * 0.2f;
+            case CURIOUS, FOCUSED, HOPEFUL ->
+                modifier = curiosity * 0.4f + playfulness * 0.1f;
+            case GUARDIAN_VIGIL, PROTECTIVE, LOYALTY, STOIC, SISU, GAMAN ->
+                modifier = bravery * 0.35f - Math.max(0f, vigilance) * 0.2f;
+            case ANGST, FOREBODING, WORRIED, VIGILANT ->
+                modifier = vigilance * 0.4f - Math.max(0f, bravery) * 0.2f;
+            case SAUDADE, YUGEN, HIRAETH, MONO_NO_AWARE, WABI_SABI, NOSTALGIA ->
+                modifier = composure * 0.3f - Math.max(0f, playfulness) * 0.15f;
+            default ->
+                modifier = affection * 0.1f + curiosity * 0.1f + playfulness * 0.05f;
+        }
+
+        float scaled = intensity * MathHelper.clamp(1f + modifier, 0.25f, 1.5f);
+        return MathHelper.clamp(scaled, 0f, 1.25f);
     }
     
     private static ContextFactors buildCombatContext(MobEntity pet, PetComponent petComp, 
@@ -344,7 +368,7 @@ public class EmotionContextMapper {
             ownerSafety,
             isFirstTime,
             isHighIntensity,
-            petComp.getImprint(),
+            petComp.getPersonalityProfile(),
             petHealthRatio,
             ownerSafety,
             ownerUuid,
@@ -383,7 +407,7 @@ public class EmotionContextMapper {
             playerHealthRatio,
             isFirstTime,
             type == SocialInteractionType.BREEDING || type == SocialInteractionType.TRIBUTE,
-            petComp.getImprint(),
+            petComp.getPersonalityProfile(),
             petHealthRatio,
             playerHealthRatio,
             ownerUuid,
@@ -412,7 +436,7 @@ public class EmotionContextMapper {
             1f,
             isFirstTime,
             isHighIntensity,
-            petComp.getImprint(),
+            petComp.getPersonalityProfile(),
             petHealthRatio,
             1f,
             petComp.getOwnerUuid(),
@@ -591,42 +615,6 @@ public class EmotionContextMapper {
             return context.ownerUuid.equals(player.getUuid());
         }
         return false;
-    }
-    
-    private static boolean isPlayfulPersonality(PetImprint personality) {
-        if (personality == null) return false;
-        // Playful: high agility multiplier (nimble, energetic)
-        return personality.getAgilityMultiplier() > 1.05f;
-    }
-    
-    private static boolean isAffectionatePersonality(PetImprint personality) {
-        if (personality == null) return false;
-        // Affectionate: high vitality multiplier (warm, caring)
-        return personality.getVitalityMultiplier() > 1.03f;
-    }
-    
-    private static boolean isLoyalPersonality(PetImprint personality) {
-        if (personality == null) return false;
-        // Loyal: high focus multiplier (merged loyalty/focus stat)
-        return personality.getFocusMultiplier() > 1.04f;
-    }
-    
-    private static boolean isCuriousPersonality(PetImprint personality) {
-        if (personality == null) return false;
-        // Curious: high focus multiplier (observant, inquisitive)
-        return personality.getFocusMultiplier() > 1.06f;
-    }
-    
-    private static boolean isNervousPersonality(PetImprint personality) {
-        if (personality == null) return false;
-        // Nervous: low defense multiplier (fragile, skittish)
-        return personality.getGuardMultiplier() < 0.95f;
-    }
-    
-    private static boolean isBravePersonality(PetImprint personality) {
-        if (personality == null) return false;
-        // Brave: high attack and defense multipliers (bold, courageous)
-        return personality.getMightMultiplier() > 1.04f && personality.getGuardMultiplier() > 1.02f;
     }
     
     public enum SocialInteractionType {
