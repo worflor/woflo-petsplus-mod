@@ -95,62 +95,98 @@ public class CompendiumBookBuilder {
         } finally {
             // Restore the original off-hand item with a delay to avoid race conditions
             // Use a longer delay to ensure the book UI is fully closed
-            server.execute(() -> {
-                // Double-check the current stack before restoring
+            try {
+                server.execute(() -> {
+                    // Double-check the current stack before restoring
+                    ItemStack currentStack = player.getOffHandStack();
+                    if (currentStack.getItem() == Items.WRITTEN_BOOK) {
+                        player.setStackInHand(Hand.OFF_HAND, offHandBackup);
+                        player.playerScreenHandler.sendContentUpdates();
+                    }
+                });
+            } catch (java.util.concurrent.RejectedExecutionException e) {
+                // Server is stopping or cannot schedule, restore immediately as fallback
                 ItemStack currentStack = player.getOffHandStack();
                 if (currentStack.getItem() == Items.WRITTEN_BOOK) {
                     player.setStackInHand(Hand.OFF_HAND, offHandBackup);
                     player.playerScreenHandler.sendContentUpdates();
                 }
-            });
+            }
         }
     }
+
+    /**
+         * Builds the title for the compendium book.
+         */
+        private static String buildTitle(MobEntity pet) {
+            String baseTitle;
+            String petName = getPetDisplayName(pet);
     
-    private static String buildTitle(MobEntity pet) {
-        String baseTitle;
-        if (pet.hasCustomName()) {
-            String petName = pet.getCustomName().getString();
             // Truncate long pet names to prevent title overflow
             if (petName.length() > MAX_TITLE_LENGTH) {
                 petName = petName.substring(0, MAX_TITLE_LENGTH - 3) + "...";
             }
-            baseTitle = petName + "'s Journey";
-        } else {
-            baseTitle = pet.getType().getName().getString() + " Compendium";
-        }
-        
-        // Ensure title doesn't exceed reasonable length
-        if (baseTitle.length() > 32) {
-            baseTitle = baseTitle.substring(0, 29) + "...";
-        }
-        
-        return baseTitle;
-    }
     
-    private static List<RawFilteredPair<Text>> buildAllPages(
-            ServerPlayerEntity player,
-            MobEntity pet,
-            PetComponent pc,
-            long currentTick,
-            @Nullable Identifier natureId) {
-        
+            if (pet.hasCustomName()) {
+                baseTitle = petName + "'s Journey";
+            } else {
+                String typeName = getEntityTypeName(pet);
+                baseTitle = typeName + " Compendium";
+            }
+    
+            // Ensure title doesn't exceed reasonable length
+            if (baseTitle.length() > 32) {
+                baseTitle = baseTitle.substring(0, 29) + "...";
+            }
+    
+            return baseTitle;
+        }
+    
+        /**
+         * Returns the display name for the pet, preferring custom name, then type name, then fallback.
+         */
+        private static String getPetDisplayName(MobEntity pet) {
+            if (pet.hasCustomName()) {
+                String customName = pet.getCustomName().getString();
+                return (customName != null && !customName.isEmpty()) ? customName : "Unnamed";
+            }
+            return getEntityTypeName(pet);
+        }
+    
+        /**
+         * Returns the entity type name or "Unknown" if not available.
+         */
+        private static String getEntityTypeName(MobEntity pet) {
+            if (pet.getType() != null && pet.getType().getName() != null) {
+                String typeName = pet.getType().getName().getString();
+                return (typeName != null && !typeName.isEmpty()) ? typeName : "Unknown";
+            }
+            return "Unknown";
+        }
+
+    /**
+        // Do NOT add "Table of Contents" to sections:
+        // Including it would create a circular reference, causing infinite navigation loops or incorrect page numbering in the ToC.
+     */
+    private static List<RawFilteredPair<Text>> buildAllPages(ServerPlayerEntity player, MobEntity pet, PetComponent pc, long currentTick, @Nullable Identifier natureId) {
         List<Text> rawPages = new ArrayList<>();
         List<CompendiumSection> sections = new ArrayList<>();
 
-        // Page 1: Profile overview
+        // Profile cover page
         rawPages.add(buildProfileCoverPage(pet, pc, currentTick, natureId));
-        sections.add(new CompendiumSection("Profile Overview", rawPages.size()));
+        sections.add(new CompendiumSection("Profile Overview", 1));
 
-        // Reserve slot for ToC (we'll build it after we know all page numbers)
+        // Table of Contents placeholder (will be replaced later)
         int tocIndex = rawPages.size();
-        rawPages.add(Text.empty()); // Placeholder
+        rawPages.add(Text.literal("")); // Placeholder for ToC
+        // Do NOT add "Table of Contents" to sections to avoid circular reference
 
+        // Morality section
         List<Text> moralityPages = buildMoralitySection(pc, currentTick, natureId);
         if (!moralityPages.isEmpty()) {
-            sections.add(new CompendiumSection("Morality & Harmony", rawPages.size() + 1));
+            sections.add(new CompendiumSection("Morality", rawPages.size() + 1));
             rawPages.addAll(moralityPages);
         }
-
         List<Text> relationshipPages = buildRelationshipSection(player, pet, pc, currentTick, natureId);
         if (!relationshipPages.isEmpty()) {
             sections.add(new CompendiumSection("Pack Bonds", rawPages.size() + 1));
@@ -184,6 +220,7 @@ public class CompendiumBookBuilder {
     
     private static Text buildProfileCoverPage(MobEntity pet, PetComponent pc, long currentTick,
                                               @Nullable Identifier natureId) {
+
         MutableText page = Text.literal("");
 
         // Title with nature accent

@@ -76,6 +76,9 @@ public class ServerEventHandler {
     }
 
     private static void onWorldLoad(MinecraftServer server, ServerWorld world) {
+        if (StateManager.isServerStopping()) {
+            return;
+        }
         Petsplus.LOGGER.info("PetsPlus: World {} loaded - initializing state manager", world.getRegistryKey().getValue());
         StateManager.onWorldLoaded(world);
         // State manager will be initialized when first accessed
@@ -118,6 +121,10 @@ public class ServerEventHandler {
             return;
         }
 
+        if (StateManager.isServerStopping()) {
+            return;
+        }
+
         server.execute(() -> initializePlayerState(player));
     }
 
@@ -149,6 +156,9 @@ public class ServerEventHandler {
 
         MinecraftServer server = player.getEntityWorld().getServer();
         if (server != null) {
+            if (StateManager.isServerStopping()) {
+                return;
+            }
             server.execute(() -> initializePlayerState(player));
         }
     }

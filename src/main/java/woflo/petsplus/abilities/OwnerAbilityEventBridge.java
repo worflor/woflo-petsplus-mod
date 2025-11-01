@@ -3,6 +3,7 @@ package woflo.petsplus.abilities;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.RejectedExecutionException;
 
@@ -98,6 +99,9 @@ public final class OwnerAbilityEventBridge implements OwnerEventListener {
         );
         future.exceptionally(error -> {
             Throwable cause = unwrap(error);
+            if (cause instanceof CancellationException) {
+                return null;
+            }
             if (cause instanceof RejectedExecutionException) {
                 Petsplus.LOGGER.debug("Async ability execution rejected for {}, falling back to synchronous", triggerId);
                 AbilityTriggerResult result = executeSynchronously(fallback);
@@ -124,6 +128,9 @@ public final class OwnerAbilityEventBridge implements OwnerEventListener {
             }
         ).exceptionally(error -> {
             Throwable cause = unwrap(error);
+            if (cause instanceof CancellationException) {
+                return null;
+            }
             if (!(cause instanceof RejectedExecutionException)) {
                 Petsplus.LOGGER.debug("Shadow async ability computation failed", cause);
             }

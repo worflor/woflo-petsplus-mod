@@ -3,6 +3,7 @@ package woflo.petsplus.state.processing;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
@@ -22,7 +23,7 @@ import net.minecraft.server.MinecraftServer;
 import org.jetbrains.annotations.Nullable;
 
 import woflo.petsplus.Petsplus;
-
+import woflo.petsplus.state.StateManager;
 import woflo.petsplus.state.processing.AsyncProcessingTelemetry;
 
 /**
@@ -40,6 +41,7 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
     private final ExecutorService executor;
     private final Executor mainThreadExecutor;
     private final AtomicInteger activeJobs = new AtomicInteger();
+    private final Object submitLock = new Object();
     private final AtomicBoolean drainScheduled = new AtomicBoolean();
     private final ConcurrentLinkedQueue<Runnable>[] resultBuffers;
     private final AtomicInteger[] bufferSizes;
@@ -119,38 +121,42 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
                                                      OwnerBatchJob<T> job,
                                                      @Nullable Consumer<T> applier,
                                                      AsyncJobPriority priority) {
-        Objects.requireNonNull(snapshot, "snapshot");
-        Objects.requireNonNull(job, "job");
-        AsyncJobPriority effectivePriority = priority == null ? AsyncJobPriority.CRITICAL : priority;
+        synchronized (submitLock) {
+            if (StateManager.isServerStopping() || executor.isShutdown()) {
+                return CompletableFuture.failedFuture(new CancellationException("Server is stopping or executor is shut down"));
+            }
+            Objects.requireNonNull(snapshot, "snapshot");
+            Objects.requireNonNull(job, "job");
+            AsyncJobPriority effectivePriority = priority == null ? AsyncJobPriority.CRITICAL : priority;
 
-        int allowedThreads = computeAllowedThreads();
-        if (allowedThreads <= 0) {
-            return rejectThrottled("Server TPS is too low for async work");
-        }
+            int allowedThreads = computeAllowedThreads();
+            if (allowedThreads <= 0) {
+                return rejectThrottled("Server TPS is too low for async work");
+            }
 
-        int maxJobs = computeMaxJobs(allowedThreads);
-        SlotReservation reservation = tryAcquireSlot(maxJobs);
-        if (reservation == null) {
-            return rejectThrottled("Async job queue is at capacity");
-        }
+            int maxJobs = computeMaxJobs(allowedThreads);
+            SlotReservation reservation = tryAcquireSlot(maxJobs);
+            if (reservation == null) {
+                return rejectThrottled("Async job queue is at capacity");
+            }
 
-        telemetry.recordActiveJobs(activeJobs.get());
-        CompletableFuture<T> completion = new CompletableFuture<>();
-        TrackedTask task = wrap(
-            effectivePriority,
-            () -> runJob(snapshot, job, applier, completion, reservation),
-            reservation,
-            completion
-        );
-        try {
-            executor.execute(task);
-            AsyncProcessingTelemetry.TASKS_ENQUEUED.incrementAndGet();
-        } catch (RejectedExecutionException ex) {
-            task.cancel(ex);
+            telemetry.recordActiveJobs(activeJobs.get());
+            CompletableFuture<T> completion = new CompletableFuture<>();
+            TrackedTask task = wrap(
+                effectivePriority,
+                () -> runJob(snapshot, job, applier, completion, reservation),
+                reservation,
+                completion
+            );
+            try {
+                executor.execute(task);
+                AsyncProcessingTelemetry.TASKS_ENQUEUED.incrementAndGet();
+            } catch (RejectedExecutionException ex) {
+                task.cancel(ex);
+                return completion;
+            }
             return completion;
         }
-        return completion;
-    }
 
     private TrackedTask wrap(AsyncJobPriority priority,
                              Runnable delegate,
@@ -176,6 +182,9 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
                                                      Callable<T> job,
                                                      @Nullable Consumer<T> applier,
                                                      AsyncJobPriority priority) {
+        if (StateManager.isServerStopping()) {
+            return CompletableFuture.failedFuture(new CancellationException("Server is stopping"));
+        }
         Objects.requireNonNull(descriptor, "descriptor");
         Objects.requireNonNull(job, "job");
         AsyncJobPriority effectivePriority = priority == null ? AsyncJobPriority.NORMAL : priority;

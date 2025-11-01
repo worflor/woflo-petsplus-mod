@@ -1,9 +1,10 @@
 {
   "pack": {
-    "pack_format": {
-      "resource": 34,
-      "data": 48
+    "pack_format": 34,
+    "supported_formats": {
+      "min_inclusive": 34,
+      "max_inclusive": 48
     },
-    "description": "PetsPlus Data Pack"
+    "description": "PetsPlus Resources & Data"
   }
 }

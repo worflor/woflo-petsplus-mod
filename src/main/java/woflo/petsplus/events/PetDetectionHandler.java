@@ -21,6 +21,8 @@ import woflo.petsplus.naming.AttributeKey;
 import woflo.petsplus.naming.AttributeRegistry;
 import woflo.petsplus.naming.NameParser;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.StateManager;
+import woflo.petsplus.state.StateManager;
 import woflo.petsplus.stats.nature.PetNatureSelector;
 import woflo.petsplus.stats.PetAttributeManager;
 import woflo.petsplus.stats.nature.astrology.AstrologyRegistry;
@@ -84,7 +86,20 @@ public class PetDetectionHandler {
             return;
         }
 
+        if (StateManager.isServerStopping()) {
+            return;
+        }
+
+        if (StateManager.isServerStopping()) {
+            clearPending(mob);
+            return;
+        }
+
         server.execute(() -> {
+            if (StateManager.isServerStopping()) {
+                clearPending(mob);
+                return;
+            }
             if (!mob.isAlive()) {
                 clearPending(mob);
                 return;
@@ -93,6 +108,7 @@ public class PetDetectionHandler {
             PlayerEntity resolvedOwner = resolveOwner(mob);
             PlayerEntity promptOwner = resolvedOwner != null ? resolvedOwner : owner;
             if (promptOwner == null) {
+                clearPending(mob);
                 return;
             }
 

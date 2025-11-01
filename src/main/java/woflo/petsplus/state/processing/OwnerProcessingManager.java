@@ -10,6 +10,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import org.jetbrains.annotations.Nullable;
@@ -31,6 +32,7 @@ public final class OwnerProcessingManager {
     private final ArrayDeque<OwnerProcessingGroup> pendingQueue = new ArrayDeque<>();
     private final TickWheelScheduler<EventTicket> eventDueWheel = new TickWheelScheduler<>();
     private final Map<OwnerProcessingGroup, EventTicket> eventDueIndex = new IdentityHashMap<>();
+    private final AtomicInteger eventDueWheelSize = new AtomicInteger(0);
     private final EnumSet<OwnerEventType> activeEvents = EnumSet.copyOf(ALWAYS_ACTIVE_EVENTS);
     private final EnumMap<OwnerEventType, Boolean> lastPresence = new EnumMap<>(OwnerEventType.class);
     private long currentTick;
@@ -462,13 +464,18 @@ public final class OwnerProcessingManager {
             previous.cancelled = true;
         }
         eventDueWheel.schedule(nextTick, ticket);
+        eventDueWheelSize.incrementAndGet();
     }
 
-    private void promoteDueEvents() {
         eventDueWheel.drainTo(currentTick, ticket -> {
-            if (ticket == null || ticket.cancelled) {
+            if (ticket == null) {
                 return;
             }
+            if (ticket.cancelled) {
+                return;
+            }
+            eventDueWheelSize.decrementAndGet();
+            OwnerProcessingGroup group = ticket.group;
             OwnerProcessingGroup group = ticket.group;
             if (group == null) {
                 return;
@@ -543,7 +550,35 @@ public final class OwnerProcessingManager {
         EventTicket ticket = eventDueIndex.remove(target);
         if (ticket != null) {
             ticket.cancelled = true;
+    /**
+         * Prepares the manager for shutdown by clearing all pending queues and scheduled tasks.
+         * <p>
+         * This method should be called before {@link #shutdown()} to ensure that no pending work
+         * or scheduled events remain. It is safe to call this method multiple times; repeated calls
+         * will have no adverse effect. The manager should not be processing or scheduling new work
+         * when this method is called.
+         * <p>
+         * Any in-flight work that has not yet been processed will be discarded, and the manager will be left in a cleared state
+         * with no pending or scheduled tasks. After calling this method, the manager can continue to be used and new work can be scheduled
+         * unless {@link #shutdown()} is called, which permanently disables the manager.
+         */
+        public void prepareForShutdown() {
+            pendingQueue.clear();
+            orphanTasks.clear();
+            eventDueWheel.clear();
+            eventDueIndex.clear();
+            eventDueWheelSize.set(0);
         }
+        eventDueIndex.clear();
+        eventDueWheelSize.set(0);
+    }
+
+    public boolean hasPendingWork() {
+        return !groups.isEmpty()
+            || !pendingQueue.isEmpty()
+            || !orphanTasks.isEmpty()
+            || !eventDueIndex.isEmpty()
+            || eventDueWheelSize.get() > 0;
     }
 
     private static final class EventTicket {
@@ -567,6 +602,7 @@ public final class OwnerProcessingManager {
         pendingQueue.clear();
         eventDueWheel.clear();
         eventDueIndex.clear();
+        eventDueWheelSize.set(0);
         activeEvents.clear();
         activeEvents.addAll(ALWAYS_ACTIVE_EVENTS);
         lastPresence.clear();

@@ -70,6 +70,16 @@ public class FeedbackManager {
             this.source = Objects.requireNonNull(source, "source");
             this.eventName = eventName == null ? "" : eventName;
             this.hash = Objects.hash(this.source, this.eventName);
+        /**
+         * Register a new ground trail definition.
+         */
+        public static void registerGroundTrail(GroundTrailDefinition definition) {
+            if (definition == null || definition.stateKey() == null || definition.stateKey().isBlank()) {
+                return;
+            }
+    
+            GROUND_TRAILS_BY_STATE.put(definition.stateKey(), definition);
+            GROUND_TRAILS_BY_EVENT.put(definition.eventName(), definition);
         }
 
         @Override
@@ -181,7 +191,11 @@ public class FeedbackManager {
         }
         FeedbackInvocation invocation = FeedbackInvocation.from(eventName, effect, position, world, sourceEntity);
         if (!server.isOnThread()) {
-            server.execute(() -> invocation.dispatch(server));
+            try {
+                server.execute(() -> invocation.dispatch(server));
+            } catch (java.util.concurrent.RejectedExecutionException e) {
+                // Server is stopping or has stopped, ignore safely
+            }
             return;
         }
         invocation.dispatch(server);
@@ -198,27 +212,26 @@ public class FeedbackManager {
         FeedbackInvocation invocation = FeedbackInvocation.from(eventName, effect, position, world, sourceEntity);
         long delayTicks = Math.max(1, effect.delayTicks());
 
-        ScheduledThreadPoolExecutor executor = ensureExecutor();
-        final ScheduledFuture<?>[] handle = new ScheduledFuture<?>[1];
-        Runnable task = () -> {
-            try {
-                if (IS_SHUTTING_DOWN.get() || server.isStopped()) {
-                    return;
-                }
-                server.execute(() -> {
-                    if (!IS_SHUTTING_DOWN.get() && !server.isStopped()) {
-                        invocation.dispatch(server);
-                    }
-                });
-            } finally {
-                ScheduledFuture<?> scheduled = handle[0];
-                if (scheduled != null) {
-                    PENDING_TASKS.remove(scheduled);
-                }
-            }
-        };
-
         try {
+            ScheduledThreadPoolExecutor executor = ensureExecutor();
+            final ScheduledFuture<?>[] handle = new ScheduledFuture<?>[1];
+            Runnable task = () -> {
+                try {
+                    if (IS_SHUTTING_DOWN.get() || server.isStopped()) {
+                        return;
+                    }
+                    server.execute(() -> {
+                        if (!IS_SHUTTING_DOWN.get() && !server.isStopped()) {
+                            invocation.dispatch(server);
+                        }
+                    });
+                } catch (Exception e) {
+                    // Exception during feedback scheduling; log for debugging
+                    Petsplus.LOGGER.warn("Exception occurred while scheduling delayed feedback for event '{}': {}", eventName, e.toString(), e);
+                } finally {
+                    PENDING_TASKS.remove(handle[0]);
+                }
+            };
             handle[0] = executor.schedule(task, delayTicks * 50L, TimeUnit.MILLISECONDS);
             PENDING_TASKS.add(handle[0]);
         } catch (RejectedExecutionException e) {
@@ -226,13 +239,6 @@ public class FeedbackManager {
             // Avoid noisy stderr; rely on server log if needed
         }
     }
-
-    /**
-     * Register or replace a ground trail definition tied to a component state key.
-     */
-    public static void registerGroundTrail(GroundTrailDefinition definition) {
-        if (definition == null) {
-            return;
         }
 
         GROUND_TRAILS_BY_STATE.put(definition.stateKey(), definition);

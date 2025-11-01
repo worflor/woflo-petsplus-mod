@@ -82,27 +82,36 @@ public final class PlayerTickDispatcher {
             return;
         }
 
-        server.execute(() -> {
-            if (player.isRemoved()) {
-                return;
-            }
-
-            long currentTick = server.getTicks();
-            try {
-                if (listener.nextRunTick(player) <= currentTick) {
-                    listener.run(player, currentTick);
-                } else {
-                    dispatch(player, currentTick);
+        try {
+            server.execute(() -> {
+                if (player.isRemoved()) {
+                    return;
                 }
-            } catch (Exception ex) {
-                Petsplus.LOGGER.error(
-                    "Player tick listener {} failed for player {}",
-                    listener.getClass().getName(),
-                    player.getName().getString(),
-                    ex
-                );
-            }
-        });
+
+                long currentTick = server.getTicks();
+                try {
+                    if (listener.nextRunTick(player) <= currentTick) {
+                        listener.run(player, currentTick);
+                    } else {
+                        dispatch(player, currentTick);
+                    }
+                } catch (Exception ex) {
+                    Petsplus.LOGGER.error(
+                        "Player tick listener {} failed for player {}",
+                        listener.getClass().getName(),
+                        player.getName().getString(),
+                        ex
+                    );
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException ex) {
+            Petsplus.LOGGER.warn(
+                "Server rejected execution for player tick listener {} for player {}",
+                listener.getClass().getName(),
+                player.getName().getString(),
+                ex
+            );
+        }
     }
 
     public static void clearPlayer(ServerPlayerEntity player) {

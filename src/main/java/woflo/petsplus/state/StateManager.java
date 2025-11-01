@@ -189,7 +189,19 @@ public class StateManager {
     }
 
     public static void beginServerStopping() {
-        SERVER_STOPPING.set(true);
+        if (!SERVER_STOPPING.compareAndSet(false, true)) {
+            return;
+        }
+        java.util.List<StateManager> managers;
+        synchronized (WORLD_MANAGERS) {
+            managers = new java.util.ArrayList<>(WORLD_MANAGERS.values());
+        }
+        for (StateManager manager : managers) {
+            if (manager != null) {
+                manager.prepareForShutdown();
+            }
+        }
+        woflo.petsplus.ui.FeedbackManager.cancelFeedbackTasks();
     }
 
     public static boolean isServerStopping() {
@@ -462,30 +474,58 @@ public class StateManager {
         ownerProcessingManager.removeOwner(ownerId);
     }
 
+    private void prepareForShutdown() {
+        ownerProcessingManager.prepareForShutdown();
+        workScheduler.clear();
+        synchronized (deferredComponentSyncs) {
+            deferredComponentSyncs.clear();
+        }
+        pendingSpatialResults.clear();
+        spatialJobStates.clear();
+    }
+
+    private boolean shouldProcessOwnerWork() {
+        if (isServerStopping()) {
+            return false;
+        }
+        if (ownerProcessingManager.hasPendingWork()) {
+            return true;
+        }
+        if (!petComponents.isEmpty()) {
+            return true;
+        }
+        return !ownerStates.isEmpty();
+    }
+
     public void handleOwnerTick(ServerPlayerEntity player) {
+        if (isServerStopping()) {
+            return;
+        }
         AsyncMigrationProgressTracker.markComplete(AsyncMigrationProgressTracker.Phase.OWNER_PROCESSING);
         long worldTime = world.getTime();
-        OwnerTaskBatch ownerTickBatch = ownerProcessingManager.snapshotOwnerTick(player, worldTime);
-        EnumSet<OwnerEventType> spatialListeners = collectSpatialListeners();
-        OwnerBatchSnapshot snapshot = null;
 
-        if (ownerTickBatch != null) {
-            boolean hasDueEvents = !ownerTickBatch.dueEventsView().isEmpty();
-            boolean wantsPrediction = AsyncProcessingSettings.asyncPredictiveSchedulingEnabled();
+        if (shouldProcessOwnerWork()) {
+            OwnerTaskBatch ownerTickBatch = ownerProcessingManager.snapshotOwnerTick(player, worldTime);
+            if (ownerTickBatch != null) {
+                boolean hasDueEvents = !ownerTickBatch.dueEventsView().isEmpty();
+                boolean wantsPrediction = AsyncProcessingSettings.asyncPredictiveSchedulingEnabled();
+                EnumSet<OwnerEventType> spatialListeners = collectSpatialListeners();
+                OwnerBatchSnapshot snapshot = null;
 
-            if (!spatialListeners.isEmpty() && AsyncProcessingSettings.asyncSpatialAnalyticsEnabled()) {
-                long captureStart = System.nanoTime();
-                snapshot = OwnerBatchSnapshot.capture(ownerTickBatch);
-                asyncWorkCoordinator.telemetry().recordCaptureDuration(System.nanoTime() - captureStart);
-                primeSpatialAnalysis(snapshot, spatialListeners, worldTime);
-            }
+                if (!spatialListeners.isEmpty() && AsyncProcessingSettings.asyncSpatialAnalyticsEnabled()) {
+                    long captureStart = System.nanoTime();
+                    snapshot = OwnerBatchSnapshot.capture(ownerTickBatch);
+                    asyncWorkCoordinator.telemetry().recordCaptureDuration(System.nanoTime() - captureStart);
+                    primeSpatialAnalysis(snapshot, spatialListeners, worldTime);
+                }
 
-            if (snapshot != null) {
-                ownerBatchProcessor.processBatchWithSnapshot(ownerTickBatch, player, worldTime, true, null, snapshot);
-            } else if (hasDueEvents || wantsPrediction) {
-                ownerBatchProcessor.processBatch(ownerTickBatch, player, worldTime);
-            } else {
-                ownerTickBatch.close();
+                if (snapshot != null) {
+                    ownerBatchProcessor.processBatchWithSnapshot(ownerTickBatch, player, worldTime, true, null, snapshot);
+                } else if (hasDueEvents || wantsPrediction) {
+                    ownerBatchProcessor.processBatch(ownerTickBatch, player, worldTime);
+                } else {
+                    ownerTickBatch.close();
+                }
             }
         }
 
@@ -532,11 +572,17 @@ public class StateManager {
     }
 
     public void schedulePetTask(PetComponent component, PetWorkScheduler.TaskType type, long tick) {
+        if (isServerStopping()) {
+            return;
+        }
         workScheduler.schedule(component, type, tick);
         ownerProcessingManager.onTaskScheduled(component, type, tick);
     }
 
     void enqueueDeferredComponentSync(PetComponent component, long targetTick) {
+        if (isServerStopping()) {
+            return;
+        }
         if (component == null) {
             return;
         }
