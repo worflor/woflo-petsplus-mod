@@ -2896,21 +2896,47 @@ public class PetComponent {
     /**
      * Unlock an ability for this pet. Called by AbilityUnlockReward.
      */
-    public void unlockAbility(Identifier abilityId) {
+    public boolean unlockAbility(Identifier abilityId) {
         if (abilityId == null) {
             Petsplus.LOGGER.warn("Attempted to unlock null ability for pet {}", pet.getUuidAsString());
-            return;
+            return false;
         }
-        progressionModule.unlockAbility(abilityId);
-        markEntityDirty();
-        Petsplus.LOGGER.debug("Unlocked ability {} for pet {}", abilityId, pet.getUuidAsString());
+        boolean unlocked = progressionModule.unlockAbility(abilityId);
+        if (unlocked) {
+            markEntityDirty();
+            Petsplus.LOGGER.debug("Unlocked ability {} for pet {}", abilityId, pet.getUuidAsString());
+        }
+        return unlocked;
     }
-    
+
     /**
      * Check if an ability is unlocked.
      */
     public boolean isAbilityUnlocked(Identifier abilityId) {
         return progressionModule.hasAbility(abilityId);
+    }
+
+    /**
+     * Returns the set of unlocked ability identifiers.
+     */
+    public Set<Identifier> getUnlockedAbilities() {
+        if (progressionModule == null) {
+            return Set.of();
+        }
+        Set<Identifier> unlocked = progressionModule.getUnlockedAbilities();
+        return unlocked == null ? Set.of() : unlocked;
+    }
+
+    public int getMaxAbilitySlots() {
+        return progressionModule.getMaxAbilitySlots();
+    }
+
+    public int getOccupiedAbilitySlots() {
+        return progressionModule.getOccupiedAbilitySlots();
+    }
+
+    public int getAvailableAbilitySlots() {
+        return progressionModule.getAvailableAbilitySlots();
     }
     
     /**
@@ -4290,6 +4316,9 @@ public class PetComponent {
         progressionModule.setLevel(1);
         progressionModule.setExperience(0);
         progressionModule.clearProgressionUnlocks();
+        if (progressionModule.getMaxAbilitySlots() < 1) {
+            progressionModule.setMaxAbilitySlots(1);
+        }
     }
 
     private void clearOwnerModule() {

@@ -54,9 +54,14 @@ public final class AbilityUnlockReward implements LevelReward {
         }
         
         // Mark the ability as unlocked at this level
-        comp.unlockAbility(abilityId);
-        
-        Petsplus.LOGGER.debug("Pet {} unlocked ability {} at level {}", 
+        boolean unlocked = comp.unlockAbility(abilityId);
+        if (!unlocked) {
+            Petsplus.LOGGER.warn("Pet {} could not unlock ability {} at level {} (duplicate or no slots)",
+                pet.getDisplayName().getString(), abilityId, level);
+            return;
+        }
+
+        Petsplus.LOGGER.debug("Pet {} unlocked ability {} at level {}",
             pet.getDisplayName().getString(), abilityId, level);
     }
     

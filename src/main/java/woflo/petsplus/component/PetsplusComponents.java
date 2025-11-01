@@ -23,6 +23,11 @@ import java.util.Optional;
  * Component types for persistent data storage using Minecraft's component system.
  */
 public class PetsplusComponents {
+
+    private static final PacketCodec<RegistryByteBuf, Identifier> IDENTIFIER_PACKET_CODEC = PacketCodec.ofStatic(
+        (buf, identifier) -> PacketCodecs.STRING.encode(buf, identifier.toString()),
+        buf -> Identifier.tryParse(PacketCodecs.STRING.decode(buf))
+    );
     
     // Pet component data
     public static final ComponentType<PetData> PET_DATA = register(
@@ -35,19 +40,28 @@ public class PetsplusComponents {
     
     // Owner combat state component data
     public static final ComponentType<OwnerCombatData> OWNER_COMBAT_DATA = register(
-        "owner_combat_data", 
+        "owner_combat_data",
         ComponentType.<OwnerCombatData>builder()
             .codec(OwnerCombatData.CODEC)
             .packetCodec(OwnerCombatData.PACKET_CODEC)
             .build()
     );
-    
+
     // Proof of Existence memorial component
     public static final ComponentType<PoeData> POE_MEMORIAL = register(
         "poe_memorial",
         ComponentType.<PoeData>builder()
             .codec(PoeData.CODEC)
             .packetCodec(PoeData.PACKET_CODEC)
+            .build()
+    );
+
+    // Ability token item component storing the granted ability identifier
+    public static final ComponentType<Identifier> ABILITY_TOKEN = register(
+        "ability_token",
+        ComponentType.<Identifier>builder()
+            .codec(CodecUtils.identifierCodec())
+            .packetCodec(IDENTIFIER_PACKET_CODEC)
             .build()
     );
     

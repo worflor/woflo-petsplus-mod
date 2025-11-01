@@ -42,6 +42,7 @@ public class InitializationManager {
         
         // Register items
         woflo.petsplus.items.PetsplusItems.register();
+        woflo.petsplus.items.PetsplusItemGroups.register();
 
         // Initialize configuration
         PetsPlusConfig.getInstance();
@@ -76,6 +77,7 @@ public class InitializationManager {
         woflo.petsplus.events.SupportInteractionHandler.register();
         woflo.petsplus.events.TributeHandler.register();
         woflo.petsplus.events.PetsplusItemHandler.register();
+        woflo.petsplus.events.AbilityTokenInteractionHandler.register();
         woflo.petsplus.events.PettingHandler.register();
         woflo.petsplus.events.TamingHandler.register();
         woflo.petsplus.events.PetCompendiumHandler.register();

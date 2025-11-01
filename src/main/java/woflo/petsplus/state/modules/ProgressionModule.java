@@ -22,8 +22,20 @@ public interface ProgressionModule extends DataBackedModule<ProgressionModule.Da
     void unlockMilestone(int id);
     Set<Integer> getUnlockedMilestones();
     boolean hasAbility(Identifier abilityId);
-    void unlockAbility(Identifier abilityId);
+    boolean unlockAbility(Identifier abilityId);
     Set<Identifier> getUnlockedAbilities();
+    int getMaxAbilitySlots();
+    int getOccupiedAbilitySlots();
+    default int getAvailableAbilitySlots() {
+        return Math.max(0, getMaxAbilitySlots() - getOccupiedAbilitySlots());
+    }
+    void setMaxAbilitySlots(int slots);
+    default void addAbilitySlots(int amount) {
+        if (amount <= 0) {
+            return;
+        }
+        setMaxAbilitySlots(getMaxAbilitySlots() + amount);
+    }
     Map<String, Float> getPermanentStatBoosts();
     void addPermanentStatBoost(String statName, float amount);
     float getPermanentStatBoost(String statName);
@@ -38,6 +50,8 @@ public interface ProgressionModule extends DataBackedModule<ProgressionModule.Da
         long experience,
         Map<Integer, Boolean> unlockedMilestones,
         Map<Identifier, Boolean> unlockedAbilities,
+        int maxAbilitySlots,
+        int occupiedAbilitySlots,
         Map<String, Float> permanentStatBoosts,
         Map<Integer, Identifier> tributeMilestones
     ) {
@@ -47,6 +61,8 @@ public interface ProgressionModule extends DataBackedModule<ProgressionModule.Da
                 Codec.LONG.fieldOf("experience").forGetter(Data::experience),
                 Codec.unboundedMap(Codec.INT, Codec.BOOL).optionalFieldOf("unlockedMilestones", new HashMap<>()).forGetter(Data::unlockedMilestones),
                 Codec.unboundedMap(CodecUtils.identifierCodec(), Codec.BOOL).optionalFieldOf("unlockedAbilities", new HashMap<>()).forGetter(Data::unlockedAbilities),
+                Codec.INT.optionalFieldOf("maxAbilitySlots", 0).forGetter(Data::maxAbilitySlots),
+                Codec.INT.optionalFieldOf("occupiedAbilitySlots", 0).forGetter(Data::occupiedAbilitySlots),
                 Codec.unboundedMap(Codec.STRING, Codec.FLOAT).optionalFieldOf("permanentStatBoosts", new HashMap<>()).forGetter(Data::permanentStatBoosts),
                 Codec.unboundedMap(Codec.INT, CodecUtils.identifierCodec()).optionalFieldOf("tributeMilestones", new HashMap<>()).forGetter(Data::tributeMilestones)
             ).apply(instance, Data::new)

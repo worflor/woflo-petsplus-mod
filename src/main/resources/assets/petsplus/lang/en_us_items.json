@@ -1,4 +1,12 @@
 {
   "item.petsplus.pet_compendium": "Pet Compendium",
-  "item.petsplus.pet_compendium.tooltip": "Right-click a pet to view their journey"
+  "item.petsplus.pet_compendium.tooltip": "Right-click a pet to view their journey",
+  "item.petsplus.ability_token": "Ability Token",
+  "item.petsplus.ability_token.named": "%s Ability Token",
+  "item.petsplus.ability_token.unknown": "Unknown Ability Token (%s)",
+  "item.petsplus.ability_token.tooltip.ability": "Ability: %s",
+  "item.petsplus.ability_token.tooltip.id": "Identifier: %s",
+  "item.petsplus.ability_token.tooltip.unassigned": "No ability is stored in this token.",
+  "item.petsplus.ability_token.tooltip.unregistered": "Ability %s is not registered.",
+  "itemGroup.petsplus.ability_tokens": "Pets+ Ability Tokens"
 }
