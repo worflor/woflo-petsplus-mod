@@ -597,6 +597,7 @@ public final class PetInspectionManager {
      */
     public static void shutdown() {
         inspecting.clear();
+        PLAYER_TICKER.clearAll();
     }
 
     private static String toSectionColor(TextColor color, String fallback) {
@@ -667,6 +668,10 @@ public final class PetInspectionManager {
             if (player != null) {
                 nextRunTicks.remove(player.getUuid());
             }
+        }
+
+        void clearAll() {
+            nextRunTicks.clear();
         }
     }
 }
