@@ -1,6 +1,6 @@
 # Pets+ — Game Design Document (GDD)
 
-> Server-only Fabric mod that deepens tamed pets via an XP-bond system. Vanilla clients only (no client mod), no new textures or models, fully data-driven roles.
+> Fabric mod that deepens tamed pets via an XP-bond system. Server logic orchestrates the bond/role math while a lightweight client entrypoint mirrors feedback so the experience stays vanilla-friendly—no custom models, UI, or resource swaps—just fully data-driven roles.
 
 ---
 
@@ -16,7 +16,7 @@
 
 ### Hard Constraints
 
-* **Server-only**: works on vanilla clients (no custom UI).
+* **Server + client handshake**: dedicated server runs all simulation/state; thin client bootstrap mirrors feedback with vanilla channels (no custom UI).
 * **No new visuals**: use existing items, particles, sounds, armor/collars/banners.
 * **Data-driven**: roles and abilities defined via JSON/datapack; no species hardcoding.
 * **Low overhead**: avoid per-tick global scans; rely on event hooks and short, pet-local schedulers.
@@ -486,12 +486,13 @@ All values are overridable via datapack/server config.
 
 ### 12.3 Networking & UI
 
-* No client mod. Use:
+* **Sync topology**: dedicated server owns truth; lightweight client entrypoint listens for Pets+ sync packets (abilities, emotions, UI cues) and relays them into vanilla-safe presentation.
 
   * `ServerPlayerEntity#sendMessage` (chat, with click/hover)
   * Action bar (`GameInfoOverlay` packets)
   * Bossbar API for transient milestone bars
   * Vanilla particles/sounds
+  * Client sound hooks (Fabric events) for contextual stingers
 
 ---
 
@@ -684,6 +685,6 @@ petsplus.adv.guardian_of_the_grrr_laxy.desc=Hold Protective III while shielding 
 
 ## 20) Summary
 
-Pets+ adds **nine distinct, data-driven roles** and a **30-level bond** with **tribute gates**, turning every tame into a viable companion for **combat and exploration**—**server-only**, **vanilla-friendly**, and **balanced** around high-stakes progression.
+Pets+ adds **nine distinct, data-driven roles** and a **30-level bond** with **tribute gates**, turning every tame into a viable companion for **combat and exploration**—a **server-coordinated, client-aware** experience that stays **vanilla-friendly** and **balanced** around high-stakes progression.
 
 
