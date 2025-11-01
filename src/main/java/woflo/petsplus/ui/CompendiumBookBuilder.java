@@ -203,14 +203,13 @@ public class CompendiumBookBuilder {
 
         // Role & nature
         Identifier roleId = pc.getRoleId();
-        PetRoleType roleType = roleId != null
-            ? PetsPlusRegistries.petRoleTypeRegistry().get(roleId)
-            : null;
-        String roleName = PetCompendiumDataExtractor.getRoleDisplayName(roleId, roleType);
-        if (roleName == null || roleName.isBlank()) {
-            roleName = "Unassigned";
+        if (roleId != null) {
+            PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+            String roleName = PetCompendiumDataExtractor.getRoleDisplayName(roleId, roleType);
+            if (roleName != null && !roleName.isBlank()) {
+                page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Role", roleName, natureId) + "\n"));
+            }
         }
-        page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Role", roleName, natureId) + "\n"));
 
         Identifier nature = natureId != null ? natureId : pc.getNatureId();
         if (nature != null) {

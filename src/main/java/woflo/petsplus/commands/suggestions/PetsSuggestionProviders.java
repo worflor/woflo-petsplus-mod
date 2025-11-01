@@ -161,7 +161,8 @@ public class PetsSuggestionProviders {
                     return false;
                 }
                 Identifier roleId = petComp.getRoleId();
-                return PetsPlusRegistries.petRoleTypeRegistry().get(roleId) != null
+                return roleId != null
+                    && PetsPlusRegistries.petRoleTypeRegistry().get(roleId) != null
                     && petComp.getLevel() < 100;
             })
             .map(PetValidationUtil::getDisplayName)
@@ -208,7 +209,12 @@ public class PetsSuggestionProviders {
             return suggestCommonAbilities(builder);
         }
 
-        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(petComp.getRoleId());
+        Identifier roleId = petComp.getRoleId();
+        if (roleId == null) {
+            return suggestCommonAbilities(builder);
+        }
+
+        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
         if (roleType == null) {
             return suggestCommonAbilities(builder);
         }

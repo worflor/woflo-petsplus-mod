@@ -108,21 +108,23 @@ public class PetCompendiumDataExtractor {
         
         // Role
         Identifier roleId = pc.getRoleId();
-        PetRoleType roleType = null;
-        String roleName = "Unknown";
-        
-        try {
-            if (roleId != null) {
+        if (roleId != null) {
+            PetRoleType roleType = null;
+            String roleName = RoleIdentifierUtil.formatName(roleId);
+
+            try {
                 roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
                 roleName = getRoleDisplayName(roleId, roleType);
+            } catch (Exception e) {
+                // Log error and use fallback
+                System.err.println("Error retrieving role type for ID " + roleId + ": " + e.getMessage());
             }
-        } catch (Exception e) {
-            // Log error and use fallback
-            System.err.println("Error retrieving role type for ID " + roleId + ": " + e.getMessage());
+
+            if (!roleName.isBlank()) {
+                lines.add(Text.literal("§7Role: §f" + roleName));
+                lines.add(Text.empty());
+            }
         }
-        
-        lines.add(Text.literal("§7Role: §f" + roleName));
-        lines.add(Text.empty());
         
         // Nature (single nature per pet)
         Identifier natureId = pc.getNatureId();
@@ -253,13 +255,15 @@ public class PetCompendiumDataExtractor {
         }
 
         Identifier roleId = pc.getRoleId();
-        PetRoleType roleType = roleId != null ? PetsPlusRegistries.petRoleTypeRegistry().get(roleId) : null;
-        if (roleType != null) {
-            List<Text> specialStats = extractRoleSpecificStats(pc, roleType, natureId);
-            if (!specialStats.isEmpty()) {
-                lines.add(Text.empty());
-                lines.add(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Signature Feats:"));
-                lines.addAll(specialStats);
+        if (roleId != null) {
+            PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+            if (roleType != null) {
+                List<Text> specialStats = extractRoleSpecificStats(pc, roleType, natureId);
+                if (!specialStats.isEmpty()) {
+                    lines.add(Text.empty());
+                    lines.add(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Signature Feats:"));
+                    lines.addAll(specialStats);
+                }
             }
         }
 

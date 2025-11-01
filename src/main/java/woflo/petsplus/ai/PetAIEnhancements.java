@@ -1,6 +1,7 @@
 package woflo.petsplus.ai;
 
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.util.Identifier;
 import woflo.petsplus.ai.context.NearbyMobAgeProfile;
 import woflo.petsplus.ai.context.PetContextCrowdSummary;
 import woflo.petsplus.state.PetComponent;
@@ -79,7 +80,8 @@ public class PetAIEnhancements {
         pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DOOR_WOOD_CLOSED, 0.0f);
         
         // Scout pets get enhanced mobility
-        if (petComponent.getRoleId().getPath().equals("scout")) {
+        Identifier roleId = petComponent.getRoleId();
+        if (roleId != null && "scout".equals(roleId.getPath())) {
             pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.DAMAGE_OTHER, 2.0f);
             pet.setPathfindingPenalty(net.minecraft.entity.ai.pathing.PathNodeType.STICKY_HONEY, 4.0f);
         }
@@ -89,9 +91,12 @@ public class PetAIEnhancements {
      * Apply role-specific AI enhancements.
      */
     private static void applyRoleSpecificAI(MobEntity pet, PetComponent petComponent) {
-        String roleId = petComponent.getRoleId().getPath();
-        
-        switch (roleId) {
+        Identifier roleId = petComponent.getRoleId();
+        if (roleId == null) {
+            return;
+        }
+
+        switch (roleId.getPath()) {
             case "guardian" -> applyGuardianAI(pet, petComponent);
             case "scout" -> applyScoutAI(pet, petComponent);
             case "striker" -> applyStrikerAI(pet, petComponent);

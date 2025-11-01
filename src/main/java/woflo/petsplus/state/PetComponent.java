@@ -101,7 +101,6 @@ import java.util.stream.Collectors;
  */
 public class PetComponent {
     private static final Map<MobEntity, PetComponent> COMPONENTS = new WeakHashMap<>();
-    private static final Identifier DEFAULT_ROLE_ID = PetRoleType.GUARDIAN_ID;
     private static final String[] SPECIES_STATE_KEYS = {
         "context_species", "context_type", "tag_species", "tag_type", "context_entity"
     };
@@ -1728,8 +1727,9 @@ public class PetComponent {
         return descriptorType.isIn(tag);
     }
 
+    @Nullable
     public Identifier getRoleId() {
-        return roleId != null ? roleId : DEFAULT_ROLE_ID;
+        return roleId;
     }
 
     @Nullable
@@ -1745,7 +1745,7 @@ public class PetComponent {
         if (id == null) {
             return false;
         }
-        return getRoleId().equals(id);
+        return roleId != null && roleId.equals(id);
     }
 
     public boolean hasRole(@Nullable PetRoleType type) {
@@ -1757,12 +1757,11 @@ public class PetComponent {
     }
 
     public void setRoleId(@Nullable Identifier id) {
-        Identifier newId = id != null ? id : DEFAULT_ROLE_ID;
-        if (Objects.equals(this.roleId, newId)) {
+        if (Objects.equals(this.roleId, id)) {
             return;
         }
 
-        this.roleId = newId;
+        this.roleId = id;
         speciesMetadataModule.markFlightDirty();
         markEntityDirty();
 
@@ -1789,29 +1788,23 @@ public class PetComponent {
     }
 
     public void setRoleType(@Nullable PetRoleType type) {
-        setRoleId(type != null ? type.id() : DEFAULT_ROLE_ID);
+        setRoleId(type != null ? type.id() : null);
     }
 
     public void setRoleEntry(@Nullable RegistryEntry<PetRoleType> entry) {
-        if (entry == null) {
-            setRoleId(DEFAULT_ROLE_ID);
-            return;
-        }
-
-        setRoleType(entry.value());
+        setRoleType(entry != null ? entry.value() : null);
     }
 
     @Nullable
     public RegistryEntry<PetRoleType> getRoleEntry() {
         try {
             Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
-            PetRoleType type = registry.get(getRoleId());
-            if (type != null) {
-                return registry.getEntry(type);
+            Identifier id = getRoleId();
+            if (id == null) {
+                return null;
             }
-
-            PetRoleType fallback = registry.get(DEFAULT_ROLE_ID);
-            return fallback != null ? registry.getEntry(fallback) : null;
+            PetRoleType type = registry.get(id);
+            return type != null ? registry.getEntry(type) : null;
         } catch (Throwable error) {
             return null;
         }
@@ -1824,21 +1817,21 @@ public class PetComponent {
     public PetRoleType getRoleType(boolean logMissing) {
         try {
             Registry<PetRoleType> registry = PetsPlusRegistries.petRoleTypeRegistry();
-            Identifier roleId = getRoleId();
-            PetRoleType type = registry.get(roleId);
-            if (type != null) {
-                return type;
-            }
+            Identifier id = getRoleId();
+            if (id != null) {
+                PetRoleType type = registry.get(id);
+                if (type != null) {
+                    return type;
+                }
 
-            if (logMissing) {
-                Petsplus.LOGGER.warn("Pet {} references missing role {}; defaulting to {}", pet.getUuid(), roleId, DEFAULT_ROLE_ID);
+                if (logMissing) {
+                    Petsplus.LOGGER.warn("Pet {} references missing role {}", pet.getUuid(), id);
+                }
             }
-
-            PetRoleType fallback = registry.get(DEFAULT_ROLE_ID);
-            return fallback != null ? fallback : PetRoleType.GUARDIAN;
+            return PetRoleType.GUARDIAN;
         } catch (Throwable error) {
             if (logMissing) {
-                Petsplus.LOGGER.debug("Using guardian role fallback due to registry access failure", error);
+                Petsplus.LOGGER.debug("Unable to resolve pet role", error);
             }
             return PetRoleType.GUARDIAN;
         }
@@ -4183,8 +4176,12 @@ public class PetComponent {
         PetsplusComponents.PetData data = PetsplusComponents.PetData.empty()
             .withLastAttackTick(lastAttackTick)
             .withPerched(isPerched)
-            .withXpFlashStartTick(xpFlashStartTick)
-            .withRole(getRoleId());
+            .withXpFlashStartTick(xpFlashStartTick);
+
+        Identifier storedRoleId = getRoleId();
+        if (storedRoleId != null) {
+            data = data.withRole(storedRoleId);
+        }
 
         Map<String, Long> cooldowns = schedulingModule.getAllCooldowns();
         if (cooldowns != null && !cooldowns.isEmpty()) {

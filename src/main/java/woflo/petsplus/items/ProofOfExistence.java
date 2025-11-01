@@ -437,6 +437,10 @@ public class ProofOfExistence {
      */
     private static String generateRoleEpithet(PetComponent petComp, MobEntity pet) {
         Identifier roleId = petComp.getRoleId();
+        if (roleId == null) {
+            return "";
+        }
+
         PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
         if (roleType != null && roleType.presentation().hasMemorialEpithets()) {
             List<PetRoleType.Message> epithets = roleType.presentation().memorialEpithets();
@@ -609,7 +613,7 @@ public class ProofOfExistence {
         String petName = pet.hasCustomName() ? pet.getCustomName().getString() : pet.getType().getName().getString();
         String roleEpithet = generateRoleEpithet(petComp, pet);
         Identifier roleId = petComp.getRoleId();
-        PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
+        PetRoleType roleType = roleId != null ? PetsPlusRegistries.petRoleTypeRegistry().get(roleId) : null;
         long seed = pet.getUuid().getMostSignificantBits() ^ pet.getUuid().getLeastSignificantBits();
         long deathTick = pet.getEntityWorld().getTime();
         
@@ -637,13 +641,15 @@ public class ProofOfExistence {
 
         // Life summary (always show)
         String levelDescriptor = generateLevelDescriptor(petComp.getLevel());
-        String roleDisplayName = roleId != null
-            ? RoleIdentifierUtil.roleLabel(roleId, roleType).getString()
-            : "Unknown";
-        if (roleDisplayName == null || roleDisplayName.isBlank()) {
-            roleDisplayName = "Unknown";
+        if (roleId != null) {
+            String roleDisplayName = RoleIdentifierUtil.roleLabel(roleId, roleType).getString();
+            if (roleDisplayName == null || roleDisplayName.isBlank()) {
+                roleDisplayName = RoleIdentifierUtil.formatName(roleId);
+            }
+            if (!roleDisplayName.isBlank()) {
+                lore.add(Text.literal("§7Role: §f" + roleDisplayName));
+            }
         }
-        lore.add(Text.literal("§7Role: §f" + roleDisplayName));
         
         // Add gold color for legendary level (30)
         String levelText = petComp.getLevel() == 30 ? "§6" + levelDescriptor + "§r" : "§f" + levelDescriptor;

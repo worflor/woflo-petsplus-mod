@@ -4,6 +4,7 @@ import java.util.Locale;
 
 import net.minecraft.entity.ai.pathing.PathNodeType;
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.util.Identifier;
 import woflo.petsplus.Petsplus;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.state.PetComponent;
@@ -25,11 +26,10 @@ public class PetAIDebugger {
             return;
         }
         
-        String roleId = petComponent.getRoleId().getPath();
-        
         Petsplus.LOGGER.info("=== Pet AI State Debug ===");
         Petsplus.LOGGER.info("Pet Type: {}", pet.getType());
-        Petsplus.LOGGER.info("Role: {}", roleId);
+        Identifier roleId = petComponent.getRoleId();
+        Petsplus.LOGGER.info("Role: {}", roleId != null ? roleId.getPath() : "<none>");
         Petsplus.LOGGER.info("Is Tamed: {}", pet instanceof PetsplusTameable tameable ? tameable.petsplus$isTamed() : "N/A");
         Petsplus.LOGGER.info("Current Mood: {} (level {})", petComponent.getCurrentMood(), petComponent.getMoodLevel());
         float focusedStrength = petComponent.getMoodStrength(PetComponent.Mood.FOCUSED);

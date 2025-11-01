@@ -344,6 +344,10 @@ public class FeedbackManager {
         }
 
         Identifier roleId = component.getRoleId();
+        if (roleId == null) {
+            return;
+        }
+
         PetRoleType roleType = PetsPlusRegistries.petRoleTypeRegistry().get(roleId);
         if (roleType == null) {
             return;
@@ -351,7 +355,7 @@ public class FeedbackManager {
 
         PetRoleType.Visual visual = roleType.visual();
         String eventName = visual.ambientEvent();
-        if (eventName == null || eventName.isEmpty()) {
+        if ((eventName == null || eventName.isEmpty()) && roleId != null) {
             eventName = roleId.getPath() + "_ambient";
         }
         emitFeedback(eventName, pet, world);

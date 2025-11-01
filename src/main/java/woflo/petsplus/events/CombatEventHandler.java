@@ -1717,11 +1717,13 @@ public class CombatEventHandler {
                         if (pc != null) {
                             Identifier roleId = pc.getRoleId();
                             if (roleId != null) {
-                            uniqueRoles.add(roleId);
+                                uniqueRoles.add(roleId);
+                            }
                         }
                     }
-                }
-                float diversityBonus = uniqueRoles.size() >= PACK_SPIRIT_ROLE_DIVERSITY_MIN ? 0.25f : 0f;                    for (MobEntity pet : participatingPets) {
+
+                    float diversityBonus = uniqueRoles.size() >= PACK_SPIRIT_ROLE_DIVERSITY_MIN ? 0.25f : 0f;
+                    for (MobEntity pet : participatingPets) {
                         PetComponent pc = PetComponent.get(pet);
                         if (pc != null) {
                             float finalIntensity = intensityScale + diversityBonus;
