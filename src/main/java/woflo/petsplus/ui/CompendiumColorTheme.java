@@ -66,6 +66,19 @@ public final class CompendiumColorTheme {
         return palette(natureId).lineage() == NatureLineage.BORN;
     }
 
+    /**
+     * Converts a TextColor to a legacy format code (§x§r§g§b format),
+     * but ensures it's never white or near-white by applying ensureNotWhite checks.
+     */
+    public static String textColorToCode(TextColor color) {
+        if (color == null) {
+            return DARK_GRAY;
+        }
+        int rgb = color.getRgb() & 0xFFFFFF;
+        int safeRgb = ensureNotWhite(rgb);
+        return toLegacyCode(safeRgb);
+    }
+
     public static String formatSectionHeader(String label, @Nullable Identifier natureId) {
         Palette palette = palette(natureId);
         return palette.accentCode() + BOLD + label + RESET;
@@ -82,14 +95,16 @@ public final class CompendiumColorTheme {
     public static String buildSectionDivider(@Nullable Identifier natureId) {
         Palette palette = palette(natureId);
         StringBuilder builder = new StringBuilder();
-        builder.append(palette.shadowCode()).append("┈");
-        for (int i = 0; i < 18; i++) {
-            float blend = i / 17f;
-            // Alternate between highlight and soft codes to hint at a gradient.
-            builder.append(blend < 0.35f ? palette.softCode() : blend > 0.7f ? palette.deepShadowCode() : palette.highlightCode())
-                .append("─");
+        // Horizontal line divider with subtle gradient
+        final int segments = 12;
+        for (int i = 0; i < segments; i++) {
+            float blend = segments > 1 ? (float) i / (segments - 1) : 0f;
+            String color = (blend < 0.35f) ? palette.softCode()
+                : (blend > 0.7f) ? palette.deepShadowCode()
+                : palette.highlightCode();
+            builder.append(color).append("─");
         }
-        builder.append(palette.shadowCode()).append("┈").append(RESET);
+        builder.append(RESET);
         return builder.toString();
     }
 
@@ -193,15 +208,25 @@ public final class CompendiumColorTheme {
             float[] hsl = rgbToHsl(baseRgb);
             float accentS = clamp01(hsl[1] * (lineage == NatureLineage.BORN ? 1.18f : 0.82f));
             float accentL = clamp01(hsl[2] + (lineage == NatureLineage.BORN ? 0.02f : -0.02f));
-            this.accentRgb = hslToRgb(hsl[0], accentS, accentL);
+            int tempAccent = hslToRgb(hsl[0], accentS, accentL);
+            this.accentRgb = ensureNotWhite(tempAccent);
 
+            // Ensure highlight never becomes white or near-white (lightness > 0.88)
             float highlightL = clamp01(accentL + (lineage == NatureLineage.BORN ? 0.18f : 0.12f));
+            highlightL = Math.min(highlightL, 0.88f); // Cap to prevent white
             float highlightS = clamp01(accentS * (lineage == NatureLineage.BORN ? 0.88f : 0.78f));
-            this.highlightRgb = hslToRgb(hsl[0], highlightS, highlightL);
+            // If lightness was capped and saturation is low, boost saturation to maintain vibrancy
+            if (highlightL >= 0.88f && highlightS < 0.35f) {
+                highlightS = clamp01(highlightS * 1.4f);
+            }
+            int tempHighlight = hslToRgb(hsl[0], highlightS, highlightL);
+            this.highlightRgb = ensureNotWhite(tempHighlight);
 
             float softL = clamp01(accentL + (lineage == NatureLineage.BORN ? 0.10f : 0.06f));
+            softL = Math.min(softL, 0.85f); // Also cap soft to prevent near-white
             float softS = clamp01(accentS * (lineage == NatureLineage.BORN ? 0.75f : 0.70f));
-            this.softRgb = hslToRgb(hsl[0], softS, softL);
+            int tempSoft = hslToRgb(hsl[0], softS, softL);
+            this.softRgb = ensureNotWhite(tempSoft);
 
             float shadowL = clamp01(accentL - (lineage == NatureLineage.BORN ? 0.20f : 0.16f));
             float shadowS = clamp01(accentS * (lineage == NatureLineage.BORN ? 1.05f : 0.95f));
@@ -330,6 +355,31 @@ public final class CompendiumColorTheme {
 
     private static float clamp01(float value) {
         return MathHelper.clamp(value, 0f, 1f);
+    }
+
+    /**
+     * Checks if an RGB color is too close to white (would be illegible on light backgrounds).
+     * Returns true if the color has very high lightness and low saturation.
+     */
+    private static boolean isTooCloseToWhite(int rgb) {
+        float[] hsl = rgbToHsl(rgb);
+        // Consider it too white if lightness > 0.85 AND saturation < 0.25
+        return hsl[2] > 0.85f && hsl[1] < 0.25f;
+    }
+
+    /**
+     * Attempts to find a better color by adjusting saturation/lightness if the current color
+     * is too close to white. Preserves the hue.
+     */
+    private static int ensureNotWhite(int rgb) {
+        if (!isTooCloseToWhite(rgb)) {
+            return rgb;
+        }
+        float[] hsl = rgbToHsl(rgb);
+        // For near-white colors, reduce lightness and boost saturation to make them visible
+        float newL = 0.72f; // Target a more readable lightness
+        float newS = clamp01(Math.max(hsl[1], 0.45f)); // Ensure some saturation
+        return hslToRgb(hsl[0], newS, newL);
     }
 }
 

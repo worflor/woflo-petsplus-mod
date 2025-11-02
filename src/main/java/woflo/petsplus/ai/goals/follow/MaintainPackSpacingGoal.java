@@ -42,6 +42,7 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
     private static final double OWNER_MOVEMENT_DAMPING_THRESHOLD = 0.03d;
     private static final double OWNER_MOVING_EXTENSION_SCALE = 0.65d;
     private static final float OWNER_MOVING_PADDING_SCALE = 0.45f;
+    private static final int MAX_CACHE_SIZE = 128; // Limit cache to prevent unbounded growth
     private static final Map<UUID, CachedSpacing> OWNER_SPACING_CACHE = new HashMap<>();
 
     private long lastSwarmCheckTick = Long.MIN_VALUE;
@@ -97,6 +98,11 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
         petComponent.setFollowSpacingFocus(null, Long.MIN_VALUE);
         lastSwarmCheckTick = Long.MIN_VALUE;
         lastObservedSwarmSize = 1;
+        // Clean up cache entry when owner is no longer tracked
+        PlayerEntity owner = petComponent.getOwner() instanceof PlayerEntity player ? player : null;
+        if (owner != null) {
+            evictCacheIfNeeded(owner.getUuid());
+        }
     }
 
     @Override
@@ -171,6 +177,7 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
                 }
             }
             result = computed;
+            evictCacheIfNeeded(ownerId);
             OWNER_SPACING_CACHE.put(ownerId, new CachedSpacing(now, result));
         }
 
@@ -227,94 +234,96 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
     private FollowSpacingResult computeSpacing(long now, PlayerEntity owner, PetSwarmIndex swarmIndex) {
         Map<MobEntity, PetSocialData> cache = socialScratch;
         cache.clear();
-        PetSocialData selfData = new PetSocialData(mob, petComponent, now);
-        cache.put(mob, selfData);
+        try {
+            PetSocialData selfData = new PetSocialData(mob, petComponent, now);
+            cache.put(mob, selfData);
 
-        SocialContextSnapshot.NeighborSummary summary = SocialContextSnapshot.NeighborSummary.collect(
-            swarmIndex, mob, petComponent, selfData, cache, now,
-            SPACING_SAMPLE_RADIUS, SPACING_MAX_SAMPLES, SPACING_PACK_RADIUS);
+            SocialContextSnapshot.NeighborSummary summary = SocialContextSnapshot.NeighborSummary.collect(
+                swarmIndex, mob, petComponent, selfData, cache, now,
+                SPACING_SAMPLE_RADIUS, SPACING_MAX_SAMPLES, SPACING_PACK_RADIUS);
 
-        List<SocialContextSnapshot.NeighborSample> neighbors = summary.nearestWithin(
-            SPACING_PACK_RADIUS * SPACING_PACK_RADIUS, SPACING_MAX_SAMPLES);
-        if (neighbors.isEmpty()) {
+            List<SocialContextSnapshot.NeighborSample> neighbors = summary.nearestWithin(
+                SPACING_PACK_RADIUS * SPACING_PACK_RADIUS, SPACING_MAX_SAMPLES);
+            if (neighbors.isEmpty()) {
+                return FollowSpacingResult.empty();
+            }
+
+            Vec3d ownerPos = owner.getEntityPos();
+            Vec3d petPos = mob.getEntityPos();
+            Vec3d ownerToPet = petPos.subtract(ownerPos);
+            double ownerDistanceSq = ownerToPet.lengthSquared();
+            Vec3d forward;
+            if (ownerDistanceSq < 0.0001) {
+                forward = new Vec3d(1.0, 0.0, 0.0);
+            } else {
+                double invDistance = 1.0 / Math.sqrt(ownerDistanceSq);
+                forward = ownerToPet.multiply(invDistance);
+            }
+            Vec3d lateral = new Vec3d(-forward.z, 0.0, forward.x);
+            double ownerSpeedSq = owner.getVelocity().horizontalLengthSquared();
+            boolean ownerIsMoving = ownerSpeedSq > OWNER_MOVEMENT_DAMPING_THRESHOLD;
+
+            double extension = 0.0;
+            double lateralOffset = 0.0;
+            double padding = 0.0;
+            double weight = 0.0;
+            MobEntity focus = null;
+            double bestAffinity = Double.NEGATIVE_INFINITY;
+
+            for (SocialContextSnapshot.NeighborSample sample : neighbors) {
+                Vec3d toNeighbor = new Vec3d(sample.pet().getX() - ownerPos.x, 0.0, sample.pet().getZ() - ownerPos.z);
+                double forwardComponent = toNeighbor.dotProduct(forward);
+                double lateralComponent = toNeighbor.dotProduct(lateral);
+                double affinity = computeAffinityWeight(selfData, sample.data(), now);
+                double weightContribution = Math.max(0.1, 1.0 - Math.min(1.0, Math.sqrt(sample.squaredDistance()) / 6.0))
+                    * affinity;
+                extension += forwardComponent * weightContribution;
+                lateralOffset += lateralComponent * weightContribution;
+                padding += Math.max(0.0, MAX_PADDING - Math.abs(lateralComponent)) * weightContribution;
+                weight += weightContribution;
+                if (weightContribution > 0.0 && affinity > bestAffinity) {
+                    focus = sample.pet();
+                    bestAffinity = affinity;
+                }
+            }
+
+            if (weight > 0.0) {
+                extension /= weight;
+                lateralOffset /= weight;
+                if (ownerIsMoving) {
+                    extension *= OWNER_MOVING_EXTENSION_SCALE;
+                    lateralOffset *= OWNER_MOVING_EXTENSION_SCALE;
+                }
+                float normalizedPadding = MathHelper.clamp((float) (padding / weight), 0.0f, MAX_PADDING);
+                float motionScale = ownerIsMoving ? OWNER_MOVING_PADDING_SCALE : 1.0f;
+
+                extension = MathHelper.clamp(extension, -MAX_FORWARD_EXTENSION, MAX_FORWARD_EXTENSION);
+                lateralOffset = MathHelper.clamp(lateralOffset, -MAX_LATERAL_OFFSET, MAX_LATERAL_OFFSET);
+                padding = MathHelper.clamp(normalizedPadding * motionScale, 0.0f, MAX_PADDING);
+            } else {
+                extension = 0.0d;
+                lateralOffset = 0.0d;
+                padding = 0.0f;
+            }
+
+            if (petComponent != null) {
+                PetComponent.OwnerCourtesyState courtesyState = petComponent.getOwnerCourtesyState(now);
+                if (courtesyState.isActive(now)) {
+                    double courtesyBonus = MathHelper.clamp(courtesyState.distanceBonus(), 0.0d, 4.0d);
+                    double shift = MathHelper.clamp(courtesyBonus * 0.2d, 0.0d, 0.6d);
+                    extension = MathHelper.clamp(extension + shift, -MAX_FORWARD_EXTENSION, MAX_FORWARD_EXTENSION);
+                    double lateralScale = Math.max(1.0d, courtesyState.lateralInflation());
+                    double paddingScale = Math.max(1.0d, courtesyState.paddingInflation());
+                    lateralOffset = MathHelper.clamp(lateralOffset * lateralScale, -MAX_LATERAL_OFFSET, MAX_LATERAL_OFFSET);
+                    padding = MathHelper.clamp((float) (padding * paddingScale), 0.0f, MAX_PADDING);
+                }
+            }
+
+            Vec3d offset = forward.multiply(extension).add(lateral.multiply(lateralOffset));
+            return new FollowSpacingResult(offset.x, offset.z, (float) padding, focus, neighbors.size());
+        } finally {
             cache.clear();
-            return FollowSpacingResult.empty();
         }
-
-        Vec3d ownerPos = owner.getEntityPos();
-        Vec3d petPos = mob.getEntityPos();
-        Vec3d ownerToPet = petPos.subtract(ownerPos);
-        double ownerDistanceSq = ownerToPet.lengthSquared();
-        Vec3d forward;
-        if (ownerDistanceSq < 0.0001) {
-            forward = new Vec3d(1.0, 0.0, 0.0);
-        } else {
-            double invDistance = 1.0 / Math.sqrt(ownerDistanceSq);
-            forward = ownerToPet.multiply(invDistance);
-        }
-        Vec3d lateral = new Vec3d(-forward.z, 0.0, forward.x);
-        double ownerSpeedSq = owner.getVelocity().horizontalLengthSquared();
-        boolean ownerIsMoving = ownerSpeedSq > OWNER_MOVEMENT_DAMPING_THRESHOLD;
-
-        double extension = 0.0;
-        double lateralOffset = 0.0;
-        double padding = 0.0;
-        double weight = 0.0;
-        MobEntity focus = null;
-        double bestAffinity = Double.NEGATIVE_INFINITY;
-
-        for (SocialContextSnapshot.NeighborSample sample : neighbors) {
-            Vec3d toNeighbor = new Vec3d(sample.pet().getX() - ownerPos.x, 0.0, sample.pet().getZ() - ownerPos.z);
-            double forwardComponent = toNeighbor.dotProduct(forward);
-            double lateralComponent = toNeighbor.dotProduct(lateral);
-            double affinity = computeAffinityWeight(selfData, sample.data(), now);
-            double weightContribution = Math.max(0.1, 1.0 - Math.min(1.0, Math.sqrt(sample.squaredDistance()) / 6.0))
-                * affinity;
-            extension += forwardComponent * weightContribution;
-            lateralOffset += lateralComponent * weightContribution;
-            padding += Math.max(0.0, MAX_PADDING - Math.abs(lateralComponent)) * weightContribution;
-            weight += weightContribution;
-            if (weightContribution > 0.0 && affinity > bestAffinity) {
-                focus = sample.pet();
-                bestAffinity = affinity;
-            }
-        }
-
-        if (weight > 0.0) {
-            extension /= weight;
-            lateralOffset /= weight;
-            if (ownerIsMoving) {
-                extension *= OWNER_MOVING_EXTENSION_SCALE;
-                lateralOffset *= OWNER_MOVING_EXTENSION_SCALE;
-            }
-            float normalizedPadding = MathHelper.clamp((float) (padding / weight), 0.0f, MAX_PADDING);
-            float motionScale = ownerIsMoving ? OWNER_MOVING_PADDING_SCALE : 1.0f;
-
-            extension = MathHelper.clamp(extension, -MAX_FORWARD_EXTENSION, MAX_FORWARD_EXTENSION);
-            lateralOffset = MathHelper.clamp(lateralOffset, -MAX_LATERAL_OFFSET, MAX_LATERAL_OFFSET);
-            padding = MathHelper.clamp(normalizedPadding * motionScale, 0.0f, MAX_PADDING);
-        } else {
-            extension = 0.0d;
-            lateralOffset = 0.0d;
-            padding = 0.0f;
-        }
-
-        if (petComponent != null) {
-            PetComponent.OwnerCourtesyState courtesyState = petComponent.getOwnerCourtesyState(now);
-            if (courtesyState.isActive(now)) {
-                double courtesyBonus = MathHelper.clamp(courtesyState.distanceBonus(), 0.0d, 4.0d);
-                double shift = MathHelper.clamp(courtesyBonus * 0.2d, 0.0d, 0.6d);
-                extension = MathHelper.clamp(extension + shift, -MAX_FORWARD_EXTENSION, MAX_FORWARD_EXTENSION);
-                double lateralScale = Math.max(1.0d, courtesyState.lateralInflation());
-                double paddingScale = Math.max(1.0d, courtesyState.paddingInflation());
-                lateralOffset = MathHelper.clamp(lateralOffset * lateralScale, -MAX_LATERAL_OFFSET, MAX_LATERAL_OFFSET);
-                padding = MathHelper.clamp((float) (padding * paddingScale), 0.0f, MAX_PADDING);
-            }
-        }
-
-        Vec3d offset = forward.multiply(extension).add(lateral.multiply(lateralOffset));
-        cache.clear();
-        return new FollowSpacingResult(offset.x, offset.z, (float) padding, focus, neighbors.size());
     }
 
     static double computeAffinityWeight(PetSocialData selfData, PetSocialData neighborData, long now) {
@@ -399,6 +408,17 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
             return;
         }
         DebugSettings.broadcastDebug(server, Text.literal(message));
+    }
+
+    /**
+     * Evict cache entries if the map exceeds MAX_CACHE_SIZE.
+     * Uses simple FIFO eviction - removes oldest entry when limit is reached.
+     */
+    private static void evictCacheIfNeeded(UUID currentOwnerId) {
+        if (OWNER_SPACING_CACHE.size() >= MAX_CACHE_SIZE) {
+            // Remove first entry found (simple FIFO)
+            OWNER_SPACING_CACHE.keySet().stream().findFirst().ifPresent(OWNER_SPACING_CACHE::remove);
+        }
     }
 
     private static boolean isDebugLoggingEnabled() {

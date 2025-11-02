@@ -21,7 +21,6 @@ import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.mob.HuskEntity;
-import net.minecraft.entity.mob.SlimeEntity;
 import net.minecraft.entity.mob.ZombieEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.passive.AbstractHorseEntity;
@@ -82,7 +81,6 @@ import net.minecraft.registry.tag.ItemTags;
 import net.minecraft.registry.tag.TagKey;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.registry.tag.FluidTags;
-import net.minecraft.state.property.Properties;
 import net.minecraft.world.Heightmap;
 import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.Petsplus;
@@ -132,7 +130,6 @@ import woflo.petsplus.behavior.social.SocialBehaviorRoutine;
 import woflo.petsplus.behavior.social.SocialContextSnapshot;
 import woflo.petsplus.behavior.social.WhisperRoutine;
 import woflo.petsplus.events.EmotionCueConfig.EmotionCueDefinition;
-import woflo.petsplus.events.StimulusSummary;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.tracking.PlayerTickListener;
 import woflo.petsplus.state.StateManager;
@@ -169,7 +166,6 @@ public final class EmotionsEventHandler {
     private static final long ARCANE_STREAK_TIMEOUT = 2400L; // 2 minutes in ticks
     private static final int ARCANE_MAX_ENCHANTING_POWER = 15; // Vanilla max bookshelf count
     private static final int ARCANE_MIN_STREAK = 3; // Enchants needed for max streak bonus
-    private static final double ARCANE_TRIGGER_RADIUS = 20.0;
     private static final float ARCANE_BASE_THRESHOLD = 0.7f;
     private static final float ARCANE_POWER_REDUCTION = 0.4f;
     private static final float ARCANE_STREAK_REDUCTION = 0.3f;
@@ -1065,9 +1061,12 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                 switch (context) {
                     case HOSTILE -> {
                         if (tryMarkPetBeat(pc, "combat_owner_kill_hostile", now, 200L)) {
-                            // More nuanced hostile kill emotions
+                            // Victory joy scaled by courage: bold pets celebrate more, cautious pets less
+                            float courage = woflo.petsplus.state.morality.PersonaHelper.getCourage(pc);
+                            float kefiScale = 0.5f + (courage * 0.5f);  // 0.5 at cowardly, 1.0 at brave
+                            
                             collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.25f);  // Post-threat relief
-                            collector.pushEmotion(PetComponent.Emotion.KEFI, 0.20f);  // Victory joy
+                            collector.pushEmotion(PetComponent.Emotion.KEFI, 0.20f * kefiScale);  // Victory joy, scaled by courage
                             collector.pushEmotion(PetComponent.Emotion.GUARDIAN_VIGIL, 0.35f + reliefBonus * 0.3f);
                             // If guardian role, extra protective response
                             if (pc.hasRole(PetRoleType.GUARDIAN)) {
@@ -1075,22 +1074,26 @@ net.minecraft.block.entity.BlockEntity blockEntity) {
                             }
                             // Add contagion for combat victory - spread relief and triumph to nearby pets
                             collector.pushEmotion(PetComponent.Emotion.RELIEF, 0.015f);  // Subtle contagion
-                            collector.pushEmotion(PetComponent.Emotion.KEFI, 0.020f);   // Victory contagion
+                            collector.pushEmotion(PetComponent.Emotion.KEFI, 0.020f * kefiScale);   // Victory contagion, scaled by courage
                             // Add visual feedback for contagion
                             FeedbackManager.emitContagionFeedback(pc.getPet(), (ServerWorld) sp.getEntityWorld(), PetComponent.Emotion.KEFI);
                         }
                     }
                     case PASSIVE -> {
                         if (tryMarkPetBeat(pc, "combat_owner_kill_passive", now, 240L)) {
-                            // Reduced remorse for passive kills
-                            collector.pushEmotion(PetComponent.Emotion.REGRET, 0.15f);  // Reduced from 0.35f
+                            // Regret scaled by empathy: compassionate pets show more remorse
+                            float empathy = woflo.petsplus.state.morality.PersonaHelper.getEmpathy(pc);
+                            float regretBase = 0.15f;
+                            float regret = regretBase * empathy;  // 0.0 at callous, 0.15 at compassionate
+                            
+                            collector.pushEmotion(PetComponent.Emotion.REGRET, regret);
                             collector.pushEmotion(PetComponent.Emotion.MELANCHOLY, 0.18f);
                             // Only add Hiraeth for non-guardian roles
                             if (!pc.hasRole(PetRoleType.GUARDIAN)) {
-                                collector.pushEmotion(PetComponent.Emotion.HIRAETH, 0.15f);  // Reduced from 0.25f
+                                collector.pushEmotion(PetComponent.Emotion.HIRAETH, regret * 1.0f);  // Scale with empathy too
                             }
                             // Add subtle contagion for mixed emotions
-                            collector.pushEmotion(PetComponent.Emotion.REGRET, 0.010f);  // Subtle regret contagion
+                            collector.pushEmotion(PetComponent.Emotion.REGRET, 0.010f * empathy);  // Subtle regret contagion, scaled by empathy
                             collector.pushEmotion(PetComponent.Emotion.MELANCHOLY, 0.008f);
                         }
                     }
@@ -1773,7 +1776,6 @@ private record WeatherState(boolean raining, boolean thundering) {}
     private static class PlayerEnvState {
         RegistryKey<Biome> biomeKey;
         RegistryKey<World> dimensionKey;
-        Vec3d lastPos;
         long lastMovementTick;
         long lastIdleCueTick;
         long lastRainyIdleCueTick;
@@ -1792,7 +1794,6 @@ private record WeatherState(boolean raining, boolean thundering) {}
         PlayerEnvState(@Nullable RegistryKey<Biome> biomeKey, @Nullable RegistryKey<World> dimensionKey, Vec3d lastPos, long currentTick) {
             this.biomeKey = biomeKey;
             this.dimensionKey = dimensionKey;
-            this.lastPos = lastPos;
             this.lastMovementTick = currentTick;
             this.lastIdleCueTick = 0L;
             this.lastRainyIdleCueTick = 0L;
@@ -2796,7 +2797,6 @@ private record WeatherState(boolean raining, boolean thundering) {}
             handleDimensionChange(player, state, previous, dimensionKey);
         }
 
-        state.lastPos = pos;
         state.lastMovementTick = now;
         state.lastIdleCueTick = 0L;
         state.lastRainyIdleCueTick = 0L;
@@ -2927,9 +2927,8 @@ private record WeatherState(boolean raining, boolean thundering) {}
         KillContext context,
         OwnerKillStreak streak
     ) {
-        Set<Identifier> registryTags = killed.getType().getRegistryEntry().streamTags()
-            .map(TagKey::id)
-            .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<Identifier> registryTags = new LinkedHashSet<>();
+        killed.getType().getRegistryEntry().streamTags().forEach(tagKey -> registryTags.add(tagKey.id()));
         Set<String> dynamicTags = new LinkedHashSet<>();
         switch (context) {
             case PASSIVE -> dynamicTags.add("passive_target");
@@ -3548,6 +3547,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
     }
 
     // ==== 4th Wave: Nuanced Living System - Subtle Environmental & Social Awareness ====
+    @SuppressWarnings("unused")
     private static void handleNuancedEmotions(ServerPlayerEntity player, ServerWorld world, long currentTick) {
         handleNuancedEmotions(player, world, currentTick, null);
     }
@@ -4101,6 +4101,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
         }
     }
 
+    @SuppressWarnings("unused")
     private static void addOtherPetHurtTriggers(MobEntity pet, PetComponent pc, ServerPlayerEntity owner, ServerWorld world,
                                                EmotionStimulusBus.SimpleStimulusCollector collector) {
         // Check for other hurt pets nearby
@@ -4952,6 +4953,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
         // This affects how quickly emotions change for different species
     }
     
+    @SuppressWarnings("unused")
     private static void addLegacySpeciesHandlers(MobEntity pet, PetComponent pc, ServerPlayerEntity owner, ServerWorld world, long now, BlockPos petPos) {
         // Legacy species handlers that were already in the code
         if (pet instanceof AbstractHorseEntity) {
@@ -5178,6 +5180,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
                 owner != null ? owner.getEntityWorld().getServer() : null);
         }
 
+        @SuppressWarnings("unused")
         private EmotionAccumulatorBatch(AsyncWorkCoordinator coordinator,
                                         @Nullable ServerPlayerEntity owner,
                                         LongSupplier timeSupplier,
@@ -5572,6 +5575,7 @@ private record WeatherState(boolean raining, boolean thundering) {}
     /**
      * Advanced weather and item awareness using tags and component data
      */
+    @SuppressWarnings("unused")
     private static void onWorldTickAdvancedTriggers(ServerWorld world) {
         // Run every 5 seconds to keep it lightweight
         if (world.getTime() % 100 != 0) return;

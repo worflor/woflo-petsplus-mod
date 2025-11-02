@@ -9,6 +9,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
+import net.minecraft.util.math.MathHelper;
 import woflo.petsplus.Petsplus;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
@@ -17,6 +18,8 @@ import woflo.petsplus.api.registry.PetsPlusRegistries;
 import woflo.petsplus.api.registry.RoleIdentifierUtil;
 import woflo.petsplus.config.PetsPlusConfig;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.state.gossip.GossipTopics;
+import woflo.petsplus.mood.MoodService;
 import woflo.petsplus.ui.FeedbackManager;
 import woflo.petsplus.interaction.OwnerAbilitySignalTracker;
 
@@ -101,9 +104,25 @@ public class PettingHandler {
             emitRoleSpecificEffects(player, pet, world, roleId);
         }
 
-        // Bonding benefits (owner-only)
+        // Bonding benefits (owner-only XP rewards)
         if (isOwner) {
             applyBondingBenefits(player, pet, petComp);
+        } else {
+            // Non-owners also get XP, but without role-specific bonuses
+            // This lets them slowly build affection through consistent petting
+            int playerXp = calculatePlayerPettingXp(player, pet, petComp);
+            if (playerXp > 0) {
+                player.addExperience(playerXp);
+                if (world != null) {
+                    String xpEvent = playerXp <= 1 ? "petting_xp_small" : (playerXp == 2 ? "petting_xp_medium" : "petting_xp_large");
+                    FeedbackManager.emitFeedback(xpEvent, pet, world);
+                    EmotionContextCues.sendCue(player,
+                        "petting.xp." + pet.getUuidAsString(),
+                        pet,
+                        Text.translatable("petsplus.emotion_cue.petting.xp", playerXp),
+                        0);
+                }
+            }
         }
 
         // Petting cues
@@ -126,6 +145,26 @@ public class PettingHandler {
             EmotionContextMapper.SocialInteractionType.PETTING,
             new PettingContext(newCount, currentTime)
         );
+
+        // Immediate, small emotion stimulus so pet reacts right away (batched by stimulus bus)
+        try {
+            var rel = petComp.getRelationshipWith(player.getUuid());
+            float affection = rel != null ? rel.affection() : 0.0f;
+            // Scale intensity: owners stronger, non-owners weaker but influenced by affection
+            float ownerMultiplier = petComp.isOwnedBy(player) ? 1.0f : (0.45f + Math.max(0f, affection) * 0.55f);
+            float baseContent = 0.18f * ownerMultiplier;    // contentment
+            float basePlayful = 0.08f * ownerMultiplier;    // playful spark
+            float basePride = 0.06f * ownerMultiplier;      // small pride boost
+
+            MoodService.getInstance().getStimulusBus().queueSimpleStimulus(pet, collector -> {
+                collector.pushEmotion(PetComponent.Emotion.CONTENT, baseContent);
+                collector.pushEmotion(PetComponent.Emotion.PLAYFULNESS, basePlayful);
+                collector.pushEmotion(PetComponent.Emotion.PRIDE, basePride);
+            });
+        } catch (Throwable t) {
+            // Defensive: don't let mood emission break petting flow
+            Petsplus.LOGGER.debug("Failed to queue petting stimulus", t);
+        }
 
         // Achievement tracking - owner-only
         if (isOwner) {
@@ -215,15 +254,134 @@ public class PettingHandler {
     }
 
     private static void applyBondingBenefits(ServerPlayerEntity player, MobEntity pet, PetComponent petComp) {
-        PetsPlusConfig config = PetsPlusConfig.getInstance();
-        
-        // Small XP bonus based on pet level and role (only actual benefit)
-        int xpBonus = Math.max(1, petComp.getLevel() / 5);
-        if (config.isPettingXpBonusEnabled()) {
-            petComp.addExperience(xpBonus);
+        if (!PetsPlusConfig.getInstance().isPettingXpBonusEnabled()) {
+            return;
         }
         
-        // Note: No buffs/debuffs per user request - purely cosmetic with XP gain only
+        // Award player XP based on bonding level (once per day per pet)
+        int playerXp = calculatePlayerPettingXp(player, pet, petComp);
+        if (playerXp > 0) {
+            player.addExperience(playerXp);
+            // XpEventHandler will automatically catch this and distribute to pets
+            // Emit dynamic feedback scaled to XP magnitude
+            ServerWorld world = (ServerWorld) pet.getEntityWorld();
+            if (world != null) {
+                String xpEvent = playerXp <= 1 ? "petting_xp_small" : (playerXp == 2 ? "petting_xp_medium" : "petting_xp_large");
+                FeedbackManager.emitFeedback(xpEvent, pet, world);
+                // Inform player via action bar cue
+                EmotionContextCues.sendCue(player,
+                    "petting.xp." + pet.getUuidAsString(),
+                    pet,
+                    Text.translatable("petsplus.emotion_cue.petting.xp", playerXp),
+                    0);
+            }
+        }
+    }
+
+    private static int calculatePlayerPettingXp(ServerPlayerEntity player, MobEntity pet, PetComponent petComp) {
+        int todayDay = (int) (pet.getEntityWorld().getTime() / 24000L);
+        Integer lastDay = petComp.getStateData(PetComponent.StateKeys.LAST_PETTING_DAY, Integer.class);
+        
+        // Already petted today, no XP
+        if (lastDay != null && lastDay == todayDay) {
+            return 0;
+        }
+        
+        // Determine XP based on bonding level
+        boolean isOwner = petComp.isOwnedBy(player);
+        int baseXp;
+        if (isOwner) {
+            baseXp = 3;
+        } else {
+            var relationship = petComp.getRelationshipWith(player.getUuid());
+            baseXp = (relationship != null && relationship.affection() > 0.25f) ? 2 : 1;
+        }
+        
+        // Track consecutive days for escalating bonus
+        // Every pet tracks their own streak per player
+        String streakKey = "petting_streak_" + player.getUuid().toString();
+        Integer currentStreak = petComp.getStateData(streakKey, Integer.class);
+        
+        int newStreak;
+        if (lastDay != null && lastDay == todayDay - 1) {
+            // Continuing streak
+            newStreak = (currentStreak != null ? currentStreak : 0) + 1;
+        } else {
+            // Streak broken or first time
+            newStreak = 1;
+        }
+        
+        // Update state
+        petComp.setStateData(PetComponent.StateKeys.LAST_PETTING_DAY, todayDay);
+        petComp.setStateData(streakKey, newStreak);
+        
+        // Calculate bonus based on streak milestones
+        // Day 1-3: no bonus
+        // Day 4-6: +1 bonus
+        // Day 7-9: +2 bonus
+        // Day 10-12: +3 bonus
+        // etc. (every 3 days another level, or +1 per 3 days)
+        int streakBonus = Math.max(0, (newStreak - 1) / 3);
+        
+        // Non-owners get reduced streak bonus (half)
+        if (!isOwner) {
+            streakBonus = (int) Math.ceil(streakBonus * 0.5);
+        }
+        
+        int totalXp = baseXp + streakBonus;
+        
+        // Emit streak visual when milestone is hit (every 3 days)
+        if (newStreak > 1 && (newStreak - 1) % 3 == 0) {
+            ServerWorld world = (ServerWorld) pet.getEntityWorld();
+            if (world != null) {
+                FeedbackManager.emitFeedback("petting_streak", pet, world);
+            }
+            // Record gossip for notable streaks
+            try {
+                if (streakBonus >= 2) {
+                    recordStreakGossip(player, pet, petComp, newStreak);
+                }
+            } catch (Throwable t) {
+                Petsplus.LOGGER.debug("Failed to record petting streak rumor", t);
+            }
+        }
+
+        return totalXp;
+    }
+
+    /**
+     * Conditionally record a gossip rumor when a petting streak bonus occurs.
+     * Uses the pet's imprint focus to influence chattiness. Randomness is seeded
+     * consistently so the same pet behaves predictably but varies from one pet to another.
+     */
+    private static void recordStreakGossip(ServerPlayerEntity player, MobEntity pet, PetComponent petComp, int bonus) {
+        var imprint = petComp.getCharacteristicsModule().getImprint();
+        float focusMultiplier = imprint != null ? imprint.getFocusMultiplier() : 1.0f;
+        
+        // Noise gate: base chance with focus imprint influence
+        // Streak of 2 has modest chance; focus multiplier scales it up/down.
+        double baseChance = 0.12 * Math.pow(1.08, bonus - 2.0);  // exponential ramp
+        double focusAdjustedChance = baseChance * MathHelper.clamp(focusMultiplier, 0.8f, 1.2f);
+        double cappedChance = Math.min(0.65, focusAdjustedChance);  // hard cap at 65%
+        
+        if (pet.getRandom().nextDouble() < cappedChance) {
+            long topicId = GossipTopics.concrete("social/petting/large_streak");
+            long tick = pet.getEntityWorld() != null ? pet.getEntityWorld().getTime() : 0L;
+            
+            // Intensity scales with streak, with seeded variance per pet
+            float baseIntensity = 0.3f + 0.08f * Math.min(8f, bonus);
+            float jitter = 0.7f + 0.3f * pet.getRandom().nextFloat();  // ±15% centered jitter
+            float intensity = baseIntensity * jitter;
+            intensity = MathHelper.clamp(intensity, 0.2f, 0.95f);
+            
+            // Confidence: modest base, boosted by streak length
+            float confidence = 0.65f + 0.05f * Math.min(5, bonus);
+            confidence = MathHelper.clamp(confidence, 0.5f, 0.9f);
+            
+            Text paraphrase = Text.translatable("petsplus.gossip.petting.large_streak", 
+                player.getName().getString(), bonus);
+            petComp.recordRumor(topicId, intensity, confidence, tick, player.getUuid(), paraphrase, true);
+        }
     }
 
     private static String determinePetSound(MobEntity pet) {

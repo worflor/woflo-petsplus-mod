@@ -379,6 +379,8 @@ public class PetComponent {
         public static final String TAMED_TICK = "tamed_tick";
         public static final String LAST_PET_TIME = "last_pet_time";
         public static final String PET_COUNT = "pet_count";
+        public static final String LAST_PETTING_DAY = "last_petting_day";
+    public static final String PETTING_STREAK_ACCUM = "petting_streak_accum";
         public static final String LAST_SOCIAL_BUFFER_TICK = "social_buffer_tick";
         public static final String LAST_CROUCH_CUDDLE_TICK = "last_crouch_cuddle_tick";
         // Snuggle goal state

@@ -8,9 +8,12 @@ import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.modules.RelationshipModule;
 import woflo.petsplus.state.relationships.RelationshipProfile;
 import woflo.petsplus.state.relationships.RelationshipType;
+import woflo.petsplus.stats.nature.NatureModifierSampler;
+import woflo.petsplus.stats.nature.NatureMoralityProfile;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,8 +22,18 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Per-pet morality tracker that accumulates owner "dark deed" telemetry and raises
- * the malevolence emotion when the configured rule thresholds are met.
+ * Per-pet morality tracker and behavioral influence system.
+ * 
+ * Accumulates owner "dark deed" telemetry and adjusts the pet's behavioral axes
+ * (aggression, empathy, courage, social, resource attitudes) to create emergent
+ * personality drift based on experiential history.
+ * 
+ * Triggers malevolence emotion when either:
+ * 1. Vice score exceeds configured threshold, OR
+ * 2. Identity dissonance (persona drift from Nature baseline) exceeds ~35%
+ * 
+ * Personality axes decay toward 0.5 (neutral) over time with same retention
+ * mechanics as the legacy virtue/vice system.
  */
 public final class MalevolenceLedger {
     private static final long DEFAULT_SPREE_WINDOW = MalevolenceRules.SpreeSettings.DEFAULT.windowTicks();
@@ -34,6 +47,11 @@ public final class MalevolenceLedger {
     private long lastPersonaDecayTick = Long.MIN_VALUE;
     @Nullable
     private Identifier dominantVice;
+
+    // Cached Nature profile to avoid per-tick lookups; refreshed when Nature changes
+    @Nullable
+    private Identifier cachedNatureId;
+    private woflo.petsplus.stats.nature.NatureMoralityProfile cachedNatureProfile = woflo.petsplus.stats.nature.NatureMoralityProfile.NEUTRAL;
 
     private float score;
     private int spreeCount;
@@ -254,6 +272,9 @@ public final class MalevolenceLedger {
         lastDecayTick = now;
         score = aggregateScore();
         dominantVice = findDominantVice();
+        
+        // NEW: Adjust persona axes based on deed context
+        adjustPersonaFromDeed(context, addedScore, now);
 
         Map<Identifier, Float> virtueSnapshot = snapshotVirtues();
 
@@ -300,8 +321,12 @@ public final class MalevolenceLedger {
             state.stabilize(baseline, retentionLn, passiveDriftPerTick, now);
         }
         if (persona != null) {
-            persona.relax(now, defaultRetentionLn);
-            lastPersonaDecayTick = now;
+            // Lazy, conditional decay: only relax if axes meaningfully deviate from Nature baselines
+            NatureMoralityProfile profile = resolveNatureProfile();
+            if (lastPersonaDecayTick == Long.MIN_VALUE || personaAxesNeedPassiveUpdate(profile)) {
+                persona.relax(now, defaultRetentionLn, profile);
+                lastPersonaDecayTick = now;
+            }
         }
         score = aggregateScore();
         dominantVice = findDominantVice();
@@ -477,18 +502,119 @@ public final class MalevolenceLedger {
             }
         }
     }
+    
+    /**
+     * Adjust persona axes based on deed context.
+     * This is the integration point that makes deeds affect personality directly.
+     * Tags come from CombatEventHandler, EmotionsEventHandler, etc.
+     */
+    /**
+     * Derives DeedKind from deed context.
+     * Maps victim type, tags, and context to structured deed classification.
+     * NOTE: Only matches deeds that are actually triggered in the system.
+     */
+    private static DeedKind deriveDeedKind(DarkDeedContext context) {
+        Set<String> tags = context.dynamicTags();
+        
+        // Check for specific deed patterns (based on actual tags from CombatEventHandler/EmotionsEventHandler)
+        if (tags.contains("passive_baby")) return DeedKind.KILL_BABY_MOB;
+        if (tags.contains("owned_pet")) return DeedKind.KILL_OWN_PET;
+        if (tags.contains("villager")) return DeedKind.KILL_VILLAGER;
+        if (tags.contains("passive_species")) return DeedKind.KILL_PASSIVE_MOB;
+        if (tags.contains("friendly_fire")) return DeedKind.FRIENDLY_FIRE;
+        if (tags.contains("team_betrayal")) return DeedKind.TEAM_BETRAYAL;
+        if (context.lowHealthFinish()) return DeedKind.CLUTCH_FINISH;
+        if (tags.contains("boss_target")) return DeedKind.KILL_BOSS;
+        if (tags.contains("hostile_target")) return DeedKind.KILL_HOSTILE;
+        
+        // Default to passive mob kill if no other match
+        return DeedKind.KILL_PASSIVE_MOB;
+    }
+
+    private void adjustPersonaFromDeed(DarkDeedContext context, float severity, long now) {
+        if (persona == null || severity <= 0f) {
+            return;
+        }
+        
+        DeedKind deed = deriveDeedKind(context);
+        float scale = Math.min(1.0f, severity * 0.1f);
+        
+        // Apply structured persona adjustments based on deed kind
+        switch (deed) {
+            case KILL_BABY_MOB:
+                persona.adjustEmpathy(-0.35f * scale);
+                persona.adjustAggression(0.25f * scale);
+                break;
+            case KILL_OWN_PET:
+                persona.adjustEmpathy(-0.40f * scale);
+                persona.adjustAggression(0.20f * scale);
+                persona.recordViceExperience(Math.abs(severity) * scale, now);
+                break;
+            case KILL_VILLAGER:
+                persona.adjustEmpathy(-0.30f * scale);
+                break;
+            case KILL_PASSIVE_MOB:
+                persona.adjustEmpathy(-0.25f * scale);
+                persona.adjustAggression(0.15f * scale);
+                break;
+            case FRIENDLY_FIRE:
+                persona.adjustCourage(-0.20f * scale);
+                persona.recordViceExperience(Math.abs(severity) * scale, now);
+                break;
+            case TEAM_BETRAYAL:
+                persona.adjustCourage(-0.25f * scale);
+                persona.adjustEmpathy(-0.15f * scale);
+                persona.recordViceExperience(Math.abs(severity) * scale, now);
+                break;
+            case CLUTCH_FINISH:
+                persona.adjustAggression(0.20f * scale);
+                break;
+            case KILL_SPREE:
+                // Not used in current system, reserved for future
+                break;
+            case PROTECT_ALLY:
+                // Not used in current system, reserved for future virtue deeds
+                break;
+            case GUARD_DUTY:
+                // Not used in current system, reserved for future virtue deeds
+                break;
+            case KILL_HOSTILE:
+                persona.adjustCourage(0.10f * scale);
+                break;
+            case KILL_BOSS:
+                persona.adjustCourage(0.15f * scale);
+                persona.adjustAggression(0.05f * scale);
+                break;
+        }
+    }
 
     private ThresholdEvaluation evaluateThreshold(MalevolenceRules.Thresholds thresholds, long now) {
         score = aggregateScore();
         Identifier viceId = dominantVice;
         boolean cooledDown = lastTriggerTick == Long.MIN_VALUE || now - lastTriggerTick >= thresholds.cooldownTicks();
-        if (score >= thresholds.triggerScore() && cooledDown) {
+        
+        // NEW: Use identity dissonance (persona drift) as trigger in addition to vice score
+        float identityDissonance = 0f;
+        if (persona != null) {
+            PersonaBehavioralProfile profile = new PersonaBehavioralProfile(persona);
+            identityDissonance = profile.calculateIdentityDissonance();
+        }
+        
+        // Trigger if EITHER high vice score OR significant personality drift
+        boolean shouldTrigger = (score >= thresholds.triggerScore() || identityDissonance > 0.35f) && cooledDown;
+        
+        if (shouldTrigger) {
             float intensity = thresholds.intensityForScore(score);
+            // Boost intensity if personality drift is extreme
+            if (identityDissonance > 0.4f) {
+                intensity = Math.max(intensity, 0.6f);
+            }
             lastTriggerTick = now;
             active = true;
             return ThresholdEvaluation.triggeredResult(intensity, viceId);
         }
-        boolean clearable = active && score <= thresholds.remissionScore();
+        
+        boolean clearable = active && score <= thresholds.remissionScore() && identityDissonance < 0.25f;
         if (clearable) {
             active = false;
             return ThresholdEvaluation.clearedResult(viceId);
@@ -647,6 +773,42 @@ public final class MalevolenceLedger {
         return persona.traumaImprint() > PASSIVE_EPSILON;
     }
 
+    /**
+     * Checks if behavioral axes are sufficiently far from their Nature baselines
+     * to warrant a passive decay step. Uses a small epsilon to avoid churn.
+     */
+    private boolean personaAxesNeedPassiveUpdate(woflo.petsplus.stats.nature.NatureMoralityProfile profile) {
+        if (persona == null) return false;
+        if (profile == null) profile = woflo.petsplus.stats.nature.NatureMoralityProfile.NEUTRAL;
+        if (Math.abs(persona.aggressionTendency() - profile.aggressionBaseline()) > PASSIVE_EPSILON) return true;
+        if (Math.abs(persona.empathyLevel() - profile.empathyBaseline()) > PASSIVE_EPSILON) return true;
+        if (Math.abs(persona.courageBaseline() - profile.courageBaseline()) > PASSIVE_EPSILON) return true;
+        if (Math.abs(persona.socialOrientation() - profile.socialBaseline()) > PASSIVE_EPSILON) return true;
+        if (Math.abs(persona.resourceAttitude() - profile.resourceBaseline()) > PASSIVE_EPSILON) return true;
+        return false;
+    }
+
+    /**
+     * Resolves and caches the current Nature morality profile. Cache is refreshed
+     * only when the pet's Nature ID changes.
+     */
+    private woflo.petsplus.stats.nature.NatureMoralityProfile resolveNatureProfile() {
+        Identifier current = parent.getNatureId();
+        if (current == null) {
+            cachedNatureId = null;
+            cachedNatureProfile = woflo.petsplus.stats.nature.NatureMoralityProfile.NEUTRAL;
+            return cachedNatureProfile;
+        }
+        if (cachedNatureId == null || !cachedNatureId.equals(current)) {
+            cachedNatureId = current;
+            cachedNatureProfile = woflo.petsplus.stats.nature.NatureModifierSampler.getMoralityProfile(current);
+            if (cachedNatureProfile == null) {
+                cachedNatureProfile = woflo.petsplus.stats.nature.NatureMoralityProfile.NEUTRAL;
+            }
+        }
+        return cachedNatureProfile;
+    }
+
     private boolean aspectsNeedPassiveUpdate(Map<Identifier, MoralityAspectState> source, boolean vice) {
         for (Map.Entry<Identifier, MoralityAspectState> entry : source.entrySet()) {
             MoralityAspectState state = entry.getValue();
@@ -689,12 +851,41 @@ public final class MalevolenceLedger {
         if (rules == null || rules == MalevolenceRules.EMPTY) {
             return incoming;
         }
+        
+        // Ensure persona has passively decayed toward Nature baselines lazily (no per-tick requirement)
+        if (persona != null) {
+            long effectiveNow = resolveEffectiveNow(now);
+            NatureMoralityProfile profile = resolveNatureProfile();
+            if (lastPersonaDecayTick == Long.MIN_VALUE || personaAxesNeedPassiveUpdate(profile)) {
+                // Use the rules' default retention for passive persona decay
+                double defaultRetentionLn = rules.thresholds().defaultRetentionLnPerTick();
+                persona.relax(effectiveNow, defaultRetentionLn, profile);
+                lastPersonaDecayTick = effectiveNow;
+            }
+        }
+        // Derive emotion biases from persona (post-decay)
+    Map<PetComponent.Emotion, Float> emotionBiases = deriveEmotionBiasesFromPersona();
+        
         Map<UUID, PetComponent.HarmonyCompatibility> compat = incoming.compatibilities();
         PetComponent.HarmonyCompatibility existing = compat.get(ownerUuid);
         float clampedStrength = MathHelper.clamp(disharmonyStrength, 0f, rules.disharmonySettings().maxStrength());
         if (clampedStrength <= 0f) {
             if (existing == null || existing.disharmonyStrength() <= 0f) {
-                return incoming;
+                // Return incoming with updated emotion biases
+                return new PetComponent.HarmonyState(
+                    incoming.harmonySetIds(),
+                    incoming.disharmonySetIds(),
+                    incoming.moodMultiplier(),
+                    incoming.contagionMultiplier(),
+                    incoming.volatilityMultiplier(),
+                    incoming.resilienceMultiplier(),
+                    incoming.guardMultiplier(),
+                    incoming.harmonyStrength(),
+                    incoming.disharmonyStrength(),
+                    emotionBiases,
+                    incoming.compatibilities(),
+                    Math.max(incoming.lastUpdatedTick(), now)
+                );
             }
             Map<UUID, PetComponent.HarmonyCompatibility> copy = new LinkedHashMap<>(compat);
             copy.remove(ownerUuid);
@@ -723,7 +914,7 @@ public final class MalevolenceLedger {
                 incoming.guardMultiplier(),
                 incoming.harmonyStrength(),
                 disharmonyTotal,
-                incoming.emotionBiases(),
+                emotionBiases,
                 copy,
                 Math.max(incoming.lastUpdatedTick(), now)
             );
@@ -739,7 +930,21 @@ public final class MalevolenceLedger {
         boolean globalSatisfied = incoming.disharmonyStrength() >= resolvedStrength - 0.0001f
             && incoming.disharmonySetIds().contains(marker);
         if (compatSatisfied && globalSatisfied) {
-            return incoming;
+            // Still update emotion biases even if other state is satisfied
+            return new PetComponent.HarmonyState(
+                incoming.harmonySetIds(),
+                incoming.disharmonySetIds(),
+                incoming.moodMultiplier(),
+                incoming.contagionMultiplier(),
+                incoming.volatilityMultiplier(),
+                incoming.resilienceMultiplier(),
+                incoming.guardMultiplier(),
+                incoming.harmonyStrength(),
+                incoming.disharmonyStrength(),
+                emotionBiases,
+                incoming.compatibilities(),
+                Math.max(incoming.lastUpdatedTick(), now)
+            );
         }
         Map<UUID, PetComponent.HarmonyCompatibility> copy = new LinkedHashMap<>(compat);
         List<Identifier> harmonySets = existing != null ? existing.harmonySetIds() : List.of();
@@ -776,7 +981,7 @@ public final class MalevolenceLedger {
             incoming.guardMultiplier(),
             incoming.harmonyStrength(),
             disharmonyTotal,
-            incoming.emotionBiases(),
+            emotionBiases,
             copy,
             Math.max(incoming.lastUpdatedTick(), now)
         );
@@ -888,14 +1093,34 @@ public final class MalevolenceLedger {
         float susceptibility = floatAt(encoded, 0, 1f);
         float resilience = floatAt(encoded, 1, 1f);
         float trauma = floatAt(encoded, 2, 0f);
-        return new MoralityPersona(susceptibility, resilience, trauma);
+        MoralityPersona persona = new MoralityPersona(susceptibility, resilience, trauma);
+        
+        // NEW: Decode behavioral axes if present (indices 3-7)
+        if (encoded.size() > 3) {
+            persona.adjustAggression(floatAt(encoded, 3, 0.5f) - 0.5f);
+            persona.adjustEmpathy(floatAt(encoded, 4, 0.5f) - 0.5f);
+            persona.adjustCourage(floatAt(encoded, 5, 0.5f) - 0.5f);
+            persona.adjustSocial(floatAt(encoded, 6, 0.5f) - 0.5f);
+            persona.adjustResourceAttitude(floatAt(encoded, 7, 0.5f) - 0.5f);
+        }
+        
+        return persona;
     }
 
     private List<Object> encodePersona(MoralityPersona persona) {
         if (persona == null) {
             return List.of();
         }
-        return List.of(persona.viceSusceptibility(), persona.virtueResilience(), persona.traumaImprint());
+        return List.of(
+            persona.viceSusceptibility(),
+            persona.virtueResilience(),
+            persona.traumaImprint(),
+            persona.aggressionTendency(),
+            persona.empathyLevel(),
+            persona.courageBaseline(),
+            persona.socialOrientation(),
+            persona.resourceAttitude()
+        );
     }
 
     private MoralityAspectState ensureViceState(Identifier id) {
@@ -987,6 +1212,25 @@ public final class MalevolenceLedger {
             viceHighlights,
             virtueHighlights
         );
+    }
+    
+    /**
+     * Get the current behavioral profile derived from persona.
+     * Can be used by AI systems to gate behaviors based on tags.
+     */
+    public synchronized PersonaBehavioralProfile getBehavioralProfile() {
+        if (persona == null) {
+            // Fallback to neutral persona if not initialized
+            return new PersonaBehavioralProfile(new MoralityPersona(1f, 1f, 0f));
+        }
+        return new PersonaBehavioralProfile(persona);
+    }
+
+    /**
+     * Get the underlying persona for direct access to behavioral axes.
+     */
+    public synchronized MoralityPersona getPersona() {
+        return persona;
     }
 
     private List<AspectSnapshot> collectTopAspects(Map<Identifier, MoralityAspectState> source, int limit) {
@@ -1206,6 +1450,72 @@ public final class MalevolenceLedger {
     }
 
     private record DisharmonyEvaluation(float previous, float current, boolean cleared, @Nullable Identifier viceId) {}
+
+    /**
+     * Derive emotion bias modifiers from persona axes.
+     * These biases affect which emotions the pet feels more intensely.
+     */
+    private Map<PetComponent.Emotion, Float> deriveEmotionBiasesFromPersona() {
+        EnumMap<PetComponent.Emotion, Float> biases = new EnumMap<>(PetComponent.Emotion.class);
+        
+        if (persona == null) {
+            return biases;
+        }
+        
+        float empathy = persona.empathyLevel();
+        float aggression = persona.aggressionTendency();
+        float courage = persona.courageBaseline();
+        float social = persona.socialOrientation();
+        float resources = persona.resourceAttitude();
+        
+        // High empathy → amplify Worried, mute Pride from kills
+        if (empathy > 0.6f) {
+            biases.put(PetComponent.Emotion.WORRIED, 0.6f);
+            biases.put(PetComponent.Emotion.PRIDE, 0.25f);
+        }
+        
+        // Low empathy → mute Regret, amplify Kefi during combat
+        if (empathy < 0.4f) {
+            biases.put(PetComponent.Emotion.REGRET, 0.2f);
+            biases.put(PetComponent.Emotion.KEFI, 0.6f);
+        }
+        
+        // High courage → mute Startle, amplify Protective
+        if (courage > 0.6f) {
+            biases.put(PetComponent.Emotion.STARTLE, 0.25f);
+            biases.put(PetComponent.Emotion.PROTECTIVE, 0.55f);
+        }
+        
+        // Low courage → amplify Foreboding, mute Sisu
+        if (courage < 0.4f) {
+            biases.put(PetComponent.Emotion.FOREBODING, 0.6f);
+            biases.put(PetComponent.Emotion.SISU, 0.25f);
+        }
+        
+        // High social → amplify bonded-related emotions, amplify contagion
+        if (social > 0.6f) {
+            biases.put(PetComponent.Emotion.PACK_SPIRIT, 0.6f);
+        }
+        
+        // Low social → suppress bonded, amplify solitary emotions
+        if (social < 0.4f) {
+            biases.put(PetComponent.Emotion.UBUNTU, 0.25f);
+            biases.put(PetComponent.Emotion.STOIC, 0.5f);
+        }
+        
+        // High aggression + Low empathy = ruthless, amplify Kefi
+        if (aggression > 0.7f && empathy < 0.3f) {
+            biases.put(PetComponent.Emotion.KEFI, 0.7f);
+            biases.put(PetComponent.Emotion.REGRET, 0.1f);
+        }
+        
+        // High resources share → amplify content
+        if (resources > 0.6f) {
+            biases.put(PetComponent.Emotion.CONTENT, 0.55f);
+        }
+        
+        return biases;
+    }
 
     private record SpreeSnapshot(int count, long anchor) {}
 

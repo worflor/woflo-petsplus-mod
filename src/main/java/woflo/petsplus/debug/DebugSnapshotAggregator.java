@@ -16,8 +16,11 @@ public final class DebugSnapshotAggregator {
 
     // Default flush cadence (in ticks). 80 ticks ~= 4 seconds.
     private static final long FLUSH_INTERVAL_TICKS = 80L;
+    private static final long CLEANUP_INTERVAL_TICKS = 1200L; // Clean up every 60 seconds
+    private static final long IDLE_TIMEOUT_TICKS = 600L; // Remove owners not seen for 30 seconds
 
     private static final Map<UUID, OwnerMetrics> OWNER_METRICS = new ConcurrentHashMap<>();
+    private static long lastCleanupTick = Long.MIN_VALUE;
 
     private DebugSnapshotAggregator() {
     }
@@ -57,6 +60,13 @@ public final class DebugSnapshotAggregator {
                 PetAcc acc = m.petAccs.computeIfAbsent(petName, k -> new PetAcc());
                 acc.nanos += Math.max(0L, durationNanos);
                 acc.samples++;
+                // Limit tracked pets per owner to prevent unbounded growth
+                if (m.petAccs.size() > 16) {
+                    // Remove entry with lowest sample count
+                    m.petAccs.entrySet().stream()
+                        .min((a, b) -> Integer.compare(a.getValue().samples, b.getValue().samples))
+                        .ifPresent(e -> m.petAccs.remove(e.getKey()));
+                }
             }
             maybeFlush(server, ownerId, tick, m);
         }
@@ -118,6 +128,15 @@ public final class DebugSnapshotAggregator {
         }
         if (tick - m.lastFlushTick < FLUSH_INTERVAL_TICKS) {
             return;
+        }
+
+        // Periodic cleanup of offline owners
+        if (lastCleanupTick == Long.MIN_VALUE || tick - lastCleanupTick >= CLEANUP_INTERVAL_TICKS) {
+            lastCleanupTick = tick;
+            OWNER_METRICS.entrySet().removeIf(e -> {
+                OwnerMetrics metrics = e.getValue();
+                return metrics.lastTick != Long.MIN_VALUE && tick - metrics.lastTick > IDLE_TIMEOUT_TICKS;
+            });
         }
 
         // Build follow summary

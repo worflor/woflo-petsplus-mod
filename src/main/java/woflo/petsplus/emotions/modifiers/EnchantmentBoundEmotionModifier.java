@@ -110,6 +110,18 @@ public class EnchantmentBoundEmotionModifier extends BaseRoleEmotionModifier {
                 addEmotion(emotions, PetComponent.Emotion.UBUNTU, 0.25f);
                 addEmotion(emotions, PetComponent.Emotion.YUGEN, 0.2f);
             }
+            
+            case BREEDING -> {
+                // Enchantment Bound pets feel magical affinity during breeding
+                addEmotion(emotions, PetComponent.Emotion.YUGEN, 0.25f);
+                addEmotion(emotions, PetComponent.Emotion.UBUNTU, 0.2f);
+            }
+            
+            case TRIBUTE -> {
+                // Enchantment Bound pets find tribute spiritually resonant
+                addEmotion(emotions, PetComponent.Emotion.YUGEN, 0.3f);
+                addEmotion(emotions, PetComponent.Emotion.UBUNTU, 0.25f);
+            }
         }
         
         return emotions;

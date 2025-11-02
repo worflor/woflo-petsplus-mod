@@ -235,7 +235,6 @@ public final class PetInspectionManager {
         // Cache XP flash state for consistency
         boolean recentXpGain = comp.isXpFlashing();
         long xpFlashStartTick = comp.getXpFlashStartTick();
-        state.cachedXpFlashing = recentXpGain;
         state.cachedXpFlashStartTick = xpFlashStartTick;
 
         boolean canLevelUp = comp.isFeatureLevel();
@@ -391,7 +390,6 @@ public final class PetInspectionManager {
         int ownershipFailures = 0;
         boolean hasFocus = false;
         int pauseTicks = 0;
-        boolean cachedXpFlashing = false;
         long cachedXpFlashStartTick = -1;
         private static final int DIMENSION_PAUSE_TICKS = 20; // 1 second pause during dimension change
 
@@ -404,7 +402,6 @@ public final class PetInspectionManager {
             lastPetId = petId;
             ownershipFailures = 0;
             hasFocus = true;
-            cachedXpFlashing = false;
             cachedXpFlashStartTick = -1;
         }
 
@@ -542,10 +539,10 @@ public final class PetInspectionManager {
         ScoreHolder headerHolder = ScoreHolder.fromName(header);
         scoreboard.getOrCreateScore(headerHolder, objective).setScore(15);
 
-        // Add current mood - use consistent emotion-derived fallback
-        String moodLine = "§7Mood: "
-                + toSectionColor(accentColor, toSectionColor(PetComponent.getEmotionAccentColor(PetComponent.Emotion.CONTENT), "§f"))
-                + comp.getCurrentMood().name().toLowerCase();
+        // Add current mood - use consistent emotion-derived color
+    String moodLine = "§7Mood: "
+        + toSectionColor(PetComponent.getEmotionAccentColor(PetComponent.Emotion.CONTENT), "§8")
+        + comp.getCurrentMood().name().toLowerCase();
         ScoreHolder moodHolder = ScoreHolder.fromName(moodLine);
         scoreboard.getOrCreateScore(moodHolder, objective).setScore(14);
 
@@ -564,9 +561,9 @@ public final class PetInspectionManager {
                 if (score < 1) break; // Scoreboard limit
 
                 TextColor emotionColor = PetComponent.getEmotionColor(emotionInfo.emotion());
-                String color = toSectionColor(emotionColor, toSectionColor(PetComponent.getEmotionColor(PetComponent.Emotion.CONTENT), "§f"));
+                String color = toSectionColor(emotionColor, "§8");
                 String parkedMarker = emotionInfo.parked()
-                    ? toSectionColor(PetComponent.getEmotionAccentColor(emotionInfo.emotion()), toSectionColor(PetComponent.getEmotionAccentColor(PetComponent.Emotion.CONTENT), "§b")) + "*"
+                    ? toSectionColor(PetComponent.getEmotionAccentColor(emotionInfo.emotion()), "§8") + "*"
                     : "";
                 String line = color + emotionInfo.emotion().name().toLowerCase()
                              + " §7[" + Math.round(emotionInfo.weight() * 100) + "%]" + parkedMarker;
@@ -604,23 +601,7 @@ public final class PetInspectionManager {
         if (color == null) {
             return fallback;
         }
-        int rgb = color.getRgb() & 0xFFFFFF;
-        String hex = String.format("%06X", rgb);
-        StringBuilder builder = new StringBuilder("§x");
-        for (char c : hex.toCharArray()) {
-            builder.append('§').append(c);
-        }
-        return builder.toString();
-    }
-
-    /**
-     * Helper method to get emotion-consistent fallback color
-     */
-    private static String getEmotionFallbackColor(TextColor preferredColor, boolean useAccent) {
-        if (preferredColor != null) {
-            return toSectionColor(preferredColor, getDefaultEmotionFallback(useAccent));
-        }
-        return getDefaultEmotionFallback(useAccent);
+        return CompendiumColorTheme.textColorToCode(color);
     }
 
     private static String getDefaultEmotionFallback(boolean useAccent) {

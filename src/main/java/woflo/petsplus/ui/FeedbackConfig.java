@@ -509,6 +509,27 @@ public class FeedbackConfig {
             new ParticleConfig(ParticleTypes.PORTAL, 3, 0.2, 0.3, 0.2, 0.01, "burst", 0.5, true)
         ), new AudioConfig(SoundEvents.BLOCK_ENCHANTMENT_TABLE_USE, 0.3f, 1.4f, 6.0), 0, true);
 
+        // XP feedback variants (scaled by XP awarded)
+        register("petting_xp_small", List.of(
+            new ParticleConfig(ParticleTypes.HAPPY_VILLAGER, 2, 0.12, 0.12, 0.12, 0.01, "burst", 0.35, true)
+        ), new AudioConfig(SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 0.25f, 0.9f, 8.0), 0, true);
+
+        register("petting_xp_medium", List.of(
+            new ParticleConfig(ParticleTypes.END_ROD, 3, 0.08, 0.14, 0.08, 0.02, "spiral", 0.45, true),
+            new ParticleConfig(ParticleTypes.HAPPY_VILLAGER, 2, 0.12, 0.12, 0.12, 0.01, "burst", 0.35, true)
+        ), new AudioConfig(SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 0.35f, 1.0f, 10.0), 0, true);
+
+        register("petting_xp_large", List.of(
+            new ParticleConfig(ParticleTypes.ENCHANT, 4, 0.10, 0.18, 0.10, 0.02, "circle", 0.6, true),
+            new ParticleConfig(ParticleTypes.HEART, 2, 0.18, 0.22, 0.18, 0.02, "burst", 0.45, false)
+        ), new AudioConfig(SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 0.5f, 1.2f, 12.0), 0, true);
+
+        // Small streak particle to celebrate consecutive days
+        register("petting_streak", List.of(
+            new ParticleConfig(ParticleTypes.END_ROD, 3, 0.06, 0.18, 0.06, 0.01, "upward", 0.3, true),
+            new ParticleConfig(ParticleTypes.ENCHANT, 1, 0.04, 0.2, 0.04, 0.008, "burst", 0.15, false)
+        ), new AudioConfig(SoundEvents.BLOCK_NOTE_BLOCK_CHIME.value(), 0.28f, 1.25f, 6.0), 0, true);
+
         register("cursed_dark_affection", List.of(
             new ParticleConfig(ParticleTypes.SOUL, 5, 0.3, 0.2, 0.3, 0.02, "circle", 0.8, true),
             new ParticleConfig(ParticleTypes.SMOKE, 2, 0.1, 0.1, 0.1, 0.01, "burst", 0.3, true)

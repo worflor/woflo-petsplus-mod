@@ -46,6 +46,7 @@ public final class EmotionStimulusBus {
     private static final Thread.UncaughtExceptionHandler IDLE_EXECUTOR_EXCEPTION_HANDLER = (thread, throwable) ->
         Petsplus.LOGGER.error("Uncaught exception in mood idle executor thread {}", thread.getName(), throwable);
 
+    @SuppressWarnings("unused")
     private EmotionStimulusBus() {
         this.moodService = MoodService.getInstance();
     }
@@ -226,7 +227,7 @@ public final class EmotionStimulusBus {
         int stimulusKey = keyHash(coalesceKey);
         boolean coalesced = shouldCoalesce(petId, stimulusKey, tick);
         StimulusWork work = getOrCreateWork(pet);
-        PetComponent component = work.ensureComponent(pet);
+        work.ensureComponent(pet);
         collectorConsumer.accept(work);
         work.markQueuedTick(tick, coalesced);
         notifyQueued(world, pet, work, tick);
@@ -569,10 +570,6 @@ public final class EmotionStimulusBus {
             this.future = Objects.requireNonNull(future, "future");
         }
 
-        private long scheduledTick() {
-            return scheduledTick;
-        }
-
         private ScheduledFuture<?> future() {
             return future;
         }
@@ -591,7 +588,6 @@ public final class EmotionStimulusBus {
         private boolean collectorUsed;
         private boolean queueNotified;
         private boolean idleScheduled;
-        private int lastQueuedTick = Integer.MIN_VALUE;
         private int deferUntilTick = Integer.MIN_VALUE;
         private int firstCoalesceTick = Integer.MIN_VALUE;
 
@@ -655,7 +651,6 @@ public final class EmotionStimulusBus {
             collectorUsed = false;
             queueNotified = false;
             idleScheduled = false;
-            lastQueuedTick = Integer.MIN_VALUE;
             deferUntilTick = Integer.MIN_VALUE;
             firstCoalesceTick = Integer.MIN_VALUE;
             if (!componentConsumers.isEmpty()) {
@@ -667,7 +662,6 @@ public final class EmotionStimulusBus {
         }
 
         void markQueuedTick(int tick, boolean coalesced) {
-            lastQueuedTick = tick;
             if (coalesced) {
                 if (firstCoalesceTick == Integer.MIN_VALUE) {
                     firstCoalesceTick = tick;

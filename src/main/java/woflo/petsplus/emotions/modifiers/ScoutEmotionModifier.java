@@ -110,6 +110,18 @@ public class ScoutEmotionModifier extends BaseRoleEmotionModifier {
                 addEmotion(emotions, PetComponent.Emotion.CONTENT, 0.15f);
                 addEmotion(emotions, PetComponent.Emotion.HOPEFUL, 0.1f);
             }
+            
+            case BREEDING -> {
+                // Scout pets see breeding as a natural part of their role
+                addEmotion(emotions, PetComponent.Emotion.HOPEFUL, 0.15f);
+                addEmotion(emotions, PetComponent.Emotion.CONTENT, 0.1f);
+            }
+            
+            case TRIBUTE -> {
+                // Scout pets feel honored but somewhat uncertain during tribute
+                addEmotion(emotions, PetComponent.Emotion.CURIOUS, 0.2f);
+                addEmotion(emotions, PetComponent.Emotion.CONTENT, 0.1f);
+            }
         }
         
         return emotions;

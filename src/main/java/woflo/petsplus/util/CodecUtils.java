@@ -8,7 +8,6 @@ import com.mojang.serialization.DynamicOps;
 import com.mojang.serialization.Encoder;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -138,7 +137,7 @@ public final class CodecUtils {
             ComponentMap components = stack.getComponents();
             if (!components.isEmpty()) {
                 NbtCompound componentsNbt = new NbtCompound();
-                for (Component component : components) {
+                for (Component<?> component : components) {
                     ComponentType<?> type = component.type();
                     Identifier componentId = Registries.DATA_COMPONENT_TYPE.getId(type);
                     if (componentId == null) {

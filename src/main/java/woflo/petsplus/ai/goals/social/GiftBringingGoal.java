@@ -152,7 +152,6 @@ public class GiftBringingGoal extends AdaptiveGoal {
 
     @Override
     protected void onStartGoal() {
-        PetComponent component = PetComponent.get(mob);
         PetContext ctx = getContext();
         targetPlayer = ctx.owner();
 

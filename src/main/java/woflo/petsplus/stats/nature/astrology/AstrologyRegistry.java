@@ -579,33 +579,6 @@ public final class AstrologyRegistry {
         return list;
     }
 
-    private static AstrologySignDefinition createSign(String displayName,
-                                                      int startDay,
-                                                      int endDay,
-                                                      AstrologySignDefinition.DisplayStyle displayStyle,
-                                                      String displayEpithet,
-                                                      String connector,
-                                                      AstrologySignDefinition.StatProfile statProfile,
-                                                      AstrologySignDefinition.EmotionProfile emotionProfile) {
-        String slug = displayName.toLowerCase(Locale.ROOT);
-        Identifier id = Identifier.of(Petsplus.MOD_ID, "lunaris/" + slug);
-        return AstrologySignDefinition.builder(id)
-            .displayName(displayName)
-            .order(startDay)
-            .dayRange(new AstrologySignDefinition.Range(startDay, endDay, startDay > endDay))
-            .dayWindow(AstrologySignDefinition.DayWindow.ANY)
-            .weatherWindow(AstrologySignDefinition.WeatherWindow.ANY)
-            .requiresOpenSky(false)
-            .allowIndoors(false)
-            .allowedDimensions(Set.of(OVERWORLD))
-            .displayEpithet(displayEpithet)
-            .displayStyle(displayStyle)
-            .displayConnector(connector)
-            .statProfile(statProfile)
-            .emotionProfile(emotionProfile)
-            .build();
-    }
-
     private static PhaseNightSlot slot(int moonPhase, AstrologySignDefinition.NightPeriod nightPeriod) {
         return new PhaseNightSlot(moonPhase, nightPeriod);
     }

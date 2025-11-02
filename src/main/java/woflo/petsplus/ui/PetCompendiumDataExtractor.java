@@ -116,7 +116,8 @@ public class PetCompendiumDataExtractor {
         String accent = CompendiumColorTheme.getNatureAccentCode(natureId);
         String shadow = CompendiumColorTheme.DARK_GRAY;
         
-        lines.add(Text.literal(labelColor + "ÃƒÂ¯Ã‚Â¿Ã‚Â½ÃƒÂ¯Ã‚Â¿Ã‚Â½ÃƒÂ¯Ã‚Â¿Ã‚Â½ Characteristics ÃƒÂ¯Ã‚Â¿Ã‚Â½ÃƒÂ¯Ã‚Â¿Ã‚Â½ÃƒÂ¯Ã‚Â¿Ã‚Â½"));
+        lines.add(Text.literal(CompendiumColorTheme.formatSectionHeader("Characteristics", natureId)));
+        lines.add(Text.literal(CompendiumColorTheme.buildSectionDivider(natureId)));
         lines.add(Text.empty());
         
         // Role
@@ -236,17 +237,18 @@ public class PetCompendiumDataExtractor {
         // Record: W-L format with win rate percentage
         float winRate = (victories * 100f) / encounters;
         lines.add(Text.literal(accent + victories + CompendiumColorTheme.DARK_GRAY + "-" 
-            + accent + defeats + CompendiumColorTheme.LIGHT_GRAY + " Ãƒâ€šÃ‚Â· "
+            + accent + defeats + CompendiumColorTheme.LIGHT_GRAY + " · "
             + accent + formatNumber(winRate, 1) + "%" + CompendiumColorTheme.LIGHT_GRAY + " win rate"));
 
         // Most recent battle
         if (latestOpponent != null) {
-            String verdict = latestWasVictory ? CompendiumColorTheme.getNatureAccentCode(natureId) + "W" : "Ãƒâ€šÃ‚Â§cL";
+            String verdict = latestWasVictory ? CompendiumColorTheme.getNatureAccentCode(natureId) + "W" : CompendiumColorTheme.getNatureAccentCode(natureId) + "L";
             String when = latestTick > Long.MIN_VALUE ? formatElapsed(latestTick, currentTick) : "moments ago";
-            String opponentShort = latestOpponent.length() > 17 ? latestOpponent.substring(0, 14) + ".." : latestOpponent;
+            // Keep names readable without adding ellipses – trim hard to a safe width for a single line
+            String opponentShort = latestOpponent.length() > 16 ? latestOpponent.substring(0, 16) : latestOpponent;
             lines.add(Text.literal(verdict + CompendiumColorTheme.LIGHT_GRAY + " vs " 
                 + accent + opponentShort 
-                + CompendiumColorTheme.DARK_GRAY + " Ãƒâ€šÃ‚Â· " + CompendiumColorTheme.LIGHT_GRAY + when));
+                + CompendiumColorTheme.DARK_GRAY + " · " + CompendiumColorTheme.LIGHT_GRAY + when));
         }
 
         // Most frequent opponent (if fought 2+ times)
@@ -255,10 +257,10 @@ public class PetCompendiumDataExtractor {
             .max(java.util.Map.Entry.comparingByValue())
             .orElse(null);
         if (frequent != null) {
-            String rivalShort = frequent.getKey().length() > 20 ? frequent.getKey().substring(0, 17) + ".." : frequent.getKey();
+            String rivalShort = frequent.getKey().length() > 20 ? frequent.getKey().substring(0, 20) : frequent.getKey();
             lines.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "Rival: "
                 + accent + rivalShort
-                + CompendiumColorTheme.DARK_GRAY + " ÃƒÆ’Ã¢â‚¬â€" + frequent.getValue()));
+                + CompendiumColorTheme.DARK_GRAY + " " + frequent.getValue()));
         }
 
         Identifier roleId = pc.getRoleId();
@@ -307,7 +309,7 @@ public class PetCompendiumDataExtractor {
         String spanText = formatEventAge(timespan);
         
         currentPage.add(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Recorded: " 
-            + highlight + significantEvents.size() + CompendiumColorTheme.DARK_GRAY + " events Ãƒâ€šÃ‚Â· "
+            + highlight + significantEvents.size() + CompendiumColorTheme.DARK_GRAY + " events · "
             + CompendiumColorTheme.LIGHT_GRAY + "Span: " + highlight + spanText));
         currentPage.add(Text.empty());
         
@@ -464,9 +466,9 @@ public class PetCompendiumDataExtractor {
             typeLabel = "Achievements";
         }
         
-        return CompendiumColorTheme.DARK_GRAY + "  ÃƒÆ’Ã¢â‚¬â€ " + CompendiumColorTheme.getNatureHighlightCode(natureId) + count + " "
+        return CompendiumColorTheme.DARK_GRAY + "  " + CompendiumColorTheme.getNatureHighlightCode(natureId) + count + " "
             + CompendiumColorTheme.LIGHT_GRAY + typeLabel
-            + CompendiumColorTheme.DARK_GRAY + " Ãƒâ€šÃ‚Â· " + CompendiumColorTheme.LIGHT_GRAY + timeAgo;
+            + CompendiumColorTheme.DARK_GRAY + " · " + CompendiumColorTheme.LIGHT_GRAY + timeAgo;
     }
     
     private static class EventCluster {
@@ -490,80 +492,114 @@ public class PetCompendiumDataExtractor {
             return pages;
         }
 
-        MalevolenceLedger.MoralitySnapshot snapshot = ledger.describe();
-        if (snapshot == null) {
-            return pages;
-        }
-
-                        List<Text> first = new ArrayList<>();
-        String header = CompendiumColorTheme.formatSectionHeader("Morality & Harmony", natureId);
-        first.add(Text.literal(header));
-        first.add(Text.literal(CompendiumColorTheme.buildSectionDivider(natureId)));
-        first.add(Text.empty());
+        List<Text> page = new ArrayList<>();
+        page.add(Text.literal(CompendiumColorTheme.formatSectionHeader("Behavioral Influence", natureId)));
+        page.add(Text.literal(CompendiumColorTheme.buildSectionDivider(natureId)));
+        page.add(Text.empty());
 
         String highlight = CompendiumColorTheme.getNatureHighlightCode(natureId);
-        String malevolenceValue = formatNumber(snapshot.score(), 1);
-        String moodState = snapshot.active() ? "active" : "calm";
-        String viceFocus = snapshot.dominantViceName() != null ? snapshot.dominantViceName() : "Balanced";
-        first.add(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Malevolence: "
-            + highlight + malevolenceValue + CompendiumColorTheme.DARK_GRAY + " | "
-            + CompendiumColorTheme.LIGHT_GRAY + "Vice: " + highlight + viceFocus
-            + CompendiumColorTheme.DARK_GRAY + " (" + moodState + ")"));
+        String labelColor = CompendiumColorTheme.LIGHT_GRAY;
+        String shadow = CompendiumColorTheme.DARK_GRAY;
 
-        String spreeIndicator = snapshot.spreeCount() > 0 ? "ACTIVE" : "Calm";
-        String spreeCount = snapshot.spreeCount() > 0 ? " x" + snapshot.spreeCount() : "";
-        first.add(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Spree: "
-            + highlight + spreeIndicator + spreeCount
-            + CompendiumColorTheme.DARK_GRAY + " | " + CompendiumColorTheme.LIGHT_GRAY + "Last deed: "
-            + highlight + formatElapsed(snapshot.lastDeedTick(), currentTick) + " ago"));
+        // Get persona data
+        woflo.petsplus.state.morality.MoralityPersona persona = ledger.getPersona();
+        float aggression = persona != null ? persona.aggressionTendency() : 0.5f;
+        float empathy = persona != null ? persona.empathyLevel() : 0.5f;
+        float courage = persona != null ? persona.courageBaseline() : 0.5f;
+        float social = persona != null ? persona.socialOrientation() : 0.5f;
+        float resource = persona != null ? persona.resourceAttitude() : 0.5f;
 
-        PetComponent.HarmonyState harmonyState = pc.getHarmonyState();
-        List<Identifier> harmonySets = harmonyState != null ? harmonyState.harmonySetIds() : List.of();
-        List<Identifier> disharmonySets = harmonyState != null ? harmonyState.disharmonySetIds() : List.of();
-        
-        float harmonyStrength = harmonyState != null ? Math.max(0f, harmonyState.harmonyStrength()) : 0f;
-        float disharmonyStrength = harmonyState != null ? Math.max(0f, harmonyState.disharmonyStrength()) : 0f;
-        String harmonyBar = buildMeterBar(MathHelper.clamp(harmonyStrength / 3f, 0f, 1f), 6, natureId);
-        String disharmonyBar = buildMeterBar(MathHelper.clamp(disharmonyStrength / 3f, 0f, 1f), 6, natureId);
-        
-        first.add(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Harmony " + CompendiumColorTheme.DARK_GRAY + harmonyBar
-            + CompendiumColorTheme.DARK_GRAY + " Ãƒâ€šÃ‚Â· " + CompendiumColorTheme.LIGHT_GRAY + "Disharmony " + CompendiumColorTheme.DARK_GRAY + disharmonyBar
-            + CompendiumColorTheme.DARK_GRAY + " (" + harmonySets.size() + " / " + disharmonySets.size() + " sets)"));
-
-        first.add(Text.empty());
-        pages.add(first);
-
-        boolean hasVices = snapshot.topVices() != null && !snapshot.topVices().isEmpty();
-        boolean hasVirtues = snapshot.topVirtues() != null && !snapshot.topVirtues().isEmpty();
-        if (hasVices || hasVirtues) {
-            List<Text> second = new ArrayList<>();
-            second.add(Text.literal(CompendiumColorTheme.formatSectionHeader("Moral Highlights", natureId)));
-            second.add(Text.literal(CompendiumColorTheme.buildSectionDivider(natureId)));
-            second.add(Text.empty());
-
-            second.add(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Vice Highlights:"));
-            if (hasVices) {
-                for (MalevolenceLedger.AspectSnapshot aspect : snapshot.topVices()) {
-                    second.add(Text.literal(formatAspectLine(aspect, natureId)));
-                }
-            } else {
-                second.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "  No vices drawing attention."));
-            }
-
-            second.add(Text.empty());
-            second.add(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Virtue Pillars:"));
-            if (hasVirtues) {
-                for (MalevolenceLedger.AspectSnapshot aspect : snapshot.topVirtues()) {
-                    second.add(Text.literal(formatAspectLine(aspect, natureId)));
-                }
-            } else {
-                second.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "  Virtues resting at baseline."));
-            }
-
-            pages.add(second);
+        // Derive identity drift
+        float drift = 0f;
+        if (persona != null) {
+            woflo.petsplus.state.morality.PersonaBehavioralProfile profile = 
+                new woflo.petsplus.state.morality.PersonaBehavioralProfile(persona);
+            drift = profile.calculateIdentityDissonance();
         }
 
+        // Experience drift axes
+        page.add(Text.literal(labelColor + "Experience Drift:"));
+        page.add(Text.literal(formatDriftAxis("Aggression", aggression, "bold", "wary", natureId)));
+        page.add(Text.literal(formatDriftAxis("Empathy", empathy, "soft", "hardened", natureId)));
+        page.add(Text.literal(formatDriftAxis("Courage", courage, "brave", "timid", natureId)));
+        page.add(Text.literal(formatDriftAxis("Social", social, "warm", "withdrawn", natureId)));
+        page.add(Text.literal(formatDriftAxis("Resource", resource, "generous", "possessive", natureId)));
+        page.add(Text.empty());
+
+        // Morality snapshot
+        MalevolenceLedger.MoralitySnapshot snapshot = ledger.describe();
+        if (snapshot != null) {
+            String state = snapshot.active() ? "malevolent" : "benign";
+            page.add(Text.literal(labelColor + "Moral State: " + highlight + formatNumber(snapshot.score(), 1) 
+                + shadow + " (" + state + ")"));
+        }
+
+        // Harmony
+        PetComponent.HarmonyState harmonyState = pc.getHarmonyState();
+        float harmony = harmonyState != null ? Math.max(0f, harmonyState.harmonyStrength()) : 0f;
+        float discord = harmonyState != null ? Math.max(0f, harmonyState.disharmonyStrength()) : 0f;
+        String harmonyBar = buildMeterBar(MathHelper.clamp(harmony / 3f, 0f, 1f), 5, natureId);
+        String discordBar = buildMeterBar(MathHelper.clamp(discord / 3f, 0f, 1f), 5, natureId);
+        page.add(Text.literal(labelColor + "Harmony " + harmonyBar + highlight + formatNumber(harmony, 1)
+            + shadow + "  Discord " + discordBar + highlight + formatNumber(discord, 1)));
+
+        pages.add(page);
         return pages;
+    }
+
+    /**
+     * Format a drift axis with directional bar and simple label.
+     */
+    private static String formatDriftAxis(String label, float value, String positive, String negative, 
+                                         @Nullable Identifier natureId) {
+        float deviation = value - 0.5f;
+        String bar = buildDriftBar(deviation, 4, natureId);
+        
+        String highlight = CompendiumColorTheme.getNatureHighlightCode(natureId);
+        String shadow = CompendiumColorTheme.DARK_GRAY;
+        
+        String desc;
+        if (Math.abs(deviation) < 0.1f) {
+            desc = "steady";
+        } else if (deviation > 0) {
+            desc = positive;
+        } else {
+            desc = negative;
+        }
+        
+        return String.format("  %-10s %s %s", label, bar, highlight + desc);
+    }
+
+    /**
+     * Build a compact drift bar with arrows for direction.
+     */
+    private static String buildDriftBar(float deviation, int segments, @Nullable Identifier natureId) {
+        String highlight = CompendiumColorTheme.getNatureHighlightCode(natureId);
+        String faded = CompendiumColorTheme.getNatureShadowCode(natureId);
+        String shadow = CompendiumColorTheme.DARK_GRAY;
+        
+        float clamped = MathHelper.clamp(deviation, -0.5f, 0.5f);
+        int filled = Math.round(Math.abs(clamped) * segments * 2);
+        
+        StringBuilder bar = new StringBuilder();
+        bar.append(shadow).append("[");
+        
+        if (clamped > 0.05f) {
+            for (int i = 0; i < segments; i++) {
+                bar.append(i < filled ? highlight + "→" : faded + "·");
+            }
+        } else if (clamped < -0.05f) {
+            for (int i = 0; i < segments; i++) {
+                bar.append(i < filled ? highlight + "←" : faded + "·");
+            }
+        } else {
+            for (int i = 0; i < segments; i++) {
+                bar.append(faded + "·");
+            }
+        }
+        
+        bar.append(shadow).append("]");
+        return bar.toString();
     }
 
     public static List<List<Text>> buildSpeciesMemoryPages(
@@ -619,7 +655,6 @@ public class PetCompendiumDataExtractor {
 
                 currentPage.add(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Known: " 
                     + CompendiumColorTheme.getNatureHighlightCode(natureId) + sorted.size() + CompendiumColorTheme.DARK_GRAY + " species"));
-                currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "F=Fear H=Hunt C=Caution"));
                 currentPage.add(Text.empty());
 
                 int linesOnPage = 5;
@@ -633,9 +668,8 @@ public class PetCompendiumDataExtractor {
                         currentPage.clear();
                         currentPage.add(Text.literal(headerText));
                         currentPage.add(Text.literal(CompendiumColorTheme.buildSectionDivider(natureId)));
-                        currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "F=Fear H=Hunt C=Caution"));
                         currentPage.add(Text.empty());
-                        linesOnPage = 4;
+                        linesOnPage = 3;
                     }
 
                     // Format species name from ID
@@ -653,11 +687,12 @@ public class PetCompendiumDataExtractor {
                     }
 
                     if (speciesName.length() > 20) {
-                        speciesName = speciesName.substring(0, 17) + "...";
+                        // Preserve underscores and avoid adding ellipses; trim to fit one line
+                        speciesName = speciesName.substring(0, 20);
                     }
 
                     // Display species entry
-                    currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "Ãƒâ€šÃ‚Â· " 
+                    currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "· " 
                         + accent + speciesName));
 
                     // Create bars for fear, hunting, caution
@@ -792,6 +827,142 @@ public class PetCompendiumDataExtractor {
         return pages;
     }
 
+    /**
+     * Build capabilities timeline pages showing past, current, and future unlocks.
+     * Uses color for state indication: highlight for CURRENT, soft for PAST, progressively darker for FUTURE.
+     */
+    public static List<List<Text>> buildCapabilitiesPages(
+        PetComponent pc,
+        @Nullable Identifier natureId
+    ) {
+        List<List<Text>> pages = new ArrayList<>();
+        
+        if (pc == null) {
+            return pages;
+        }
+
+        PetRoleType roleType = pc.getRoleType(false);
+        if (roleType == null) {
+            return pages;
+        }
+
+        List<ProgressionTimelineBuilder.TimelineEntry> timeline = 
+            ProgressionTimelineBuilder.buildTimeline(pc, roleType);
+        
+        if (timeline.isEmpty()) {
+            return pages;
+        }
+
+        String header = CompendiumColorTheme.formatSectionHeader("Capabilities", natureId);
+        String highlight = CompendiumColorTheme.getNatureHighlightCode(natureId);
+        String soft = CompendiumColorTheme.getNatureSoftCode(natureId);
+        
+        List<Text> currentPage = new ArrayList<>();
+        currentPage.add(Text.literal(header));
+        currentPage.add(Text.literal(CompendiumColorTheme.buildSectionDivider(natureId)));
+        currentPage.add(Text.empty());
+
+        int linesOnPage = 3;
+        final int MAX_LINES_PER_PAGE = 14;
+        
+        // Count future entries to calculate progressive fade
+        int futureCount = 0;
+        for (ProgressionTimelineBuilder.TimelineEntry entry : timeline) {
+            if (entry.state() == ProgressionTimelineBuilder.TimelineState.FUTURE) {
+                futureCount++;
+            }
+        }
+        int futureSoFar = 0;
+
+        for (ProgressionTimelineBuilder.TimelineEntry entry : timeline) {
+            // Determine color based on state
+            String levelColor;
+            String unlockColor;
+            
+            if (entry.state() == ProgressionTimelineBuilder.TimelineState.CURRENT) {
+                levelColor = highlight;
+                unlockColor = highlight;
+            } else if (entry.state() == ProgressionTimelineBuilder.TimelineState.PAST) {
+                levelColor = soft;
+                unlockColor = soft;
+            } else {
+                // FUTURE: progressively fade from dark gray to darker
+                levelColor = computeFutureGrayShade(futureSoFar, futureCount);
+                unlockColor = levelColor;
+                futureSoFar++;
+            }
+
+            // Format level line: "Lv# [Tribute]?" if needed
+            StringBuilder levelLine = new StringBuilder(levelColor);
+            levelLine.append("Lv").append(entry.level());
+            if (entry.requiresTribute()) {
+                if (entry.tributePaid()) {
+                    levelLine.append(" §8[✓]");
+                } else {
+                    levelLine.append(" ").append(highlight).append("[Tribute]");
+                }
+            }
+            
+            currentPage.add(Text.literal(levelLine.toString()));
+            linesOnPage += 1;
+
+            // Add unlocks (one per line, indented and minimal)
+            if (!entry.unlocks().isEmpty()) {
+                for (String unlock : entry.unlocks()) {
+                    currentPage.add(Text.literal("  " + unlockColor + unlock));
+                    linesOnPage += 1;
+                }
+            }
+
+            // Check if we need to paginate
+            if (linesOnPage + 3 > MAX_LINES_PER_PAGE) {
+                pages.add(new ArrayList<>(currentPage));
+                currentPage.clear();
+                currentPage.add(Text.literal(header));
+                currentPage.add(Text.literal(CompendiumColorTheme.buildSectionDivider(natureId)));
+                currentPage.add(Text.empty());
+                linesOnPage = 3;
+            }
+        }
+
+        // Add remaining content
+        if (!currentPage.isEmpty()) {
+            pages.add(currentPage);
+        }
+
+        return pages;
+    }
+    
+    /**
+     * Compute a gray shade that progressively darkens based on position in the future list.
+     * Uses hardcoded gray values for consistent, minimal appearance.
+     */
+    private static String computeFutureGrayShade(int index, int totalFuture) {
+        if (totalFuture <= 0 || index >= totalFuture) {
+            return "§8"; // Dark gray fallback
+        }
+        
+        // Progressive fade: start at a medium-dark gray, darken more as we go further
+        float progress = (float) index / Math.max(1, totalFuture - 1);
+        progress = MathHelper.clamp(progress, 0f, 1f);
+        
+        // Interpolate from ~0x888888 (medium-dark) to ~0x444444 (very dark)
+        int startGray = 0x888888;
+        int endGray = 0x444444;
+        
+        int r = (int) (((startGray >> 16) & 0xFF) * (1 - progress) + ((endGray >> 16) & 0xFF) * progress);
+        int g = (int) (((startGray >> 8) & 0xFF) * (1 - progress) + ((endGray >> 8) & 0xFF) * progress);
+        int b = (int) ((startGray & 0xFF) * (1 - progress) + (endGray & 0xFF) * progress);
+        
+        int grayRgb = (r << 16) | (g << 8) | b;
+        String hex = String.format(Locale.ROOT, "%06X", grayRgb & 0xFFFFFF);
+        StringBuilder builder = new StringBuilder("§x");
+        for (char c : hex.toCharArray()) {
+            builder.append('§').append(c);
+        }
+        return builder.toString();
+    }
+
     // === HELPER METHODS ===
     
     public static String getRoleDisplayName(Identifier roleId, @Nullable PetRoleType roleType) {
@@ -807,9 +978,9 @@ public class PetCompendiumDataExtractor {
     }
     
     private static String getHealthColor(float healthPercent) {
-        if (healthPercent <= 0.2f) return "Ãƒâ€šÃ‚Â§c"; // Red
-        if (healthPercent <= 0.5f) return "Ãƒâ€šÃ‚Â§e"; // Yellow
-        if (healthPercent >= 0.9f) return "Ãƒâ€šÃ‚Â§a"; // Green
+            if (healthPercent <= 0.2f) return "§c"; // Red
+        if (healthPercent <= 0.5f) return "§e"; // Yellow
+        if (healthPercent >= 0.9f) return "§a"; // Green
         return CompendiumColorTheme.LIGHT_GRAY; // Neutral
     }
     
@@ -831,7 +1002,8 @@ public class PetCompendiumDataExtractor {
     private static String formatAspectLine(MalevolenceLedger.AspectSnapshot aspect, @Nullable Identifier natureId) {
         String highlight = CompendiumColorTheme.getNatureHighlightCode(natureId);
         StringBuilder builder = new StringBuilder();
-        builder.append(CompendiumColorTheme.DARK_GRAY).append("A ")
+        // Use a clean bullet instead of a stray control character to avoid rendering artifacts
+        builder.append(CompendiumColorTheme.DARK_GRAY).append("• ")
             .append(highlight).append(aspect.name())
             .append(CompendiumColorTheme.DARK_GRAY).append(" ")
             .append(highlight).append(formatNumber(aspect.value(), 1));
@@ -856,7 +1028,8 @@ public class PetCompendiumDataExtractor {
             : other.getType().getName().getString();
         
         if (name.length() > 18) {
-            name = name.substring(0, 15) + "..";
+            // Trim without ellipses to avoid replacing underscores visually
+            name = name.substring(0, 18);
         }
         
         String accent = CompendiumColorTheme.getNatureAccentCode(natureId);
@@ -867,17 +1040,16 @@ public class PetCompendiumDataExtractor {
         if (view.compatibility() != null) {
             float harmonyScore = view.compatibility().harmonyStrength() - view.compatibility().disharmonyStrength();
             if (harmonyScore > 0.5f) {
-                harmonySymbol = " ÃƒÂ¢Ã¢â€žÂ¢Ã‚Â¦";
+                harmonySymbol = "✓";
             } else if (harmonyScore < -0.5f) {
-                harmonySymbol = " ÃƒÂ¢Ã…â€œÃ¢â‚¬â€";
+                harmonySymbol = "✗";
             }
         }
 
-        // Compact first line: name Ãƒâ€šÃ‚Â· type Ãƒâ€šÃ‚Â· duration Ãƒâ€šÃ‚Â· compatibility
-        lines.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "Ãƒâ€šÃ‚Â· "
+        lines.add(Text.literal(CompendiumColorTheme.DARK_GRAY + " "
                 + accent + name 
-                + CompendiumColorTheme.DARK_GRAY + " Ãƒâ€šÃ‚Â· " + CompendiumColorTheme.LIGHT_GRAY + typeLabel
-                + CompendiumColorTheme.DARK_GRAY + " Ãƒâ€šÃ‚Â· " + CompendiumColorTheme.LIGHT_GRAY + knownDuration
+                + CompendiumColorTheme.DARK_GRAY + "  " + CompendiumColorTheme.LIGHT_GRAY + typeLabel
+                + CompendiumColorTheme.DARK_GRAY + " · " + CompendiumColorTheme.LIGHT_GRAY + knownDuration
                 + CompendiumColorTheme.DARK_GRAY + harmonySymbol));
 
         float trustNormalized = MathHelper.clamp((profile.trust() + 1.0f) / 2.0f, 0f, 1f);
@@ -908,7 +1080,7 @@ public class PetCompendiumDataExtractor {
             return "0";
         }
         if (Float.isInfinite(value)) {
-            return value > 0 ? "ÃƒÂ¢Ã‹â€ Ã…Â¾" : "-ÃƒÂ¢Ã‹â€ Ã…Â¾";
+            return value > 0 ? "∞" : "-∞";
         }
         
         int clampedPrecision = Math.max(0, precision);
@@ -960,9 +1132,9 @@ public class PetCompendiumDataExtractor {
         bar.append(deep).append("[");
         for (int i = 0; i < segments; i++) {
             if (i < filled) {
-                bar.append(fill).append("ÃƒÂ¢Ã¢â‚¬â€œÃ‚Â®");
+                bar.append(fill).append("█");
             } else {
-                bar.append(faded).append("ÃƒÂ¢Ã¢â‚¬â€œÃ‚Â¯");
+                bar.append(faded).append("░");
             }
         }
         bar.append(deep).append("]");
@@ -1048,10 +1220,10 @@ public class PetCompendiumDataExtractor {
                 }
             }
             if (totalDamage > 0) {
-                stats.add(Text.literal("  " + CompendiumColorTheme.DARK_GRAY + "ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ "
+                stats.add(Text.literal("  " + CompendiumColorTheme.DARK_GRAY + "• "
                     + CompendiumColorTheme.LIGHT_GRAY + "Shielded "
                     + accent + protectionCount + CompendiumColorTheme.LIGHT_GRAY + " hits"
-                    + CompendiumColorTheme.DARK_GRAY + " Ãƒâ€šÃ‚Â· "
+                    + CompendiumColorTheme.DARK_GRAY + " · "
                     + CompendiumColorTheme.LIGHT_GRAY + "Redirected "
                     + accent + formatNumber((float) totalDamage, 1)
                     + CompendiumColorTheme.LIGHT_GRAY + " dmg"));
@@ -1069,7 +1241,7 @@ public class PetCompendiumDataExtractor {
                 }
             }
             if (healingEvents > 0) {
-                stats.add(Text.literal("  " + CompendiumColorTheme.DARK_GRAY + "ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ "
+                stats.add(Text.literal("  " + CompendiumColorTheme.DARK_GRAY + " · "
                     + CompendiumColorTheme.LIGHT_GRAY + "Soothed allies "
                     + accent + healingEvents + CompendiumColorTheme.LIGHT_GRAY + " times"));
             }
@@ -1084,7 +1256,7 @@ public class PetCompendiumDataExtractor {
             if (pc.isMilestoneUnlocked(30)) milestones.add("30");
 
             if (!milestones.isEmpty()) {
-                stats.add(Text.literal("  " + CompendiumColorTheme.DARK_GRAY + "ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ "
+                stats.add(Text.literal("  " + CompendiumColorTheme.DARK_GRAY + " · "
                     + CompendiumColorTheme.LIGHT_GRAY + "Milestones "
                     + accent + String.join(", ", milestones)
                     + CompendiumColorTheme.LIGHT_GRAY));
@@ -1144,7 +1316,7 @@ public class PetCompendiumDataExtractor {
             }
             case HistoryEvent.EventType.ACHIEVEMENT -> {
                 String achievementName = extractAchievementName(event.eventData());
-                eventDesc = "ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ " + accent + achievementName;
+                eventDesc = "Achievement: " + accent + achievementName;
             }
             case HistoryEvent.EventType.TRADE -> {
                 String toName = extractStringValue(event.eventData(), "to_name");
@@ -1155,9 +1327,10 @@ public class PetCompendiumDataExtractor {
                 boolean victory = event.eventData() != null && event.eventData().contains("\"result\":\"victory\"");
                 String opponent = formatCombatOpponent(extractStringValue(event.eventData(), "opponent"));
                 if (opponent.length() > 15) {
-                    opponent = opponent.substring(0, 12) + "..";
+                    // Trim hard to keep to one line; no ellipsis
+                    opponent = opponent.substring(0, 15);
                 }
-                String result = victory ? CompendiumColorTheme.getNatureAccentCode(natureId) + "ÃƒÂ¢Ã…Â¡Ã¢â‚¬Â" : "Ãƒâ€šÃ‚Â§cÃƒÂ¢Ã…â€œÃ¢â‚¬â€";
+                String result = victory ? CompendiumColorTheme.getNatureAccentCode(natureId) + "✓" : CompendiumColorTheme.getNatureAccentCode(natureId) + "✗";
                 eventDesc = result + CompendiumColorTheme.LIGHT_GRAY + " " + accent + opponent;
             }
             case HistoryEvent.EventType.MOOD_MILESTONE -> {
@@ -1169,7 +1342,7 @@ public class PetCompendiumDataExtractor {
             default -> eventDesc = humanizeWords(event.eventType());
         }
 
-        lines.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "ÃƒÂ¢Ã…Â¸Ã‚Â¨" + timeStr + "ÃƒÂ¢Ã…Â¸Ã‚Â© " + CompendiumColorTheme.LIGHT_GRAY + eventDesc));
+        lines.add(Text.literal(CompendiumColorTheme.DARK_GRAY + " · " + timeStr + " · " + CompendiumColorTheme.LIGHT_GRAY + eventDesc));
 
         return lines;
     }
@@ -1465,7 +1638,7 @@ public class PetCompendiumDataExtractor {
             String bar = buildMeterBar(Math.min(intensity, 1.0f), 8, natureId);
             int intensityPercent = Math.round(intensity * 100);
             
-            currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "Ãƒâ€šÃ‚Â· "
+            currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "· "
                 + accent + emotionName 
                 + CompendiumColorTheme.LIGHT_GRAY + " " + bar
                 + CompendiumColorTheme.DARK_GRAY + " " + intensityPercent + "%"));
@@ -1523,11 +1696,10 @@ public class PetCompendiumDataExtractor {
         currentPage.add(Text.literal(gossipHeaderText));
         currentPage.add(Text.literal(CompendiumColorTheme.buildSectionDivider(natureId)));
         currentPage.add(Text.literal(CompendiumColorTheme.LIGHT_GRAY + "Known: " + CompendiumColorTheme.getNatureHighlightCode(natureId) + rumors.size()
-            + CompendiumColorTheme.DARK_GRAY + " Ãƒâ€šÃ‚Â· " + CompendiumColorTheme.LIGHT_GRAY + "Witnessed: " + CompendiumColorTheme.getNatureHighlightCode(natureId) + witnessed));
-        currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "ÃƒÂ¢Ã¢â‚¬â€Ã‚Â=Witnessed ÃƒÂ¢Ã¢â‚¬â€Ã¢â‚¬Â¹=Hearsay"));
+            + CompendiumColorTheme.DARK_GRAY + " · " + CompendiumColorTheme.LIGHT_GRAY + "Witnessed: " + CompendiumColorTheme.getNatureHighlightCode(natureId) + witnessed));
         currentPage.add(Text.empty());
         
-        int linesOnPage = 5;
+        int linesOnPage = 4;
         final int MAX_LINES = 14;
         int count = 0;
         String accent = CompendiumColorTheme.getNatureAccentCode(natureId);
@@ -1554,7 +1726,7 @@ public class PetCompendiumDataExtractor {
                 currentPage.clear();
                 currentPage.add(Text.literal(gossipHeaderText));
                 currentPage.add(Text.literal(CompendiumColorTheme.buildSectionDivider(natureId)));
-                currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "ÃƒÂ¢Ã¢â‚¬â€Ã‚Â=Witnessed ÃƒÂ¢Ã¢â‚¬â€Ã¢â‚¬Â¹=Hearsay"));
+                currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "Witnessed"));
                 currentPage.add(Text.empty());
                 linesOnPage = 4;
                 currentPage.add(Text.empty());
@@ -1582,23 +1754,23 @@ public class PetCompendiumDataExtractor {
                     currentPage.clear();
                     currentPage.add(Text.literal(gossipHeaderText));
                     currentPage.add(Text.literal(CompendiumColorTheme.buildSectionDivider(natureId)));
-                    currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "ÃƒÂ¢Ã¢â‚¬â€Ã‚Â=Witnessed ÃƒÂ¢Ã¢â‚¬â€Ã¢â‚¬Â¹=Hearsay"));
+                    currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "= Witnessed | = Hearsay"));
                     currentPage.add(Text.empty());
                     linesOnPage = 4;
                 }
 
                 String topicName = getTopicName(rumor.topicId());
                 if (topicName.length() > 24) {
-                    topicName = topicName.substring(0, 21) + "..";
+                    topicName = topicName.substring(0, 24);
                 }
                 String heardAgo = formatElapsed(rumor.lastHeardTick(), currentTick);
                 boolean isWitnessed = rumor.lastWitnessTick() > 0;
-                String statusMark = isWitnessed ? "ÃƒÂ¢Ã¢â‚¬â€Ã‚Â" : "ÃƒÂ¢Ã¢â‚¬â€Ã¢â‚¬Â¹";
-                String shareCount = rumor.shareCount() > 0 ? " ÃƒÆ’Ã¢â‚¬â€" + rumor.shareCount() : "";
+                String statusMark = isWitnessed ? "=" : "|";
+                String shareCount = rumor.shareCount() > 0 ? " x" + rumor.shareCount() : "";
 
                 currentPage.add(Text.literal(CompendiumColorTheme.DARK_GRAY + "  " + statusMark + " "
                     + CompendiumColorTheme.LIGHT_GRAY + topicName
-                    + CompendiumColorTheme.DARK_GRAY + " Ãƒâ€šÃ‚Â· " + CompendiumColorTheme.LIGHT_GRAY + heardAgo
+                    + CompendiumColorTheme.DARK_GRAY + " · " + CompendiumColorTheme.LIGHT_GRAY + heardAgo
                     + CompendiumColorTheme.DARK_GRAY + shareCount));
 
                 String confBar = buildConfidenceBar(rumor.confidence() * 100, natureId);

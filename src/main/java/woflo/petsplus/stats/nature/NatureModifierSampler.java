@@ -33,127 +33,158 @@ public final class NatureModifierSampler {
     static {
         register("frisky", NatureStat.SWIFTNESS, 0.06f, NatureStat.AGILITY, 0.02f,
             1.15f, 0.90f, 0.95f, 1.00f,
-            Emotion.PLAYFULNESS, 0.35f, Emotion.VIGILANT, 0.25f, Emotion.STARTLE, 0.20f);
+            Emotion.PLAYFULNESS, 0.35f, Emotion.VIGILANT, 0.25f, Emotion.STARTLE, 0.20f,
+            new NatureMoralityProfile(0.42f, 0.52f, 0.58f, 0.58f, 0.50f, 1.0f));
         
         register("feral", NatureStat.MIGHT, 0.05f, NatureStat.GUARD, 0.03f,
             1.10f, 1.00f, 0.90f, 1.10f,
-            Emotion.FOCUSED, 0.35f, Emotion.VIGILANT, 0.25f, Emotion.GUARDIAN_VIGIL, 0.20f);
+            Emotion.FOCUSED, 0.35f, Emotion.VIGILANT, 0.25f, Emotion.GUARDIAN_VIGIL, 0.20f,
+            new NatureMoralityProfile(0.55f, 0.42f, 0.62f, 0.40f, 0.42f, 1.0f));
         
         register("fierce", NatureStat.MIGHT, 0.06f, NatureStat.VITALITY, 0.03f,
             1.25f, 1.10f, 0.95f, 1.05f,
-            Emotion.GUARDIAN_VIGIL, 0.35f, Emotion.FRUSTRATION, 0.25f, Emotion.PRIDE, 0.20f);
+            Emotion.GUARDIAN_VIGIL, 0.35f, Emotion.FRUSTRATION, 0.25f, Emotion.PRIDE, 0.20f,
+            new NatureMoralityProfile(0.62f, 0.40f, 0.62f, 0.45f, 0.42f, 0.85f));
 
         register("fenn", NatureStat.GUARD, 0.06f, NatureStat.FOCUS, 0.03f,
             0.92f, 1.18f, 0.90f, 1.12f,
-            Emotion.VIGILANT, 0.38f, Emotion.HIRAETH, 0.28f, Emotion.STOIC, 0.24f);
+            Emotion.VIGILANT, 0.38f, Emotion.HIRAETH, 0.28f, Emotion.STOIC, 0.24f,
+            new NatureMoralityProfile(0.42f, 0.52f, 0.48f, 0.45f, 0.48f, 1.2f));
 
         register("falsi", NatureStat.SWIFTNESS, 0.06f, NatureStat.FOCUS, 0.03f,
             1.25f, 0.85f, 1.35f, 0.90f,
-            Emotion.CHEERFUL, 0.40f, Emotion.CURIOUS, 0.30f, Emotion.PLAYFULNESS, 0.28f);
+            Emotion.CHEERFUL, 0.40f, Emotion.CURIOUS, 0.30f, Emotion.PLAYFULNESS, 0.28f,
+            new NatureMoralityProfile(0.38f, 0.55f, 0.60f, 0.62f, 0.52f, 0.85f));
         
         register("radiant", NatureStat.VITALITY, 0.06f, NatureStat.VITALITY, 0.03f,
             0.95f, 1.20f, 1.25f, 1.05f,
-            Emotion.CHEERFUL, 0.38f, Emotion.HOPEFUL, 0.28f, Emotion.CONTENT, 0.24f);
+            Emotion.CHEERFUL, 0.38f, Emotion.HOPEFUL, 0.28f, Emotion.CONTENT, 0.24f,
+            new NatureMoralityProfile(0.32f, 0.65f, 0.52f, 0.60f, 0.62f, 1.2f));
         
         register("festival", NatureStat.FOCUS, 0.05f, NatureStat.SWIFTNESS, 0.03f,
             1.30f, 0.75f, 1.50f, 0.90f,
-            Emotion.CHEERFUL, 0.40f, Emotion.PACK_SPIRIT, 0.35f, Emotion.PLAYFULNESS, 0.28f);
+            Emotion.CHEERFUL, 0.40f, Emotion.PACK_SPIRIT, 0.35f, Emotion.PLAYFULNESS, 0.28f,
+            new NatureMoralityProfile(0.35f, 0.58f, 0.55f, 0.70f, 0.58f, 0.85f));
         
         register("infernal", NatureStat.MIGHT, 0.07f, NatureStat.SWIFTNESS, 0.03f,
             1.45f, 0.90f, 1.10f, 1.25f,
-            Emotion.FRUSTRATION, 0.40f, Emotion.PROTECTIVE, 0.32f, Emotion.MALEVOLENCE, 0.26f);
+            Emotion.FRUSTRATION, 0.40f, Emotion.PROTECTIVE, 0.32f, Emotion.MALEVOLENCE, 0.26f,
+            new NatureMoralityProfile(0.65f, 0.35f, 0.60f, 0.40f, 0.35f, 0.70f));
         
         register("otherworldly", NatureStat.VITALITY, 0.05f, NatureStat.AGILITY, 0.02f,
             1.15f, 0.95f, 0.60f, 1.00f,
-            Emotion.YUGEN, 0.40f, Emotion.ENNUI, 0.30f, Emotion.ARCANE_OVERFLOW, 0.26f);
+            Emotion.YUGEN, 0.40f, Emotion.ENNUI, 0.30f, Emotion.ARCANE_OVERFLOW, 0.26f,
+            new NatureMoralityProfile(0.40f, 0.48f, 0.52f, 0.30f, 0.45f, 1.0f));
         
         register("hearth", NatureStat.GUARD, 0.06f, NatureStat.FOCUS, 0.03f,
             0.85f, 0.80f, 1.20f, 1.10f,
-            Emotion.CONTENT, 0.36f, Emotion.PACK_SPIRIT, 0.28f, Emotion.SOBREMESA, 0.22f);
+            Emotion.CONTENT, 0.36f, Emotion.PACK_SPIRIT, 0.28f, Emotion.SOBREMESA, 0.22f,
+            new NatureMoralityProfile(0.35f, 0.60f, 0.50f, 0.65f, 0.62f, 1.2f));
         
         register("tempest", NatureStat.MIGHT, 0.06f, NatureStat.VITALITY, 0.03f,
             1.35f, 1.15f, 1.05f, 0.95f,
-            Emotion.RESTLESS, 0.38f, Emotion.KEFI, 0.28f, Emotion.STARTLE, 0.22f);
+            Emotion.RESTLESS, 0.38f, Emotion.KEFI, 0.28f, Emotion.STARTLE, 0.22f,
+            new NatureMoralityProfile(0.60f, 0.42f, 0.52f, 0.45f, 0.45f, 0.85f));
         
         register("solace", NatureStat.VITALITY, 0.05f, NatureStat.GUARD, 0.02f,
             0.75f, 1.35f, 0.60f, 1.10f,
-            Emotion.HIRAETH, 0.40f, Emotion.STOIC, 0.28f, Emotion.PACK_SPIRIT, 0.24f);
+            Emotion.HIRAETH, 0.40f, Emotion.STOIC, 0.28f, Emotion.PACK_SPIRIT, 0.24f,
+            new NatureMoralityProfile(0.30f, 0.70f, 0.38f, 0.58f, 0.58f, 1.4f));
         
         register("echoed", NatureStat.GUARD, 0.06f, NatureStat.FOCUS, 0.03f,
             0.85f, 0.95f, 0.80f, 1.05f,
-            Emotion.ECHOED_RESONANCE, 0.48f, Emotion.NOSTALGIA, 0.28f, Emotion.MONO_NO_AWARE, 0.22f);
+            Emotion.ECHOED_RESONANCE, 0.48f, Emotion.NOSTALGIA, 0.28f, Emotion.MONO_NO_AWARE, 0.22f,
+            new NatureMoralityProfile(0.38f, 0.58f, 0.45f, 0.42f, 0.50f, 1.2f));
         
         register("mycelial", NatureStat.VITALITY, 0.06f, NatureStat.VITALITY, 0.02f,
             0.70f, 1.20f, 0.95f, 1.00f,
-            Emotion.MONO_NO_AWARE, 0.40f, Emotion.WABI_SABI, 0.32f, Emotion.YUGEN, 0.26f);
+            Emotion.MONO_NO_AWARE, 0.40f, Emotion.WABI_SABI, 0.32f, Emotion.YUGEN, 0.26f,
+            new NatureMoralityProfile(0.30f, 0.65f, 0.45f, 0.48f, 0.60f, 1.4f));
         
         register("gilded", NatureStat.FOCUS, 0.05f, NatureStat.AGILITY, 0.03f,
             1.15f, 1.05f, 0.70f, 1.40f,
-            Emotion.PRIDE, 0.42f, Emotion.QUERECIA, 0.30f, Emotion.MINING_REVERIE, 0.26f);
+            Emotion.PRIDE, 0.42f, Emotion.QUERECIA, 0.30f, Emotion.MINING_REVERIE, 0.26f,
+            new NatureMoralityProfile(0.52f, 0.40f, 0.62f, 0.38f, 0.32f, 1.0f));
         
         register("gloom", NatureStat.AGILITY, 0.05f, NatureStat.GUARD, 0.02f,
             1.40f, 0.70f, 0.80f, 1.10f,
-            Emotion.MELANCHOLY, 0.38f, Emotion.SAUDADE, 0.32f, Emotion.ANGST, 0.26f);
+            Emotion.MELANCHOLY, 0.38f, Emotion.SAUDADE, 0.32f, Emotion.ANGST, 0.26f,
+            new NatureMoralityProfile(0.45f, 0.58f, 0.35f, 0.35f, 0.45f, 0.85f));
         
         register("verdant", NatureStat.VITALITY, 0.05f, NatureStat.VITALITY, 0.03f,
             0.65f, 1.35f, 0.90f, 1.00f,
-            Emotion.LAGOM, 0.40f, Emotion.SOBREMESA, 0.30f, Emotion.RELIEF, 0.24f);
+            Emotion.LAGOM, 0.40f, Emotion.SOBREMESA, 0.30f, Emotion.RELIEF, 0.24f,
+            new NatureMoralityProfile(0.30f, 0.68f, 0.45f, 0.62f, 0.65f, 1.4f));
         
         register("summit", NatureStat.SWIFTNESS, 0.06f, NatureStat.AGILITY, 0.03f,
             1.30f, 1.05f, 0.70f, 1.15f,
-            Emotion.PRIDE, 0.42f, Emotion.FOCUSED, 0.30f, Emotion.RESTLESS, 0.24f);
+            Emotion.PRIDE, 0.42f, Emotion.FOCUSED, 0.30f, Emotion.RESTLESS, 0.24f,
+            new NatureMoralityProfile(0.55f, 0.38f, 0.68f, 0.35f, 0.35f, 0.85f));
         
         register("tidal", NatureStat.SWIFTNESS, 0.06f, NatureStat.VITALITY, 0.03f,
             0.60f, 1.40f, 0.85f, 0.95f,
-            Emotion.LAGOM, 0.40f, Emotion.RELIEF, 0.30f, Emotion.ENNUI, 0.24f);
+            Emotion.LAGOM, 0.40f, Emotion.RELIEF, 0.30f, Emotion.ENNUI, 0.24f,
+            new NatureMoralityProfile(0.32f, 0.62f, 0.48f, 0.52f, 0.60f, 1.4f));
         
         register("molten", NatureStat.MIGHT, 0.06f, NatureStat.GUARD, 0.02f,
             1.40f, 1.10f, 0.95f, 1.25f,
-            Emotion.FRUSTRATION, 0.42f, Emotion.KEFI, 0.30f, Emotion.PROTECTIVE, 0.26f);
+            Emotion.FRUSTRATION, 0.42f, Emotion.KEFI, 0.30f, Emotion.PROTECTIVE, 0.26f,
+            new NatureMoralityProfile(0.68f, 0.32f, 0.65f, 0.42f, 0.38f, 0.85f));
         
         register("frosty", NatureStat.GUARD, 0.06f, NatureStat.VITALITY, 0.03f,
             0.55f, 1.50f, 0.70f, 1.05f,
-            Emotion.STOIC, 0.42f, Emotion.ENNUI, 0.30f, Emotion.FOCUSED, 0.22f);
+            Emotion.STOIC, 0.42f, Emotion.ENNUI, 0.30f, Emotion.FOCUSED, 0.22f,
+            new NatureMoralityProfile(0.32f, 0.48f, 0.62f, 0.35f, 0.48f, 1.4f));
         
         register("mire", NatureStat.VITALITY, 0.05f, NatureStat.VITALITY, 0.03f,
             0.80f, 1.15f, 0.95f, 0.95f,
-            Emotion.HIRAETH, 0.36f, Emotion.SAUDADE, 0.28f, Emotion.LOYALTY, 0.22f);
+            Emotion.HIRAETH, 0.36f, Emotion.SAUDADE, 0.28f, Emotion.LOYALTY, 0.22f,
+            new NatureMoralityProfile(0.35f, 0.65f, 0.42f, 0.55f, 0.55f, 1.2f));
         
         register("relic", NatureStat.FOCUS, 0.05f, NatureStat.GUARD, 0.02f,
             0.85f, 0.95f, 0.85f, 1.20f,
-            Emotion.NOSTALGIA, 0.38f, Emotion.YUGEN, 0.28f, Emotion.ECHOED_RESONANCE, 0.24f);
+            Emotion.NOSTALGIA, 0.38f, Emotion.YUGEN, 0.28f, Emotion.ECHOED_RESONANCE, 0.24f,
+            new NatureMoralityProfile(0.35f, 0.55f, 0.48f, 0.40f, 0.52f, 1.2f));
         
         register("ceramic", NatureStat.FOCUS, 0.05f, NatureStat.VITALITY, 0.03f,
             0.80f, 1.10f, 0.90f, 1.05f,
-            Emotion.WABI_SABI, 0.38f, Emotion.GAMAN, 0.28f, Emotion.CONTENT, 0.24f);
+            Emotion.WABI_SABI, 0.38f, Emotion.GAMAN, 0.28f, Emotion.CONTENT, 0.24f,
+            new NatureMoralityProfile(0.35f, 0.60f, 0.52f, 0.48f, 0.58f, 1.2f));
         
         register("clockwork", NatureStat.AGILITY, 0.06f, NatureStat.FOCUS, 0.03f,
             1.10f, 1.00f, 0.85f, 1.10f,
-            Emotion.FOCUSED, 0.40f, Emotion.CURIOUS, 0.28f, Emotion.RESTLESS, 0.22f);
+            Emotion.FOCUSED, 0.40f, Emotion.CURIOUS, 0.28f, Emotion.RESTLESS, 0.22f,
+            new NatureMoralityProfile(0.45f, 0.45f, 0.60f, 0.40f, 0.45f, 1.0f));
 
         register("unnatural", NatureStat.SWIFTNESS, 0.06f, NatureStat.AGILITY, 0.03f,
             1.55f, 0.70f, 1.30f, 0.75f,
-            Emotion.ECHOED_RESONANCE, 0.42f, Emotion.ARCANE_OVERFLOW, 0.32f, Emotion.FERNWEH, 0.28f);
+            Emotion.ECHOED_RESONANCE, 0.42f, Emotion.ARCANE_OVERFLOW, 0.32f, Emotion.FERNWEH, 0.28f,
+            new NatureMoralityProfile(0.50f, 0.42f, 0.55f, 0.32f, 0.40f, 0.65f));
 
         register("abstract", NatureStat.FOCUS, 0.07f, NatureStat.SWIFTNESS, 0.04f,
             0.44f, 1.62f, 0.64f, 1.18f,
-            Emotion.YUGEN, 0.45f, Emotion.MONO_NO_AWARE, 0.34f, Emotion.MELANCHOLY, 0.26f);
+            Emotion.YUGEN, 0.45f, Emotion.MONO_NO_AWARE, 0.34f, Emotion.MELANCHOLY, 0.26f,
+            new NatureMoralityProfile(0.32f, 0.62f, 0.40f, 0.32f, 0.48f, 1.5f));
 
         register("homestead", NatureStat.FOCUS, 0.05f, NatureStat.VITALITY, 0.03f,
             0.75f, 1.05f, 1.10f, 1.15f,
-            Emotion.CONTENT, 0.38f, Emotion.QUERECIA, 0.28f, Emotion.SOBREMESA, 0.22f);
+            Emotion.CONTENT, 0.38f, Emotion.QUERECIA, 0.28f, Emotion.SOBREMESA, 0.22f,
+            new NatureMoralityProfile(0.32f, 0.62f, 0.48f, 0.58f, 0.65f, 1.4f));
         
         register("blossom", NatureStat.SWIFTNESS, 0.05f, NatureStat.AGILITY, 0.04f,
             1.50f, 0.65f, 1.50f, 0.85f,
-            Emotion.CHEERFUL, 0.42f, Emotion.PLAYFULNESS, 0.35f, Emotion.QUERECIA, 0.28f);
+            Emotion.CHEERFUL, 0.42f, Emotion.PLAYFULNESS, 0.35f, Emotion.QUERECIA, 0.28f,
+            new NatureMoralityProfile(0.35f, 0.60f, 0.58f, 0.65f, 0.48f, 0.70f));
         
         register("sentinel", NatureStat.GUARD, 0.06f, NatureStat.FOCUS, 0.04f,
             1.05f, 1.45f, 1.00f, 1.55f,
-            Emotion.VIGILANT, 0.40f, Emotion.FOCUSED, 0.32f, Emotion.STOIC, 0.26f);
+            Emotion.VIGILANT, 0.40f, Emotion.FOCUSED, 0.32f, Emotion.STOIC, 0.26f,
+            new NatureMoralityProfile(0.38f, 0.55f, 0.65f, 0.58f, 0.52f, 1.0f));
         
         register("scrappy", NatureStat.MIGHT, 0.05f, NatureStat.VITALITY, 0.04f,
             1.45f, 0.75f, 1.40f, 1.35f,
-            Emotion.KEFI, 0.40f, Emotion.HOPEFUL, 0.30f, Emotion.FRUSTRATION, 0.26f);
+            Emotion.KEFI, 0.40f, Emotion.HOPEFUL, 0.30f, Emotion.FRUSTRATION, 0.26f,
+            new NatureMoralityProfile(0.58f, 0.45f, 0.68f, 0.48f, 0.40f, 0.70f));
     }
 
     private NatureModifierSampler() {
@@ -165,12 +196,13 @@ public final class NatureModifierSampler {
                                  float contagionModifier, float guardModifier,
                                  Emotion majorEmotion, float majorEmotionBase,
                                  Emotion minorEmotion, float minorEmotionBase,
-                                 Emotion quirkEmotion, float quirkEmotionBase) {
+                                 Emotion quirkEmotion, float quirkEmotionBase,
+                                 NatureMoralityProfile moralityProfile) {
         Identifier id = Identifier.of("petsplus", path);
         DEFINITIONS.put(id, new NatureDefinition(majorStat, majorBase, minorStat, minorBase,
             volatilityMultiplier, resilienceMultiplier, contagionModifier, guardModifier,
             majorEmotion, majorEmotionBase, minorEmotion, minorEmotionBase,
-            quirkEmotion, quirkEmotionBase));
+            quirkEmotion, quirkEmotionBase, moralityProfile));
     }
 
     public static NatureAdjustment sample(PetComponent component) {
@@ -218,6 +250,24 @@ public final class NatureModifierSampler {
             volatility, resilience,
             contagion, guard,
             emotionProfile);
+    }
+
+    /**
+     * Get the behavioral morality profile for a specific Nature.
+     * This profile defines baseline behavioral axes and drift rates.
+     * 
+     * @param natureId the Nature identifier (e.g. "petsplus:infernal")
+     * @return morality profile for this Nature, or NEUTRAL if not found
+     */
+    public static NatureMoralityProfile getMoralityProfile(@org.jetbrains.annotations.Nullable Identifier natureId) {
+        if (natureId == null) {
+            return NatureMoralityProfile.NEUTRAL;
+        }
+        NatureDefinition definition = DEFINITIONS.get(natureId);
+        if (definition == null) {
+            return NatureMoralityProfile.NEUTRAL;
+        }
+        return definition.moralityProfile();
     }
 
     private static long resolveSeed(PetComponent component, @Nullable PetImprint imprint) {
@@ -274,7 +324,8 @@ public final class NatureModifierSampler {
                                      float contagionModifier, float guardModifier,
                                      Emotion majorEmotion, float majorEmotionBase,
                                      Emotion minorEmotion, float minorEmotionBase,
-                                     Emotion quirkEmotion, float quirkEmotionBase) {
+                                     Emotion quirkEmotion, float quirkEmotionBase,
+                                     NatureMoralityProfile moralityProfile) {
     }
 
     /**

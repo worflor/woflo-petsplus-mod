@@ -21,7 +21,6 @@ import woflo.petsplus.api.registry.PetRoleType;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.roles.eclipsed.EclipsedVoid;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.ui.UIFeedbackManager;
 
 /**
  * Reduces incoming fall damage for Eclipsed owners when their companion is perched nearby.

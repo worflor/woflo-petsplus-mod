@@ -12,8 +12,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import woflo.petsplus.naming.AttributeKey;
-
 /**
  * Centralizes registration and handling metadata for special pet names.
  * Each entry wires parser patterns, optional affinity definitions, and

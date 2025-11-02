@@ -9,13 +9,13 @@ import net.minecraft.util.Formatting;
 public enum PetMood {
     HAPPY(Formatting.GOLD, Formatting.YELLOW),             // Joyful brightness
     PLAYFUL(Formatting.YELLOW, Formatting.GREEN),          // Energetic fun
-    CURIOUS(Formatting.AQUA, Formatting.WHITE),            // Wonder, exploration - bright, questioning
+    CURIOUS(Formatting.AQUA, Formatting.LIGHT_PURPLE),      // Wonder, exploration - bright, questioning
     BONDED(Formatting.DARK_AQUA, Formatting.AQUA),         // Deep connection - trust colors
     CALM(Formatting.GREEN, Formatting.DARK_GREEN),         // Peaceful, grounded greens
     PASSIONATE(Formatting.RED, Formatting.GOLD),           // Enthusiastic warmth
     YUGEN(Formatting.DARK_PURPLE, Formatting.LIGHT_PURPLE), // Subtle awareness of beauty
     FOCUSED(Formatting.BLUE, Formatting.DARK_BLUE),        // Concentrated clarity
-    SISU(Formatting.WHITE, Formatting.GOLD),               // Resilient resolve
+    SISU(Formatting.YELLOW, Formatting.GOLD),               // Resilient resolve - bright and warm instead of white
     SAUDADE(Formatting.DARK_BLUE, Formatting.BLUE),        // Nostalgic longing - deep blues
     PROTECTIVE(Formatting.BLUE, Formatting.GRAY),          // Steady guardian - reliable blues
     RESTLESS(Formatting.YELLOW, Formatting.RED),           // Agitated energy - hot, moving colors

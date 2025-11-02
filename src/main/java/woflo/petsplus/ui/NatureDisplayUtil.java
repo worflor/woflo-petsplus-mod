@@ -61,9 +61,7 @@ public final class NatureDisplayUtil {
         if (base.length() <= maxLength) {
             return base;
         }
-        if (maxLength <= 3) {
-            return base.substring(0, maxLength);
-        }
-        return base.substring(0, maxLength - 3) + "...";
+        // Hard trim without adding ellipses for consistent line rhythm
+        return base.substring(0, Math.max(0, maxLength));
     }
 }

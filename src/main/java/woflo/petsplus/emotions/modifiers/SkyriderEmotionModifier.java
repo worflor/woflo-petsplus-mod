@@ -110,6 +110,18 @@ public class SkyriderEmotionModifier extends BaseRoleEmotionModifier {
                 addEmotion(emotions, PetComponent.Emotion.HOPEFUL, 0.15f);
                 addEmotion(emotions, PetComponent.Emotion.FERNWEH, 0.1f);
             }
+            
+            case BREEDING -> {
+                // Skyrider pets find breeding somewhat restrictive
+                addEmotion(emotions, PetComponent.Emotion.CONTENT, 0.1f);
+                addEmotion(emotions, PetComponent.Emotion.HOPEFUL, 0.15f);
+            }
+            
+            case TRIBUTE -> {
+                // Skyrider pets feel restrained during tribute
+                addEmotion(emotions, PetComponent.Emotion.RESTLESS, 0.25f);
+                removeEmotion(emotions, PetComponent.Emotion.CONTENT);
+            }
         }
         
         return emotions;

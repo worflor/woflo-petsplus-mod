@@ -112,6 +112,18 @@ public class EepyEeperEmotionModifier extends BaseRoleEmotionModifier {
                 addEmotion(emotions, PetComponent.Emotion.CONTENT, 0.3f);
                 addEmotion(emotions, PetComponent.Emotion.LAGOM, 0.25f);
             }
+            
+            case BREEDING -> {
+                // Eepy Eeper pets see breeding as tiring
+                addEmotion(emotions, PetComponent.Emotion.CONTENT, 0.1f);
+                addEmotion(emotions, PetComponent.Emotion.LAGOM, 0.15f);
+            }
+            
+            case TRIBUTE -> {
+                // Eepy Eeper pets see tribute as unsettling
+                removeEmotion(emotions, PetComponent.Emotion.CHEERFUL);
+                addEmotion(emotions, PetComponent.Emotion.ENNUI, 0.2f);
+            }
         }
         
         return emotions;

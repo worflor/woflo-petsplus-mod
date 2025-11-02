@@ -4,12 +4,9 @@ package woflo.petsplus.events;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.damage.DamageTypes;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.passive.AnimalEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
 import net.minecraft.registry.tag.DamageTypeTags;
 import net.minecraft.util.math.MathHelper;
-import woflo.petsplus.Petsplus;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.stats.PetImprint;
 

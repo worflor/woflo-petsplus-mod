@@ -55,7 +55,7 @@ public class EnchantmentBoundSwimGraceEffect implements Effect {
         if (!(ownerEntity instanceof ServerPlayerEntity owner)) {
             return false;
         }
-        if (!(context.getEntityWorld() instanceof ServerWorld world)) {
+        if (!(context.getEntityWorld() instanceof ServerWorld)) {
             return false;
         }
         MobEntity pet = context.getPet();

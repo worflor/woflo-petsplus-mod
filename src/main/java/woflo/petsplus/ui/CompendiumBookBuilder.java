@@ -122,9 +122,9 @@ public class CompendiumBookBuilder {
             String baseTitle;
             String petName = getPetDisplayName(pet);
     
-            // Truncate long pet names
+            // Truncate long pet names without adding ellipses (keeps underscores intact)
             if (petName.length() > MAX_TITLE_LENGTH) {
-                petName = petName.substring(0, MAX_TITLE_LENGTH - 3) + "...";
+                petName = petName.substring(0, MAX_TITLE_LENGTH);
             }
     
             if (pet.hasCustomName()) {
@@ -134,9 +134,9 @@ public class CompendiumBookBuilder {
                 baseTitle = typeName + " Compendium";
             }
     
-            // Cap title length
+            // Cap title length without ellipses for visual cohesion
             if (baseTitle.length() > 32) {
-                baseTitle = baseTitle.substring(0, 29) + "...";
+                baseTitle = baseTitle.substring(0, 32);
             }
     
             return baseTitle;
@@ -172,24 +172,36 @@ public class CompendiumBookBuilder {
         List<Text> rawPages = new ArrayList<>();
         List<CompendiumSection> sections = new ArrayList<>();
 
-        // Profile cover page
-        rawPages.add(buildProfileCoverPage(pet, pc, currentTick, natureId));
+        // Profile overview
+        List<Text> profilePages = buildProfilePages(pet, pc, currentTick, natureId);
+        rawPages.addAll(profilePages);
         sections.add(new CompendiumSection("Profile Overview", 1));
 
         // Table of Contents placeholder (will be replaced later)
         int tocIndex = rawPages.size();
         rawPages.add(Text.literal("")); // Placeholder for ToC
 
-        // Morality section
-        List<Text> moralityPages = buildMoralitySection(pc, currentTick, natureId);
-        if (!moralityPages.isEmpty()) {
-            sections.add(new CompendiumSection("Morality", rawPages.size() + 1));
-            rawPages.addAll(moralityPages);
+        // Capabilities timeline
+        List<List<Text>> capabilitiesPages = PetCompendiumDataExtractor.buildCapabilitiesPages(pc, natureId);
+        if (!capabilitiesPages.isEmpty()) {
+            sections.add(new CompendiumSection("Capabilities", rawPages.size() + 1));
+            for (List<Text> page : capabilitiesPages) {
+                rawPages.add(linesToPage(page, natureId));
+            }
         }
+
+        // Pack Bonds (relationships)
         List<Text> relationshipPages = buildRelationshipSection(player, pet, pc, currentTick, natureId);
         if (!relationshipPages.isEmpty()) {
             sections.add(new CompendiumSection("Pack Bonds", rawPages.size() + 1));
             rawPages.addAll(relationshipPages);
+        }
+
+        // Behavioral Influence (personality drift & temperament)
+        List<Text> moralityPages = buildMoralitySection(pc, currentTick, natureId);
+        if (!moralityPages.isEmpty()) {
+            sections.add(new CompendiumSection("Behavioral Influence", rawPages.size() + 1));
+            rawPages.addAll(moralityPages);
         }
 
         // Species Memory
@@ -224,78 +236,70 @@ public class CompendiumBookBuilder {
             .toList();
     }
     
-    private static Text buildProfileCoverPage(MobEntity pet, PetComponent pc, long currentTick,
-                                              @Nullable Identifier natureId) {
+    private static List<Text> buildProfilePages(MobEntity pet, PetComponent pc, long currentTick,
+                                                @Nullable Identifier natureId) {
 
-        MutableText page = Text.literal("");
+        List<Text> logicalLines = new ArrayList<>();
 
-        // Title with nature accent
-        page.append(Text.literal(CompendiumColorTheme.formatSectionHeader("Profile Overview", natureId) + "\n"));
-        page.append(Text.literal(CompendiumColorTheme.buildSectionDivider(natureId) + "\n\n"));
-
-        // Pet name with length validation
+        // Pet name
         String petName = pet.hasCustomName() ? pet.getCustomName().getString() :
             pet.getType().getName().getString();
-
-        // Truncate pet names
         if (petName.length() > MAX_TITLE_LENGTH) {
-            petName = petName.substring(0, MAX_TITLE_LENGTH - 3) + "...";
+            petName = petName.substring(0, MAX_TITLE_LENGTH);
         }
-        
-        page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Name", petName, natureId) + "\n"));
+        logicalLines.add(Text.literal(CompendiumColorTheme.formatLabelValue("Name", petName, natureId)));
 
         // Role & nature
         Identifier roleId = pc.getRoleId();
-        PetRoleType roleType = roleId != null
-            ? PetsPlusRegistries.petRoleTypeRegistry().get(roleId)
-            : null;
+        PetRoleType roleType = roleId != null ? PetsPlusRegistries.petRoleTypeRegistry().get(roleId) : null;
         String roleName = PetCompendiumDataExtractor.getRoleDisplayName(roleId, roleType);
         if (roleName == null || roleName.isBlank()) {
             roleName = "Unassigned";
         }
-        page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Role", roleName, natureId) + "\n"));
+        logicalLines.add(Text.literal(CompendiumColorTheme.formatLabelValue("Role", roleName, natureId)));
 
         Identifier nature = natureId != null ? natureId : pc.getNatureId();
         if (nature != null) {
             String natureName = NatureDisplayUtil.formatNatureName(pc, nature, MAX_NATURE_NAME_LENGTH);
-            page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Nature", natureName, nature) + "\n"));
+            logicalLines.add(Text.literal(CompendiumColorTheme.formatLabelValue("Nature", natureName, nature)));
         }
 
         long bondStrength = pc.getBondStrength();
         if (bondStrength > 0L) {
             String bondLevel = PetCompendiumDataExtractor.getBondLevel(bondStrength);
-            page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Bond", bondLevel, natureId)
-                + CompendiumColorTheme.DARK_GRAY + " (" + bondStrength + ")" + CompendiumColorTheme.RESET + "\n"));
+            logicalLines.add(Text.literal(
+                CompendiumColorTheme.formatLabelValue("Bond", bondLevel, natureId)
+                    + CompendiumColorTheme.DARK_GRAY + " (" + bondStrength + ")" + CompendiumColorTheme.RESET
+            ));
         }
 
         String lifespan = PetCompendiumDataExtractor.formatLifespan(pc, currentTick);
         if (lifespan != null) {
-            page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Known for", lifespan, natureId) + "\n"));
+            logicalLines.add(Text.literal(CompendiumColorTheme.formatLabelValue("Known for", lifespan, natureId)));
         }
 
-        // Level & experience - combined on one line with bar below
+        // Level & experience
         int level = pc.getLevel();
         int xpProgress = Math.round(MathHelper.clamp(pc.getXpProgress(), 0f, 1f) * 100f);
-        page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Level", level + " · " + xpProgress + "%", natureId) + "\n"));
-        String xpBar = PetCompendiumDataExtractor.buildMeterBar(
-            MathHelper.clamp(pc.getXpProgress(), 0f, 1f), 8, natureId);
-        page.append(Text.literal("  " + xpBar + "\n"));
+        logicalLines.add(Text.literal(CompendiumColorTheme.formatLabelValue("Level", level + " · " + xpProgress + "%", natureId)));
+        String xpBar = PetCompendiumDataExtractor.buildMeterBar(MathHelper.clamp(pc.getXpProgress(), 0f, 1f), 8, natureId);
+        logicalLines.add(Text.literal("  " + xpBar));
 
-        // Vital stats - inline with bar
+        // Vitality
         float health = pet.getHealth();
         float maxHealth = pet.getMaxHealth();
         float normalizedHealth = maxHealth <= 0f ? 0f : MathHelper.clamp(health / maxHealth, 0f, 1f);
         String healthBar = PetCompendiumDataExtractor.buildMeterBar(normalizedHealth, 6, natureId);
-        page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Vitality", 
-            formatNumber(health, 1) + " / " + formatNumber(maxHealth, 1) + " " + healthBar, natureId) + "\n"));
+        logicalLines.add(Text.literal(CompendiumColorTheme.formatLabelValue("Vitality",
+            formatNumber(health, 1) + " / " + formatNumber(maxHealth, 1) + " " + healthBar, natureId)));
 
         MalevolenceLedger ledger = pc.getMalevolenceLedger();
         if (ledger != null) {
             MalevolenceLedger.MoralitySnapshot snapshot = ledger.describe();
             if (snapshot != null) {
-                String mood = snapshot.active() ? "stirred" : "steady";
-                page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Morality",
-                    formatNumber(snapshot.score(), 1) + " (" + mood + ")", natureId) + "\n"));
+                String state = snapshot.active() ? "malevolent" : "benign";
+                logicalLines.add(Text.literal(CompendiumColorTheme.formatLabelValue("Behavioral Influence",
+                    formatNumber(snapshot.score(), 1) + " (" + state + ")", natureId)));
             }
         }
 
@@ -303,8 +307,8 @@ public class CompendiumBookBuilder {
         if (harmonyState != null) {
             float harmonyStrength = Math.max(0f, harmonyState.harmonyStrength());
             float disharmonyStrength = Math.max(0f, harmonyState.disharmonyStrength());
-            page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Harmony",
-                formatNumber(harmonyStrength, 1) + " / " + formatNumber(disharmonyStrength, 1), natureId) + "\n"));
+            logicalLines.add(Text.literal(CompendiumColorTheme.formatLabelValue("Harmony",
+                formatNumber(harmonyStrength, 1) + " / " + formatNumber(disharmonyStrength, 1), natureId)));
         }
 
         // Progression unlocks
@@ -312,18 +316,69 @@ public class CompendiumBookBuilder {
         if (progressionModule != null) {
             int milestoneCount = progressionModule.getUnlockedMilestones().size();
             int abilityCount = progressionModule.getUnlockedAbilities().size();
-            
             if (milestoneCount > 0) {
-                page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Milestones",
-                    milestoneCount + " unlocked", natureId) + "\n"));
+                logicalLines.add(Text.literal(CompendiumColorTheme.formatLabelValue("Milestones",
+                    milestoneCount + " unlocked", natureId)));
             }
             if (abilityCount > 0) {
-                page.append(Text.literal(CompendiumColorTheme.formatLabelValue("Abilities",
-                    abilityCount + " learned", natureId) + "\n"));
+                logicalLines.add(Text.literal(CompendiumColorTheme.formatLabelValue("Abilities",
+                    abilityCount + " learned", natureId)));
             }
         }
 
-        return page;
+        // Now paginate the logical lines to avoid exceeding the book's line limit per page
+        final int MAX_LINES_PER_PAGE = 14;
+        List<Text> pages = new ArrayList<>();
+        List<Text> pageBuffer = new ArrayList<>();
+        int used = 0;
+
+        // Flush current page buffer into a page with header and divider
+        java.util.function.Consumer<Boolean> flushPage = (isFirst) -> {
+            if (pageBuffer.isEmpty()) {
+                return;
+            }
+            List<Text> composed = new ArrayList<>();
+            // Header and divider at the top of each page
+            composed.add(Text.literal(CompendiumColorTheme.formatSectionHeader("Profile Overview", natureId)));
+            composed.add(Text.literal(CompendiumColorTheme.buildSectionDivider(natureId)));
+            composed.add(Text.empty());
+            composed.addAll(pageBuffer);
+            pages.add(linesToPage(composed, natureId));
+            pageBuffer.clear();
+        };
+
+        for (Text line : logicalLines) {
+            List<Text> wrapped = wrapLinePreservingFormatting(line);
+            int needed = Math.max(1, wrapped.size());
+
+            // Count header (3 lines) when starting a new page
+            if (used == 0) {
+                used = 3; // header + divider + blank
+            }
+
+            if (used + needed > MAX_LINES_PER_PAGE) {
+                // Finish current page and start a new one
+                flushPage.accept(false);
+                used = 3; // header + divider + blank on new page
+            }
+
+            pageBuffer.add(line);
+            used += needed;
+        }
+
+        // Flush remaining content
+        flushPage.accept(true);
+
+        // Ensure at least one page exists (with just header/divider) if no lines
+        if (pages.isEmpty()) {
+            List<Text> composed = new ArrayList<>();
+            composed.add(Text.literal(CompendiumColorTheme.formatSectionHeader("Profile Overview", natureId)));
+            composed.add(Text.literal(CompendiumColorTheme.buildSectionDivider(natureId)));
+            composed.add(Text.empty());
+            pages.add(linesToPage(composed, natureId));
+        }
+
+        return pages;
     }
 
     private static Text buildTableOfContents(List<CompendiumSection> sections, @Nullable Identifier natureId,

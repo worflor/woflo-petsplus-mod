@@ -5162,7 +5162,8 @@ public final class PetMoodEngine {
         double maxIntensity = maxIntensities[levelIndex];
         double scaledIntensity = minIntensity + (breathingIntensity * (maxIntensity - minIntensity));
 
-        TextColor lightenTarget = UIStyle.interpolateColor(baseColor, TextColor.fromRgb(0xFFFFFF), 0.25f);
+        // Brighten to a light gray rather than pure white to avoid illegible text
+        TextColor lightenTarget = UIStyle.interpolateColor(baseColor, TextColor.fromRgb(0xDDDDDD), 0.25f);
         TextColor darkenTarget = UIStyle.interpolateColor(baseColor, TextColor.fromRgb(0x000000), 0.18f);
         TextColor accentBase = fallbackSecondary != null
                 ? UIStyle.interpolateColor(baseColor, fallbackSecondary, 0.15f)
