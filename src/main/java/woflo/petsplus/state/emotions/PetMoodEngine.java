@@ -52,6 +52,7 @@ import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
+import woflo.petsplus.state.personality.PersonalityProfile;
 import woflo.petsplus.state.processing.AsyncWorkCoordinator;
 import woflo.petsplus.ui.UIStyle;
 
@@ -219,6 +220,7 @@ public final class PetMoodEngine {
     private int lastRenderedPaletteGeneration = -1;
     private float animationIntensity = 0f;
     private PetComponent.NatureEmotionProfile natureEmotionProfile = PetComponent.NatureEmotionProfile.EMPTY;
+    private PersonalityProfile personalityProfile = PersonalityProfile.neutral();
 
     private float lastRelationshipGuardObserved = RELATIONSHIP_BASE;
     private float lastDangerWindowObserved = DANGER_BASE;
@@ -426,6 +428,26 @@ public final class PetMoodEngine {
         invalidateCaches();
     }
 
+    private void alignBaselinesToPersonality() {
+        float targetMomentum = computePersonalityMomentumBaseline();
+        behavioralMomentum = MathHelper.clamp(MathHelper.lerp(0.55f, behavioralMomentum, targetMomentum), 0f, 1f);
+
+        float targetSocial = computePersonalitySocialBaseline();
+        socialCharge = MathHelper.clamp(MathHelper.lerp(0.5f, socialCharge, targetSocial), 0.1f, 1f);
+
+        float targetStamina = computePersonalityStaminaBaseline();
+        physicalStamina = MathHelper.clamp(MathHelper.lerp(0.45f, physicalStamina, targetStamina), 0.05f, 1f);
+
+        float targetFocus = computePersonalityFocusBaseline();
+        mentalFocus = MathHelper.clamp(MathHelper.lerp(0.5f, mentalFocus, targetFocus), 0.05f, 1f);
+
+        float inertiaBias = 1f + personalityProfile.composure() * 0.12f - personalityProfile.playfulness() * 0.1f;
+        momentumInertia = MathHelper.clamp(momentumInertia * MathHelper.clamp(inertiaBias, 0.7f, 1.3f), 0f, 1f);
+
+        energyProfileDirty = true;
+        markStateDirty();
+    }
+
     private void markEmotionCachesDirty() {
         activeEmotionsDirty = true;
         dominantEmotionDirty = true;
@@ -520,6 +542,11 @@ public final class PetMoodEngine {
     public void onNatureEmotionProfileChanged(PetComponent.NatureEmotionProfile profile) {
         natureEmotionProfile = profile != null ? profile : PetComponent.NatureEmotionProfile.EMPTY;
         markStateDirty();
+    }
+
+    public void onPersonalityProfileChanged(PersonalityProfile profile) {
+        personalityProfile = profile != null ? profile : PersonalityProfile.neutral();
+        alignBaselinesToPersonality();
     }
 
     public PetComponent.NatureGuardTelemetry getNatureGuardTelemetry() {
@@ -1640,21 +1667,41 @@ public final class PetMoodEngine {
 
         float physicalLoad = Math.max(normalizedPhysical, recentPhysicalBurst);
         float physicalDrain = physicalLoad * (0.45f + physicalLoad * 0.25f) * dt;
+        float drainBias = MathHelper.clamp(1f + Math.max(0f, personalityProfile.playfulness()) * 0.15f
+            - Math.max(0f, personalityProfile.composure()) * 0.12f, 0.6f, 1.6f);
+        physicalDrain *= drainBias;
         float recoveryBase = 0.03f + (1f - physicalLoad) * 0.08f + socialCharge * 0.01f;
         float physicalRecovery = (recoveryBase + (0.04f + (1f - physicalStamina) * 0.12f) * normalizedRest) * dt;
+        float recoveryBias = MathHelper.clamp(1f + personalityProfile.bravery() * 0.1f
+            + personalityProfile.composure() * 0.08f, 0.7f, 1.5f);
+        physicalRecovery *= recoveryBias;
         physicalStamina = MathHelper.clamp(physicalStamina + physicalRecovery - physicalDrain, 0.05f, 1f);
         recentPhysicalBurst = Math.max(0f, recentPhysicalBurst - dt * 0.6f);
 
         float calmMood = behavior.moodBlendSnapshot().getOrDefault(PetComponent.Mood.CALM, 0f);
         float focusMood = behavior.moodBlendSnapshot().getOrDefault(PetComponent.Mood.CURIOUS, 0f);
         float mentalDrain = normalizedMental * (0.5f + normalizedMental * 0.2f) * dt;
+        float mentalDrainBias = MathHelper.clamp(1f - Math.max(0f, personalityProfile.composure()) * 0.08f
+            + Math.max(0f, personalityProfile.playfulness()) * 0.05f, 0.6f, 1.4f);
+        mentalDrain *= mentalDrainBias;
         float mentalRecovery = (0.025f + (1f - normalizedMental) * 0.05f + calmMood * 0.04f + focusMood * 0.02f) * dt;
+        float mentalRecoveryBias = MathHelper.clamp(1f + personalityProfile.curiosity() * 0.18f
+            + personalityProfile.composure() * 0.06f, 0.7f, 1.6f);
+        mentalRecovery *= mentalRecoveryBias;
         mentalFocus = MathHelper.clamp(mentalFocus + mentalRecovery - mentalDrain, 0.05f, 1f);
 
         float familiarityPenalty = MathHelper.clamp(0.25f - ambientSocial * 0.18f, 0.05f, 0.25f);
+        familiarityPenalty *= MathHelper.clamp(1f - personalityProfile.affection() * 0.25f
+            + Math.max(0f, personalityProfile.vigilance()) * 0.15f, 0.6f, 1.5f);
         float socialGain = (normalizedSocial * (0.55f + bondFactor * 0.25f)) * dt;
+        float socialGainBias = MathHelper.clamp(1f + personalityProfile.affection() * 0.3f
+            + personalityProfile.playfulness() * 0.12f, 0.6f, 1.6f);
+        socialGain *= socialGainBias;
         float ambientBoost = ambientSocial * 0.05f * dt;
+        ambientBoost *= MathHelper.clamp(1f + personalityProfile.affection() * 0.2f, 0.6f, 1.5f);
         float socialDecay = (0.02f + familiarityPenalty * normalizedSocial + (1f - ambientSocial) * 0.02f) * dt;
+        socialDecay *= MathHelper.clamp(1f - personalityProfile.affection() * 0.2f
+            + personalityProfile.vigilance() * 0.15f, 0.6f, 1.6f);
         socialCharge = MathHelper.clamp(socialCharge + socialGain + ambientBoost - socialDecay, 0.1f, 1f);
 
         float decayFactor = Math.max(0f, 1f - delta * 0.005f);
@@ -1830,6 +1877,7 @@ public final class PetMoodEngine {
         }
 
         baseline += (behavior.volatilityMultiplier() - 1.0f) * 0.15f;
+        baseline += personalityMomentumBias();
 
         long timeOfDay = behavior.timeOfDay();
         if (timeOfDay >= 6000 && timeOfDay <= 18000) {
@@ -1845,6 +1893,56 @@ public final class PetMoodEngine {
         return MathHelper.clamp(baseline, 0.15f, 0.85f);
     }
 
+    private float computePersonalityMomentumBaseline() {
+        float base = 0.5f;
+        base += personalityProfile.playfulness() * 0.18f;
+        base += personalityProfile.curiosity() * 0.12f;
+        base += Math.max(0f, personalityProfile.bravery()) * 0.1f;
+        base -= Math.max(0f, personalityProfile.vigilance()) * 0.12f;
+        base -= Math.max(0f, personalityProfile.composure()) * 0.08f;
+        base -= Math.max(0f, -personalityProfile.bravery()) * 0.15f;
+        return MathHelper.clamp(base, 0.2f, 0.85f);
+    }
+
+    private float computePersonalitySocialBaseline() {
+        float base = 0.45f;
+        base += personalityProfile.affection() * 0.25f;
+        base += personalityProfile.playfulness() * 0.15f;
+        base -= Math.max(0f, -personalityProfile.affection()) * 0.2f;
+        base -= Math.max(0f, personalityProfile.vigilance()) * 0.1f;
+        return MathHelper.clamp(base, 0.1f, 0.9f);
+    }
+
+    private float computePersonalityStaminaBaseline() {
+        float base = 0.65f;
+        base += personalityProfile.bravery() * 0.15f;
+        base += personalityProfile.composure() * 0.1f;
+        base -= Math.max(0f, personalityProfile.playfulness()) * 0.12f;
+        return MathHelper.clamp(base, 0.35f, 0.95f);
+    }
+
+    private float computePersonalityFocusBaseline() {
+        float base = 0.6f;
+        base += personalityProfile.curiosity() * 0.2f;
+        base += personalityProfile.composure() * 0.1f;
+        base -= Math.max(0f, personalityProfile.playfulness()) * 0.08f;
+        return MathHelper.clamp(base, 0.35f, 0.95f);
+    }
+
+    private float personalityMomentumBias() {
+        if (personalityProfile == null) {
+            return 0f;
+        }
+        float bias = 0f;
+        bias += personalityProfile.playfulness() * 0.18f;
+        bias += personalityProfile.curiosity() * 0.12f;
+        bias += Math.max(0f, personalityProfile.bravery()) * 0.1f;
+        bias -= Math.max(0f, personalityProfile.vigilance()) * 0.12f;
+        bias -= Math.max(0f, personalityProfile.composure()) * 0.08f;
+        bias -= Math.max(0f, -personalityProfile.bravery()) * 0.15f;
+        return MathHelper.clamp(bias, -0.25f, 0.25f);
+    }
+
     private float computeActivityLevel(BehaviorSnapshot behavior) {
         float physical = Math.min(1f, behavior.physicalActivity() * 0.4f);
         float mental = Math.min(1f, behavior.mentalActivity() * 0.3f);
@@ -1856,6 +1954,10 @@ public final class PetMoodEngine {
     private float computeInertiaFactor(long deltaTicks, float momentumGap, BehaviorSnapshot behavior) {
         float resilience = Math.max(0.1f, behavior.resilienceMultiplier());
         float baseInertia = 0.05f / resilience;
+        float personalityInertia = 1f + personalityProfile.composure() * 0.15f
+            - personalityProfile.playfulness() * 0.1f
+            - personalityProfile.curiosity() * 0.05f;
+        baseInertia *= MathHelper.clamp(personalityInertia, 0.5f, 1.5f);
         float timeFactor = MathHelper.clamp(deltaTicks / 20f, 0.5f, 6f);
         float gapUrgency = MathHelper.clamp(momentumGap * 3.5f, 0f, 3.5f);
         float inertiaPulse = MathHelper.clamp(behavior.momentumInertia() * 12f, 0f, 3f);
@@ -1874,6 +1976,8 @@ public final class PetMoodEngine {
         float macroVariation = (float) Math.sin(macroPhase) * 0.035f;
 
         float variationScale = 0.5f + behavior.volatilityMultiplier() * 0.5f;
+        variationScale *= MathHelper.clamp(1f + personalityProfile.playfulness() * 0.15f
+            - personalityProfile.composure() * 0.1f, 0.5f, 1.5f);
         return (microVariation + mesoVariation + macroVariation) * variationScale;
     }
 
@@ -1895,6 +1999,8 @@ public final class PetMoodEngine {
             comfort = Math.max(comfort, (0.25f + behavior.bondStrengthNormalized() * 0.25f) * proximityScale);
         }
 
+        comfort += personalityProfile.affection() * 0.1f;
+        comfort -= Math.max(0f, personalityProfile.vigilance()) * 0.1f;
         return MathHelper.clamp(comfort, 0f, 1f);
     }
 
@@ -4211,11 +4317,45 @@ public final class PetMoodEngine {
         } else if (emotion == natureEmotionProfile.quirkEmotion()) {
             factor += natureEmotionProfile.quirkStrength() * quirkScale;
         }
-        
+
         // Ensure final factor stays within specified bounds
+        factor = MathHelper.clamp(factor, min, max);
+        factor *= getPersonalityEmotionBias(emotion);
         factor = MathHelper.clamp(factor, min, max);
         // Final safety clamp to prevent any extreme values
         return MathHelper.clamp(factor, 0.0f, 1.40f); // Phase 2 tuning
+    }
+
+    private float getPersonalityEmotionBias(PetComponent.Emotion emotion) {
+        if (emotion == null || personalityProfile == null) {
+            return 1f;
+        }
+        float affection = personalityProfile.affection();
+        float playfulness = personalityProfile.playfulness();
+        float curiosity = personalityProfile.curiosity();
+        float vigilance = personalityProfile.vigilance();
+        float bravery = personalityProfile.bravery();
+        float composure = personalityProfile.composure();
+
+        float bias = 1f;
+        switch (emotion) {
+            case CHEERFUL, UBUNTU, KEFI, CONTENT, QUERECIA, HANYAUKU, PRIDE ->
+                bias += affection * 0.25f + playfulness * 0.12f;
+            case PLAYFULNESS, RESTLESS ->
+                bias += playfulness * 0.3f - composure * 0.15f;
+            case CURIOUS, FOCUSED, HOPEFUL ->
+                bias += curiosity * 0.3f + playfulness * 0.08f;
+            case GUARDIAN_VIGIL, PROTECTIVE, LOYALTY, STOIC, SISU, GAMAN ->
+                bias += bravery * 0.3f - Math.max(0f, vigilance) * 0.15f;
+            case ANGST, FOREBODING, WORRIED, VIGILANT ->
+                bias += vigilance * 0.35f - Math.max(0f, bravery) * 0.2f;
+            case SAUDADE, YUGEN, HIRAETH, MONO_NO_AWARE, WABI_SABI, NOSTALGIA ->
+                bias += composure * 0.25f - playfulness * 0.1f;
+            default ->
+                bias += affection * 0.1f + curiosity * 0.05f;
+        }
+
+        return MathHelper.clamp(bias, 0.65f, 1.35f);
     }
 
     private Map<PetComponent.Mood, Float> getEmotionToMoodWeights(PetComponent.Emotion emotion) {

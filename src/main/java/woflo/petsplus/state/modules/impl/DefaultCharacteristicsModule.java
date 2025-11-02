@@ -17,6 +17,7 @@ import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.PetComponent.NatureEmotionProfile;
 import woflo.petsplus.state.modules.CharacteristicsModule;
 import woflo.petsplus.stats.PetImprint;
+import woflo.petsplus.state.personality.PersonalityProfile;
 
 public final class DefaultCharacteristicsModule implements CharacteristicsModule {
     private static final float MIN_VOLATILITY = 0.3f;
@@ -41,6 +42,7 @@ public final class DefaultCharacteristicsModule implements CharacteristicsModule
 
     private PetComponent parent;
     private @Nullable PetImprint imprint;
+    private PersonalityProfile personalityProfile = PersonalityProfile.neutral();
     private float natureVolatilityMultiplier = 1.0f;
     private float natureResilienceMultiplier = 1.0f;
     private float natureContagionModifier = 1.0f;
@@ -59,6 +61,7 @@ public final class DefaultCharacteristicsModule implements CharacteristicsModule
         parent = null;
         nameAttributes = new ArrayList<>();
         imprint = null;
+        personalityProfile = PersonalityProfile.neutral();
         natureEmotionProfile = NatureEmotionProfile.EMPTY;
         natureVolatilityMultiplier = 1.0f;
         natureResilienceMultiplier = 1.0f;
@@ -77,7 +80,13 @@ public final class DefaultCharacteristicsModule implements CharacteristicsModule
             return false;
         }
         this.imprint = imprint;
+        this.personalityProfile = PersonalityProfile.fromImprint(imprint);
         return true;
+    }
+
+    @Override
+    public PersonalityProfile getPersonalityProfile() {
+        return personalityProfile;
     }
 
     @Override
@@ -243,6 +252,7 @@ public final class DefaultCharacteristicsModule implements CharacteristicsModule
         
         return new Data(
             imprint,
+            personalityProfile,
             natureVolatilityMultiplier,
             natureResilienceMultiplier,
             natureContagionModifier,
@@ -256,6 +266,7 @@ public final class DefaultCharacteristicsModule implements CharacteristicsModule
     @Override
     public void fromData(Data data) {
         imprint = data.imprint();
+        personalityProfile = derivePersonalityProfile(imprint, data.personalityProfile());
         natureVolatilityMultiplier = data.natureVolatilityMultiplier();
         natureResilienceMultiplier = data.natureResilienceMultiplier();
         natureContagionModifier = data.natureContagionModifier();
@@ -268,6 +279,17 @@ public final class DefaultCharacteristicsModule implements CharacteristicsModule
         data.roleAffinityBonuses().forEach((id, arr) -> roleAffinityBonuses.put(id, arr.clone()));
         
         syncCharacteristicAffinityLookup();
+    }
+
+    private static PersonalityProfile derivePersonalityProfile(@Nullable PetImprint imprint,
+                                                               @Nullable PersonalityProfile stored) {
+        if (imprint != null) {
+            return PersonalityProfile.fromImprint(imprint);
+        }
+        if (stored != null) {
+            return stored;
+        }
+        return PersonalityProfile.neutral();
     }
 
     private NatureEmotionProfile sanitizeNatureProfile(@Nullable NatureEmotionProfile profile) {

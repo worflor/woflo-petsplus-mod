@@ -13,11 +13,13 @@ import org.jetbrains.annotations.Nullable;
 import woflo.petsplus.naming.AttributeKey;
 import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.stats.PetImprint;
+import woflo.petsplus.state.personality.PersonalityProfile;
 import woflo.petsplus.util.CodecUtils;
 
 public interface CharacteristicsModule extends DataBackedModule<CharacteristicsModule.Data> {
     @Nullable PetImprint getImprint();
     boolean setImprint(@Nullable PetImprint imprint);
+    PersonalityProfile getPersonalityProfile();
 
     PetComponent.NatureEmotionProfile getNatureEmotionProfile();
     boolean setNatureEmotionProfile(PetComponent.NatureEmotionProfile profile);
@@ -41,6 +43,7 @@ public interface CharacteristicsModule extends DataBackedModule<CharacteristicsM
 
     record Data(
         @Nullable PetImprint imprint,
+        @Nullable PersonalityProfile personalityProfile,
         float natureVolatilityMultiplier,
         float natureResilienceMultiplier,
         float natureContagionModifier,
@@ -97,6 +100,8 @@ public interface CharacteristicsModule extends DataBackedModule<CharacteristicsM
             instance.group(
                 PetImprint.CODEC.optionalFieldOf("imprint")
                     .forGetter(data -> Optional.ofNullable(data.imprint())),
+                PersonalityProfile.CODEC.optionalFieldOf("personalityProfile")
+                    .forGetter(data -> Optional.ofNullable(data.personalityProfile())),
                 Codec.FLOAT.fieldOf("natureVolatilityMultiplier").orElse(1.0f)
                     .forGetter(Data::natureVolatilityMultiplier),
                 Codec.FLOAT.fieldOf("natureResilienceMultiplier").orElse(1.0f)
@@ -112,9 +117,10 @@ public interface CharacteristicsModule extends DataBackedModule<CharacteristicsM
                 Codec.unboundedMap(CodecUtils.identifierCodec(), Codec.FLOAT.listOf())
                     .fieldOf("roleAffinityBonuses").orElse(Map.of())
                     .forGetter(data -> encodeRoleAffinityBonuses(data.roleAffinityBonuses()))
-            ).apply(instance, (imprint, volatility, resilience, contagion, guard, profile, attributes, bonuses) ->
+            ).apply(instance, (imprint, personality, volatility, resilience, contagion, guard, profile, attributes, bonuses) ->
                 new Data(
                     imprint.orElse(null),
+                    personality.orElse(null),
                     volatility,
                     resilience,
                     contagion,
