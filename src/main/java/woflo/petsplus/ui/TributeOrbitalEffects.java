@@ -28,10 +28,9 @@ public class TributeOrbitalEffects {
     private static final Map<String, OrbitalConfiguration> ORBITAL_CONFIGS = new HashMap<>();
     private static final long ORBITAL_UPDATE_INTERVAL = 80; // 4 seconds, aligned with ambient particles
 
-    // Performance optimization: Cache orbital positions for smooth interpolation
-    private static final int CACHE_SIZE = 100; // Number of pre-computed positions per ring
-    private static final int MAX_CACHE_ENTRIES = 50; // Maximum number of distinct orbital paths to cache
-    // Using LinkedHashMap with insertion-order for proper FIFO eviction (oldest entries removed first)
+    // Pre-computed orbital paths for smooth interpolation
+    private static final int CACHE_SIZE = 100;
+    private static final int MAX_CACHE_ENTRIES = 50;
     private static final Map<String, List<Vec3d>> ORBITAL_PATH_CACHE = new java.util.LinkedHashMap<>(
         MAX_CACHE_ENTRIES + 1, 0.75f, false);
 
@@ -191,7 +190,7 @@ public class TributeOrbitalEffects {
         double configIntensity = configInstance.getTributeOrbitalIntensityMultiplier();
         double intensityMultiplier = Math.max(0.0, config.intensityMultiplier) * Math.max(0.0, configIntensity);
 
-        // Sustained budget: cap total particles emitted this 4s cycle to <= 6
+        // Cap particles this cycle: max 6
         final int cycleCap = 6;
         int emittedThisCycle = 0;
 
@@ -199,8 +198,7 @@ public class TributeOrbitalEffects {
         for (OrbitalRing ring : config.rings) {
             if (emittedThisCycle >= cycleCap) break;
 
-            // Determine how many points to emit from this ring, distributing budget across rings
-            // Even split across rings, but ensure at least 1 from each until cap is used.
+            // Distribute budget across rings, at least 1 per ring until cap
             int ringsCount = Math.max(1, config.rings.size());
             int perRingBase = Math.max(1, cycleCap / ringsCount);
             int remaining = Math.max(0, cycleCap - emittedThisCycle);
@@ -221,7 +219,7 @@ public class TributeOrbitalEffects {
                     1, 0.01, 0.01, 0.01, 0.005);
                 emittedThisCycle++;
 
-                // Trails only if budget allows, emit very sparsely
+                // Sparse trails if budget allows
                 if (config.hasTrails && emittedThisCycle < cycleCap && s % Math.max(2, samples) == 0) {
                     Vec3d trailPos = getInterpolatedOrbitalPosition(pet, ring, particleTime - 0.2);
                     world.spawnParticles(config.secondaryParticle,
@@ -232,9 +230,9 @@ public class TributeOrbitalEffects {
             }
         }
 
-        // Level 30 occasional extra effect: reduce to a minimal, budget-respecting hint
+        // Level 30 subtle extra effect
         if (tributeLevel == 30 && emittedThisCycle < cycleCap && world.getRandom().nextFloat() < 0.05f) {
-            // Single subtle flame at center instead of a ring burst
+            // Single subtle flame at center
             Vec3d petPos = pet.getLerpedPos(1.0f);
             double centerY = PetUIHelper.getChestAnchorY(pet);
             world.spawnParticles(ParticleTypes.FLAME,
@@ -245,8 +243,7 @@ public class TributeOrbitalEffects {
 
     private static void emitOrbitalRing(MobEntity pet, ServerWorld world, OrbitalRing ring,
                                       OrbitalConfiguration config, double time, double intensityMultiplier) {
-        // Replaced by per-cycle sampling in emitTributeOrbital; keep as no-op to maintain API
-        // Intentionally left minimal to avoid heavy bursts.
+        // Replaced by per-cycle sampling in emitTributeOrbital
     }
 
     private static void emitNetheriteBurstEffect(MobEntity pet, ServerWorld world, OrbitalConfiguration config) {
@@ -309,13 +306,12 @@ public class TributeOrbitalEffects {
     }
 
     /**
-     * Pre-compute orbital path for performance optimization
+     * Pre-compute orbital path for performance optimization.
      */
     private static List<Vec3d> getOrCreateOrbitalPath(OrbitalRing ring, String ringKey) {
         return ORBITAL_PATH_CACHE.computeIfAbsent(ringKey, key -> {
-            // Prevent unbounded cache growth by removing oldest entry (FIFO eviction via LinkedHashMap)
+            // Evict oldest entry if cache is full
             if (ORBITAL_PATH_CACHE.size() >= MAX_CACHE_ENTRIES) {
-                // Remove first entry - LinkedHashMap guarantees insertion-order iteration
                 String firstKey = ORBITAL_PATH_CACHE.keySet().iterator().next();
                 ORBITAL_PATH_CACHE.remove(firstKey);
             }

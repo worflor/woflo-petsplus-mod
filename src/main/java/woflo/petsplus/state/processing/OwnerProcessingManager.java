@@ -467,6 +467,7 @@ public final class OwnerProcessingManager {
         eventDueWheelSize.incrementAndGet();
     }
 
+    private void promoteDueEvents() {
         eventDueWheel.drainTo(currentTick, ticket -> {
             if (ticket == null) {
                 return;
@@ -475,11 +476,10 @@ public final class OwnerProcessingManager {
                 return;
             }
             eventDueWheelSize.decrementAndGet();
-            OwnerProcessingGroup group = ticket.group;
-            OwnerProcessingGroup group = ticket.group;
-            if (group == null) {
+            if (ticket.group == null) {
                 return;
             }
+            OwnerProcessingGroup group = ticket.group;
             if (groups.get(group.ownerId()) != group) {
                 eventDueIndex.remove(group);
                 return;
@@ -550,25 +550,25 @@ public final class OwnerProcessingManager {
         EventTicket ticket = eventDueIndex.remove(target);
         if (ticket != null) {
             ticket.cancelled = true;
-    /**
-         * Prepares the manager for shutdown by clearing all pending queues and scheduled tasks.
-         * <p>
-         * This method should be called before {@link #shutdown()} to ensure that no pending work
-         * or scheduled events remain. It is safe to call this method multiple times; repeated calls
-         * will have no adverse effect. The manager should not be processing or scheduling new work
-         * when this method is called.
-         * <p>
-         * Any in-flight work that has not yet been processed will be discarded, and the manager will be left in a cleared state
-         * with no pending or scheduled tasks. After calling this method, the manager can continue to be used and new work can be scheduled
-         * unless {@link #shutdown()} is called, which permanently disables the manager.
-         */
-        public void prepareForShutdown() {
-            pendingQueue.clear();
-            orphanTasks.clear();
-            eventDueWheel.clear();
-            eventDueIndex.clear();
-            eventDueWheelSize.set(0);
         }
+    }
+
+    /**
+     * Prepares the manager for shutdown by clearing all pending queues and scheduled tasks.
+     * <p>
+     * This method should be called before {@link #shutdown()} to ensure that no pending work
+     * or scheduled events remain. It is safe to call this method multiple times; repeated calls
+     * will have no adverse effect. The manager should not be processing or scheduling new work
+     * when this method is called.
+     * <p>
+     * Any in-flight work that has not yet been processed will be discarded, and the manager will be left in a cleared state
+     * with no pending or scheduled tasks. After calling this method, the manager can continue to be used and new work can be scheduled
+     * unless {@link #shutdown()} is called, which permanently disables the manager.
+     */
+    public void prepareForShutdown() {
+        pendingQueue.clear();
+        orphanTasks.clear();
+        eventDueWheel.clear();
         eventDueIndex.clear();
         eventDueWheelSize.set(0);
     }

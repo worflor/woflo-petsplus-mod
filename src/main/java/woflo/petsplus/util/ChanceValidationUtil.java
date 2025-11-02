@@ -9,7 +9,7 @@ import net.minecraft.util.math.MathHelper;
 public final class ChanceValidationUtil {
     
     private ChanceValidationUtil() {
-        // Utility class - prevent instantiation
+        // Non-instantiable utility class
     }
     
     /**
@@ -94,7 +94,7 @@ public final class ChanceValidationUtil {
             double originalChance = chance;
             double validatedChance = validateChance(chance);
             
-            // Log the validation issue (using a simple approach to avoid dependencies)
+            // Log out-of-range value
             System.err.println("[PetsPlus] Chance value for '" + configKey + "' was out of range [" + 
                              originalChance + "], clamped to [" + validatedChance + "]");
             
@@ -115,7 +115,7 @@ public final class ChanceValidationUtil {
             float originalChance = chance;
             float validatedChance = validateChance(chance);
             
-            // Log the validation issue (using a simple approach to avoid dependencies)
+            // Log out-of-range value
             System.err.println("[PetsPlus] Chance value for '" + configKey + "' was out of range [" + 
                              originalChance + "], clamped to [" + validatedChance + "]");
             

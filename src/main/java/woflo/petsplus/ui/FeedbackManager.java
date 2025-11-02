@@ -35,13 +35,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Centralized feedback system for visual and audio effects throughout the mod.
- * Handles both ambient role particles and ability-triggered feedback.
+ * Centralized feedback system for particle effects and audio.
+ * Handles role ambient particles and ability-triggered events.
  */
 public class FeedbackManager {
 
     private static final int AMBIENT_PARTICLE_INTERVAL = 80; // 4 seconds
-    // Debounce map: last emit tick per source key (debounce)
     private static final ConcurrentHashMap<Object, Long> LAST_EMIT_TICK = new ConcurrentHashMap<>();
     private static final Set<ScheduledFuture<?>> PENDING_TASKS = ConcurrentHashMap.newKeySet();
     private static final AtomicBoolean IS_SHUTTING_DOWN = new AtomicBoolean(false);
@@ -56,10 +55,9 @@ public class FeedbackManager {
         6L,
         40L
     );
-    // Define handler first to avoid any static-init ordering surprises
     private static final Thread.UncaughtExceptionHandler FEEDBACK_EXCEPTION_HANDLER = (thread, throwable) ->
         Petsplus.LOGGER.error("Uncaught exception in feedback executor thread {}", thread.getName(), throwable);
-    private static ScheduledThreadPoolExecutor feedbackExecutor = null; // initialized lazily
+    private static ScheduledThreadPoolExecutor feedbackExecutor = null;
 
     private static final class DebounceKey {
         private final Object source;
@@ -70,16 +68,6 @@ public class FeedbackManager {
             this.source = Objects.requireNonNull(source, "source");
             this.eventName = eventName == null ? "" : eventName;
             this.hash = Objects.hash(this.source, this.eventName);
-        /**
-         * Register a new ground trail definition.
-         */
-        public static void registerGroundTrail(GroundTrailDefinition definition) {
-            if (definition == null || definition.stateKey() == null || definition.stateKey().isBlank()) {
-                return;
-            }
-    
-            GROUND_TRAILS_BY_STATE.put(definition.stateKey(), definition);
-            GROUND_TRAILS_BY_EVENT.put(definition.eventName(), definition);
         }
 
         @Override
@@ -99,28 +87,36 @@ public class FeedbackManager {
         }
     }
 
-    // Static initialization block with shutdown hook registration
+    /**
+     * Register a ground trail visual definition.
+     */
+    public static void registerGroundTrail(GroundTrailDefinition definition) {
+        if (definition == null || definition.stateKey() == null || definition.stateKey().isBlank()) {
+            return;
+        }
+
+        GROUND_TRAILS_BY_STATE.put(definition.stateKey(), definition);
+        GROUND_TRAILS_BY_EVENT.put(definition.eventName(), definition);
+    }
+
+    // Initialize trail definitions and setup shutdown hook
     static {
         registerGroundTrail(LOCH_TRAIL_DEFINITION);
         try {
-            // Avoid preview Thread Builders to prevent NPEs during class init on server thread
             Thread shutdown = new Thread(FeedbackManager::cleanup, "PetsPlus-FeedbackShutdownHook");
             shutdown.setDaemon(true);
             Runtime.getRuntime().addShutdownHook(shutdown);
         } catch (Throwable t) {
-            // Last-resort fallback: log and continue without hook
             Petsplus.LOGGER.warn("Failed to register feedback shutdown hook", t);
         }
     }
 
     private static ScheduledThreadPoolExecutor createExecutor() {
-        // Use basic ThreadFactory to avoid PlatformThreadBuilder initialization issues on some JVMs/contexts
-        java.util.concurrent.ThreadFactory factory = r -> {
-            Thread t = new Thread(r, "PetsPlus-Feedback-1");
-            t.setDaemon(true);
-            t.setUncaughtExceptionHandler(FEEDBACK_EXCEPTION_HANDLER);
-            return t;
-        };
+        java.util.concurrent.ThreadFactory factory = Thread.ofVirtual()
+            .name("PetsPlus-Feedback-", 1)
+            .uncaughtExceptionHandler(FEEDBACK_EXCEPTION_HANDLER)
+            .factory();
+        
         ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, factory);
         executor.setRemoveOnCancelPolicy(true);
         executor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
@@ -159,7 +155,7 @@ public class FeedbackManager {
         var effect = FeedbackConfig.getFeedback(eventName);
         if (effect == null) return;
 
-        // Per-source debounce scoped by event so independent feedback can coexist (debounce)
+        // Per-source debounce scoped by event
         String normalizedEvent = eventName == null ? "" : eventName;
         Object sourceToken;
         if (sourceEntity != null) {
@@ -194,7 +190,7 @@ public class FeedbackManager {
             try {
                 server.execute(() -> invocation.dispatch(server));
             } catch (java.util.concurrent.RejectedExecutionException e) {
-                // Server is stopping or has stopped, ignore safely
+                // Server is stopping
             }
             return;
         }
@@ -226,7 +222,6 @@ public class FeedbackManager {
                         }
                     });
                 } catch (Exception e) {
-                    // Exception during feedback scheduling; log for debugging
                     Petsplus.LOGGER.warn("Exception occurred while scheduling delayed feedback for event '{}': {}", eventName, e.toString(), e);
                 } finally {
                     PENDING_TASKS.remove(handle[0]);
@@ -235,18 +230,12 @@ public class FeedbackManager {
             handle[0] = executor.schedule(task, delayTicks * 50L, TimeUnit.MILLISECONDS);
             PENDING_TASKS.add(handle[0]);
         } catch (RejectedExecutionException e) {
-            // Handle executor shutdown case gracefully
-            // Avoid noisy stderr; rely on server log if needed
+            // Executor is shutdown
         }
-    }
-        }
-
-        GROUND_TRAILS_BY_STATE.put(definition.stateKey(), definition);
-        GROUND_TRAILS_BY_EVENT.put(definition.eventName(), definition);
     }
 
     /**
-     * Remove a previously registered ground trail definition.
+     * Unregister a ground trail definition.
      */
     public static boolean unregisterGroundTrail(String stateKey) {
         if (stateKey == null || stateKey.isBlank()) {
@@ -277,7 +266,7 @@ public class FeedbackManager {
     }
 
     /**
-     * Emit any registered ground trails driven by component state flags.
+     * Emit registered ground trails based on component state flags.
      */
     public static boolean emitGroundTrails(MobEntity pet, PetComponent component, ServerWorld world, long currentTick) {
         if (pet == null || component == null || world == null || world.isClient()) {
@@ -339,14 +328,14 @@ public class FeedbackManager {
         var component = PetComponent.get(pet);
         if (component == null) return;
 
-        // Don't emit during combat for cleaner visuals
+        // Skip ambient particles during combat
         if (world.getTime() - component.getLastAttackTick() < 60) return;
 
-        // Check for creator tag (dev crown) first
+        // Check for creator tag first
         Boolean hasCreatorTag = component.getStateData("special_tag_creator", Boolean.class, false);
         if (hasCreatorTag) {
             emitDevCrown(pet, world, currentTick);
-            return; // Crown replaces regular ambient particles for extra special feel
+            return;
         }
 
         Identifier roleId = component.getRoleId();
@@ -364,29 +353,26 @@ public class FeedbackManager {
     }
 
     /**
-     * Emit the developer crown particle effect for creator pets (e.g., "woflo").
-     * Creates a slowly rotating ring of END_ROD particles above the pet's head.
+     * Emit the developer crown particle effect for creator pets.
      */
     public static void emitDevCrown(MobEntity pet, ServerWorld world, long currentTick) {
         if (!pet.isAlive() || pet.isRemoved()) return;
 
-        // Check if dev crown is enabled in config
         var config = woflo.petsplus.config.PetsPlusConfig.getInstance();
         if (!config.isDevCrownEnabled()) return;
 
-        // Route through registry; pattern handles ring + optional sparkles budgeted per ambient cadence
         emitFeedback("dev_crown_ambient", pet, world);
     }
 
     /**
-     * Check if an entity should have ambient particles (used by existing ParticleEffectManager).
+     * Check if an entity should have ambient particles.
      */
     public static boolean shouldEmitAmbientParticles(MobEntity pet, ServerWorld world) {
         if (world == null || world.isClient()) return false;
         var component = PetComponent.get(pet);
         if (component == null) return false;
 
-        // Don't emit if in recent combat
+        // Skip if in recent combat
         long lastAttack = component.getLastAttackTick();
         if (world.getTime() - lastAttack < 60) return false;
 
@@ -396,7 +382,8 @@ public class FeedbackManager {
     private static void executeImmediateFeedback(String eventName, FeedbackConfig.FeedbackEffect effect, Vec3d position,
                                                ServerWorld world, Entity sourceEntity) {
         if (effect == null || world == null || world.isClient() || position == null) return;
-        // Emit particles with per-call total budget clamp (budget)
+        
+        // Budget cap for particle spawning per feedback event
         final int MAX_BUDGET = 48;
         int totalPlanned = 0;
         if (effect.particles() != null) {
@@ -414,7 +401,7 @@ public class FeedbackManager {
         if (effect.particles() != null) {
             for (var particleConfig : effect.particles()) {
                 if (particleConfig == null) continue;
-                // Scale count proportionally, ensure at least 1 if originally >0 and budget remains
+                
                 int scaled = particleConfig.count();
                 if (scale < 1.0f) {
                     scaled = Math.max(1, Math.round(particleConfig.count() * scale));
@@ -423,7 +410,7 @@ public class FeedbackManager {
                 if (remaining <= 0) break;
                 int capped = Math.min(scaled, remaining);
                 if (capped <= 0) continue;
-                // Emit using override count without constructing new ParticleConfig
+                
                 emitParticlePatternWithCount(particleConfig, capped, position, world, sourceEntity, eventName);
                 spent += capped;
             }
@@ -437,7 +424,7 @@ public class FeedbackManager {
         }
     }
 
-    // Internal helper to emit a pattern using an override count without modifying config (budget)
+    // Helper to emit a pattern using override count
     private static void emitParticlePatternWithCount(FeedbackConfig.ParticleConfig config, int overrideCount,
                                                     Vec3d position, ServerWorld world, Entity sourceEntity,
                                                     @Nullable String eventName) {
@@ -759,18 +746,15 @@ public class FeedbackManager {
     }
 
     /**
-     * Emit particles in a scattered pattern across the ground within the aura radius.
-     * Perfect for showing regeneration areas, gathering zones, etc.
+     * Emit particles in a scattered pattern within the aura radius.
      */
     private static void emitAuraRadiusGround(FeedbackConfig.ParticleConfig config, Vec3d pos, ServerWorld world, double radius) {
         for (int i = 0; i < config.count(); i++) {
-            // Random positions within the circular area
             double angle = world.getRandom().nextDouble() * Math.PI * 2;
-            double r = Math.sqrt(world.getRandom().nextDouble()) * radius; // Uniform distribution
+            double r = Math.sqrt(world.getRandom().nextDouble()) * radius;
             double x = pos.x + Math.cos(angle) * r;
             double z = pos.z + Math.sin(angle) * r;
 
-            // Ground-level particles with slight rise
             double y = pos.y + config.offsetY() + world.getRandom().nextDouble() * 0.1;
 
             world.spawnParticles(config.type(), x, y, z,
@@ -779,15 +763,13 @@ public class FeedbackManager {
     }
 
     /**
-     * Emit particles around the edge/circumference of the aura radius.
-     * Perfect for showing ability borders, detection ranges, etc.
+     * Emit particles around the circumference of the aura radius.
      */
     private static void emitAuraRadiusEdge(FeedbackConfig.ParticleConfig config, Vec3d pos, ServerWorld world, double radius) {
         for (int i = 0; i < config.count(); i++) {
-            // Positions around the circumference with slight randomization
             double baseAngle = (i / (double) config.count()) * Math.PI * 2;
-            double angle = baseAngle + (world.getRandom().nextDouble() - 0.5) * 0.3; // +/-0.15 radians variance
-            double r = radius + (world.getRandom().nextDouble() - 0.5) * 0.5; // +/-0.25 block variance
+            double angle = baseAngle + (world.getRandom().nextDouble() - 0.5) * 0.3;
+            double r = radius + (world.getRandom().nextDouble() - 0.5) * 0.5;
 
             double x = pos.x + Math.cos(angle) * r;
             double z = pos.z + Math.sin(angle) * r;
@@ -879,7 +861,7 @@ public class FeedbackManager {
     }
 
     /**
-     * Emit orbital patterns for tribute effects
+     * Emit orbital patterns for tribute effects.
      */
     private static void emitOrbitalSingle(FeedbackConfig.ParticleConfig config, Vec3d pos, ServerWorld world, Entity sourceEntity) {
         if (!(sourceEntity instanceof MobEntity pet)) {
@@ -914,30 +896,18 @@ public class FeedbackManager {
     }
 
     /**
-     * Emit contagion particle effects based on emotion type
+     * Emit contagion particle effects based on emotion type.
      */
     public static void emitContagionFeedback(MobEntity pet, ServerWorld world, PetComponent.Emotion emotion) {
         if (pet == null || world == null || emotion == null) return;
         
         String eventName = switch (emotion) {
-            // Positive emotions
             case KEFI, RELIEF, CHEERFUL, CONTENT, PRIDE -> "contagion_positive";
-            
-            // Negative emotions
             case FOREBODING, ANGST, STARTLE, DISGUST -> "contagion_negative";
-            
-            // Combat emotions
             case GUARDIAN_VIGIL, PROTECTIVE, FOCUSED -> "contagion_combat";
-            
-            // Discovery emotions
             case CURIOUS, YUGEN, MONO_NO_AWARE, FERNWEH -> "contagion_discovery";
-            
-            // Social emotions
             case SOBREMESA, UBUNTU, LAGOM -> "contagion_social";
-            
-            // Neutral emotions
             case STOIC, VIGILANT, GAMAN, HIRAETH, REGRET -> "contagion_neutral";
-            
             default -> null;
         };
         
@@ -948,7 +918,6 @@ public class FeedbackManager {
 
     /**
      * Cancel all pending feedback tasks.
-     * Useful for immediate cleanup without full shutdown.
      */
     public static void cancelFeedbackTasks() {
         for (ScheduledFuture<?> future : PENDING_TASKS) {
@@ -967,8 +936,7 @@ public class FeedbackManager {
     }
     
     /**
-     * Clean up all delayed tasks and resources.
-     * Should be called during server shutdown to prevent watchdog timeouts.
+     * Clean up delayed tasks and resources on server shutdown.
      */
     public static void cleanup() {
         boolean alreadyShuttingDown = IS_SHUTTING_DOWN.getAndSet(true);

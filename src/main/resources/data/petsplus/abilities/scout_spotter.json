@@ -1,0 +1,19 @@
+{
+  "id": "petsplus:scout_spotter",
+  "required_level": 10,
+  "trigger": {
+    "event": "owner_dealt_damage",
+    "internal_cd_ticks": 0
+  },
+  "effects": [
+    {
+      "type": "scout_spotter_fallback",
+      "radius": 16.0,
+      "min_level": 10,
+      "idle_ticks": 60,
+      "cooldown_ticks": 300,
+      "glow_duration_ticks": 40,
+      "send_message": false
+    }
+  ]
+}

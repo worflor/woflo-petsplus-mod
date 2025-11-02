@@ -118,18 +118,18 @@ public final class BossBarManager implements PlayerTickListener {
     public static void showOrUpdateBossBar(ServerPlayerEntity player, Text message, float percent, BossBar.Color color, int durationTicks, boolean forceUpdate) {
         // Input validation
         if (player == null || message == null || color == null) {
-            return; // Silently ignore invalid inputs to prevent crashes
+            return;
         }
         if (durationTicks <= 0) {
-            durationTicks = 20; // Minimum 1 second display
+            durationTicks = 20;
         }
         if (durationTicks > 72000) {
-            durationTicks = 72000; // Maximum 1 hour display to prevent memory leaks
+            durationTicks = 72000; // Cap at 1 hour
         }
 
         UUID playerId = player.getUuid();
         if (playerId == null) {
-            return; // Invalid player state
+            return;
         }
 
         long scheduleTick = resolveServerTick(player);
@@ -171,10 +171,10 @@ public final class BossBarManager implements PlayerTickListener {
         } else {
             long currentTick = getCurrentTick(player);
 
-            // Adaptive rate limiting: Skip updates if called too frequently (unless forced)
+            // Adaptive rate limiting: Skip updates if called too frequently
             long adaptiveInterval = getAdaptiveUpdateInterval(info, currentTick);
             if (!forceUpdate && info.lastUpdateTick > 0 && (currentTick - info.lastUpdateTick) < adaptiveInterval) {
-                // Update duration but skip visual update to prevent spam
+                // Skip update if rate-limited
                 info.remainingTicks = Math.max(info.remainingTicks, durationTicks);
                 info.totalTicks = Math.max(info.totalTicks, durationTicks);
                 scheduleBossBar(player, info, scheduleTick, false);
@@ -538,10 +538,10 @@ public final class BossBarManager implements PlayerTickListener {
         }
     }
 
-    private static final float EPSILON = 0.001f; // Epsilon for floating point comparisons
+    private static final float EPSILON = 0.001f;
 
     private static float clamp01(float v) {
-        // Clamp with epsilon tolerance to avoid micro-updates from floating point errors
+        // Clamp with epsilon for floating point tolerance
         if (v < EPSILON) return 0;
         if (v > 1.0f - EPSILON) return 1.0f;
         return v;
@@ -709,12 +709,12 @@ public final class BossBarManager implements PlayerTickListener {
         }
 
         try {
-            // Get player list snapshot to avoid concurrent modification
+            // Snapshot player list before iteration
             List<ServerPlayerEntity> playerSnapshot;
             try {
                 playerSnapshot = List.copyOf(info.bossBar.getPlayers());
             } catch (Exception e) {
-                // Boss bar already disposed or in invalid state
+                // Boss bar already disposed or invalid state
                 info.bossBar = null;
                 return;
             }
@@ -731,9 +731,9 @@ public final class BossBarManager implements PlayerTickListener {
                 }
             }
         } catch (Exception e) {
-            // Final safety net for any unexpected failures
+            // Silently catch unexpected failures
         } finally {
-            // Always null out the boss bar reference to prevent memory leaks
+            // Clear boss bar reference
             info.bossBar = null;
         }
     }

@@ -62,6 +62,7 @@ import woflo.petsplus.state.coordination.PetWorkScheduler;
 import woflo.petsplus.state.emotions.PetMood;
 import woflo.petsplus.state.emotions.PetMoodEngine;
 import woflo.petsplus.state.gossip.PetGossipLedger;
+import woflo.petsplus.state.gossip.EmotionGossipGenerator;
 import woflo.petsplus.state.gossip.RumorEntry;
 import woflo.petsplus.state.processing.OwnerFocusBuffer;
 import woflo.petsplus.state.processing.OwnerFocusSnapshot;
@@ -169,6 +170,7 @@ public class PetComponent {
     private OwnerCourtesyState ownerCourtesyState = OwnerCourtesyState.inactive();
     private final Map<Long, GossipSession> gossipSessions = new HashMap<>();
     private long gossipSessionCooldownUntilTick = Long.MIN_VALUE;
+    private long lastProcessedEmotionSnapshotSeq = 0L;
     // UI state
     private long xpFlashStartTick = -1;
     private static final int XP_FLASH_DURATION = 7; // 0.35 seconds
@@ -1119,6 +1121,50 @@ public class PetComponent {
         scheduleNextGossipDecay(baseTick + Math.max(MIN_GOSSIP_DECAY_DELAY, gossipLedger.scheduleNextDecayDelay()));
     }
 
+    /**
+     * Process recent emotion snapshots into gossip rumors.
+     * Called periodically to convert emotional spikes into sharable stories.
+     * Each snapshot generates a candidate rumor that may vary in intensity/confidence
+     * based on whether the owner witnessed the emotion spike.
+     */
+    public void processEmotionGossip(long currentTick) {
+        if (moodEngine == null) {
+            return;
+        }
+
+        java.util.List<PetMoodEngine.EmotionSnapshot> snapshots = moodEngine.getRecentEmotionSnapshots();
+        if (snapshots.isEmpty()) {
+            return;
+        }
+
+        java.util.UUID petUuid = pet != null ? pet.getUuid() : null;
+        long newestSequence = lastProcessedEmotionSnapshotSeq;
+        for (PetMoodEngine.EmotionSnapshot snapshot : snapshots) {
+            if (snapshot == null) {
+                continue;
+            }
+            long effectiveSequence = snapshot.sequenceId();
+            if (effectiveSequence <= 0L) {
+                effectiveSequence = newestSequence + 1L;
+            }
+            if (effectiveSequence <= lastProcessedEmotionSnapshotSeq) {
+                continue;
+            }
+
+            var candidate = EmotionGossipGenerator.fromSnapshot(snapshot, petUuid);
+            newestSequence = Math.max(newestSequence, effectiveSequence);
+            if (candidate.isEmpty()) {
+                continue;
+            }
+            EmotionGossipGenerator.EmotionGossipCandidate rumor = candidate.get();
+            recordRumor(rumor.topicId(), rumor.intensity(), rumor.confidence(),
+                currentTick, petUuid, rumor.paraphrase(), rumor.witnessed());
+        }
+        if (newestSequence > lastProcessedEmotionSnapshotSeq) {
+            lastProcessedEmotionSnapshotSeq = newestSequence;
+        }
+    }
+
     public GossipSession ensureGossipSession(long topicId, long currentTick, @Nullable RumorEntry rumor) {
         purgeStaleGossipSessions(currentTick);
         GossipSession session = gossipSessions.get(topicId);
@@ -1956,6 +2002,9 @@ public class PetComponent {
     }
 
     public void tickGossipLedger(long currentTick) {
+        // Process emotion snapshots into gossip first
+        processEmotionGossip(currentTick);
+        
         gossipLedger.tickDecay(currentTick);
         long nextDelay = Math.max(MIN_GOSSIP_DECAY_DELAY, gossipLedger.scheduleNextDecayDelay());
         if (stateManager != null) {

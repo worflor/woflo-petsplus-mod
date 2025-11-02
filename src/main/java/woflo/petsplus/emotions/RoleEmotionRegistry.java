@@ -60,19 +60,17 @@ public class RoleEmotionRegistry {
         
         initializeLock.lock();
         try {
-            // Double-check locking pattern - ensures only one thread performs initialization
+            // Double-check before initializing
             if (initialized) {
                 return;
             }
             
             Petsplus.LOGGER.info("Initializing RoleEmotionRegistry");
             
-            // Register built-in role modifiers directly without going through register() method
-            // to avoid potential lock ordering issues during initialization
+            // Register built-in role modifiers
             registerBuiltinModifiers();
             
-            // Set initialized flag last to ensure all initialization is complete
-            // before other threads can see the registry as initialized
+            // Mark initialized
             initialized = true;
             Petsplus.LOGGER.info("RoleEmotionRegistry initialized with {} modifiers", allModifiers.size());
         } finally {
@@ -106,10 +104,10 @@ public class RoleEmotionRegistry {
     private void registerInternal(RoleEmotionModifier modifier) {
         Identifier roleId = modifier.getRoleId();
         
-        // Add to role-specific list
+        // Get or create role-specific modifiers list
         List<RoleEmotionModifier> roleModifiers = modifiersByRole.computeIfAbsent(roleId, k -> new ArrayList<>());
         
-        // Create a new list to avoid concurrent modification
+        // Snapshot to avoid concurrent modification during sorting
         List<RoleEmotionModifier> newRoleModifiers = new ArrayList<>(roleModifiers);
         newRoleModifiers.add(modifier);
         
@@ -135,10 +133,10 @@ public class RoleEmotionRegistry {
         try {
             Identifier roleId = modifier.getRoleId();
             
-            // Add to role-specific list
+            // Get or create role-specific modifiers list
             List<RoleEmotionModifier> roleModifiers = modifiersByRole.computeIfAbsent(roleId, k -> new ArrayList<>());
             
-            // Create a new list to avoid concurrent modification
+            // Snapshot to avoid concurrent modification during sorting
             List<RoleEmotionModifier> newRoleModifiers = new ArrayList<>(roleModifiers);
             newRoleModifiers.add(modifier);
             
@@ -287,7 +285,7 @@ public class RoleEmotionRegistry {
     private List<RoleEmotionModifier> getApplicableModifiers(MobEntity pet, PetComponent petComp) {
         List<RoleEmotionModifier> applicable = new ArrayList<>();
         
-        // Create a snapshot of allModifiers to avoid concurrent modification
+        // Snapshot to prevent concurrent modification
         List<RoleEmotionModifier> modifiersSnapshot = new ArrayList<>(allModifiers);
         
         // Check all modifiers to see if they should apply
@@ -349,8 +347,7 @@ public class RoleEmotionRegistry {
      * Shutdown the registry and clean up resources.
      */
     public void shutdown() {
-        // Fix lock ordering: always acquire registerLock before initializeLock
-        // to prevent potential deadlocks with other operations
+        // Lock ordering: registerLock before initializeLock
         registerLock.lock();
         try {
             initializeLock.lock();

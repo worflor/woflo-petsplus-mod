@@ -65,7 +65,7 @@ public final class PetWorkScheduler {
             return;
         }
 
-        // Guard against null pet entity (despawn race) and invalid ticks
+        // Guard against despawned pets and invalid ticks
         MobEntity pet = component.getPetEntity();
         if (pet == null || pet.isRemoved()) {
             return;
@@ -156,7 +156,7 @@ public final class PetWorkScheduler {
             try {
                 consumer.accept(task);
             } catch (Throwable ignored) {
-                // Defensive: avoid breaking the whole scheduler on a single task failure
+                // Silently catch task failures to avoid cascading
             }
         }
     }

@@ -155,7 +155,19 @@ public class ScoutSpotterFallbackEffect implements Effect {
         combatState.setTempState(STATE_LAST_TRIGGER, now);
         combatState.setTempState(STATE_GATE_TICK, now);
 
-        // Removed scout spotter spam - visual feedback via glowing effect
+        // Subtle scout feedback - particle + audio cue at pet location
+        world.spawnParticles(
+            net.minecraft.particle.ParticleTypes.END_ROD,
+            pet.getX(), pet.getY() + pet.getStandingEyeHeight(), pet.getZ(),
+            3, 0.2, 0.1, 0.2, 0.02
+        );
+        
+        world.playSound(
+            null, pet.getX(), pet.getY(), pet.getZ(),
+            net.minecraft.sound.SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP,
+            net.minecraft.sound.SoundCategory.NEUTRAL,
+            0.2f, 1.4f
+        );
 
         return true;
     }

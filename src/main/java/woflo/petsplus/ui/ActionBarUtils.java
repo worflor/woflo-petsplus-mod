@@ -20,15 +20,14 @@ public final class ActionBarUtils {
             player.networkHandler.sendPacket(new OverlayMessageS2CPacket(message));
             return;
         } catch (Exception overlayFailure) {
-            // Try vanilla action bar delivery before falling back to chat
+            // Try vanilla action bar delivery
         }
 
         try {
             player.sendMessage(message, true);
             return;
         } catch (Exception vanillaFailure) {
-            // Do not fall back to chat for context cues
+            // Silently drop on failure
         }
-        // Final fallback is to drop the message to avoid chat spam
     }
 }

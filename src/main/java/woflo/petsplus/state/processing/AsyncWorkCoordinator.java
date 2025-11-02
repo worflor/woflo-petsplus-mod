@@ -27,9 +27,8 @@ import woflo.petsplus.state.StateManager;
 import woflo.petsplus.state.processing.AsyncProcessingTelemetry;
 
 /**
- * Coordinates background work for owner-centric processing. Jobs are executed on a
- * bounded executor and their results are funneled back onto the main server thread
- * via a double-buffered queue that can be drained deterministically each tick.
+ * Runs owner ability checks and other work on background threads.
+ * Results sync back to the main thread via a double-buffered queue.
  */
 public final class AsyncWorkCoordinator implements AutoCloseable {
     private static final int MAX_IDLE_SECONDS = 30;
@@ -93,8 +92,7 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
             MAX_IDLE_SECONDS,
             TimeUnit.SECONDS,
             new PriorityBlockingQueue<>(),
-            Thread.ofPlatform()
-                .daemon(true)
+            Thread.ofVirtual()
                 .name("PetsPlus-Async-", 1)
                 .uncaughtExceptionHandler(ASYNC_EXCEPTION_HANDLER)
                 .factory()
@@ -104,12 +102,13 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
     }
 
     /**
-     * Submit an owner batch job for background execution.
+     * Submit an owner batch job to run on a background thread.
+     * Results are applied on the main thread.
      *
-     * @param snapshot immutable owner batch description
-     * @param job asynchronous job to run
-     * @param applier synchronous consumer for the job result (executed on the main thread)
-     * @return future that completes once the synchronous applier finishes
+     * @param snapshot immutable owner/pet batch info
+     * @param job work to do in the background
+     * @param applier callback to run on main thread with the result (optional)
+     * @return future that completes when the main thread applies the result
      */
     public <T> CompletableFuture<T> submitOwnerBatch(OwnerBatchSnapshot snapshot,
                                                      OwnerBatchJob<T> job,
@@ -157,6 +156,7 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
             }
             return completion;
         }
+    }
 
     private TrackedTask wrap(AsyncJobPriority priority,
                              Runnable delegate,
@@ -168,9 +168,8 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
     }
 
     /**
-     * Submit a non-owner-scoped task to the background executor while still
-     * respecting the coordinator's load-based throttling and main-thread
-     * application semantics.
+     * Submit standalone work that doesn't need owner/pet context.
+     * Still respects load throttling and applies results on main thread.
      */
     public <T> CompletableFuture<T> submitStandalone(String descriptor,
                                                      Callable<T> job,
@@ -351,23 +350,24 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
     }
 
     /**
-     * Drain any queued main-thread callbacks. Should be invoked at the start of the
-     * server tick to preserve deterministic ordering with synchronous work.
+     * Swap buffers and drain queued main-thread callbacks.
+     * Call this at the start of each server tick.
      *
-     * @return number of callbacks executed
+     * @return number of callbacks processed
      */
     public int drainMainThreadTasks() {
+        // Swap to the other buffer and drain it
         int bufferToDrain = writeBufferIndex.getAndUpdate(idx -> 1 - idx);
         ConcurrentLinkedQueue<Runnable> queue = resultBuffers[bufferToDrain];
         AtomicInteger bufferSize = bufferSizes[bufferToDrain];
         int drained = 0;
         Runnable task;
 
-        // Time- and count-bounded draining to avoid long stalls on the main thread
+        // Rate-limit result processing based on load
         double load = loadFactorSupplier != null ? loadFactorSupplier.getAsDouble() : 1.0D;
         if (load <= 0.0D) load = 1.0D;
-        int maxTasks = Math.max(8, (int) Math.round(64 / Math.min(2.0D, load))); // 64 @ normal, 32 @ 2x load
-        long budgetNanos = (long) Math.max(500_000L, Math.round(2_000_000L / Math.min(2.0D, load))); // ~2ms budget
+        int maxTasks = Math.max(8, (int) Math.round(64 / Math.min(2.0D, load)));
+        long budgetNanos = (long) Math.max(500_000L, Math.round(2_000_000L / Math.min(2.0D, load)));
         long start = System.nanoTime();
 
         while (drained < maxTasks && (System.nanoTime() - start) < budgetNanos && (task = queue.poll()) != null) {

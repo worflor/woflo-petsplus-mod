@@ -1,0 +1,24 @@
+{
+  "category": "idle",
+  "priority": 30,
+  "cooldown": {
+    "min": 100,
+    "max": 300
+  },
+  "requirement": "idle",
+  "energy_range": {
+    "min": 0.4,
+    "max": 1.0
+  },
+  "idle_stamina_bias": "prefer_high",
+  "feasibility": {
+    "role": "petsplus:scout"
+  },
+  "duration": {
+    "min": 40,
+    "max": 40
+  },
+  "goal_factory": "woflo.petsplus.ai.goals.idle.ScoutEarPerkGoal",
+  "id": "petsplus:scout_ear_perk",
+  "description": "Scout perks ears and scans for nearby threats"
+}

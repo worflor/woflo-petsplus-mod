@@ -38,6 +38,14 @@
       "volume": 0.4,
       "pitch": 0.6,
       "category": "neutral"
+    },
+    {
+      "type": "sound_effect",
+      "sound": "entity_wolf_growl",
+      "target": "pet",
+      "volume": 0.5,
+      "pitch": 1.1,
+      "category": "neutral"
     }
   ]
 }

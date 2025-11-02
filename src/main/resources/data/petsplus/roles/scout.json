@@ -14,7 +14,7 @@
     "speed_bonus_per_level": 0.01,
     "speed_max_bonus": 0.6
   },
-  "default_abilities": [],
+  "default_abilities": ["petsplus:gale_pace"],
   "level_rewards": {
     "1": [
       { "type": "ability_unlock", "ability": "petsplus:loot_wisp" }
@@ -29,6 +29,7 @@
       { "type": "stat_boost", "stat": "health", "amount": 2.0 }
     ],
     "10": [
+      { "type": "ability_unlock", "ability": "petsplus:scout_spotter" },
       { "type": "tribute_required", "item": "minecraft:gold_ingot" }
     ],
     "12": [

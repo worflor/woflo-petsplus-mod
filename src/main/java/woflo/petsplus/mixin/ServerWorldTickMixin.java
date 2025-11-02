@@ -15,7 +15,7 @@ import java.util.function.BooleanSupplier;
 @Mixin(ServerWorld.class)
 public abstract class ServerWorldTickMixin {
 
-    // Telemetry sampling state (avoids per-tick allocations)
+    // Telemetry sampling state
     private static int ppTelemetryTick = 0;
     private static boolean ppTelemetrySampled = false;
     private static long ppIngressStartNanos = 0L;

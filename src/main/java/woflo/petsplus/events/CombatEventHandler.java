@@ -142,8 +142,8 @@ public class CombatEventHandler {
     }
     
     /**
-     * Cleanup stale coordinated attack entries to prevent memory leak.
-     * Call this periodically (e.g., every 1 minute) to remove old attack tracking data.
+     * Cleanup stale coordinated attack entries.
+     * Call periodically to remove old attack tracking data.
      */
     private static void cleanupStaleCoordinatedAttacks(long currentTime) {
         final int[] removedVictims = {0};
@@ -172,8 +172,8 @@ public class CombatEventHandler {
     }
     
     /**
-     * Clean up expired cache entries to prevent memory leaks
-     * This should be called periodically (e.g., in a server tick event)
+     * Clean up expired cache entries.
+     * Call periodically (e.g., in server tick event).
      */
     public static void cleanupExpiredCacheEntries(long currentTime) {
         PET_SWARM_CACHE_TIMESTAMPS.entrySet().removeIf(entry -> {
@@ -471,7 +471,7 @@ public class CombatEventHandler {
             return DamageProcessingOutcome.allowOutcome(amount);
         }
 
-        // Friendly-fire guard: prevent damaging pets owned by the same owner (custom or vanilla tamed)
+        // Friendly-fire guard: don't damage pets owned by attacker
         if (victim instanceof MobEntity victimMob) {
             boolean sameOwnerPet = false;
             PetComponent victimComp = PetComponent.get(victimMob);
@@ -665,12 +665,12 @@ public class CombatEventHandler {
      * Called when a player attacks an entity directly.
      */
     private static ActionResult onPlayerAttack(PlayerEntity player, World world, Hand hand, Entity target, EntityHitResult hitResult) {
-        // Ensure this only runs on the server side to prevent client-side execution
+        // Server-side only
         if (world.isClient()) {
             return ActionResult.PASS;
         }
         
-        // Additional server validation - ensure player is valid and in proper state
+        // Validate server player
         if (!(player instanceof ServerPlayerEntity)) {
             return ActionResult.PASS;
         }
@@ -843,7 +843,7 @@ public class CombatEventHandler {
                 }
             }
             
-            // Periodic cleanup to prevent memory leak (every ~1 minute based on combat frequency)
+            // Periodic cleanup (every ~1 minute based on combat frequency)
             if (now % 1200L == 0) {
                 cleanupStaleCoordinatedAttacks(now);
             }
@@ -1516,7 +1516,7 @@ public class CombatEventHandler {
     private static void triggerNearbyPetAbilities(PlayerEntity owner,
                                                   String eventType,
                                                   @Nullable Map<String, Object> data) {
-        // Server-side validation to prevent client-side execution
+        // Validate server player
         if (owner == null) {
             return;
         }
@@ -1531,7 +1531,7 @@ public class CombatEventHandler {
             return;
         }
         
-        // Additional validation: ensure the player is still valid and in the world
+        // Ensure player is alive and in world
         if (!serverOwner.isAlive() || serverOwner.isRemoved()) {
             return;
         }
@@ -1753,7 +1753,7 @@ public class CombatEventHandler {
      * Handle when a pet takes damage - triggers fear/anger emotions based on context
      */
     private static void handlePetDamageReceived(MobEntity pet, PetComponent petComponent, DamageSource damageSource, float amount) {
-        // Synchronize on the pet entity to ensure atomic state updates for this specific pet.
+        // Atomic pet state updates
         synchronized (pet) {
             long now = pet.getEntityWorld().getTime();
             petComponent.setLastAttackTick(now);
@@ -1921,7 +1921,7 @@ public class CombatEventHandler {
         float damageIntensity = damageIntensity(damage, victimMaxHealth);
         PlayerEntity owner = petComponent.getOwner();
 
-        // Synchronize on the pet entity to ensure atomic state updates for this specific pet.
+        // Atomic pet state updates
         synchronized (pet) {
             long now = pet.getEntityWorld().getTime();
             petComponent.setLastAttackTick(now);
@@ -2238,7 +2238,7 @@ public class CombatEventHandler {
             }
             pc.setLastAttackTick(now);
 
-            // Extra safety: ensure this pet can target the entity (and skip friendly-fire)
+            // Guard: skip friendly targets
             if (target instanceof MobEntity tMob) {
                 PetComponent tComp = PetComponent.get(tMob);
                 if (tComp != null && tComp.isOwnedBy(owner)) {
@@ -3207,7 +3207,7 @@ public class CombatEventHandler {
             return; // No previous low health state
         }
 
-        // Check cooldown to prevent spamming recovery emotions
+        // Cooldown to rate-limit recovery emotions
         long lastRecoveryCooldown = petComponent.getStateData(PetComponent.StateKeys.HEALTH_RECOVERY_COOLDOWN, Long.class, 0L);
         if (now - lastRecoveryCooldown < 1200) { // 60 second cooldown
             return;

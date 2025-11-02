@@ -17,6 +17,8 @@ import woflo.petsplus.ui.ActionBarCueManager;
 import woflo.petsplus.ui.BossBarManager;
 import woflo.petsplus.ui.PetInspectionManager;
 
+import java.util.UUID;
+
 /**
  * Handles server-wide events and ticking for PetsPlus systems.
  */
@@ -191,6 +193,13 @@ public class ServerEventHandler {
         PetInspectionManager.onPlayerDisconnect(player);
         BossBarManager.onPlayerDisconnect(player);
         ActionBarCueManager.onPlayerDisconnect(player);
+        PetCompendiumHandler.onPlayerDisconnect(player);
+        
+        // Role-specific cleanup to prevent memory leaks
+        UUID playerId = player.getUuid();
+        woflo.petsplus.roles.striker.StrikerExecution.onPlayerDisconnect(playerId);
+        woflo.petsplus.roles.eepyeeper.EepyEeperCore.onPlayerDisconnect(playerId);
+        
         OwnerCombatState.remove(player);
     }
 }

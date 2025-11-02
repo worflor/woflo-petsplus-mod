@@ -23,7 +23,7 @@ public final class PlayerTickDispatcher {
     private static final CopyOnWriteArrayList<PlayerTickListener> LISTENERS = new CopyOnWriteArrayList<>();
 
     private PlayerTickDispatcher() {
-        // Prevent instantiation
+        // Non-instantiable utility class
     }
 
     /**

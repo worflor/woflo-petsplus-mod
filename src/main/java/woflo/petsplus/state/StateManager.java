@@ -268,8 +268,7 @@ public class StateManager {
             return;
         }
 
-        // Multiple managers - shut down in parallel to avoid sequential async waits
-        // Use a dedicated executor with daemon threads that won't block JVM shutdown
+        // Shut down managers in parallel
         ExecutorService shutdownExecutor = Executors.newFixedThreadPool(
                 Math.min(managers.size(), Runtime.getRuntime().availableProcessors()),
                 Thread.ofPlatform()
@@ -1249,7 +1248,7 @@ public class StateManager {
                 continue;
             }
 
-            // Avoid double-alloc; iterate pooled once and skip consumed items on the fly
+            // Filter unconsumed items
             List<ItemEntity> available = new ArrayList<>(pooled.size());
             for (ItemEntity item : pooled) {
                 if (item != null && !consumed.contains(item)) {
@@ -2599,17 +2598,15 @@ public class StateManager {
             return;
         }
         disposed = true;
-
         Throwable suppressedException = null;
 
-        // Phase 1: Unregister listeners (prevents new work from being scheduled)
+        // Phase 1: Unregister listeners
         try {
             unregisterEmotionStimulusBridge();
         } catch (Exception e) {
             suppressedException = e;
             Petsplus.LOGGER.error("Failed to unregister emotion stimulus bridge during shutdown", e);
         }
-
         try {
             ownerEventDispatcher.removePresenceListener(ownerPresenceListener);
             ownerEventDispatcher.clear();
@@ -2659,8 +2656,7 @@ public class StateManager {
 
         // Phase 3: Close async coordinator (always execute, even if previous phases failed)
         try {
-            // Note: We skip draining main thread tasks during shutdown as the server is stopping
-            // and there's no point in executing queued work that won't affect the persisted state
+            // Skip draining tasks during shutdown - no effect on persisted state
             asyncWorkCoordinator.close();
         } catch (Exception e) {
             if (suppressedException == null) suppressedException = e;
@@ -2962,7 +2958,7 @@ public class StateManager {
             }
 
             ServerWorld serverWorld = world;
-            // Particle emission is already covered by feedback; avoid redundant spawn for micro-alloc/perf
+            // Particle emission covered by feedback
             serverWorld.playSound(null, pet.getBlockPos(),
                 net.minecraft.sound.SoundEvents.BLOCK_BREWING_STAND_BREW,
                 net.minecraft.sound.SoundCategory.NEUTRAL,

@@ -66,7 +66,7 @@ public class CursedOneResurrection {
     }
     
     /**
-     * Handle damage to entities - prevent damage to reanimating pets
+     * Handle damage to entities - don't allow damage to reanimating pets
      */
     private static boolean onEntityDamage(LivingEntity entity, DamageSource damageSource, float damageAmount) {
         if (!(entity instanceof MobEntity mobEntity)) {
@@ -87,7 +87,6 @@ public class CursedOneResurrection {
             return;
         }
 
-        // Use atomic get operation for thread safety
         ReanimationWindow window = reanimatingPets.get(mob.getUuid());
         if (window == null) {
             return;
@@ -95,10 +94,10 @@ public class CursedOneResurrection {
 
         long currentTime = world.getTime();
         if (currentTime >= window.endTime()) {
-            // Use synchronized block to prevent race conditions during completion
+            // Atomic completion with lock to prevent race conditions
             reanimationLock.lock();
             try {
-                // Double-check that we're still reanimating and haven't been completed by another thread
+                // Re-check state to avoid double-completion
                 ReanimationWindow currentWindow = reanimatingPets.get(mob.getUuid());
                 if (currentWindow != null && currentTime >= currentWindow.endTime()) {
                     completeReanimation(world, mob.getUuid(), currentWindow);
@@ -119,7 +118,6 @@ public class CursedOneResurrection {
      */
     public static boolean isReanimating(MobEntity pet) {
         if (pet == null) return false;
-        // Use atomic containsKey operation for thread safety
         return reanimatingPets.containsKey(pet.getUuid());
     }
     
@@ -844,7 +842,6 @@ public class CursedOneResurrection {
             // Encased afterimage effect during resurrection buildup
             AfterimageManager.startEncasement(cursedPet, "cursed_reanimation", reanimationDuration);
 
-            // Use atomic put operation for thread safety after side-effects succeed
             reanimatingPets.put(cursedPet.getUuid(), window);
 
             // Notify owner if nearby
@@ -1187,7 +1184,7 @@ public class CursedOneResurrection {
             2.0f // Higher pitch for more dramatic effect
         );
         
-        // Remove the pet component first to prevent death penalty
+        // Remove pet component before death to avoid death penalty
         PetDetectionHandler.clearPending(cursedPet);
         PetComponent.remove(cursedPet);
         
@@ -1256,7 +1253,7 @@ public class CursedOneResurrection {
         
         float chance = Math.min(1.0f, baseChance + levelBonus);
         
-        // Bounds checking - ensure chance is between 0.0 and 1.0
+        // Clamp to [0, 1] range
         if (chance < 0.0f) {
             woflo.petsplus.Petsplus.LOGGER.warn("Resurrection chance calculated below 0.0: {}, clamping to 0.0", chance);
             return 0.0f;
@@ -1339,7 +1336,7 @@ public class CursedOneResurrection {
             woflo.petsplus.ui.FeedbackManager.emitFeedback("cursed_one_death_bond", cursedPet, serverWorld);
         }
 
-        // Remove the pet component first to prevent normal death penalty
+        // Remove pet component before death to avoid death penalty
         PetDetectionHandler.clearPending(cursedPet);
         PetComponent.remove(cursedPet);
 

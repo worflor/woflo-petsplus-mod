@@ -47,6 +47,9 @@ public abstract class AdaptiveGoal extends Goal {
     protected final PetComponent.MovementDirector movementDirector;
     private GoalMovementConfig appliedMovementConfig;
     
+    // Capability profile - cached at goal instantiation
+    private woflo.petsplus.ai.capability.MobCapabilities.CapabilityProfile cachedCapabilities = null;
+    
     private int activeTicks = 0;
     private int lastActivitySampleTick = 0;
     private int committedDuration = 0;
@@ -100,40 +103,40 @@ public abstract class AdaptiveGoal extends Goal {
     
     @Override
     public boolean canStart() {
-        // 0. CRITICAL: Never interrupt combat or survival situations
+        // Never interrupt combat or survival
         if (mob.getAttacker() != null || mob.getAttacking() != null) {
             return false;
         }
         if (mob.getTarget() != null) {
-            return false; // Has attack target
+            return false;
         }
         
-        // 1. Capability check - can this mob physically do this action?
+        // Can this mob physically do this action?
         if (!meetsCapabilityRequirements()) {
             return false;
         }
         
-        // 2. Priority safety - don't start if higher priority goals are active
+        // Don't start if higher priority goals are active
         if (hasActiveHigherPriorityGoals()) {
             return false;
         }
         
-        // 3. Control check - are required controls available?
+        // Are required controls available?
         if (isControlTaken()) {
             return false;
         }
         
-        // 4. Cooldown check
+        // Cooldown check
         if (!isCooldownExpired()) {
             return false;
         }
 
-        // 5. Energy compatibility check - gate based on behavioral momentum
+        // Energy compatibility check
         if (!isEnergyCompatible()) {
             return false;
         }
 
-        // 6. Director suggestion alignment
+        // Director suggestion alignment
         if (!respectsDirectorSuggestion()) {
             return false;
         }
@@ -146,18 +149,18 @@ public abstract class AdaptiveGoal extends Goal {
             return false;
         }
 
-        // 7. Goal-specific conditions
+        // Goal-specific conditions
         return canStartGoal();
     }
     
     @Override
     public boolean shouldContinue() {
-        // CRITICAL: Immediately stop if combat starts
+        // Immediately stop if combat starts
         if (mob.getAttacker() != null || mob.getAttacking() != null) {
             return false;
         }
         if (mob.getTarget() != null) {
-            return false; // Attack target acquired
+            return false;
         }
 
         if (pendingStop) {
@@ -365,6 +368,24 @@ public abstract class AdaptiveGoal extends Goal {
         }
         
         onTickGoal();
+    }
+    
+    /**
+     * Idle quirks run every other tick to reduce overhead.
+     * Movement actors need every tick for precise control.
+     */
+    @Override
+    public boolean shouldRunEveryTick() {
+        GoalMovementConfig config = getMovementConfig();
+        
+        // Movement actors need precise every-tick control
+        if (config.role() == GoalMovementConfig.MovementRole.ACTOR) {
+            return true;
+        }
+        
+        // Idle quirks and static behaviors can run every other tick
+        GoalDefinition definition = currentDefinition();
+        return definition.category() != GoalDefinition.Category.IDLE_QUIRK;
     }
 
     protected void requestStop() {
@@ -596,10 +617,13 @@ public abstract class AdaptiveGoal extends Goal {
     
     /**
      * Check if mob meets capability requirements for this goal.
+     * Capabilities are cached once per mob lifetime.
      */
     protected boolean meetsCapabilityRequirements() {
-        var capabilities = woflo.petsplus.ai.capability.MobCapabilities.analyze(mob);
-        return currentDefinition().isCompatible(capabilities);
+        if (cachedCapabilities == null) {
+            cachedCapabilities = woflo.petsplus.ai.capability.MobCapabilities.analyze(mob);
+        }
+        return currentDefinition().isCompatible(cachedCapabilities);
     }
     
     /**
@@ -1008,8 +1032,7 @@ public abstract class AdaptiveGoal extends Goal {
     
     /**
      * Trigger emotion feedback when goal completes.
-     * Uses lazy evaluation and caching for maximum performance.
-     * Only triggers for PetsPlus pets (vanilla mobs unaffected).
+     * Emotion feedback is cached and only triggers for PetsPlus pets.
      */
     protected void triggerEmotionFeedback() {
         PetComponent pc = resolvePetComponent();
@@ -1022,7 +1045,7 @@ public abstract class AdaptiveGoal extends Goal {
             return;
         }
 
-        // Lazy-load and cache feedback definition
+        // Cache feedback definition on first use
         if (cachedFeedback == null) {
             cachedFeedback = defineEmotionFeedback();
         }

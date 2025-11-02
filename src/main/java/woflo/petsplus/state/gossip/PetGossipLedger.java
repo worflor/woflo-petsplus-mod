@@ -222,10 +222,16 @@ public final class PetGossipLedger {
             existing = shared.copy();
             existing.reinforce(shared.intensity(), shared.confidence(), currentTick,
                 shared.sourceUuid(), shared.paraphrasedCopy(), corroborated);
+            if (shared.lastWitnessTick() > 0L) {
+                existing.markWitness(shared.lastWitnessTick());
+            }
             rumors.put(existing.topicId(), existing);
         } else {
             existing.reinforce(shared.intensity(), shared.confidence(), currentTick,
                 shared.sourceUuid(), shared.paraphrasedCopy(), corroborated);
+            if (shared.lastWitnessTick() > 0L) {
+                existing.markWitness(shared.lastWitnessTick());
+            }
         }
         enqueueForSharing(shared.topicId());
         markHeard(shared.topicId(), currentTick);

@@ -1,6 +1,5 @@
 package woflo.petsplus.mixin;
 
-import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -20,8 +19,6 @@ import woflo.petsplus.state.emotions.PetMoodEngine;
 import woflo.petsplus.ui.AfterimageManager;
 
 import java.lang.reflect.Field;
-import java.util.Map;
-import java.util.WeakHashMap;
 
 @Mixin(MobEntity.class)
 public abstract class MobEntityTickMixin {
@@ -29,8 +26,9 @@ public abstract class MobEntityTickMixin {
     private static final Field LIMB_ANIMATOR_FIELD;
     private static final Field LIMB_SPEED_FIELD;
     private static final Field LIMB_LAST_SPEED_FIELD;
-    private static final Map<MobEntity, Long> LAST_SERVER_UPDATE = new WeakHashMap<>();
-    private static final Map<MobEntity, Integer> LAST_CLIENT_UPDATE = new WeakHashMap<>();
+    
+    private static final int SERVER_UPDATE_INTERVAL = 5;  // Every 5 ticks (250ms)
+    private static final int CLIENT_UPDATE_INTERVAL = 2;  // Every 2 ticks (100ms)
 
     static {
         Field animator = null;
@@ -56,50 +54,36 @@ public abstract class MobEntityTickMixin {
 
     @Inject(method = "tick", at = @At("TAIL"))
     private void petsplus(CallbackInfo ci) {
-        Entity entity = (Entity) (Object) this;
-        World world = entity.getEntityWorld();
-        MobEntity mob = (MobEntity) entity;
-
+        MobEntity mob = (MobEntity) (Object) this;
+        
+        // Vanilla mobs get instant exit (zero overhead)
+        PetComponent petComponent = PetComponent.get(mob);
+        if (petComponent == null) return;
+        
+        World world = mob.getEntityWorld();
+        
+        // Server-side special effects
         if (world instanceof ServerWorld serverWorld) {
             AfterimageManager.handleMobTick(mob, serverWorld);
             CursedOneResurrection.handleMobTick(mob, serverWorld);
             MagnetizeDropsAndXpEffect.handleMobTick(mob, serverWorld);
         }
 
-        PetComponent petComponent = PetComponent.get(mob);
-        if (petComponent == null) {
-            if (!world.isClient()) {
-                SpeedModifierHelper.clearMovementSpeedModifier(mob, MOMENTUM_SPEED_MODIFIER_ID);
-            }
-            return;
-        }
-
+        // No mood engine = no momentum to update
         PetMoodEngine moodEngine = petComponent.getMoodEngine();
-        if (moodEngine == null) {
-            if (!world.isClient()) {
-                SpeedModifierHelper.clearMovementSpeedModifier(mob, MOMENTUM_SPEED_MODIFIER_ID);
-            }
-            return;
-        }
+        if (moodEngine == null) return;
 
-        if (world instanceof ServerWorld) {
-            ServerWorld sw = (ServerWorld) world;
-            long now = sw.getTime();
-            Long last = LAST_SERVER_UPDATE.get(mob);
-            if (last == null || now - last >= 5) {
-                LAST_SERVER_UPDATE.put(mob, now);
+        // Update momentum effects at throttled intervals
+        switch (world) {
+            case ServerWorld sw when mob.age % SERVER_UPDATE_INTERVAL == 0 -> {
                 float multiplier = moodEngine.getMomentumSpeedMultiplier();
                 SpeedModifierHelper.applyMovementSpeedMultiplier(mob, MOMENTUM_SPEED_MODIFIER_ID, multiplier);
             }
-        } else if (world.isClient()) {
-            // Recompute client animation speed at most every 2 ticks per mob
-            int age = mob.age;
-            Integer last = LAST_CLIENT_UPDATE.get(mob);
-            if (last == null || age - last >= 2) {
-                LAST_CLIENT_UPDATE.put(mob, age);
+            case World w when world.isClient() && mob.age % CLIENT_UPDATE_INTERVAL == 0 -> {
                 float animationMultiplier = MathHelper.clamp(moodEngine.getMomentumAnimationSpeed(), 0.6f, 1.6f);
                 applyClientAnimationScaling(mob, animationMultiplier);
             }
+            default -> {}
         }
     }
 

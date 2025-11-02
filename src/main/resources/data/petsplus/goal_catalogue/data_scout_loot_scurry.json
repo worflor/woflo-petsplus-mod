@@ -1,0 +1,24 @@
+{
+  "category": "wander",
+  "priority": 25,
+  "cooldown": {
+    "min": 40,
+    "max": 100
+  },
+  "requirement": "can_wander",
+  "energy_range": {
+    "min": 0.2,
+    "max": 0.7
+  },
+  "idle_stamina_bias": "none",
+  "feasibility": {
+    "role": "petsplus:scout"
+  },
+  "duration": {
+    "min": 60,
+    "max": 120
+  },
+  "goal_factory": "woflo.petsplus.ai.goals.world.ScoutLootScurryGoal",
+  "id": "petsplus:scout_loot_scurry",
+  "description": "Scout scurries toward nearby dropped items or XP orbs"
+}

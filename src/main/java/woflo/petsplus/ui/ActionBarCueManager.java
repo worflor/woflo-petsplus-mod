@@ -398,7 +398,7 @@ public final class ActionBarCueManager implements PlayerTickListener {
                 }
                 return false;
             }
-            // Also ensure we still consider proximity/recency in case window changed pets quickly
+            // Check proximity/recency if window changed pets
             if (!state.hasInterestIn(source.petId(), currentTick, recentPetLimit)) {
                 if (DIAGNOSTIC_LOGGING && Petsplus.LOGGER != null) {
                     Petsplus.LOGGER.debug("[CUE] Not eligible (no recent interest): player={}, petSource={}", player.getName().getString(), source.petId());

@@ -42,6 +42,17 @@ public class EepyEeperCore {
         return INSTANCE;
     }
 
+    /**
+     * Cleanup method to prevent memory leaks from disconnected players.
+     * Should be called when a player disconnects.
+     */
+    public static void onPlayerDisconnect(UUID playerUuid) {
+        if (playerUuid != null) {
+            lastSleepTime.remove(playerUuid);
+            lastSleepEventIds.remove(playerUuid);
+        }
+    }
+
     public static void initialize() {
         // Intentionally left blank; legacy damage interception now handled by abilities.
     }

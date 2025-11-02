@@ -19,6 +19,7 @@ public final class GossipPropagationPlanner {
     private static final double DEFAULT_RADIUS = 12.0D;
     private static final double DEFAULT_RADIUS_SQ = DEFAULT_RADIUS * DEFAULT_RADIUS;
     private static final int MAX_NEIGHBORS = 4;
+    private static final long WITNESS_PRIORITY_WINDOW = 400L;
 
     private GossipPropagationPlanner() {
     }
@@ -173,27 +174,64 @@ public final class GossipPropagationPlanner {
             return List.of();
         }
         List<RumorEntry> combined = new ArrayList<>(MAX_NEIGHBORS);
-        if (fresh != null) {
+        if (fresh != null && !fresh.isEmpty()) {
+            List<RumorEntry> prioritized = new ArrayList<>(fresh.size());
             for (RumorEntry entry : fresh) {
                 if (entry != null) {
-                    combined.add(entry.copy());
-                    if (combined.size() >= MAX_NEIGHBORS) {
-                        return combined;
-                    }
+                    prioritized.add(entry.copy());
+                }
+            }
+            prioritized.sort((a, b) -> compareRumors(a, b, snapshotTick));
+            for (RumorEntry entry : prioritized) {
+                combined.add(entry);
+                if (combined.size() >= MAX_NEIGHBORS) {
+                    return combined;
                 }
             }
         }
-        if (abstracts != null) {
+        if (abstracts != null && !abstracts.isEmpty()) {
             for (RumorEntry entry : abstracts) {
-                if (entry != null) {
-                    combined.add(entry.copy());
-                    if (combined.size() >= MAX_NEIGHBORS) {
-                        break;
-                    }
+                if (entry == null) {
+                    continue;
+                }
+                combined.add(entry.copy());
+                if (combined.size() >= MAX_NEIGHBORS) {
+                    break;
                 }
             }
         }
         return combined;
+    }
+
+    private static int compareRumors(RumorEntry a, RumorEntry b, long snapshotTick) {
+        boolean aWitness = isWitnessPriority(a, snapshotTick);
+        boolean bWitness = isWitnessPriority(b, snapshotTick);
+        if (aWitness != bWitness) {
+            return aWitness ? -1 : 1;
+        }
+        int confidenceCompare = Float.compare(b.confidence(), a.confidence());
+        if (confidenceCompare != 0) {
+            return confidenceCompare;
+        }
+        int intensityCompare = Float.compare(b.intensity(), a.intensity());
+        if (intensityCompare != 0) {
+            return intensityCompare;
+        }
+        return Long.compare(b.lastHeardTick(), a.lastHeardTick());
+    }
+
+    private static boolean isWitnessPriority(RumorEntry rumor, long snapshotTick) {
+        if (rumor == null) {
+            return false;
+        }
+        long witnessTick = rumor.lastWitnessTick();
+        if (witnessTick <= 0L) {
+            return false;
+        }
+        if (snapshotTick <= 0L) {
+            return true;
+        }
+        return snapshotTick - witnessTick <= WITNESS_PRIORITY_WINDOW;
     }
 
     private record StoryCandidate(PetNode node, List<RumorEntry> rumors) { }

@@ -179,7 +179,7 @@ public class ChatLinks {
      */
     private static Formatting parseColor(String color) {
         if (color == null) return null;
-        // Leverage Formatting.byName which sanitizes names (ignores spaces/underscores/case)
+        // Use Formatting.byName with case/whitespace tolerance
         return Formatting.byName(color);
     }
 

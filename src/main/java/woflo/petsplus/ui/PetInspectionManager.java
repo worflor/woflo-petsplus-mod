@@ -43,7 +43,8 @@ public final class PetInspectionManager {
     }
 
     private static final int VIEW_DIST = 12;
-    private static final Map<UUID, InspectionState> inspecting = new HashMap<>();
+    // ConcurrentHashMap for thread-safe inspection state tracking
+    private static final Map<UUID, InspectionState> inspecting = new ConcurrentHashMap<>();
     private static final int LINGER_TICKS = 100; // 5s linger after looking away
 
     public static void onPlayerDisconnect(ServerPlayerEntity player) {
@@ -152,55 +153,58 @@ public final class PetInspectionManager {
 
     private static void handleLookAway(ServerPlayerEntity player, InspectionState state) {
         int maxLinger = state.getLingerTicks();
-        if (state.lingerTicks == maxLinger) {
-            // Just stopped looking: extend current bar duration for smooth transition
-            BossBarManager.extendDuration(player, maxLinger);
-            state.hasFocus = false;
-        }
+        synchronized (inspecting) {
+            if (state.lingerTicks == maxLinger) {
+                // Just stopped looking: extend current bar duration for smooth transition
+                BossBarManager.extendDuration(player, maxLinger);
+                state.hasFocus = false;
+            }
 
-        if (state.lingerTicks > 0) {
-            state.lingerTicks--;
-        } else {
-            BossBarManager.removeBossBar(player);
-            clearEmotionScoreboard(player);
-            // Ensure any pending action-bar cues are cleared when the window fully closes
-            ActionBarCueManager.onPlayerDisconnect(player);
-            inspecting.remove(player.getUuid());
+            if (state.lingerTicks > 0) {
+                state.lingerTicks--;
+            } else {
+                BossBarManager.removeBossBar(player);
+                clearEmotionScoreboard(player);
+                // Clear action-bar cues on window close
+                ActionBarCueManager.onPlayerDisconnect(player);
+                inspecting.remove(player.getUuid());
+            }
         }
-
         ActionBarCueManager.onPlayerLookedAway(player);
     }
 
     private static void handleLookAt(ServerPlayerEntity player, MobEntity pet, InspectionState state) {
-        // Reset linger and update pet tracking
-        state.lingerTicks = state.getLingerTicks();
-        UUID newPetId = pet.getUuid();
+        synchronized (inspecting) {
+            // Reset linger and update pet tracking
+            state.lingerTicks = state.getLingerTicks();
+            UUID newPetId = pet.getUuid();
 
-        if (state.lastPetId == null || !state.lastPetId.equals(newPetId)) {
-            // New pet - reset all state
-            state.reset(newPetId);
-        }
-
-        PetComponent comp = PetComponent.get(pet);
-        if (comp == null || !comp.isOwnedBy(player)) {
-            // Increment ownership failure counter instead of immediately clearing
-            state.ownershipFailures++;
-            if (state.shouldClearUI()) {
-                BossBarManager.removeBossBar(player);
-                clearEmotionScoreboard(player);
-                inspecting.remove(player.getUuid());
+            if (state.lastPetId == null || !state.lastPetId.equals(newPetId)) {
+                // New pet - reset all state
+                state.reset(newPetId);
             }
-            return;
+
+            PetComponent comp = PetComponent.get(pet);
+            if (comp == null || !comp.isOwnedBy(player)) {
+                // Increment ownership failure counter instead of immediately clearing
+                state.ownershipFailures++;
+                if (state.shouldClearUI()) {
+                    BossBarManager.removeBossBar(player);
+                    clearEmotionScoreboard(player);
+                    inspecting.remove(player.getUuid());
+                }
+                return;
+            }
+
+            // Reset ownership failures on successful validation
+            state.resetOwnershipFailures();
+            state.hasFocus = true;
+
+            ActionBarCueManager.onPlayerLookedAtPet(player, pet);
+
+            state.tick();
+            updatePetDisplay(player, pet, comp, state);
         }
-
-        // Reset ownership failures on successful validation
-        state.resetOwnershipFailures();
-        state.hasFocus = true;
-
-        ActionBarCueManager.onPlayerLookedAtPet(player, pet);
-
-        state.tick();
-        updatePetDisplay(player, pet, comp, state);
     }
 
     private static void updatePetDisplay(ServerPlayerEntity player, MobEntity pet, PetComponent comp, InspectionState state) {
@@ -228,9 +232,7 @@ public final class PetInspectionManager {
         float health = pet.getHealth();
         float maxHealth = pet.getMaxHealth();
         float healthPercent = maxHealth > 0 ? health / maxHealth : 0;
-
-        // Cache XP flash state at frame start for consistency across the update
-        // This prevents boss bar text from becoming inconsistent with the flash state
+        // Cache XP flash state for consistency
         boolean recentXpGain = comp.isXpFlashing();
         long xpFlashStartTick = comp.getXpFlashStartTick();
         state.cachedXpFlashing = recentXpGain;
@@ -299,8 +301,6 @@ public final class PetInspectionManager {
             .append(mainDisplay)
             .append(Text.literal(" "))
             .append(moodText);
-
-        // Note: Debug scoreboard will be handled in updatePetDisplay with player context
 
         // Boss bar always shows health-based color, only the text shows mood colors
         BossBar.Color barColor = UIStyle.getHealthBasedBossBarColor(status.healthPercent);

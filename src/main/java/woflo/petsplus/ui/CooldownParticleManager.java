@@ -29,7 +29,7 @@ public class CooldownParticleManager {
         UUID petId = pet.getUuid();
         long currentTime = world.getTime();
         
-        // Prevent particle spam - only trigger if enough time has passed
+        // Rate-limit particle effects
         if (lastRefreshTime.containsKey(petId)) {
             long timeSinceLastEffect = currentTime - lastRefreshTime.get(petId);
             if (timeSinceLastEffect < MINIMUM_REFRESH_INTERVAL) {

@@ -149,6 +149,13 @@ public final class PetMoodEngine {
     private static final int MOMENTUM_HISTORY_SIZE = 10;
     private static final float OPPONENT_TRANSFER_MAX = 0.20f; // Phase 2 tuning
     private static final float REBOUND_GAIN = 0.12f; // Phase 2 tuning
+    
+    // Emotion snapshot capture for gossip generation
+    private static final int EMOTION_SNAPSHOT_BUFFER_SIZE = 20;
+    private static final float EMOTION_SIGNIFICANCE_THRESHOLD = 0.30f;
+    private static final float EMOTION_SNAPSHOT_DELTA_THRESHOLD = 0.12f;
+    private static final long EMOTION_SNAPSHOT_COOLDOWN_TICKS = 80L;
+    private static final double OWNER_WITNESS_RADIUS_SQUARED = 144.0d;
     private static final float RELATIONSHIP_VARIANCE = 2200f;
     private static final float CARE_PULSE_HALF_LIFE = 3600f;
     private static final float DANGER_HALF_LIFE = 1200f;
@@ -182,6 +189,18 @@ public final class PetMoodEngine {
     private static volatile int cachedArcaneAmbientConfigGeneration = -1;
     private static final ConcurrentMap<String, Optional<Field>> ARCANE_REFLECTION_FIELD_CACHE = new ConcurrentHashMap<>();
     private static final ConcurrentMap<String, Optional<Method>> ARCANE_REFLECTION_METHOD_CACHE = new ConcurrentHashMap<>();
+
+    /**
+     * Lightweight snapshot of an emotion spike for gossip generation.
+     * Captures the essential context when an emotion reaches significance threshold.
+     */
+    public record EmotionSnapshot(
+        PetComponent.Emotion emotion,
+        float intensity,
+        long capturedTick,
+        boolean witnessed,  // Was the owner nearby when this emotion spiked?
+        long sequenceId     // Monotonic sequence so consumers can dedupe processing
+    ) {}
 
     private final PetComponent parent;
 
@@ -396,6 +415,10 @@ public final class PetMoodEngine {
 
     private final EnumMap<PetComponent.Emotion, EnumSet<PetComponent.Emotion>> opponentPairs =
             new EnumMap<>(PetComponent.Emotion.class);
+    
+    // Ring buffer for capturing significant emotion spikes for gossip
+    private final ArrayDeque<EmotionSnapshot> emotionSnapshotBuffer = new ArrayDeque<>(EMOTION_SNAPSHOT_BUFFER_SIZE);
+    private long emotionSnapshotSequence = 0L;
 
     public PetMoodEngine(PetComponent parent) {
         this.parent = parent;
@@ -544,10 +567,13 @@ public final class PetMoodEngine {
             record.impactBudget = Math.max(0f, record.impactBudget - reduction * 0.5f);
             record.lastEventTime = now;
             record.lastUpdateTime = now;
+            record.lastSnapshotIntensity = record.intensity;
             return;
         }
 
-        // Global intensity cap at 0.5f to prevent overwhelming
+        float previousIntensity = record.intensity;
+
+        // Cap intensity at 0.5 to prevent overwhelming
         float sample = MathHelper.clamp(amount, 0f, 0.5f);
         sample *= getNatureStimulusBias(emotion);
         sample *= parent.getHarmonyMoodMultiplier();
@@ -573,15 +599,13 @@ public final class PetMoodEngine {
             MathHelper.lerp(cachedVolatilityAlpha, record.volatilityEMA, volatilitySample), 0f, 1f);
         record.peakEMA = MathHelper.lerp(cachedPeakAlpha, record.peakEMA, Math.max(record.peakEMA, sample));
 
-        // Rekindle boost: bring intensity toward new sample with spike bias
+        // Rekindle boost: spike intensity toward sample
         float spikeBias = MathHelper.clamp(0.25f + 0.35f * (float) Math.exp(-delta / Math.max(1f, record.cadenceEMA)), 0.25f, 0.60f);
-        // Validate spikeBias is in reasonable range
         spikeBias = MathHelper.clamp(spikeBias, 0.0f, 1.0f);
         record.intensity = MathHelper.clamp(MathHelper.lerp(spikeBias, record.intensity, sample), 0f, 1f);
 
         // Impact budget accrues using rekindle-aware boost
         float rekindleBoost = 1.0f + Math.min(0.6f, record.sensitisationGain - 1.0f);
-        // Validate rekindleBoost is in reasonable range
         rekindleBoost = MathHelper.clamp(rekindleBoost, 0.0f, 2.0f);
         float impactGain = sample * rekindleBoost * resilienceMultiplier;
         record.impactBudget = Math.min(getImpactCap(), record.impactBudget + impactGain);
@@ -621,7 +645,51 @@ public final class PetMoodEngine {
                 * getNatureQuirkReboundModifier(emotion);
         record.homeostasisBias = MathHelper.clamp(record.homeostasisBias + tunedTowardBaseline, 0.75f, 1.35f);
 
+    maybeCaptureEmotionSnapshot(record, previousIntensity, now);
         refreshContextGuards(record, now, delta);
+    }
+
+    private void maybeCaptureEmotionSnapshot(EmotionRecord record, float previousIntensity, long now) {
+        float clampedIntensity = MathHelper.clamp(record.intensity, 0f, 1f);
+        boolean crossesThreshold = previousIntensity < EMOTION_SIGNIFICANCE_THRESHOLD
+                && clampedIntensity >= EMOTION_SIGNIFICANCE_THRESHOLD;
+        float delta = clampedIntensity - previousIntensity;
+        boolean significantDelta = delta >= EMOTION_SNAPSHOT_DELTA_THRESHOLD;
+        long ticksSinceLast = record.lastSnapshotTick > 0L
+                ? Math.max(0L, now - record.lastSnapshotTick)
+                : Long.MAX_VALUE;
+        boolean cooledDown = ticksSinceLast >= EMOTION_SNAPSHOT_COOLDOWN_TICKS;
+
+        if (clampedIntensity >= EMOTION_SIGNIFICANCE_THRESHOLD
+                && (crossesThreshold || (significantDelta && cooledDown))) {
+            boolean witnessed = isOwnerWitnessingSpike();
+            long sequenceId = ++emotionSnapshotSequence;
+            enqueueEmotionSnapshot(new EmotionSnapshot(record.emotion, clampedIntensity, now, witnessed, sequenceId));
+            record.lastSnapshotTick = now;
+            record.lastSnapshotIntensity = clampedIntensity;
+            return;
+        }
+
+        record.lastSnapshotIntensity = clampedIntensity;
+    }
+
+    private void enqueueEmotionSnapshot(EmotionSnapshot snapshot) {
+        if (emotionSnapshotBuffer.size() >= EMOTION_SNAPSHOT_BUFFER_SIZE) {
+            emotionSnapshotBuffer.removeFirst();
+        }
+        emotionSnapshotBuffer.addLast(snapshot);
+    }
+
+    private boolean isOwnerWitnessingSpike() {
+        PlayerEntity owner = parent.getOwner();
+        if (owner == null || !owner.isAlive() || owner.isSpectator()) {
+            return false;
+        }
+        MobEntity petEntity = parent.getPetEntity();
+        if (petEntity == null || owner.getEntityWorld() != petEntity.getEntityWorld()) {
+            return false;
+        }
+        return owner.squaredDistanceTo(petEntity) <= OWNER_WITNESS_RADIUS_SQUARED;
     }
 
     public void addContagionShare(PetComponent.Emotion emotion, float amount) {
@@ -682,6 +750,13 @@ public final class PetMoodEngine {
             activeEmotionsDirty = false;
         }
         return cachedActiveEmotionsView;
+    }
+
+    public List<EmotionSnapshot> getRecentEmotionSnapshots() {
+        if (emotionSnapshotBuffer.isEmpty()) {
+            return List.of();
+        }
+        return List.copyOf(emotionSnapshotBuffer);
     }
 
     public boolean hasMoodAbove(PetComponent.Mood mood, float threshold) {
@@ -760,7 +835,7 @@ public final class PetMoodEngine {
         float normalizedIntensity = MathHelper.clamp(intensity, 0f, 1f);
         float contribution = normalizedIntensity * durationTicks / 100f;
         
-        // Apply activity with caps to prevent overflow from rapid recording
+        // Apply activity with overflow caps
         switch (type) {
             case PHYSICAL -> {
                 physicalActivity = Math.min(5f, physicalActivity + contribution * 1.2f);
@@ -786,7 +861,7 @@ public final class PetMoodEngine {
     
     /**
      * Gets current behavioral momentum level.
-     * 0.0 = completely still/tired, 0.5 = neutral, 1.0 = hyperactive
+     * 0.0 = still/tired, 0.5 = neutral, 1.0 = hyperactive
      */
     public float getBehavioralMomentum() {
         update();
@@ -817,7 +892,6 @@ public final class PetMoodEngine {
      * Returns 0.7-1.3 range for natural speed variation.
      */
     public float getMomentumSpeedMultiplier() {
-        // Use last-applied behavioralMomentum to avoid forcing a mood recompute every tick
         // Map 0.0-1.0 momentum to 0.7-1.3 speed multiplier
         return 0.7f + (behavioralMomentum * 0.6f);
     }
@@ -827,8 +901,7 @@ public final class PetMoodEngine {
      * Returns 0.8-1.4 range for visible but not jarring animation changes.
      */
     public float getMomentumAnimationSpeed() {
-        // Use last-applied behavioralMomentum to avoid forcing a mood recompute on client render ticks
-        // Slightly more dramatic range than movement for visual feedback
+        // Map momentum to animation speed
         return 0.8f + (behavioralMomentum * 0.6f);
     }
     
@@ -2196,7 +2269,7 @@ public final class PetMoodEngine {
             }
         }
 
-        // Apply hysteresis to prevent level jitter
+        // Use hysteresis to reduce jitter
         int newLevel = applyLevelHysteresis(rawLevel, effectiveStrength, thresholds, lastLevel);
 
         int clampedLevel = MathHelper.clamp(newLevel, 0, thresholds.length);
@@ -2287,7 +2360,7 @@ public final class PetMoodEngine {
                 return diff * diff;
             })
             .average().orElse(0.0);
-        // Safety: ensure variance is non-negative before sqrt
+        // Prevent negative variance before sqrt
         variance = Math.max(0.0, variance);
         float stddev = (float) Math.sqrt(variance);
         // Clamp stddev to reasonable range for mood switching
@@ -2403,7 +2476,7 @@ public final class PetMoodEngine {
         }
 
         List<Map.Entry<PetComponent.Emotion, Float>> entries = new ArrayList<>(paletteBlend.entrySet());
-        // Defensive guard: EnumMap entry snapshots can surface null placeholders during async mood updates.
+        // Filter out null entries (can occur during async updates)
         entries.removeIf(entry -> entry == null || entry.getKey() == null || entry.getValue() == null);
         if (entries.isEmpty()) {
             stagePalette(Collections.emptyList());
@@ -2720,9 +2793,9 @@ public final class PetMoodEngine {
         int left = 0;
         int right = length - 1;
         
-        // Quickselect algorithm with safety bounds
+        // Quickselect with safety bounds
         int iterations = 0;
-        int maxIterations = length * 2; // Prevent infinite loops
+        int maxIterations = length * 2; // Cap iterations
         while (left < right && iterations < maxIterations) {
             int pivotIndex = partition(data, left, right, left + (right - left) / 2);
             if (targetIndex == pivotIndex) {
@@ -2762,9 +2835,9 @@ public final class PetMoodEngine {
         if (i == j) {
             return;
         }
-        // Bounds check to prevent ArrayIndexOutOfBoundsException
+        // Guard against out-of-bounds access
         if (data == null || i < 0 || j < 0 || i >= data.length || j >= data.length) {
-            return; // Silent fail for safety
+            return;
         }
         float temp = data[i];
         data[i] = data[j];
@@ -2875,7 +2948,7 @@ public final class PetMoodEngine {
     private float getNatureQuirkContagionDecayModifier(PetComponent.Emotion emotion) {
         // Quirk emotions decay contagion at different rates based on nature profile
         float modifier = getProfileScale(emotion, 0f, 0f, 0.6f, 0.6f, 1.6f);
-        return MathHelper.clamp(modifier, 0.1f, 3.0f); // Ensure positive decay modifier
+        return MathHelper.clamp(modifier, 0.1f, 3.0f);
     }
     
     private float getNaturePersistenceModifier(PetComponent.Emotion emotion) {
@@ -4135,8 +4208,8 @@ public final class PetMoodEngine {
             float healthPenalty = (0.4f - healthRatio) / 0.4f; // 0 at 40%, 1 at 0% health
             healthPenalty = MathHelper.clamp(healthPenalty, 0.0f, 1.0f);
             
-            // Scale penalty by current emotional level for dramatic effect
-            int currentLevel = getMoodLevel();
+            // Scale penalty by mood level
+            int currentLevel = Math.max(0, this.moodLevel);
             float levelScale = 1.0f + (currentLevel * 0.15f); // Level 3 = 1.45x effect
 
             switch (emotion) {
@@ -4193,12 +4266,12 @@ public final class PetMoodEngine {
                                   float quirkScale,
                                   float min,
                                   float max) {
-        // Null safety: handle missing or empty profiles gracefully
+        // Handle null or empty profiles gracefully
         if (natureEmotionProfile == null || natureEmotionProfile.isEmpty() || emotion == null) {
             return 1f;
         }
         
-        // Validate scale parameters to prevent extreme modulation
+        // Clamp scale parameters
         majorScale = MathHelper.clamp(majorScale, -1f, 2f);
         minorScale = MathHelper.clamp(minorScale, -1f, 2f);
         quirkScale = MathHelper.clamp(quirkScale, -1f, 2f);
@@ -4212,9 +4285,8 @@ public final class PetMoodEngine {
             factor += natureEmotionProfile.quirkStrength() * quirkScale;
         }
         
-        // Ensure final factor stays within specified bounds
+        // Clamp to bounds
         factor = MathHelper.clamp(factor, min, max);
-        // Final safety clamp to prevent any extreme values
         return MathHelper.clamp(factor, 0.0f, 1.40f); // Phase 2 tuning
     }
 
@@ -5255,6 +5327,8 @@ public final class PetMoodEngine {
         long startTime;
         long lastEventTime;
         long lastUpdateTime;
+    long lastSnapshotTick = 0L;
+    float lastSnapshotIntensity = 0f;
 
         EmotionRecord(PetComponent.Emotion emotion, long now) {
             this.emotion = emotion;
@@ -5337,20 +5411,19 @@ public final class PetMoodEngine {
         float volatilityMod = parent.getNatureVolatilityMultiplier(); // 0.5-1.5 range
         float resilienceMod = parent.getNatureResilienceMultiplier();  // 0.5-1.5 range
         
-        // Only apply multiplier if trend is significant (avoid noise)
+        // Apply multiplier only if trend is significant
         if (trend > BUILDUP_TREND_THRESHOLD) {
-            // Rising emotion: BOOST toward next level (responsive, exciting)
+            // Rising emotion: boost toward next level
             // Volatile natures escalate faster, resilient slower
             float risingMult = BUILDUP_RISING_MULTIPLIER * volatilityMod;
             return MathHelper.clamp(risingMult, 1.0f, 1.5f);
         } else if (trend < -BUILDUP_TREND_THRESHOLD) {
-            // Falling emotion: gentle resistance (prevents whiplash, smooth decay)
-            // Resilient natures recover faster
+            // Falling emotion: gentle resistance for smooth decay
             float fallingMult = BUILDUP_FALLING_MULTIPLIER * (2.0f - resilienceMod);
             return MathHelper.clamp(fallingMult, 0.7f, 1.0f);
         }
         
-        // Steady state or minor fluctuation: normal scaling
+        // Steady state: normal scaling
         return 1.0f;
     }
     
@@ -5371,13 +5444,13 @@ public final class PetMoodEngine {
         }
 
         if (rawLevel > lastLevel) {
-            // GOING UP: need to exceed threshold by extra margin (creates "earning it" feel)
+            // GOING UP: need to exceed threshold by extra margin
             // The threshold we're trying to cross is at index (rawLevel - 1)
             int thresholdIndex = rawLevel - 1;
             
-            // Bounds check: ensure valid threshold index
+            // Guard against invalid threshold index
             if (thresholdIndex < 0 || thresholdIndex >= thresholds.length) {
-                return rawLevel;  // Edge case: trust the raw calculation
+                return rawLevel;
             }
             
             float crossingThreshold = thresholds[thresholdIndex];
@@ -5394,18 +5467,18 @@ public final class PetMoodEngine {
                 return lastLevel;
             }
         } else {
-            // GOING DOWN: need to fall below threshold by small margin (easier than going up)
+            // GOING DOWN: need to fall below threshold by small margin
             // The threshold we're falling below is at index (lastLevel - 1)
             int thresholdIndex = lastLevel - 1;
             
-            // Bounds check
+            // Guard against invalid threshold index
             if (thresholdIndex < 0 || thresholdIndex >= thresholds.length) {
-                return rawLevel;  // Edge case: trust the raw calculation
+                return rawLevel;
             }
             
             float crossingThreshold = thresholds[thresholdIndex];
             
-            // Small margin prevents rapid oscillation but allows smooth decay
+            // Small margin to prevent oscillation
             float requiredMargin = 0.02f;
             float actualMargin = crossingThreshold - effectiveStrength;
             

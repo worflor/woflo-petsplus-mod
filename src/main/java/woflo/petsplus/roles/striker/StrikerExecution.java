@@ -542,6 +542,16 @@ public class StrikerExecution {
 
     private static double clamp01(double v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
 
+    /**
+     * Cleanup method to prevent memory leaks from disconnected players.
+     * Should be called when a player disconnects.
+     */
+    public static void onPlayerDisconnect(UUID playerUuid) {
+        if (playerUuid != null) {
+            EXECUTION_MOMENTUM.remove(playerUuid);
+        }
+    }
+
     private static double computeAppliedThreshold(double baseThreshold, double perStackBonus, int chainMaxStacks, int stacks) {
         double sanitizedBase = clamp01(Math.min(baseThreshold, MAX_EXECUTE_THRESHOLD));
         if (perStackBonus <= 0 || chainMaxStacks <= 0 || stacks <= 0) {
