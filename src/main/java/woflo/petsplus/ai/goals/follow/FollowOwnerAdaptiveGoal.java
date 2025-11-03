@@ -26,6 +26,7 @@ import woflo.petsplus.ai.movement.MovementCommand;
 import woflo.petsplus.ai.capability.MobCapabilities;
 import woflo.petsplus.api.entity.PetsplusTameable;
 import woflo.petsplus.config.DebugSettings;
+import woflo.petsplus.ai.util.MovementSafetyUtil;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
 import woflo.petsplus.state.emotions.BehaviouralEnergyProfile;
@@ -301,21 +302,11 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
                 mob.getNavigation().stop();
                 return;
             }
+            FollowState state = computeFollowState(owner, now, distanceToOwnerSq, teleportDistanceSq, false);
+            boolean ownerIsMoving = state.ownerIsMoving();
+            boolean hesitating = state.hesitating();
 
-            Vec3d ownerVelocity = owner.getVelocity();
-            boolean ownerIsMoving = ownerVelocity.horizontalLengthSquared() > OWNER_SPEED_DAMPING_THRESHOLD;
-            boolean hesitating = OwnerAssistAttackGoal.isPetHesitating(petComponent, now);
-            boolean moodHoldActive = petComponent.isMoodFollowHoldActive(now);
-            float moodDistanceBonus = moodHoldActive ? petComponent.getMoodFollowDistanceBonus(now) : 0.0f;
-            CourtesyProfile courtesy = sampleCourtesyProfile(now);
-            double courtesyDistance = baseFollowDistance + moodDistanceBonus + courtesy.distanceBonus();
-            double courtesyDistanceSq = courtesyDistance * courtesyDistance;
-            double baseDistance = courtesyDistance;
-            double baselineStartDistance = computeStartThresholdDistance(baseDistance,
-                courtesy.courtesyActive() ? false : ownerIsMoving);
-
-            if (courtesy.courtesyActive() && !teleportOverride
-                && distanceToOwnerSq <= courtesyDistanceSq) {
+            if (state.courtesyHolding() && !teleportOverride) {
                 if (!mob.getNavigation().isIdle()) {
                     mob.getNavigation().stop();
                 }
@@ -323,14 +314,44 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
                 return;
             }
 
+            if (state.moodHoldActive() && !state.hesitating() && distanceToOwnerSq <= state.stopThresholdSq()) {
+                if (!mob.getNavigation().isIdle()) {
+                    mob.getNavigation().stop();
+                }
+                lastMoveTarget = null;
+                return;
+            }
+
+            if (state.requiresImmediateReturn()) {
+                double extendedRange = Math.max(HARD_FAILSAFE_DISTANCE + 8.0d, teleportDistance * 1.75d);
+                if (tryEmergencyTeleport(owner, extendedRange)) {
+                    lastMoveTarget = null;
+                    return;
+                }
+            }
+
+            if (state.hesitating() && distanceToOwnerSq <= HESITATION_CLEAR_DISTANCE_SQ) {
+                OwnerAssistAttackGoal.clearAssistHesitation(petComponent);
+            }
+
+            mob.getLookControl().lookAt(owner, state.hesitating() ? 20.0f : 10.0f, mob.getMaxLookPitchChange());
+
+            boolean worldsMatch = owner.getEntityWorld().getRegistryKey().equals(mob.getEntityWorld().getRegistryKey());
+            if (!worldsMatch || Double.isInfinite(distanceToOwnerSq)) {
+                mob.getNavigation().stop();
+                lastMoveTarget = null;
+                return;
+            }
+
+            double baseDistance = state.courtesyDistance();
             double baseSpeed = resolveDynamicSpeed(state.distance(), baseDistance);
             MovementCommand command = movementDirector.resolveMovement(goalId, ownerPos, baseDistance, baseSpeed);
             this.activeFollowDistance = (float) command.desiredDistance();
             Vec3d moveTarget = command.targetPosition();
             double adjustedSpeed = command.speed();
 
-            double dropMagnitude = mob.getY() - moveTarget.y;
-            if (dropMagnitude > LEDGE_DROP_THRESHOLD && isUnsafeLedge(moveTarget, canFly, isAquatic)) {
+            if (MovementSafetyUtil.isUnsafeLedge(mob, mob.getEntityWorld(), moveTarget,
+                LEDGE_DROP_THRESHOLD, LEDGE_CHECK_DEPTH, canFly, isAquatic)) {
                 if (state.distanceSq() >= HARD_FAILSAFE_DISTANCE_SQ || state.requiresImmediateReturn()) {
                     double extendedRange = Math.max(HARD_FAILSAFE_DISTANCE + 8.0d, teleportDistance * 1.75d);
                     if (tryEmergencyTeleport(owner, extendedRange)) {
@@ -345,32 +366,8 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
             }
 
             if (isDebugLoggingEnabled()) {
-                debugLastStartDistance = baselineStartDistance;
-            }
-
-            mob.getLookControl().lookAt(owner, hesitating ? 20.0f : 10.0f, mob.getMaxLookPitchChange());
-
-            boolean worldsMatch = owner.getEntityWorld().getRegistryKey().equals(mob.getEntityWorld().getRegistryKey());
-            if (!worldsMatch || Double.isInfinite(distanceToOwnerSq)) {
-                mob.getNavigation().stop();
-                lastMoveTarget = null;
-                return;
-            }
-
-            double baselineStopDistance = computeStopThresholdDistance(baseDistance,
-                courtesy.courtesyActive() ? false : ownerIsMoving);
-            double baselineStopDistanceSq = baselineStopDistance * baselineStopDistance;
-            if (isDebugLoggingEnabled()) {
-                debugLastStopDistance = baselineStopDistance;
-            }
-
-            if ((courtesy.courtesyActive() && distanceToOwnerSq <= courtesyDistanceSq)
-                || (moodHoldActive && !hesitating && distanceToOwnerSq <= baselineStopDistanceSq)) {
-                if (!mob.getNavigation().isIdle()) {
-                    mob.getNavigation().stop();
-                }
-                lastMoveTarget = null;
-                return;
+                debugLastStartDistance = state.startThresholdDistance();
+                debugLastStopDistance = state.stopThresholdDistance();
             }
 
             if (distanceToOwnerSq > teleportDistanceSq) {
@@ -379,7 +376,6 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
                     return;
                 }
             }
-
             if (hesitating && distanceToOwnerSq <= HESITATION_CLEAR_DISTANCE_SQ) {
                 OwnerAssistAttackGoal.clearAssistHesitation(petComponent);
             }
@@ -474,7 +470,7 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
                 return;
             }
 
-            sampleMomentum(now, hesitating, distanceToOwnerSq);
+            sampleMomentum(now, state.hesitating(), state.distanceSq());
         } finally {
             if (isDebugLoggingEnabled()) {
                 recordFollowDebug(owner.getUuid(), now, System.nanoTime() - debugStartNano, debugStartedPath, debugReusedPath);
@@ -749,37 +745,6 @@ public class FollowOwnerAdaptiveGoal extends AdaptiveGoal {
             }
         }
         return false;
-    }
-
-    private boolean isUnsafeLedge(Vec3d target, boolean canFly, boolean isAquatic) {
-        if (canFly) {
-            return false;
-        }
-        WorldView world = mob.getEntityWorld();
-        if (world == null) {
-            return false;
-        }
-        BlockPos.Mutable mutable = new BlockPos.Mutable(
-            MathHelper.floor(target.x),
-            MathHelper.floor(target.y - 0.5d),
-            MathHelper.floor(target.z));
-        int depth = 0;
-        while (mutable.getY() > world.getBottomY() && depth < LEDGE_CHECK_DEPTH) {
-            BlockState state = world.getBlockState(mutable);
-            if (!state.getCollisionShape(world, mutable).isEmpty()) {
-                if (state.getFluidState().isIn(FluidTags.WATER)) {
-                    return !isAquatic;
-                }
-                return false;
-            }
-            FluidState fluid = world.getFluidState(mutable);
-            if (fluid.isIn(FluidTags.WATER)) {
-                return !isAquatic;
-            }
-            mutable.move(Direction.DOWN);
-            depth++;
-        }
-        return true;
     }
 
     private FollowState computeFollowState(PlayerEntity owner, long now, double distanceSq,

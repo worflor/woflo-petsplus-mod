@@ -4,6 +4,7 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalRegistry;
@@ -12,6 +13,8 @@ import woflo.petsplus.ai.goals.GoalIds;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import woflo.petsplus.ai.capability.MobCapabilities;
+import woflo.petsplus.ai.util.MovementSafetyUtil;
 
 /**
  * Purposeful patrol - visits important landmarks in a circuit.
@@ -99,6 +102,14 @@ public class PurposefulPatrolGoal extends AdaptiveGoal {
 
             if (!orientTowards(targetX, targetY, targetZ, 35.0f, 28.0f, 18.0f)) {
                 mob.getNavigation().stop();
+                return;
+            }
+
+            Vec3d moveTarget = new Vec3d(targetX, targetY, targetZ);
+            boolean canFly = MobCapabilities.canFly(mob);
+            boolean isAquatic = MobCapabilities.prefersWater(mob);
+            if (MovementSafetyUtil.isUnsafeLedge(mob, mob.getEntityWorld(), moveTarget, 1.25d, 4, canFly, isAquatic)) {
+                currentPointIndex = (currentPointIndex + 1) % patrolPoints.size();
                 return;
             }
 

@@ -1,4 +1,4 @@
-[22:12:32] [ForkJoinPool-1-worker-9/ERROR]: Async result application failed
+[22:56:30] [ForkJoinPool-1-worker-11/ERROR]: Async result application failed
 java.lang.RuntimeException: Applier failed
 	at woflo.petsplus.state.processing.AsyncWorkCoordinatorTest$ErrorHandlingTests.lambda$submitStandalone_handlesApplierException$2(AsyncWorkCoordinatorTest.java:300) ~[test/:?]
 	at woflo.petsplus.state.processing.AsyncWorkCoordinator.lambda$runStandalone$8(AsyncWorkCoordinator.java:307) ~[main/:?]
@@ -46,3 +46,43 @@ java.lang.RuntimeException: Applier failed
 	at java.base/java.util.concurrent.ForkJoinPool.scan(ForkJoinPool.java:1843) [?:?]
 	at java.base/java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1808) [?:?]
 	at java.base/java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:188) [?:?]
+[22:56:34] [ForkJoinPool-1-worker-5/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/striker.json
+[22:56:34] [ForkJoinPool-1-worker-4/WARN]: Role definition at test has invalid archetype 'INVALID_TYPE'; valid values are: [TANK, DPS, SUPPORT, MOBILITY, UTILITY]
+[22:56:34] [ForkJoinPool-1-worker-12/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/guardian.json
+[22:56:34] [ForkJoinPool-1-worker-3/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/guardian.json
+[22:56:34] [ForkJoinPool-1-worker-9/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/guardian.json
+[22:56:34] [ForkJoinPool-1-worker-10/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/guardian.json
+[22:56:34] [ForkJoinPool-1-worker-3/WARN]: Role petsplus:guardian from /data/petsplus/roles/guardian.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-7/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/support.json
+[22:56:34] [ForkJoinPool-1-worker-11/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/scout.json
+[22:56:34] [ForkJoinPool-1-worker-2/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/striker.json
+[22:56:34] [ForkJoinPool-1-worker-2/WARN]: Role petsplus:striker from /data/petsplus/roles/striker.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-8/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/enchantment_bound.json
+[22:56:34] [ForkJoinPool-1-worker-6/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/guardian.json
+[22:56:34] [ForkJoinPool-1-worker-1/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/guardian.json
+[22:56:34] [ForkJoinPool-1-worker-7/WARN]: Role petsplus:support from /data/petsplus/roles/support.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-8/WARN]: Role petsplus:enchantment_bound from /data/petsplus/roles/enchantment_bound.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-9/WARN]: Role petsplus:guardian from /data/petsplus/roles/guardian.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-12/WARN]: Role petsplus:guardian from /data/petsplus/roles/guardian.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-4/WARN]: Role petsplus:test from test defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-5/WARN]: Role petsplus:striker from /data/petsplus/roles/striker.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-1/WARN]: Role petsplus:guardian from /data/petsplus/roles/guardian.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-6/WARN]: Role petsplus:guardian from /data/petsplus/roles/guardian.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-10/WARN]: Role petsplus:guardian from /data/petsplus/roles/guardian.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-12/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/support.json
+[22:56:34] [ForkJoinPool-1-worker-12/WARN]: Role petsplus:support from /data/petsplus/roles/support.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-4/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/striker.json
+[22:56:34] [ForkJoinPool-1-worker-12/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/striker.json
+[22:56:34] [ForkJoinPool-1-worker-4/WARN]: Role petsplus:striker from /data/petsplus/roles/striker.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-12/WARN]: Role petsplus:striker from /data/petsplus/roles/striker.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-3/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/support.json
+[22:56:34] [ForkJoinPool-1-worker-3/WARN]: Role petsplus:support from /data/petsplus/roles/support.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-6/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/cursed_one.json
+[22:56:34] [ForkJoinPool-1-worker-6/WARN]: Role petsplus:cursed_one from /data/petsplus/roles/cursed_one.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-8/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/eepy_eeper.json
+[22:56:34] [ForkJoinPool-1-worker-8/WARN]: Role petsplus:eepy_eeper from /data/petsplus/roles/eepy_eeper.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-4/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/eclipsed.json
+[22:56:34] [ForkJoinPool-1-worker-3/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/skyrider.json
+[22:56:34] [ForkJoinPool-1-worker-4/WARN]: Role petsplus:eclipsed from /data/petsplus/roles/eclipsed.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-3/WARN]: Role petsplus:skyrider from /data/petsplus/roles/skyrider.json defines no default abilities; pets will not have loadout entries until datapacks provide them.
+[22:56:34] [ForkJoinPool-1-worker-2/INFO]: Loaded 10 level reward configurations for /data/petsplus/roles/scout.json

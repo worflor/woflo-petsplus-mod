@@ -11,6 +11,8 @@ import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.ai.capability.MobCapabilities;
+import woflo.petsplus.ai.util.MovementSafetyUtil;
 
 import java.util.EnumSet;
 
@@ -181,6 +183,13 @@ public class ParallelPlayGoal extends AdaptiveGoal {
                         }
                     }
                     if ((parallelTicks % 5) == 0 || mob.getNavigation().isIdle()) {
+                        Vec3d moveTargetVec = new Vec3d(moveTargetX, moveTargetY, moveTargetZ);
+                        boolean canFly = MobCapabilities.canFly(mob);
+                        boolean isAquatic = MobCapabilities.prefersWater(mob);
+                        if (MovementSafetyUtil.isUnsafeLedge(mob, mob.getEntityWorld(), moveTargetVec, 1.25d, 4, canFly, isAquatic)) {
+                            playSpot = selectPlaySpot(owner);
+                            return;
+                        }
                         mob.getNavigation().startMovingTo(moveTargetX, moveTargetY, moveTargetZ, speed);
                     }
                     mob.getLookControl().lookAt(owner, 20.0f, 20.0f);

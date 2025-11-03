@@ -11,12 +11,15 @@ import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.goals.GoalRegistry;
 import woflo.petsplus.ai.context.PetContext;
 import woflo.petsplus.state.PetComponent;
+import woflo.petsplus.ai.capability.MobCapabilities;
+import woflo.petsplus.ai.util.MovementSafetyUtil;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -182,17 +185,23 @@ public class CasualWanderGoal extends AdaptiveGoal {
             return;
         }
 
-        double speed = computeTravelSpeed(ctx, distanceSq);
-        mob.getNavigation().startMovingTo(
+        Vec3d moveTarget = new Vec3d(
             target.getX() + 0.5,
             target.getY(),
-            target.getZ() + 0.5,
-            speed
+            target.getZ() + 0.5
         );
+        boolean canFly = MobCapabilities.canFly(mob);
+        boolean isAquatic = MobCapabilities.prefersWater(mob);
+        if (MovementSafetyUtil.isUnsafeLedge(mob, mob.getEntityWorld(), moveTarget, 1.25d, 4, canFly, isAquatic)) {
+            selectNewTarget(ctx, true);
+            return;
+        }
+        double speed = computeTravelSpeed(ctx, distanceSq);
+        mob.getNavigation().startMovingTo(moveTarget.x, moveTarget.y, moveTarget.z, speed);
         mob.getLookControl().lookAt(
-            target.getX() + 0.5,
-            target.getY() + 0.3,
-            target.getZ() + 0.5,
+            moveTarget.x,
+            moveTarget.y + 0.3,
+            moveTarget.z,
             20.0f,
             20.0f
         );
