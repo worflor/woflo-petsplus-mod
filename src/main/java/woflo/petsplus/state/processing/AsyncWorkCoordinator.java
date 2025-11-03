@@ -404,7 +404,16 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
         if (allowedThreads <= 0) {
             return 0;
         }
-        return allowedThreads + Math.max(1, allowedThreads * 2);
+
+        // Allow a generous backlog so bursts of work don't get rejected when
+        // we're limited to a small worker pool (common in test environments
+        // and on lightly provisioned servers). The previous calculation only
+        // allowed ~3x the worker count which caused even moderate bursts to be
+        // throttled prematurely. We now guarantee at least 32 queued/running
+        // tasks and scale linearly beyond that for larger pools.
+        int minimumCapacity = 32;
+        int scaledCapacity = allowedThreads * 8;
+        return Math.max(minimumCapacity, scaledCapacity);
     }
 
     @Nullable
