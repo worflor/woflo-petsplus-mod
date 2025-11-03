@@ -5,7 +5,7 @@
 </p>
 
 <h1 align="center">woflo's Pets+</h1>
-<h3 align="center">dev-0.97-virtues-and-vices</h3>
+<h3 align="center">dev-0.97-Virtues-and-Vices</h3>
 <h4 align="center">next: bug fixing</h4>
 
 ---
@@ -14,7 +14,7 @@
 <ul>
   <li>Rework 0.95 [ai] - Following the same path as the stimulus pipeline, AI uses pet context, mood engine snapshots, and more to allow dynamic emergent behaviour (adaptive goal).</li>
   <li>Added 0.96 [ai] - AIState exists.</li>
-  <li>Updated 0.96 [ai] - Pet Adaptive Goals now react *properly* with relationships, bonds, and owner vs non owner pets.</li>
+  <li>Update 0.96 [ai] - Pet Adaptive Goals now react *properly* with relationships, bonds, and owner vs non owner pets.</li>
 	<li>Rework 0.96 [ai] - Pet Director system now integrates with Adaptive Goals' 'action goals' and 'insight goals'.</li>
   <li>Added 0.96 [ai] - Swarm Snapshots flow through AIState so Adaptive Goals CAN view nearby entities if a nearby scan has occured recently. Some goal's request a fresh scan, some don't need fresh information.</li>
 	<li>Added 0.96 [ai] - Bedtime Companion Goal.</li>
@@ -26,7 +26,10 @@
   <li>Added 0.97 [nature] - Abstract pets (bred nature) are formed in tight conformed spaces with absolutely no escape.</li>
   <li>Added 0.97 [mood] - New Ultra Rare Mood: Mining Reverie. Getting lost in the mining sauce.</li>
   <li>Added 0.97 [mood] - New Ultra Rare Mood: Malevolent Eclipse. A buildup of evil.</li>
-  <li>Added 0.97 [system] - Virtue and Vices. evil is more complicated than random malicious actions. they need intent, time, and a breaching of virtues.</li>
+  <li>Added 0.97 [morality] - Virtue and Vices. Morality is a 'drifting' layer on top of the core pet. Each nature has a baseline for each virtue and custom 'reintegration' value. These values drift with gameplay and lead to behaviour changes.</li>
+  <li>Rework 0.97 [Pet Compendium] - Much prettier, very concise. So needed.</li>
+  <li>Rework 0.97 [Gossip] - Follows the same stimulus/perception pipeline as the Mood Engine, allowing "gossip triggers" to hook onto the stimulus bus. ;) this is still being fine tuned, some functionality was lost, some was gained.</li>
+  <li>Migrate 0.97 [Role] - Starting operation "its 20k..?". Phase 1: Remove "hardcoded" role abilities.</li>
 </ul>
 
 ---
