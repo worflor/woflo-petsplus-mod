@@ -231,11 +231,11 @@ class AsyncWorkCoordinatorTest {
         @DisplayName("should respect job capacity limits")
         void submitStandalone_respectsCapacityLimits() throws Exception {
             // Given: Submit many blocking jobs to fill capacity
-            int capacity = Runtime.getRuntime().availableProcessors() * 3;  // approx max
+            int attempts = Math.max(64, Runtime.getRuntime().availableProcessors() * 3 + 10);
             CountDownLatch blockingLatch = new CountDownLatch(1);
             List<CompletableFuture<String>> blockingJobs = new ArrayList<>();
 
-            for (int i = 0; i < capacity + 10; i++) {  // Try to exceed capacity
+            for (int i = 0; i < attempts; i++) {  // Try to exceed capacity
                 CompletableFuture<String> future = coordinator.submitStandalone(
                     "blocking-job-" + i,
                     () -> {
@@ -254,7 +254,9 @@ class AsyncWorkCoordinatorTest {
                 .filter(CompletableFuture::isCompletedExceptionally)
                 .count();
             
-            assertThat(rejected).isGreaterThan(0);
+            assertThat(rejected)
+                .as("expected some submissions to be rejected once the queue is saturated")
+                .isGreaterThan(0);
 
             // Cleanup
             blockingLatch.countDown();
