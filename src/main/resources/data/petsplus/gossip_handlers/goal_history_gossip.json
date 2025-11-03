@@ -1,0 +1,39 @@
+{
+  "stimulus_type": "petsplus:perception/goal_history",
+  "priority": 20,
+  "cooldown_ticks": 6000,
+  "context_checks": [],
+  "topic_builder": {
+    "template": "goal_reflection",
+    "variables": {}
+  },
+  "narrative_templates": [
+    {
+      "conditions": [],
+      "templates": [
+        "Had a plan. Forgot it.",
+        "Was going to do something. Didn't.",
+        "Accomplished nothing today. Fine with that.",
+        "Investigated that noise. It was nothing. Time well spent.",
+        "Spent an hour watching a leaf.",
+        "Goal: nap. Achieved. Multiple times.",
+        "Went somewhere for a reason. Forgot it halfway.",
+        "Found a new favorite sitting spot today.",
+        "Made a decision. Unmade it immediately.",
+        "Tried something new. Went back to old way.",
+        "Agenda was blank. Kept it that way.",
+        "Set out to investigate. Got distracted.",
+        "Did several tasks nobody asked for.",
+        "Had ambitions earlier. They passed.",
+        "Checked something I checked yesterday. Still same.",
+        "Contribution today: existing nearby.",
+        "Committed to nothing. Delivered.",
+        "Started strong. Ended napping.",
+        "Pursued a goal until something shinier appeared.",
+        "Followed through on my no-plan plan."
+      ]
+    }
+  ],
+  "intensity_formula": "0.4",
+  "confidence_formula": "0.65"
+}

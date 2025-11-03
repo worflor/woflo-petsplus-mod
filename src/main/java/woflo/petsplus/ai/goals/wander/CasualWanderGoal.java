@@ -33,6 +33,8 @@ public class CasualWanderGoal extends AdaptiveGoal {
     private static final int RECENT_TARGET_HISTORY = 6;
     private static final int ENTITY_INTEREST_RADIUS_SQ = 64;
     private static final String COOLDOWN_KEY = "casual_wander";
+    private static final int ENTITY_INTEREST_RESAMPLE_TICKS = 8;
+    private static final int ENVIRONMENT_INTEREST_RESAMPLE_TICKS = 14;
 
     private BlockPos target;
     private int pauseTicks = 0;
@@ -42,6 +44,12 @@ public class CasualWanderGoal extends AdaptiveGoal {
     private int curiosityCooldown = 0;
     private int navigationStallTicks = 0;
     private final Deque<BlockPos> recentTargets = new ArrayDeque<>(RECENT_TARGET_HISTORY);
+    private long lastEntityInterestTick = Long.MIN_VALUE;
+    private long lastEnvironmentalInterestTick = Long.MIN_VALUE;
+    private BlockPos cachedEntityInterest;
+    private BlockPos cachedEnvironmentalInterest;
+    private final BlockPos.Mutable groundColumn = new BlockPos.Mutable();
+    private final BlockPos.Mutable groundHead = new BlockPos.Mutable();
     
     public CasualWanderGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.CASUAL_WANDER), EnumSet.of(Control.MOVE));
@@ -104,6 +112,10 @@ public class CasualWanderGoal extends AdaptiveGoal {
         curiosityCooldown = 0;
         isPaused = false;
         pauseTicks = 0;
+        cachedEntityInterest = null;
+        cachedEnvironmentalInterest = null;
+        lastEntityInterestTick = Long.MIN_VALUE;
+        lastEnvironmentalInterestTick = Long.MIN_VALUE;
         selectNewTarget(getContext(), true);
     }
 
@@ -128,6 +140,10 @@ public class CasualWanderGoal extends AdaptiveGoal {
         mob.getNavigation().stop();
         target = null;
         isPaused = false;
+        cachedEntityInterest = null;
+        cachedEnvironmentalInterest = null;
+        lastEntityInterestTick = Long.MIN_VALUE;
+        lastEnvironmentalInterestTick = Long.MIN_VALUE;
         PetComponent component = PetComponent.get(mob);
         if (component != null) {
             int cooldown = 80 + mob.getRandom().nextInt(41);
@@ -227,7 +243,8 @@ public class CasualWanderGoal extends AdaptiveGoal {
     }
 
     private double computeTravelSpeed(PetContext ctx, double distanceSq) {
-        double distance = Math.sqrt(Math.max(distanceSq, 0.0d));
+        // Avoid sqrt when possible - lazy evaluation
+        double distance = distanceSq > 0.0d ? Math.sqrt(distanceSq) : 0.0d;
         double distanceFactor = MathHelper.clamp((distance - 2.0d) / 6.0d, 0.0d, 1.0d);
         double stamina = ctx != null ? MathHelper.clamp(ctx.physicalStamina(), 0.0f, 1.0f) : 0.55d;
         double momentum = ctx != null ? MathHelper.clamp(ctx.behavioralMomentum(), 0.0f, 1.0f) : 0.55d;
@@ -238,11 +255,18 @@ public class CasualWanderGoal extends AdaptiveGoal {
     }
 
     private void selectNewTarget(PetContext ctx, boolean allowPauseFallback) {
+        World world = mob.getEntityWorld();
+        long now = world != null ? world.getTime() : 0L;
         BlockPos chosen = null;
         if (ctx != null) {
-            chosen = pickEntityInterest(ctx).orElse(null);
-            if (chosen == null) {
-                chosen = pickEnvironmentalInterest(ctx).orElse(null);
+            BlockPos entityInterest = resolveEntityInterest(ctx, now);
+            if (entityInterest != null) {
+                chosen = entityInterest;
+            } else {
+                BlockPos environmentalInterest = resolveEnvironmentalInterest(ctx, now);
+                if (environmentalInterest != null) {
+                    chosen = environmentalInterest;
+                }
             }
         }
         if (chosen == null) {
@@ -260,6 +284,44 @@ public class CasualWanderGoal extends AdaptiveGoal {
         if (allowPauseFallback) {
             enterPause(25 + mob.getRandom().nextInt(25));
         }
+    }
+
+    private BlockPos resolveEntityInterest(PetContext ctx, long now) {
+        World world = mob.getEntityWorld();
+        if (cachedEntityInterest != null) {
+            if (isRecentlyVisited(cachedEntityInterest)
+                || (world != null && !world.getWorldBorder().contains(cachedEntityInterest))) {
+                cachedEntityInterest = null;
+                lastEntityInterestTick = Long.MIN_VALUE;
+            }
+        }
+        boolean allowResample = lastEntityInterestTick == Long.MIN_VALUE
+            || now - lastEntityInterestTick >= ENTITY_INTEREST_RESAMPLE_TICKS;
+        if (!allowResample) {
+            return cachedEntityInterest;
+        }
+        lastEntityInterestTick = now;
+        cachedEntityInterest = pickEntityInterest(ctx).orElse(null);
+        return cachedEntityInterest;
+    }
+
+    private BlockPos resolveEnvironmentalInterest(PetContext ctx, long now) {
+        World world = mob.getEntityWorld();
+        if (cachedEnvironmentalInterest != null) {
+            if (isRecentlyVisited(cachedEnvironmentalInterest)
+                || (world != null && !world.getWorldBorder().contains(cachedEnvironmentalInterest))) {
+                cachedEnvironmentalInterest = null;
+                lastEnvironmentalInterestTick = Long.MIN_VALUE;
+            }
+        }
+        boolean allowResample = lastEnvironmentalInterestTick == Long.MIN_VALUE
+            || now - lastEnvironmentalInterestTick >= ENVIRONMENT_INTEREST_RESAMPLE_TICKS;
+        if (!allowResample) {
+            return cachedEnvironmentalInterest;
+        }
+        lastEnvironmentalInterestTick = now;
+        cachedEnvironmentalInterest = pickEnvironmentalInterest(ctx).orElse(null);
+        return cachedEnvironmentalInterest;
     }
 
     private Optional<BlockPos> pickEntityInterest(PetContext ctx) {
@@ -304,16 +366,26 @@ public class CasualWanderGoal extends AdaptiveGoal {
 
     private Optional<BlockPos> pickEnvironmentalInterest(PetContext ctx) {
         World world = mob.getEntityWorld();
+        if (world == null) {
+            return Optional.empty();
+        }
         BlockPos origin = mob.getBlockPos();
         double bestScore = 0.0d;
         BlockPos best = null;
         int radius = 7;
+        int originX = origin.getX();
+        int originY = origin.getY();
+        int originZ = origin.getZ();
+        final double minDistance = 2.5d;
+        final double maxDistance = 9.5d;
+        BlockPos.Mutable probe = new BlockPos.Mutable();
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dz = -radius; dz <= radius; dz++) {
                 if (dx == 0 && dz == 0) {
                     continue;
                 }
-                BlockPos stand = findStandableGround(origin.add(dx, 0, dz));
+                probe.set(originX + dx, originY, originZ + dz);
+                BlockPos stand = findStandableGround(probe);
                 if (stand == null || isRecentlyVisited(stand)) {
                     continue;
                 }
@@ -321,8 +393,8 @@ public class CasualWanderGoal extends AdaptiveGoal {
                 if (score <= 0.0d) {
                     continue;
                 }
-                double distance = Math.sqrt(stand.getSquaredDistance(origin.getX(), origin.getY(), origin.getZ()));
-                if (distance < 2.5d || distance > 9.5d) {
+                double distance = Math.sqrt(stand.getSquaredDistance(originX, originY, originZ));
+                if (distance < minDistance || distance > maxDistance) {
                     continue;
                 }
                 double weighted = score / (0.9d + distance);
@@ -337,12 +409,14 @@ public class CasualWanderGoal extends AdaptiveGoal {
 
     private BlockPos pickExplorationTarget(PetContext ctx) {
         BlockPos origin = mob.getBlockPos();
+        BlockPos.Mutable probe = new BlockPos.Mutable();
         for (int attempt = 0; attempt < 8; attempt++) {
             int radius = 4 + mob.getRandom().nextInt(5);
             double angle = mob.getRandom().nextDouble() * MathHelper.TAU;
             int dx = MathHelper.floor(Math.cos(angle) * radius);
             int dz = MathHelper.floor(Math.sin(angle) * radius);
-            BlockPos stand = findStandableGround(origin.add(dx, 0, dz));
+            probe.set(origin.getX() + dx, origin.getY(), origin.getZ() + dz);
+            BlockPos stand = findStandableGround(probe);
             if (stand == null || isRecentlyVisited(stand)) {
                 continue;
             }
@@ -377,29 +451,36 @@ public class CasualWanderGoal extends AdaptiveGoal {
 
     private BlockPos findStandableGround(BlockPos initial) {
         World world = mob.getEntityWorld();
-        BlockPos.Mutable mutable = initial.mutableCopy();
+        if (world == null) {
+            return null;
+        }
+        BlockPos.Mutable column = groundColumn;
+        BlockPos.Mutable head = groundHead;
+        column.set(initial);
         int minY = world.getBottomY();
         int maxY = world.getTopY(net.minecraft.world.Heightmap.Type.MOTION_BLOCKING, initial.getX(), initial.getZ());
 
-        for (int up = 0; up < 6 && mutable.getY() < maxY; up++) {
-            BlockPos head = mutable.up();
+        for (int up = 0; up < 6 && column.getY() < maxY; up++) {
+            head.set(column.getX(), column.getY() + 1, column.getZ());
             BlockState headState = world.getBlockState(head);
+            BlockState columnState = world.getBlockState(column);
             if ((headState.isAir() || headState.getCollisionShape(world, head).isEmpty())
-                && world.getBlockState(mutable).isSolidBlock(world, mutable)) {
+                && columnState.isSolidBlock(world, column)) {
                 return head.toImmutable();
             }
-            mutable.move(0, 1, 0);
+            column.move(0, 1, 0);
         }
 
-        mutable = initial.mutableCopy();
-        for (int down = 0; down < 6 && mutable.getY() > minY; down++) {
-            BlockPos head = mutable.up();
+        column.set(initial);
+        for (int down = 0; down < 6 && column.getY() > minY; down++) {
+            head.set(column.getX(), column.getY() + 1, column.getZ());
             BlockState headState = world.getBlockState(head);
+            BlockState columnState = world.getBlockState(column);
             if ((headState.isAir() || headState.getCollisionShape(world, head).isEmpty())
-                && world.getBlockState(mutable).isSolidBlock(world, mutable)) {
+                && columnState.isSolidBlock(world, column)) {
                 return head.toImmutable();
             }
-            mutable.move(0, -1, 0);
+            column.move(0, -1, 0);
         }
         return null;
     }
@@ -411,6 +492,14 @@ public class CasualWanderGoal extends AdaptiveGoal {
         recentTargets.addLast(pos);
         while (recentTargets.size() > RECENT_TARGET_HISTORY) {
             recentTargets.removeFirst();
+        }
+        if (cachedEntityInterest != null && cachedEntityInterest.equals(pos)) {
+            cachedEntityInterest = null;
+            lastEntityInterestTick = Long.MIN_VALUE;
+        }
+        if (cachedEnvironmentalInterest != null && cachedEnvironmentalInterest.equals(pos)) {
+            cachedEnvironmentalInterest = null;
+            lastEnvironmentalInterestTick = Long.MIN_VALUE;
         }
     }
 

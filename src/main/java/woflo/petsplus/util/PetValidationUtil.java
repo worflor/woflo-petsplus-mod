@@ -27,7 +27,7 @@ public final class PetValidationUtil {
      */
     @Nullable
     public static PetComponent getComponent(@Nullable MobEntity pet) {
-        return pet == null ? null : PetComponent.get(pet);
+        return pet == null ? null : PetComponent.getOrCreate(pet);
     }
 
     /**
@@ -44,7 +44,7 @@ public final class PetValidationUtil {
         if (pet == null || player == null) {
             return false;
         }
-        PetComponent component = PetComponent.get(pet);
+        PetComponent component = PetComponent.getOrCreate(pet);
         return component != null && component.isOwnedBy(player);
     }
 
@@ -59,7 +59,7 @@ public final class PetValidationUtil {
         ServerWorld world = owner.getCommandSource().getWorld();
         Box searchArea = owner.getBoundingBox().expand(radius);
         return world.getEntitiesByClass(MobEntity.class, searchArea, entity -> {
-            PetComponent component = PetComponent.get(entity);
+            PetComponent component = PetComponent.getOrCreate(entity);
             return component != null && component.isOwnedBy(owner) && entity.isAlive();
         });
     }

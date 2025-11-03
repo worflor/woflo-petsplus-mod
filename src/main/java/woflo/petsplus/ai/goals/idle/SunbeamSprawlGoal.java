@@ -280,27 +280,36 @@ public class SunbeamSprawlGoal extends AdaptiveGoal {
         var world = mob.getEntityWorld();
 
         int rangeSq = range * range;
-        for (int x = -range; x <= range; x++) {
-            for (int z = -range; z <= range; z++) {
-                if (!allowOrigin && x == 0 && z == 0) {
-                    continue;
-                }
-                int distSq = x * x + z * z;
-                if (distSq > rangeSq) continue;
-                net.minecraft.util.math.BlockPos groundPos = origin.add(x, 0, z);
-                net.minecraft.util.math.BlockPos airPos = groundPos.up();
+        // Spiral search from center outward for better early exit probability
+        for (int radius = 0; radius <= range; radius++) {
+            for (int x = -radius; x <= radius; x++) {
+                for (int z = -radius; z <= radius; z++) {
+                    // Only check perimeter of current radius (avoid re-checking inner cells)
+                    if (radius > 0 && Math.abs(x) < radius && Math.abs(z) < radius) {
+                        continue;
+                    }
+                    if (!allowOrigin && x == 0 && z == 0) {
+                        continue;
+                    }
+                    int distSq = x * x + z * z;
+                    if (distSq > rangeSq) continue;
+                    
+                    net.minecraft.util.math.BlockPos groundPos = origin.add(x, 0, z);
+                    net.minecraft.util.math.BlockPos airPos = groundPos.up();
 
-                if (!world.isAir(airPos)) {
-                    continue;
-                }
+                    // Fast path: check air first (cheapest check)
+                    if (!world.isAir(airPos)) {
+                        continue;
+                    }
 
-                if (!world.getBlockState(groundPos).isSolidBlock(world, groundPos)) {
-                    continue;
-                }
+                    if (!world.getBlockState(groundPos).isSolidBlock(world, groundPos)) {
+                        continue;
+                    }
 
-                // Require the air space itself to have direct sunlight
-                if (isInSunlight(airPos)) {
-                    return Vec3d.ofCenter(airPos);
+                    // Require the air space itself to have direct sunlight
+                    if (isInSunlight(airPos)) {
+                        return Vec3d.ofCenter(airPos);
+                    }
                 }
             }
         }

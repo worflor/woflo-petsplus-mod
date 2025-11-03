@@ -1,0 +1,293 @@
+{
+  "stimulus_type": "petsplus:perception/mood_blend",
+  "priority": 25,
+  "cooldown_ticks": 1800,
+  "context_checks": [],
+  "topic_builder": {
+    "template": "mood_changed",
+    "variables": {}
+  },
+  "narrative_templates": [
+    {
+      "conditions": [
+        {
+          "key": "HAPPY",
+          "operator": "greater_than",
+          "value": 0.6
+        },
+        {
+          "key": "PLAYFUL",
+          "operator": "greater_than",
+          "value": 0.6
+        }
+      ],
+      "templates": [
+        "Happy and playful. Everything's a game and that's perfect.",
+        "Joy plus play energy. Best possible combination.",
+        "So cheerful I want to mess around with everything.",
+        "Feeling great which makes me want to goof off. Doing it.",
+        "Happy vibes fueling playful chaos. Living my best life.",
+        "Cheerfulness meets mischief. This is the sweet spot.",
+        "Good mood with play instinct. Recipe for fun."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "PROTECTIVE",
+          "operator": "greater_than",
+          "value": 0.6
+        },
+        {
+          "key": "AFRAID",
+          "operator": "greater_than",
+          "value": 0.4
+        }
+      ],
+      "templates": [
+        "Scared but duty's calling louder. Guarding through the fear.",
+        "Afraid yet defensive. The fear makes me more alert somehow.",
+        "Need to protect despite being nervous. Staying vigilant anyway.",
+        "Anxious and protective at once. Conflicted but committed.",
+        "Fear won't stop me from guarding. Actually makes me sharper.",
+        "Nervous for them which makes me more watchful. Complicated feelings.",
+        "Scared but can't abandon my post. Guardian duty overrides."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "RESTLESS",
+          "operator": "greater_than",
+          "value": 0.5
+        },
+        {
+          "key": "ANGRY",
+          "operator": "greater_than",
+          "value": 0.4
+        }
+      ],
+      "templates": [
+        "Restless and mad. Terrible combination. Need to move or fight something.",
+        "Can't sit still and I'm irritated about everything.",
+        "Fidgety rage building. Someone give me a target.",
+        "Agitated, angry, pacing. This energy needs somewhere to go.",
+        "Restlessness feeding frustration feeding restlessness. Bad loop.",
+        "Too antsy to calm down, too mad to settle. Dangerous state.",
+        "Can't contain either the fidgeting or the anger. Both escalating."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "PLAYFUL",
+          "operator": "greater_than",
+          "value": 0.5
+        },
+        {
+          "key": "RESTLESS",
+          "operator": "greater_than",
+          "value": 0.5
+        }
+      ],
+      "templates": [
+        "Want to play but can't focus on one thing. Bouncing everywhere.",
+        "Playful chaos. Starting activities and abandoning them instantly.",
+        "Too restless to finish any game. Just trying them all.",
+        "Play energy scattered across everything at once. Messy fun.",
+        "Can't commit to one toy. They're all interesting for three seconds.",
+        "Fidgety playfulness. Maximum chaos, zero follow-through.",
+        "Want to play with everything briefly then move on. That's the vibe."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "HAPPY",
+          "operator": "greater_than",
+          "value": 0.5
+        },
+        {
+          "key": "PROTECTIVE",
+          "operator": "greater_than",
+          "value": 0.5
+        }
+      ],
+      "templates": [
+        "Happy to be on guard duty. Love keeping everyone safe.",
+        "Cheerful guardian mode. This feels right.",
+        "Content while watching over them. Purpose and joy combined.",
+        "Good mood while staying alert. Protective without the stress.",
+        "Joy from doing my job. Everyone's safe and I'm satisfied.",
+        "Feeling great about my role. Happy to protect.",
+        "Watchful and cheerful. The ideal guardian state."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "AFRAID",
+          "operator": "greater_than",
+          "value": 0.4
+        },
+        {
+          "key": "RESTLESS",
+          "operator": "greater_than",
+          "value": 0.4
+        }
+      ],
+      "templates": [
+        "Anxious energy making me pace. Can't find calm.",
+        "Fear manifesting as constant movement. Classic stress response.",
+        "Too nervous to settle. Fidgeting won't stop.",
+        "Scared and restless. Both feeding each other. Stuck in it.",
+        "Anxiety-driven pacing. Can't break the cycle.",
+        "Nervous and can't hold still. Everything feels wrong.",
+        "Fear plus fidgeting. Neither one's helping the other."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "HAPPY",
+          "operator": "greater_than",
+          "value": 0.6
+        }
+      ],
+      "templates": [
+        "Feeling good today. Tail confirms.",
+        "Happy for no specific reason. It's nice.",
+        "Cheerful energy detected. Mine.",
+        "Good vibes only right now.",
+        "Mood's up. Everything seems better.",
+        "Happy and I'm not questioning it.",
+        "Feeling upbeat. Gonna ride this wave.",
+        "Cheerfulness levels: high.",
+        "Everything's brighter today.",
+        "Good mood activated."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "PLAYFUL",
+          "operator": "greater_than",
+          "value": 0.6
+        }
+      ],
+      "templates": [
+        "Want to play. Everything's a toy.",
+        "Playful energy overflowing.",
+        "In the mood to mess around.",
+        "Feeling playful. Target acquired.",
+        "Play mode: engaged.",
+        "Everything looks fun right now.",
+        "Want to chase something. Anything.",
+        "Playful urges intensifying.",
+        "Ready to goof around.",
+        "Play instinct activated."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "RESTLESS",
+          "operator": "greater_than",
+          "value": 0.6
+        }
+      ],
+      "templates": [
+        "Can't settle. Everything's wrong.",
+        "Restless energy. Nowhere to put it.",
+        "Can't sit still. Need to move.",
+        "Uncomfortable in my own fur.",
+        "Restlessness detected. Source unknown.",
+        "Nothing feels right today.",
+        "Can't find a comfortable position.",
+        "Antsy. No reason.",
+        "Agitated without a target.",
+        "Restless and it's irritating."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "PROTECTIVE",
+          "operator": "greater_than",
+          "value": 0.6
+        }
+      ],
+      "templates": [
+        "Protective instincts engaged.",
+        "Need to keep everyone safe.",
+        "Guardian mode activated.",
+        "Watching over my people.",
+        "Protective urges strong today.",
+        "Feels like I should be on guard.",
+        "Everyone needs protecting suddenly.",
+        "Alert for threats. Constantly.",
+        "Protective energy high.",
+        "Security detail: me."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "AFRAID",
+          "operator": "greater_than",
+          "value": 0.5
+        }
+      ],
+      "templates": [
+        "Something feels wrong.",
+        "Scared without a clear reason.",
+        "Fear response triggered.",
+        "On edge about everything.",
+        "Afraid and I don't like it.",
+        "Nervous energy everywhere.",
+        "Something's coming. I can feel it.",
+        "Fear mode unfortunately active.",
+        "Can't shake this dread.",
+        "Afraid of shadows basically."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "ANGRY",
+          "operator": "greater_than",
+          "value": 0.5
+        }
+      ],
+      "templates": [
+        "Angry. Don't know at what.",
+        "Mad about everything right now.",
+        "Irritation levels: maximum.",
+        "Something's got me riled up.",
+        "Angry energy building.",
+        "Fed up with current situation.",
+        "Rage simmering under the surface.",
+        "Bothered by literally everything.",
+        "Anger detected. Source: unclear.",
+        "Mad for no good reason."
+      ]
+    },
+    {
+      "conditions": [],
+      "templates": [
+        "Mood flipped without warning.",
+        "Feeling something. Can't name it.",
+        "My vibe shifted.",
+        "Something changed inside me.",
+        "The mood swung. Took me with it.",
+        "Cycled through four emotions in a minute.",
+        "Mood won't settle.",
+        "In a mood. Which one? Unknown.",
+        "Emotions happened. Several. Quick succession.",
+        "The vibe shifted and I'm adjusting poorly."
+      ]
+    }
+  ],
+  "intensity_formula": "0.6",
+  "confidence_formula": "0.75"
+}

@@ -57,7 +57,7 @@ public abstract class MobEntityTickMixin {
         MobEntity mob = (MobEntity) (Object) this;
         
         // Vanilla mobs get instant exit (zero overhead)
-        PetComponent petComponent = PetComponent.get(mob);
+        PetComponent petComponent = PetComponent.getOrCreate(mob);
         if (petComponent == null) return;
         
         World world = mob.getEntityWorld();

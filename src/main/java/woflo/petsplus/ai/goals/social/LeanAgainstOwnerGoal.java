@@ -23,13 +23,17 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
     private static final double LOOK_DOT_THRESHOLD = 0.35d;
     private static final double LOOK_DOT_THRESHOLD_SQ = LOOK_DOT_THRESHOLD * LOOK_DOT_THRESHOLD;
     private static final int MAX_GAZE_GRACE = 20;
-    private static final double GOLDEN_ANGLE = MathHelper.TAU * 0.38196601125d; // ~137.5°
+    private static final double GOLDEN_ANGLE = MathHelper.TAU * 0.38196601125d; // ~137.5 deg
     private static final double OCC_MARGIN = 0.18d;
     private static final double NEAR_OWNER_SLOW_RADIUS_SQ = 9.0d; // 3 blocks
+    private static final double APPROACH_EPSILON_SQ = 0.35d;
+    private static final double LANE_EPSILON = 1.0e-4d;
+    private static final double PUSH_MIN_SQ = 1.0e-4d;
 
     private int leanTicks = 0;
     private int gazeGraceTicks = 0;
     private boolean leanLeft = true;
+    private record LeanSlot(double offsetX, double offsetZ) {}
     
     public LeanAgainstOwnerGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.LEAN_AGAINST_OWNER), EnumSet.of(Control.MOVE));
@@ -113,22 +117,34 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
             gazeGraceTicks--;
         }
 
-        Vec3d baseTarget = owner.getEntityPos().add(computeLeanOffset(owner));
-        double distanceSq = mob.squaredDistanceTo(baseTarget);
-        if (distanceSq > 0.35d) {
-            Vec3d moveTarget = baseTarget;
+        double ownerX = owner.getX();
+        double ownerY = owner.getY();
+        double ownerZ = owner.getZ();
+        LeanSlot slot = computeLeanSlot(owner, ownerX, ownerZ);
+        double baseTargetX = ownerX + slot.offsetX();
+        double baseTargetY = ownerY;
+        double baseTargetZ = ownerZ + slot.offsetZ();
+
+        double mobX = mob.getX();
+        double mobZ = mob.getZ();
+        double toTargetX = baseTargetX - mobX;
+        double toTargetZ = baseTargetZ - mobZ;
+        double distanceSq = (toTargetX * toTargetX) + (toTargetZ * toTargetZ);
+
+        if (distanceSq > APPROACH_EPSILON_SQ) {
+            double moveTargetX = baseTargetX;
+            double moveTargetY = baseTargetY;
+            double moveTargetZ = baseTargetZ;
             if (distanceSq > 1.0d) {
                 // Mild lane bias to avoid shoulder-to-shoulder shoves when approaching.
                 int h = mob.getUuid().hashCode();
                 double laneSign = ((h >>> 1) & 1) == 0 ? -1.0 : 1.0;
                 double width = Math.max(0.3d, mob.getWidth());
                 double laneMag = Math.min(0.35d, 0.25d * width);
-                Vec3d toTarget = baseTarget.subtract(mob.getEntityPos());
-                double horizontalSq = (toTarget.x * toTarget.x) + (toTarget.z * toTarget.z);
-                if (horizontalSq > 1.0e-4d) {
-                    double laneScale = laneMag * laneSign / Math.sqrt(horizontalSq);
-                    Vec3d perp = new Vec3d(-toTarget.z * laneScale, 0.0, toTarget.x * laneScale);
-                    moveTarget = moveTarget.add(perp);
+                if (distanceSq > LANE_EPSILON) {
+                    double laneScale = laneMag * laneSign / Math.sqrt(distanceSq);
+                    moveTargetX += -toTargetZ * laneScale;
+                    moveTargetZ += toTargetX * laneScale;
                 }
             }
 
@@ -140,11 +156,11 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
 
             // Repath jitter to avoid sync-stepping in groups
             if ((leanTicks & 3) == 0 || mob.getNavigation().isIdle()) {
-                if (!orientTowards(moveTarget.x, moveTarget.y + 0.2, moveTarget.z, 32.0f, 26.0f, 18.0f)) {
+                if (!orientTowards(moveTargetX, moveTargetY + 0.2, moveTargetZ, 32.0f, 26.0f, 18.0f)) {
                     mob.getNavigation().stop();
                     return;
                 }
-                mob.getNavigation().startMovingTo(moveTarget.x, moveTarget.y, moveTarget.z, speed);
+                mob.getNavigation().startMovingTo(moveTargetX, moveTargetY, moveTargetZ, speed);
             }
         } else {
             mob.getNavigation().stop();
@@ -152,28 +168,35 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
             mob.headYaw = owner.headYaw;
             mob.getLookControl().lookAt(owner, 20.0f, 20.0f);
 
-            double nudgeStrength = 0.008d + Math.min(leanTicks, 40) * 0.00015d;
-            Vec3d fromOwner = mob.getEntityPos().subtract(owner.getEntityPos());
-            double lengthSq = fromOwner.lengthSquared();
-            if (lengthSq > 1.0e-4d) {
-                double invLength = 1.0 / Math.sqrt(lengthSq);
-                Vec3d push = fromOwner.multiply(-nudgeStrength * invLength);
-                mob.addVelocity(push.x, 0.0, push.z);
+            double fromOwnerX = mobX - ownerX;
+            double fromOwnerZ = mobZ - ownerZ;
+            double lengthSq = (fromOwnerX * fromOwnerX) + (fromOwnerZ * fromOwnerZ);
+            if (lengthSq > PUSH_MIN_SQ) {
+                double nudgeStrength = 0.008d + Math.min(leanTicks, 40) * 0.00015d;
+                double invLength = MathHelper.fastInverseSqrt(lengthSq);
+                double pushX = -fromOwnerX * invLength * nudgeStrength;
+                double pushZ = -fromOwnerZ * invLength * nudgeStrength;
+                mob.addVelocity(pushX, 0.0, pushZ);
                 mob.velocityModified = true;
             }
         }
     }
 
     private boolean isOwnerLookingAtPet(PlayerEntity owner) {
-        Vec3d ownerEye = owner.getCameraPosVec(1.0f);
         Vec3d ownerLook = owner.getRotationVec(1.0f);
-        Vec3d petEye = mob.getEntityPos().add(0.0, mob.getStandingEyeHeight(), 0.0);
-        Vec3d toPet = petEye.subtract(ownerEye);
-        double lengthSq = toPet.lengthSquared();
+        Vec3d ownerEye = owner.getCameraPosVec(1.0f);
+        double petEyeX = mob.getX();
+        double petEyeY = mob.getY() + mob.getStandingEyeHeight();
+        double petEyeZ = mob.getZ();
+
+        double toPetX = petEyeX - ownerEye.x;
+        double toPetY = petEyeY - ownerEye.y;
+        double toPetZ = petEyeZ - ownerEye.z;
+        double lengthSq = (toPetX * toPetX) + (toPetY * toPetY) + (toPetZ * toPetZ);
         if (lengthSq < 1.0e-6d) {
             return false;
         }
-        double dot = ownerLook.dotProduct(toPet);
+        double dot = ownerLook.x * toPetX + ownerLook.y * toPetY + ownerLook.z * toPetZ;
         if (Double.isNaN(dot) || dot <= 0.0d) {
             return false;
         }
@@ -181,42 +204,45 @@ public class LeanAgainstOwnerGoal extends AdaptiveGoal {
         return alignmentSq >= LOOK_DOT_THRESHOLD_SQ * lengthSq;
     }
 
-    private Vec3d computeLeanOffset(PlayerEntity owner) {
+    private LeanSlot computeLeanSlot(PlayerEntity owner, double ownerX, double ownerZ) {
         // Deterministic, size-aware slot around the owner with light occupancy fallback.
         int h = mob.getUuid().hashCode();
-        double u = ((long)(h & 0x7fffffff)) / (double)0x7fffffff; // [0,1)
+        double u = ((long) (h & 0x7fffffff)) / (double) 0x7fffffff; // [0,1)
         double angle = u * MathHelper.TAU;
 
         double width = Math.max(0.3d, mob.getWidth());
         double radius = 0.80d + 0.25d * width;
 
-        Vec3d ownerPos = owner.getEntityPos();
-        Vec3d bestOffset = null;
+        LeanSlot bestSlot = null;
         for (int attempt = 0; attempt < 2; attempt++) {
             double ox = Math.cos(angle) * radius;
             double oz = Math.sin(angle) * radius;
-            Vec3d slotWorld = ownerPos.add(ox, 0.0, oz);
-
-            if (!isSlotOccupied(owner, slotWorld, width)) {
-                bestOffset = new Vec3d(ox, 0.0, oz);
+            double slotX = ownerX + ox;
+            double slotZ = ownerZ + oz;
+            if (!isSlotOccupied(owner, slotX, owner.getY(), slotZ, width)) {
+                bestSlot = new LeanSlot(ox, oz);
                 break;
             }
             angle += GOLDEN_ANGLE;
         }
-        if (bestOffset == null) {
-            bestOffset = new Vec3d(Math.cos(angle) * radius, 0.0, Math.sin(angle) * radius);
+        if (bestSlot == null) {
+            double ox = Math.cos(angle) * radius;
+            double oz = Math.sin(angle) * radius;
+            bestSlot = new LeanSlot(ox, oz);
         }
-        return bestOffset;
+        return bestSlot;
     }
 
-    private boolean isSlotOccupied(PlayerEntity owner, Vec3d slotWorld, double thisWidth) {
+    private boolean isSlotOccupied(PlayerEntity owner, double slotX, double slotY, double slotZ, double thisWidth) {
         double occ = 0.5d * thisWidth + OCC_MARGIN;
         Box box = new Box(
-            slotWorld.x - occ, slotWorld.y - 0.75d, slotWorld.z - occ,
-            slotWorld.x + occ, slotWorld.y + 0.75d, slotWorld.z + occ
+            slotX - occ, slotY - 0.75d, slotZ - occ,
+            slotX + occ, slotY + 0.75d, slotZ + occ
         );
         return !mob.getEntityWorld().getOtherEntities(mob, box, e -> {
-            if (!(e instanceof MobEntity other)) return false;
+            if (!(e instanceof MobEntity other)) {
+                return false;
+            }
             PetComponent pc = PetComponent.get(other);
             return pc != null && pc.isOwnedBy(owner);
         }).isEmpty();

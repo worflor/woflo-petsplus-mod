@@ -455,7 +455,7 @@ public final class ActionBarCueManager implements PlayerTickListener {
             }
 
             for (Long cooldownEnd : cooldowns.values()) {
-                if (cooldownEnd > currentTick) {
+                if (cooldownEnd != null && cooldownEnd > currentTick) {
                     candidate = Math.min(candidate, cooldownEnd);
                 }
             }

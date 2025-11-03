@@ -1,0 +1,78 @@
+{
+  "stimulus_type": "petsplus:perception/environmental_snapshot",
+  "priority": 30,
+  "cooldown_ticks": 3000,
+  "context_checks": [
+    {
+      "key": "raining",
+      "operator": "equals",
+      "value": true
+    }
+  ],
+  "topic_builder": {
+    "template": "weather_{thundering}_{dimensionId}",
+    "variables": {
+      "thundering": {
+        "source": "stimulus",
+        "path": "thundering",
+        "fallback": "calm"
+      },
+      "dimensionId": {
+        "source": "stimulus",
+        "path": "dimensionId",
+        "fallback": "unknown"
+      }
+    }
+  },
+  "narrative_templates": [
+    {
+      "conditions": [
+        {
+          "key": "thundering",
+          "operator": "equals",
+          "value": true
+        }
+      ],
+      "templates": [
+        "Sky made a sound I don't appreciate.",
+        "That boom flattened my ears.",
+        "Thunder happened. Reacted poorly.",
+        "May have hidden. Strategically.",
+        "Those sounds make my fur stand up.",
+        "Lightning was so bright I blinked for ten seconds.",
+        "Barked at the thunder. Didn't help.",
+        "Tail went down during that boom. Involuntary.",
+        "Thunder's too loud to ignore.",
+        "The sky is untrustworthy today."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "raining",
+          "operator": "equals",
+          "value": true
+        }
+      ],
+      "templates": [
+        "Everything's wet. Staying here.",
+        "Rain's tapping on everything.",
+        "Stuck my paw out. Pulled it back immediately.",
+        "Human came in soaked. Smells different.",
+        "Watched a puddle form. Took five minutes.",
+        "Ground's squishy. Don't trust it.",
+        "Rain makes the air smell like dirt.",
+        "Bird's just standing in the rain. Weird choice.",
+        "Water's coming down sideways.",
+        "Everything looks darker in rain.",
+        "Fur got damp near the door.",
+        "There's a worm on the path.",
+        "Leaves are dripping after rain stopped.",
+        "Can hear rain but can't see where it's from.",
+        "Someone's tracking mud in. Can feel it."
+      ]
+    }
+  ],
+  "intensity_formula": "thundering ? 0.8 : 0.5",
+  "confidence_formula": "0.9"
+}

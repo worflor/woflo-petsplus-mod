@@ -31,7 +31,7 @@ public abstract class AnimalEntityMixin {
     private void petsplus$onFed(PlayerEntity player, CallbackInfo ci) {
         AnimalEntity animal = (AnimalEntity) (Object) this;
         if (animal instanceof MobEntity mob && player != null && !animal.getEntityWorld().isClient()) {
-            PetComponent petComponent = PetComponent.get(mob);
+            PetComponent petComponent = PetComponent.getOrCreate(mob);
             if (petComponent != null) {
                 // Track feeding interaction for relationship system
                 RelationshipEventHandler.onPetFed(mob, player);
@@ -42,7 +42,7 @@ public abstract class AnimalEntityMixin {
                         MobEntity.class,
                         mob.getBoundingBox().expand(16.0),
                         nearbyMob -> {
-                            woflo.petsplus.state.PetComponent pc = woflo.petsplus.state.PetComponent.get(nearbyMob);
+                            woflo.petsplus.state.PetComponent pc = woflo.petsplus.state.PetComponent.getOrCreate(nearbyMob);
                             if (pc == null) return false;
                             return pc.isOwnedBy(player) && nearbyMob.isAlive();
                         }

@@ -41,7 +41,7 @@ public class PetNamingMixin {
         }
 
         // Early filter: only process entities that have a PetComponent
-        PetComponent component = PetComponent.get(mob);
+        PetComponent component = PetComponent.getOrCreate(mob);
         if (component == null) {
             return;
         }

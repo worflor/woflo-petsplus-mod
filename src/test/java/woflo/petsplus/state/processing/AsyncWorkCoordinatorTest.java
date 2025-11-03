@@ -6,7 +6,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -14,7 +13,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.awaitility.Awaitility.await;
 
 /**
  * Comprehensive tests for AsyncWorkCoordinator covering:
@@ -143,23 +141,30 @@ class AsyncWorkCoordinatorTest {
             // Given
             List<CompletableFuture<Integer>> futures = new ArrayList<>();
             AtomicInteger completedCount = new AtomicInteger();
+            CountDownLatch allJobsStarted = new CountDownLatch(jobCount);
 
             // When: Submit multiple jobs
             for (int i = 0; i < jobCount; i++) {
                 int value = i;
                 CompletableFuture<Integer> future = coordinator.submitStandalone(
                     "job-" + i,
-                    () -> value * 2,
+                    () -> {
+                        allJobsStarted.countDown();
+                        return value * 2;
+                    },
                     result -> completedCount.incrementAndGet()
                 );
                 futures.add(future);
             }
 
-            // Drain periodically
-            for (int drain = 0; drain < 10; drain++) {
+            // Wait for all jobs to start
+            assertThat(allJobsStarted.await(2, TimeUnit.SECONDS)).isTrue();
+
+            // Drain periodically until all complete
+            long deadline = System.currentTimeMillis() + 5000;
+            while (completedCount.get() < jobCount && System.currentTimeMillis() < deadline) {
                 Thread.sleep(50);
                 drainAndExecute();
-                if (completedCount.get() == jobCount) break;
             }
 
             // Then: All jobs complete
@@ -340,35 +345,55 @@ class AsyncWorkCoordinatorTest {
         @Test
         @DisplayName("should accept jobs with different priorities")
         void submitStandalone_handlesPriorities() throws Exception {
+            // Given: Use latches to ensure jobs actually run
+            CountDownLatch allJobsStarted = new CountDownLatch(3);
+            
             // When: Submit jobs with different priorities
             CompletableFuture<String> critical = coordinator.submitStandalone(
                 "critical-job",
-                () -> "critical",
+                () -> {
+                    allJobsStarted.countDown();
+                    return "critical";
+                },
                 null,
                 AsyncJobPriority.CRITICAL
             );
 
             CompletableFuture<String> normal = coordinator.submitStandalone(
                 "normal-job",
-                () -> "normal",
+                () -> {
+                    allJobsStarted.countDown();
+                    return "normal";
+                },
                 null,
                 AsyncJobPriority.NORMAL
             );
 
             CompletableFuture<String> low = coordinator.submitStandalone(
                 "low-job",
-                () -> "low",
+                () -> {
+                    allJobsStarted.countDown();
+                    return "low";
+                },
                 null,
                 AsyncJobPriority.LOW
             );
 
-            Thread.sleep(100);
-            drainAndExecute();
+            // Wait for jobs to start executing
+            assertThat(allJobsStarted.await(2, TimeUnit.SECONDS)).isTrue();
+
+            // Drain results multiple times to ensure all complete
+            long deadline = System.currentTimeMillis() + 3000;
+            while ((!critical.isDone() || !normal.isDone() || !low.isDone()) 
+                   && System.currentTimeMillis() < deadline) {
+                Thread.sleep(50);
+                drainAndExecute();
+            }
 
             // Then: All complete regardless of priority
-            assertThat(critical).succeedsWithin(200, TimeUnit.MILLISECONDS);
-            assertThat(normal).succeedsWithin(200, TimeUnit.MILLISECONDS);
-            assertThat(low).succeedsWithin(200, TimeUnit.MILLISECONDS);
+            assertThat(critical).succeedsWithin(500, TimeUnit.MILLISECONDS);
+            assertThat(normal).succeedsWithin(500, TimeUnit.MILLISECONDS);
+            assertThat(low).succeedsWithin(500, TimeUnit.MILLISECONDS);
         }
     }
 

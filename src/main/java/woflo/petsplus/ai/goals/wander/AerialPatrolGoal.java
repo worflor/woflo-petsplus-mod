@@ -88,7 +88,14 @@ public class AerialPatrolGoal extends AdaptiveGoal {
     protected void onTickGoal() {
         patrolTicks++;
         
-        if (patrolTarget == null || mob.getEntityPos().distanceTo(patrolTarget) < 2.0 || patrolTicks % 60 == 0) {
+        // Optimize: use squared distance to avoid sqrt
+        boolean needsNewTarget = patrolTarget == null || patrolTicks % 60 == 0;
+        if (!needsNewTarget) {
+            double distanceSq = mob.getEntityPos().squaredDistanceTo(patrolTarget);
+            needsNewTarget = distanceSq < 4.0; // 2.0 * 2.0
+        }
+        
+        if (needsNewTarget) {
             if (pickNewPatrolTarget()) {
                 consecutiveTargetFailures = 0;
             } else {
@@ -119,10 +126,13 @@ public class AerialPatrolGoal extends AdaptiveGoal {
         for (int attempt = 0; attempt < TARGET_SEARCH_ATTEMPTS; attempt++) {
             double angle = mob.getRandom().nextDouble() * Math.PI * 2;
             patrolHeight = ensureClearPatrolHeight(patrolHeight);
+            // Optimize: cache sin/cos computation
+            double cosAngle = Math.cos(angle);
+            double sinAngle = Math.sin(angle);
             Vec3d candidate = new Vec3d(
-                origin.x + Math.cos(angle) * patrolRadius,
+                origin.x + cosAngle * patrolRadius,
                 patrolHeight,
-                origin.z + Math.sin(angle) * patrolRadius
+                origin.z + sinAngle * patrolRadius
             );
 
             if (isValidPatrolTarget(candidate)) {

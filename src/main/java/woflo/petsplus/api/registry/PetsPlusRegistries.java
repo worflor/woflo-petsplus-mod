@@ -168,6 +168,8 @@ public final class PetsPlusRegistries {
             .registerReloadListener(new SignalRuleDataLoader());
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
             .registerReloadListener(new SurveyTargetDataLoader());
+        ResourceManagerHelper.get(ResourceType.SERVER_DATA)
+            .registerReloadListener(new woflo.petsplus.data.GossipHandlerDataLoader());
         AbilityManager.reloadFromRegistry();
     }
 

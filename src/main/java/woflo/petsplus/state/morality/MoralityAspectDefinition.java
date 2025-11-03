@@ -151,9 +151,7 @@ public final class MoralityAspectDefinition {
     }
 
     private static float sanitizePersistence(float candidate) {
-        if (!Float.isFinite(candidate)) {
-            return 1f;
-        }
-        return MathHelper.clamp(candidate, 0f, 1f);
+        // Always return 1.0 to disable decay
+        return 1f;
     }
 }

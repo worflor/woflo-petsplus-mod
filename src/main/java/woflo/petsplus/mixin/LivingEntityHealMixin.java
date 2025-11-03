@@ -31,7 +31,7 @@ public abstract class LivingEntityHealMixin {
             return;
         }
         
-        PetComponent petComponent = PetComponent.get(mob);
+        PetComponent petComponent = PetComponent.getOrCreate(mob);
         if (petComponent == null) {
             return;
         }

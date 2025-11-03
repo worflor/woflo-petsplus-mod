@@ -8,8 +8,6 @@ import woflo.petsplus.state.PetComponent;
 import woflo.petsplus.state.modules.RelationshipModule;
 import woflo.petsplus.state.relationships.RelationshipProfile;
 import woflo.petsplus.state.relationships.RelationshipType;
-import woflo.petsplus.stats.nature.NatureModifierSampler;
-import woflo.petsplus.stats.nature.NatureMoralityProfile;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,21 +35,14 @@ import java.util.UUID;
  */
 public final class MalevolenceLedger {
     private static final long DEFAULT_SPREE_WINDOW = MalevolenceRules.SpreeSettings.DEFAULT.windowTicks();
-    private static final float PASSIVE_EPSILON = 1.0e-4f;
 
     private final PetComponent parent;
 
     private final Map<Identifier, MoralityAspectState> viceStates = new LinkedHashMap<>();
     private final Map<Identifier, MoralityAspectState> virtueStates = new LinkedHashMap<>();
     private MoralityPersona persona;
-    private long lastPersonaDecayTick = Long.MIN_VALUE;
     @Nullable
     private Identifier dominantVice;
-
-    // Cached Nature profile to avoid per-tick lookups; refreshed when Nature changes
-    @Nullable
-    private Identifier cachedNatureId;
-    private woflo.petsplus.stats.nature.NatureMoralityProfile cachedNatureProfile = woflo.petsplus.stats.nature.NatureMoralityProfile.NEUTRAL;
 
     private float score;
     private int spreeCount;
@@ -151,7 +142,6 @@ public final class MalevolenceLedger {
         virtueStates.clear();
         persona = null;
         dominantVice = null;
-        lastPersonaDecayTick = Long.MIN_VALUE;
         lastContextTick = Long.MIN_VALUE;
         lastContextFingerprint = null;
         PetComponent.HarmonyState current = parent.getHarmonyState();
@@ -231,13 +221,18 @@ public final class MalevolenceLedger {
         }
 
         MalevolenceRules.AspectContribution contribution = rules.aspectContribution(context.victimType(), tagEvaluation);
-        Map<Identifier, Float> viceWeights = new LinkedHashMap<>(contribution.viceWeights());
+        Map<Identifier, Float> viceWeights = contribution.viceWeights();
         if (viceWeights.isEmpty()) {
+            viceWeights = new LinkedHashMap<>(2);
             viceWeights.put(MoralityAspectRegistry.defaultViceAspectId(), 1f);
+        } else {
+            // Only copy if we need to modify
+            viceWeights = new LinkedHashMap<>(viceWeights);
         }
         Map<Identifier, MalevolenceRules.RequirementRange> virtueRequirements = contribution.virtueRequirements();
-        List<String> gateFailures = new ArrayList<>();
+        List<String> gateFailures = null;
         if (!virtueRequirements.isEmpty()) {
+            gateFailures = new ArrayList<>();
             for (Map.Entry<Identifier, MalevolenceRules.RequirementRange> entry : virtueRequirements.entrySet()) {
                 Identifier virtueId = entry.getKey();
                 MalevolenceRules.RequirementRange requirement = entry.getValue();
@@ -248,7 +243,7 @@ public final class MalevolenceLedger {
             }
         }
 
-        if (gateFailures.isEmpty()) {
+        if (gateFailures == null || gateFailures.isEmpty()) {
             applySpreeSnapshot(spreeSnapshot);
             applyViceAdjustments(viceWeights, addedScore, now, rules.spreeSettings(), thresholds);
         } else {
@@ -287,47 +282,7 @@ public final class MalevolenceLedger {
     }
 
     private void decayAspects(long now, MalevolenceRules.Thresholds thresholds) {
-        long referenceTick = lastDecayTick != Long.MIN_VALUE ? lastDecayTick : lastDeedTick;
-        long elapsed = Math.max(0L, now - referenceTick);
-        if (elapsed <= 0L) {
-            return;
-        }
-        double defaultRetentionLn = thresholds.defaultRetentionLnPerTick();
-        float defaultPassiveDriftPerTick = thresholds.defaultPassiveDriftPerTick();
-        float defaultPersistence = thresholds.defaultPersistencePerDay();
-        float defaultPassiveDriftPerDay = thresholds.defaultPassiveDriftPerDay();
-        float elapsedDays = elapsed / MoralityAspectDefinition.TICKS_PER_DAY;
-        for (Map.Entry<Identifier, MoralityAspectState> entry : viceStates.entrySet()) {
-            Identifier id = entry.getKey();
-            MoralityAspectState state = entry.getValue();
-            MoralityAspectDefinition def = MoralityAspectRegistry.get(id);
-            float baseline = def != null ? def.baseline() : 0f;
-            double retentionLn = def != null ? def.retentionLnPerTick() : defaultRetentionLn;
-            float passiveDriftPerTick = def != null ? def.passiveDriftPerTick() : defaultPassiveDriftPerTick;
-            state.stabilize(baseline, retentionLn, passiveDriftPerTick, now);
-            float persistence = def != null ? def.persistencePerDay() : defaultPersistence;
-            float passiveDriftPerDay = def != null ? def.passiveDriftPerDay() : defaultPassiveDriftPerDay;
-            float bleedPerDay = 0.1f + (1f - MathHelper.clamp(persistence, 0f, 1f)) * 0.4f + passiveDriftPerDay * 0.6f;
-            float bleed = Math.max(0f, bleedPerDay * elapsedDays);
-            state.bleedSuppression(now, bleed);
-        }
-        for (Map.Entry<Identifier, MoralityAspectState> entry : virtueStates.entrySet()) {
-            Identifier id = entry.getKey();
-            MoralityAspectState state = entry.getValue();
-            MoralityAspectDefinition def = MoralityAspectRegistry.get(id);
-            float baseline = def != null ? def.baseline() : 0.5f;
-            double retentionLn = def != null ? def.retentionLnPerTick() : defaultRetentionLn;
-            float passiveDriftPerTick = def != null ? def.passiveDriftPerTick() : defaultPassiveDriftPerTick;
-            state.stabilize(baseline, retentionLn, passiveDriftPerTick, now);
-        }
-        if (persona != null) {
-            // Lazy, conditional decay: only relax if axes meaningfully deviate from Nature baselines
-            NatureMoralityProfile profile = resolveNatureProfile();
-            if (lastPersonaDecayTick == Long.MIN_VALUE || personaAxesNeedPassiveUpdate(profile)) {
-                persona.relax(now, defaultRetentionLn, profile);
-                lastPersonaDecayTick = now;
-            }
-        }
+        // Morality decay disabled - aspects only change through deeds and events
         score = aggregateScore();
         dominantVice = findDominantVice();
         lastDecayTick = now;
@@ -673,170 +628,8 @@ public final class MalevolenceLedger {
     }
 
     public synchronized void onWorldTimeSegmentTick(long now) {
-        if (!hasPassiveState()) {
-            return;
-        }
-        long effectiveNow = resolveEffectiveNow(now);
-        if (effectiveNow <= 0L) {
-            return;
-        }
-
-        MalevolenceRules rules = MalevolenceRulesRegistry.get();
-        if (rules == null || rules == MalevolenceRules.EMPTY) {
-            return;
-        }
-
-        float previousScore = score;
-        int previousSpreeCount = spreeCount;
-        long previousSpreeAnchor = spreeAnchorTick;
-        float previousDisharmony = disharmonyStrength;
-        boolean wasActive = active;
-        long previousDecayTick = lastDecayTick;
-
-        decayAspects(effectiveNow, rules.thresholds());
-        refreshSpreeWindow(effectiveNow, rules.spreeSettings());
-
-        UUID ownerUuid = parent.getOwnerUuid();
-        boolean needsHarmonyUpdate = false;
-        if (ownerUuid != null) {
-            if (active) {
-                if (score <= rules.thresholds().remissionScore()) {
-                    active = false;
-                    disharmonyStrength = 0f;
-                    lastDecayTick = effectiveNow;
-                    needsHarmonyUpdate = true;
-                } else if (disharmonyStrength > 0f) {
-                    needsHarmonyUpdate = true;
-                }
-            } else if (disharmonyStrength > 0f) {
-                if (disharmonyStrength <= rules.disharmonySettings().remissionFloor()) {
-                    disharmonyStrength = 0f;
-                    needsHarmonyUpdate = true;
-                } else {
-                    needsHarmonyUpdate = true;
-                }
-            } else if (previousDisharmony > 0f) {
-                needsHarmonyUpdate = true;
-            }
-        } else {
-            if (active) {
-                active = false;
-            }
-            if (disharmonyStrength > 0f) {
-                disharmonyStrength = 0f;
-                needsHarmonyUpdate = true;
-            } else if (previousDisharmony > 0f) {
-                needsHarmonyUpdate = true;
-            }
-        }
-
-        if (needsHarmonyUpdate) {
-            applyHarmony(effectiveNow);
-        }
-
-        if (score != previousScore
-            || spreeCount != previousSpreeCount
-            || spreeAnchorTick != previousSpreeAnchor
-            || disharmonyStrength != previousDisharmony
-            || wasActive != active
-            || lastDecayTick != previousDecayTick) {
-            persistState();
-        }
-    }
-
-    private boolean hasPassiveState() {
-        if (active || score > 0f || disharmonyStrength > 0f || spreeCount > 0) {
-            return true;
-        }
-        if (personaNeedsPassiveUpdate()) {
-            return true;
-        }
-        if (aspectsNeedPassiveUpdate(viceStates, true)) {
-            return true;
-        }
-        return aspectsNeedPassiveUpdate(virtueStates, false);
-    }
-
-    private boolean personaNeedsPassiveUpdate() {
-        if (persona == null) {
-            return false;
-        }
-        if (lastPersonaDecayTick == Long.MIN_VALUE) {
-            return true;
-        }
-        if (Math.abs(persona.viceSusceptibility() - 1f) > PASSIVE_EPSILON) {
-            return true;
-        }
-        if (Math.abs(persona.virtueResilience() - 1f) > PASSIVE_EPSILON) {
-            return true;
-        }
-        return persona.traumaImprint() > PASSIVE_EPSILON;
-    }
-
-    /**
-     * Checks if behavioral axes are sufficiently far from their Nature baselines
-     * to warrant a passive decay step. Uses a small epsilon to avoid churn.
-     */
-    private boolean personaAxesNeedPassiveUpdate(woflo.petsplus.stats.nature.NatureMoralityProfile profile) {
-        if (persona == null) return false;
-        if (profile == null) profile = woflo.petsplus.stats.nature.NatureMoralityProfile.NEUTRAL;
-        if (Math.abs(persona.aggressionTendency() - profile.aggressionBaseline()) > PASSIVE_EPSILON) return true;
-        if (Math.abs(persona.empathyLevel() - profile.empathyBaseline()) > PASSIVE_EPSILON) return true;
-        if (Math.abs(persona.courageBaseline() - profile.courageBaseline()) > PASSIVE_EPSILON) return true;
-        if (Math.abs(persona.socialOrientation() - profile.socialBaseline()) > PASSIVE_EPSILON) return true;
-        if (Math.abs(persona.resourceAttitude() - profile.resourceBaseline()) > PASSIVE_EPSILON) return true;
-        return false;
-    }
-
-    /**
-     * Resolves and caches the current Nature morality profile. Cache is refreshed
-     * only when the pet's Nature ID changes.
-     */
-    private woflo.petsplus.stats.nature.NatureMoralityProfile resolveNatureProfile() {
-        Identifier current = parent.getNatureId();
-        if (current == null) {
-            cachedNatureId = null;
-            cachedNatureProfile = woflo.petsplus.stats.nature.NatureMoralityProfile.NEUTRAL;
-            return cachedNatureProfile;
-        }
-        if (cachedNatureId == null || !cachedNatureId.equals(current)) {
-            cachedNatureId = current;
-            cachedNatureProfile = woflo.petsplus.stats.nature.NatureModifierSampler.getMoralityProfile(current);
-            if (cachedNatureProfile == null) {
-                cachedNatureProfile = woflo.petsplus.stats.nature.NatureMoralityProfile.NEUTRAL;
-            }
-        }
-        return cachedNatureProfile;
-    }
-
-    private boolean aspectsNeedPassiveUpdate(Map<Identifier, MoralityAspectState> source, boolean vice) {
-        for (Map.Entry<Identifier, MoralityAspectState> entry : source.entrySet()) {
-            MoralityAspectState state = entry.getValue();
-            if (state == null) {
-                continue;
-            }
-            if (state.suppressedCharge() > PASSIVE_EPSILON) {
-                return true;
-            }
-            MoralityAspectDefinition definition = MoralityAspectRegistry.get(entry.getKey());
-            float baseline = definition != null
-                ? definition.baseline()
-                : (vice ? 0f : 0.5f);
-            if (Math.abs(state.value() - baseline) > PASSIVE_EPSILON) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private long resolveEffectiveNow(long candidate) {
-        if (candidate > 0L) {
-            return candidate;
-        }
-        if (parent.getPetEntity() != null && parent.getPetEntity().getEntityWorld() != null) {
-            return parent.getPetEntity().getEntityWorld().getTime();
-        }
-        return candidate;
+        // Morality system is event-driven only - no per-tick passive updates
+        // State changes occur through deeds, not time passage
     }
 
     public synchronized PetComponent.HarmonyState overlayHarmonyState(PetComponent.HarmonyState incoming, long now) {
@@ -852,19 +645,8 @@ public final class MalevolenceLedger {
             return incoming;
         }
         
-        // Ensure persona has passively decayed toward Nature baselines lazily (no per-tick requirement)
-        if (persona != null) {
-            long effectiveNow = resolveEffectiveNow(now);
-            NatureMoralityProfile profile = resolveNatureProfile();
-            if (lastPersonaDecayTick == Long.MIN_VALUE || personaAxesNeedPassiveUpdate(profile)) {
-                // Use the rules' default retention for passive persona decay
-                double defaultRetentionLn = rules.thresholds().defaultRetentionLnPerTick();
-                persona.relax(effectiveNow, defaultRetentionLn, profile);
-                lastPersonaDecayTick = effectiveNow;
-            }
-        }
-        // Derive emotion biases from persona (post-decay)
-    Map<PetComponent.Emotion, Float> emotionBiases = deriveEmotionBiasesFromPersona();
+        // Derive emotion biases from persona
+        Map<PetComponent.Emotion, Float> emotionBiases = deriveEmotionBiasesFromPersona();
         
         Map<UUID, PetComponent.HarmonyCompatibility> compat = incoming.compatibilities();
         PetComponent.HarmonyCompatibility existing = compat.get(ownerUuid);
@@ -896,9 +678,11 @@ public final class MalevolenceLedger {
                 ? (disharmonySets.isEmpty() ? List.of() : List.copyOf(disharmonySets))
                 : incoming.disharmonySetIds();
             float disharmonyTotal = 0f;
-            for (PetComponent.HarmonyCompatibility value : copy.values()) {
-                if (value != null) {
-                    disharmonyTotal = Math.max(disharmonyTotal, value.disharmonyStrength());
+            if (!copy.isEmpty()) {
+                for (PetComponent.HarmonyCompatibility value : copy.values()) {
+                    if (value != null) {
+                        disharmonyTotal = Math.max(disharmonyTotal, value.disharmonyStrength());
+                    }
                 }
             }
             if (!sanitizedDisharmony.isEmpty()) {
@@ -966,9 +750,11 @@ public final class MalevolenceLedger {
             globalSets.add(marker);
         }
         float disharmonyTotal = Math.max(incoming.disharmonyStrength(), resolvedStrength);
-        for (PetComponent.HarmonyCompatibility value : copy.values()) {
-            if (value != null) {
-                disharmonyTotal = Math.max(disharmonyTotal, value.disharmonyStrength());
+        if (!copy.isEmpty()) {
+            for (PetComponent.HarmonyCompatibility value : copy.values()) {
+                if (value != null) {
+                    disharmonyTotal = Math.max(disharmonyTotal, value.disharmonyStrength());
+                }
             }
         }
         return new PetComponent.HarmonyState(
@@ -1071,10 +857,17 @@ public final class MalevolenceLedger {
     }
 
     private List<Object> encodeAspectStates(Map<Identifier, MoralityAspectState> source) {
+        if (source.isEmpty()) {
+            return Collections.emptyList();
+        }
         List<Object> encoded = new ArrayList<>(source.size());
-        source.forEach((id, state) -> {
+        for (Map.Entry<Identifier, MoralityAspectState> entry : source.entrySet()) {
+            MoralityAspectState state = entry.getValue();
+            if (state == null) {
+                continue;
+            }
             List<Object> tuple = new ArrayList<>(7);
-            tuple.add(id.toString());
+            tuple.add(entry.getKey().toString());
             tuple.add(state.value());
             tuple.add(state.spreeCount());
             tuple.add(state.spreeAnchorTick());
@@ -1082,7 +875,7 @@ public final class MalevolenceLedger {
             tuple.add(state.suppressedCharge());
             tuple.add(state.lastSuppressedTick());
             encoded.add(tuple);
-        });
+        }
         return encoded;
     }
 
@@ -1153,19 +946,31 @@ public final class MalevolenceLedger {
     }
 
     private float aggregateScore() {
+        if (viceStates.isEmpty()) {
+            return 0f;
+        }
         float total = 0f;
         for (MoralityAspectState state : viceStates.values()) {
-            total += Math.max(0f, state.value());
+            if (state != null) {
+                total += Math.max(0f, state.value());
+            }
         }
         return total;
     }
 
     @Nullable
     private Identifier findDominantVice() {
+        if (viceStates.isEmpty()) {
+            return null;
+        }
         Identifier best = null;
         float value = 0f;
         for (Map.Entry<Identifier, MoralityAspectState> entry : viceStates.entrySet()) {
-            float current = entry.getValue().value();
+            MoralityAspectState state = entry.getValue();
+            if (state == null) {
+                continue;
+            }
+            float current = state.value();
             if (current > value + 0.0001f) {
                 value = current;
                 best = entry.getKey();
@@ -1184,8 +989,16 @@ public final class MalevolenceLedger {
     }
 
     private Map<Identifier, Float> snapshotVirtues() {
-        Map<Identifier, Float> snapshot = new LinkedHashMap<>();
-        virtueStates.forEach((id, state) -> snapshot.put(id, state.value()));
+        if (virtueStates.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Identifier, Float> snapshot = new LinkedHashMap<>(virtueStates.size());
+        for (Map.Entry<Identifier, MoralityAspectState> entry : virtueStates.entrySet()) {
+            MoralityAspectState state = entry.getValue();
+            if (state != null) {
+                snapshot.put(entry.getKey(), state.value());
+            }
+        }
         return snapshot;
     }
 

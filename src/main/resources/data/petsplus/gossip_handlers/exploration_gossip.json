@@ -1,0 +1,50 @@
+{
+  "stimulus_type": "petsplus:perception/environmental_snapshot",
+  "priority": 45,
+  "cooldown_ticks": 6000,
+  "context_checks": [],
+  "topic_builder": {
+    "template": "exploring_{dimensionId}",
+    "variables": {
+      "dimensionId": {
+        "source": "stimulus",
+        "path": "dimensionId",
+        "fallback": "unknown"
+      }
+    }
+  },
+  "narrative_templates": [
+    {
+      "conditions": [],
+      "templates": [
+        "This place smells like adventure. And dirt. Mostly dirt.",
+        "Never been here. My paws are taking notes.",
+        "Ground feels weird. Not bad weird. Just... new weird.",
+        "Everything's new and I'm suspicious about it.",
+        "This area radiates 'uncharted territory' energy.",
+        "Found a spot that wasn't here yesterday. Wait, was it?",
+        "Air tastes like mystery. Also maybe grass.",
+        "The scenery changed and I have questions.",
+        "Unfamiliar terrain detected. Tail status: intrigued.",
+        "Picked up a scent that's not in my database.",
+        "Light hits different here. Physics are weird.",
+        "Temperature shifted. My fur noticed immediately.",
+        "Mental map error: location not found.",
+        "These sounds are unauthorized. Investigating.",
+        "Wandered into parts unknown. No regrets yet.",
+        "Pretty sure I've never stepped here before.",
+        "Surroundings changed when I wasn't looking.",
+        "This place has signature smells I'm cataloging.",
+        "Explored. Discovered. Sniffed extensively.",
+        "Environment shifted and forgot to tell me.",
+        "Covering new ground. Ground doesn't seem to mind.",
+        "This spot radiates 'unexplored' vibes.",
+        "Venture successful. New territory claimed (by smelling it).",
+        "Landscape transitioned like it was sneaky about it.",
+        "Ended up somewhere unexpected. Classic me."
+      ]
+    }
+  ],
+  "intensity_formula": "0.45",
+  "confidence_formula": "0.75"
+}

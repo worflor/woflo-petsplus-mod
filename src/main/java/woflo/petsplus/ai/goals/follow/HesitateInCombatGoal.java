@@ -62,8 +62,10 @@ public class HesitateInCombatGoal extends AdaptiveGoal {
         if (owner == null) {
             return;
         }
+        // Optimize: already using squared distance - no sqrt needed
         double distanceSq = mob.squaredDistanceTo(owner);
-        if (distanceSq <= (HESITATION_CLEAR_DISTANCE * HESITATION_CLEAR_DISTANCE)) {
+        double clearDistanceSq = HESITATION_CLEAR_DISTANCE * HESITATION_CLEAR_DISTANCE; // 6.25
+        if (distanceSq <= clearDistanceSq) {
             OwnerAssistAttackGoal.clearAssistHesitation(petComponent);
         }
     }

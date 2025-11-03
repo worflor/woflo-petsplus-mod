@@ -1,0 +1,268 @@
+{
+  "stimulus_type": "petsplus:perception/energy_profile",
+  "priority": 15,
+  "cooldown_ticks": 2400,
+  "context_checks": [],
+  "topic_builder": {
+    "template": "energy_profile_update",
+    "variables": {}
+  },
+  "narrative_templates": [
+    {
+      "conditions": [
+        {
+          "key": "momentum",
+          "operator": "greater_than",
+          "value": 0.7
+        },
+        {
+          "key": "physicalStamina",
+          "operator": "greater_than",
+          "value": 0.8
+        },
+        {
+          "key": "mentalFocus",
+          "operator": "greater_than",
+          "value": 0.6
+        }
+      ],
+      "templates": [
+        "Everything's firing perfectly. Body strong, mind sharp, ready for anything.",
+        "Could take on the world right now. All systems optimal.",
+        "This is the zone. Focused, energized, unstoppable.",
+        "Peak condition achieved. Feels incredible.",
+        "Mind and body cooperating beautifully for once.",
+        "Everything aligned just right. This is power.",
+        "Completely dialed in. Whatever comes next, bring it."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "momentum",
+          "operator": "greater_than",
+          "value": 0.7
+        },
+        {
+          "key": "physicalStamina",
+          "operator": "less_than",
+          "value": 0.4
+        }
+      ],
+      "templates": [
+        "Brain's screaming 'run' but my legs filed a complaint.",
+        "Want to sprint. Body said absolutely not.",
+        "Energy's there mentally. Physically? We're done.",
+        "The will is strong but the stamina is nonexistent.",
+        "Could mentally go for hours. My muscles disagree violently.",
+        "Momentum without fuel. This is frustrating.",
+        "Mind says go. Body says we already went. Conflict."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "momentum",
+          "operator": "greater_than",
+          "value": 0.7
+        },
+        {
+          "key": "mentalFocus",
+          "operator": "less_than",
+          "value": 0.3
+        }
+      ],
+      "templates": [
+        "Running on autopilot. Brain's not steering this ship.",
+        "Legs moving, thoughts absent. Pure instinct mode.",
+        "My body's doing things without consulting headquarters.",
+        "Zero focus, maximum motion. It's chaos but functional chaos.",
+        "Can't think but can definitely run. Priorities unclear.",
+        "Operating on muscle memory and vibes only.",
+        "Brain logged off. Body's running the show. Going fine actually."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "momentum",
+          "operator": "greater_than",
+          "value": 0.7
+        }
+      ],
+      "templates": [
+        "Need to run.",
+        "Everything says move so I'm moving.",
+        "Legs won't stop. This is fine.",
+        "Ran three circles. No reason.",
+        "The urge to chase hit but there's nothing to chase.",
+        "Could run forever right now. Or collapse.",
+        "My body decided we're running and my brain agreed.",
+        "Sprinted across the room. Worth it.",
+        "The zoomies grabbed me.",
+        "I'm vibrating. Normal? Feels normal.",
+        "Ran until I forgot why.",
+        "Energy from nowhere. Burning it off.",
+        "Was asleep. Now running. No transition.",
+        "Tail's wagging too fast.",
+        "Paced the perimeter twice. Mission complete.",
+        "Something made me bolt and I did.",
+        "Bounced off three surfaces in rapid succession.",
+        "The sprint urge hit like a brick.",
+        "May have parkoured over furniture.",
+        "Ran. Jumped. Spun. Standard energy protocol."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "momentum",
+          "operator": "less_than",
+          "value": 0.3
+        },
+        {
+          "key": "physicalStamina",
+          "operator": "less_than",
+          "value": 0.3
+        },
+        {
+          "key": "mentalFocus",
+          "operator": "less_than",
+          "value": 0.3
+        }
+      ],
+      "templates": [
+        "Everything's empty. Body, mind, motivation. All gone.",
+        "Hit empty on all tanks simultaneously. Impressive failure.",
+        "Can't move, can't think, can't care. Complete shutdown.",
+        "Physical exhaustion plus mental fog plus zero drive. The trifecta.",
+        "Running on absolutely nothing. This is rock bottom.",
+        "Every system reporting failure. Just gonna lie here.",
+        "Total depletion achieved. Send help or snacks or just let me sleep."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "momentum",
+          "operator": "less_than",
+          "value": 0.3
+        },
+        {
+          "key": "socialCharge",
+          "operator": "less_than",
+          "value": 0.3
+        }
+      ],
+      "templates": [
+        "Too drained to move or socialize. Perfect solitude conditions.",
+        "No energy for existing around others. Leave me to rest.",
+        "Physically done and socially tapped. Don't perceive me.",
+        "Can't people and can't move. Ideal hermit mode.",
+        "Interaction budget: zero. Movement budget: also zero.",
+        "Exhausted in body and soul. Alone time mandatory."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "momentum",
+          "operator": "less_than",
+          "value": 0.3
+        }
+      ],
+      "templates": [
+        "Everything's slow today.",
+        "Moving costs too much energy right now.",
+        "Found a spot. Staying here.",
+        "Low power mode activated.",
+        "Can't be bothered. Tomorrow maybe.",
+        "Conserving energy. Strategic nap incoming.",
+        "Body says rest. Listening.",
+        "Too tired to care about anything.",
+        "Expended my daily energy quota.",
+        "Running on fumes.",
+        "Zero motivation detected.",
+        "Exhaustion level: significant.",
+        "Could sleep for twelve hours. Might.",
+        "Everything can wait. I'm done.",
+        "Battery empty. Recharge required."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "physicalStamina",
+          "operator": "less_than",
+          "value": 0.3
+        }
+      ],
+      "templates": [
+        "Legs are tired.",
+        "Ran out of steam physically.",
+        "Body's protesting movement.",
+        "Physical energy depleted.",
+        "Muscles say no more today.",
+        "Stamina's gone. Sitting down now.",
+        "Can't keep this pace up.",
+        "Physically exhausted.",
+        "My legs are filing complaints.",
+        "Need to rest my body."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "mentalFocus",
+          "operator": "less_than",
+          "value": 0.3
+        }
+      ],
+      "templates": [
+        "Brain's foggy today.",
+        "Can't focus on anything.",
+        "Mental energy's depleted.",
+        "Thoughts are scattered.",
+        "Can't think straight right now.",
+        "Mind's elsewhere. Wherever elsewhere is.",
+        "Lost my train of thought. Several times.",
+        "Concentration: unavailable.",
+        "Brain needs a break.",
+        "Mentally checked out."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "socialCharge",
+          "operator": "less_than",
+          "value": 0.3
+        }
+      ],
+      "templates": [
+        "Don't want to interact right now.",
+        "Social battery's dead.",
+        "Need alone time.",
+        "People energy depleted.",
+        "Not feeling social today.",
+        "Interaction capacity: zero.",
+        "Socially exhausted.",
+        "Leave me alone for a bit.",
+        "My social quota's been met.",
+        "Recharging. Do not disturb."
+      ]
+    },
+    {
+      "conditions": [],
+      "templates": [
+        "Energy levels: noted.",
+        "Activity state updated.",
+        "Battery status checked.",
+        "Energy profile assessed.",
+        "Vitality levels recorded."
+      ]
+    }
+  ],
+  "intensity_formula": "0.5",
+  "confidence_formula": "0.7"
+}

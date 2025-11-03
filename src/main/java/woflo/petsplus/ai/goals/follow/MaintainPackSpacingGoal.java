@@ -2,11 +2,8 @@ package woflo.petsplus.ai.goals.follow;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
 import woflo.petsplus.ai.goals.AdaptiveGoal;
 import woflo.petsplus.ai.goals.GoalIds;
 import woflo.petsplus.ai.goals.GoalRegistry;
@@ -17,13 +14,11 @@ import woflo.petsplus.behavior.social.PetSocialData;
 import woflo.petsplus.behavior.social.SocialContextSnapshot;
 import woflo.petsplus.state.StateManager;
 import woflo.petsplus.state.coordination.PetSwarmIndex;
-import woflo.petsplus.config.DebugSettings;
 import woflo.petsplus.state.PetComponent;
 
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -42,6 +37,8 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
     private static final double OWNER_MOVEMENT_DAMPING_THRESHOLD = 0.03d;
     private static final double OWNER_MOVING_EXTENSION_SCALE = 0.65d;
     private static final float OWNER_MOVING_PADDING_SCALE = 0.45f;
+    private static final double NEIGHBOR_INFLUENCE_MAX_DISTANCE = 6.0d;
+    private static final double NEIGHBOR_INFLUENCE_MAX_DISTANCE_SQ = NEIGHBOR_INFLUENCE_MAX_DISTANCE * NEIGHBOR_INFLUENCE_MAX_DISTANCE;
     private static final int MAX_CACHE_SIZE = 128; // Limit cache to prevent unbounded growth
     private static final Map<UUID, CachedSpacing> OWNER_SPACING_CACHE = new HashMap<>();
 
@@ -49,11 +46,6 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
     private int lastObservedSwarmSize = 1;
     private final Map<MobEntity, PetSocialData> socialScratch = new HashMap<>();
     private long lastSpacingUpdateTick = Long.MIN_VALUE;
-    private long debugSpacingLastReportTick = Long.MIN_VALUE; // preserved for compatibility; unused after aggregation
-    private int debugSpacingCacheHits = 0; // preserved (no-op)
-    private int debugSpacingCacheMisses = 0; // preserved (no-op)
-    private int debugSpacingNeighborSamples = 0; // preserved (no-op)
-    private long debugSpacingComputeNanos = 0L; // preserved (no-op)
 
     public MaintainPackSpacingGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.MAINTAIN_PACK_SPACING), EnumSet.noneOf(Control.class));
@@ -248,18 +240,25 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
                 return FollowSpacingResult.empty();
             }
 
-            Vec3d ownerPos = owner.getEntityPos();
-            Vec3d petPos = mob.getEntityPos();
-            Vec3d ownerToPet = petPos.subtract(ownerPos);
-            double ownerDistanceSq = ownerToPet.lengthSquared();
-            Vec3d forward;
-            if (ownerDistanceSq < 0.0001) {
-                forward = new Vec3d(1.0, 0.0, 0.0);
+            double ownerPosX = owner.getX();
+            double ownerPosZ = owner.getZ();
+            double petPosX = mob.getX();
+            double petPosZ = mob.getZ();
+            double petDeltaX = petPosX - ownerPosX;
+            double petDeltaZ = petPosZ - ownerPosZ;
+            double ownerDistanceSq = petDeltaX * petDeltaX + petDeltaZ * petDeltaZ;
+            double forwardX;
+            double forwardZ;
+            if (ownerDistanceSq < 1.0e-6d) {
+                forwardX = 1.0d;
+                forwardZ = 0.0d;
             } else {
-                double invDistance = 1.0 / Math.sqrt(ownerDistanceSq);
-                forward = ownerToPet.multiply(invDistance);
+                double inv = MathHelper.fastInverseSqrt(ownerDistanceSq);
+                forwardX = petDeltaX * inv;
+                forwardZ = petDeltaZ * inv;
             }
-            Vec3d lateral = new Vec3d(-forward.z, 0.0, forward.x);
+            double lateralX = -forwardZ;
+            double lateralZ = forwardX;
             double ownerSpeedSq = owner.getVelocity().horizontalLengthSquared();
             boolean ownerIsMoving = ownerSpeedSq > OWNER_MOVEMENT_DAMPING_THRESHOLD;
 
@@ -271,12 +270,23 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
             double bestAffinity = Double.NEGATIVE_INFINITY;
 
             for (SocialContextSnapshot.NeighborSample sample : neighbors) {
-                Vec3d toNeighbor = new Vec3d(sample.pet().getX() - ownerPos.x, 0.0, sample.pet().getZ() - ownerPos.z);
-                double forwardComponent = toNeighbor.dotProduct(forward);
-                double lateralComponent = toNeighbor.dotProduct(lateral);
+                MobEntity neighbor = sample.pet();
+                double toNeighborX = neighbor.getX() - ownerPosX;
+                double toNeighborZ = neighbor.getZ() - ownerPosZ;
+                double forwardComponent = (toNeighborX * forwardX) + (toNeighborZ * forwardZ);
+                double lateralComponent = (toNeighborX * lateralX) + (toNeighborZ * lateralZ);
                 double affinity = computeAffinityWeight(selfData, sample.data(), now);
-                double weightContribution = Math.max(0.1, 1.0 - Math.min(1.0, Math.sqrt(sample.squaredDistance()) / 6.0))
-                    * affinity;
+                double distanceSq = sample.squaredDistance();
+                double distanceFactor = 0.0d;
+                if (distanceSq < NEIGHBOR_INFLUENCE_MAX_DISTANCE_SQ) {
+                    double distance = 0.0d;
+                    if (distanceSq > 1.0e-8d) {
+                        double inv = MathHelper.fastInverseSqrt(distanceSq);
+                        distance = distanceSq * inv;
+                    }
+                    distanceFactor = 1.0d - (distance / NEIGHBOR_INFLUENCE_MAX_DISTANCE);
+                }
+                double weightContribution = Math.max(0.1, distanceFactor) * affinity;
                 extension += forwardComponent * weightContribution;
                 lateralOffset += lateralComponent * weightContribution;
                 padding += Math.max(0.0, MAX_PADDING - Math.abs(lateralComponent)) * weightContribution;
@@ -319,8 +329,9 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
                 }
             }
 
-            Vec3d offset = forward.multiply(extension).add(lateral.multiply(lateralOffset));
-            return new FollowSpacingResult(offset.x, offset.z, (float) padding, focus, neighbors.size());
+            double offsetX = (forwardX * extension) + (lateralX * lateralOffset);
+            double offsetZ = (forwardZ * extension) + (lateralZ * lateralOffset);
+            return new FollowSpacingResult(offsetX, offsetZ, (float) padding, focus, neighbors.size());
         } finally {
             cache.clear();
         }
@@ -377,7 +388,6 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
         if (!(mob.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
-        // Delegate aggregation and periodic snapshotting to the centralized aggregator.
         woflo.petsplus.debug.DebugSnapshotAggregator.recordSpacing(
             serverWorld.getServer(), ownerId, tick, cacheHit, result.neighborCount(), cacheHit ? 0L : computeNanos);
     }
@@ -388,6 +398,10 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
         return Math.max(3, base + extra);
     }
 
+    private static boolean isDebugLoggingEnabled() {
+        return woflo.petsplus.config.DebugSettings.isDebugEnabled();
+    }
+
     private record CachedSpacing(long tick, FollowSpacingResult result) {}
 
     private record FollowSpacingResult(double offsetX, double offsetZ, float padding, MobEntity focus, int neighborCount) {
@@ -396,32 +410,17 @@ public class MaintainPackSpacingGoal extends AdaptiveGoal {
         }
     }
 
-    private void sendDebugLine(String message) {
-        if (!isDebugLoggingEnabled()) {
-            return;
-        }
-        if (!(mob.getEntityWorld() instanceof ServerWorld serverWorld)) {
-            return;
-        }
-        MinecraftServer server = serverWorld.getServer();
-        if (server == null) {
-            return;
-        }
-        DebugSettings.broadcastDebug(server, Text.literal(message));
-    }
-
     /**
      * Evict cache entries if the map exceeds MAX_CACHE_SIZE.
      * Uses simple FIFO eviction - removes oldest entry when limit is reached.
      */
     private static void evictCacheIfNeeded(UUID currentOwnerId) {
         if (OWNER_SPACING_CACHE.size() >= MAX_CACHE_SIZE) {
-            // Remove first entry found (simple FIFO)
-            OWNER_SPACING_CACHE.keySet().stream().findFirst().ifPresent(OWNER_SPACING_CACHE::remove);
+            // Remove first entry found (simple FIFO) - avoid stream overhead
+            var iterator = OWNER_SPACING_CACHE.keySet().iterator();
+            if (iterator.hasNext()) {
+                OWNER_SPACING_CACHE.remove(iterator.next());
+            }
         }
-    }
-
-    private static boolean isDebugLoggingEnabled() {
-        return DebugSettings.isDebugEnabled();
     }
 }

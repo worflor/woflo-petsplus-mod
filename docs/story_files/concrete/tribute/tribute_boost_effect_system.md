@@ -6,7 +6,7 @@ This document details the tribute boost effect system that defines how tribute o
 
 ## Design Principles
 
-1. **Permanent Enhancement** - Tribute effects persist until pet death (as requested)
+1. **Permanent Enhancement** - Tribute effects persist until pet death
 2. **Intuitive Impact** - Players should understand how tributes affect their pets
 3. **Balanced Integration** - Effects work with existing systems without breaking balance
 4. **Emergent Complexity** - Simple rules create complex, interesting outcomes

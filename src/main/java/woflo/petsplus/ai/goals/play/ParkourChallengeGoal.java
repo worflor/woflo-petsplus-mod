@@ -2,7 +2,6 @@ package woflo.petsplus.ai.goals.play;
 
 
 import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.ai.pathing.Path;
 import net.minecraft.util.math.BlockPos;

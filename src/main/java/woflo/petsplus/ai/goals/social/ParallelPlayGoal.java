@@ -34,6 +34,7 @@ public class ParallelPlayGoal extends AdaptiveGoal {
     private int animationTicks = 0;
     private int lastPlayTick = 0;
     private int ownerFocusGrace = MAX_OWNER_FOCUS_GRACE;
+    private record PlayOffset(double x, double y, double z) {}
     
     public ParallelPlayGoal(MobEntity mob) {
         super(mob, GoalRegistry.require(GoalIds.PARALLEL_PLAY), EnumSet.of(Control.MOVE));
@@ -145,7 +146,16 @@ public class ParallelPlayGoal extends AdaptiveGoal {
 
         if (!performingPlay) {
             if (playSpot != null) {
-                double targetDistanceSq = playSpot.squaredDistanceTo(mob.getX(), mob.getY(), mob.getZ());
+                double targetX = playSpot.x;
+                double targetY = playSpot.y;
+                double targetZ = playSpot.z;
+                double mobX = mob.getX();
+                double mobY = mob.getY();
+                double mobZ = mob.getZ();
+                double deltaX = targetX - mobX;
+                double deltaY = targetY - mobY;
+                double deltaZ = targetZ - mobZ;
+                double targetDistanceSq = deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ;
                 if (targetDistanceSq > 1.4d) {
                     double speed = computeTravelSpeed(ctx, targetDistanceSq);
                     if (radiusScale < 0.999d) {
@@ -153,23 +163,25 @@ public class ParallelPlayGoal extends AdaptiveGoal {
                     }
 
                     // Mild lane bias to avoid shoulder-to-shoulder approach shoves
-                    Vec3d moveTarget = playSpot;
+                    double moveTargetX = targetX;
+                    double moveTargetY = targetY;
+                    double moveTargetZ = targetZ;
                     if (targetDistanceSq > 1.0d) {
                         int h = mob.getUuid().hashCode();
                         double laneSign = ((h >>> 1) & 1) == 0 ? -1.0 : 1.0;
                         double width = Math.max(0.3d, mob.getWidth());
                         double laneMag = Math.min(0.35d, 0.25d * width);
-                        Vec3d toTarget = playSpot.subtract(mob.getEntityPos());
-                        double horizontalSq = toTarget.x * toTarget.x + toTarget.z * toTarget.z;
+                        double horizontalSq = deltaX * deltaX + deltaZ * deltaZ;
                         if (horizontalSq > 1.0e-8d) {
                             double invHorizontal = 1.0d / Math.sqrt(horizontalSq);
-                            Vec3d perp = new Vec3d(-toTarget.z * invHorizontal, 0.0, toTarget.x * invHorizontal)
-                                .multiply(laneMag * laneSign);
-                            moveTarget = moveTarget.add(perp);
+                            double perpX = -deltaZ * invHorizontal * laneMag * laneSign;
+                            double perpZ = deltaX * invHorizontal * laneMag * laneSign;
+                            moveTargetX += perpX;
+                            moveTargetZ += perpZ;
                         }
                     }
                     if ((parallelTicks % 5) == 0 || mob.getNavigation().isIdle()) {
-                        mob.getNavigation().startMovingTo(moveTarget.x, moveTarget.y, moveTarget.z, speed);
+                        mob.getNavigation().startMovingTo(moveTargetX, moveTargetY, moveTargetZ, speed);
                     }
                     mob.getLookControl().lookAt(owner, 20.0f, 20.0f);
                 } else {
@@ -183,11 +195,27 @@ public class ParallelPlayGoal extends AdaptiveGoal {
         } else {
             mob.getNavigation().stop();
             animationTicks++;
-            Vec3d animationCenter = playSpot != null ? playSpot : owner.getEntityPos();
-            Vec3d offset = computePlayOffset(animationTicks, radiusScale);
-            Vec3d desired = animationCenter.add(offset);
-            Vec3d delta = desired.subtract(mob.getEntityPos());
-            mob.addVelocity(delta.x * 0.08, delta.y * 0.04, delta.z * 0.08);
+            double centerX;
+            double centerY;
+            double centerZ;
+            if (playSpot != null) {
+                centerX = playSpot.x;
+                centerY = playSpot.y;
+                centerZ = playSpot.z;
+            } else {
+                Vec3d ownerPos = owner.getEntityPos();
+                centerX = ownerPos.x;
+                centerY = ownerPos.y;
+                centerZ = ownerPos.z;
+            }
+            PlayOffset offset = computePlayOffset(animationTicks, radiusScale);
+            double desiredX = centerX + offset.x();
+            double desiredY = centerY + offset.y();
+            double desiredZ = centerZ + offset.z();
+            double deltaX = desiredX - mob.getX();
+            double deltaY = desiredY - mob.getY();
+            double deltaZ = desiredZ - mob.getZ();
+            mob.addVelocity(deltaX * 0.08, deltaY * 0.04, deltaZ * 0.08);
             mob.velocityModified = true;
             mob.getLookControl().lookAt(owner, 30.0f, 30.0f);
 
@@ -209,7 +237,8 @@ public class ParallelPlayGoal extends AdaptiveGoal {
     }
 
     private double computeTravelSpeed(PetContext ctx, double distanceSq) {
-        double distance = Math.sqrt(Math.max(distanceSq, 0.0d));
+        // Avoid sqrt when possible - use squared distance for threshold checks first
+        double distance = distanceSq > 0.0d ? Math.sqrt(distanceSq) : 0.0d;
         double distanceFactor = MathHelper.clamp((distance - COMFORTABLE_DISTANCE) / 4.0d, 0.0d, 1.0d);
         double stamina = ctx != null ? MathHelper.clamp(ctx.physicalStamina(), 0.0f, 1.0f) : 0.6d;
         double momentum = ctx != null ? MathHelper.clamp(ctx.behavioralMomentum(), 0.0f, 1.0f) : 0.6d;
@@ -223,13 +252,13 @@ public class ParallelPlayGoal extends AdaptiveGoal {
         return MathHelper.clamp(speed, 0.5d, 1.1d);
     }
 
-    private Vec3d computePlayOffset(int ticks, double radiusScale) {
+    private PlayOffset computePlayOffset(int ticks, double radiusScale) {
         double phase = (ticks % 60) / 60.0d * MathHelper.TAU;
         double radius = (1.1d + Math.sin(ticks * 0.12d) * 0.25d) * MathHelper.clamp(radiusScale, 0.45d, 1.0d);
         double x = Math.cos(phase) * radius;
         double z = Math.sin(phase) * radius;
         double y = Math.sin(ticks * 0.18d) * 0.05d;
-        return new Vec3d(x, y, z);
+        return new PlayOffset(x, y, z);
     }
 
     private double computeRadiusScale(PetContext ctx) {

@@ -1,0 +1,304 @@
+{
+  "stimulus_type": "petsplus:perception/owner_activity",
+  "priority": 50,
+  "cooldown_ticks": 2400,
+  "context_checks": [],
+  "topic_builder": {
+    "template": "owner_activity",
+    "variables": {}
+  },
+  "narrative_templates": [
+    {
+      "conditions": [
+        {
+          "key": "crouching",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "key": "handsBusy",
+          "operator": "equals",
+          "value": false
+        }
+      ],
+      "templates": [
+        "They crouched with free hands. This is the petting signal.",
+        "Down to my level, nothing in their hands. I know this dance.",
+        "Crouch plus open hands equals invitation. Moving in.",
+        "They got low and their hands are available. Can't resist.",
+        "Human went down with nothing to hold. That's for me.",
+        "Crouching, hands empty. They want to pet me. Obviously.",
+        "Low stance, free hands. This is basically a formal request for cuddles."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "crouching",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "key": "usingItem",
+          "operator": "equals",
+          "value": true
+        }
+      ],
+      "templates": [
+        "They're low but holding something. Confusing intentions.",
+        "Crouch mode but hands occupied. Is this for me or not?",
+        "Down at my level yet focused on an item. Mixed messages.",
+        "Sneaking around with a thing. Not sure if I should approach.",
+        "Low stance, busy hands. What's the priority here, human?",
+        "They crouched but they're working on something. I'll wait. Maybe."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "crouching",
+          "operator": "equals",
+          "value": true
+        }
+      ],
+      "templates": [
+        "They're crouching. Either sneaking or petting mode activated.",
+        "Human went low. Could be stealth. Could be cuddles.",
+        "They crouched down to my level. Appreciated.",
+        "My person's sneaking around. Suspicious behavior.",
+        "They got down low. I'm investigating.",
+        "Human's crouching. Probably trying to be quiet. Failing.",
+        "They bent down. I made eye contact.",
+        "Person's in crouch mode. Opportunity detected.",
+        "They're down low which makes them easier to headbutt.",
+        "Human crouched. I approached cautiously.",
+        "They're sneaking but I can still hear them.",
+        "Person went crouch. I did too. Solidarity.",
+        "My human's low to the ground. Prime petting position.",
+        "They crouched and I immediately sat on their foot.",
+        "Human's sneaking around. I'm not asking why."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "screenOpen",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "key": "crouching",
+          "operator": "equals",
+          "value": true
+        }
+      ],
+      "templates": [
+        "Crouching while checking menus. Committed to stealth multitasking.",
+        "Low and browsing inventory. They're doing tactical planning.",
+        "Sneaky menu access. I respect the dedication.",
+        "Crouch inventory check. Time's frozen but they're staying low.",
+        "They went stealth mode just to look at a screen. Interesting choice.",
+        "Menu surfing from a crouch. Human behavior is weird."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "usingItem",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "key": "handsBusy",
+          "operator": "equals",
+          "value": true
+        }
+      ],
+      "templates": [
+        "Item in use, hands working. Fully committed to whatever that is.",
+        "Both hands engaged with something. I'm definitely not the focus.",
+        "Maximum occupation achieved. They're deep in it.",
+        "Using a thing with complete manual investment. I'll circle back.",
+        "Hands and attention locked on their task. Do-not-disturb mode.",
+        "Completely absorbed in item usage. Fine. I'll just be here. Waiting."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "usingItem",
+          "operator": "equals",
+          "value": true
+        }
+      ],
+      "templates": [
+        "They're using something. Hands occupied.",
+        "Human's busy with an item. Can't pet me obviously.",
+        "They're holding something. Better not be food they're not sharing.",
+        "My person's using a thing. I'm supervising.",
+        "They're focused on whatever's in their hands.",
+        "Human's got their hands full. Timing's bad for cuddles.",
+        "They're using an item. I'm waiting patiently. Sort of.",
+        "Person's occupied with something. I'll wait. Maybe.",
+        "They're busy. I positioned myself nearby anyway.",
+        "Human's using a tool or eating. Either way I'm interested.",
+        "They've got something in their hands. Monitoring closely.",
+        "My person's doing something manual. I'm on standby.",
+        "They're using an item which means I can't be the center of attention. Unacceptable.",
+        "Human's hands are busy. Mine aren't. Want to trade?",
+        "They're focused on that thing. I'm focused on them."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "screenOpen",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "key": "handsBusy",
+          "operator": "equals",
+          "value": false
+        }
+      ],
+      "templates": [
+        "Menu's up but hands are doing nothing. I could interrupt this.",
+        "Screen open, hands idle. They're just browsing. My window.",
+        "Inventory mode but not actively working. Space to demand attention.",
+        "They're looking at menus casually. Hands free for head scratches.",
+        "Browsing mode with available hands. Perfect time to intervene.",
+        "Menu open, hands down. Not actually busy. Making my approach."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "screenOpen",
+          "operator": "equals",
+          "value": true
+        }
+      ],
+      "templates": [
+        "They opened a menu. Gonna be a while.",
+        "Human's staring at inventory. I'll just sit here.",
+        "They're looking at a screen. Not looking at me. Problem.",
+        "Person opened their inventory. Time stopped apparently.",
+        "They're browsing menus. I'm browsing for attention.",
+        "Human went into a menu screen. Universe paused.",
+        "They opened something. World froze. Weird.",
+        "My person's checking inventory. I checked out mentally.",
+        "They're menu surfing. I'm standing guard I guess.",
+        "Human opened a screen and everything got quiet.",
+        "They're in their inventory. I'm in their personal space.",
+        "Person's looking at a menu. I'm looking at them. Staring contest.",
+        "They opened inventory. I'll just wait here. Forever.",
+        "Human's checking stuff. I'm checking if they notice me yet.",
+        "They went into a menu. I went into standby mode."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "handsBusy",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "key": "crouching",
+          "operator": "equals",
+          "value": false
+        },
+        {
+          "key": "screenOpen",
+          "operator": "equals",
+          "value": false
+        }
+      ],
+      "templates": [
+        "Standing tall, hands working. They're in active labor mode.",
+        "Upright with occupied hands. Actual work happening.",
+        "Not sneaking, not menuing, just manually busy. Productivity detected.",
+        "Full stance, engaged hands. Standard human work mode.",
+        "They're standing and doing something with their hands. I'm supervising.",
+        "Hands moving, no distractions. Focused work session."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "handsBusy",
+          "operator": "equals",
+          "value": true
+        }
+      ],
+      "templates": [
+        "Their hands are busy. Can't pet. Unfortunate.",
+        "Human's hands are occupied. Noted.",
+        "They're doing hand things. I'm doing waiting things.",
+        "My person's hands are moving. Watching carefully.",
+        "They're busy with their hands. Mine are free. Just saying.",
+        "Human's handling something. I'm handling disappointment.",
+        "Their hands are working. Mine could be getting petted. Just a thought.",
+        "Person's hands are in motion. Mine are in position for attention.",
+        "They're using their hands for not-petting. Waste of resources.",
+        "Human's hands are busy. Petting window: closed.",
+        "They're doing manual work. I'm doing quality control.",
+        "My person's hands are occupied. Should be on my head.",
+        "Their hands are busy. I made sad eyes. No effect.",
+        "Human's handling stuff. I'm right here. Priorities unclear.",
+        "They're using their hands. I'm available for alternative uses. Like petting."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "crouching",
+          "operator": "equals",
+          "value": false
+        },
+        {
+          "key": "usingItem",
+          "operator": "equals",
+          "value": false
+        },
+        {
+          "key": "screenOpen",
+          "operator": "equals",
+          "value": false
+        },
+        {
+          "key": "handsBusy",
+          "operator": "equals",
+          "value": false
+        }
+      ],
+      "templates": [
+        "They're just standing there. Hands free, mind wandering. This is my shot.",
+        "Not sneaking, not working, not distracted. Maximum availability.",
+        "Standing idle with nothing occupying them. Prime petting setup.",
+        "All indicators say 'available for pets.' Moving in now.",
+        "They're doing nothing. Perfect. I'm doing something about that.",
+        "Human's wide open for interaction. No better time than this.",
+        "Standing around being completely accessible. Can't waste this opportunity."
+      ]
+    },
+    {
+      "conditions": [],
+      "templates": [
+        "My human's just doing human things.",
+        "They're around. Not doing anything noteworthy.",
+        "Person's nearby. Normal activity levels.",
+        "Human's present. Standard behavior.",
+        "They're here. That's the update.",
+        "My person exists nearby. Situation normal.",
+        "They're doing whatever humans do when they're not busy.",
+        "Human's just being human. Nothing special.",
+        "They're around and available. Good status.",
+        "Person's nearby. Hands free. Optimal conditions."
+      ]
+    }
+  ],
+  "intensity_formula": "0.4",
+  "confidence_formula": "0.85"
+}

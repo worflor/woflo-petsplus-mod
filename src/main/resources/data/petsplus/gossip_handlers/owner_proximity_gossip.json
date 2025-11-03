@@ -1,0 +1,28 @@
+{
+  "stimulus_type": "petsplus:perception/owner_nearby",
+  "priority": 50,
+  "cooldown_ticks": 2400,
+  "context_checks": [],
+  "topic_builder": {
+    "template": "owner_presence",
+    "variables": {}
+  },
+  "narrative_templates": [
+    {
+      "conditions": [],
+      "templates": [
+        "My human's back. Finally.",
+        "They wandered off earlier. Unacceptable.",
+        "Human's nearby again. Order restored.",
+        "They disappeared for a bit. Very rude.",
+        "My person returned. I pretended not to notice.",
+        "Sensed my human nearby. Day: made.",
+        "They left my sight range. Traumatic experience.",
+        "They were gone and now they're not. Emotional rollercoaster.",
+        "Human returned. I'll forgive them. Eventually."
+      ]
+    }
+  ],
+  "intensity_formula": "0.5",
+  "confidence_formula": "0.85"
+}

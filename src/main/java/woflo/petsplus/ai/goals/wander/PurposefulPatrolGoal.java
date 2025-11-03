@@ -86,7 +86,8 @@ public class PurposefulPatrolGoal extends AdaptiveGoal {
         
         BlockPos currentTarget = patrolPoints.get(currentPointIndex);
         
-        if (mob.getBlockPos().isWithinDistance(currentTarget, 2.0)) {
+        // Optimize: use squared distance check (2.0 * 2.0 = 4.0)
+        if (mob.getBlockPos().getSquaredDistance(currentTarget) <= 4.0) {
             // Reached patrol point - pause briefly, then move to next
             if (patrolTicks % 30 == 0) {
                 currentPointIndex = (currentPointIndex + 1) % patrolPoints.size();

@@ -353,6 +353,10 @@ public class StateManager {
         if (!(world instanceof ServerWorld serverWorld)) {
             return;
         }
+        // Early exit if no pets exist
+        if (petComponents.isEmpty()) {
+            return;
+        }
         environmentPerceptionBridge.onWorldTick(serverWorld, petComponents.values());
     }
 
@@ -609,6 +613,13 @@ public class StateManager {
     }
 
     public void processScheduledPetTasks(long currentTick) {
+        // Early exit if no pets exist - skip all processing
+        if (petComponents.isEmpty() && deferredComponentSyncs.isEmpty()) {
+            adaptiveTickScaler.recordTick();
+            asyncWorkCoordinator.drainMainThreadTasks();
+            return;
+        }
+        
         AsyncMigrationProgressTracker.markComplete(AsyncMigrationProgressTracker.Phase.PET_STATE);
         AsyncMigrationProgressTracker.markComplete(AsyncMigrationProgressTracker.Phase.ADVANCED_SYSTEMS);
         asyncWorkCoordinator.drainMainThreadTasks();
@@ -1223,7 +1234,9 @@ public class StateManager {
             double dx = request.pet().getX() - centerX;
             double dy = request.pet().getY() - centerY;
             double dz = request.pet().getZ() - centerZ;
-            double distance = Math.sqrt((dx * dx) + (dy * dy) + (dz * dz));
+            // Avoid sqrt when we just need to add radius - use approximation
+            double distanceSq = (dx * dx) + (dy * dy) + (dz * dz);
+            double distance = distanceSq > 0.0D ? Math.sqrt(distanceSq) : 0.0D;
             double reach = distance + request.radius();
             if (reach > maxReach) {
                 maxReach = reach;

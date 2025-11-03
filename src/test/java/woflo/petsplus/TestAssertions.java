@@ -7,8 +7,6 @@ import woflo.petsplus.state.emotions.PetMoodEngine;
 
 import java.util.Map;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 /**
  * Custom AssertJ assertions for domain-specific validations.
  * Provides fluent, readable assertions for mood engine and pet state.

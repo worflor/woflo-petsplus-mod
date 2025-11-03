@@ -75,7 +75,7 @@ dependencies {
     // Fabric API for mod features
     modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
 
-    // Testing dependencies
+    // Testing dependencies - all actively used in tests
     testImplementation "org.junit.jupiter:junit-jupiter:5.10.1"
     testImplementation "org.junit.jupiter:junit-jupiter-params:5.10.1"
     testImplementation "org.mockito:mockito-core:5.8.0"
@@ -91,13 +91,29 @@ checkstyle {
     checkstyleMain.source = 'src/main/java'
 }
 
-// JUnit 5 test configuration
+// JUnit 5 test configuration with parallel execution
 test {
     useJUnitPlatform()
+    
+    // Enable parallel test execution
+    maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+    
+    // Configure JUnit 5 parallel execution
+    systemProperty 'junit.jupiter.execution.parallel.enabled', 'true'
+    systemProperty 'junit.jupiter.execution.parallel.mode.default', 'concurrent'
+    systemProperty 'junit.jupiter.execution.parallel.mode.classes.default', 'concurrent'
+    // Use dynamic thread count based on available processors
+    systemProperty 'junit.jupiter.execution.parallel.config.strategy', 'dynamic'
+    systemProperty 'junit.jupiter.execution.parallel.config.dynamic.factor', '1.0'
+    
     testLogging {
         events "passed", "skipped", "failed"
         exceptionFormat "full"
         showStandardStreams = false
     }
+    
     maxHeapSize = "2G"
+    
+    // Fail fast on first failure (optional, remove if you want all tests to run)
+    // failFast = true
 }

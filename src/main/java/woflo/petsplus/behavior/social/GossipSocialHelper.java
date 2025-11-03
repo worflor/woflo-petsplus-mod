@@ -59,7 +59,7 @@ final class GossipSocialHelper {
 
     static float curiosityDelta(RumorEntry rumor, float knowledgeGap, boolean alreadyKnows, boolean isAbstract) {
         float strength = rumorStrength(rumor);
-        float gapBoost = MathHelper.clamp(knowledgeGap * 0.016f, 0f, 0.024f);
+        float gapBoost = MathHelper.clamp(knowledgeGap * 0.04f, 0f, 0.06f); // Boosted 2.5x from 0.016f
         float base = 0.012f + (strength * 0.03f) + gapBoost;
         if (alreadyKnows) {
             base *= 0.5f;
@@ -72,7 +72,7 @@ final class GossipSocialHelper {
 
     static float loyaltyDelta(RumorEntry rumor, float knowledgeGap, boolean witnessed) {
         float strength = rumorStrength(rumor);
-        float gapBoost = MathHelper.clamp(knowledgeGap * 0.014f, 0f, 0.022f);
+        float gapBoost = MathHelper.clamp(knowledgeGap * 0.035f, 0f, 0.055f); // Boosted 2.5x from 0.014f
         float confidenceBoost = MathHelper.clamp(rumor.confidence() * 0.01f, 0f, 0.01f);
         float base = 0.01f + (strength * 0.026f) + gapBoost + confidenceBoost;
         if (witnessed) {

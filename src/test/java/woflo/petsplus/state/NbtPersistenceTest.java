@@ -1,17 +1,11 @@
 package woflo.petsplus.state;
 
-import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.nbt.NbtCompound;
-import net.minecraft.server.world.ServerWorld;
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
-import woflo.petsplus.TestFixtures;
 
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
 import static woflo.petsplus.TestFixtures.*;
 
 /**
@@ -25,17 +19,12 @@ import static woflo.petsplus.TestFixtures.*;
 @DisplayName("NBT Persistence")
 class NbtPersistenceTest {
 
-    private ServerWorld world;
-    private MobEntity pet;
-
     @BeforeEach
     void setup() {
         resetTicks();
         // NOTE: ServerWorld cannot be mocked in test environment due to complex static
         // initializers that trigger ParticleTypes initialization. Since these NBT tests
         // don't actually USE the world/pet, we skip creating them.
-        world = null;
-        pet = null;
     }
 
     @Nested

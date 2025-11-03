@@ -89,6 +89,20 @@ public class MobEntityDataMixin {
                 tameable.petsplus$setOwnerUuid(null);
             }
         }
+        
+        // For vanilla TameableEntity, sync owner from vanilla to PetComponent
+        // This ensures owner data is consistent after vanilla loads its NBT
+        if (entity instanceof TameableEntity tameableEntity) {
+            net.minecraft.entity.LivingEntity vanillaOwner = tameableEntity.getOwner();
+            if (vanillaOwner instanceof net.minecraft.entity.player.PlayerEntity player) {
+                // Sync vanilla owner to PetComponent if they differ
+                java.util.UUID petComponentOwner = component.getOwnerUuid();
+                if (petComponentOwner == null || !petComponentOwner.equals(player.getUuid())) {
+                    component.setOwner(player);
+                    component.setOwnerUuid(player.getUuid());
+                }
+            }
+        }
 
         // Ensure the component is properly registered after load
         PetComponent.set(entity, component);

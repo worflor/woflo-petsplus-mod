@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.UUID;
 
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.text.Text;
@@ -28,11 +27,11 @@ import woflo.petsplus.state.gossip.RumorTone;
 public class GossipCircleRoutine implements SocialBehaviorRoutine {
 
     private static final double GOSSIP_RADIUS = 8.5;
-    private static final int MAX_RUMORS_PER_PASS = 3;
+    private static final int MAX_RUMORS_PER_PASS = 5; // Increased from 3 to reduce monotony
     private static final int MAX_LISTENERS_PER_CLUSTER = 4;
     private static final long CADENCE = 40L;
     private static final float KNOWLEDGE_EPSILON = 0.05f;
-    private static final int MAX_STALL_PASSES = 3;
+    private static final int MAX_STALL_PASSES = 5; // Increased from 3 to reduce aggressive opt-out
 
     @Override
     public boolean shouldRun(SocialContextSnapshot context) {

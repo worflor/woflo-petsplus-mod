@@ -56,7 +56,7 @@ public abstract class ServerPlayNetworkHandlerMixin {
             return;
         }
 
-        PetComponent component = PetComponent.get(mob);
+        PetComponent component = PetComponent.getOrCreate(mob);
         if (component == null || !component.isOwnedBy(serverPlayer) || component.isPerched()) {
             return;
         }

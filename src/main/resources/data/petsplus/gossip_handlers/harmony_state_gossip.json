@@ -1,0 +1,39 @@
+{
+  "stimulus_type": "petsplus:perception/harmony_state",
+  "priority": 35,
+  "cooldown_ticks": 3600,
+  "context_checks": [],
+  "topic_builder": {
+    "template": "harmony_vibes",
+    "variables": {}
+  },
+  "narrative_templates": [
+    {
+      "conditions": [],
+      "templates": [
+        "Everything feels balanced. Suspiciously so.",
+        "Energy's settled. Waiting for it to shift.",
+        "We're coexisting without incident. Unusual.",
+        "Calm thing happening. Don't know how long it'll last.",
+        "Everyone's peaceful. Actually nice.",
+        "Vibe's good. Too good? Just good.",
+        "Hit equilibrium somehow.",
+        "There's harmony here. Mildly suspicious.",
+        "Household reached peak chill.",
+        "Everything aligned. Created a peaceful moment.",
+        "We're synchronized without trying.",
+        "Balance feels right. Don't trust it but enjoying it.",
+        "Everyone's energy matching. Basically a unit.",
+        "Sense of calm I can't explain.",
+        "Achieved something like peace. Fragile but there.",
+        "Chaos settled on its own.",
+        "Understanding between all of us. Unspoken.",
+        "Everything just works right now.",
+        "Atmosphere's balanced. Someone'll tip it eventually.",
+        "Found harmony by accident. Rolling with it."
+      ]
+    }
+  ],
+  "intensity_formula": "0.5",
+  "confidence_formula": "0.7"
+}

@@ -154,8 +154,9 @@ public class EepyDrowsyMistEffect implements Effect {
             }
         }
 
+        // Clean up empty map to reduce memory footprint
         if (states.isEmpty()) {
-            ACTIVE_MISTS.remove(world, states);
+            ACTIVE_MISTS.remove(world);
         }
     }
 

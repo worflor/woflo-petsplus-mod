@@ -1,0 +1,77 @@
+{
+  "stimulus_type": "petsplus:perception/world_tick",
+  "priority": 10,
+  "cooldown_ticks": 12000,
+  "context_checks": [],
+  "topic_builder": {
+    "template": "time_transition_{daytime}_{segment}",
+    "variables": {
+      "daytime": {
+        "source": "stimulus",
+        "path": "daytime",
+        "fallback": "unknown"
+      },
+      "segment": {
+        "source": "stimulus",
+        "path": "segment",
+        "fallback": "0"
+      }
+    }
+  },
+  "narrative_templates": [
+    {
+      "conditions": [
+        {
+          "key": "daytime",
+          "operator": "equals",
+          "value": true
+        }
+      ],
+      "templates": [
+        "Sun's up. Time to stare at my human.",
+        "Morning birds being loud.",
+        "Can see clearly. Judging better now.",
+        "Sunlight hit my eyes. Awake now.",
+        "Sunbeam on the floor. Mandatory nap spot.",
+        "Human's moving. Should supervise.",
+        "Morning smells different.",
+        "Watched the light change as sun came up.",
+        "Everything casts shadows now. Tested by moving.",
+        "Day started without me. Managing.",
+        "Prefer afternoons but mornings work.",
+        "Someone's making noise already.",
+        "Birds having a whole conversation outside.",
+        "Daylight means proper investigating.",
+        "Noticed dust in the sunlight. Fascinating."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "daytime",
+          "operator": "equals",
+          "value": false
+        }
+      ],
+      "templates": [
+        "Can't see much. Hearing everything.",
+        "Night makes things look suspicious.",
+        "Shadows too dark.",
+        "Heard something. Listening for more.",
+        "Eyes adjusted. Still dim.",
+        "House sounds different at night.",
+        "Something moved in the corner. Watching.",
+        "Night means noticing every sound.",
+        "Darkness doesn't bother me but I'm alert.",
+        "Smell things better when I can't see.",
+        "Moon's out. Everything looks silver.",
+        "Hearing's working overtime.",
+        "Know every corner but night makes it different.",
+        "Sound I can't place. Investigating from here.",
+        "Quieter somehow makes me more aware."
+      ]
+    }
+  ],
+  "intensity_formula": "0.3",
+  "confidence_formula": "0.85"
+}

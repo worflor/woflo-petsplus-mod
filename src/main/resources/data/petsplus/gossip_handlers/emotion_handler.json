@@ -1,0 +1,142 @@
+{
+  "stimulus_type": "petsplus:perception/emotion_sample",
+  "priority": 100,
+  "cooldown_ticks": 200,
+  "context_checks": [],
+  "topic_builder": {
+    "template": "emotion_{emotion}",
+    "variables": {
+      "emotion": {
+        "source": "stimulus",
+        "path": "emotion",
+        "fallback": "unknown"
+      }
+    }
+  },
+  "narrative_templates": [
+    {
+      "conditions": [
+        {
+          "key": "emotion",
+          "operator": "equals",
+          "value": "CHEERFUL"
+        }
+      ],
+      "templates": [
+        "Feeling good today. Tail confirms.",
+        "Mood's up. Everything seems better.",
+        "Happy for no specific reason. It's nice.",
+        "Cheerful energy detected. Mine.",
+        "Good vibes only right now."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "emotion",
+          "operator": "equals",
+          "value": "ANGST"
+        }
+      ],
+      "templates": [
+        "Something feels off. Can't place it.",
+        "Uneasy. Don't know why.",
+        "There's tension I can't shake.",
+        "Anxious without a clear threat.",
+        "Everything feels heavy today."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "emotion",
+          "operator": "equals",
+          "value": "CURIOUS"
+        }
+      ],
+      "templates": [
+        "Need to investigate that.",
+        "Something caught my attention. Following up.",
+        "Curious about what's happening over there.",
+        "There's something worth checking out.",
+        "My investigation senses are tingling."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "emotion",
+          "operator": "equals",
+          "value": "VIGILANT"
+        }
+      ],
+      "templates": [
+        "On high alert. Everything's a potential threat.",
+        "Watching carefully. Can't be too careful.",
+        "Vigilance mode activated.",
+        "Every sound gets my attention right now.",
+        "Alert status: maximum."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "emotion",
+          "operator": "equals",
+          "value": "RELIEF"
+        }
+      ],
+      "templates": [
+        "That's over. Thank goodness.",
+        "Tension released. Breathing easier.",
+        "Relieved. That could've gone worse.",
+        "Crisis averted. Relaxing now.",
+        "The stress passed. I'm okay."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "emotion",
+          "operator": "equals",
+          "value": "FRUSTRATION"
+        }
+      ],
+      "templates": [
+        "This isn't working. Annoying.",
+        "Frustrated with the current situation.",
+        "Things aren't going as planned. Irritating.",
+        "Can't get what I want. Bothered.",
+        "Obstacle detected. Patience wearing thin."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "emotion",
+          "operator": "equals",
+          "value": "PRIDE"
+        }
+      ],
+      "templates": [
+        "Did something well. Proud of it.",
+        "Accomplished that successfully.",
+        "Feeling accomplished. Deserved.",
+        "That went perfectly. As expected.",
+        "Nailed it. Pride confirmed."
+      ]
+    },
+    {
+      "conditions": [],
+      "templates": [
+        "Emotional state: noted.",
+        "Feeling something. Processing.",
+        "Mood shifted. Adapting.",
+        "Experiencing feelings. Managing.",
+        "Emotional update in progress."
+      ]
+    }
+  ],
+  "intensity_formula": "0.5",
+  "confidence_formula": "0.7"
+}

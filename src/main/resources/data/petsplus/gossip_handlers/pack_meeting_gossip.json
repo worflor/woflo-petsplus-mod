@@ -1,0 +1,275 @@
+{
+  "stimulus_type": "petsplus:perception/crowd_summary",
+  "priority": 60,
+  "cooldown_ticks": 1000,
+  "context_checks": [],
+  "topic_builder": {
+    "template": "pack_composition",
+    "variables": {}
+  },
+  "narrative_templates": [
+    {
+      "conditions": [
+        {
+          "key": "hostileCount",
+          "operator": "greater_than",
+          "value": 2
+        },
+        {
+          "key": "friendlyCount",
+          "operator": "greater_than",
+          "value": 0
+        }
+      ],
+      "templates": [
+        "Multiple threats but we've got backup. Pack's rallying.",
+        "Outnumbered by hostiles. Good thing I'm not the only one here.",
+        "Several enemies, several allies. This got real fast.",
+        "Too many threats for one pet but the pack's forming up.",
+        "Hostiles everywhere but so are friendlies. Coordinating defense.",
+        "Numbers are bad but we're not scattering. Pack versus danger.",
+        "More enemies than I'd like, more allies than they expected."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "hostileCount",
+          "operator": "equals",
+          "value": 1
+        },
+        {
+          "key": "babyFriendlyCount",
+          "operator": "greater_than",
+          "value": 0
+        }
+      ],
+      "templates": [
+        "One threat, one baby. Priorities instantly clear.",
+        "Enemy near a youngling. Not happening. Positioning between them.",
+        "Hostile detected. Baby detected. New objective: shield the small one.",
+        "Single threat near younglings. Every instinct saying protect.",
+        "Danger close to babies. The choice is obvious.",
+        "One enemy. Vulnerable young. I know what to do.",
+        "Threat plus baby equals guardian mode engaged immediately."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "hostileCount",
+          "operator": "greater_than",
+          "value": 0
+        },
+        {
+          "key": "friendlyCount",
+          "operator": "equals",
+          "value": 0
+        }
+      ],
+      "templates": [
+        "Hostiles and no backup. Just me then. Great.",
+        "Threats with zero support. Solo defense it is.",
+        "Enemy presence, ally absence. Math isn't good but I'm committed.",
+        "Alone against hostiles. Not my preferred scenario.",
+        "Danger nearby and the pack's nowhere. Tactical disadvantage.",
+        "No friendlies, some hostiles. Time to be very alert.",
+        "They're here. My team isn't. Adjusting strategy accordingly."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "hostileCount",
+          "operator": "greater_than",
+          "value": 0
+        }
+      ],
+      "templates": [
+        "Hostiles detected nearby. Alert level increased.",
+        "Something dangerous is close. I'm tracking it.",
+        "Threat in the area. Monitoring.",
+        "Unfriendly presence detected. Staying aware.",
+        "There's danger nearby. Keeping my human safe.",
+        "Hostile entity close by. I'm on guard.",
+        "Something threatening showed up. Watching carefully.",
+        "Danger's in range. Positioning defensively.",
+        "Hostile nearby. Not ideal.",
+        "Threat detected. Running calculations."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "babyFriendlyCount",
+          "operator": "greater_than",
+          "value": 2
+        },
+        {
+          "key": "friendlyCount",
+          "operator": "greater_than",
+          "value": 2
+        }
+      ],
+      "templates": [
+        "Multiple babies, multiple guards. Full protection moment type deal.",
+        "This is basically daycare with several adults on watch.",
+        "Young ones everywhere and plenty of eyes on them. Safe setup.",
+        "Lots of younglings, lots of protectors. Everyone's babysitting.",
+        "Group childcare scenario. The little ones are covered.",
+        "Several babies and enough adults to watch them all. Good ratio."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "babyFriendlyCount",
+          "operator": "greater_than",
+          "value": 0
+        }
+      ],
+      "templates": [
+        "Baby animals nearby. Protecting them now I guess.",
+        "There's younglings here. Extra careful mode activated.",
+        "Small ones detected. Adjusting my behavior.",
+        "Baby creatures around. That changes things.",
+        "Younglings present. Being gentle.",
+        "Little ones nearby. Can't be too rowdy.",
+        "Babies in the area. I'm on soft duty.",
+        "Small creatures here. I'll watch them.",
+        "Younglings around means careful steps.",
+        "Baby animals nearby. Surprisingly invested in their safety."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "friendlyCount",
+          "operator": "greater_than",
+          "value": 5
+        },
+        {
+          "key": "neutralCount",
+          "operator": "greater_than",
+          "value": 3
+        }
+      ],
+      "templates": [
+        "Massive crowd. Friends mixed with strangers. Navigating carefully.",
+        "Big gathering of known and unknown. Social complexity level: high.",
+        "Pack plus randoms. Keeping track of who's who.",
+        "Large mixed group. Some familiar faces, some not. Staying aware.",
+        "Friends and neutrals everywhere. Complicated dynamics.",
+        "Huge turnout with varied allegiances. Reading the room constantly."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "friendlyCount",
+          "operator": "greater_than",
+          "value": 3
+        }
+      ],
+      "templates": [
+        "Big crowd of friendlies. This is a gathering.",
+        "Lots of pets in one place. Social hour.",
+        "The crew's all here. Numbers are up.",
+        "Full house today. Everyone showed up.",
+        "Mass gathering of pets. Energy's interesting.",
+        "Whole pack assembled. Didn't plan this.",
+        "Everyone converged here somehow.",
+        "Large friendly group formed. No complaints.",
+        "Pack's at full strength. Feels secure.",
+        "Crowd of us now. Kinda nice actually."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "friendlyCount",
+          "operator": "equals",
+          "value": 1
+        },
+        {
+          "key": "hostileCount",
+          "operator": "equals",
+          "value": 0
+        },
+        {
+          "key": "neutralCount",
+          "operator": "equals",
+          "value": 0
+        }
+      ],
+      "templates": [
+        "Just me and one friend in total isolation. Perfect.",
+        "Two pets, zero distractions. Quality time achieved.",
+        "One companion, nothing else. This is the ideal scenario.",
+        "Population of exactly two. Peaceful and simple.",
+        "Me plus one with complete privacy. Rare and appreciated.",
+        "Just us in the whole area. Undisturbed companionship.",
+        "One friend, no chaos, no threats. The sweet spot."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "friendlyCount",
+          "operator": "equals",
+          "value": 1
+        }
+      ],
+      "templates": [
+        "One other friendly nearby. Just the two of us.",
+        "Found another pet. We're hanging out.",
+        "Me plus one. Small group vibes.",
+        "Just another pet and me. Good company.",
+        "One friend nearby. Enough.",
+        "Two-pet situation. Works for me.",
+        "Another friendly close by. We're doing pet things.",
+        "One companion nearby. Simple setup.",
+        "Just me and one other. Peaceful.",
+        "Found a friend. Quality over quantity."
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "key": "neutralCount",
+          "operator": "greater_than",
+          "value": 2
+        }
+      ],
+      "templates": [
+        "Bunch of neutral animals around. Undecided on them.",
+        "Neutral creatures nearby. Not friends, not threats.",
+        "Animals that don't care about me. Mutual.",
+        "Neutral entities all over. We're ignoring each other.",
+        "Creatures with no opinion. Feels weird.",
+        "Neutral animals in the vicinity. We coexist.",
+        "Bunch of neutrals. They do their thing, I do mine.",
+        "Animals that aren't hostile or friendly. Just there.",
+        "Neutral crowd. No drama, no connection.",
+        "Entities with zero interest in me. Noted."
+      ]
+    },
+    {
+      "conditions": [],
+      "templates": [
+        "Some animals nearby. Taking stock.",
+        "There's others around. Situation normal.",
+        "Bunch of creatures in the area. Monitoring.",
+        "Animal presence detected. Standard day.",
+        "Others nearby. Nothing unusual.",
+        "Mix of creatures around me. Typical.",
+        "Animals in the vicinity. Doing a headcount.",
+        "Creatures nearby. Aware of them.",
+        "Area's populated. Keeping track.",
+        "Animals around. Making mental notes."
+      ]
+    }
+  ],
+  "intensity_formula": "0.35",
+  "confidence_formula": "0.7"
+}

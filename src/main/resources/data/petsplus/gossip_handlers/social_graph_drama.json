@@ -1,0 +1,44 @@
+{
+  "stimulus_type": "petsplus:perception/social_graph",
+  "priority": 40,
+  "cooldown_ticks": 4800,
+  "context_checks": [],
+  "topic_builder": {
+    "template": "social_update",
+    "variables": {}
+  },
+  "narrative_templates": [
+    {
+      "conditions": [],
+      "templates": [
+        "New pet walked in like they own the place.",
+        "Someone's been staring at me. Five minutes straight.",
+        "Two pets talking in ear flicks.",
+        "Pet here thinks nobody notices them judging. I notice.",
+        "Met someone. They sniffed weird. Status: unclear.",
+        "One pet circling same spot for an hour.",
+        "Someone stole my spot. War declared.",
+        "Watched a pet try making friends. Went poorly.",
+        "Politics happening via tail positions.",
+        "That pet's pretending to sleep. One eye open.",
+        "Someone brought drama. Everyone's involved now.",
+        "Two pets bumped noses. Best friends now apparently.",
+        "Sensing tension. They're doing the stare thing.",
+        "Pet established dominance by sitting higher. Smart.",
+        "Unspoken pecking order. Figuring where I fit.",
+        "Someone eating grass. Three watching like it's a show.",
+        "Witnessed the most deliberate slow blink. Power move.",
+        "New arrival went for best spot. Bold.",
+        "Pet keeps getting everyone's attention. It's working.",
+        "Two pets in a standoff. Nobody's blinking.",
+        "Someone started a trend. Everyone's doing it now.",
+        "Saw a pet steal a toy. Victim doesn't know yet.",
+        "Social thing happening. Observing from here.",
+        "Pet walked by tail up. Confident. Taking notes.",
+        "Someone's trying to organize us. Not working."
+      ]
+    }
+  ],
+  "intensity_formula": "0.55",
+  "confidence_formula": "0.8"
+}

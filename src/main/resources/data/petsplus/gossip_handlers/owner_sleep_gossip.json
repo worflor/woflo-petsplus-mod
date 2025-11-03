@@ -1,0 +1,50 @@
+{
+  "stimulus_type": "petsplus:perception/owner_activity",
+  "priority": 55,
+  "cooldown_ticks": 2000,
+  "context_checks": [],
+  "topic_builder": {
+    "template": "owner_sleep",
+    "variables": {}
+  },
+  "narrative_templates": [
+    {
+      "conditions": [
+        {
+          "key": "isSleeping",
+          "operator": "equals",
+          "value": true
+        }
+      ],
+      "templates": [
+        "My human's asleep. I'm keeping watch.",
+        "Standing guard while they rest. Standard procedure.",
+        "They're sleeping nearby. It's peaceful.",
+        "Watching over them while they're vulnerable.",
+        "They're resting and I'm here. That's enough.",
+        "Staying alert while they sleep. Someone has to.",
+        "The quiet while they sleep is nice.",
+        "They finally settled down for the night.",
+        "My human's out. I'm on patrol.",
+        "They're deep asleep. I checked.",
+        "Keeping an eye on them while they rest.",
+        "They're sleeping close by. Makes me feel settled.",
+        "It's quiet now that they're asleep.",
+        "Night watch duty while my human sleeps.",
+        "My human trusts me to watch over them. I take that seriously.",
+        "Stationed nearby while they're down for the night.",
+        "Monitoring the situation while they're unconscious.",
+        "Standing by in case they need anything.",
+        "Keeping vigil while they're vulnerable.",
+        "Observing them sleep. Making sure they're breathing.",
+        "They're safe while I'm here watching.",
+        "On protection detail while they recover energy.",
+        "Staying close while they sleep. It's what I do.",
+        "On night shift. They're sleeping peacefully.",
+        "They're getting their rest. I'm making sure it stays peaceful."
+      ]
+    }
+  ],
+  "intensity_formula": "0.35",
+  "confidence_formula": "0.8"
+}

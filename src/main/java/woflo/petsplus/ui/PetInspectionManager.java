@@ -184,7 +184,9 @@ public final class PetInspectionManager {
                 state.reset(newPetId);
             }
 
-            PetComponent comp = PetComponent.get(pet);
+            // Use getOrCreate to ensure component is properly initialized and registered
+            // This fixes the issue where pets spawned before world rejoin don't have components in the StateManager
+            PetComponent comp = PetComponent.getOrCreate(pet);
             if (comp == null || !comp.isOwnedBy(player)) {
                 // Increment ownership failure counter instead of immediately clearing
                 state.ownershipFailures++;
