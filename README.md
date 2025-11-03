@@ -29,7 +29,6 @@
   <li>Added 0.97 [morality] - Virtue and Vices. Morality is a 'drifting' layer on top of the core pet. Each nature has a baseline for each virtue and custom 'reintegration' value. These values drift with gameplay and lead to behaviour changes.</li>
   <li>Rework 0.97 [Pet Compendium] - Much prettier, very concise. So needed.</li>
   <li>Rework 0.97 [Gossip] - Follows the same stimulus/perception pipeline as the Mood Engine, allowing "gossip triggers" to hook onto the stimulus bus. ;) this is still being fine tuned, some functionality was lost, some was gained.</li>
-  <li>Migrate 0.97 [Role] - Starting operation "its 20k..?". Phase 1: Remove "hardcoded" role abilities.</li>
 </ul>
 
 ---
