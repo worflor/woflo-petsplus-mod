@@ -14,7 +14,6 @@ import woflo.petsplus.api.Effect;
 import woflo.petsplus.api.EffectContext;
 import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.roles.striker.StrikerHuntManager;
-import woflo.petsplus.ui.UIFeedbackManager;
 
 /**
  * Sends UI and particle feedback when a Striker finisher mark is applied.

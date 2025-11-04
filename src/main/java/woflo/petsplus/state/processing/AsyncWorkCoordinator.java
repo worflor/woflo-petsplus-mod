@@ -341,6 +341,10 @@ public final class AsyncWorkCoordinator implements AutoCloseable {
                         drainScheduled.set(false);
                     }
                 });
+                // Perform an immediate drain pass as a best-effort to reduce timing flakiness.
+                // This helps in test environments where the "main thread executor" only runs when explicitly drained.
+                // The drainMainThreadTasks() method is internally rate-limited and safe to call extra times.
+                drainMainThreadTasks();
             } catch (RejectedExecutionException ex) {
                 drainScheduled.set(false);
                 telemetry.recordRejectedSubmission();

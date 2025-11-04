@@ -120,7 +120,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.LongSupplier;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 import woflo.petsplus.behavior.social.GossipCircleRoutine;
 import woflo.petsplus.behavior.social.GossipWhisperRoutine;

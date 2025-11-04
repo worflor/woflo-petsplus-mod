@@ -22,7 +22,6 @@ import woflo.petsplus.api.registry.RegistryJsonHelper;
 import woflo.petsplus.roles.eclipsed.EclipsedVoid;
 import woflo.petsplus.state.OwnerCombatState;
 import woflo.petsplus.state.PetComponent;
-import woflo.petsplus.ui.UIFeedbackManager;
 
 /**
  * Tags a nearby hostile target after combat ends so the owner can blink to them with their

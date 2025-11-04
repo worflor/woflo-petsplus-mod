@@ -115,9 +115,7 @@ public class PetsCommand {
         "Daisy",
         "Rex",
         "Milo",
-        "Daisy",
         "Rocky",
-        "Milo",
         "Lucy",
         "Sue Storm",
         "Cooper",
@@ -164,7 +162,13 @@ public class PetsCommand {
         "Link",
         "Toad",
         "Pikachu",
-        "Isabelle"
+        "Isabelle",
+        "Labubu",
+        "Matcha",
+        "Waffle",
+        "Maple",
+        "Ponyo",
+        "Howl's Castle"
     );
 
     private static final double PETTEST_SPAWN_RADIUS = 5.0D;

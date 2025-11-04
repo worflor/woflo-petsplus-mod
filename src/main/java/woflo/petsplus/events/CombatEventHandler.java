@@ -6,7 +6,6 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.CampfireBlock;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.attribute.EntityAttributes;
@@ -64,7 +63,6 @@ import woflo.petsplus.roles.guardian.GuardianBulwark;
 import woflo.petsplus.roles.striker.StrikerExecution;
 import woflo.petsplus.roles.striker.StrikerExecution.ExecutionKillSummary;
 import woflo.petsplus.roles.striker.StrikerHuntManager;
-import woflo.petsplus.ui.UIFeedbackManager;
 import woflo.petsplus.util.BehaviorSeedUtil;
 import woflo.petsplus.util.TriggerConditions;
 
