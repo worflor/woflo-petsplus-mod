@@ -139,7 +139,7 @@ public final class PetsPlusRegistries {
         }
         bootstrapped = true;
 
-        Petsplus.LOGGER.debug("Bootstrapping Pets+ registries");
+        Petsplus.LOGGER.debug("Foxy: Bootstrapping Pets+ registries");
         registerPetRoles();
         registerTriggerSerializers();
         registerEffectSerializers();
@@ -1303,7 +1303,7 @@ public final class PetsPlusRegistries {
                     }
                 }
                 
-                Petsplus.LOGGER.info("Registered {} ability placeholders from bundled resources", registeredCount);
+                Petsplus.LOGGER.debug("Foxy: Registered {} ability placeholders from bundled resources", registeredCount);
             }
         } catch (Exception e) {
             Petsplus.LOGGER.error("Failed to scan abilities directory for placeholder registration", e);

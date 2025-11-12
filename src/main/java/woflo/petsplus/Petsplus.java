@@ -15,11 +15,15 @@ public class Petsplus implements ModInitializer {
     
     @Override
     public void onInitialize() {
-        LOGGER.info("Initializing PetsPlus");
-
+        // Display cute ASCII art fox during mod initialization
+        LOGGER.info("   /\\_/\\\\ ");
+        LOGGER.info("   ( o.o ) ");
+        LOGGER.info("    > ^ <  ");
+        LOGGER.info("Foxy is initializing PetsPlus... refrain from petting!");
+        
         InitializationManager.initializeAll();
 
-        LOGGER.info("PetsPlus initialized successfully");
+        LOGGER.info("Foxy thanks you, and is glad to see PetsPlus fully initialized!");
     }
     
     /**

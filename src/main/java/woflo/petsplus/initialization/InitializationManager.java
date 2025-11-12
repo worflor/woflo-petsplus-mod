@@ -1,5 +1,6 @@
 package woflo.petsplus.initialization;
 
+import woflo.petsplus.Petsplus;
 import woflo.petsplus.abilities.AbilityManager;
 import woflo.petsplus.commands.arguments.PetRoleArgumentType;
 import woflo.petsplus.config.PetsPlusConfig;
@@ -10,6 +11,8 @@ import woflo.petsplus.roles.support.SupportCore;
 import woflo.petsplus.roles.scout.ScoutCore;
 import woflo.petsplus.roles.enchantmentbound.EnchantmentBoundCore;
 import woflo.petsplus.roles.eclipsed.EclipsedCore;
+
+import static woflo.petsplus.Petsplus.LOGGER;
 
 /**
  * Central initialization manager for all Pets+ systems.
@@ -34,15 +37,18 @@ public class InitializationManager {
      * Initialize core components and configuration.
      */
     public static void initializeCore() {
+        LOGGER.debug("Foxy: Bootstrapping registries...");
         // Bootstrap registry content before consumers run
         PetsPlusRegistries.bootstrap();
 
+        LOGGER.debug("Foxy: Registering core components...");
         // Register component types
         woflo.petsplus.component.PetsplusComponents.register();
         
         // Register items
         woflo.petsplus.items.PetsplusItems.register();
 
+        LOGGER.debug("Foxy: Loading configuration...");
         // Initialize configuration
         PetsPlusConfig.getInstance();
 
@@ -67,6 +73,8 @@ public class InitializationManager {
      * Initialize all event handlers and listeners.
      */
     public static void initializeEventHandlers() {
+        LOGGER.debug("Foxy: Setting up event handlers...");
+        
         // Main event handlers
         ServerEventHandler.register();
         woflo.petsplus.events.CombatEventHandler.register();
@@ -100,6 +108,8 @@ public class InitializationManager {
      * Initialize all pet role systems.
      */
     public static void initializeRoleSystems() {
+        LOGGER.debug("Foxy: Awakening pet abilities...");
+        
         // Combat-focused roles
         GuardianCore.initialize();
         
@@ -122,6 +132,8 @@ public class InitializationManager {
      * Initialize specialized mechanics and features.
      */
     public static void initializeMechanics() {
+        LOGGER.debug("Foxy: Tuning special mechanics...");
+        
         // Role-specific mechanics
         woflo.petsplus.mechanics.CursedOneResurrection.initialize();
         
@@ -133,6 +145,8 @@ public class InitializationManager {
      * Initialize command systems.
      */
     public static void initializeCommands() {
+        LOGGER.debug("Foxy: Teaching pet commands...");
+        
         // Register main pets commands
         woflo.petsplus.commands.PetsCommand.register();
     }

@@ -65,14 +65,14 @@ public class RoleEmotionRegistry {
                 return;
             }
             
-            Petsplus.LOGGER.info("Initializing RoleEmotionRegistry");
+            Petsplus.LOGGER.debug("Foxy: Initializing RoleEmotionRegistry");
             
             // Register built-in role modifiers
             registerBuiltinModifiers();
             
             // Mark initialized
             initialized = true;
-            Petsplus.LOGGER.info("RoleEmotionRegistry initialized with {} modifiers", allModifiers.size());
+            Petsplus.LOGGER.debug("Foxy: RoleEmotionRegistry initialized with {} modifiers", allModifiers.size());
         } finally {
             initializeLock.unlock();
         }
@@ -352,7 +352,7 @@ public class RoleEmotionRegistry {
         try {
             initializeLock.lock();
             try {
-                Petsplus.LOGGER.info("Shutting down RoleEmotionRegistry");
+                Petsplus.LOGGER.debug("Foxy: Shutting down RoleEmotionRegistry");
                 
                 // Clear all data structures
                 modifiersByRole.clear();
@@ -361,7 +361,7 @@ public class RoleEmotionRegistry {
                 // Reset initialization state
                 initialized = false;
                 
-                Petsplus.LOGGER.info("RoleEmotionRegistry shutdown complete");
+                Petsplus.LOGGER.debug("Foxy: RoleEmotionRegistry shutdown complete");
             } finally {
                 initializeLock.unlock();
             }
